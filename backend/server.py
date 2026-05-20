@@ -1951,7 +1951,7 @@ async def forgot_password(reset_data: PasswordReset):
     })
     
     # Get frontend URL from environment or use default
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://esg-ledger-staging.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://sustainrepo-preview-2.preview.emergentagent.com')
     reset_link = f"{frontend_url}/reset-password?token={reset_token}"
     
     # Send email with beautiful template
@@ -2326,12 +2326,13 @@ async def get_org_scope3_biogenic_stats(
         {"facility_id": {"$in": facility_ids}, "scope": "scope3"}, {"_id": 0}
     ).to_list(100000)
 
-    # Fetch Biogenic emissions (from both Scope 1 and Scope 3)
-    # Check for case variations: direct/Direct, indirect/Indirect
+    # Fetch Biogenic emissions
+    # Direct biogenic = biogenic_scope_selection: "scope1"
+    # Indirect biogenic = biogenic_scope_selection: "scope3"
     biogenic_emissions = await db.emission_records.find(
         {
             "facility_id": {"$in": facility_ids}, 
-            "biogenic_scope_selection": {"$in": ["direct", "indirect", "Direct", "Indirect"]}
+            "biogenic_scope_selection": {"$in": ["scope1", "scope3"]}
         }, 
         {"_id": 0}
     ).to_list(100000)
@@ -2382,34 +2383,59 @@ async def get_org_scope3_biogenic_stats(
     for m in method_totals:
         method_totals[m]["tco2e"] = round(method_totals[m]["tco2e"], 4)
 
-    # Biogenic - Split by Direct vs Indirect
+    # Biogenic - Split by Direct (scope1) vs Indirect (scope3)
     biogenic_direct = {"count": 0, "tco2e": 0}
-    biogenic_indirect = {"count": 0, "tco2e": 0, "by_category": {}}
+    biogenic_indirect = {"count": 0, "tco2e": 0, "by_category": {}, "by_method": {}}
     
     for rec in biogenic_emissions:
-        bio_type = (rec.get("biogenic_scope_selection") or "").lower()
+        bio_type = rec.get("biogenic_scope_selection") or ""
         tco2e = rec.get("total_emissions") or 0
         
-        if bio_type == "direct":
+        if bio_type == "scope1":
+            # Direct biogenic
             biogenic_direct["count"] += 1
             biogenic_direct["tco2e"] += tco2e
-        elif bio_type == "indirect":
+        elif bio_type == "scope3":
+            # Indirect biogenic
             biogenic_indirect["count"] += 1
             biogenic_indirect["tco2e"] += tco2e
+            
+            # By category
             cat = rec.get("category") or "Unknown"
             if cat not in biogenic_indirect["by_category"]:
-                biogenic_indirect["by_category"][cat] = {"count": 0, "tco2e": 0}
+                biogenic_indirect["by_category"][cat] = {"count": 0, "tco2e": 0, "by_method": {}}
             biogenic_indirect["by_category"][cat]["count"] += 1
             biogenic_indirect["by_category"][cat]["tco2e"] += tco2e
+            
+            # By method (overall)
+            method = rec.get("calculation_method_scope3") or "unknown"
+            if method not in biogenic_indirect["by_method"]:
+                biogenic_indirect["by_method"][method] = {"count": 0, "tco2e": 0}
+            biogenic_indirect["by_method"][method]["count"] += 1
+            biogenic_indirect["by_method"][method]["tco2e"] += tco2e
+            
+            # By method within category
+            if method not in biogenic_indirect["by_category"][cat]["by_method"]:
+                biogenic_indirect["by_category"][cat]["by_method"][method] = {"count": 0, "tco2e": 0}
+            biogenic_indirect["by_category"][cat]["by_method"][method]["count"] += 1
+            biogenic_indirect["by_category"][cat]["by_method"][method]["tco2e"] += tco2e
 
     biogenic_direct["tco2e"] = round(biogenic_direct["tco2e"], 4)
     biogenic_indirect["tco2e"] = round(biogenic_indirect["tco2e"], 4)
     
-    # Convert by_category dict to sorted list
+    # Convert by_category dict to sorted list with method breakdown
     indirect_by_category = sorted([
-        {"category": k, "count": v["count"], "tco2e": round(v["tco2e"], 4)}
+        {
+            "category": k, 
+            "count": v["count"], 
+            "tco2e": round(v["tco2e"], 4),
+            "by_method": {mk: {"count": mv["count"], "tco2e": round(mv["tco2e"], 4)} for mk, mv in v["by_method"].items()}
+        }
         for k, v in biogenic_indirect["by_category"].items()
     ], key=lambda x: x["category"])
+    
+    # Convert by_method dict to formatted dict
+    indirect_by_method = {k: {"count": v["count"], "tco2e": round(v["tco2e"], 4)} for k, v in biogenic_indirect["by_method"].items()}
 
     return {
         "organization": {"id": org["id"], "name": org.get("name")},
@@ -2420,7 +2446,8 @@ async def get_org_scope3_biogenic_stats(
             "indirect": {
                 "count": biogenic_indirect["count"],
                 "tco2e": biogenic_indirect["tco2e"],
-                "by_category": indirect_by_category
+                "by_category": indirect_by_category,
+                "by_method": indirect_by_method
             }
         },
     }
@@ -2472,7 +2499,7 @@ async def create_admin(
     await db.users.insert_one(admin_dict)
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://esg-ledger-staging.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://sustainrepo-preview-2.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
@@ -9677,7 +9704,7 @@ async def create_user(
     org_name = org.get("name", "your organization") if org else "your organization"
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://esg-ledger-staging.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://sustainrepo-preview-2.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
