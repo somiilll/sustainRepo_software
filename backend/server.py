@@ -2327,8 +2327,13 @@ async def get_org_scope3_biogenic_stats(
     ).to_list(100000)
 
     # Fetch Biogenic emissions (from both Scope 1 and Scope 3)
+    # Check for case variations: direct/Direct, indirect/Indirect
     biogenic_emissions = await db.emission_records.find(
-        {"facility_id": {"$in": facility_ids}, "biogenic_scope_selection": {"$in": ["direct", "indirect"]}}, {"_id": 0}
+        {
+            "facility_id": {"$in": facility_ids}, 
+            "biogenic_scope_selection": {"$in": ["direct", "indirect", "Direct", "Indirect"]}
+        }, 
+        {"_id": 0}
     ).to_list(100000)
 
     # Scope 3 - Aggregate by category
@@ -2382,7 +2387,7 @@ async def get_org_scope3_biogenic_stats(
     biogenic_indirect = {"count": 0, "tco2e": 0, "by_category": {}}
     
     for rec in biogenic_emissions:
-        bio_type = rec.get("biogenic_scope_selection")
+        bio_type = (rec.get("biogenic_scope_selection") or "").lower()
         tco2e = rec.get("total_emissions") or 0
         
         if bio_type == "direct":
