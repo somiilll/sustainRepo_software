@@ -7089,6 +7089,10 @@ export default function Emissions() {
                   // Use field_changes from backend if available (new format), otherwise compute manually
                   let changedFields = [];
                   
+                  // Get record's frequency type from version history context
+                  const recordFrequencyType = history.new_values?.frequency_type || history.old_values?.frequency_type;
+                  const isC7Record = history.new_values?.category?.includes('C7') || history.old_values?.category?.includes('C7');
+                  
                   // Fields to skip in version history (internal IDs, metadata, individual gases for Scope 3)
                   const skipFields = [
                     'scope3_ef_id', 'ef_id', 'formula_id', 'id', '_id', 'matched_formula_id',
@@ -7097,6 +7101,19 @@ export default function Emissions() {
                     // Skip CO₂e emissions for Scope 3 (redundant with total_emissions)
                     'co2e_emissions'
                   ];
+                  
+                  // Dynamic skip fields based on frequency type
+                  if (recordFrequencyType === 'monthly') {
+                    skipFields.push('yearly_total'); // Don't show yearly_total for monthly records
+                  }
+                  if (recordFrequencyType === 'yearly') {
+                    skipFields.push('monthly_totals'); // Don't show monthly_totals for yearly records
+                  }
+                  
+                  // For C7 records, skip aggregate total_emissions (we show per-employee instead)
+                  if (isC7Record) {
+                    skipFields.push('total_emissions');
+                  }
                   
                   if (history.field_changes && history.field_changes.length > 0) {
                     // New format: backend provides field_changes array

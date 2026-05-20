@@ -380,9 +380,11 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
                         "employee_name": emp_name
                     })
                 
-                # Track input changes - check both yearly_data.inputs and flat inputs
+                # Track input changes - check yearly_data.inputs, monthly_data.*.inputs, and flat inputs
                 old_yearly = old_emp.get("yearly_data", {}) or {}
                 new_yearly = new_emp.get("yearly_data", {}) or {}
+                
+                # For yearly mode: check yearly_data.inputs or flat inputs
                 old_inputs = old_yearly.get("inputs", {}) or old_emp.get("inputs", {}) or {}
                 new_inputs = new_yearly.get("inputs", {}) or new_emp.get("inputs", {}) or {}
                 
@@ -404,7 +406,53 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
                     "spent_value": "Spent Value",
                 }
                 
-                # Track ALL input fields dynamically
+                # For monthly mode: also check monthly_data
+                old_monthly = old_emp.get("monthly_data", {}) or {}
+                new_monthly = new_emp.get("monthly_data", {}) or {}
+                
+                # Track monthly inputs and emissions if present
+                for month_key in set(old_monthly.keys()) | set(new_monthly.keys()):
+                    old_month_data = old_monthly.get(month_key, {}) or {}
+                    new_month_data = new_monthly.get(month_key, {}) or {}
+                    old_month_inputs = old_month_data.get("inputs", {}) or {}
+                    new_month_inputs = new_month_data.get("inputs", {}) or {}
+                    
+                    # Track monthly input changes
+                    for input_key in set(old_month_inputs.keys()) | set(new_month_inputs.keys()):
+                        if input_key.endswith('_unit'):
+                            continue
+                        old_input_val = old_month_inputs.get(input_key)
+                        new_input_val = new_month_inputs.get(input_key)
+                        if old_input_val != new_input_val and (old_input_val is not None or new_input_val is not None):
+                            input_label = input_label_map.get(input_key, input_key.replace('_', ' ').title())
+                            changes.append({
+                                "field": f"employee_input_{input_key}",
+                                "old_value": old_input_val if old_input_val is not None else "(not set)",
+                                "new_value": new_input_val if new_input_val is not None else "(not set)",
+                                "field_type": "employee_input",
+                                "employee_name": emp_name,
+                                "display_name": f"{input_label} ({month_key.title()})"
+                            })
+                    
+                    # Track monthly emissions changes per employee
+                    old_month_emissions = old_month_data.get("emissions", {}) or {}
+                    new_month_emissions = new_month_data.get("emissions", {}) or {}
+                    old_month_co2e = old_month_emissions.get("co2e")
+                    new_month_co2e = new_month_emissions.get("co2e")
+                    if old_month_co2e is not None or new_month_co2e is not None:
+                        old_val = float(old_month_co2e) if old_month_co2e is not None else 0
+                        new_val = float(new_month_co2e) if new_month_co2e is not None else 0
+                        if abs(old_val - new_val) > 0.0001:
+                            changes.append({
+                                "field": "employee_emissions_monthly",
+                                "old_value": f"{old_val:.4f} tCO2e" if old_month_co2e is not None else "(not calculated)",
+                                "new_value": f"{new_val:.4f} tCO2e" if new_month_co2e is not None else "(not calculated)",
+                                "field_type": "employee_emission",
+                                "employee_name": emp_name,
+                                "display_name": f"Emissions ({month_key.title()})"
+                            })
+                
+                # Track ALL yearly/flat input fields dynamically
                 all_input_keys = set(old_inputs.keys()) | set(new_inputs.keys())
                 for input_key in all_input_keys:
                     old_input_val = old_inputs.get(input_key)
