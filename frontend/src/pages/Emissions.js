@@ -2844,6 +2844,8 @@ export default function Emissions() {
             employee_id: emp.employee_id,
             department: emp.department,
             activity_type: scope3ActivityType || emp.activity_type,
+            from_location: emp.from_location || null,
+            to_location: emp.to_location || null,
           };
           
           if (isYearlyMode) {
