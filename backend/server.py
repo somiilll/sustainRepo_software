@@ -10729,6 +10729,7 @@ async def delete_c7_monthly_entry(
 
 class C7YearlyEntryCreate(BaseModel):
     """Create/Update a yearly C7 entry (one annual value per employee)"""
+    entry_id: Optional[str] = None  # If provided, UPDATE existing record; if None, CREATE new record
     facility_id: str
     reporting_year: str  # "CY2025" or "FY 2025-2026"
     calculation_method: str  # activity_basis, supplier_basis
@@ -10775,7 +10776,11 @@ async def create_or_update_c7_yearly_entry(
     entry_data: C7YearlyEntryCreate,
     current_user: dict = Depends(get_current_user)
 ):
-    """Create or update a yearly C7 Employee Commuting entry (per-employee annual totals)"""
+    """Create or update a yearly C7 Employee Commuting entry (per-employee annual totals).
+    
+    - If entry_id is provided: UPDATE the existing record with that ID
+    - If entry_id is NOT provided: Always CREATE a new record
+    """
     
     # Verify facility access
     facility = await db.facilities.find_one({"id": entry_data.facility_id}, {"_id": 0})
@@ -10794,15 +10799,17 @@ async def create_or_update_c7_yearly_entry(
             detail="reporting_year must be in format 'CY2025' or 'FY 2025-2026'"
         )
     
-    # Check if entry already exists for this facility/year/activity
-    existing = await db.emission_records.find_one({
-        "facility_id": entry_data.facility_id,
-        "category": "C7 - Employee Commuting",
-        "reporting_period": reporting_year,
-        "frequency_type": "yearly",
-        "activity_type": entry_data.activity_type,
-        "c7_data_model_version": 2
-    }, {"_id": 0})
+    # Only look for existing record if entry_id is explicitly provided (UPDATE mode)
+    existing = None
+    if entry_data.entry_id:
+        existing = await db.emission_records.find_one({
+            "id": entry_data.entry_id,
+            "category": "C7 - Employee Commuting",
+            "frequency_type": "yearly",
+            "c7_data_model_version": 2
+        }, {"_id": 0})
+        if not existing:
+            raise HTTPException(status_code=404, detail=f"C7 yearly entry with id '{entry_data.entry_id}' not found")
     
     # Calculate yearly total from employees
     total_co2e = 0.0
@@ -10868,6 +10875,7 @@ async def create_or_update_c7_yearly_entry(
                     })
         
         update_dict = {
+            "organization_id": org_id,  # Ensure organization_id is always set
             "employees": entry_data.employees,
             "yearly_total": yearly_total,
             "co2e_emissions": total_co2e,
