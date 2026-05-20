@@ -6839,6 +6839,7 @@ export default function Emissions() {
                     'ef_unit': 'EF Unit',
                     'ef_source': 'EF Source',
                     'supplier_name': 'Supplier Name',
+                    'supplier_code': 'Supplier Code',
                     'distance_travelled': 'Distance Travelled',
                     'employees': 'Employees',
                     'monthly_totals': 'Monthly Totals',
@@ -6850,6 +6851,34 @@ export default function Emissions() {
                     'outputs': 'Outputs',
                     'evidence': 'Evidence',
                     'evidence_url': 'Evidence',
+                    // Location fields
+                    'from_location': 'From Location',
+                    'to_location': 'To Location',
+                    // Customer fields (C9)
+                    'customer_name': 'Customer Name',
+                    'customer_code': 'Customer Code',
+                    // Asset fields
+                    'asset_name': 'Asset Name',
+                    // Employee-specific fields (C6/C7)
+                    'employee_name': 'Employee Name',
+                    'employee_id': 'Employee ID',
+                    'employee_code': 'Employee Code',
+                    'employee_added': 'Employee Added',
+                    'employee_removed': 'Employee Removed',
+                    'employee_department': 'Employee Department',
+                    'employee_activity_type': 'Employee Activity Type',
+                    'employee_from_location': 'Employee From Location',
+                    'employee_to_location': 'Employee To Location',
+                    'employee_distance': 'Employee Distance',
+                    'employee_working_days': 'Employee Working Days',
+                    'employee_working_hours': 'Employee Working Hours',
+                    'employee_days_travelled': 'Employee Days Travelled',
+                    'employee_nights_stayed': 'Employee Nights Stayed',
+                    'employee_rooms_taken': 'Employee Rooms Taken',
+                    'employee_no_of_employees': 'Employee Count',
+                    // Travel fields
+                    'nights_stayed': 'Nights Stayed',
+                    'rooms_taken': 'Rooms Taken',
                   };
                   
                   // Helper to format value for display - with proper nested object expansion

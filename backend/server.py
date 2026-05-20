@@ -269,9 +269,151 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
             "field_type": "simple"
         })
     
+    # Track employees array changes with detailed breakdown (C6/C7)
+    old_employees = old_values.get("employees") or []
+    new_employees = new_values.get("employees") or []
+    
+    if old_employees != new_employees:
+        # Build maps by employee id for comparison
+        old_emp_map = {emp.get("id") or emp.get("employee_id") or emp.get("name", f"emp_{i}"): emp 
+                       for i, emp in enumerate(old_employees)}
+        new_emp_map = {emp.get("id") or emp.get("employee_id") or emp.get("name", f"emp_{i}"): emp 
+                       for i, emp in enumerate(new_employees)}
+        
+        all_emp_ids = set(old_emp_map.keys()) | set(new_emp_map.keys())
+        
+        for emp_id in all_emp_ids:
+            old_emp = old_emp_map.get(emp_id, {})
+            new_emp = new_emp_map.get(emp_id, {})
+            
+            if not old_emp and new_emp:
+                # Employee added
+                emp_name = new_emp.get("name", emp_id)
+                changes.append({
+                    "field": "employee_added",
+                    "old_value": "(none)",
+                    "new_value": f"{emp_name}",
+                    "field_type": "employee"
+                })
+            elif old_emp and not new_emp:
+                # Employee removed
+                emp_name = old_emp.get("name", emp_id)
+                changes.append({
+                    "field": "employee_removed",
+                    "old_value": f"{emp_name}",
+                    "new_value": "(removed)",
+                    "field_type": "employee"
+                })
+            else:
+                # Employee modified - check specific fields
+                emp_name = new_emp.get("name") or old_emp.get("name") or emp_id
+                
+                # Track employee name change
+                old_name = old_emp.get("name")
+                new_name = new_emp.get("name")
+                if old_name != new_name and (old_name or new_name):
+                    changes.append({
+                        "field": "employee_name",
+                        "old_value": old_name or "(not set)",
+                        "new_value": new_name or "(not set)",
+                        "field_type": "employee",
+                        "employee_id": emp_id
+                    })
+                
+                # Track employee_id change
+                old_emp_id = old_emp.get("employee_id")
+                new_emp_id = new_emp.get("employee_id")
+                if old_emp_id != new_emp_id and (old_emp_id or new_emp_id):
+                    changes.append({
+                        "field": "employee_code",
+                        "old_value": old_emp_id or "(not set)",
+                        "new_value": new_emp_id or "(not set)",
+                        "field_type": "employee",
+                        "employee_name": emp_name
+                    })
+                
+                # Track department change
+                old_dept = old_emp.get("department")
+                new_dept = new_emp.get("department")
+                if old_dept != new_dept and (old_dept or new_dept):
+                    changes.append({
+                        "field": "employee_department",
+                        "old_value": old_dept or "(not set)",
+                        "new_value": new_dept or "(not set)",
+                        "field_type": "employee",
+                        "employee_name": emp_name
+                    })
+                
+                # Track activity_type change
+                old_activity = old_emp.get("activity_type")
+                new_activity = new_emp.get("activity_type")
+                if old_activity != new_activity and (old_activity or new_activity):
+                    changes.append({
+                        "field": "employee_activity_type",
+                        "old_value": old_activity or "(not set)",
+                        "new_value": new_activity or "(not set)",
+                        "field_type": "employee",
+                        "employee_name": emp_name
+                    })
+                
+                # Track from_location change
+                old_from = old_emp.get("from_location")
+                new_from = new_emp.get("from_location")
+                if old_from != new_from and (old_from or new_from):
+                    changes.append({
+                        "field": "employee_from_location",
+                        "old_value": old_from or "(not set)",
+                        "new_value": new_from or "(not set)",
+                        "field_type": "employee",
+                        "employee_name": emp_name
+                    })
+                
+                # Track to_location change
+                old_to = old_emp.get("to_location")
+                new_to = new_emp.get("to_location")
+                if old_to != new_to and (old_to or new_to):
+                    changes.append({
+                        "field": "employee_to_location",
+                        "old_value": old_to or "(not set)",
+                        "new_value": new_to or "(not set)",
+                        "field_type": "employee",
+                        "employee_name": emp_name
+                    })
+                
+                # Track input changes (yearly_data.inputs or monthly_data.*.inputs)
+                # Check yearly_data inputs
+                old_yearly = old_emp.get("yearly_data", {}) or {}
+                new_yearly = new_emp.get("yearly_data", {}) or {}
+                old_inputs = old_yearly.get("inputs", {}) or {}
+                new_inputs = new_yearly.get("inputs", {}) or {}
+                
+                # Common input fields to track
+                input_fields_to_track = [
+                    ("distance", "Distance Travelled"),
+                    ("working_days", "Working Days"),
+                    ("working_hours", "Working Hours"),
+                    ("days_travelled", "Days Travelled"),
+                    ("nights_stayed", "Nights Stayed"),
+                    ("rooms_taken", "Rooms Taken"),
+                    ("no_of_employees", "No. of Employees"),
+                ]
+                
+                for input_key, input_label in input_fields_to_track:
+                    old_input_val = old_inputs.get(input_key)
+                    new_input_val = new_inputs.get(input_key)
+                    if old_input_val != new_input_val and (old_input_val is not None or new_input_val is not None):
+                        changes.append({
+                            "field": f"employee_{input_key}",
+                            "old_value": old_input_val if old_input_val is not None else "(not set)",
+                            "new_value": new_input_val if new_input_val is not None else "(not set)",
+                            "field_type": "employee_input",
+                            "employee_name": emp_name,
+                            "display_name": input_label
+                        })
+    
     for field in fields_to_track:
         # Skip fields that are handled specially above
-        if field in ["evidence_url", "evidence_file_name", "calculation_method_scope3", "sub_category", "scope3_activity", "process_names", "process_descriptions"]:
+        if field in ["evidence_url", "evidence_file_name", "calculation_method_scope3", "sub_category", "scope3_activity", "process_names", "process_descriptions", "employees"]:
             continue
             
         old_val = old_values.get(field)
