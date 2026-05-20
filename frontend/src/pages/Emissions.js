@@ -7091,10 +7091,13 @@ export default function Emissions() {
                     changedFields = history.field_changes
                       .filter(fc => !skipFields.includes(fc.field))
                       .map(fc => ({
-                        label: fieldLabelMap[fc.field] || fc.field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                        label: fc.display_name || fieldLabelMap[fc.field] || fc.field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
                         oldValue: fc.old_value,
                         newValue: fc.new_value,
                         field: fc.field,
+                        fieldType: fc.field_type,
+                        employeeName: fc.employee_name,
+                        employeeId: fc.employee_id,
                         isComplex: typeof fc.old_value === 'object' || typeof fc.new_value === 'object'
                       }));
                   } else if (!isCreation && oldValues && newValues) {
@@ -7181,7 +7184,20 @@ export default function Emissions() {
                               <div className="space-y-2">
                                 {changedFields.map((field, fieldIdx) => (
                                   <div key={fieldIdx} className="bg-stone-50 rounded-lg p-3">
-                                    <p className="text-xs font-medium text-text-primary mb-2">{field.label}</p>
+                                    <p className="text-xs font-medium text-text-primary mb-2">
+                                      {field.label}
+                                      {/* Show employee name/id for employee-specific changes */}
+                                      {field.employeeName && (
+                                        <span className="ml-1 text-blue-600 font-normal">
+                                          ({field.employeeName})
+                                        </span>
+                                      )}
+                                      {!field.employeeName && field.employeeId && (
+                                        <span className="ml-1 text-blue-600 font-normal">
+                                          (ID: {field.employeeId})
+                                        </span>
+                                      )}
+                                    </p>
                                     <div className="grid grid-cols-2 gap-3 text-sm">
                                       <div className="bg-red-50 p-2 rounded border border-red-100">
                                         <span className="text-xs text-red-600 font-medium block mb-1">Old Value</span>
