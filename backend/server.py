@@ -136,13 +136,19 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
             "ef_unit", "ef_source",
             # Outputs
             "co2_emissions", "ch4_emissions", "n2o_emissions", "co2e_emissions", "total_emissions",
-            # Supplier data
+            # Supplier data (C1, C2, C4, C9)
             "supplier_name", "supplier_code", "supplier_emission_factor", "supplier_ef_unit",
+            # Customer data (C9)
+            "customer_name", "customer_code",
             # Asset name (for C8/C13/C14/C15)
             "asset_name",
+            # Location fields (C4, C6, C7, C9)
+            "from_location", "to_location",
             # Optional inputs
             "spend_amount", "distance_travelled", "passengers_travelled", "working_days",
             "working_hours", "inflation_rate", "purchase_power_value",
+            # C6/C7 specific - employee info & travel details
+            "employee_name", "employee_id", "nights_stayed", "rooms_taken",
             # Person responsible
             "responsible_person", "responsible_person_designation", "responsible_person_contact",
             # Process info
@@ -1172,9 +1178,17 @@ class EmissionRecordCreate(BaseModel):
     # Scope 3 Asset Name (for C8/C13/C14/C15 categories)
     asset_name: Optional[str] = None
     
-    # Scope 3 From/To Location (for C4/C6/C9 transportation/travel categories)
+    # Scope 3 From/To Location (for C4/C6/C7/C9 transportation/travel categories)
     from_location: Optional[str] = None
     to_location: Optional[str] = None
+    
+    # Scope 3 Customer Info (for C9 Downstream Transportation)
+    customer_name: Optional[str] = None
+    customer_code: Optional[str] = None
+    
+    # Scope 3 C6 Business Travel specific fields
+    nights_stayed: Optional[int] = None
+    rooms_taken: Optional[int] = None
     
     # Multi-Employee Data Structure (for C7 Employee Commuting)
     # Structure: [{ "name": "Employee A", "employee_id": "E001", "department": "IT", 
@@ -1238,9 +1252,17 @@ class EmissionRecordResponse(BaseModel):
     # Scope 3 Asset Name (for C8/C13/C14/C15 categories)
     asset_name: Optional[str] = None
     
-    # Scope 3 From/To Location (for C4/C6/C9 transportation/travel categories)
+    # Scope 3 From/To Location (for C4/C6/C7/C9 transportation/travel categories)
     from_location: Optional[str] = None
     to_location: Optional[str] = None
+    
+    # Scope 3 Customer Info (for C9 Downstream Transportation)
+    customer_name: Optional[str] = None
+    customer_code: Optional[str] = None
+    
+    # Scope 3 C6 Business Travel specific fields
+    nights_stayed: Optional[int] = None
+    rooms_taken: Optional[int] = None
     
     # Multi-Employee Data Structure (for C7 Employee Commuting)
     employees: Optional[List[Dict[str, Any]]] = None
