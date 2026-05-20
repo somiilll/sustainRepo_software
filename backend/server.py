@@ -6404,13 +6404,18 @@ async def delete_base_year_emissions(
     if not record:
         raise HTTPException(status_code=404, detail="Base year emissions record not found")
     
+    # Get existing version history before we modify anything
+    version_history = list(record.get("version_history", []))
+    
+    # Create a copy of record without version_history to avoid circular reference
+    record_snapshot = {k: v for k, v in record.items() if k != "version_history"}
+    
     # Add deletion entry to version history
-    version_history = record.get("version_history", [])
     deletion_history_entry = {
         "version": record.get("version", 1) + 1,
         "action": "deleted",
         "changes": {
-            "old_values": record,
+            "old_values": record_snapshot,
             "new_values": None
         },
         "field_changes": [{
