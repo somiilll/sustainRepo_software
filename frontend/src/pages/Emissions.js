@@ -4601,12 +4601,9 @@ export default function Emissions() {
                   const isC7Category = formData.category?.toLowerCase()?.includes('c7') || 
                                        formData.category?.toLowerCase()?.includes('employee commuting');
                   
-                  // For C7, check that employees are populated AND match the expected emission
+                  // For C7, check that employees are populated with valid data
                   const isC7DataReady = !isC7Category || 
-                                        (editEmployees.length > 0 && 
-                                         editEmployees[0]?.id &&
-                                         // Verify the employee data matches this emission (not stale)
-                                         editingEmission?.scope3_data?.employees?.[0]?.id === editEmployees[0]?.id);
+                                        (editEmployees.length > 0 && editEmployees[0]?.id);
                   
                   // Show loading if explicitly loading OR if C7 data isn't ready yet
                   if (isEditLoading || !isC7DataReady) {
