@@ -2584,10 +2584,10 @@ export default function BaseYearEmissions() {
                 </h4>
                 
                 {historyRecord.version_history && historyRecord.version_history.length > 0 ? (
-                  <div className="space-y-2">
+                  <div className="space-y-4">
                     {historyRecord.version_history.slice().reverse().map((version, idx) => (
-                      <div key={idx} className="p-3 border rounded-lg bg-stone-50">
-                        <div className="flex items-center justify-between">
+                      <div key={idx} className="p-4 border rounded-lg">
+                        <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-2">
                             <span className="font-medium text-sm">Version {version.version}</span>
                             {version.change_type && (
@@ -2608,27 +2608,103 @@ export default function BaseYearEmissions() {
                         
                         {/* Changed by info */}
                         {(version.changed_by_name || version.changed_by_email) && (
-                          <p className="text-xs text-text-muted mt-1">
+                          <p className="text-xs text-text-muted mb-2">
                             by {version.changed_by_name || version.changed_by_email}
                           </p>
                         )}
                         
                         {/* Change summary */}
                         {version.change_summary && (
-                          <p className="text-sm text-primary mt-1">{version.change_summary}</p>
+                          <p className="text-sm font-medium text-primary mb-2">{version.change_summary}</p>
                         )}
                         
                         {/* Change reason (for base year changes) */}
                         {version.change_reason && (
-                          <p className="text-xs text-amber-700 mt-1"><span className="font-medium">Reason:</span> {version.change_reason}</p>
+                          <div className="bg-amber-50 border border-amber-100 rounded p-2 mb-2">
+                            <p className="text-xs text-amber-700"><span className="font-medium">Reason:</span> {version.change_reason}</p>
+                          </div>
                         )}
                         
                         {/* Base year change info */}
                         {version.change_type === 'base_year_changed' && version.previous_base_year && version.new_base_year && (
-                          <div className="text-xs mt-1">
+                          <div className="text-xs bg-blue-50 rounded p-2 mb-2">
                             <span className="text-red-500 line-through">{version.previous_base_year}</span>
                             <span className="mx-2">→</span>
                             <span className="text-green-600 font-medium">{version.new_base_year}</span>
+                          </div>
+                        )}
+                        
+                        {/* Added categories */}
+                        {version.added_categories && version.added_categories.length > 0 && (
+                          <div className="mb-2">
+                            <p className="text-xs font-medium text-green-600 mb-1">Added ({version.added_categories.length}):</p>
+                            <div className="bg-green-50 rounded p-2 space-y-1">
+                              {version.added_categories.map((cat, cIdx) => (
+                                <div key={cIdx} className="text-xs flex items-center gap-2">
+                                  <span className="text-green-600">+</span>
+                                  <span>{cat.scope} / {cat.category}{cat.subcategory && ` / ${cat.subcategory}`}</span>
+                                  <span className="text-green-600 font-medium">{(parseFloat(cat.tco2e) || 0).toFixed(4)} tCO₂e</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Deleted categories */}
+                        {version.deleted_categories && version.deleted_categories.length > 0 && (
+                          <div className="mb-2">
+                            <p className="text-xs font-medium text-red-600 mb-1">Deleted ({version.deleted_categories.length}):</p>
+                            <div className="bg-red-50 rounded p-2 space-y-1">
+                              {version.deleted_categories.map((cat, cIdx) => (
+                                <div key={cIdx} className="text-xs flex items-center gap-2">
+                                  <span className="text-red-600">−</span>
+                                  <span className="line-through">{cat.scope} / {cat.category}{cat.subcategory && ` / ${cat.subcategory}`}</span>
+                                  <span className="text-red-500">{(parseFloat(cat.tco2e) || 0).toFixed(4)} tCO₂e</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Changed values */}
+                        {version.changed_values && version.changed_values.length > 0 && (
+                          <div className="mb-2">
+                            <p className="text-xs font-medium text-amber-600 mb-1">Modified ({version.changed_values.length}):</p>
+                            <div className="bg-amber-50 rounded p-2 space-y-1">
+                              {version.changed_values.map((change, cIdx) => (
+                                <div key={cIdx} className="text-xs flex items-center gap-2">
+                                  <span className="min-w-[180px]">{change.scope} / {change.category}{change.subcategory && ` / ${change.subcategory}`}</span>
+                                  <span className="text-red-500 line-through">{(parseFloat(change.previous_value) || 0).toFixed(4)}</span>
+                                  <span className="text-text-muted">→</span>
+                                  <span className="text-green-600 font-medium">{(parseFloat(change.new_value) || 0).toFixed(4)} tCO₂e</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Fallback: Show legacy format or simple summary */}
+                        {!version.change_summary && !version.added_categories && !version.deleted_categories && !version.changed_values && (
+                          <div className="text-xs text-text-muted">
+                            {version.changes && version.changes.length > 0 ? (
+                              <div className="bg-stone-50 rounded p-2 space-y-1">
+                                {version.changes.map((change, cIdx) => (
+                                  <div key={cIdx} className="flex items-center gap-2">
+                                    <span className="font-medium min-w-[200px]">
+                                      {change.scope} / {change.category}{change.subcategory && ` / ${change.subcategory}`}
+                                    </span>
+                                    <span className="text-red-500 line-through">{(parseFloat(change.previous_value) || 0).toFixed(4)}</span>
+                                    <span>→</span>
+                                    <span className="text-green-600 font-medium">{(parseFloat(change.new_value) || 0).toFixed(4)} tCO₂e</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <>
+                                <p>Total entries: {version.emissions_data?.length || version.previous_emissions_data?.length || 0}</p>
+                                <p>Total tCO₂e: {((version.emissions_data || version.previous_emissions_data)?.reduce((sum, e) => sum + (parseFloat(e.tco2e) || 0), 0) || 0).toFixed(2)}</p>
+                              </>
+                            )}
                           </div>
                         )}
                       </div>
