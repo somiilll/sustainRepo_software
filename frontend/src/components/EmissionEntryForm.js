@@ -5215,11 +5215,11 @@ export default function EmissionEntryForm({
                   <option value="financial">Financial Year (Apr-Mar)</option>
                 </select>
               ) : (
-                <div className="h-10 flex items-center px-3 rounded-lg border border-primary bg-primary/5">
-                  <span className="font-medium text-sm">
+                <div className="w-full h-10 flex items-center px-3 rounded-lg bg-stone-50 border border-stone-200">
+                  <span className="text-sm">
                     {reportingYearType === 'financial' ? 'Financial Year' : 'Calendar Year'}
                   </span>
-                  <span className="ml-2 text-xs text-primary">(From Org Settings)</span>
+                  <span className="ml-2 text-xs text-text-muted">(From Org Settings)</span>
                 </div>
               )}
             </div>
