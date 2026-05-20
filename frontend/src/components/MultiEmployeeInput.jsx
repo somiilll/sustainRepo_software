@@ -77,19 +77,6 @@ const MultiEmployeeInput = ({
   frequencyType = 'monthly', // NEW: 'monthly' or 'yearly' for frequency support
   isFutureMonth = null, // NEW: Function to check if month is in future (monthKey) => boolean
 }) => {
-  // DEBUG: Log props received by MultiEmployeeInput
-  console.log('[MultiEmployeeInput DEBUG] Props received:');
-  console.log('[MultiEmployeeInput DEBUG] employees:', employees);
-  console.log('[MultiEmployeeInput DEBUG] employees.length:', employees?.length);
-  console.log('[MultiEmployeeInput DEBUG] frequencyType:', frequencyType);
-  console.log('[MultiEmployeeInput DEBUG] isEditMode:', isEditMode);
-  if (employees?.[0]) {
-    console.log('[MultiEmployeeInput DEBUG] First employee:', employees[0]);
-    console.log('[MultiEmployeeInput DEBUG] First employee yearly_data:', employees[0]?.yearly_data);
-    console.log('[MultiEmployeeInput DEBUG] First employee yearly_data.emissions:', employees[0]?.yearly_data?.emissions);
-    console.log('[MultiEmployeeInput DEBUG] First employee monthly_data:', employees[0]?.monthly_data);
-  }
-  
   // State for expanded accordions
   const [expandedAccordions, setExpandedAccordions] = useState([]);
   
@@ -1006,14 +993,6 @@ const MultiEmployeeInput = ({
                             </div>
                           )})}
                         </div>
-                        
-                        {/* DEBUG: Log yearly emissions check */}
-                        {console.log('[MultiEmployeeInput DEBUG] Yearly emissions check for employee:', employee.id, {
-                          'yearly_data': employee.yearly_data,
-                          'emissions': employee.yearly_data?.emissions,
-                          'co2e': employee.yearly_data?.emissions?.co2e,
-                          'check_result': employee.yearly_data?.emissions?.co2e !== null && employee.yearly_data?.emissions?.co2e !== undefined
-                        })}
                         
                         {/* Yearly emissions result */}
                         {employee.yearly_data?.emissions?.co2e !== null && employee.yearly_data?.emissions?.co2e !== undefined && (

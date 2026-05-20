@@ -3707,14 +3707,6 @@ export default function Emissions() {
       
       // Check if this is a C7 record - always load employee data (reuse isC7 from above)
       if (isC7) {
-        // DEBUG: Log raw emission data for C7
-        console.log('[C7 DEBUG] Raw emission object:', emission);
-        console.log('[C7 DEBUG] emission.employees:', emission.employees);
-        console.log('[C7 DEBUG] emission.scope3_data:', emission.scope3_data);
-        console.log('[C7 DEBUG] First employee raw:', emission.employees?.[0]);
-        console.log('[C7 DEBUG] First employee yearly_data:', emission.employees?.[0]?.yearly_data);
-        console.log('[C7 DEBUG] First employee emissions:', emission.employees?.[0]?.emissions);
-        
         // Check if this is a new monthly model record (has reporting_period like "2026-01")
         const isMonthlyModel = emission.reporting_period && /^\d{4}-\d{2}$/.test(emission.reporting_period);
         
@@ -3753,21 +3745,12 @@ export default function Emissions() {
         } else if (freqType === 'yearly') {
           // YEARLY MODE: Transform employees to have yearly_data structure
           const transformedEmployees = (emission.employees || []).map(emp => {
-            // DEBUG: Log each employee transformation
-            console.log('[C7 DEBUG] Transforming employee (yearly):', emp);
-            console.log('[C7 DEBUG] emp.yearly_data:', emp.yearly_data);
-            console.log('[C7 DEBUG] emp.inputs:', emp.inputs);
-            console.log('[C7 DEBUG] emp.emissions:', emp.emissions);
-            
             // ALWAYS ensure yearly_data.emissions is populated
             // The DB might have emissions at root level (emp.emissions) or inside yearly_data
             const existingYearlyData = emp.yearly_data || {};
             const yearlyEmissions = existingYearlyData.emissions || emp.emissions || {};
             const yearlyInputs = existingYearlyData.inputs || emp.inputs || {};
             const yearlyCalcDetails = existingYearlyData.calculation_details || emp.calculation_details || null;
-            
-            console.log('[C7 DEBUG] Resolved yearlyEmissions:', yearlyEmissions);
-            console.log('[C7 DEBUG] Resolved yearlyInputs:', yearlyInputs);
             
             return {
               ...emp,
@@ -3778,8 +3761,6 @@ export default function Emissions() {
               }
             };
           });
-          console.log('[C7 DEBUG] Final transformedEmployees:', transformedEmployees);
-          console.log('[C7 DEBUG] First transformed employee yearly_data:', transformedEmployees[0]?.yearly_data);
           setEditEmployees(transformedEmployees);
           setEditC7Month(null);
         } else {
@@ -4634,18 +4615,6 @@ export default function Emissions() {
                   // For C7, check that employees are populated with valid data
                   const isC7DataReady = !isC7Category || 
                                         (editEmployees.length > 0 && editEmployees[0]?.id);
-                  
-                  // DEBUG: Log loading gate state for C7
-                  if (isC7Category) {
-                    console.log('[C7 DEBUG] Loading gate check:');
-                    console.log('[C7 DEBUG] isEditLoading:', isEditLoading);
-                    console.log('[C7 DEBUG] editEmployees.length:', editEmployees.length);
-                    console.log('[C7 DEBUG] editEmployees[0]?.id:', editEmployees[0]?.id);
-                    console.log('[C7 DEBUG] isC7DataReady:', isC7DataReady);
-                    console.log('[C7 DEBUG] Full editEmployees:', editEmployees);
-                    console.log('[C7 DEBUG] editEmployees[0]?.yearly_data:', editEmployees[0]?.yearly_data);
-                    console.log('[C7 DEBUG] editEmployees[0]?.yearly_data?.emissions:', editEmployees[0]?.yearly_data?.emissions);
-                  }
                   
                   // Show loading if explicitly loading OR if C7 data isn't ready yet
                   if (isEditLoading || !isC7DataReady) {
