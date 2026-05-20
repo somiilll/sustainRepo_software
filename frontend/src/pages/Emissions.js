@@ -3727,18 +3727,21 @@ export default function Emissions() {
           // Transform employees to have monthly_data structure for MultiEmployeeInput compatibility
           // Check if employee already has monthly_data (new save format) vs flat structure (old format)
           const transformedEmployees = (emission.employees || []).map(emp => {
-            // If employee already has monthly_data with the expected month, use it directly
-            if (emp.monthly_data && emp.monthly_data[monthKey]) {
-              return emp; // Already in correct format
-            }
-            // Otherwise, construct monthly_data from flat emp.inputs/emp.emissions (old format)
+            // ALWAYS ensure monthly_data[monthKey].emissions is populated
+            // The DB might have emissions at root level (emp.emissions) or inside monthly_data
+            const existingMonthData = emp.monthly_data?.[monthKey] || {};
+            const monthEmissions = existingMonthData.emissions || emp.emissions || {};
+            const monthInputs = existingMonthData.inputs || emp.inputs || {};
+            const monthCalcDetails = existingMonthData.calculation_details || emp.calculation_details || null;
+            
             return {
               ...emp,
               monthly_data: {
+                ...emp.monthly_data,
                 [monthKey]: {
-                  inputs: emp.inputs || {},
-                  emissions: emp.emissions || {},
-                  calculation_details: emp.calculation_details || null, // Include calculation_details for display
+                  inputs: monthInputs,
+                  emissions: monthEmissions,
+                  calculation_details: monthCalcDetails,
                 }
               }
             };
@@ -3756,19 +3759,22 @@ export default function Emissions() {
             console.log('[C7 DEBUG] emp.inputs:', emp.inputs);
             console.log('[C7 DEBUG] emp.emissions:', emp.emissions);
             
-            // If employee already has yearly_data, use it directly
-            if (emp.yearly_data && emp.yearly_data.inputs) {
-              console.log('[C7 DEBUG] Using existing yearly_data structure');
-              return emp; // Already in correct format
-            }
-            // Otherwise, construct yearly_data from flat emp.inputs/emp.emissions
-            console.log('[C7 DEBUG] Constructing yearly_data from flat structure');
+            // ALWAYS ensure yearly_data.emissions is populated
+            // The DB might have emissions at root level (emp.emissions) or inside yearly_data
+            const existingYearlyData = emp.yearly_data || {};
+            const yearlyEmissions = existingYearlyData.emissions || emp.emissions || {};
+            const yearlyInputs = existingYearlyData.inputs || emp.inputs || {};
+            const yearlyCalcDetails = existingYearlyData.calculation_details || emp.calculation_details || null;
+            
+            console.log('[C7 DEBUG] Resolved yearlyEmissions:', yearlyEmissions);
+            console.log('[C7 DEBUG] Resolved yearlyInputs:', yearlyInputs);
+            
             return {
               ...emp,
               yearly_data: {
-                inputs: emp.inputs || {},
-                emissions: emp.emissions || {},
-                calculation_details: emp.calculation_details || null, // Include calculation_details for display
+                inputs: yearlyInputs,
+                emissions: yearlyEmissions,
+                calculation_details: yearlyCalcDetails,
               }
             };
           });
