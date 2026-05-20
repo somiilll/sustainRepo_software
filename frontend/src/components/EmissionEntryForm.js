@@ -742,6 +742,27 @@ export default function EmissionEntryForm({
   const [isCalculatingYearly, setIsCalculatingYearly] = useState(false); // NEW: Loading state for yearly calc
   const [expandedMonths, setExpandedMonths] = useState([]);
   
+  // Helper function to update yearly data with validation
+  const updateYearlyData = useCallback((field, value) => {
+    // Fields that must be whole numbers (integers)
+    const integerOnlyFields = [
+      'qty_days_travelled', 'working_days', 'qty_passengers', 'qty_passenger',
+      'number_of_passengers', 'qty_nights', 'number_of_nights', 'qty_rooms',
+      'qty_room', 'number_of_rooms', 'no_of_employees', 'passengers_travelled'
+    ];
+    
+    // Validate integer-only fields
+    if (integerOnlyFields.includes(field) && value !== '' && value !== null) {
+      const numValue = parseFloat(value);
+      if (!Number.isInteger(numValue)) {
+        toast.error(`${field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())} must be a whole number`);
+        return;
+      }
+    }
+    
+    setYearlyData(prev => ({ ...prev, [field]: value }));
+  }, []);
+  
   // Load frequencyType from editingEmission when editing
   useEffect(() => {
     if (editingEmission) {
@@ -2182,6 +2203,22 @@ export default function EmissionEntryForm({
 
   // Handle monthly data
   const updateMonthData = (monthKey, field, value) => {
+    // Fields that must be whole numbers (integers)
+    const integerOnlyFields = [
+      'qty_days_travelled', 'working_days', 'qty_passengers', 'qty_passenger',
+      'number_of_passengers', 'qty_nights', 'number_of_nights', 'qty_rooms',
+      'qty_room', 'number_of_rooms', 'no_of_employees', 'passengers_travelled'
+    ];
+    
+    // Validate integer-only fields
+    if (integerOnlyFields.includes(field) && value !== '' && value !== null) {
+      const numValue = parseFloat(value);
+      if (!Number.isInteger(numValue)) {
+        toast.error(`${field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())} must be a whole number`);
+        return;
+      }
+    }
+    
     setMonthlyData(prev => ({
       ...prev,
       [monthKey]: {
@@ -2297,6 +2334,9 @@ export default function EmissionEntryForm({
     // Show checkbox for override fields OR optional fields (not required and not override)
     const showOverrideCheckbox = field.isOverride || (!field.required && !field.isOverride);
     
+    // Check if this field should only accept whole numbers
+    const isUnitlessCountField = ['qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms', 'number_of_passengers', 'number_of_nights', 'number_of_rooms', 'qty_days_travelled', 'working_days', 'passengers_travelled'].includes(field.variable);
+    
     return (
       <div key={field.id || field.variable} className="space-y-3">
         <div className="flex items-center justify-between">
@@ -2364,7 +2404,7 @@ export default function EmissionEntryForm({
           <div className={(showUnitSelector || showSupplierUnitInput || showFixedUnit) ? "grid grid-cols-3 gap-2" : ""}>
             <Input
               type={field.fieldType === 'text' ? 'text' : 'number'}
-              step={field.fieldType === 'number' ? 'any' : undefined}
+              step={field.fieldType === 'number' ? (isUnitlessCountField ? '1' : 'any') : undefined}
               min={field.fieldType === 'number' ? '0' : undefined}
               placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
               value={data[field.variable] || data[field.fieldKey] || ''}
@@ -5846,13 +5886,21 @@ export default function EmissionEntryForm({
                               <div className={showUnitSelector || showUnitTextInput ? "grid grid-cols-3 gap-2" : ""}>
                                 <Input
                                   type="number"
-                                  step="any"
+                                  step={isUnitlessCountField ? "1" : "any"}
                                   min="0"
                                   placeholder={field.placeholder || `Enter annual ${field.label.toLowerCase()}`}
                                   value={yearlyData[field.variable] || ''}
                                   onChange={(e) => {
                                     const val = e.target.value;
                                     if (val === '' || parseFloat(val) >= 0) {
+                                      // Validate integer-only fields
+                                      if (isUnitlessCountField && val !== '') {
+                                        const numVal = parseFloat(val);
+                                        if (!Number.isInteger(numVal)) {
+                                          toast.error(`${field.label} must be a whole number`);
+                                          return;
+                                        }
+                                      }
                                       setYearlyData(prev => ({ ...prev, [field.variable]: val }));
                                     }
                                   }}
@@ -5942,13 +5990,21 @@ export default function EmissionEntryForm({
                             <div className={showUnitSelector || showUnitTextInput ? "grid grid-cols-3 gap-2" : ""}>
                               <Input
                                 type="number"
-                                step="any"
+                                step={isUnitlessCountField ? "1" : "any"}
                                 min="0"
                                 placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
                                 value={yearlyData[field.variable] || ''}
                                 onChange={(e) => {
                                   const val = e.target.value;
                                   if (val === '' || parseFloat(val) >= 0) {
+                                    // Validate integer-only fields
+                                    if (isUnitlessCountField && val !== '') {
+                                      const numVal = parseFloat(val);
+                                      if (!Number.isInteger(numVal)) {
+                                        toast.error(`${field.label} must be a whole number`);
+                                        return;
+                                      }
+                                    }
                                     setYearlyData(prev => ({ ...prev, [field.variable]: val }));
                                   }
                                 }}

@@ -307,6 +307,22 @@ const MultiEmployeeInput = ({
 
   // Update monthly input value for an employee
   const handleMonthlyInputChange = useCallback((employeeId, monthKey, variable, value) => {
+    // Fields that must be whole numbers (integers)
+    const integerOnlyFields = [
+      'qty_days_travelled', 'working_days', 'qty_passengers', 'qty_passenger',
+      'number_of_passengers', 'qty_nights', 'number_of_nights', 'qty_rooms',
+      'qty_room', 'number_of_rooms', 'no_of_employees'
+    ];
+    
+    // Validate integer-only fields
+    if (integerOnlyFields.includes(variable) && value !== '') {
+      const numValue = parseFloat(value);
+      if (!Number.isInteger(numValue)) {
+        toast.error(`${variable.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())} must be a whole number`);
+        return;
+      }
+    }
+    
     // Validate working_days and qty_days_travelled don't exceed days in month
     if ((variable === 'working_days' || variable === 'qty_days_travelled') && value !== '') {
       const numValue = parseFloat(value);
@@ -368,6 +384,22 @@ const MultiEmployeeInput = ({
 
   // NEW: Update yearly input value for an employee
   const handleYearlyInputChange = useCallback((employeeId, variable, value) => {
+    // Fields that must be whole numbers (integers)
+    const integerOnlyFields = [
+      'qty_days_travelled', 'working_days', 'qty_passengers', 'qty_passenger',
+      'number_of_passengers', 'qty_nights', 'number_of_nights', 'qty_rooms',
+      'qty_room', 'number_of_rooms', 'no_of_employees'
+    ];
+    
+    // Validate integer-only fields
+    if (integerOnlyFields.includes(variable) && value !== '') {
+      const numValue = parseFloat(value);
+      if (!Number.isInteger(numValue)) {
+        toast.error(`${variable.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())} must be a whole number`);
+        return;
+      }
+    }
+    
     // Validate working_hour_per_day doesn't exceed 24 hours
     if (variable === 'working_hour_per_day' && value !== '') {
       const numValue = parseFloat(value);
