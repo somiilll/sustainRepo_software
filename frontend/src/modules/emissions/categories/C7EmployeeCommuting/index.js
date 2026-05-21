@@ -389,6 +389,8 @@ const uploadConfig = {
 /**
  * Create and export the module
  */
+import { editApi as c7EditApi } from './edit';
+
 const C7EmployeeCommutingModule = createCategoryModule({
   ...config,
   fields,
@@ -401,9 +403,17 @@ const C7EmployeeCommutingModule = createCategoryModule({
   uploadConfig,
 });
 
+// Attach edit-flow business logic to the module surface.
+// Same module contract — UI rendering stays in Emissions.js (MultiEmployeeInput).
+C7EmployeeCommutingModule.edit = c7EditApi;
+C7EmployeeCommutingModule.validateEditSubmission = c7EditApi.validateEditSubmission;
+C7EmployeeCommutingModule.buildEditPayload = c7EditApi.buildEditPayload;
+C7EmployeeCommutingModule.extractTotals = c7EditApi.extractTotals;
+
 // Also register with alternative names
 categoryRegistry.register('employee_commuting', C7EmployeeCommutingModule);
 categoryRegistry.register('c7_employee_commuting', C7EmployeeCommutingModule);
 
 export default C7EmployeeCommutingModule;
 export { config, fields, validationSchema };
+export { c7EditApi as editApi };

@@ -211,6 +211,16 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 - P1: Dashboard "No Data" after toggling organization Scope access
 - P2: C7 Edit Dialog Stale State (yearly financial periods not transforming correctly)
 
+- ✅ Phase 7c (Feb 2026): C7 Logic Isolation (Proof-of-Concept)
+  - Extracted C7 edit-flow business logic into `/modules/emissions/categories/C7EmployeeCommuting/edit.js`
+  - `validateEditSubmission`, `extractTotals`, `buildEditPayload` — pure functions
+  - `Emissions.js` `handleSubmit` C7 branch now ~50 lines (was ~210) — thin orchestration only
+  - Module surface: `c7Module.validateEditSubmission`, `c7Module.buildEditPayload`
+  - UI rendering (`MultiEmployeeInput`) preserved as-is per architectural directive
+  - Payload shape **byte-identical** to prior inline implementation
+  - Emissions.js dropped 7142 → 6991 lines (~150 lines extracted)
+  - Architectural pattern: category module owns logic; orchestration in page
+
 ## Completed Tasks
 - ✅ Phase 5: Extract Step 1-4 from EmissionEntryForm.js (26% reduction)
 - ✅ Phase 5b: Extract standalone utilities (hooks, validation, payload builders)

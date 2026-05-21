@@ -23,6 +23,7 @@ import EmissionEntryForm from '../components/EmissionEntryForm';
 import MultiEmployeeInput from '../components/MultiEmployeeInput';
 import { useCalcEngine } from '../hooks/useCalcEngine';
 import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
+import { categoryRegistry } from '../modules/emissions';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -2710,197 +2711,46 @@ export default function Emissions() {
     e.preventDefault();
     
     // C7 EMPLOYEE COMMUTING - Always uses multi-employee mode
+    // Business logic (validation + payload construction) lives in the C7 category module.
+    // UI rendering stays in Emissions.js via MultiEmployeeInput.
     if (isEditC7EmployeeCommuting) {
-      // Validate that at least one employee exists
-      if (editEmployees.length === 0) {
-        toast.error('Please add at least one employee');
+      const c7Module = categoryRegistry.get('c7');
+      if (!c7Module || !c7Module.validateEditSubmission || !c7Module.buildEditPayload) {
+        toast.error('C7 module not initialised. Please reload the page.');
         return;
       }
-      
-      // Check if this is yearly or monthly mode
-      const isYearlyMode = editingEmission?.frequency_type === 'yearly';
-      
-      // Validate employee data (name required, at least one month/year with data)
-      const employeeErrors = [];
-      editEmployees.forEach((emp, index) => {
-        // Check employee name is required
-        if (!emp.name || emp.name.trim() === '') {
-          employeeErrors.push(`Employee ${index + 1}: Employee Name is required.`);
-        }
-        
-        if (isYearlyMode) {
-          // For yearly mode: check yearly_data OR direct inputs
-          const hasYearlyData = Object.values(emp.yearly_data?.inputs || {}).some(v => 
-            v !== '' && v !== null && v !== undefined && v !== 0
-          );
-          const hasDirectInputs = emp.inputs && Object.values(emp.inputs).some(v =>
-            v !== '' && v !== null && v !== undefined && v !== 0
-          );
-          
-          if (!hasYearlyData && !hasDirectInputs) {
-            employeeErrors.push(`${emp.name || `Employee ${index + 1}`}: Please enter annual data or remove the employee.`);
-          }
-        } else {
-          // For monthly mode: check at least one month has data
-          const hasAnyMonthData = Object.values(emp.monthly_data || {}).some(monthData => {
-            if (!monthData?.inputs) return false;
-            return Object.values(monthData.inputs).some(v => 
-              v !== '' && v !== null && v !== undefined && v !== 0
-            );
-          });
-          
-          if (!hasAnyMonthData) {
-            employeeErrors.push(`${emp.name || `Employee ${index + 1}`}: Please enter data for at least one month or remove the employee.`);
-          }
-        }
+
+      // 1. Validate via module
+      const validation = c7Module.validateEditSubmission({
+        editEmployees,
+        editingEmission,
+        processNames: formData.process_names,
       });
-      
-      if (employeeErrors.length > 0) {
-        // Show first error as toast, log all
-        toast.error(employeeErrors[0]);
-        console.warn('Employee validation errors:', employeeErrors);
+      if (!validation.valid) {
+        toast.error(validation.errorMessage);
         return;
       }
-      
-      // Validate that at least one employee has calculated emissions
-      const hasCalculatedData = editEmployees.some(emp => {
-        if (isYearlyMode) {
-          // Check yearly_data emissions OR direct emissions
-          const hasYearlyEmissions = emp.yearly_data?.emissions?.co2e !== null && emp.yearly_data?.emissions?.co2e !== undefined;
-          const hasDirectEmissions = emp.emissions?.co2e !== null && emp.emissions?.co2e !== undefined;
-          return hasYearlyEmissions || hasDirectEmissions;
-        } else {
-          // Check monthly_data emissions
-          return Object.values(emp.monthly_data || {}).some(m => m?.emissions?.co2e !== null && m?.emissions?.co2e !== undefined);
-        }
+
+      // 2. Build payload via module
+      const builtPayload = c7Module.buildEditPayload({
+        formData,
+        editingEmission,
+        editEmployees,
+        scope3Method,
+        scope3ActivityId,
+        scope3ActivityType,
+        scope3CustomActivity,
+        useCustomActivity,
+        filteredScope3Activities,
+        editEmployeeMonthlyTotals,
+        editEmployeeYearlyTotal,
+        validProcessNames: validation.validProcessNames,
       });
-      
-      if (!hasCalculatedData) {
-        toast.error('Please calculate emissions for at least one employee');
-        return;
-      }
-      
-      // Calculate total emissions
-      const totalCo2e = editEmployees.reduce((sum, emp) => {
-        if (isYearlyMode) {
-          // Sum from yearly_data or direct emissions
-          return sum + (emp.yearly_data?.emissions?.co2e || emp.emissions?.co2e || 0);
-        } else {
-          // Sum from monthly_data
-          return sum + Object.values(emp.monthly_data || {}).reduce((empSum, m) => {
-            return empSum + (m?.emissions?.co2e || 0);
-          }, 0);
-        }
-      }, 0);
-      
-      // Extract formula_id from the first employee's calculated data
-      // (all employees use the same formula for the same activity type)
-      let extractedFormulaId = editingEmission?.formula_id || null;
-      if (isYearlyMode) {
-        // Check yearly_data or direct calculation_details
-        for (const emp of editEmployees) {
-          const formulaId = emp.yearly_data?.calculation_details?.formula_id || emp.calculation_details?.formula_id;
-          if (formulaId) {
-            extractedFormulaId = formulaId;
-            break;
-          }
-        }
-      } else {
-        for (const emp of editEmployees) {
-          for (const monthKey of Object.keys(emp.monthly_data || {})) {
-            const monthData = emp.monthly_data[monthKey];
-            if (monthData?.calculation_details?.formula_id) {
-              extractedFormulaId = monthData.calculation_details.formula_id;
-              break;
-            }
-          }
-          if (extractedFormulaId && extractedFormulaId !== editingEmission?.formula_id) break;
-        }
-      }
-      
-      // Look up the activity label from scope3_ef_id (or use custom activity)
-      const matchedActivityForSave = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-      // For custom activity, use the custom name; otherwise use matched activity or activity type
-      const activityLabel = useCustomActivity 
-        ? (scope3CustomActivity || 'Custom Activity')
-        : (matchedActivityForSave?.activity || matchedActivityForSave?.fuel_name || scope3ActivityType);
-      
-      // Construct reporting_period from formData fields
-      const c7ReportingPeriod = formData.reporting_period_start && formData.reporting_period_end
-        ? (formData.reporting_period_start === formData.reporting_period_end
-            ? formData.reporting_period_start
-            : `${formData.reporting_period_start} to ${formData.reporting_period_end}`)
-        : editingEmission?.reporting_period || `${new Date().getFullYear()}-01 to ${new Date().getFullYear()}-12`;
-      
-      // Validate process names for C7
-      const validProcessNames = formData.process_names.filter(p => p.name && p.name.trim() !== '');
-      if (validProcessNames.length === 0) {
-        toast.error('At least one Name of Process is required');
-        return;
-      }
-      
-      const payload = {
-        facility_id: formData.facility_id,
-        reporting_period: c7ReportingPeriod,
-        frequency_type: editingEmission?.frequency_type || 'monthly', // Preserve frequency_type on edit
-        scope: 'scope3',
-        category: formData.category,
-        sub_category: useCustomActivity ? (scope3CustomActivity || '') : (formData.sub_category || ''),
-        calculation_method_scope3: scope3Method,
-        activity_type: scope3ActivityType, // Send activity_type for backend to update
-        scope3_activity_type: scope3ActivityType, // Also send scope3_activity_type
-        scope3_activity: activityLabel, // Save the display label, not internal key
-        scope3_ef_id: useCustomActivity ? null : (scope3ActivityId || null), // null for custom activity
-        use_custom_activity: useCustomActivity, // Track if custom activity was used
-        formula_id: extractedFormulaId,
-        
-        // Multi-employee specific data - structure depends on yearly vs monthly
-        employees: editEmployees.map(emp => {
-          const baseEmployee = {
-            id: emp.id,
-            name: emp.name,
-            employee_id: emp.employee_id,
-            department: emp.department,
-            activity_type: scope3ActivityType || emp.activity_type,
-            from_location: emp.from_location || null,
-            to_location: emp.to_location || null,
-          };
-          
-          if (isYearlyMode) {
-            // For yearly mode: use flat inputs/emissions at employee level
-            return {
-              ...baseEmployee,
-              inputs: emp.yearly_data?.inputs || emp.inputs || {},
-              emissions: emp.yearly_data?.emissions || emp.emissions || {},
-              calculation_details: emp.yearly_data?.calculation_details || emp.calculation_details,
-            };
-          } else {
-            // For monthly mode: use monthly_data structure
-            return {
-              ...baseEmployee,
-              monthly_data: emp.monthly_data,
-            };
-          }
-        }),
-        monthly_totals: isYearlyMode ? null : editEmployeeMonthlyTotals,
-        yearly_total: editEmployeeYearlyTotal,
-        
-        // Aggregated outputs
-        outputs: {
-          co2e: { value: totalCo2e, unit: 'tCO2e' },
-        },
-        
-        // Metadata
-        process_names: validProcessNames.map(p => p.name),
-        process_descriptions: validProcessNames.map(p => ({ name: p.name, description: p.description || '' })),
-        notes: formData.notes || '',
-        source_of_information: `Multi-employee commuting data for ${editEmployees.length} employee(s)`,
-        justification: null,
-        responsible_person: formData.responsible_person,
-        responsible_person_designation: formData.responsible_person_designation || '',
-        responsible_person_contact: formData.responsible_person_contact || '',
-      };
-      
+      const totalCo2e = builtPayload.__totalCo2e;
+      // Strip orchestration-only field before sending
+      const payload = { ...builtPayload };
+      delete payload.__totalCo2e;
+
       try {
         setIsSaving(true);
         const response = await axios.put(`${API}/emissions/${editingEmission.id}`, payload, {
