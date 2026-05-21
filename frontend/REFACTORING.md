@@ -3,9 +3,89 @@
 ## Overview
 
 This document outlines the new modular frontend architecture for the GHG Emissions Platform.
-The refactoring follows a feature-based modular approach to improve maintainability, scalability, and developer experience.
+The refactoring follows a plugin-style category architecture with complete business logic isolation.
 
-## New Directory Structure
+## Architecture Principles
+
+1. **Category Registry System** - Dynamic module loading instead of conditionals
+2. **Isolated Business Logic** - Each category owns validation, payload, normalization
+3. **Reduced Prop Drilling** - Context providers + Zustand stores
+4. **UI/Business Logic Separation** - Services, hooks, transformers
+5. **Config-Driven Forms** - react-hook-form + zod validation
+6. **Clean Data Flow** - UI → Hook → Validation → Normalizer → Payload → API
+
+## New Emissions Module Structure
+
+```
+src/modules/emissions/
+├── index.js                        # Main entry point
+├── core/                           # Core infrastructure
+│   ├── CategoryModuleInterface.js  # Module contract/interface
+│   ├── CategoryRegistry.js         # Registry/factory pattern
+│   └── EmissionsContext.js         # React context + hooks
+├── stores/                         # Zustand state management
+│   └── emissionsStore.js           # Global + form stores
+├── services/                       # API abstraction layer
+│   └── api.service.js              # Clean API services
+├── categories/                     # Category modules (plugins)
+│   ├── C7EmployeeCommuting/        # Reference implementation
+│   │   └── index.js
+│   ├── GenericScope3/              # Fallback module
+│   │   └── index.js
+│   └── ... (future categories)
+├── shared/                         # Shared components
+│   └── components/
+│       └── DynamicFormRenderer.js  # Config-driven form rendering
+├── hooks/                          # Feature-scoped hooks
+└── utils/                          # Utility functions
+```
+
+## Category Module Interface
+
+Every category module implements this contract:
+
+```javascript
+{
+  config: {
+    id: 'c7',
+    name: 'C7 - Employee Commuting',
+    scope: 'scope3',
+    methods: ['activity_basis', 'supplier_basis'],
+    supportsMultiEmployee: true,
+  },
+  fields: [...],                    // Form field definitions
+  validationSchema: z.object(...),  // Zod schema
+  buildPayload: (formData, ctx) => {}, // API payload builder
+  normalizeData: (apiData) => {},   // API response normalizer
+  getDefaultValues: () => {},       // Default form values
+  transformForChart: (data) => {},  // Dashboard transformer
+  tableColumns: [...],              // List view columns
+  uploadConfig: {...},              // Bulk upload config
+}
+```
+
+## Usage Example
+
+```javascript
+import { categoryRegistry, useEmissions, useCategoryModule } from '@/modules/emissions';
+
+// Get module dynamically
+const module = categoryRegistry.get('c7');
+const payload = module.buildPayload(formData, context);
+
+// Or use hooks
+const { services } = useEmissions();
+const categoryModule = useCategoryModule(selectedCategory);
+```
+
+## State Management (Zustand)
+
+Three isolated stores:
+- `useEmissionsStore` - Global emissions data
+- `useEditFormStore` - Edit dialog state
+- `useEntryFormStore` - New entry form state
+
+## Legacy Directory Structure (Being Migrated)
 
 ```
 src/

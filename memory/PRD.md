@@ -216,11 +216,21 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 - ✅ Phase 5b: Extract standalone utilities (hooks, validation, payload builders)
 - ✅ Phase 6: Extract and integrate EmissionFilters, form sections into Emissions.js
 - ✅ Phase 6: Create EditFormSections.js with reusable form section components
+- ✅ Phase 7: New Emissions Module Architecture
+  - Category Registry system with factory pattern
+  - Module interface/contract for all categories
+  - Zustand stores (emissionsStore, editFormStore, entryFormStore)
+  - API service layer abstraction
+  - EmissionsContext + provider
+  - Config-driven DynamicFormRenderer (react-hook-form + zod)
+  - C7 Employee Commuting reference implementation
+  - Generic Scope3 fallback module
 
 ## Upcoming Tasks (P0/P1)
+- Migrate remaining categories to module architecture (C1-C6, C8-C15)
+- Integrate new architecture into Emissions.js
 - P1 Bugs: Scope Change Recalculation, Dashboard "no data" on scope toggle
 - "Apply to all months" autofill for S3C7 Employee Commuting
-- Expand Bulk Upload to Scope 1 & 2
 
 ## Future/Backlog (P2)
 - Add Monthly/Yearly frequency indicators
