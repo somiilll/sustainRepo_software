@@ -220,24 +220,39 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
             "field_type": "simple"
         })
     
-    # Track activity (sub_category) changes - also check scope3_activity field
+    # Track activity (sub_category) changes - also check scope3_activity field and custom activity
     old_activity = old_values.get("sub_category") or old_values.get("scope3_activity")
     new_activity = new_values.get("sub_category") or new_values.get("scope3_activity")
     # Also check in dynamic_field_values for scope3_activity
+    old_dfv = old_values.get("dynamic_field_values", {}) or {}
+    new_dfv = new_values.get("dynamic_field_values", {}) or {}
+    
     if not old_activity:
-        old_dfv = old_values.get("dynamic_field_values", {}) or {}
         old_act_field = old_dfv.get("scope3_activity", {})
         old_activity = old_act_field.get("value") if isinstance(old_act_field, dict) else old_act_field
     if not new_activity:
-        new_dfv = new_values.get("dynamic_field_values", {}) or {}
         new_act_field = new_dfv.get("scope3_activity", {})
         new_activity = new_act_field.get("value") if isinstance(new_act_field, dict) else new_act_field
+    
+    # Check if custom activity was used (for display purposes)
+    old_use_custom = old_dfv.get("use_custom_activity", {})
+    old_is_custom = old_use_custom.get("value") if isinstance(old_use_custom, dict) else old_use_custom
+    new_use_custom = new_dfv.get("use_custom_activity", {})
+    new_is_custom = new_use_custom.get("value") if isinstance(new_use_custom, dict) else new_use_custom
+    
+    # Format activity display with custom indicator
+    def format_activity_display(activity_name, is_custom):
+        if not activity_name:
+            return "(not set)"
+        if is_custom:
+            return f"{activity_name} (custom)"
+        return activity_name
     
     if old_activity != new_activity and (old_activity or new_activity):
         changes.append({
             "field": "activity",
-            "old_value": old_activity if old_activity else "(not set)",
-            "new_value": new_activity if new_activity else "(not set)",
+            "old_value": format_activity_display(old_activity, old_is_custom),
+            "new_value": format_activity_display(new_activity, new_is_custom),
             "field_type": "simple"
         })
     

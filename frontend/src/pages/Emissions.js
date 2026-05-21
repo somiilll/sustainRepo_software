@@ -3218,6 +3218,7 @@ export default function Emissions() {
             },
             scope3_activity_type: { value: scope3ActivityType || '', unit: '' },
             scope3_subcategory: { value: scope3Subcategory || '', unit: '' },
+            use_custom_activity: { value: useCustomActivity, unit: '' },
           }),
           // Store biogenic selection in dynamic_field_values
           ...(formData.scope === 'biogenic' && {
@@ -7140,7 +7141,9 @@ export default function Emissions() {
                         fieldType: fc.field_type,
                         employeeName: fc.employee_name,
                         employeeId: fc.employee_id,
-                        isComplex: typeof fc.old_value === 'object' || typeof fc.new_value === 'object'
+                        isComplex: typeof fc.old_value === 'object' || typeof fc.new_value === 'object',
+                        oldIsOverride: fc.old_is_override,
+                        newIsOverride: fc.new_is_override
                       }));
                   } else if (!isCreation && oldValues && newValues) {
                     // Fallback: Legacy format - compute from old_values/new_values
@@ -7242,13 +7245,29 @@ export default function Emissions() {
                                     </p>
                                     <div className="grid grid-cols-2 gap-3 text-sm">
                                       <div className="bg-red-50 p-2 rounded border border-red-100">
-                                        <span className="text-xs text-red-600 font-medium block mb-1">Old Value</span>
+                                        <span className="text-xs text-red-600 font-medium block mb-1">
+                                          Old Value
+                                          {field.oldIsOverride === false && field.fieldType === 'input_values' && (
+                                            <span className="ml-1 text-stone-500 font-normal">(default)</span>
+                                          )}
+                                          {field.oldIsOverride === true && (
+                                            <span className="ml-1 text-orange-600 font-normal">(custom)</span>
+                                          )}
+                                        </span>
                                         <div className="text-red-800 break-words">
                                           {renderValue(field.oldValue, field.label, field.field)}
                                         </div>
                                       </div>
                                       <div className="bg-green-50 p-2 rounded border border-green-100">
-                                        <span className="text-xs text-green-600 font-medium block mb-1">New Value</span>
+                                        <span className="text-xs text-green-600 font-medium block mb-1">
+                                          New Value
+                                          {field.newIsOverride === false && field.fieldType === 'input_values' && (
+                                            <span className="ml-1 text-stone-500 font-normal">(default)</span>
+                                          )}
+                                          {field.newIsOverride === true && (
+                                            <span className="ml-1 text-orange-600 font-normal">(custom)</span>
+                                          )}
+                                        </span>
                                         <div className="text-green-800 break-words">
                                           {renderValue(field.newValue, field.label, field.field)}
                                         </div>
