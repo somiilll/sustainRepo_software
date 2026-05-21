@@ -1233,12 +1233,17 @@ export default function Emissions() {
       return categoryRegistry.getGenericModule?.('scope1') || null;
     }
 
-    // 4. Biogenic + scope1 selection → generic Scope 1
+    // 4. Scope 2 → single generic module (purchased electricity/steam/heating/cooling)
+    if (formData.scope === 'scope2') {
+      return categoryRegistry.getGenericModule?.('scope2') || null;
+    }
+
+    // 5. Biogenic + scope1 selection → generic Scope 1
     if (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope1') {
       return categoryRegistry.getGenericModule?.('scope1') || null;
     }
 
-    // 5. Scope 2 / unknown → legacy path
+    // 6. Unknown → legacy path (safety fallback)
     return null;
   }, [formData.scope, formData.category, biogenicScopeSelection]);
 

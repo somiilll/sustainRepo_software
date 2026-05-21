@@ -82,6 +82,9 @@ export function initializeCategoryModules() {
   // Scope 1 modules (auto-register on import)
   require('./categories/Scope1Modules');
 
+  // Scope 2 module (auto-register on import)
+  require('./categories/Scope2Modules');
+
   // Auto-generate & register all remaining Scope 3 categories
   const { registerAllScope3Categories } = require('./categories/CategoryGenerator');
   registerAllScope3Categories();
@@ -178,6 +181,19 @@ export function initializeCategoryModules() {
     const genericS1EditApi = createScope1EditApi(genericScope1);
     genericScope1.validateEditSubmission = genericS1EditApi.validateEditSubmission;
     genericScope1.buildEditPayload = genericS1EditApi.buildEditPayload;
+  }
+
+  // Generic Scope 2 — same payload shape and validation as Scope 1, so we
+  // attach the SAME shared `Scope1Edit` helpers. The helpers already gate
+  // `scope1 || scope2` for override-justification semantics.
+  const genericScope2 = categoryRegistry.getGenericModule('scope2');
+  if (genericScope2) {
+    genericScope2.capabilities = genericScope2.capabilities || [];
+    genericScope2.hasCapability =
+      genericScope2.hasCapability || ((cap) => genericScope2.capabilities.includes(cap));
+    const genericS2EditApi = createScope1EditApi(genericScope2);
+    genericScope2.validateEditSubmission = genericS2EditApi.validateEditSubmission;
+    genericScope2.buildEditPayload = genericS2EditApi.buildEditPayload;
   }
 
   // eslint-disable-next-line no-console
