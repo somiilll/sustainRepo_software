@@ -2928,49 +2928,11 @@ export default function Emissions() {
       return;
     }
 
-    // Validate fuel/activity selection based on scope
-    // For biogenic scope3, treat it like scope3 (uses activities instead of fuels)
-    const isBiogenicScope3Save = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
-    const isScope3LikeSave = formData.scope === 'scope3' || isBiogenicScope3Save;
-    
-    if (isScope3LikeSave) {
-      if (!scope3Method) {
-        toast.error('Please select a calculation method');
-        return;
-      }
-      // For supplier_basis with custom activity, check custom activity instead of activityId
-      if (scope3Method === 'supplier_basis' && useCustomActivity) {
-        if (!scope3CustomActivity?.trim()) {
-          toast.error('Please enter a custom activity name');
-          return;
-        }
-      } else {
-        if (!scope3ActivityId) {
-          toast.error('Please select an activity type');
-          return;
-        }
-      }
-      
-      // For supplier_basis, validate that units are provided for input fields
-      if (scope3Method === 'supplier_basis') {
-        const supplierFields = dynamicInputFields.filter(f => 
-          f.variable?.includes('supplier') || f.variable?.includes('Supplier')
-        );
-        for (const field of supplierFields) {
-          const value = dynamicFieldValues[field.variable];
-          const unit = dynamicFieldValues[`${field.variable}_unit`];
-          // If value is provided but unit is empty, show error
-          if (value !== undefined && value !== '' && (!unit || unit.trim() === '')) {
-            toast.error(`Please enter a unit for ${field.label}`);
-            return;
-          }
-        }
-      }
-    } else {
-      if (!formData.fuel_id) {
-        toast.error('Please select a fuel from the database');
-        return;
-      }
+    // Validate fuel selection (Scope 1/2/biogenic-scope1 only —
+    // Scope 3 / biogenic-scope3 are handled by the module dispatch above).
+    if (!formData.fuel_id) {
+      toast.error('Please select a fuel from the database');
+      return;
     }
 
     // Calculate total emissions using backend calc engine
@@ -3035,13 +2997,7 @@ export default function Emissions() {
         // Get fieldUnits the same way the dropdown does
         let fieldUnits = [];
         if (field.unitSource === 'fuel') {
-          // For Scope 3 (or biogenic scope3) activities, fallback to filteredScope3Activities
-          if (isScope3LikeSave && !selectedFuel && scope3ActivityId) {
-            const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-            fieldUnits = matchedActivity?.allowed_units || [];
-          } else {
-            fieldUnits = selectedFuel?.allowed_units || [];
-          }
+          fieldUnits = selectedFuel?.allowed_units || [];
         } else if (field.unitSource === 'all_units') {
           // For all_units, use all centralized units (simple + compound)
           fieldUnits = centralizedUnits.map(u => u.symbol);
@@ -3109,6 +3065,9 @@ export default function Emissions() {
       }
 
       // Prepare payload with new dynamic structure
+      // NOTE: Scope 3 / biogenic-scope3 are handled by the module dispatch
+      // earlier in handleSubmit. This block now only runs for Scope 1, Scope 2,
+      // and biogenic-scope1 records.
       const payload = {
         facility_id: formData.facility_id,
         reporting_period: reportingPeriod,
@@ -3117,56 +3076,20 @@ export default function Emissions() {
         category: formData.category,
         sub_category: formData.sub_category,
         fuel_type: formData.fuel_type,
-        fuel_database_id: isScope3LikeSave ? null : formData.fuel_id,
+        fuel_database_id: formData.fuel_id,
         
         // Store formula_id: prefer recalculated value from calc-engine, fallback to existing
         formula_id: effectiveCalculatedEmissions?.formulaId || editingEmission?.formula_id || null,
         
-        // Biogenic-specific fields
+        // Biogenic-specific fields (biogenic-scope1 only — biogenic-scope3 took the module path)
         ...(formData.scope === 'biogenic' && {
           biogenic_scope_selection: biogenicScopeSelection,
-        }),
-        
-        // Scope 3 specific fields (also applies to biogenic scope3)
-        ...(isScope3LikeSave && {
-          // For supplier_basis: use scope3ActivityId if available, null otherwise
-          // For other methods: always use scope3ActivityId
-          scope3_ef_id: scope3Method === 'supplier_basis' 
-            ? (useCustomActivity ? null : (scope3ActivityId || null))
-            : scope3ActivityId,
-          calculation_method_scope3: scope3Method,
-          scope3_activity: scope3Method === 'supplier_basis'
-            ? (useCustomActivity 
-                ? scope3CustomActivity 
-                : (filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || scope3CustomActivity || ''))
-            : (filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || ''),
         }),
         
         // Dynamic field values - all inputs keyed by variable name
         dynamic_field_values: {
           ...dynamicValues,
-          // Include Scope 3 method and activity in dynamic values for persistence (as proper dict structure)
-          ...(isScope3LikeSave && {
-            calculation_method_scope3: { value: scope3Method, unit: '' },
-            scope3_ef_id: { 
-              value: scope3Method === 'supplier_basis' 
-                ? (useCustomActivity ? '' : (scope3ActivityId || ''))
-                : (scope3ActivityId || ''), 
-              unit: '' 
-            },
-            scope3_activity: { 
-              value: scope3Method === 'supplier_basis'
-                ? (useCustomActivity 
-                    ? scope3CustomActivity 
-                    : (filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || scope3CustomActivity || ''))
-                : (filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || ''), 
-              unit: '' 
-            },
-            scope3_activity_type: { value: scope3ActivityType || '', unit: '' },
-            scope3_subcategory: { value: scope3Subcategory || '', unit: '' },
-            use_custom_activity: { value: useCustomActivity, unit: '' },
-          }),
-          // Store biogenic selection in dynamic_field_values
+          // Store biogenic selection in dynamic_field_values (biogenic-scope1)
           ...(formData.scope === 'biogenic' && {
             biogenic_scope_selection: { value: biogenicScopeSelection, unit: '' },
           }),
@@ -3194,25 +3117,6 @@ export default function Emissions() {
         // #17: Override justification (Scope 1/2 only when any override is enabled)
         ...((formData.scope === 'scope1' || formData.scope === 'scope2') && (isOverrideCV || isOverrideDensity || overrideEmissionFactorHeat) && {
           override_justification: overrideJustification,
-        }),
-        
-        // Scope 3 optional supplier/employee fields (also for biogenic scope3)
-        ...(isScope3LikeSave && {
-          supplier_name: formData.supplier_name || null,
-          supplier_code: formData.supplier_code || null,
-          ...(formData.category === 'Employee Commuting' ? {
-            employee_name: formData.employee_name || null,
-            employee_id: formData.employee_id || null,
-          } : {}),
-          // Asset Name for C8/C13/C14/C15
-          ...(['c8', 'c13', 'c14', 'c15'].some(c => formData.category?.toLowerCase()?.includes(c)) ? {
-            asset_name: formData.asset_name || null,
-          } : {}),
-          // From/To Location for C4/C6/C7/C9 (transportation/travel/commuting)
-          ...(['c4', 'c6', 'c7', 'c9'].some(c => formData.category?.toLowerCase()?.includes(c)) ? {
-            from_location: formData.from_location || null,
-            to_location: formData.to_location || null,
-          } : {}),
         }),
       };
       
