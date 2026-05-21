@@ -72,7 +72,10 @@ export function validateEditSubmission({ editEmployees, editingEmission, process
     return { valid: false, errorMessage: employeeErrors[0] };
   }
 
-  // At least one employee with calculated emissions
+  // At least one employee must have either calculated emissions OR input
+  // data present. The "inputs" fallback covers hydrated records whose
+  // saved emissions normalised to 0 — the user has clearly entered data
+  // and should be able to re-save without being forced to re-calculate.
   const hasCalculatedData = editEmployees.some((emp) => {
     if (isYearlyMode) {
       const hasYearlyEmissions =
@@ -80,11 +83,22 @@ export function validateEditSubmission({ editEmployees, editingEmission, process
         emp.yearly_data?.emissions?.co2e !== undefined;
       const hasDirectEmissions =
         emp.emissions?.co2e !== null && emp.emissions?.co2e !== undefined;
-      return hasYearlyEmissions || hasDirectEmissions;
+      const yearlyInputs = emp.yearly_data?.inputs || emp.inputs || {};
+      const hasInputs = Object.values(yearlyInputs).some(
+        (v) => v !== '' && v !== null && v !== undefined && v !== 0
+      );
+      return hasYearlyEmissions || hasDirectEmissions || hasInputs;
     }
-    return Object.values(emp.monthly_data || {}).some(
-      (m) => m?.emissions?.co2e !== null && m?.emissions?.co2e !== undefined
-    );
+    return Object.values(emp.monthly_data || {}).some((m) => {
+      const hasEmissions =
+        m?.emissions?.co2e !== null && m?.emissions?.co2e !== undefined;
+      const hasInputs =
+        m?.inputs &&
+        Object.values(m.inputs).some(
+          (v) => v !== '' && v !== null && v !== undefined && v !== 0
+        );
+      return hasEmissions || hasInputs;
+    });
   });
 
   if (!hasCalculatedData) {

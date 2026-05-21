@@ -3261,7 +3261,16 @@ export default function Emissions() {
             // ALWAYS ensure monthly_data[monthKey].emissions is populated
             // The DB might have emissions at root level (emp.emissions) or inside monthly_data
             const existingMonthData = emp.monthly_data?.[monthKey] || {};
-            const monthEmissions = existingMonthData.emissions || emp.emissions || {};
+            // Clone emissions so we can normalise without mutating shared refs
+            const monthEmissions = { ...(existingMonthData.emissions || emp.emissions || {}) };
+            // Hydration normalisation: a previously saved record may carry
+            // `co2e: null/undefined` (e.g. when calc resulted in 0 or wasn't
+            // re-run before save). Normalise to `0` so validation + display
+            // behave consistently and the user can re-save without ghost
+            // "Please calculate emissions" errors.
+            if (monthEmissions.co2e === null || monthEmissions.co2e === undefined) {
+              monthEmissions.co2e = 0;
+            }
             const monthInputs = existingMonthData.inputs || emp.inputs || {};
             const monthCalcDetails = existingMonthData.calculation_details || emp.calculation_details || null;
             
@@ -3287,7 +3296,11 @@ export default function Emissions() {
             // ALWAYS ensure yearly_data.emissions is populated
             // The DB might have emissions at root level (emp.emissions) or inside yearly_data
             const existingYearlyData = emp.yearly_data || {};
-            const yearlyEmissions = existingYearlyData.emissions || emp.emissions || {};
+            // Clone to avoid mutating refs and normalise co2e null/undefined → 0
+            const yearlyEmissions = { ...(existingYearlyData.emissions || emp.emissions || {}) };
+            if (yearlyEmissions.co2e === null || yearlyEmissions.co2e === undefined) {
+              yearlyEmissions.co2e = 0;
+            }
             const yearlyInputs = existingYearlyData.inputs || emp.inputs || {};
             const yearlyCalcDetails = existingYearlyData.calculation_details || emp.calculation_details || null;
             

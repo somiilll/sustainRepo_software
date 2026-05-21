@@ -15,6 +15,7 @@ import { Step1BasicSelection } from '../modules/ghg/emissions/shared/components/
 import { Step2ProcessResponsibility } from '../modules/ghg/emissions/shared/components/steps/Step2ProcessResponsibility';
 import { Step3YearMonthlyData } from '../modules/ghg/emissions/shared/components/steps/Step3YearMonthlyData';
 import { Step4Notes } from '../modules/ghg/emissions/shared/components/steps/Step4Notes';
+import { categoryRegistry } from '../modules/emissions';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -4348,9 +4349,36 @@ export default function EmissionEntryForm({
         />
       )}
 
-      {/* Step 3: Year & Monthly Data - Extracted to Step3YearMonthlyData component */}
-      {currentStep === 3 && (
-        <Step3YearMonthlyData
+      {/* Step 3: Year & Monthly Data — delegated to category module via the
+          registry. When a registered category exposes a `Step3Renderer`,
+          the page renders that instead of the default `Step3YearMonthlyData`.
+          The default is wired onto all categories during
+          `initializeCategoryModules()`, so this is a no-op visually today
+          but is the architectural hook for future per-category Step 3
+          experiences (grid, matrix, wizard, multi-employee). */}
+      {currentStep === 3 && (() => {
+        // Resolve the active module the same way Emissions.js EDIT does.
+        const catLower = (category || '').toLowerCase();
+        let activeModule = null;
+        if (scope === 'scope3') {
+          const codeMatch = catLower.match(/^(c\d+)/);
+          if (codeMatch) activeModule = categoryRegistry.get(codeMatch[1]);
+          if (!activeModule) activeModule = categoryRegistry.getGenericModule?.('scope3');
+        } else if (scope === 'scope1') {
+          if (catLower.includes('stationary')) activeModule = categoryRegistry.get('stationary_combustion');
+          else if (catLower.includes('mobile')) activeModule = categoryRegistry.get('mobile_combustion');
+          else if (catLower.includes('fugitive')) activeModule = categoryRegistry.get('fugitive_emissions');
+          activeModule = activeModule || categoryRegistry.getGenericModule?.('scope1');
+        } else if (scope === 'scope2') {
+          activeModule = categoryRegistry.getGenericModule?.('scope2');
+        } else if (scope === 'biogenic') {
+          activeModule = biogenicScopeSelection === 'scope3'
+            ? categoryRegistry.getGenericModule?.('scope3')
+            : categoryRegistry.getGenericModule?.('scope1');
+        }
+        const Step3 = activeModule?.Step3Renderer || Step3YearMonthlyData;
+        return (
+        <Step3
           reportingYearType={reportingYearType}
           setReportingYearType={setReportingYearType}
           hasOrgYearTypePreference={hasOrgYearTypePreference}
@@ -4405,7 +4433,8 @@ export default function EmissionEntryForm({
           BACKEND_URL={BACKEND_URL}
           category={category}
         />
-      )}
+        );
+      })()}
 
       {/* Step 4: Notes - Extracted to Step4Notes component */}
       {currentStep === 4 && (

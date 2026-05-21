@@ -107,6 +107,21 @@ export function initializeCategoryModules() {
     }
   });
 
+  // Attach the shared Step 3 (year/monthly accordion) renderer to ALL modules
+  // — this is the CREATE-flow analogue of `DynamicFieldsRenderer`.
+  // `EmissionEntryForm.js` looks up `module.Step3Renderer` to render the
+  // year/monthly data section. Modules can override with a different
+  // component for category-specific Step 3 (e.g. multi-employee grid for
+  // C7, wizard for CBAM) by assigning to `mod.Step3Renderer` after this.
+  const { Step3FrequencyRenderer } = require('./shared/renderers/Step3FrequencyRenderer');
+  const attachStep3 = (mod) => {
+    if (mod && !mod.Step3Renderer) {
+      mod.Step3Renderer = Step3FrequencyRenderer;
+    }
+  };
+  FLAT_FIELD_SCOPE3_CATEGORIES.forEach((id) => attachStep3(categoryRegistry.get(id)));
+  attachStep3(categoryRegistry.get('c7'));
+
   // Wire category capabilities from the static definitions.
   // Capabilities are derived from `scope3-definitions.js` flags so the page
   // can query `module.hasCapability('asset-name')` instead of maintaining
@@ -195,6 +210,13 @@ export function initializeCategoryModules() {
     genericScope2.validateEditSubmission = genericS2EditApi.validateEditSubmission;
     genericScope2.buildEditPayload = genericS2EditApi.buildEditPayload;
   }
+
+  // Attach Step3Renderer to Scope 1/2 + generic fallback modules too.
+  // Same default component — modules may override per-category later.
+  SCOPE1_MODULE_IDS.forEach((id) => attachStep3(categoryRegistry.get(id)));
+  attachStep3(genericScope1);
+  attachStep3(genericScope2);
+  attachStep3(genericScope3);
 
   // eslint-disable-next-line no-console
   console.log(`[Emissions] Category modules initialized: ${categoryRegistry.size} entries`);
