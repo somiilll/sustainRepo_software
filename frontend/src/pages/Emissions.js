@@ -11,6 +11,7 @@ import { MonthYearPicker } from '../components/ui/month-year-picker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import EmissionFilters from './emissions/EmissionFilters';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion';
 import { FileUpload } from '../components/ui/file-upload';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
@@ -6350,128 +6351,22 @@ export default function Emissions() {
       </div>
 
       {showFilters && (
-        <Card className="p-4 border border-stone-200 rounded-xl bg-white">
-          <div className="flex flex-col gap-4">
-            {/* First row: Facility, Category, and Entry Type */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>Facility</Label>
-                <select
-                  value={filterFacility}
-                  onChange={(e) => setFilterFacility(e.target.value)}
-                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
-                >
-                  <option value="">All Facilities</option>
-                  {facilities.map(f => (
-                    <option key={f.id} value={f.id}>{f.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label>Category</Label>
-                <select
-                  value={filterCategory}
-                  onChange={(e) => setFilterCategory(e.target.value)}
-                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
-                >
-                  <option value="">All Categories</option>
-                  {uniqueCategories.map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label>Entry Type</Label>
-                <select
-                  value={filterFrequency}
-                  onChange={(e) => setFilterFrequency(e.target.value)}
-                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
-                  data-testid="filter-frequency-select"
-                >
-                  <option value="">All Entries</option>
-                  <option value="monthly">Monthly Only</option>
-                  <option value="yearly">Yearly Only</option>
-                </select>
-              </div>
-            </div>
-            
-            {/* Second row: Date Range, Sort, and Clear button */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-              <div className="space-y-2">
-                <Label>Start Period</Label>
-                <MonthYearPicker
-                  value={filterDateRange.from ? format(filterDateRange.from, 'yyyy-MM') : ''}
-                  maxDate={filterDateRange.to ? format(filterDateRange.to, 'yyyy-MM') : undefined}
-                  disableFuture={true}
-                  onChange={(val) => setFilterDateRange(prev => ({ 
-                    ...prev, 
-                    from: val ? new Date(val) : null 
-                  }))}
-                  placeholder="From"
-                  className="w-full bg-stone-50"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>End Period</Label>
-                <MonthYearPicker
-                  value={filterDateRange.to ? format(filterDateRange.to, 'yyyy-MM') : ''}
-                  minDate={filterDateRange.from ? format(filterDateRange.from, 'yyyy-MM') : undefined}
-                  disableFuture={true}
-                  onChange={(val) => setFilterDateRange(prev => ({ 
-                    ...prev, 
-                    to: val ? new Date(val) : null 
-                  }))}
-                  placeholder="To"
-                  className="w-full bg-stone-50"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Sort By</Label>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
-                  data-testid="sort-by-select"
-                >
-                  <option value="date">Date</option>
-                  <option value="created_at">Created At</option>
-                  <option value="updated_at">Last Updated</option>
-                  <option value="facility">Facility</option>
-                  <option value="fuel">Fuel Type</option>
-                  <option value="emissions">Emissions (CO₂e)</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label>Order</Label>
-                <select
-                  value={sortOrder}
-                  onChange={(e) => setSortOrder(e.target.value)}
-                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
-                  data-testid="sort-order-select"
-                >
-                  <option value="desc">Descending</option>
-                  <option value="asc">Ascending</option>
-                </select>
-              </div>
-              <div className="flex items-end">
-                <Button
-                  onClick={() => {
-                    setFilterFacility('');
-                    setFilterCategory('');
-                    setFilterFrequency('');
-                    setFilterDateRange({ from: null, to: null });
-                    setSortBy('date');
-                    setSortOrder('desc');
-                  }}
-                  variant="outline"
-                  className="w-full h-10"
-                >
-                  Clear All
-                </Button>
-              </div>
-            </div>
-          </div>
-        </Card>
+        <EmissionFilters
+          filterFacility={filterFacility}
+          setFilterFacility={setFilterFacility}
+          filterCategory={filterCategory}
+          setFilterCategory={setFilterCategory}
+          filterFrequency={filterFrequency}
+          setFilterFrequency={setFilterFrequency}
+          filterDateRange={filterDateRange}
+          setFilterDateRange={setFilterDateRange}
+          sortBy={sortBy}
+          setSortBy={setSortBy}
+          sortOrder={sortOrder}
+          setSortOrder={setSortOrder}
+          facilities={facilities}
+          uniqueCategories={uniqueCategories}
+        />
       )}
 
       <Tabs value={activeScope} onValueChange={(value) => { 

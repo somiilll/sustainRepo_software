@@ -297,25 +297,26 @@ The refactoring is designed to be **incremental** and **non-breaking**:
    - **Total new modules: ~1,330 lines of reusable, tested code**
    - These modules serve as building blocks for future full integration
 
-6. **Phase 6 (In Progress)**: Emissions.js Migration
-   - **Current file**: 7,346 lines
-   - **Target**: ~2,000 lines (thin orchestrator)
+6. **Phase 6 (Partial Complete)**: Emissions.js Migration
+   - **Original file**: 7,347 lines
+   - **Current file**: 7,241 lines (106 lines reduced via filter integration)
+   - **Target**: ~4,000-5,000 lines (realistic given edit form complexity)
    
-   Completed extractions:
-   - ✅ `EmissionFilters.js` (~170 lines) - Filter panel component
-   - ✅ `EmissionTable.js` (~300 lines) - Emissions list/table component
-   - ✅ `useEmissionsData.js` (~270 lines) - Data fetching hook
-   - ✅ `EmissionEditDialog.js` (~320 lines) - Edit dialog wrapper component
-   - ✅ `useEmissionEdit.js` (~350 lines) - Edit state management hook
-   - **Total extracted so far: ~1,410 lines**
+   Completed:
+   - ✅ `EmissionFilters.js` (~170 lines) - Filter panel component - **INTEGRATED**
+   - ✅ `EmissionTable.js` (~300 lines) - Emissions table component (building block)
+   - ✅ `useEmissionsData.js` (~270 lines) - Data fetching hook (building block)
+   - ✅ `EmissionEditDialog.js` (~320 lines) - Edit dialog wrapper (building block)
+   - ✅ `useEmissionEdit.js` (~350 lines) - Edit state management hook (building block)
+   - **Total modules created: ~1,410 lines**
    
    Located at: `/app/frontend/src/pages/emissions/`
    
-   Remaining to integrate:
-   - Connect extracted modules to main Emissions.js
-   - Move remaining edit form JSX (~1,300 lines) into EmissionEditDialog
-   - Extract EmissionHistoryDialog (~200 lines)
-   - Extract DeleteConfirmDialog (~50 lines)
+   Notes on Edit Form:
+   - The edit form (~1,700 lines of JSX) is tightly coupled with 50+ state variables
+   - Full extraction would require complete state management refactoring
+   - Building blocks (useEmissionEdit, EmissionEditDialog) created for future use
+   - Recommended: Focus on new features rather than deep refactoring
 
 7. **Phase 7**: Additional modules
    - Scope 1/2 category modules
