@@ -1134,8 +1134,8 @@ class Scope3EFResponse(BaseModel):
     industry_sectors: Optional[List[str]] = []
     region: Optional[str] = "Global"
     year_applicable: Optional[int] = None
-    emission_factor: float
-    unit: str
+    emission_factor: Optional[float] = None  # Can be None for supplier_basis entries
+    unit: Optional[str] = None  # Can be None for supplier_basis entries
     allowed_units: Optional[List[str]] = []  # Units allowed for activity value
     default_unit: Optional[str] = None  # Default unit for activity value - input will be auto-converted to this unit
     source: Optional[str] = None

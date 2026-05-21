@@ -1408,7 +1408,7 @@ export default function Emissions() {
 
   // Get available activity types for C6/C7 categories
   const availableScope3ActivityTypes = useMemo(() => {
-    if (formData.scope !== 'scope3' || !scope3EFData.length || !selectedCategory) return [];
+    if (formData.scope !== 'scope3' || !selectedCategory) return [];
     
     // Only show activity type filter for C6 and C7
     const isC6orC7 = selectedCategory.toLowerCase().includes('c6') || 
@@ -1420,14 +1420,22 @@ export default function Emissions() {
     
     const activityTypes = new Set();
     
-    scope3EFData.forEach(ef => {
-      if (ef.category?.toLowerCase() === selectedCategory.toLowerCase() && ef.activity_type) {
-        // Also filter by method if selected
-        if (!scope3Method || scope3Method === 'supplier_basis' || ef.method === scope3Method) {
-          activityTypes.add(ef.activity_type);
+    // Add activity types from scope3_ef data
+    if (scope3EFData.length) {
+      scope3EFData.forEach(ef => {
+        if (ef.category?.toLowerCase() === selectedCategory.toLowerCase() && ef.activity_type) {
+          // Also filter by method if selected
+          if (!scope3Method || scope3Method === 'supplier_basis' || ef.method === scope3Method) {
+            activityTypes.add(ef.activity_type);
+          }
         }
-      }
-    });
+      });
+    }
+    
+    // Always add "Others" option for supplier_basis method (doesn't need to exist in scope3_ef)
+    if (scope3Method === 'supplier_basis') {
+      activityTypes.add('others');
+    }
     
     return Array.from(activityTypes).sort();
   }, [formData.scope, scope3EFData, selectedCategory, scope3Method]);
@@ -5058,6 +5066,7 @@ export default function Emissions() {
                                     'wfh': 'Work From Home',
                                     'hotel_stay': 'Hotel Stay',
                                     'water_travel': 'Water Travel',
+                                    'others': 'Others',
                                   };
                                   return (
                                     <option key={type} value={type}>

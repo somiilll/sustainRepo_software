@@ -240,6 +240,14 @@ export default function EmissionEntryForm({
     });
   }, [scope3Method, scope3ActivityType, scope3Subcategory]);
 
+  // Auto-enable custom activity when "others" activity type is selected with supplier_basis
+  useEffect(() => {
+    if (scope3ActivityType === 'others' && scope3Method === 'supplier_basis') {
+      setUseCustomActivity(true);
+      setScope3ActivityId(''); // Clear any selected activity
+    }
+  }, [scope3ActivityType, scope3Method]);
+
   // Fetch fugitive emissions data from fuel_database (Scope 1 fugitive emissions)
   useEffect(() => {
     const fetchFugitiveEmissions = async () => {
@@ -509,7 +517,7 @@ export default function EmissionEntryForm({
 
   // Get available activity types for C6/C7 categories
   const availableScope3ActivityTypes = useMemo(() => {
-    if (scope !== 'scope3' || !scope3EFData.length || !category) return [];
+    if (scope !== 'scope3' || !category) return [];
     
     // Only show activity type filter for C6 and C7
     const isC6orC7 = category.toLowerCase().includes('c6') || 
@@ -521,14 +529,22 @@ export default function EmissionEntryForm({
     
     const activityTypes = new Set();
     
-    scope3EFData.forEach(ef => {
-      if (ef.category?.toLowerCase() === category.toLowerCase() && ef.activity_type) {
-        // Also filter by method if selected
-        if (!scope3Method || scope3Method === 'supplier_basis' || ef.method === scope3Method) {
-          activityTypes.add(ef.activity_type);
+    // Add activity types from scope3_ef data
+    if (scope3EFData.length) {
+      scope3EFData.forEach(ef => {
+        if (ef.category?.toLowerCase() === category.toLowerCase() && ef.activity_type) {
+          // Also filter by method if selected
+          if (!scope3Method || scope3Method === 'supplier_basis' || ef.method === scope3Method) {
+            activityTypes.add(ef.activity_type);
+          }
         }
-      }
-    });
+      });
+    }
+    
+    // Always add "Others" option for supplier_basis method (doesn't need to exist in scope3_ef)
+    if (scope3Method === 'supplier_basis') {
+      activityTypes.add('others');
+    }
     
     return Array.from(activityTypes).sort();
   }, [scope, scope3EFData, category, scope3Method]);
@@ -4569,6 +4585,7 @@ export default function EmissionEntryForm({
                         'wfh': 'Work From Home',
                         'water_travel': 'Water Travel',
                         'hotel_stay': 'Hotel Stay',
+                        'others': 'Others',
                       };
                       const displayLabel = activityTypeLabels[type] || type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
                       return (
@@ -4610,7 +4627,8 @@ export default function EmissionEntryForm({
                   <div className="flex items-center justify-between">
                     <Label>Activity <span className="text-red-500">*</span></Label>
                     {/* Toggle for custom activity - available for supplier_basis (Scope 3 and Biogenic Scope 3) */}
-                    {scope3Method === 'supplier_basis' && (scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && (
+                    {/* Hide toggle when "others" activity type is selected as it auto-enables custom activity */}
+                    {scope3Method === 'supplier_basis' && scope3ActivityType !== 'others' && (scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && (
                       <label className="flex items-center gap-2 text-sm cursor-pointer">
                         <input
                           type="checkbox"
@@ -4630,19 +4648,21 @@ export default function EmissionEntryForm({
                     )}
                   </div>
                   
-                  {/* For supplier_basis with custom activity toggle ON: Show text field */}
-                  {scope3Method === 'supplier_basis' && useCustomActivity && (scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3')) ? (
+                  {/* For supplier_basis with custom activity toggle ON OR "others" activity type: Show text field */}
+                  {scope3Method === 'supplier_basis' && (useCustomActivity || scope3ActivityType === 'others') && (scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3')) ? (
                     <div className="space-y-2">
                       <Input
                         type="text"
                         value={scope3CustomActivity}
                         onChange={(e) => setScope3CustomActivity(e.target.value)}
-                        placeholder="Enter custom activity name..."
+                        placeholder={scope3ActivityType === 'others' ? "Enter activity name (e.g., Electric Scooter, Carpooling)..." : "Enter custom activity name..."}
                         className="bg-stone-50 h-10"
                         data-testid="scope3-custom-activity-input"
                       />
                       <p className="text-xs text-text-muted">
-                        Enter a custom activity name describing the emission source
+                        {scope3ActivityType === 'others' 
+                          ? 'Enter a descriptive name for this activity type'
+                          : 'Enter a custom activity name describing the emission source'}
                       </p>
                     </div>
                   ) : (
