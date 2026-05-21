@@ -4110,29 +4110,46 @@ export default function Emissions() {
       };
       const normalizedActivityType = normalizeActivityType(activityType);
       
-      // Priority: 1) Selected scope3ActivityId, 2) First match for activity_type
-      let matchedActivity = null;
-      if (scope3ActivityId) {
-        matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-      }
-      
-      // Fallback to activity_type match if no specific activity selected
-      if (!matchedActivity) {
-        matchedActivity = filteredScope3Activities.find(a => 
+      // For supplier_basis with custom activity, skip activity ID requirement
+      if (!useCustomActivity && !scope3ActivityId) {
+        // Priority: 1) Selected scope3ActivityId, 2) First match for activity_type
+        let matchedActivity = filteredScope3Activities.find(a => 
           a.activity_type === activityType || 
           normalizeActivityType(a.activity_type) === normalizedActivityType
         );
-      }
-
-      if (!matchedActivity) {
-        toast.error(`Activity "${activityType}" not found. Please select a valid activity.`);
-        setIsCalculatingEditEmployee(false);
-        return;
+        
+        if (!matchedActivity) {
+          toast.error('Please select a specific activity from the dropdown or use custom activity');
+          setIsCalculatingEditEmployee(false);
+          return;
+        }
       }
       
-      // Use the matched activity's emission factor for supplier_basis if no custom EF provided
-      const efFromActivity = matchedActivity.emission_factor;
-      const efUnitFromActivity = matchedActivity.ef_unit;
+      // Find matched activity (may be null for custom activity)
+      let matchedActivity = null;
+      if (!useCustomActivity) {
+        if (scope3ActivityId) {
+          matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+        }
+        
+        // Fallback to activity_type match if no specific activity selected
+        if (!matchedActivity) {
+          matchedActivity = filteredScope3Activities.find(a => 
+            a.activity_type === activityType || 
+            normalizeActivityType(a.activity_type) === normalizedActivityType
+          );
+        }
+
+        if (!matchedActivity) {
+          toast.error(`Activity "${activityType}" not found. Please select a valid activity.`);
+          setIsCalculatingEditEmployee(false);
+          return;
+        }
+      }
+      
+      // Use the matched activity's emission factor for supplier_basis if no custom EF provided (or null for custom activity)
+      const efFromActivity = matchedActivity?.emission_factor || null;
+      const efUnitFromActivity = matchedActivity?.ef_unit || null;
 
       // Build decision_inputs for decision tree traversal
       const decisionInputs = {
@@ -4170,10 +4187,12 @@ export default function Emissions() {
         context: {
           ...decisionInputs,
           reporting_period: formData.reporting_period_start, // For currency conversion year lookup
-          activity: matchedActivity.activity, // For emission factor lookup
-          fuel_name: matchedActivity.activity, // Alias for property source mapping
+          activity: matchedActivity?.activity || scope3CustomActivity || 'Custom Activity', // For emission factor lookup
+          fuel_name: matchedActivity?.activity || scope3CustomActivity || 'Custom Activity', // Alias for property source mapping
+          scope3_ef_id: matchedActivity?.id || null,
+          use_custom_activity: useCustomActivity,
         },
-        scope3_ef_id: matchedActivity.id,
+        scope3_ef_id: matchedActivity?.id || null,
       };
 
       // Call calc engine
@@ -5479,8 +5498,8 @@ export default function Emissions() {
                       Input Fields (from calculation engine configuration)
                     </div>
                     
-                    {/* Supplier Method Disclaimer */}
-                    {scope3Method === 'supplier_basis' && (
+                    {/* Supplier Method Disclaimer - Only for Scope 3 with supplier_basis */}
+                    {formData.scope === 'scope3' && scope3Method === 'supplier_basis' && (
                       <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
                         <p className="text-sm text-amber-800">
                           <span className="font-semibold">Note:</span> For the Supplier Method, the emission factor numerator must be in tCO2e, and the denominator must correspond to the same unit used in the "Quantity Used" field.

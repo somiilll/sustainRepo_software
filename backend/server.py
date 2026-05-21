@@ -10440,6 +10440,8 @@ async def create_or_update_c7_monthly_entry(
                 ("qty_days_travelled", "No. of Days Travelled"),
                 ("working_days", "Working Days"),
                 ("working_hour_per_day", "Working Hours per Day"),
+                ("activity_value_supplier_based", "Quantity (Supplier Based)"),
+                ("emission_factor_supplier_based", "Emission Factor (Supplier Based)"),
             ]
             
             for field_key, field_label in input_fields_to_track:
@@ -10877,6 +10879,8 @@ async def create_or_update_c7_yearly_entry(
                 ("qty_days_travelled", "No. of Days Travelled"),
                 ("working_days", "Working Days"),
                 ("working_hour_per_day", "Working Hours per Day"),
+                ("activity_value_supplier_based", "Quantity (Supplier Based)"),
+                ("emission_factor_supplier_based", "Emission Factor (Supplier Based)"),
             ]
             
             for field_key, field_label in input_fields_to_track:
