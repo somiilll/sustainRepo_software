@@ -3017,9 +3017,9 @@ export default function EmissionEntryForm({
         }
       }
       
-      // Use the matched activity's emission factor
-      const efFromActivity = matchedActivity.emission_factor;
-      const efUnitFromActivity = matchedActivity.ef_unit;
+      // Use the matched activity's emission factor (or null for custom activity - EF comes from user input)
+      const efFromActivity = matchedActivity?.emission_factor || null;
+      const efUnitFromActivity = matchedActivity?.ef_unit || null;
 
       // Build decision_inputs for decision tree traversal
       const decisionInputs = {
@@ -3056,9 +3056,10 @@ export default function EmissionEntryForm({
         calculation_method_scope3: scope3Method,
         activity_type: activityType,
         reporting_period: c7ReportingPeriod, // For currency conversion year lookup
-        activity: matchedActivity.activity, // For emission factor lookup
-        fuel_name: matchedActivity.activity, // Alias for property source mapping
-        scope3_ef_id: matchedActivity.id,
+        activity: matchedActivity?.activity || scope3CustomActivity || 'Custom Activity', // For emission factor lookup
+        fuel_name: matchedActivity?.activity || scope3CustomActivity || 'Custom Activity', // Alias for property source mapping
+        scope3_ef_id: matchedActivity?.id || null,
+        use_custom_activity: useCustomActivity,
       };
 
       // Get category ID
@@ -3077,7 +3078,7 @@ export default function EmissionEntryForm({
         decision_inputs: decisionInputs,
         inputs: formulaInputs,
         context: calcContext,
-        scope3_ef_id: matchedActivity.id,
+        scope3_ef_id: matchedActivity?.id || null,
       };
 
       // Call calc engine
@@ -3197,7 +3198,7 @@ export default function EmissionEntryForm({
     } finally {
       setIsCalculatingEmployee(false);
     }
-  }, [scope3Method, scope3ActivityType, scope3ActivityId, filteredScope3Activities, dynamicCategories, category, dynamicInputFields, getAuthHeader]);
+  }, [scope3Method, scope3ActivityType, scope3ActivityId, filteredScope3Activities, dynamicCategories, category, dynamicInputFields, getAuthHeader, useCustomActivity, scope3CustomActivity]);
 
   // Submit handler - creates emissions for each month with data
   const handleSubmit = async () => {
