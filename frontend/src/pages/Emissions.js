@@ -2786,9 +2786,13 @@ export default function Emissions() {
       return;
     }
     
-    // C1 PURCHASED GOODS — module-owned validation + payload (config-driven path).
-    // Other flat-field categories continue through the legacy shared flow below.
-    if (activeCategoryModule?.id === 'c1' && activeCategoryModule?.buildEditPayload) {
+    // FLAT-FIELD SCOPE 3 CATEGORIES — module-owned validation + payload
+    // (config-driven path). Applies to any module exposing `buildEditPayload`
+    // EXCEPT C7 (which has its own branch above and is multi-employee).
+    if (
+      activeCategoryModule?.buildEditPayload &&
+      activeCategoryModule?.id !== 'c7'
+    ) {
       const validation = activeCategoryModule.validateEditSubmission({
         scope3Method,
         scope3ActivityId,
@@ -2798,6 +2802,7 @@ export default function Emissions() {
         dynamicFieldValues,
         processNames: formData.process_names,
         effectiveCalculatedEmissions,
+        formData,
       });
       if (!validation.valid) {
         toast.error(validation.errorMessage);

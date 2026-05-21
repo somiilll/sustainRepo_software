@@ -122,14 +122,18 @@ export function initializeCategoryModules() {
     mod.hasCapability = (cap) => mod.capabilities.includes(cap);
   });
 
-  // Attach edit-flow business logic to flat-field categories.
-  // C1 — Purchased Goods and Services (first migrated to module-owned edit logic).
-  const c1Edit = require('./categories/C1PurchasedGoods/edit');
-  const c1ModuleEdit = categoryRegistry.get('c1');
-  if (c1ModuleEdit) {
-    c1ModuleEdit.validateEditSubmission = c1Edit.validateEditSubmission;
-    c1ModuleEdit.buildEditPayload = c1Edit.buildEditPayload;
-  }
+  // Attach edit-flow business logic to all flat-field Scope 3 categories
+  // via the shared `Scope3FlatEdit` helpers. The factory binds each
+  // module's `hasCapability(...)` so payload appends asset_name /
+  // journey-locations / etc. automatically per the module's capabilities.
+  const { createScope3FlatEditApi } = require('./categories/shared/Scope3FlatEdit');
+  FLAT_FIELD_SCOPE3_CATEGORIES.forEach((id) => {
+    const mod = categoryRegistry.get(id);
+    if (!mod) return;
+    const editApi = createScope3FlatEditApi(mod);
+    mod.validateEditSubmission = editApi.validateEditSubmission;
+    mod.buildEditPayload = editApi.buildEditPayload;
+  });
 
   // eslint-disable-next-line no-console
   console.log(`[Emissions] Category modules initialized: ${categoryRegistry.size} entries`);
