@@ -512,7 +512,7 @@ export default function ScopeCategoryManagement() {
               <Label htmlFor="scope-code">
                 Code{' '}
                 <span className="text-xs text-text-muted font-normal">
-                  (auto-generated if empty — used as the stored value, cannot change for system scopes)
+                  (auto-generated if empty)
                 </span>
               </Label>
               <Input
@@ -521,7 +521,6 @@ export default function ScopeCategoryManagement() {
                 onChange={(e) => setScopeForm({ ...scopeForm, code: e.target.value })}
                 placeholder="e.g., scope1"
                 className="bg-stone-50 font-mono"
-                disabled={editingScope?.is_system}
                 data-testid="scope-code-input"
               />
             </div>
@@ -616,7 +615,7 @@ export default function ScopeCategoryManagement() {
               <Label htmlFor="category-code">
                 Code{' '}
                 <span className="text-xs text-text-muted font-normal">
-                  (auto-generated if empty — cannot change for system categories)
+                  (auto-generated if empty)
                 </span>
               </Label>
               <Input
@@ -625,7 +624,6 @@ export default function ScopeCategoryManagement() {
                 onChange={(e) => setCategoryForm({ ...categoryForm, code: e.target.value })}
                 placeholder="e.g., stationary_combustion"
                 className="bg-stone-50 font-mono"
-                disabled={editingCategory?.is_system}
                 data-testid="category-code-input"
               />
             </div>
