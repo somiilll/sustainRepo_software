@@ -2736,7 +2736,6 @@ class GHGReportGenerator:
         
         # Configuration for "Others" grouping
         MIN_CATEGORY_PERCENT = 2.0  # Categories below this % get grouped into "Others"
-        MAX_OTHERS_PERCENT = 5.0    # If combined small categories exceed this %, keep them separate
         
         # Separate significant categories from small ones
         significant_data = []
@@ -2753,15 +2752,9 @@ class GHGReportGenerator:
         others_total = sum(v for _, v, _ in others_data)
         others_pct = (others_total / total) * 100 if total > 0 else 0
         
-        # If combined small categories are substantial, don't group them
-        # But if they're truly negligible, group them
+        # Always group small categories into "Others"
         if others_data and others_pct > 0:
-            if others_pct <= MAX_OTHERS_PERCENT or len(others_data) > 5:
-                # Group into "Others"
-                significant_data.append((f'Others ({len(others_data)} categories)', others_total, others_pct))
-            else:
-                # Keep them separate since they're individually small but combined substantial
-                significant_data.extend(others_data)
+            significant_data.append((f'Others ({len(others_data)} categories)', others_total, others_pct))
         
         # Sort by value descending
         significant_data.sort(key=lambda x: x[1], reverse=True)
