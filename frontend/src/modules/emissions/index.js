@@ -86,18 +86,41 @@ export function initializeCategoryModules() {
   const { registerAllScope3Categories } = require('./categories/CategoryGenerator');
   registerAllScope3Categories();
 
-  // Attach the shared Scope 3 flat-field renderer to opted-in modules.
-  // Pilot: C1 (Purchased Goods and Services) — proves config-driven rendering
-  // via the registry. Other categories continue using legacy inline JSX until
-  // explicitly migrated.
+  // Attach the shared Scope 3 flat-field renderer to all flat-field categories.
+  // The renderer is category-agnostic — it reads everything it needs from the
+  // calc-engine `dynamicInputFields` + props. C7 is excluded (multi-employee).
   const {
     Scope3DynamicFieldsRenderer,
   } = require('./shared/renderers/Scope3DynamicFieldsRenderer');
 
-  const c1Module = categoryRegistry.get('c1');
-  if (c1Module) {
-    c1Module.DynamicFieldsRenderer = Scope3DynamicFieldsRenderer;
-  }
+  const FLAT_FIELD_SCOPE3_CATEGORIES = [
+    'c1', 'c2', 'c3', 'c4', 'c5', 'c6',
+    'c8', 'c9', 'c10', 'c11', 'c12', 'c13', 'c14', 'c15',
+  ];
+  FLAT_FIELD_SCOPE3_CATEGORIES.forEach((id) => {
+    const mod = categoryRegistry.get(id);
+    if (mod) {
+      mod.DynamicFieldsRenderer = Scope3DynamicFieldsRenderer;
+    }
+  });
+
+  // Wire category capabilities from the static definitions.
+  // Capabilities are derived from `scope3-definitions.js` flags so the page
+  // can query `module.hasCapability('asset-name')` instead of maintaining
+  // hard-coded `['c8','c13','c14','c15'].some(...)` chains in JSX.
+  const { CATEGORY_CONFIGS } = require('./categories/scope3-definitions');
+  Object.entries(CATEGORY_CONFIGS).forEach(([id, cfg]) => {
+    const mod = categoryRegistry.get(id);
+    if (!mod) return;
+    const caps = new Set(mod.capabilities || []);
+    if (cfg.requiresAssetName) caps.add('asset-name');
+    if (cfg.requiresLocation) caps.add('journey-locations');
+    if (cfg.requiresSubcategory) caps.add('subcategory');
+    if (cfg.activityTypes) caps.add('activity-types');
+    if (cfg.supportsMultiEmployee) caps.add('multi-employee');
+    mod.capabilities = Array.from(caps);
+    mod.hasCapability = (cap) => mod.capabilities.includes(cap);
+  });
 
   // eslint-disable-next-line no-console
   console.log(`[Emissions] Category modules initialized: ${categoryRegistry.size} entries`);

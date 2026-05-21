@@ -211,6 +211,14 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 - P1: Dashboard "No Data" after toggling organization Scope access
 - P2: C7 Edit Dialog Stale State (yearly financial periods not transforming correctly)
 
+- ✅ Phase 7e (Feb 2026): Renderer Rollout + Capabilities System
+  - Attached `Scope3DynamicFieldsRenderer` to **all flat-field Scope 3 categories** (C1–C6, C8–C15). C7 excluded (multi-employee renderer).
+  - Introduced **module capability flags**: each module now exposes `capabilities: []` + `hasCapability(cap)` lookup. Derived from `scope3-definitions.js` (`requiresAssetName` → `'asset-name'`, `requiresLocation` → `'journey-locations'`, `requiresSubcategory` → `'subcategory'`, `activityTypes` → `'activity-types'`, `supportsMultiEmployee` → `'multi-employee'`).
+  - Replaced page-side conditional chains in `Emissions.js`:
+    - `['c8','c13','c14','c15'].some(...)` → `activeCategoryModule?.hasCapability?.('asset-name')`
+    - `['c4','c6','c9'].some(...)` → `activeCategoryModule?.hasCapability?.('journey-locations')`
+  - Cleaner architecture: when a new category is added or capability mapping changes, only the definition file is edited — no JSX chains to hunt.
+
 - ✅ Phase 7d (Feb 2026): C1 Renderer Migration (Config-driven render proof)
   - Created `/modules/emissions/shared/renderers/Scope3DynamicFieldsRenderer.jsx`
   - Extracted ~250 lines of dynamic-field JSX (calc-engine driven inputs, override checkboxes, unit selectors, supplier-basis text units, responsible-person triplet) — byte-identical markup

@@ -5090,7 +5090,8 @@ export default function Emissions() {
                       )}
 
                       {/* Asset Name for C8/C13/C14/C15 (Leased Assets, Franchises, Investments) */}
-                      {formData.scope === 'scope3' && selectedCategory && ['c8', 'c13', 'c14', 'c15'].some(c => selectedCategory.toLowerCase().includes(c)) && (
+                      {/* Asset Name section — driven by module capability 'asset-name' (C8/C13/C14/C15) */}
+                      {formData.scope === 'scope3' && activeCategoryModule?.hasCapability?.('asset-name') && (
                         <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
                           <h4 className="font-medium mb-2 text-amber-800 text-sm">Asset Information</h4>
                           <div className="space-y-1.5">
@@ -5109,7 +5110,8 @@ export default function Emissions() {
                       )}
 
                       {/* From/To Location for C4/C6/C9 (Transportation/Travel categories) */}
-                      {formData.scope === 'scope3' && selectedCategory && ['c4', 'c6', 'c9'].some(c => selectedCategory.toLowerCase().includes(c)) && !isEditC7EmployeeCommuting && (
+                      {/* Journey Details — driven by module capability 'journey-locations' (C4/C6/C9) */}
+                      {formData.scope === 'scope3' && activeCategoryModule?.hasCapability?.('journey-locations') && !isEditC7EmployeeCommuting && (
                         <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
                           <h4 className="font-medium mb-2 text-blue-800 text-sm">Journey Details (Optional)</h4>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
