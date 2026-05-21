@@ -2764,8 +2764,14 @@ export default function Emissions() {
     const persistCalcAuditLog = async (emissionId) => {
       if (!emissionId || dynamicInputFields.length === 0) return;
       try {
+        // Effective scope for category lookup: biogenic-scope3 records use
+        // the underlying Scope 3 category definitions (biogenic categories
+        // are not duplicated under scope_code='biogenic' for Scope 3).
+        const effectiveScope = (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')
+          ? 'scope3'
+          : formData.scope;
         const categoryObj = dynamicCategories.find(
-          c => c.name === (formData.category || selectedCategory) && c.scope_code === formData.scope
+          c => c.name === (formData.category || selectedCategory) && c.scope_code === effectiveScope
         );
         if (!categoryObj?.id) return;
 
