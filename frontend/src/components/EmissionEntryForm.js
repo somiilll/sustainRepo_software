@@ -10,48 +10,23 @@ import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import MultiEmployeeInput from './MultiEmployeeInput';
 
+// Import from refactored modules - centralizing constants and reducing duplication
+import { MONTHS, CALENDAR_YEAR_MONTHS, FINANCIAL_YEAR_MONTHS } from '../constants/months';
+import { isVolumeUnit } from '../utils/helpers/unit-utils';
+import { 
+  isC7Category, 
+  isC6Category, 
+  getCategoryCode,
+  requiresSubcategory as checkRequiresSubcategory,
+  requiresAssetName as checkRequiresAssetName,
+  requiresLocation as checkRequiresLocation,
+  hasActivityType as checkHasActivityType,
+  SUBCATEGORY_CATEGORIES,
+  ASSET_NAME_CATEGORIES
+} from '../constants/categories';
+
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
-
-const MONTHS = [
-  { key: '01', name: 'January', short: 'Jan' },
-  { key: '02', name: 'February', short: 'Feb' },
-  { key: '03', name: 'March', short: 'Mar' },
-  { key: '04', name: 'April', short: 'Apr' },
-  { key: '05', name: 'May', short: 'May' },
-  { key: '06', name: 'June', short: 'Jun' },
-  { key: '07', name: 'July', short: 'Jul' },
-  { key: '08', name: 'August', short: 'Aug' },
-  { key: '09', name: 'September', short: 'Sep' },
-  { key: '10', name: 'October', short: 'Oct' },
-  { key: '11', name: 'November', short: 'Nov' },
-  { key: '12', name: 'December', short: 'Dec' }
-];
-
-// Calendar year months (Jan-Dec)
-const CALENDAR_YEAR_MONTHS = MONTHS;
-
-// Financial year months (Apr-Mar)
-const FINANCIAL_YEAR_MONTHS = [
-  { key: '04', name: 'April', short: 'Apr' },
-  { key: '05', name: 'May', short: 'May' },
-  { key: '06', name: 'June', short: 'Jun' },
-  { key: '07', name: 'July', short: 'Jul' },
-  { key: '08', name: 'August', short: 'Aug' },
-  { key: '09', name: 'September', short: 'Sep' },
-  { key: '10', name: 'October', short: 'Oct' },
-  { key: '11', name: 'November', short: 'Nov' },
-  { key: '12', name: 'December', short: 'Dec' },
-  { key: '01', name: 'January', short: 'Jan' },
-  { key: '02', name: 'February', short: 'Feb' },
-  { key: '03', name: 'March', short: 'Mar' }
-];
-
-// Helper to check if unit is volume-based (from centralized units)
-const isVolumeUnit = (unit, centralizedUnits = []) => {
-  const unitDef = centralizedUnits.find(u => u.symbol?.toLowerCase() === unit?.toLowerCase());
-  return unitDef?.unit_type === 'volume';
-};
 
 // Helper to check if a month/year combination is in the future
 const isFutureMonth = (monthKey, year, yearType = 'calendar') => {
@@ -379,8 +354,9 @@ export default function EmissionEntryForm({
       : scope3EFData.filter(ef => ef.sub_scope !== 'biogenic'); // Exclude biogenic from regular scope3
     
     // For subcategory-based categories (C8, C10, C11, C13, C14), handle specially
+    // Using centralized helper
     const catLower = category?.toLowerCase() || '';
-    const isSubcategoryCategory = ['c8', 'c10', 'c11', 'c13', 'c14'].some(c => catLower.includes(c));
+    const isSubcategoryCategory = checkRequiresSubcategory(category);
     
     // For BIOGENIC scope3, skip subcategory handling - just filter by category directly
     // Biogenic C8/C10/C11/C13/C14 should work like C3 (direct activity selection)
@@ -519,11 +495,9 @@ export default function EmissionEntryForm({
   const availableScope3ActivityTypes = useMemo(() => {
     if (scope !== 'scope3' || !category) return [];
     
-    // Only show activity type filter for C6 and C7
-    const isC6 = category.toLowerCase().includes('c6') || 
-                 category.toLowerCase().includes('business travel');
-    const isC7 = category.toLowerCase().includes('c7') ||
-                 category.toLowerCase().includes('employee commuting');
+    // Only show activity type filter for C6 and C7 - using centralized helpers
+    const isC6 = isC6Category(category);
+    const isC7 = isC7Category(category);
     
     if (!isC6 && !isC7) return [];
     
@@ -550,34 +524,29 @@ export default function EmissionEntryForm({
   }, [scope, scope3EFData, category, scope3Method]);
 
   // Categories that require subcategory selection (C8, C10, C11, C13, C14)
-  const subcategoryCategories = ['c8', 'c10', 'c11', 'c13', 'c14'];
+  // Now imported from constants: SUBCATEGORY_CATEGORIES
   
   // Categories that require Asset Name field (C8, C13, C14, C15)
-  const assetNameCategories = ['c8', 'c13', 'c14', 'c15'];
+  // Now imported from constants: ASSET_NAME_CATEGORIES
   
-  // Check if current category requires Asset Name
+  // Check if current category requires Asset Name - using centralized helper
   const requiresAssetName = useMemo(() => {
     if (scope !== 'scope3' || !category) return false;
-    const catLower = category.toLowerCase();
-    return assetNameCategories.some(c => catLower.includes(c));
+    return checkRequiresAssetName(category);
   }, [scope, category]);
   
-  // Check if current category is C7 (Employee Commuting) - supports multi-employee input
+  // Check if current category is C7 (Employee Commuting) - using centralized helper
   const isC7EmployeeCommuting = useMemo(() => {
     if (scope !== 'scope3' || !category) return false;
-    const catLower = category.toLowerCase();
-    return catLower.includes('c7') || catLower.includes('employee commuting');
+    return isC7Category(category);
   }, [scope, category]);
   
-  // Check if current category requires subcategory
+  // Check if current category requires subcategory - using centralized helper
   // Note: Biogenic Scope 3 does NOT require subcategory - it uses direct activity selection like C3
   const requiresSubcategory = useMemo(() => {
-    // Only regular Scope 3 requires subcategory for C8/C10/C11/C13/C14
-    // Biogenic Scope 3 skips subcategory selection
     const isBiogenicScope3 = scope === 'biogenic' && biogenicScopeSelection === 'scope3';
     if (scope !== 'scope3' || isBiogenicScope3 || !category) return false;
-    const catLower = category.toLowerCase();
-    return subcategoryCategories.some(c => catLower.includes(c));
+    return checkRequiresSubcategory(category);
   }, [scope, category, biogenicScopeSelection]);
 
   // Reset employee data when category changes away from C7
@@ -629,14 +598,10 @@ export default function EmissionEntryForm({
     }
   }, [requiresAssetName]);
 
-  // Categories that show From/To Location fields (C4, C6, C9 - transportation/travel categories)
-  const locationCategories = ['c4', 'c6', 'c9'];
-  
-  // Check if current category shows From/To Location fields
+  // Check if current category shows From/To Location fields - using centralized helper
   const showsLocationFields = useMemo(() => {
     if (scope !== 'scope3' || !category) return false;
-    const catLower = category.toLowerCase();
-    return locationCategories.some(c => catLower.includes(c));
+    return checkRequiresLocation(category);
   }, [scope, category]);
 
   // Reset location fields when category changes away from C4/C6/C9
@@ -1462,8 +1427,7 @@ export default function EmissionEntryForm({
     // pass 'biogenic' as subcategory_selection to satisfy the decision tree
     // (biogenic skips subcategory UI but backend decision tree still expects it)
     if (isBiogenicScope3) {
-      const catLower = category?.toLowerCase() || '';
-      const isSubcategoryCategory = ['c8', 'c10', 'c11', 'c13', 'c14'].some(c => catLower.includes(c));
+      const isSubcategoryCategory = checkRequiresSubcategory(category);
       if (isSubcategoryCategory && !decisionInputs['subcategory_selection']) {
         // Use 'biogenic' as subcategory - will be handled by decision tree
         decisionInputs['subcategory_selection'] = 'biogenic';

@@ -236,23 +236,43 @@ The refactoring is designed to be **incremental** and **non-breaking**:
    - Category registry pattern
    - C1, C2 modules as templates
 
-2. **Phase 2 (Next)**: Extract remaining categories
+2. **Phase 2 (Complete)**: Extract all Scope 3 categories
    - C3-C6 standard categories
-   - C7 special handling
+   - C7 Employee Commuting (full implementation with validation, payload-builder, normalizer, utils)
    - C8-C15 subcategory categories
 
-3. **Phase 3**: Extract form components
-   - Shared form components
-   - Category-specific forms
-   - Monthly/yearly entry modes
+3. **Phase 3 (Complete)**: Extract form components
+   - StepIndicator, FormNavigation
+   - FacilitySelector, ReportingPeriodSelector, ActivityTypeSelector
+   - DynamicFieldInput, DynamicFieldGroup
+   - NotesSection
+   - EmissionsSummaryCard, MonthlyEmissionsSummary
+   - MonthlyDataEntry, YearlyDataEntry entry mode components
 
-4. **Phase 4**: Migrate EmissionEntryForm.js
-   - Replace if/else with registry
-   - Use extracted components
-   - Reduce file size significantly
+4. **Phase 4 (In Progress)**: Migrate EmissionEntryForm.js
+   - Created `useEmissionForm.js` hooks module (475 lines) with:
+     - `useCategoryDetection` - Replaces if/else category checks
+     - `useReportingPeriod` - Calendar/financial year logic
+     - `useScope3Activities` - Activity type filtering
+     - `useCalculationMethod` - Method detection helpers
+     - `useMonthlyData` / `useYearlyData` - Entry state management
+   - Migrated inline constants to centralized modules
+   - Replaced duplicate category detection patterns with imports
+   - Current: 6299 lines (reduced from 6336, ongoing)
 
-5. **Phase 5**: Migrate Emissions.js (list/edit)
+5. **Phase 5 (Next)**: Continue EmissionEntryForm.js migration
+   - Import and use hooks in the form component
+   - Extract Step 1-4 render sections to separate components
+   - Target: ~2500 lines
+
+6. **Phase 6**: Migrate Emissions.js (list/edit)
    - Similar refactoring approach
+   - Extract edit form components
+
+7. **Phase 7**: Additional modules
+   - Scope 1/2 category modules
+   - Dashboard modularization
+   - Bulk upload modularization
 
 ## Benefits
 
