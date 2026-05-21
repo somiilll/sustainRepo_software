@@ -437,6 +437,12 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
                 old_monthly = old_emp.get("monthly_data", {}) or {}
                 new_monthly = new_emp.get("monthly_data", {}) or {}
                 
+                # Detect structure migration: flat/yearly → monthly or monthly → flat/yearly
+                old_has_monthly = bool(old_monthly)
+                new_has_monthly = bool(new_monthly)
+                is_migrating_to_monthly = not old_has_monthly and new_has_monthly
+                is_migrating_from_monthly = old_has_monthly and not new_has_monthly
+                
                 # Track monthly inputs and emissions if present
                 for month_key in set(old_monthly.keys()) | set(new_monthly.keys()):
                     old_month_data = old_monthly.get(month_key, {}) or {}
@@ -450,12 +456,24 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
                             continue
                         old_input_val = old_month_inputs.get(input_key)
                         new_input_val = new_month_inputs.get(input_key)
-                        if old_input_val != new_input_val and (old_input_val is not None or new_input_val is not None):
+                        
+                        # STRUCTURAL MIGRATION FIX: When migrating TO monthly, check if old value exists in flat structure
+                        effective_old_val = old_input_val
+                        if is_migrating_to_monthly and old_input_val is None:
+                            # Check flat structure for old value
+                            effective_old_val = old_inputs.get(input_key)
+                        
+                        # STRUCTURAL MIGRATION FIX: When migrating FROM monthly, check if new value exists in flat structure
+                        effective_new_val = new_input_val
+                        if is_migrating_from_monthly and new_input_val is None:
+                            effective_new_val = new_inputs.get(input_key)
+                        
+                        if effective_old_val != effective_new_val and (effective_old_val is not None or effective_new_val is not None):
                             input_label = input_label_map.get(input_key, input_key.replace('_', ' ').title())
                             changes.append({
                                 "field": f"employee_input_{input_key}",
-                                "old_value": old_input_val if old_input_val is not None else "(not set)",
-                                "new_value": new_input_val if new_input_val is not None else "(not set)",
+                                "old_value": effective_old_val if effective_old_val is not None else "(not set)",
+                                "new_value": effective_new_val if effective_new_val is not None else "(not set)",
                                 "field_type": "employee_input",
                                 "employee_name": emp_name,
                                 "display_name": f"{input_label} ({month_key.title()})"
@@ -466,14 +484,27 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
                     new_month_emissions = new_month_data.get("emissions", {}) or {}
                     old_month_co2e = old_month_emissions.get("co2e")
                     new_month_co2e = new_month_emissions.get("co2e")
-                    if old_month_co2e is not None or new_month_co2e is not None:
-                        old_val = float(old_month_co2e) if old_month_co2e is not None else 0
-                        new_val = float(new_month_co2e) if new_month_co2e is not None else 0
+                    
+                    # STRUCTURAL MIGRATION FIX: When migrating TO monthly, use flat emissions as old value
+                    effective_old_co2e = old_month_co2e
+                    if is_migrating_to_monthly and old_month_co2e is None:
+                        flat_old_emissions = old_yearly.get("emissions", {}) or old_emp.get("emissions", {}) or {}
+                        effective_old_co2e = flat_old_emissions.get("co2e")
+                    
+                    # STRUCTURAL MIGRATION FIX: When migrating FROM monthly, use flat emissions as new value
+                    effective_new_co2e = new_month_co2e
+                    if is_migrating_from_monthly and new_month_co2e is None:
+                        flat_new_emissions = new_yearly.get("emissions", {}) or new_emp.get("emissions", {}) or {}
+                        effective_new_co2e = flat_new_emissions.get("co2e")
+                    
+                    if effective_old_co2e is not None or effective_new_co2e is not None:
+                        old_val = float(effective_old_co2e) if effective_old_co2e is not None else 0
+                        new_val = float(effective_new_co2e) if effective_new_co2e is not None else 0
                         if abs(old_val - new_val) > 0.0001:
                             changes.append({
                                 "field": "employee_emissions_monthly",
-                                "old_value": f"{old_val:.4f} tCO2e" if old_month_co2e is not None else "(not calculated)",
-                                "new_value": f"{new_val:.4f} tCO2e" if new_month_co2e is not None else "(not calculated)",
+                                "old_value": f"{old_val:.4f} tCO2e" if effective_old_co2e is not None else "(not calculated)",
+                                "new_value": f"{new_val:.4f} tCO2e" if effective_new_co2e is not None else "(not calculated)",
                                 "field_type": "employee_emission",
                                 "employee_name": emp_name,
                                 "display_name": f"Emissions ({month_key.title()})"
@@ -515,15 +546,20 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
                             "display_name": input_label
                         })
                 
-                # Track employee emissions (co2e) changes
+                # Track employee emissions (co2e) changes - yearly/flat structure
                 old_emissions = old_yearly.get("emissions", {}) or old_emp.get("emissions", {}) or {}
                 new_emissions = new_yearly.get("emissions", {}) or new_emp.get("emissions", {}) or {}
                 
                 old_co2e = old_emissions.get("co2e")
                 new_co2e = new_emissions.get("co2e")
                 
-                # Compare with tolerance for floating point
-                if old_co2e is not None or new_co2e is not None:
+                # STRUCTURAL MIGRATION FIX: Skip tracking yearly/flat emissions separately when migrating to/from monthly
+                # The monthly emissions tracking above already handles the migration with proper old/new values
+                if is_migrating_to_monthly or is_migrating_from_monthly:
+                    # Skip - already tracked in monthly emissions with proper values from flat structure
+                    pass
+                elif old_co2e is not None or new_co2e is not None:
+                    # Compare with tolerance for floating point
                     old_val = float(old_co2e) if old_co2e is not None else 0
                     new_val = float(new_co2e) if new_co2e is not None else 0
                     if abs(old_val - new_val) > 0.0001:  # Tolerance for floating point comparison
@@ -538,7 +574,7 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
     
     for field in fields_to_track:
         # Skip fields that are handled specially above
-        if field in ["evidence_url", "evidence_file_name", "calculation_method_scope3", "sub_category", "scope3_activity", "activity", "activity_name", "process_names", "process_descriptions", "employees"]:
+        if field in ["evidence_url", "evidence_file_name", "calculation_method_scope3", "sub_category", "scope3_activity", "activity", "activity_name", "process_names", "process_descriptions", "employees", "monthly_totals", "yearly_total"]:
             continue
             
         old_val = old_values.get(field)

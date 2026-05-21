@@ -6143,11 +6143,13 @@ export default function Emissions() {
                                 const displayUnit = entry.unit === '1' ? '' : entry.unit;
                                 const sourceName = entry.source_name || entry.source || '';
                                 return (
-                                  <div key={i} className="p-2 bg-amber-50 rounded border border-amber-200">
-                                    <span className="text-amber-800 font-medium">{entry.property_label || entry.property}</span>
-                                    {' = '}{typeof entry.value === 'number' ? entry.value.toFixed(6) : entry.value}{displayUnit && ` ${displayUnit}`}
+                                  <div key={i} className="p-2 bg-amber-50 rounded border border-amber-200 flex justify-between items-center">
+                                    <span>
+                                      <span className="text-amber-800 font-medium">{entry.property_label || entry.property}</span>
+                                      {' = '}{typeof entry.value === 'number' ? entry.value.toFixed(6) : entry.value}{displayUnit && ` ${displayUnit}`}
+                                    </span>
                                     {sourceName && (
-                                      <span className="text-amber-600 text-xs ml-2">(Source - {sourceName})</span>
+                                      <span className="text-amber-600 text-xs ml-4 whitespace-nowrap">(Source - {sourceName})</span>
                                     )}
                                   </div>
                                 );
