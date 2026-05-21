@@ -406,4 +406,4 @@ categoryRegistry.register('employee_commuting', C7EmployeeCommutingModule);
 categoryRegistry.register('c7_employee_commuting', C7EmployeeCommutingModule);
 
 export default C7EmployeeCommutingModule;
-export { config, fields, employeeFields, validationSchema };
+export { config, fields, validationSchema };

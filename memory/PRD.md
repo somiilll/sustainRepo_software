@@ -225,10 +225,18 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
   - Config-driven DynamicFormRenderer (react-hook-form + zod)
   - C7 Employee Commuting reference implementation
   - Generic Scope3 fallback module
+- ✅ Phase 7b (Feb 2026): Full Category Registration & App-boot Wiring
+  - All Scope 3 (C1-C6, C8-C15) auto-generated and registered via `CategoryGenerator`
+  - Scope 1 modules (Stationary, Mobile, Fugitive + Generic fallback) registered
+  - `initializeCategoryModules()` called once in `App.js` at boot — idempotent
+  - Verified registration: 14 Scope 3 + Scope 1 + C7 + aliases → **40 registry entries**
+  - Fixed import path in `DynamicFormRenderer.js` (`../../../` → `../../../../`)
+  - Fixed duplicate `employeeFields` export in C7 module
+  - Smoke tested: app builds, login works, Emissions page renders unchanged
 
 ## Upcoming Tasks (P0/P1)
-- Migrate remaining categories to module architecture (C1-C6, C8-C15)
-- Integrate new architecture into Emissions.js
+- **Next P0**: Route C7 edit dialog through `DynamicFormRenderer` as proof-of-concept (then migrate C1–C15, Scope 1 & 2 one-by-one)
+- Migrate remaining categories' UI through `DynamicFormRenderer` (registry already populated)
 - P1 Bugs: Scope Change Recalculation, Dashboard "no data" on scope toggle
 - "Apply to all months" autofill for S3C7 Employee Commuting
 

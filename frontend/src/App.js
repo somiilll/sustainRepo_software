@@ -39,6 +39,11 @@ import AuditTrails from './pages/AuditTrails';
 import BulkUpload from './pages/BulkUpload';
 import Layout from './components/Layout';
 import PasswordChangeModal from './components/PasswordChangeModal';
+import { initializeCategoryModules } from './modules/emissions';
+
+// Initialize the emissions Category Registry once at app boot.
+// Pure registration step — does not alter any existing business logic.
+initializeCategoryModules();
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
