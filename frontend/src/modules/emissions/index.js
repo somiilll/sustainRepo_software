@@ -150,6 +150,36 @@ export function initializeCategoryModules() {
     genericScope3.buildEditPayload = genericEditApi.buildEditPayload;
   }
 
+  // Attach Scope 1 edit-flow business logic to all Scope 1 modules
+  // (Stationary Combustion, Mobile Combustion, Fugitive Emissions, generic).
+  // The generic Scope 1 module also handles biogenic-scope1 edits as fallback.
+  const { createScope1EditApi } = require('./categories/shared/Scope1Edit');
+  const SCOPE1_MODULE_IDS = [
+    'stationary_combustion',
+    'mobile_combustion',
+    'fugitive_emissions',
+  ];
+  SCOPE1_MODULE_IDS.forEach((id) => {
+    const mod = categoryRegistry.get(id);
+    if (!mod) return;
+    mod.capabilities = mod.capabilities || [];
+    mod.hasCapability = mod.hasCapability || ((cap) => mod.capabilities.includes(cap));
+    const editApi = createScope1EditApi(mod);
+    mod.validateEditSubmission = editApi.validateEditSubmission;
+    mod.buildEditPayload = editApi.buildEditPayload;
+  });
+
+  // Generic Scope 1 fallback (handles unmatched Scope 1 categories AND biogenic-scope1)
+  const genericScope1 = categoryRegistry.getGenericModule('scope1');
+  if (genericScope1) {
+    genericScope1.capabilities = genericScope1.capabilities || [];
+    genericScope1.hasCapability =
+      genericScope1.hasCapability || ((cap) => genericScope1.capabilities.includes(cap));
+    const genericS1EditApi = createScope1EditApi(genericScope1);
+    genericScope1.validateEditSubmission = genericS1EditApi.validateEditSubmission;
+    genericScope1.buildEditPayload = genericS1EditApi.buildEditPayload;
+  }
+
   // eslint-disable-next-line no-console
   console.log(`[Emissions] Category modules initialized: ${categoryRegistry.size} entries`);
   return categoryRegistry.size;

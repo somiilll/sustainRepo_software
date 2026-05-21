@@ -1197,15 +1197,19 @@ export default function Emissions() {
     return cat.includes('c7') || cat.includes('employee commuting');
   }, [formData.scope, formData.category]);
 
-  // Pluggable category renderer lookup. The page delegates the
-  // dynamic-fields portion of the Scope 3 edit dialog to whichever module
-  // the registry returns (via `module.DynamicFieldsRenderer`), and the
-  // save flow to `module.buildEditPayload`.
+  // Pluggable category renderer + edit-flow lookup. The page delegates
+  // the dynamic-fields portion of the Scope 3 edit dialog to the module
+  // returned (via `module.DynamicFieldsRenderer`), and the save flow to
+  // `module.buildEditPayload`.
   //
   // Resolution:
-  //   - Scope 3 explicit          → match by category code (c1..c15)
-  //   - Biogenic + scope3 selection → fall back to generic Scope 3 module
-  //   - All other scopes/states   → legacy inline path (returns null)
+  //   - Scope 3 explicit            → match by category code (c1..c15)
+  //   - Biogenic + scope3 selection → generic Scope 3 module
+  //   - Scope 1                     → match by category name
+  //                                   (Stationary/Mobile/Fugitive Combustion)
+  //                                   or generic Scope 1 fallback
+  //   - Biogenic + scope1 selection → generic Scope 1 module
+  //   - All other scopes/states     → legacy inline path (returns null)
   const activeCategoryModule = useMemo(() => {
     const cat = (formData.category || '').toLowerCase();
 
@@ -1221,7 +1225,20 @@ export default function Emissions() {
       return categoryRegistry.getGenericModule?.('scope3') || null;
     }
 
-    // 3. Scope 1 / Scope 2 / biogenic-scope1 → legacy path
+    // 3. Scope 1 → match by category name
+    if (formData.scope === 'scope1') {
+      if (cat.includes('stationary')) return categoryRegistry.get('stationary_combustion');
+      if (cat.includes('mobile')) return categoryRegistry.get('mobile_combustion');
+      if (cat.includes('fugitive')) return categoryRegistry.get('fugitive_emissions');
+      return categoryRegistry.getGenericModule?.('scope1') || null;
+    }
+
+    // 4. Biogenic + scope1 selection → generic Scope 1
+    if (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope1') {
+      return categoryRegistry.getGenericModule?.('scope1') || null;
+    }
+
+    // 5. Scope 2 / unknown → legacy path
     return null;
   }, [formData.scope, formData.category, biogenicScopeSelection]);
 
@@ -2801,23 +2818,39 @@ export default function Emissions() {
       return;
     }
     
-    // FLAT-FIELD SCOPE 3 CATEGORIES — module-owned validation + payload
-    // (config-driven path). Applies to any module exposing `buildEditPayload`
-    // EXCEPT C7 (which has its own branch above and is multi-employee).
+    // FLAT-FIELD SCOPE 3 + SCOPE 1 CATEGORIES — module-owned validation +
+    // payload (config-driven path). Applies to any module exposing
+    // `buildEditPayload` EXCEPT C7 (which has its own multi-employee
+    // branch above). Scope 2 still uses the legacy path until migrated.
     if (
       activeCategoryModule?.buildEditPayload &&
       activeCategoryModule?.id !== 'c7'
     ) {
+      // Read override DOM flags for Scope 1 (no-op for Scope 3 paths)
+      const cvCheckbox = document.querySelector('[data-testid="override-calorific-checkbox"]');
+      const densityCheckbox = document.querySelector('[data-testid="override-density-checkbox"]');
+      const isOverrideCV = cvCheckbox?.checked || false;
+      const isOverrideDensity = densityCheckbox?.checked || false;
+
       const validation = activeCategoryModule.validateEditSubmission({
+        // Scope 3 props
         scope3Method,
         scope3ActivityId,
         scope3CustomActivity,
         useCustomActivity,
+        // Common props
         dynamicInputFields,
         dynamicFieldValues,
         processNames: formData.process_names,
         effectiveCalculatedEmissions,
         formData,
+        // Scope 1 props
+        isOverrideCV,
+        isOverrideDensity,
+        overrideCalorificValue,
+        overrideDensity,
+        overrideEmissionFactorHeat,
+        overrideJustification,
       });
       if (!validation.valid) {
         toast.error(validation.errorMessage);
@@ -2826,14 +2859,16 @@ export default function Emissions() {
 
       try {
         const payload = activeCategoryModule.buildEditPayload({
-          formData,
-          editingEmission,
+          // Scope 3 props
           scope3Method,
           scope3ActivityId,
           scope3ActivityType,
           scope3Subcategory,
           scope3CustomActivity,
           useCustomActivity,
+          // Common
+          formData,
+          editingEmission,
           biogenicScopeSelection,
           dynamicInputFields,
           dynamicFieldValues,
@@ -2841,6 +2876,11 @@ export default function Emissions() {
           selectedFuel,
           filteredScope3Activities,
           centralizedUnits,
+          // Scope 1 override flags
+          isOverrideCV,
+          isOverrideDensity,
+          overrideEmissionFactorHeat,
+          overrideJustification,
         });
 
         setIsSaving(true);
