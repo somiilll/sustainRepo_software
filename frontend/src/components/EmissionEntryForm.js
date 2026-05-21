@@ -11,6 +11,7 @@ import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import MultiEmployeeInput from './MultiEmployeeInput';
 
 // Import Step components for modular form rendering
+import { Step1BasicSelection } from '../modules/ghg/emissions/shared/components/steps/Step1BasicSelection';
 import { Step2ProcessResponsibility } from '../modules/ghg/emissions/shared/components/steps/Step2ProcessResponsibility';
 import { Step4Notes } from '../modules/ghg/emissions/shared/components/steps/Step4Notes';
 

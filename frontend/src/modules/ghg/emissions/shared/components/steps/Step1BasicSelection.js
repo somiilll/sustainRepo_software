@@ -1,7 +1,7 @@
 /**
  * Step 1: Basic Selection Component
  * Handles Facility, Scope, Category, Fuel/Activity selection
- * This is the largest step component (~700 lines extracted)
+ * This is a large step component (~700 lines extracted from EmissionEntryForm.js)
  */
 
 import React from 'react';
@@ -11,7 +11,7 @@ import { Search, X } from 'lucide-react';
 
 /**
  * Step 1 Basic Selection Component
- * @param {Object} props - Component props (see prop definitions below)
+ * @param {Object} props - All required state and setter props from parent
  */
 export const Step1BasicSelection = ({
   // Facility props
@@ -31,6 +31,10 @@ export const Step1BasicSelection = ({
   setScope3ActivityId,
   setUseCustomFuel,
   setBiogenicScopeSelection,
+  setScope3Subcategory,
+  setSelectedSubIndustry,
+  setSelectedTemplate,
+  setTemplateInputValues,
   
   // Biogenic props
   biogenicScopeSelection,
@@ -39,10 +43,6 @@ export const Step1BasicSelection = ({
   // Category props
   category,
   categoriesForScope,
-  setScope3Subcategory,
-  setSelectedSubIndustry,
-  setSelectedTemplate,
-  setTemplateInputValues,
   
   // Scope 3 Method props
   scope3Method,
