@@ -10,23 +10,52 @@ import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import MultiEmployeeInput from './MultiEmployeeInput';
 
-// Import from refactored modules - centralizing constants and reducing duplication
-import { MONTHS, CALENDAR_YEAR_MONTHS, FINANCIAL_YEAR_MONTHS } from '../constants/months';
-import { isVolumeUnit } from '../utils/helpers/unit-utils';
-import { 
-  isC7Category, 
-  isC6Category, 
-  getCategoryCode,
-  requiresSubcategory as checkRequiresSubcategory,
-  requiresAssetName as checkRequiresAssetName,
-  requiresLocation as checkRequiresLocation,
-  hasActivityType as checkHasActivityType,
-  SUBCATEGORY_CATEGORIES,
-  ASSET_NAME_CATEGORIES
-} from '../constants/categories';
+// Import Step components for modular form rendering
+import { Step2ProcessResponsibility } from '../modules/ghg/emissions/shared/components/steps/Step2ProcessResponsibility';
+import { Step4Notes } from '../modules/ghg/emissions/shared/components/steps/Step4Notes';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+
+const MONTHS = [
+  { key: '01', name: 'January', short: 'Jan' },
+  { key: '02', name: 'February', short: 'Feb' },
+  { key: '03', name: 'March', short: 'Mar' },
+  { key: '04', name: 'April', short: 'Apr' },
+  { key: '05', name: 'May', short: 'May' },
+  { key: '06', name: 'June', short: 'Jun' },
+  { key: '07', name: 'July', short: 'Jul' },
+  { key: '08', name: 'August', short: 'Aug' },
+  { key: '09', name: 'September', short: 'Sep' },
+  { key: '10', name: 'October', short: 'Oct' },
+  { key: '11', name: 'November', short: 'Nov' },
+  { key: '12', name: 'December', short: 'Dec' }
+];
+
+// Calendar year months (Jan-Dec)
+const CALENDAR_YEAR_MONTHS = MONTHS;
+
+// Financial year months (Apr-Mar)
+const FINANCIAL_YEAR_MONTHS = [
+  { key: '04', name: 'April', short: 'Apr' },
+  { key: '05', name: 'May', short: 'May' },
+  { key: '06', name: 'June', short: 'Jun' },
+  { key: '07', name: 'July', short: 'Jul' },
+  { key: '08', name: 'August', short: 'Aug' },
+  { key: '09', name: 'September', short: 'Sep' },
+  { key: '10', name: 'October', short: 'Oct' },
+  { key: '11', name: 'November', short: 'Nov' },
+  { key: '12', name: 'December', short: 'Dec' },
+  { key: '01', name: 'January', short: 'Jan' },
+  { key: '02', name: 'February', short: 'Feb' },
+  { key: '03', name: 'March', short: 'Mar' }
+];
+
+// Helper to check if unit is volume-based (from centralized units)
+const isVolumeUnit = (unit, centralizedUnits = []) => {
+  const unitDef = centralizedUnits.find(u => u.symbol?.toLowerCase() === unit?.toLowerCase());
+  return unitDef?.unit_type === 'volume';
+};
 
 // Helper to check if a month/year combination is in the future
 const isFutureMonth = (monthKey, year, yearType = 'calendar') => {
@@ -354,9 +383,8 @@ export default function EmissionEntryForm({
       : scope3EFData.filter(ef => ef.sub_scope !== 'biogenic'); // Exclude biogenic from regular scope3
     
     // For subcategory-based categories (C8, C10, C11, C13, C14), handle specially
-    // Using centralized helper
     const catLower = category?.toLowerCase() || '';
-    const isSubcategoryCategory = checkRequiresSubcategory(category);
+    const isSubcategoryCategory = ['c8', 'c10', 'c11', 'c13', 'c14'].some(c => catLower.includes(c));
     
     // For BIOGENIC scope3, skip subcategory handling - just filter by category directly
     // Biogenic C8/C10/C11/C13/C14 should work like C3 (direct activity selection)
@@ -495,9 +523,11 @@ export default function EmissionEntryForm({
   const availableScope3ActivityTypes = useMemo(() => {
     if (scope !== 'scope3' || !category) return [];
     
-    // Only show activity type filter for C6 and C7 - using centralized helpers
-    const isC6 = isC6Category(category);
-    const isC7 = isC7Category(category);
+    // Only show activity type filter for C6 and C7
+    const isC6 = category.toLowerCase().includes('c6') || 
+                 category.toLowerCase().includes('business travel');
+    const isC7 = category.toLowerCase().includes('c7') ||
+                 category.toLowerCase().includes('employee commuting');
     
     if (!isC6 && !isC7) return [];
     
@@ -524,29 +554,34 @@ export default function EmissionEntryForm({
   }, [scope, scope3EFData, category, scope3Method]);
 
   // Categories that require subcategory selection (C8, C10, C11, C13, C14)
-  // Now imported from constants: SUBCATEGORY_CATEGORIES
+  const subcategoryCategories = ['c8', 'c10', 'c11', 'c13', 'c14'];
   
   // Categories that require Asset Name field (C8, C13, C14, C15)
-  // Now imported from constants: ASSET_NAME_CATEGORIES
+  const assetNameCategories = ['c8', 'c13', 'c14', 'c15'];
   
-  // Check if current category requires Asset Name - using centralized helper
+  // Check if current category requires Asset Name
   const requiresAssetName = useMemo(() => {
     if (scope !== 'scope3' || !category) return false;
-    return checkRequiresAssetName(category);
+    const catLower = category.toLowerCase();
+    return assetNameCategories.some(c => catLower.includes(c));
   }, [scope, category]);
   
-  // Check if current category is C7 (Employee Commuting) - using centralized helper
+  // Check if current category is C7 (Employee Commuting) - supports multi-employee input
   const isC7EmployeeCommuting = useMemo(() => {
     if (scope !== 'scope3' || !category) return false;
-    return isC7Category(category);
+    const catLower = category.toLowerCase();
+    return catLower.includes('c7') || catLower.includes('employee commuting');
   }, [scope, category]);
   
-  // Check if current category requires subcategory - using centralized helper
+  // Check if current category requires subcategory
   // Note: Biogenic Scope 3 does NOT require subcategory - it uses direct activity selection like C3
   const requiresSubcategory = useMemo(() => {
+    // Only regular Scope 3 requires subcategory for C8/C10/C11/C13/C14
+    // Biogenic Scope 3 skips subcategory selection
     const isBiogenicScope3 = scope === 'biogenic' && biogenicScopeSelection === 'scope3';
     if (scope !== 'scope3' || isBiogenicScope3 || !category) return false;
-    return checkRequiresSubcategory(category);
+    const catLower = category.toLowerCase();
+    return subcategoryCategories.some(c => catLower.includes(c));
   }, [scope, category, biogenicScopeSelection]);
 
   // Reset employee data when category changes away from C7
@@ -598,10 +633,14 @@ export default function EmissionEntryForm({
     }
   }, [requiresAssetName]);
 
-  // Check if current category shows From/To Location fields - using centralized helper
+  // Categories that show From/To Location fields (C4, C6, C9 - transportation/travel categories)
+  const locationCategories = ['c4', 'c6', 'c9'];
+  
+  // Check if current category shows From/To Location fields
   const showsLocationFields = useMemo(() => {
     if (scope !== 'scope3' || !category) return false;
-    return checkRequiresLocation(category);
+    const catLower = category.toLowerCase();
+    return locationCategories.some(c => catLower.includes(c));
   }, [scope, category]);
 
   // Reset location fields when category changes away from C4/C6/C9
@@ -1427,7 +1466,8 @@ export default function EmissionEntryForm({
     // pass 'biogenic' as subcategory_selection to satisfy the decision tree
     // (biogenic skips subcategory UI but backend decision tree still expects it)
     if (isBiogenicScope3) {
-      const isSubcategoryCategory = checkRequiresSubcategory(category);
+      const catLower = category?.toLowerCase() || '';
+      const isSubcategoryCategory = ['c8', 'c10', 'c11', 'c13', 'c14'].some(c => catLower.includes(c));
       if (isSubcategoryCategory && !decisionInputs['subcategory_selection']) {
         // Use 'biogenic' as subcategory - will be handled by decision tree
         decisionInputs['subcategory_selection'] = 'biogenic';
@@ -4896,285 +4936,33 @@ export default function EmissionEntryForm({
         </div>
       )}
 
-      {/* Step 2: Process & Responsibility */}
+      {/* Step 2: Process & Responsibility - Extracted to Step2ProcessResponsibility component */}
       {currentStep === 2 && (
-        <div className="space-y-4">
-          {/* For Process Emissions: Show Person Responsible and Override Default Values */}
-          {isProcessEmissions && selectedTemplate ? (
-            <>
-              {/* Person Responsible */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Label>Person Responsible <span className="text-red-500">*</span></Label>
-                  <TooltipProvider delayDuration={200}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="cursor-help">
-                          <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
-                        <p>Person responsible for maintaining data accuracy</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                <Input
-                  value={responsiblePerson}
-                  onChange={(e) => setResponsiblePerson(e.target.value)}
-                  placeholder="Name of person responsible"
-                  className="bg-stone-50"
-                  data-testid="responsible-person-input"
-                />
-              </div>
-              
-              {/* Designation */}
-              <div className="space-y-2">
-                <Label>Designation</Label>
-                <Input
-                  value={responsiblePersonDesignation}
-                  onChange={(e) => setResponsiblePersonDesignation(e.target.value)}
-                  placeholder="e.g., Environmental Manager"
-                  className="bg-stone-50"
-                  data-testid="responsible-person-designation"
-                />
-              </div>
-              
-              {/* Contact Details */}
-              <div className="space-y-2">
-                <Label>Contact Details</Label>
-                <Input
-                  value={responsiblePersonContact}
-                  onChange={(e) => setResponsiblePersonContact(e.target.value)}
-                  placeholder="Email or phone number"
-                  className="bg-stone-50"
-                  data-testid="responsible-person-contact"
-                />
-              </div>
-
-              {/* Modify Values - Only show predefined inputs that can be overridden */}
-              {selectedTemplate.predefined_inputs?.filter(f => f.can_override).length > 0 && (
-                <div className="space-y-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Label className="text-amber-800 font-medium">Modify Values (if available)</Label>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    {selectedTemplate.predefined_inputs.filter(f => f.can_override).map((field) => (
-                      <div key={field.key} className="space-y-1">
-                        <Label className="text-sm">
-                          {field.label}
-                          {field.unit && <span className="text-text-muted ml-1">({field.unit})</span>}
-                        </Label>
-                        <Input
-                          type={field.data_type === 'number' ? 'number' : 'text'}
-                          step={field.data_type === 'number' ? 'any' : undefined}
-                          value={templateInputValues[field.key] || ''}
-                          onChange={(e) => setTemplateInputValues(prev => ({
-                            ...prev,
-                            [field.key]: e.target.value
-                          }))}
-                          placeholder={`Default: ${field.value}`}
-                          className="bg-white"
-                          data-testid={`override-${field.key}`}
-                        />
-                        <p className="text-xs text-amber-600">Default: {field.value} {field.unit}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Show locked predefined values (non-overridable) for info */}
-              {selectedTemplate.predefined_inputs?.filter(f => !f.can_override).length > 0 && (
-                <div className="space-y-3 p-4 bg-stone-50 border border-stone-200 rounded-lg">
-                  <Label className="text-stone-600 font-medium">Fixed Values (Cannot be changed)</Label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {selectedTemplate.predefined_inputs.filter(f => !f.can_override).map((field) => (
-                      <div key={field.key} className="flex justify-between items-center p-2 bg-white rounded border">
-                        <span className="text-sm text-stone-600">{field.label}</span>
-                        <span className="text-sm font-medium">{field.value} {field.unit}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            /* Regular emissions: Show Process Names and Person Responsible */
-            <>
-              {/* Process Names */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Label>Name of Process(es) <span className="text-red-500">*</span></Label>
-                    <TooltipProvider delayDuration={200}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="cursor-help">
-                            <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
-                          <p>Process in which the fuel is being used</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={addProcessName}
-                  >
-                    <Plus className="w-4 h-4 mr-1" /> Add Process
-                  </Button>
-                </div>
-                {processNames.map((process, idx) => (
-                  <div key={idx} className="border border-stone-200 rounded-lg p-3 space-y-2 bg-stone-50">
-                    <div className="flex gap-2 items-start">
-                      <div className="flex-1 space-y-2">
-                        <Input
-                          value={process.name}
-                          onChange={(e) => updateProcessName(idx, 'name', e.target.value)}
-                          placeholder={`Process Name ${idx + 1}`}
-                          className="bg-white"
-                        />
-                        <div className="space-y-1">
-                          <label className="text-xs text-stone-500">
-                            Description {process.name && process.name.trim() && <span className="text-red-500">*</span>}
-                          </label>
-                          <textarea
-                            value={process.description}
-                            onChange={(e) => updateProcessName(idx, 'description', e.target.value)}
-                            placeholder="Process Description (required if name is provided)"
-                            className={`w-full px-3 py-2 text-sm bg-white border rounded-lg resize-none ${
-                              process.name && process.name.trim() && (!process.description || !process.description.trim())
-                                ? 'border-red-300 focus:border-red-500'
-                                : 'border-stone-200'
-                            }`}
-                            rows={2}
-                          />
-                        </div>
-                      </div>
-                      {processNames.length > 1 && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removeProcessName(idx)}
-                          className="text-red-500 mt-1"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Person Responsible for Regular Emissions */}
-              <div className="space-y-2 my-6">
-                <div className="flex items-center gap-2">
-                  <Label>Person Responsible <span className="text-red-500">*</span></Label>
-                  <TooltipProvider delayDuration={200}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="cursor-help">
-                          <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
-                        <p>Person who is maintaining this data</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                <Input
-                  value={responsiblePerson}
-                  onChange={(e) => setResponsiblePerson(e.target.value)}
-                  placeholder="Enter name of responsible person"
-                  className="bg-stone-50"
-                />
-              </div>
-              
-              {/* Designation */}
-              <div className="space-y-2">
-                <Label>Designation</Label>
-                <Input
-                  value={responsiblePersonDesignation}
-                  onChange={(e) => setResponsiblePersonDesignation(e.target.value)}
-                  placeholder="e.g., Environmental Manager"
-                  className="bg-stone-50"
-                />
-              </div>
-              
-              {/* Contact Details */}
-              <div className="space-y-2">
-                <Label>Contact Details</Label>
-                <Input
-                  value={responsiblePersonContact}
-                  onChange={(e) => setResponsiblePersonContact(e.target.value)}
-                  placeholder="Email or phone number"
-                  className="bg-stone-50"
-                />
-              </div>
-              
-              {/* Asset Name - Only for C8, C13, C14, C15 */}
-              {requiresAssetName && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Label>Asset Name <span className="text-red-500">*</span></Label>
-                    <TooltipProvider delayDuration={200}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="cursor-help">
-                            <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
-                          <p>Name or identifier of the leased asset, franchise, or investment</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                  <Input
-                    value={assetName}
-                    onChange={(e) => setAssetName(e.target.value)}
-                    placeholder="Enter asset name"
-                    className="bg-stone-50"
-                    data-testid="asset-name-input"
-                  />
-                </div>
-              )}
-
-              {/* From/To Location - Only for C4, C6, C9 (transportation/travel categories) */}
-              {showsLocationFields && !isC7EmployeeCommuting && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>From Location</Label>
-                    <Input
-                      value={fromLocation}
-                      onChange={(e) => setFromLocation(e.target.value)}
-                      placeholder="E.g., City A, Warehouse"
-                      className="bg-stone-50"
-                      data-testid="from-location-input"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>To Location</Label>
-                    <Input
-                      value={toLocation}
-                      onChange={(e) => setToLocation(e.target.value)}
-                      placeholder="E.g., City B, Distribution Center"
-                      className="bg-stone-50"
-                      data-testid="to-location-input"
-                    />
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
+        <Step2ProcessResponsibility
+          isProcessEmissions={isProcessEmissions}
+          selectedTemplate={selectedTemplate}
+          responsiblePerson={responsiblePerson}
+          setResponsiblePerson={setResponsiblePerson}
+          responsiblePersonDesignation={responsiblePersonDesignation}
+          setResponsiblePersonDesignation={setResponsiblePersonDesignation}
+          responsiblePersonContact={responsiblePersonContact}
+          setResponsiblePersonContact={setResponsiblePersonContact}
+          templateInputValues={templateInputValues}
+          setTemplateInputValues={setTemplateInputValues}
+          processNames={processNames}
+          addProcessName={addProcessName}
+          removeProcessName={removeProcessName}
+          updateProcessName={updateProcessName}
+          requiresAssetName={requiresAssetName}
+          assetName={assetName}
+          setAssetName={setAssetName}
+          showsLocationFields={showsLocationFields}
+          isC7EmployeeCommuting={isC7EmployeeCommuting}
+          fromLocation={fromLocation}
+          setFromLocation={setFromLocation}
+          toLocation={toLocation}
+          setToLocation={setToLocation}
+        />
       )}
 
       {/* Step 3: Year & Monthly Data */}
@@ -6194,67 +5982,34 @@ export default function EmissionEntryForm({
         </div>
       )}
 
-      {/* Step 4: Notes */}
+      {/* Step 4: Notes - Extracted to Step4Notes component */}
       {currentStep === 4 && (
-        <div className="space-y-6">
-          <div className="space-y-3">
-            <Label className="text-base font-medium">Additional Notes</Label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Enter any additional notes or comments..."
-              className="w-full h-32 bg-stone-50 border border-stone-200 rounded-lg px-4 py-3 resize-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-            />
-          </div>
-
-          {/* Summary */}
-          <div className="p-5 bg-stone-50 rounded-lg border border-stone-200">
-            <h4 className="font-semibold text-base mb-4 pb-3 border-b border-stone-200">Review Summary</h4>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
-              <p><strong className="text-stone-600">Facility:</strong> <span className="text-stone-800">{selectedFacility?.name || '-'}</span></p>
-              <p><strong className="text-stone-600">Scope:</strong> <span className="text-stone-800">{scope === 'biogenic' ? 'Biogenic' : `Scope ${scope.slice(-1)}`}</span></p>
-              <p><strong className="text-stone-600">Category:</strong> <span className="text-stone-800">{category || '-'}</span></p>
-              
-              {/* Scope 3 specific info */}
-              {(scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3')) ? (
-                <>
-                  <p><strong className="text-stone-600">Method:</strong> <span className="text-stone-800">{
-                    getMethodLabel(scope3Method)
-                  }</span></p>
-                  <p><strong className="text-stone-600">Activity:</strong> <span className="text-stone-800">{
-                    useCustomActivity && scope3CustomActivity ? scope3CustomActivity :
-                    filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || '-'
-                  }</span></p>
-                  {requiresSubcategory && scope3Subcategory && (
-                    <p><strong className="text-stone-600">Subcategory:</strong> <span className="text-stone-800">{
-                      scope3Subcategory === 'stationary_combustion' ? 'Stationary Combustion' :
-                      scope3Subcategory === 'mobile_combustion' ? 'Mobile Combustion' :
-                      scope3Subcategory === 'energy' ? 'Energy' :
-                      scope3Subcategory === 'electricity' ? 'Energy' :
-                      scope3Subcategory === 'fugitive_emissions' ? 'Fugitive Emissions' :
-                      scope3Subcategory
-                    }</span></p>
-                  )}
-                  {/* Show Fuel Used for subcategory categories */}
-                  {requiresSubcategory && (scope3Subcategory === 'stationary_combustion' || scope3Subcategory === 'mobile_combustion') && (
-                    <p><strong className="text-stone-600">Fuel Used:</strong> <span className="text-stone-800">{
-                      filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || '-'
-                    }</span></p>
-                  )}
-                </>
-              ) : (
-                <p><strong className="text-stone-600">Fuel:</strong> <span className="text-stone-800">{useCustomFuel ? customFuelName : selectedFuel?.fuel_name || '-'}</span></p>
-              )}
-              
-              <p><strong className="text-stone-600">Year:</strong> <span className="text-stone-800">{reportingYear}</span></p>
-              <p><strong className="text-stone-600">{frequencyType === 'yearly' ? 'Annual data:' : 'Months with data:'}</strong> <span className="text-stone-800">{frequencyType === 'yearly' ? (filledMonthsCount > 0 ? 'Complete' : 'Incomplete') : filledMonthsCount}</span></p>
-              <p><strong className="text-stone-600">Person Responsible:</strong> <span className="text-stone-800">{responsiblePerson || '-'}</span></p>
-              {responsiblePersonDesignation && <p><strong className="text-stone-600">Designation:</strong> <span className="text-stone-800">{responsiblePersonDesignation}</span></p>}
-              {responsiblePersonContact && <p><strong className="text-stone-600">Contact:</strong> <span className="text-stone-800">{responsiblePersonContact}</span></p>}
-              <p className="col-span-2"><strong className="text-stone-600">Processes:</strong> <span className="text-stone-800">{processNames.filter(p => p.name && p.name.trim()).map(p => p.name).join(', ') || '-'}</span></p>
-            </div>
-          </div>
-        </div>
+        <Step4Notes
+          notes={notes}
+          setNotes={setNotes}
+          selectedFacility={selectedFacility}
+          scope={scope}
+          category={category}
+          scope3Method={scope3Method}
+          useCustomActivity={useCustomActivity}
+          scope3CustomActivity={scope3CustomActivity}
+          filteredScope3Activities={filteredScope3Activities}
+          scope3ActivityId={scope3ActivityId}
+          requiresSubcategory={requiresSubcategory}
+          scope3Subcategory={scope3Subcategory}
+          useCustomFuel={useCustomFuel}
+          customFuelName={customFuelName}
+          selectedFuel={selectedFuel}
+          reportingYear={reportingYear}
+          frequencyType={frequencyType}
+          filledMonthsCount={filledMonthsCount}
+          responsiblePerson={responsiblePerson}
+          responsiblePersonDesignation={responsiblePersonDesignation}
+          responsiblePersonContact={responsiblePersonContact}
+          processNames={processNames}
+          biogenicScopeSelection={biogenicScopeSelection}
+          getMethodLabel={getMethodLabel}
+        />
       )}
 
       {/* Navigation Buttons */}

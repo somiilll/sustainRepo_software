@@ -18,13 +18,31 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 - `/app/backend/server.py` - Main API (~10,000+ lines, needs refactoring)
 - `/app/frontend/src/pages/Dashboard.js` - Dashboard with analytics
 - `/app/frontend/src/pages/Emissions.js` - Emissions management (~7000+ lines)
-- `/app/frontend/src/components/EmissionEntryForm.js` - Entry form (~6000 lines)
+- `/app/frontend/src/components/EmissionEntryForm.js` - Entry form (~6054 lines, partially refactored)
 - `/app/frontend/src/components/MultiEmployeeInput.jsx` - C6/C7 employee table input
 - `/app/frontend/src/pages/Sinks.js` - GHG Sinks module with Monthly/Yearly data entry
 
 ## What's Been Implemented
 
 ### May 2026 Session (Latest)
+
+**May 26, 2026 - Phase 5 Frontend Refactoring (Partial)**
+
+1. **Step 2 Component Extraction**
+   - Extracted Step 2 (Process & Responsibility) from EmissionEntryForm.js
+   - Created `/app/frontend/src/modules/ghg/emissions/shared/components/steps/Step2ProcessResponsibility.js`
+   - Component handles: Process names, Responsible person, Designation, Contact, Asset name, Location fields
+   - ~250 lines extracted
+
+2. **Step 4 Component Extraction**
+   - Extracted Step 4 (Notes & Summary) from EmissionEntryForm.js
+   - Created `/app/frontend/src/modules/ghg/emissions/shared/components/steps/Step4Notes.js`
+   - Component handles: Additional notes, Review summary with all form data
+   - ~120 lines extracted
+
+3. **EmissionEntryForm.js Line Reduction**
+   - Reduced from 6336 lines to 6054 lines (~282 lines extracted)
+   - Step 1 and Step 3 deferred due to tight coupling with parent state
 
 **May 19, 2026 - C9 Customer Labels & Sinks Yearly Entry**
 
@@ -149,6 +167,8 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 - P0: Dashboard "No Data" after toggling organization Scope access
 
 ## Upcoming Tasks (P1)
+- Continue Phase 5: Extract Step 1 (Basic Selection) from EmissionEntryForm.js
+- Continue Phase 5: Extract Step 3 (Year & Monthly Data) from EmissionEntryForm.js
 - "Apply to all months" autofill for S3C7 Employee Commuting
 - Expand Bulk Upload to Scope 1 & 2
 
@@ -157,7 +177,9 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 - CBAM module and report template
 - Refactor server.py (>10,000 lines)
 - Refactor Emissions.js (>7000 lines)
-- Refactor EmissionEntryForm.js (>6000 lines)
+- Continue EmissionEntryForm.js refactoring (currently 6054 lines → target 2500 lines)
+  - Extract Step 1 (Basic Selection) - ~700 lines
+  - Extract Step 3 (Year & Monthly Data) - ~1000 lines
 
 ## Technical Notes
 - Reporting periods: Monthly (YYYY-MM), Financial Year (FY YYYY-YYYY), Calendar Year (CYYYYY or CY YYYY)
