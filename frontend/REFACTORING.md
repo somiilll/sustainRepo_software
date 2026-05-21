@@ -305,15 +305,17 @@ The refactoring is designed to be **incremental** and **non-breaking**:
    - ✅ `EmissionFilters.js` (~170 lines) - Filter panel component
    - ✅ `EmissionTable.js` (~300 lines) - Emissions list/table component
    - ✅ `useEmissionsData.js` (~270 lines) - Data fetching hook
-   - **Total extracted so far: ~740 lines**
+   - ✅ `EmissionEditDialog.js` (~320 lines) - Edit dialog wrapper component
+   - ✅ `useEmissionEdit.js` (~350 lines) - Edit state management hook
+   - **Total extracted so far: ~1,410 lines**
    
    Located at: `/app/frontend/src/pages/emissions/`
    
-   Remaining extractions needed:
-   - `EmissionEditForm.js` - The large inline edit form (~2,000 lines)
-   - `EmissionHistoryDialog.js` - Version history modal (~200 lines)
-   - `DeleteConfirmDialog.js` - Delete confirmation modal (~50 lines)
-   - `useEmissionEdit.js` - Edit state and handlers hook (~500 lines)
+   Remaining to integrate:
+   - Connect extracted modules to main Emissions.js
+   - Move remaining edit form JSX (~1,300 lines) into EmissionEditDialog
+   - Extract EmissionHistoryDialog (~200 lines)
+   - Extract DeleteConfirmDialog (~50 lines)
 
 7. **Phase 7**: Additional modules
    - Scope 1/2 category modules
