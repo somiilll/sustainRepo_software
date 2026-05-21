@@ -211,6 +211,15 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 - P1: Dashboard "No Data" after toggling organization Scope access
 - P2: C7 Edit Dialog Stale State (yearly financial periods not transforming correctly)
 
+- ✅ Phase 7j (Feb 2026): Scope 2 Extracted + Legacy `handleSubmit` Block DELETED
+  - Created `/modules/emissions/categories/Scope2Modules.js` with `GenericScope2Module` (one generic module covers all Scope 2 sub-categories — Purchased Electricity, Steam, Heating, Cooling).
+  - **Reused shared `Scope1Edit` helpers** on Scope 2 (already supported `scope === 'scope2'` in override-justification check + payload spreads).
+  - **Extended `activeCategoryModule`** in `Emissions.js` to resolve Scope 2 to the generic module.
+  - **DELETED ~472 lines** of legacy inline `handleSubmit` payload/validation/POST/audit block. Replaced with a defensive fallback (`toast.error('No category module matched...')`) that should never fire for valid records.
+  - **Emissions.js: 7144 → 6672 lines** (cumulative drop: **7141 → 6672 = 469 lines removed across the full refactor session**).
+  - All edit-save flows now route exclusively through module dispatch: C7 multi-employee branch + generic Scope 1/2/3/biogenic module dispatch.
+  - **Testing iter_73 PASSED 100%** across 7 verified paths (Scope 2 ×2, Scope 1 ×2, biogenic-scope1, S3 C2, biogenic-scope3). All fire PUT 200 + dual audit POST 200 with byte-identical payload shapes. Defensive fallback did not fire. Init log shows expected 41 entries (was 40, +1 for GenericScope2).
+
 - ✅ Phase 7i (Feb 2026): Scope 1 Edit-Flow Logic Isolation + Latent Audit Log Bug Fix
   - Created `/modules/emissions/categories/shared/Scope1Edit.js` (~310 lines): shared `validateEditSubmission` + `buildEditPayload` + `createScope1EditApi(module)` factory. All 8 Scope 1 validations preserved byte-identically (CV/density override justifications, override main justification, required numeric fields, process names, fuel selection, calc-engine prerequisite, override value validity, dynamic override/optional value check).
   - **Wired editApi to all Scope 1 modules**: `stationary_combustion`, `mobile_combustion`, `fugitive_emissions` + the generic Scope 1 fallback (also handles biogenic-scope1).
