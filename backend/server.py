@@ -538,7 +538,7 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
     
     for field in fields_to_track:
         # Skip fields that are handled specially above
-        if field in ["evidence_url", "evidence_file_name", "calculation_method_scope3", "sub_category", "scope3_activity", "process_names", "process_descriptions", "employees"]:
+        if field in ["evidence_url", "evidence_file_name", "calculation_method_scope3", "sub_category", "scope3_activity", "activity", "activity_name", "process_names", "process_descriptions", "employees"]:
             continue
             
         old_val = old_values.get(field)
@@ -10502,8 +10502,9 @@ async def create_or_update_c7_monthly_entry(
             "total_emissions": total_co2e,
         }
         # Specify fields to track for C7 monthly - exclude yearly_total, employees (tracked separately)
+        # Note: scope3_activity is handled by custom activity tracking logic, so exclude it here
         c7_monthly_fields = [
-            "activity_type", "calculation_method_scope3", "scope3_activity", "scope3_ef_id",
+            "activity_type", "calculation_method_scope3", "scope3_ef_id",
             "formula_id", "formula_name", "notes", "responsible_person", 
             "responsible_person_designation", "responsible_person_contact", "total_emissions"
         ]
