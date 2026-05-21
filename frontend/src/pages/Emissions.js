@@ -1197,6 +1197,21 @@ export default function Emissions() {
     return cat.includes('c7') || cat.includes('employee commuting');
   }, [formData.scope, formData.category]);
 
+  // Pluggable category renderer lookup (PoC: C1 only).
+  // When a registered category exposes a `DynamicFieldsRenderer`, the page
+  // delegates the dynamic-fields portion of the Scope 3 edit dialog to it
+  // instead of using the legacy inline JSX.
+  const activeCategoryModule = useMemo(() => {
+    if (formData.scope !== 'scope3') return null;
+    const cat = (formData.category || '').toLowerCase();
+    // Match category code (e.g. "c1", "C1 - Purchased Goods")
+    const codeMatch = cat.match(/^(c\d+)/);
+    if (!codeMatch) return null;
+    return categoryRegistry.get(codeMatch[1]);
+  }, [formData.scope, formData.category]);
+
+  const ModuleDynamicFieldsRenderer = activeCategoryModule?.DynamicFieldsRenderer || null;
+
   // Clear employee calculations when activity changes for C7 edit
   // This forces users to recalculate with the new activity's emission factor
   useEffect(() => {
@@ -5269,6 +5284,23 @@ export default function Emissions() {
                     </div>
                   </div>
                 ) : !isEditC7EmployeeCommuting && dynamicInputFields.length > 0 && true ? (
+                  /* Pluggable category renderer (PoC: C1 routes through registry). */
+                  ModuleDynamicFieldsRenderer ? (
+                    <ModuleDynamicFieldsRenderer
+                      dynamicInputFields={dynamicInputFields}
+                      dynamicFieldValues={dynamicFieldValues}
+                      updateDynamicFieldValue={updateDynamicFieldValue}
+                      formData={formData}
+                      setFormData={setFormData}
+                      scope3Method={scope3Method}
+                      selectedFuel={selectedFuel}
+                      requiresSubcategory={requiresSubcategory}
+                      scope3ActivityId={scope3ActivityId}
+                      filteredScope3Activities={filteredScope3Activities}
+                      centralizedUnits={centralizedUnits}
+                      markFormDirty={markFormDirty}
+                    />
+                  ) : (
                   <div className="space-y-4">
                     <div className="text-sm text-stone-500 mb-2 flex items-center gap-2">
                       Input Fields (from calculation engine configuration)
@@ -5522,6 +5554,7 @@ export default function Emissions() {
                       </div>
                     </div>
                   </div>
+                  )
                 ) : !isEditC7EmployeeCommuting ? (
                   /* LEGACY: Hardcoded fields when no dynamic config */
                   <div className="grid grid-cols-2 gap-4 items-end">

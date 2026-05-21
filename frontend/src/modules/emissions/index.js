@@ -86,6 +86,19 @@ export function initializeCategoryModules() {
   const { registerAllScope3Categories } = require('./categories/CategoryGenerator');
   registerAllScope3Categories();
 
+  // Attach the shared Scope 3 flat-field renderer to opted-in modules.
+  // Pilot: C1 (Purchased Goods and Services) — proves config-driven rendering
+  // via the registry. Other categories continue using legacy inline JSX until
+  // explicitly migrated.
+  const {
+    Scope3DynamicFieldsRenderer,
+  } = require('./shared/renderers/Scope3DynamicFieldsRenderer');
+
+  const c1Module = categoryRegistry.get('c1');
+  if (c1Module) {
+    c1Module.DynamicFieldsRenderer = Scope3DynamicFieldsRenderer;
+  }
+
   // eslint-disable-next-line no-console
   console.log(`[Emissions] Category modules initialized: ${categoryRegistry.size} entries`);
   return categoryRegistry.size;

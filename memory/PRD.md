@@ -211,6 +211,14 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 - P1: Dashboard "No Data" after toggling organization Scope access
 - P2: C7 Edit Dialog Stale State (yearly financial periods not transforming correctly)
 
+- ✅ Phase 7d (Feb 2026): C1 Renderer Migration (Config-driven render proof)
+  - Created `/modules/emissions/shared/renderers/Scope3DynamicFieldsRenderer.jsx`
+  - Extracted ~250 lines of dynamic-field JSX (calc-engine driven inputs, override checkboxes, unit selectors, supplier-basis text units, responsible-person triplet) — byte-identical markup
+  - Attached as `DynamicFieldsRenderer` on the C1 module via the registry
+  - `Emissions.js` looks up `categoryRegistry.get(<code>).DynamicFieldsRenderer` and mounts it when present (C1 only); falls back to legacy inline JSX for all other categories
+  - Proves the architectural boundary: **the page asks the registry "who renders this?" and the module answers** — true config-driven render via registry
+  - Pixel-perfect visual parity preserved (same Tailwind classes, same JSX shape)
+
 - ✅ Phase 7c (Feb 2026): C7 Logic Isolation (Proof-of-Concept)
   - Extracted C7 edit-flow business logic into `/modules/emissions/categories/C7EmployeeCommuting/edit.js`
   - `validateEditSubmission`, `extractTotals`, `buildEditPayload` — pure functions
