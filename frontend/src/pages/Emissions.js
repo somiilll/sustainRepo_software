@@ -1411,12 +1411,12 @@ export default function Emissions() {
     if (formData.scope !== 'scope3' || !selectedCategory) return [];
     
     // Only show activity type filter for C6 and C7
-    const isC6orC7 = selectedCategory.toLowerCase().includes('c6') || 
-                     selectedCategory.toLowerCase().includes('c7') ||
-                     selectedCategory.toLowerCase().includes('business travel') ||
-                     selectedCategory.toLowerCase().includes('employee commuting');
+    const isC6 = selectedCategory.toLowerCase().includes('c6') || 
+                 selectedCategory.toLowerCase().includes('business travel');
+    const isC7 = selectedCategory.toLowerCase().includes('c7') ||
+                 selectedCategory.toLowerCase().includes('employee commuting');
     
-    if (!isC6orC7) return [];
+    if (!isC6 && !isC7) return [];
     
     const activityTypes = new Set();
     
@@ -1432,8 +1432,8 @@ export default function Emissions() {
       });
     }
     
-    // Always add "Others" option for supplier_basis method (doesn't need to exist in scope3_ef)
-    if (scope3Method === 'supplier_basis') {
+    // Add "Others" option for supplier_basis method - only for C6 (not C7)
+    if (scope3Method === 'supplier_basis' && isC6) {
       activityTypes.add('others');
     }
     

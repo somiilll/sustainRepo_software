@@ -520,12 +520,12 @@ export default function EmissionEntryForm({
     if (scope !== 'scope3' || !category) return [];
     
     // Only show activity type filter for C6 and C7
-    const isC6orC7 = category.toLowerCase().includes('c6') || 
-                     category.toLowerCase().includes('c7') ||
-                     category.toLowerCase().includes('business travel') ||
-                     category.toLowerCase().includes('employee commuting');
+    const isC6 = category.toLowerCase().includes('c6') || 
+                 category.toLowerCase().includes('business travel');
+    const isC7 = category.toLowerCase().includes('c7') ||
+                 category.toLowerCase().includes('employee commuting');
     
-    if (!isC6orC7) return [];
+    if (!isC6 && !isC7) return [];
     
     const activityTypes = new Set();
     
@@ -541,8 +541,8 @@ export default function EmissionEntryForm({
       });
     }
     
-    // Always add "Others" option for supplier_basis method (doesn't need to exist in scope3_ef)
-    if (scope3Method === 'supplier_basis') {
+    // Add "Others" option for supplier_basis method - only for C6 (not C7)
+    if (scope3Method === 'supplier_basis' && isC6) {
       activityTypes.add('others');
     }
     
@@ -2997,19 +2997,24 @@ export default function EmissionEntryForm({
       // Find the matched activity from scope3 EF data - MUST use scope3ActivityId
       const activityType = scope3ActivityType;
       
-      // Require specific activity selection - no fallback to avoid picking wrong EF
-      if (!scope3ActivityId) {
+      // For supplier_basis with custom activity (including "others"), skip activity ID requirement
+      // Otherwise require specific activity selection - no fallback to avoid picking wrong EF
+      if (!useCustomActivity && !scope3ActivityId) {
         toast.error('Please select a specific activity from the dropdown');
         setIsCalculatingEmployee(false);
         return;
       }
       
-      const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+      // For custom activity, we don't need a matched activity from the dropdown
+      let matchedActivity = null;
+      if (!useCustomActivity) {
+        matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
 
-      if (!matchedActivity) {
-        toast.error(`Activity not found. Please select a valid activity from the dropdown.`);
-        setIsCalculatingEmployee(false);
-        return;
+        if (!matchedActivity) {
+          toast.error(`Activity not found. Please select a valid activity from the dropdown.`);
+          setIsCalculatingEmployee(false);
+          return;
+        }
       }
       
       // Use the matched activity's emission factor
