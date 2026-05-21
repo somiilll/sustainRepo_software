@@ -215,9 +215,11 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 - ✅ Phase 5: Extract Step 1 (Basic Selection) from EmissionEntryForm.js
 - ✅ Phase 5: Extract Step 3 (Year & Monthly Data) from EmissionEntryForm.js  
 - ✅ Phase 5b: Extract standalone utilities (hooks, validation, payload builders)
+- ✅ Phase 6 (Partial): Extract EmissionFilters, EmissionTable, useEmissionsData from Emissions.js
 
 ## Upcoming Tasks (P0/P1)
-- Phase 6: Migrate Emissions.js (>7000 lines) using modular approach
+- Phase 6 (Continue): Extract EmissionEditForm, EmissionHistoryDialog from Emissions.js
+- Integrate extracted modules into Emissions.js main file
 - "Apply to all months" autofill for S3C7 Employee Commuting
 - Expand Bulk Upload to Scope 1 & 2
 

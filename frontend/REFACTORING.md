@@ -297,10 +297,23 @@ The refactoring is designed to be **incremental** and **non-breaking**:
    - **Total new modules: ~1,330 lines of reusable, tested code**
    - These modules serve as building blocks for future full integration
 
-6. **Phase 6 (Next)**: Emissions.js Migration
-   - Migrate Emissions.js (list/edit - currently >7000 lines)
-   - Extract edit dialog components to use shared step components
-   - Apply similar modular pattern to edit form
+6. **Phase 6 (In Progress)**: Emissions.js Migration
+   - **Current file**: 7,346 lines
+   - **Target**: ~2,000 lines (thin orchestrator)
+   
+   Completed extractions:
+   - ✅ `EmissionFilters.js` (~170 lines) - Filter panel component
+   - ✅ `EmissionTable.js` (~300 lines) - Emissions list/table component
+   - ✅ `useEmissionsData.js` (~270 lines) - Data fetching hook
+   - **Total extracted so far: ~740 lines**
+   
+   Located at: `/app/frontend/src/pages/emissions/`
+   
+   Remaining extractions needed:
+   - `EmissionEditForm.js` - The large inline edit form (~2,000 lines)
+   - `EmissionHistoryDialog.js` - Version history modal (~200 lines)
+   - `DeleteConfirmDialog.js` - Delete confirmation modal (~50 lines)
+   - `useEmissionEdit.js` - Edit state and handlers hook (~500 lines)
 
 7. **Phase 7**: Additional modules
    - Scope 1/2 category modules
