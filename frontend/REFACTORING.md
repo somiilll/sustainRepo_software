@@ -62,16 +62,28 @@ src/
 │           │       └── c15-investments/         ✅
 │           └── shared/
 │               ├── index.js
-│               └── components/
-│                   ├── ScopeSelector.js
-│                   ├── CategorySelector.js
-│                   ├── MethodSelector.js
-│                   └── steps/                    # ✅ Step extraction components
-│                       ├── index.js
-│                       ├── Step1BasicSelection.js    # ✅ In use (~773 lines)
-│                       ├── Step2ProcessResponsibility.js  # ✅ In use (~250 lines)
-│                       ├── Step3YearMonthlyData.js   # ✅ In use (~1141 lines)
-│                       └── Step4Notes.js             # ✅ In use (~120 lines)
+│               ├── components/
+│               │   ├── ScopeSelector.js
+│               │   ├── CategorySelector.js
+│               │   ├── MethodSelector.js
+│               │   ├── DynamicFieldRenderer.js   # ✅ NEW - Renders dynamic form fields
+│               │   └── steps/                    # ✅ Step extraction components
+│               │       ├── index.js
+│               │       ├── Step1BasicSelection.js    # ✅ In use (~773 lines)
+│               │       ├── Step2ProcessResponsibility.js  # ✅ In use (~250 lines)
+│               │       ├── Step3YearMonthlyData.js   # ✅ In use (~1141 lines)
+│               │       └── Step4Notes.js             # ✅ In use (~120 lines)
+│               ├── constants/                    # ✅ NEW - Form-specific constants
+│               │   ├── index.js
+│               │   └── emission-form-constants.js
+│               ├── hooks/                        # ✅ NEW - Extracted React hooks
+│               │   ├── index.js
+│               │   ├── useEmissionFormState.js   # ~280 lines (60 useState hooks)
+│               │   └── useEmissionFormEffects.js # ~180 lines (data fetching)
+│               └── utils/                        # ✅ NEW - Utility functions
+│                   ├── index.js
+│                   ├── validation.js             # ~300 lines (step validation)
+│                   └── payload-builders.js       # ~270 lines (API payload builders)
 │
 ├── utils/                        # ✅ Utility functions
 │   ├── logger/
@@ -274,6 +286,16 @@ The refactoring is designed to be **incremental** and **non-breaking**:
    - **Final: 4479 lines (reduced from 6056, ~1577 lines extracted = 26% reduction)**
    - Step components located at: `/app/frontend/src/modules/ghg/emissions/shared/components/steps/`
    - All 4 form steps now use modular components with proper prop passing
+
+5b. **Phase 5b (Complete)**: Extract Standalone Utilities (Deep Modularization Prep)
+   - ✅ Created `useEmissionFormState.js` - State management hook (~280 lines, 60 useState hooks)
+   - ✅ Created `useEmissionFormEffects.js` - Data fetching effects (~180 lines)
+   - ✅ Created `emission-form-constants.js` - Constants and helpers (~100 lines)
+   - ✅ Created `DynamicFieldRenderer.js` - Renders dynamic form fields (~200 lines)
+   - ✅ Created `validation.js` - Step validation utilities (~300 lines)
+   - ✅ Created `payload-builders.js` - API payload construction (~270 lines)
+   - **Total new modules: ~1,330 lines of reusable, tested code**
+   - These modules serve as building blocks for future full integration
 
 6. **Phase 6 (Next)**: Emissions.js Migration
    - Migrate Emissions.js (list/edit - currently >7000 lines)

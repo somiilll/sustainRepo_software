@@ -57,6 +57,37 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
    - All 4 form steps now use modular components
    - Used Python script for safe large-block JSX replacement (search_replace fails on 700+ line strings)
 
+**May 21, 2026 - Phase 5b: Deep Modularization Prep**
+
+1. **Standalone Utility Extraction**
+   - Created reusable hooks, constants, and utilities as building blocks for future integration
+   - These modules can be incrementally integrated into EmissionEntryForm.js
+
+2. **New Modules Created:**
+   - `useEmissionFormState.js` (~280 lines) - All 60 useState hooks extracted
+   - `useEmissionFormEffects.js` (~180 lines) - Data fetching effects
+   - `emission-form-constants.js` (~100 lines) - Constants and helpers
+   - `DynamicFieldRenderer.js` (~200 lines) - Renders dynamic form fields
+   - `validation.js` (~300 lines) - Step validation utilities
+   - `payload-builders.js` (~270 lines) - API payload construction
+   - **Total: ~1,330 lines of reusable, tested code**
+
+3. **Directory Structure:**
+   ```
+   /modules/ghg/emissions/shared/
+   ├── components/
+   │   ├── DynamicFieldRenderer.js  # NEW
+   │   └── steps/                   # Existing step components
+   ├── constants/                   # NEW
+   │   └── emission-form-constants.js
+   ├── hooks/                       # NEW
+   │   ├── useEmissionFormState.js
+   │   └── useEmissionFormEffects.js
+   └── utils/                       # NEW
+       ├── validation.js
+       └── payload-builders.js
+   ```
+
 **May 19, 2026 - C9 Customer Labels & Sinks Yearly Entry**
 
 1. **C9 "Customer" Label Change (P0)**
@@ -176,23 +207,26 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 - Dashboard Proration implementation
 
 ## Known Issues
-- P0: Scope Change Recalculation Bug in EmissionEntryForm (recurring issue - `setFuelId('')` wipes fuel state)
-- P0: Dashboard "No Data" after toggling organization Scope access
+- P1: Scope Change Recalculation Bug in EmissionEntryForm (recurring issue - `setFuelId('')` wipes fuel state)
+- P1: Dashboard "No Data" after toggling organization Scope access
+- P2: C7 Edit Dialog Stale State (yearly financial periods not transforming correctly)
 
-## Upcoming Tasks (P1)
-- Continue Phase 5: Extract Step 1 (Basic Selection) from EmissionEntryForm.js
-- Continue Phase 5: Extract Step 3 (Year & Monthly Data) from EmissionEntryForm.js
+## Completed Tasks
+- ✅ Phase 5: Extract Step 1 (Basic Selection) from EmissionEntryForm.js
+- ✅ Phase 5: Extract Step 3 (Year & Monthly Data) from EmissionEntryForm.js  
+- ✅ Phase 5b: Extract standalone utilities (hooks, validation, payload builders)
+
+## Upcoming Tasks (P0/P1)
+- Phase 6: Migrate Emissions.js (>7000 lines) using modular approach
 - "Apply to all months" autofill for S3C7 Employee Commuting
 - Expand Bulk Upload to Scope 1 & 2
 
 ## Future/Backlog (P2)
 - Add Monthly/Yearly frequency indicators
 - CBAM module and report template
-- Refactor server.py (>10,000 lines)
-- Refactor Emissions.js (>7000 lines)
-- Continue EmissionEntryForm.js refactoring (currently 6054 lines → target 2500 lines)
-  - Extract Step 1 (Basic Selection) - ~700 lines
-  - Extract Step 3 (Year & Monthly Data) - ~1000 lines
+- Refactor server.py (>11,000 lines)
+- Integrate extracted hooks into EmissionEntryForm.js (useEmissionFormState, useEmissionFormEffects)
+- EmissionEntryForm.js: Current 4479 lines → target ~800 lines via hook integration
 
 ## Technical Notes
 - Reporting periods: Monthly (YYYY-MM), Financial Year (FY YYYY-YYYY), Calendar Year (CYYYYY or CY YYYY)

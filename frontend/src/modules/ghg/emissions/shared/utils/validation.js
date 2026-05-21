@@ -1,0 +1,320 @@
+/**
+ * Emission Form Validation Utilities
+ * 
+ * Validation logic for each step of the emission entry form.
+ * Extracted to keep the main component lean.
+ */
+
+import { MONTHS } from '../../../../../constants/months';
+
+/**
+ * Validate Step 1 → Step 2 transition (Basic Selection)
+ */
+export const validateStep1 = ({
+  facilityId,
+  scope,
+  category,
+  isProcessEmissions,
+  selectedSubIndustry,
+  selectedTemplate,
+  scope3Method,
+  scope3ActivityId,
+  useCustomActivity,
+  scope3CustomActivity,
+  biogenicScopeSelection,
+  useCustomFuel,
+  fuelId,
+  customFuelName,
+  customEmissionFactor,
+  customSource,
+}) => {
+  if (!facilityId) return { valid: false, message: 'Please select a facility' };
+  if (!scope) return { valid: false, message: 'Please select a scope' };
+  if (!category) return { valid: false, message: 'Please select a category' };
+
+  // Process Emissions validation
+  if (isProcessEmissions) {
+    if (!selectedSubIndustry) return { valid: false, message: 'Please select a sub-industry' };
+    if (!selectedTemplate) return { valid: false, message: 'Please select an approach/template' };
+    return { valid: true };
+  }
+
+  // Scope 3 validation
+  if (scope === 'scope3') {
+    if (!scope3Method) return { valid: false, message: 'Please select a calculation method' };
+    if (scope3Method === 'supplier_basis' && useCustomActivity) {
+      if (!scope3CustomActivity?.trim()) return { valid: false, message: 'Please enter an activity name' };
+    } else {
+      if (!scope3ActivityId) return { valid: false, message: 'Please select an activity type' };
+    }
+    return { valid: true };
+  }
+
+  // Biogenic Scope 3 validation
+  if (scope === 'biogenic' && biogenicScopeSelection === 'scope3') {
+    if (!scope3Method) return { valid: false, message: 'Please select a calculation method' };
+    if (scope3Method === 'supplier_basis' && useCustomActivity) {
+      if (!scope3CustomActivity?.trim()) return { valid: false, message: 'Please enter an activity name' };
+    } else {
+      if (!scope3ActivityId) return { valid: false, message: 'Please select a biogenic activity' };
+    }
+    return { valid: true };
+  }
+
+  // Biogenic - must select scope1 or scope3
+  if (scope === 'biogenic' && !biogenicScopeSelection) {
+    return { valid: false, message: 'Please select a biogenic emission type (Scope 1 or Scope 3)' };
+  }
+
+  // Regular fuel emissions validation (Scope 1, 2, Biogenic Scope 1)
+  if (!useCustomFuel && !fuelId) return { valid: false, message: 'Please select a fuel type' };
+  if (useCustomFuel && !customFuelName) return { valid: false, message: 'Please enter custom fuel name' };
+  if (useCustomFuel && !customEmissionFactor) return { valid: false, message: 'Please enter emission factor' };
+  if (useCustomFuel && !customSource?.trim()) return { valid: false, message: 'Please enter source/justification for custom fuel type' };
+
+  return { valid: true };
+};
+
+/**
+ * Validate Step 2 → Step 3 transition (Process & Responsibility)
+ */
+export const validateStep2 = ({
+  isProcessEmissions,
+  processNames,
+  responsiblePerson,
+  requiresAssetName,
+  assetName,
+}) => {
+  // For process emissions, only validate responsible person
+  if (isProcessEmissions) {
+    if (!responsiblePerson.trim()) return { valid: false, message: 'Please enter person responsible' };
+    return { valid: true };
+  }
+
+  // Validate process names
+  const validProcesses = processNames.filter(p => p.name && p.name.trim() !== '');
+  if (validProcesses.length === 0) return { valid: false, message: 'Please enter at least one process name' };
+
+  // Check if all processes with names have descriptions
+  const processesWithoutDescription = validProcesses.filter(p => !p.description || p.description.trim() === '');
+  if (processesWithoutDescription.length > 0) {
+    return { valid: false, message: `Please add description for process: "${processesWithoutDescription[0].name}"` };
+  }
+
+  if (!responsiblePerson.trim()) return { valid: false, message: 'Please enter person responsible' };
+
+  // Asset Name validation for C8/C13/C14/C15
+  if (requiresAssetName && !assetName?.trim()) {
+    return { valid: false, message: 'Please enter asset name' };
+  }
+
+  return { valid: true };
+};
+
+/**
+ * Validate Step 3 → Step 4 transition (Year & Monthly Data)
+ */
+export const validateStep3 = ({
+  isC7EmployeeCommuting,
+  employees,
+  scope3Method,
+  dynamicInputFields,
+  frequencyType,
+  yearlyData,
+  monthlyData,
+  filledMonthsCount,
+  isProcessEmissions,
+  selectedTemplate,
+  updateMonthData,
+}) => {
+  // For C7 Employee Commuting
+  if (isC7EmployeeCommuting) {
+    if (employees.length === 0) {
+      return { valid: false, message: 'Please add at least one employee' };
+    }
+
+    // For supplier_basis: validate units for all employees
+    if (scope3Method === 'supplier_basis') {
+      const requiredFields = dynamicInputFields.filter(f => f.required && !f.isOverride);
+
+      if (frequencyType === 'yearly') {
+        for (const emp of employees) {
+          const inputs = emp.yearly_data?.inputs || {};
+          const hasYearlyData = Object.values(inputs).some(v => 
+            v !== '' && v !== null && v !== undefined && v !== 0
+          );
+
+          if (hasYearlyData) {
+            for (const field of requiredFields) {
+              const value = inputs[field.variable];
+              const unit = inputs[`${field.variable}_unit`];
+              if (value && value !== '' && value !== 0) {
+                if (!unit || unit.trim() === '') {
+                  const empName = emp.name || 'Unnamed employee';
+                  return { valid: false, message: `Please enter unit for "${field.label}" for ${empName}` };
+                }
+              }
+            }
+          }
+        }
+      } else {
+        for (const emp of employees) {
+          for (const [monthKey, monthData] of Object.entries(emp.monthly_data || {})) {
+            const inputs = monthData?.inputs || {};
+            const hasMonthData = Object.values(inputs).some(v => 
+              v !== '' && v !== null && v !== undefined && v !== 0
+            );
+
+            if (hasMonthData) {
+              for (const field of requiredFields) {
+                const value = inputs[field.variable];
+                const unit = inputs[`${field.variable}_unit`];
+                if (value && value !== '' && value !== 0) {
+                  if (!unit || unit.trim() === '') {
+                    const empName = emp.name || 'Unnamed employee';
+                    const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+                    return { valid: false, message: `Please enter unit for "${field.label}" for ${empName} in ${monthName}` };
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Check based on frequency type
+    if (frequencyType === 'yearly') {
+      const hasYearlyData = employees.some(emp => 
+        emp.yearly_data?.emissions?.co2e !== null && emp.yearly_data?.emissions?.co2e !== undefined
+      );
+      if (!hasYearlyData) {
+        return { valid: false, message: 'Please calculate emissions for at least one employee' };
+      }
+    } else {
+      const hasCalculatedData = employees.some(emp => 
+        Object.values(emp.monthly_data || {}).some(m => m?.emissions?.co2e !== null && m?.emissions?.co2e !== undefined)
+      );
+      if (!hasCalculatedData) {
+        return { valid: false, message: 'Please calculate emissions for at least one employee month' };
+      }
+    }
+    return { valid: true };
+  }
+
+  // For yearly mode (non-C7)
+  if (frequencyType === 'yearly') {
+    const hasYearlyInput = Object.values(yearlyData || {}).some(v => v !== '' && v !== null && v !== undefined);
+    if (!hasYearlyInput) {
+      return { valid: false, message: 'Please enter annual data values' };
+    }
+
+    // For supplier_basis: Validate units
+    if (scope3Method === 'supplier_basis') {
+      const qtyValue = yearlyData?.activity_value_supplier_based;
+      const qtyUnit = yearlyData?.activity_value_supplier_based_unit || yearlyData?.unit;
+      if (qtyValue && (!qtyUnit || qtyUnit.trim() === '')) {
+        return { valid: false, message: 'Please enter unit for "Quantity Used"' };
+      }
+
+      const efValue = yearlyData?.emission_factor_supplier_based;
+      const efUnit = yearlyData?.emission_factor_supplier_based_unit;
+      if (efValue && (!efUnit || efUnit.trim() === '')) {
+        return { valid: false, message: 'Please enter unit for "Emission Factor"' };
+      }
+    }
+
+    // Validate override fields
+    const overrideAndOptionalFields = dynamicInputFields.filter(f => f.isOverride || (!f.required && !f.isOverride));
+    for (const field of overrideAndOptionalFields) {
+      const overrideKey = `override_${field.variable}`;
+      const isCheckboxChecked = yearlyData[overrideKey] === true || yearlyData[overrideKey] === 'true';
+      const value = yearlyData[field.variable];
+      const hasValue = value !== '' && value !== null && value !== undefined && value !== 0;
+
+      if (isCheckboxChecked && !hasValue) {
+        const fieldLabel = typeof field.label === 'object' ? field.label.value : (field.label || field.variable);
+        return { valid: false, message: `Please enter a value for "${fieldLabel}" or uncheck the Override Default checkbox` };
+      }
+    }
+
+    return { valid: true };
+  }
+
+  // Monthly mode validation
+  if (filledMonthsCount === 0) return { valid: false, message: 'Please enter data for at least one month' };
+
+  // Validate mandatory formula fields for each filled month
+  if (dynamicInputFields.length > 0) {
+    const requiredFields = dynamicInputFields.filter(f => f.required && !f.isOverride);
+
+    for (const [monthKey, data] of Object.entries(monthlyData)) {
+      const hasAnyRequiredData = requiredFields.some(field => {
+        const value = data[field.variable] || data[field.fieldKey];
+        return value !== '' && value !== null && value !== undefined;
+      });
+
+      if (hasAnyRequiredData) {
+        for (const field of requiredFields) {
+          const value = data[field.variable] || data[field.fieldKey];
+          if (value === '' || value === null || value === undefined) {
+            const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+            const fieldLabel = typeof field.label === 'object' ? field.label.value : (field.label || field.variable);
+            return { valid: false, message: `Please fill in "${fieldLabel}" for ${monthName}` };
+          }
+        }
+
+        // For supplier_basis: Validate units
+        if (scope3Method === 'supplier_basis') {
+          const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+
+          const qtyField = requiredFields.find(f => 
+            f.variable === 'activity_value_supplier_based' || 
+            f.variable?.toLowerCase().includes('quantity') ||
+            f.label?.toLowerCase?.().includes('quantity')
+          );
+          if (qtyField) {
+            const qtyValue = data[qtyField.variable] || data[qtyField.fieldKey];
+            const qtyUnit = data[`${qtyField.variable}_unit`] || data.activity_value_supplier_based_unit;
+            if (qtyValue && (!qtyUnit || qtyUnit.trim() === '')) {
+              return { valid: false, message: `Please enter unit for "Quantity Used" in ${monthName}` };
+            }
+          }
+
+          const efField = requiredFields.find(f => 
+            f.variable === 'emission_factor_supplier_based' || 
+            f.variable?.toLowerCase().includes('emission_factor') ||
+            f.label?.toLowerCase?.().includes('emission factor')
+          );
+          if (efField) {
+            const efValue = data[efField.variable] || data[efField.fieldKey];
+            const efUnit = data[`${efField.variable}_unit`] || data.emission_factor_supplier_based_unit;
+            if (efValue && (!efUnit || efUnit.trim() === '')) {
+              return { valid: false, message: `Please enter unit for "Emission Factor" in ${monthName}` };
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return { valid: true };
+};
+
+/**
+ * Main validation dispatcher
+ */
+export const canProceedToStep = (step, validationParams) => {
+  switch (step) {
+    case 2:
+      return validateStep1(validationParams);
+    case 3:
+      return validateStep2(validationParams);
+    case 4:
+      return validateStep3(validationParams);
+    default:
+      return { valid: true };
+  }
+};
+
+export default canProceedToStep;
