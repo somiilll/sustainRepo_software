@@ -477,6 +477,20 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
                     if input_key.endswith('_unit'):
                         continue
                     
+                    # FIX: Skip tracking "removal" of flat structure fields when they now exist in monthly structure
+                    # This prevents duplicate tracking when migrating from flat to monthly structure
+                    if old_input_val is not None and new_input_val is None:
+                        # Check if this field exists in any month of new_monthly
+                        field_exists_in_monthly = False
+                        for month_data in new_monthly.values():
+                            if isinstance(month_data, dict):
+                                month_inputs = month_data.get("inputs", {}) or {}
+                                if input_key in month_inputs and month_inputs.get(input_key) is not None:
+                                    field_exists_in_monthly = True
+                                    break
+                        if field_exists_in_monthly:
+                            continue  # Skip this "removal" as field now exists in monthly structure
+                    
                     if old_input_val != new_input_val and (old_input_val is not None or new_input_val is not None):
                         # Get human-readable label
                         input_label = input_label_map.get(input_key, input_key.replace('_', ' ').title())
@@ -619,8 +633,12 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
                     new_vals[k] = {"value": v["new_value"], "unit": v["new_unit"]}
             else:
                 # For optional/override fields, include if is_override was/is True
+                # FIX: When transitioning from database default to override, show meaningful old value
                 if v["old_is_override"] and v["old_value"] not in (None, '', 0, 0.0):
                     old_vals[k] = {"value": v["old_value"], "unit": v["old_unit"]}
+                elif not v["old_is_override"] and v["new_is_override"]:
+                    # User is switching from database default to custom override
+                    old_vals[k] = {"value": "previously using database default", "unit": ""}
                 if v["new_is_override"] and v["new_value"] not in (None, '', 0, 0.0):
                     new_vals[k] = {"value": v["new_value"], "unit": v["new_unit"]}
         
@@ -1966,7 +1984,7 @@ async def forgot_password(reset_data: PasswordReset):
     })
     
     # Get frontend URL from environment or use default
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://sustainrepo-preview-2.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://emissions-tracker-18.preview.emergentagent.com')
     reset_link = f"{frontend_url}/reset-password?token={reset_token}"
     
     # Send email with beautiful template
@@ -2514,7 +2532,7 @@ async def create_admin(
     await db.users.insert_one(admin_dict)
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://sustainrepo-preview-2.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://emissions-tracker-18.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
@@ -9719,7 +9737,7 @@ async def create_user(
     org_name = org.get("name", "your organization") if org else "your organization"
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://sustainrepo-preview-2.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://emissions-tracker-18.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
