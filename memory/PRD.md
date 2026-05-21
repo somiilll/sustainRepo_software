@@ -211,6 +211,16 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 - P1: Dashboard "No Data" after toggling organization Scope access
 - P2: C7 Edit Dialog Stale State (yearly financial periods not transforming correctly)
 
+- ✅ Phase 7h (Feb 2026): Biogenic-Scope3 Dispatch + Legacy Scope 3 Code Removed
+  - **Extended `activeCategoryModule` lookup** in `Emissions.js` to resolve **biogenic+scope3** records to the GenericScope3 fallback module — so biogenic-scope3 edits now also flow through the new module path (consistent with all Scope 3).
+  - **Wired generic Scope 3 module**: attached `validateEditSubmission`, `buildEditPayload`, `DynamicFieldsRenderer`, `hasCapability` to the registry's generic fallback. Capabilities empty → no extras leak.
+  - **Deleted ~95 lines of dead Scope 3 inline code** from `Emissions.js handleSubmit`:
+    - Validation block: replaced 45-line `if (isScope3LikeSave) {...}` with a 4-line fuel check (legacy now serves Scope 1/2/biogenic-scope1 only)
+    - Payload spreads: removed all `...(isScope3LikeSave && {...})` blocks, the `isScope3LikeSave ? null : formData.fuel_id` ternary, the activity-fallback inside `getFieldUnitForSave`
+    - Cleaned up dead `['c4','c6','c7','c9'].some(...)` + `['c8','c13','c14','c15'].some(...)` chains in the payload
+  - **Emissions.js: 7102 → 7005 lines (~97 lines removed)**
+  - **Testing agent (iter_70) PASSED 100%** across all 5 paths: Scope 1, Scope 2, biogenic-scope1 (legacy) + Scope 3 flat, biogenic-scope3 (module). No regressions.
+
 - ✅ Phase 7g (Feb 2026): Shared Scope 3 Flat-Edit Module — Full C1–C15 Migration
   - Created `/modules/emissions/categories/shared/Scope3FlatEdit.js` (~350 lines): capability-aware `validateEditSubmission` + `buildEditPayload`. Appends `asset_name` only when `module.hasCapability('asset-name')`; appends `from_location`/`to_location` only when `'journey-locations'`.
   - Added `createScope3FlatEditApi(module)` factory — binds the module reference so capability checks light up automatically per-category.
