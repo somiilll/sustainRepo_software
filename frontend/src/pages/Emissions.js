@@ -2756,6 +2756,89 @@ export default function Emissions() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Shared helper: persist the calc engine audit log after a successful
+    // PUT/POST so override sources reload correctly on re-edit. Called by
+    // ALL dispatch branches (C7, module, legacy) for behaviour parity.
+    // Best-effort — never blocks the user flow on failure.
+    const persistCalcAuditLog = async (emissionId) => {
+      if (!emissionId || dynamicInputFields.length === 0) return;
+      try {
+        const categoryObj = dynamicCategories.find(
+          c => c.name === (formData.category || selectedCategory) && c.scope_code === formData.scope
+        );
+        if (!categoryObj?.id) return;
+
+        // Build inputs from non-override dynamic fields
+        const inputs = {};
+        dynamicInputFields.filter(f => !f.isOverride).forEach(field => {
+          const value = dynamicFieldValues[field.variable];
+          if (value !== undefined && value !== '' && value !== null) {
+            const numValue = parseFloat(value);
+            if (!isNaN(numValue)) {
+              const unit = dynamicFieldValues[`${field.variable}_unit`] || field.expectedUnit || '';
+              inputs[field.variable] = { value: numValue, unit };
+            }
+          }
+        });
+
+        // Build user overrides from override fields
+        const userOverrides = {};
+        dynamicInputFields.filter(f => f.isOverride).forEach(field => {
+          const overrideKey = `override_${field.variable}`;
+          if (dynamicFieldValues[overrideKey]) {
+            const value = dynamicFieldValues[field.variable];
+            if (value !== undefined && value !== null && value !== '') {
+              const unit = dynamicFieldValues[`${field.variable}_unit`] || field.expectedUnit || '';
+              userOverrides[field.variable] = { value: parseFloat(value), unit };
+            }
+          }
+        });
+
+        const decisionInputs = buildEditDecisionInputs();
+
+        const matchedEFForSave = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+        const scope3Context = formData.scope === 'scope3' ? {
+          calculation_method_scope3: scope3Method,
+          scope3_ef_id: scope3ActivityId,
+          activity: (scope3Method === 'supplier_basis' && useCustomActivity)
+            ? scope3CustomActivity
+            : matchedEFForSave?.activity,
+          scope3_ef_default_unit: matchedEFForSave?.default_unit || '',
+        } : {};
+
+        let fuelNameForContext = selectedFuel?.fuel_name;
+        if (formData.scope === 'scope3' && requiresSubcategory && scope3Method !== 'supplier_basis' && scope3Subcategory === 'fugitive_emissions' && matchedEFForSave?.activity) {
+          fuelNameForContext = matchedEFForSave.activity;
+        }
+
+        const calcPayload = {
+          category_id: categoryObj.id,
+          decision_inputs: decisionInputs,
+          inputs,
+          context: {
+            fuel_name: fuelNameForContext,
+            fuel_id: selectedFuel?.id,
+            scope: formData.scope,
+            category: formData.category || selectedCategory,
+            reporting_period: formData.reporting_period_start,
+            ...scope3Context,
+          },
+          user_overrides: userOverrides,
+          dry_run: false,
+          emission_record_id: emissionId,
+          ...(formData.scope === 'scope3' && scope3ActivityId && { scope3_ef_id: scope3ActivityId }),
+        };
+
+        await axios.post(`${API}/calc-engine/execute-by-category`, calcPayload, {
+          headers: getAuthHeader(),
+        });
+      } catch (auditError) {
+        // eslint-disable-next-line no-console
+        console.warn('Failed to persist audit log:', auditError);
+        // Don't fail the save flow on audit log error
+      }
+    };
     
     // C7 EMPLOYEE COMMUTING - Always uses multi-employee mode
     // Business logic (validation + payload construction) lives in the C7 category module.
@@ -2806,6 +2889,8 @@ export default function Emissions() {
         
         if (response.data) {
           toast.success(`Updated ${editEmployees.length} employee commuting records (${totalCo2e.toFixed(4)} tCO2e total)`);
+          // Persist calc audit log so override sources reload correctly on re-edit
+          await persistCalcAuditLog(editingEmission.id);
           setDialogOpen(false);
           resetForm();
           fetchData(); // Refresh the emissions list
@@ -2889,6 +2974,8 @@ export default function Emissions() {
         });
         if (response.data) {
           toast.success('Emission updated successfully');
+          // Persist calc audit log so override sources reload correctly on re-edit
+          await persistCalcAuditLog(editingEmission.id);
           setDialogOpen(false);
           resetForm();
           fetchData();
