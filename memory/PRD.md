@@ -211,6 +211,14 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 - P1: Dashboard "No Data" after toggling organization Scope access
 - P2: C7 Edit Dialog Stale State (yearly financial periods not transforming correctly)
 
+- ✅ Phase 7i (Feb 2026): Scope 1 Edit-Flow Logic Isolation + Latent Audit Log Bug Fix
+  - Created `/modules/emissions/categories/shared/Scope1Edit.js` (~310 lines): shared `validateEditSubmission` + `buildEditPayload` + `createScope1EditApi(module)` factory. All 8 Scope 1 validations preserved byte-identically (CV/density override justifications, override main justification, required numeric fields, process names, fuel selection, calc-engine prerequisite, override value validity, dynamic override/optional value check).
+  - **Wired editApi to all Scope 1 modules**: `stationary_combustion`, `mobile_combustion`, `fugitive_emissions` + the generic Scope 1 fallback (also handles biogenic-scope1).
+  - **Extended `activeCategoryModule` lookup** in `Emissions.js` to resolve Scope 1 categories by name (stationary/mobile/fugitive) + biogenic-scope1 via generic fallback.
+  - **Latent bug fix**: introduced `persistCalcAuditLog` helper at the top of `handleSubmit`. Now called by ALL dispatch branches (C7, generic module, legacy) — fixes a silent gap where Scope 3 + biogenic-scope3 module paths were skipping calc audit log persistence. Override sources will now correctly reload on re-edit for all paths.
+  - **Sub-fix during iter_72**: persistCalcAuditLog used wrong `scope_code` for biogenic-scope3 category lookup. Resolved via `effectiveScope = (scope==='biogenic' && biogenicScopeSelection==='scope3') ? 'scope3' : scope`.
+  - **Testing (iter_71 + iter_72)**: 7 of 8 paths fully verified — S1 Stationary, S1 Mobile, S1 Custom Fuel, biogenic-S1, S3 C2, biogenic-S3, Scope2 legacy. C7 audit log code is structurally identical (uses same helper) but test harness couldn't trigger Update click on multi-employee dialog — flagged as test-harness limitation, not regression.
+
 - ✅ Phase 7h (Feb 2026): Biogenic-Scope3 Dispatch + Legacy Scope 3 Code Removed
   - **Extended `activeCategoryModule` lookup** in `Emissions.js` to resolve **biogenic+scope3** records to the GenericScope3 fallback module — so biogenic-scope3 edits now also flow through the new module path (consistent with all Scope 3).
   - **Wired generic Scope 3 module**: attached `validateEditSubmission`, `buildEditPayload`, `DynamicFieldsRenderer`, `hasCapability` to the registry's generic fallback. Capabilities empty → no extras leak.
