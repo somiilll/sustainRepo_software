@@ -220,19 +220,31 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
             "field_type": "simple"
         })
     
-    # Track activity (sub_category) changes - also check scope3_activity field and custom activity
-    old_activity = old_values.get("sub_category") or old_values.get("scope3_activity")
-    new_activity = new_values.get("sub_category") or new_values.get("scope3_activity")
-    # Also check in dynamic_field_values for scope3_activity
+    # Track activity changes - prioritize scope3_activity over sub_category to avoid showing category name
+    # The sub_category often contains "Employee Commuting" (category) instead of actual activity like "Local bus"
     old_dfv = old_values.get("dynamic_field_values", {}) or {}
     new_dfv = new_values.get("dynamic_field_values", {}) or {}
     
+    # First check scope3_activity directly, then in dynamic_field_values, then fallback to sub_category
+    old_activity = old_values.get("scope3_activity")
     if not old_activity:
         old_act_field = old_dfv.get("scope3_activity", {})
         old_activity = old_act_field.get("value") if isinstance(old_act_field, dict) else old_act_field
+    if not old_activity:
+        # Only use sub_category if it's different from the category (C7 - Employee Commuting)
+        old_sub = old_values.get("sub_category")
+        if old_sub and "Employee Commuting" not in str(old_sub) and "C7" not in str(old_sub):
+            old_activity = old_sub
+    
+    new_activity = new_values.get("scope3_activity")
     if not new_activity:
         new_act_field = new_dfv.get("scope3_activity", {})
         new_activity = new_act_field.get("value") if isinstance(new_act_field, dict) else new_act_field
+    if not new_activity:
+        # Only use sub_category if it's different from the category
+        new_sub = new_values.get("sub_category")
+        if new_sub and "Employee Commuting" not in str(new_sub) and "C7" not in str(new_sub):
+            new_activity = new_sub
     
     # Check if custom activity was used (for display purposes)
     old_use_custom = old_dfv.get("use_custom_activity", {})
@@ -633,14 +645,18 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
                     new_vals[k] = {"value": v["new_value"], "unit": v["new_unit"]}
             else:
                 # For optional/override fields, include if is_override was/is True
-                # FIX: When transitioning from database default to override, show meaningful old value
+                # Handle transitions between database default and custom override
                 if v["old_is_override"] and v["old_value"] not in (None, '', 0, 0.0):
                     old_vals[k] = {"value": v["old_value"], "unit": v["old_unit"]}
                 elif not v["old_is_override"] and v["new_is_override"]:
                     # User is switching from database default to custom override
-                    old_vals[k] = {"value": "previously using database default", "unit": ""}
+                    old_vals[k] = {"value": "Default Value Used", "unit": ""}
+                
                 if v["new_is_override"] and v["new_value"] not in (None, '', 0, 0.0):
                     new_vals[k] = {"value": v["new_value"], "unit": v["new_unit"]}
+                elif v["old_is_override"] and not v["new_is_override"]:
+                    # User is switching from custom override back to database default
+                    new_vals[k] = {"value": "Default Value Used", "unit": ""}
         
         # Only add to changes if there's something to show
         if old_vals or new_vals:
