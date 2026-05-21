@@ -400,24 +400,27 @@ export default function EmissionEntryForm({
         }));
       }
       
-      // For stationary_combustion, mobile_combustion, and electricity, filter from scope3_ef
+      // For stationary_combustion, mobile_combustion, and energy, filter from scope3_ef
       if (scope3Subcategory === 'stationary_combustion' || 
           scope3Subcategory === 'mobile_combustion' || 
-          scope3Subcategory === 'electricity') {
+          scope3Subcategory === 'energy' ||
+          scope3Subcategory === 'electricity') {  // Support legacy 'electricity' value
         filtered = filtered.filter(ef => 
           ef.category?.toLowerCase() === catLower
         );
         
         // Filter by subcategory field if it exists on the entry
-        // For electricity: ONLY show entries with exact match (no fallback to null/empty)
+        // For energy: ONLY show entries with exact match (no fallback to null/empty)
         // For stationary/mobile: If entry has no subcategory defined, show in both
+        const energySubcategory = scope3Subcategory === 'electricity' ? 'energy' : scope3Subcategory;
         filtered = filtered.filter(ef => {
-          if (scope3Subcategory === 'electricity') {
-            // Strict matching - only show entries explicitly marked as electricity
+          if (energySubcategory === 'energy') {
+            // Strict matching - only show entries explicitly marked as energy
+            // Also support legacy 'electricity' entries
             if (Array.isArray(ef.subcategory)) {
-              return ef.subcategory.includes(scope3Subcategory);
+              return ef.subcategory.includes('energy') || ef.subcategory.includes('electricity');
             }
-            return ef.subcategory === scope3Subcategory;
+            return ef.subcategory === 'energy' || ef.subcategory === 'electricity';
           }
           
           // For stationary/mobile: fallback to null/empty subcategory
@@ -637,7 +640,7 @@ export default function EmissionEntryForm({
       { value: 'stationary_combustion', label: 'Stationary Combustion' },
       { value: 'mobile_combustion', label: 'Mobile Combustion' },
       { value: 'fugitive_emissions', label: 'Fugitive Emissions' },
-      { value: 'electricity', label: 'Electricity' }
+      { value: 'energy', label: 'Energy' }
     ];
     
     // For activity_basis, don't show process_emissions (no data)
@@ -6236,7 +6239,8 @@ export default function EmissionEntryForm({
                     <p><strong className="text-stone-600">Subcategory:</strong> <span className="text-stone-800">{
                       scope3Subcategory === 'stationary_combustion' ? 'Stationary Combustion' :
                       scope3Subcategory === 'mobile_combustion' ? 'Mobile Combustion' :
-                      scope3Subcategory === 'electricity' ? 'Electricity' :
+                      scope3Subcategory === 'energy' ? 'Energy' :
+                      scope3Subcategory === 'electricity' ? 'Energy' :
                       scope3Subcategory === 'fugitive_emissions' ? 'Fugitive Emissions' :
                       scope3Subcategory
                     }</span></p>

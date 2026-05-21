@@ -514,7 +514,8 @@ export default function Emissions() {
         'fugitive_emissions': ['fugitive'],
         'stationary_combustion': ['stationary'],
         'mobile_combustion': ['mobile'],
-        'electricity': ['electricity'],
+        'energy': ['energy', 'electricity'],  // Support both new and legacy
+        'electricity': ['energy', 'electricity'],  // Legacy support
         'process_emissions': ['process']
       };
       
@@ -1456,7 +1457,7 @@ export default function Emissions() {
       { value: 'stationary_combustion', label: 'Stationary Combustion' },
       { value: 'mobile_combustion', label: 'Mobile Combustion' },
       { value: 'fugitive_emissions', label: 'Fugitive Emissions' },
-      { value: 'electricity', label: 'Electricity' }
+      { value: 'energy', label: 'Energy' }
     ];
     
     // For supplier_basis, include process_emissions
@@ -1529,24 +1530,27 @@ export default function Emissions() {
         }));
       }
       
-      // For stationary_combustion, mobile_combustion, and electricity, filter from scope3_ef
+      // For stationary_combustion, mobile_combustion, and energy, filter from scope3_ef
       if (scope3Subcategory === 'stationary_combustion' || 
           scope3Subcategory === 'mobile_combustion' || 
-          scope3Subcategory === 'electricity') {
+          scope3Subcategory === 'energy' ||
+          scope3Subcategory === 'electricity') {  // Support legacy 'electricity' value
         let filtered = baseData.filter(ef => 
           ef.category?.toLowerCase() === catLower
         );
         
         // Filter by subcategory field if it exists on the entry
-        // For electricity: ONLY show entries with exact match (no fallback to null/empty)
+        // For energy: ONLY show entries with exact match (no fallback to null/empty)
         // For stationary/mobile: If entry has no subcategory defined, show in both
+        const energySubcategory = scope3Subcategory === 'electricity' ? 'energy' : scope3Subcategory;
         filtered = filtered.filter(ef => {
-          if (scope3Subcategory === 'electricity') {
-            // Strict matching - only show entries explicitly marked as electricity
+          if (energySubcategory === 'energy') {
+            // Strict matching - only show entries explicitly marked as energy
+            // Also support legacy 'electricity' entries
             if (Array.isArray(ef.subcategory)) {
-              return ef.subcategory.includes(scope3Subcategory);
+              return ef.subcategory.includes('energy') || ef.subcategory.includes('electricity');
             }
-            return ef.subcategory === scope3Subcategory;
+            return ef.subcategory === 'energy' || ef.subcategory === 'electricity';
           }
           
           // For stationary/mobile: fallback to null/empty subcategory
