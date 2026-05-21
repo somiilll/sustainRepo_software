@@ -211,6 +211,14 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 - P1: Dashboard "No Data" after toggling organization Scope access
 - P2: C7 Edit Dialog Stale State (yearly financial periods not transforming correctly)
 
+- ✅ Phase 7g (Feb 2026): Shared Scope 3 Flat-Edit Module — Full C1–C15 Migration
+  - Created `/modules/emissions/categories/shared/Scope3FlatEdit.js` (~350 lines): capability-aware `validateEditSubmission` + `buildEditPayload`. Appends `asset_name` only when `module.hasCapability('asset-name')`; appends `from_location`/`to_location` only when `'journey-locations'`.
+  - Added `createScope3FlatEditApi(module)` factory — binds the module reference so capability checks light up automatically per-category.
+  - Refactored `/categories/C1PurchasedGoods/edit.js` into a **thin proxy** to the shared helper (~15 lines, down from ~290).
+  - **`initializeCategoryModules()`** now attaches `validateEditSubmission` + `buildEditPayload` to ALL flat-field Scope 3 categories (C1–C6, C8–C15) via the factory.
+  - **Emissions.js handleSubmit**: replaced the C1-only short-circuit with a **generic module dispatch**: `if (activeCategoryModule?.buildEditPayload && activeCategoryModule?.id !== 'c7')`. All 14 flat-field categories now save through the module path; legacy inline flow retained as fallback for Scope 1/2.
+  - **Testing agent regression PASSED 100%** (iteration_68): C2 + C4 (journey-locations) + C10 PUTs all 200, payloads byte-identical to legacy, capability-aware extras correct, negative validation blocks save, Scope 1 regression confirms legacy path untouched.
+
 - ✅ Phase 7f (Feb 2026): C1 Edit-Flow Logic Isolation (C7 pattern mirror)
   - Created `/modules/emissions/categories/C1PurchasedGoods/edit.js` with `validateEditSubmission` + `buildEditPayload` pure functions
   - Validations preserved byte-identically: required-field numeric check, process-name & description, scope3 method & activity selection, supplier-basis unit check, calc-engine prerequisite, override/optional value check
