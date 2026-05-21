@@ -4301,7 +4301,7 @@ export default function Emissions() {
     } finally {
       setIsCalculatingEditEmployee(false);
     }
-  }, [scope3Method, scope3ActivityType, filteredScope3Activities, dynamicCategories, formData.category, dynamicInputFields, getAuthHeader]);
+  }, [scope3Method, scope3ActivityType, scope3ActivityId, filteredScope3Activities, dynamicCategories, formData.category, dynamicInputFields, getAuthHeader, useCustomActivity, scope3CustomActivity]);
 
   // Get unique categories from emissions for filtering
   const getCategories = useMemo(() => {
