@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import EmissionFilters from './emissions/EmissionFilters';
+import { FacilityScopeSection, BiogenicScopeSection, CategorySection, Scope3MethodSection, ResponsiblePersonSection, ProcessNamesSection, NotesSection, SubmitButtonSection } from './emissions/EditFormSections';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion';
 import { FileUpload } from '../components/ui/file-upload';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
@@ -4674,110 +4675,30 @@ export default function Emissions() {
                   
                   return (
                 <form onSubmit={handleSubmit} className="space-y-5" data-testid="emission-form">
-                {/* Facility and Scope Selection */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="facility">Facility *</Label>
-                    <select
-                      id="facility"
-                      value={formData.facility_id}
-                      onChange={(e) => { setFormData({ ...formData, facility_id: e.target.value }); markFormDirty(); }}
-                      required
-                      className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                      data-testid="emission-facility-select"
-                    >
-                      <option value="">Select Facility</option>
-                      {facilities.filter(f => f.is_active !== false).map(f => (
-                        <option key={f.id} value={f.id}>{f.name} {f.country ? `(${f.country})` : ''}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Scope *</Label>
-                    <div className="flex gap-4 h-10 items-center flex-wrap">
-                      {dynamicScopes.map(scope => {
-                        // Scope 3 requires organization access, biogenic is always enabled
-                        const isScope3 = scope.code === 'scope3';
-                        const isDisabled = isScope3 && !hasScope3Access;
-                        return (
-                          <label key={scope.code} className={`flex items-center gap-2 relative ${isDisabled ? 'opacity-60 cursor-not-allowed' : ''}`}>
-                            <input
-                              type="radio"
-                              value={scope.code}
-                              checked={formData.scope === scope.code}
-                              disabled={isDisabled}
-                              onChange={(e) => {
-                                setFormData({ ...formData, scope: e.target.value, fuel_id: '', category: '', sub_category: '' });
-                                handleFuelSelect('');
-                                // Reset biogenic scope selection when changing primary scope
-                                if (e.target.value !== 'biogenic') {
-                                  setBiogenicScopeSelection('');
-                                }
-                              }}
-                              className="text-primary"
-                              data-testid={`scope-radio-${scope.code}`}
-                            />
-                            <span>{scope.name}</span>
-                            {isDisabled && (
-                              <span className="px-1.5 py-0.5 bg-stone-200 text-stone-600 text-[9px] font-semibold rounded whitespace-nowrap">
-                                Not Available
-                              </span>
-                            )}
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-                  
-                {/* Biogenic Scope Selection - Show when biogenic is selected */}
-                {formData.scope === 'biogenic' && (
-                  <div className="space-y-1.5 p-3 bg-green-50 rounded-lg border border-green-200">
-                    <Label className="text-green-800">Select Biogenic Emission Type *</Label>
-                    <div className="flex gap-4 h-10 items-center">
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="radio"
-                          value="scope1"
-                          checked={biogenicScopeSelection === 'scope1'}
-                          onChange={(e) => {
-                            setBiogenicScopeSelection(e.target.value);
-                            setFormData(prev => ({ ...prev, category: '', fuel_id: '' }));
-                            handleFuelSelect('');
-                          }}
-                          className="text-green-600"
-                          data-testid="biogenic-scope-radio-scope1"
-                        />
-                        <span className="text-green-800">Direct Biogenic</span>
-                      </label>
-                      <label className={`flex items-center gap-2 ${!hasScope3Access ? 'opacity-60 cursor-not-allowed' : ''}`}>
-                        <input
-                          type="radio"
-                          value="scope3"
-                          checked={biogenicScopeSelection === 'scope3'}
-                          disabled={!hasScope3Access}
-                          onChange={(e) => {
-                            setBiogenicScopeSelection(e.target.value);
-                            setFormData(prev => ({ ...prev, category: '', fuel_id: '' }));
-                            handleFuelSelect('');
-                          }}
-                          className="text-green-600"
-                          data-testid="biogenic-scope-radio-scope3"
-                        />
-                        <span className="text-green-800">Indirect Biogenic</span>
-                        {!hasScope3Access && (
-                          <span className="px-1.5 py-0.5 bg-stone-200 text-stone-600 text-[9px] font-semibold rounded whitespace-nowrap">
-                            Not Available
-                          </span>
-                        )}
-                      </label>
-                    </div>
-                    {loadingBiogenicCategories && (
-                      <p className="text-xs text-green-600">Loading biogenic categories...</p>
-                    )}
-                  </div>
-                )}
+                {/* Facility and Scope Selection - Extracted Component */}
+                <FacilityScopeSection
+                  formData={formData}
+                  setFormData={setFormData}
+                  facilities={facilities}
+                  dynamicScopes={dynamicScopes}
+                  hasScope3Access={hasScope3Access}
+                  handleFuelSelect={handleFuelSelect}
+                  setBiogenicScopeSelection={setBiogenicScopeSelection}
+                  markFormDirty={markFormDirty}
+                />
+                
+                {/* Biogenic Scope Selection - Extracted Component */}
+                <BiogenicScopeSection
+                  formData={formData}
+                  setFormData={setFormData}
+                  biogenicScopeSelection={biogenicScopeSelection}
+                  setBiogenicScopeSelection={setBiogenicScopeSelection}
+                  hasScope3Access={hasScope3Access}
+                  handleFuelSelect={handleFuelSelect}
+                  loadingBiogenicCategories={loadingBiogenicCategories}
+                />
 
+                
                 {/* Reporting Period - Handle both Monthly and Yearly records for editing */}
                 {editingEmission ? (
                   <div className="space-y-2">
@@ -6286,40 +6207,19 @@ export default function Emissions() {
                   />
                 </div>
 
-                {/* Notes */}
-                <div className="space-y-2">
-                  <Label htmlFor="notes">Notes</Label>
-                  <textarea
-                    id="notes"
-                    value={formData.notes}
-                    onChange={(e) => { setFormData({ ...formData, notes: e.target.value }); markFormDirty(); }}
-                    rows={2}
-                    className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2"
-                  />
-                </div>
+                {/* Notes - Extracted Component */}
+                <NotesSection
+                  formData={formData}
+                  setFormData={(newData) => { setFormData(newData); markFormDirty(); }}
+                />
 
-                <div className="flex justify-end gap-3 pt-4">
-                  <Button type="button" variant="outline" onClick={() => handleDialogChange(false)}>
-                    Cancel
-                  </Button>
-                  <Button 
-                    type="submit" 
-                    className="bg-primary hover:bg-primary/90 text-white"
-                    disabled={isCalculating}
-                  >
-                    {isCalculating ? (
-                      <>
-                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Calculating...
-                      </>
-                    ) : (
-                      `${editingEmission ? 'Update' : 'Add'} Emission`
-                    )}
-                  </Button>
-                </div>
+                {/* Submit Buttons - Extracted Component */}
+                <SubmitButtonSection
+                  editingEmission={editingEmission}
+                  isSaving={isSaving}
+                  isCalculating={isCalculating}
+                  handleDialogChange={handleDialogChange}
+                />
               </form>
                   );
                 })()

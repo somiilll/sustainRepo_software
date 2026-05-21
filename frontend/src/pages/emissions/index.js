@@ -9,6 +9,19 @@ export { default as EmissionFilters } from './EmissionFilters';
 export { default as EmissionTable } from './EmissionTable';
 export { default as EmissionEditDialog } from './EmissionEditDialog';
 
+// Edit Form Sections
+export {
+  FacilityScopeSection,
+  BiogenicScopeSection,
+  CategorySection,
+  Scope3MethodSection,
+  ResponsiblePersonSection,
+  ProcessNamesSection,
+  NotesSection,
+  OverrideSection,
+  SubmitButtonSection,
+} from './EditFormSections';
+
 // Hooks
 export { default as useEmissionsData, useEmissionsData } from './useEmissionsData';
 export { default as useEmissionEdit, useEmissionEdit } from './useEmissionEdit';

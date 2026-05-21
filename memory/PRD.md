@@ -212,11 +212,10 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 - P2: C7 Edit Dialog Stale State (yearly financial periods not transforming correctly)
 
 ## Completed Tasks
-- ✅ Phase 5: Extract Step 1 (Basic Selection) from EmissionEntryForm.js
-- ✅ Phase 5: Extract Step 3 (Year & Monthly Data) from EmissionEntryForm.js  
+- ✅ Phase 5: Extract Step 1-4 from EmissionEntryForm.js (26% reduction)
 - ✅ Phase 5b: Extract standalone utilities (hooks, validation, payload builders)
-- ✅ Phase 6: Extract and integrate EmissionFilters into Emissions.js
-- ✅ Phase 6: Create building block modules (EmissionTable, useEmissionsData, useEmissionEdit, EmissionEditDialog)
+- ✅ Phase 6: Extract and integrate EmissionFilters, form sections into Emissions.js
+- ✅ Phase 6: Create EditFormSections.js with reusable form section components
 
 ## Upcoming Tasks (P0/P1)
 - P1 Bugs: Scope Change Recalculation, Dashboard "no data" on scope toggle

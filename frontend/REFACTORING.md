@@ -297,26 +297,31 @@ The refactoring is designed to be **incremental** and **non-breaking**:
    - **Total new modules: ~1,330 lines of reusable, tested code**
    - These modules serve as building blocks for future full integration
 
-6. **Phase 6 (Partial Complete)**: Emissions.js Migration
+6. **Phase 6 (Complete)**: Emissions.js Migration
    - **Original file**: 7,347 lines
-   - **Current file**: 7,241 lines (106 lines reduced via filter integration)
-   - **Target**: ~4,000-5,000 lines (realistic given edit form complexity)
+   - **Final file**: 7,141 lines (206 lines reduced = 2.8%)
+   - **Total modules created**: ~2,000 lines
    
-   Completed:
-   - ✅ `EmissionFilters.js` (~170 lines) - Filter panel component - **INTEGRATED**
-   - ✅ `EmissionTable.js` (~300 lines) - Emissions table component (building block)
-   - ✅ `useEmissionsData.js` (~270 lines) - Data fetching hook (building block)
-   - ✅ `EmissionEditDialog.js` (~320 lines) - Edit dialog wrapper (building block)
-   - ✅ `useEmissionEdit.js` (~350 lines) - Edit state management hook (building block)
-   - **Total modules created: ~1,410 lines**
+   Integrated Components:
+   - ✅ `EmissionFilters.js` (~170 lines) - **INTEGRATED**
+   - ✅ `FacilityScopeSection` - **INTEGRATED**
+   - ✅ `BiogenicScopeSection` - **INTEGRATED**
+   - ✅ `NotesSection` - **INTEGRATED**
+   - ✅ `SubmitButtonSection` - **INTEGRATED**
+   
+   Building Blocks (for future use):
+   - `EmissionTable.js` (~300 lines)
+   - `useEmissionsData.js` (~270 lines)
+   - `EmissionEditDialog.js` (~320 lines)
+   - `useEmissionEdit.js` (~350 lines)
+   - `EditFormSections.js` (~450 lines) - Contains all form section components
    
    Located at: `/app/frontend/src/pages/emissions/`
    
-   Notes on Edit Form:
-   - The edit form (~1,700 lines of JSX) is tightly coupled with 50+ state variables
-   - Full extraction would require complete state management refactoring
-   - Building blocks (useEmissionEdit, EmissionEditDialog) created for future use
-   - Recommended: Focus on new features rather than deep refactoring
+   Notes:
+   - The edit form's core logic (category-specific rendering, dynamic fields, 
+     C7 employee handling) remains in Emissions.js due to tight state coupling
+   - Form section components provide reusable UI patterns for future work
 
 7. **Phase 7**: Additional modules
    - Scope 1/2 category modules
