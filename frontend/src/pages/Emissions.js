@@ -2786,6 +2786,61 @@ export default function Emissions() {
       return;
     }
     
+    // C1 PURCHASED GOODS — module-owned validation + payload (config-driven path).
+    // Other flat-field categories continue through the legacy shared flow below.
+    if (activeCategoryModule?.id === 'c1' && activeCategoryModule?.buildEditPayload) {
+      const validation = activeCategoryModule.validateEditSubmission({
+        scope3Method,
+        scope3ActivityId,
+        scope3CustomActivity,
+        useCustomActivity,
+        dynamicInputFields,
+        dynamicFieldValues,
+        processNames: formData.process_names,
+        effectiveCalculatedEmissions,
+      });
+      if (!validation.valid) {
+        toast.error(validation.errorMessage);
+        return;
+      }
+
+      try {
+        const payload = activeCategoryModule.buildEditPayload({
+          formData,
+          editingEmission,
+          scope3Method,
+          scope3ActivityId,
+          scope3ActivityType,
+          scope3Subcategory,
+          scope3CustomActivity,
+          useCustomActivity,
+          biogenicScopeSelection,
+          dynamicInputFields,
+          dynamicFieldValues,
+          effectiveCalculatedEmissions,
+          selectedFuel,
+          filteredScope3Activities,
+          centralizedUnits,
+        });
+
+        setIsSaving(true);
+        const response = await axios.put(`${API}/emissions/${editingEmission.id}`, payload, {
+          headers: getAuthHeader()
+        });
+        if (response.data) {
+          toast.success('Emission updated successfully');
+          setDialogOpen(false);
+          resetForm();
+          fetchData();
+        }
+      } catch (error) {
+        toast.error('Failed to update emissions. Please try again.');
+      } finally {
+        setIsSaving(false);
+      }
+      return;
+    }
+    
     // FIRST: Read actual values from DOM before any validation
     const cvCheckbox = document.querySelector('[data-testid="override-calorific-checkbox"]');
     const densityCheckbox = document.querySelector('[data-testid="override-density-checkbox"]');

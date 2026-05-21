@@ -211,6 +211,14 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 - P1: Dashboard "No Data" after toggling organization Scope access
 - P2: C7 Edit Dialog Stale State (yearly financial periods not transforming correctly)
 
+- ✅ Phase 7f (Feb 2026): C1 Edit-Flow Logic Isolation (C7 pattern mirror)
+  - Created `/modules/emissions/categories/C1PurchasedGoods/edit.js` with `validateEditSubmission` + `buildEditPayload` pure functions
+  - Validations preserved byte-identically: required-field numeric check, process-name & description, scope3 method & activity selection, supplier-basis unit check, calc-engine prerequisite, override/optional value check
+  - Payload structure byte-identical with prior shared inline implementation (no asset_name / no journey location — C1 has neither capability)
+  - Wired onto `categoryRegistry.get('c1')` as `validateEditSubmission` + `buildEditPayload`
+  - **`Emissions.js handleSubmit`**: added a C1-only short-circuit immediately after the C7 branch. C1 edits now go through the module path; C2–C15 + Scope 1/2 still use legacy shared flow (zero impact)
+  - First flat-field category with truly isolated edit logic — establishes the template for migrating C2–C15
+
 - ✅ Phase 7e (Feb 2026): Renderer Rollout + Capabilities System
   - Attached `Scope3DynamicFieldsRenderer` to **all flat-field Scope 3 categories** (C1–C6, C8–C15). C7 excluded (multi-employee renderer).
   - Introduced **module capability flags**: each module now exposes `capabilities: []` + `hasCapability(cap)` lookup. Derived from `scope3-definitions.js` (`requiresAssetName` → `'asset-name'`, `requiresLocation` → `'journey-locations'`, `requiresSubcategory` → `'subcategory'`, `activityTypes` → `'activity-types'`, `supportsMultiEmployee` → `'multi-employee'`).

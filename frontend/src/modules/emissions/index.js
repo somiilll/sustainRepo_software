@@ -122,6 +122,15 @@ export function initializeCategoryModules() {
     mod.hasCapability = (cap) => mod.capabilities.includes(cap);
   });
 
+  // Attach edit-flow business logic to flat-field categories.
+  // C1 — Purchased Goods and Services (first migrated to module-owned edit logic).
+  const c1Edit = require('./categories/C1PurchasedGoods/edit');
+  const c1ModuleEdit = categoryRegistry.get('c1');
+  if (c1ModuleEdit) {
+    c1ModuleEdit.validateEditSubmission = c1Edit.validateEditSubmission;
+    c1ModuleEdit.buildEditPayload = c1Edit.buildEditPayload;
+  }
+
   // eslint-disable-next-line no-console
   console.log(`[Emissions] Category modules initialized: ${categoryRegistry.size} entries`);
   return categoryRegistry.size;
