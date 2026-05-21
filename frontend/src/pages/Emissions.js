@@ -1197,18 +1197,33 @@ export default function Emissions() {
     return cat.includes('c7') || cat.includes('employee commuting');
   }, [formData.scope, formData.category]);
 
-  // Pluggable category renderer lookup (PoC: C1 only).
-  // When a registered category exposes a `DynamicFieldsRenderer`, the page
-  // delegates the dynamic-fields portion of the Scope 3 edit dialog to it
-  // instead of using the legacy inline JSX.
+  // Pluggable category renderer lookup. The page delegates the
+  // dynamic-fields portion of the Scope 3 edit dialog to whichever module
+  // the registry returns (via `module.DynamicFieldsRenderer`), and the
+  // save flow to `module.buildEditPayload`.
+  //
+  // Resolution:
+  //   - Scope 3 explicit          → match by category code (c1..c15)
+  //   - Biogenic + scope3 selection → fall back to generic Scope 3 module
+  //   - All other scopes/states   → legacy inline path (returns null)
   const activeCategoryModule = useMemo(() => {
-    if (formData.scope !== 'scope3') return null;
     const cat = (formData.category || '').toLowerCase();
-    // Match category code (e.g. "c1", "C1 - Purchased Goods")
-    const codeMatch = cat.match(/^(c\d+)/);
-    if (!codeMatch) return null;
-    return categoryRegistry.get(codeMatch[1]);
-  }, [formData.scope, formData.category]);
+
+    // 1. Plain Scope 3 → match by category code; if no match, stay on legacy
+    if (formData.scope === 'scope3') {
+      const codeMatch = cat.match(/^(c\d+)/);
+      if (!codeMatch) return null;
+      return categoryRegistry.get(codeMatch[1]) || null;
+    }
+
+    // 2. Biogenic + scope3 selection → generic Scope 3 (same payload shape)
+    if (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3') {
+      return categoryRegistry.getGenericModule?.('scope3') || null;
+    }
+
+    // 3. Scope 1 / Scope 2 / biogenic-scope1 → legacy path
+    return null;
+  }, [formData.scope, formData.category, biogenicScopeSelection]);
 
   const ModuleDynamicFieldsRenderer = activeCategoryModule?.DynamicFieldsRenderer || null;
 

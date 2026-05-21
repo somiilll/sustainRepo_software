@@ -135,6 +135,21 @@ export function initializeCategoryModules() {
     mod.buildEditPayload = editApi.buildEditPayload;
   });
 
+  // Also attach to the GenericScope3 fallback module. This handles
+  // biogenic-scope3 edits (where formData.scope === 'biogenic') and any
+  // Scope 3 record whose category doesn't match a C1–C15 code.
+  const genericScope3 = categoryRegistry.getGenericModule('scope3');
+  if (genericScope3) {
+    // Generic fallback has no special capabilities — shared helper handles it.
+    genericScope3.capabilities = genericScope3.capabilities || [];
+    genericScope3.hasCapability =
+      genericScope3.hasCapability || ((cap) => genericScope3.capabilities.includes(cap));
+    genericScope3.DynamicFieldsRenderer = Scope3DynamicFieldsRenderer;
+    const genericEditApi = createScope3FlatEditApi(genericScope3);
+    genericScope3.validateEditSubmission = genericEditApi.validateEditSubmission;
+    genericScope3.buildEditPayload = genericEditApi.buildEditPayload;
+  }
+
   // eslint-disable-next-line no-console
   console.log(`[Emissions] Category modules initialized: ${categoryRegistry.size} entries`);
   return categoryRegistry.size;

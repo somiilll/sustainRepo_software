@@ -1,0 +1,34 @@
+{
+  "summary": "Verified biogenic-scope3 edit now routes through generic Scope 3 module. Captured PUT /api/emissions/{id} payload and confirmed (a) HTTP 200 response, (b) scope3-specific keys present (scope3_ef_id, calculation_method_scope3, scope3_activity), (c) NO asset_name/from_location/to_location (generic module has no capabilities). Init log confirms 40 entries. Code review of activeCategoryModule useMemo (Emissions.js L1209-1226) and generic module wiring (modules/emissions/index.js L138-151) confirms correct routing.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Edit Emission Dialog (FacilityScopeSection)", "issues": ["React hydration warnings in console: <span> rendered as child of <select>/<option>. Caused by a wrapper around <option> elements in EditFormSections (line ~44). Pre-existing, not introduced by this iteration, but should be cleaned up — only plain text/Text nodes are valid children of <option>."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Emissions.js L1209-1226 activeCategoryModule useMemo correctly resolves: scope3 -> code match (c1..c15); biogenic+scope3 -> categoryRegistry.getGenericModule('scope3'); other -> null (legacy). Implementation is clean and idiomatic.",
+    "modules/emissions/index.js L138-151 correctly attaches createScope3FlatEditApi(genericScope3) to the generic fallback module, including DynamicFieldsRenderer, validateEditSubmission, and buildEditPayload. Generic module's capabilities array is empty so capability-gated keys (asset_name, from_location, to_location) are correctly omitted from the payload.",
+    "Scope3FlatEdit.js buildEditPayload: isScope3LikeSave = scope==='scope3' || (scope==='biogenic' && biogenicScopeSelection==='scope3') — this ensures biogenic-scope3 records get all scope3_* keys with byte-identical shape. biogenic_scope_selection is also included at top-level and in dynamic_field_values.",
+    "Pre-existing console warning (not from this iteration): <option> contains <span> wrapper in EditFormSections.jsx ~L44, causes React hydration warning. Should be addressed in a future cleanup pass."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100%"},
+  "test_credentials": "goyalsomil@hotmail.com / Test123! (OILES INDIA PVT. LTD.)",
+  "seed_data_creation": "None — used existing biogenic record id=511601e9-0d12-4b25-937f-44ee13c14d54 (Facility A, C10 - Processing of Sold Products, Biodiesel ME, biogenic+scope3, Average Data Based method)",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Biogenic-scope3 routing through the generic Scope 3 module is fully verified. PUT body captured: scope='biogenic', biogenic_scope_selection='scope3', category='C10 - Processing of Sold Products', scope3_ef_id='13502c72-bca7-4286-a998-128d4f5ad7bc', calculation_method_scope3='activity_basis', scope3_activity='Biodiesel ME'. NO asset_name/from_location/to_location keys present (as expected — generic module has no capabilities). Response 200. The legacy Scope 3 portions in Emissions.js (handleSubmit, etc.) should now be safe to remove for biogenic-scope3 path; all dispatch goes through activeCategoryModule.buildEditPayload. iter_68 already covered C2/C4/C10/Scope1 regression; this iter's successful C10 biogenic edit also re-exercises the C10 generic path. Test org OILES INDIA has 1 biogenic-scope1 record (Stationary Combustion / Other Primary Solid Biomass / Direct) + 1 biogenic-scope3 record (C10 / Biodiesel ME / Indirect / Average).",
+  "evidence": {
+    "put_url": "https://ghg-modular.preview.emergentagent.com/api/emissions/511601e9-0d12-4b25-937f-44ee13c14d54",
+    "put_status": 200,
+    "payload_top_level_keys": ["biogenic_scope_selection", "calculation_method_scope3", "category", "dynamic_field_values", "evidence_url", "facility_id", "formula_id", "frequency_type", "fuel_database_id", "fuel_type", "justification", "notes", "outputs", "process_descriptions", "process_names", "reporting_period", "responsible_person", "responsible_person_contact", "responsible_person_designation", "scope", "scope3_activity", "scope3_ef_id", "source_of_information", "sub_category", "supplier_code", "supplier_name"],
+    "asserted_present": ["scope3_ef_id", "calculation_method_scope3", "scope3_activity", "biogenic_scope_selection"],
+    "asserted_absent": ["asset_name", "from_location", "to_location"],
+    "console_init_log": "[Emissions] Category modules initialized: 40 entries"
+  }
+}
