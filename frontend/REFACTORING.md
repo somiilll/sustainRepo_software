@@ -39,22 +39,27 @@ src/
 │       ├── index.js
 │       └── emissions/
 │           ├── index.js
-│           ├── categories/      # ✅ Category modules
+│           ├── categories/      # ✅ All 15 Scope 3 category modules
 │           │   ├── index.js
 │           │   ├── registry.js  # Category registry pattern
 │           │   ├── shared/
 │           │   │   └── base-category.js
 │           │   └── scope3/
-│           │       ├── c1-purchased-goods/
-│           │       │   ├── index.js
-│           │       │   ├── config.js
-│           │       │   ├── validation.js
-│           │       │   ├── payload-builder.js
-│           │       │   └── normalizer.js
-│           │       ├── c2-capital-goods/
-│           │       │   └── ... (same structure)
-│           │       └── c7-employee-commuting/  (to be created)
-│           │           └── ... (special handling)
+│           │       ├── c1-purchased-goods/      ✅
+│           │       ├── c2-capital-goods/        ✅
+│           │       ├── c3-fuel-energy/          ✅
+│           │       ├── c4-transportation/       ✅
+│           │       ├── c5-waste/                ✅
+│           │       ├── c6-business-travel/      ✅
+│           │       ├── c7-employee-commuting/   ✅ (Full implementation)
+│           │       ├── c8-upstream-leased/      ✅
+│           │       ├── c9-downstream-transport/ ✅
+│           │       ├── c10-processing/          ✅
+│           │       ├── c11-use-of-products/     ✅
+│           │       ├── c12-end-of-life/         ✅
+│           │       ├── c13-downstream-leased/   ✅
+│           │       ├── c14-franchises/          ✅
+│           │       └── c15-investments/         ✅
 │           └── shared/
 │               ├── index.js
 │               └── components/
