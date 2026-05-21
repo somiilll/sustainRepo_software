@@ -2816,9 +2816,12 @@ export default function Emissions() {
         }
       }
       
-      // Look up the activity label from scope3_ef_id
+      // Look up the activity label from scope3_ef_id (or use custom activity)
       const matchedActivityForSave = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-      const activityLabel = matchedActivityForSave?.activity || matchedActivityForSave?.fuel_name || scope3ActivityType;
+      // For custom activity, use the custom name; otherwise use matched activity or activity type
+      const activityLabel = useCustomActivity 
+        ? (scope3CustomActivity || 'Custom Activity')
+        : (matchedActivityForSave?.activity || matchedActivityForSave?.fuel_name || scope3ActivityType);
       
       // Construct reporting_period from formData fields
       const c7ReportingPeriod = formData.reporting_period_start && formData.reporting_period_end
@@ -2840,12 +2843,13 @@ export default function Emissions() {
         frequency_type: editingEmission?.frequency_type || 'monthly', // Preserve frequency_type on edit
         scope: 'scope3',
         category: formData.category,
-        sub_category: formData.sub_category || '',
+        sub_category: useCustomActivity ? (scope3CustomActivity || '') : (formData.sub_category || ''),
         calculation_method_scope3: scope3Method,
         activity_type: scope3ActivityType, // Send activity_type for backend to update
         scope3_activity_type: scope3ActivityType, // Also send scope3_activity_type
         scope3_activity: activityLabel, // Save the display label, not internal key
-        scope3_ef_id: scope3ActivityId || filteredScope3Activities[0]?.id || null,
+        scope3_ef_id: useCustomActivity ? null : (scope3ActivityId || null), // null for custom activity
+        use_custom_activity: useCustomActivity, // Track if custom activity was used
         formula_id: extractedFormulaId,
         
         // Multi-employee specific data - structure depends on yearly vs monthly
