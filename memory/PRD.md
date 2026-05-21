@@ -211,6 +211,19 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 - P1: Dashboard "No Data" after toggling organization Scope access
 - P2: C7 Edit Dialog Stale State (yearly financial periods not transforming correctly)
 
+- ✅ Phase 7k+l (Feb 2026): C7 Save Fix + Step3Renderer Wiring + CREATE Migration Scoped
+  - **Investigated C7 Update silent no-op** — reproduced via console logging. Root cause: C7 module's `hasCalculatedData` validation rejected hydrated records where `emissions.co2e` was `null/undefined` after `handleEdit` transformation. Toast was firing but Sonner auto-closed before test harness captured.
+  - **Fix 1 (Hydration)**: `handleEdit` now clones `emissions` and normalises `co2e: null/undefined` → `0` for both monthly and yearly transforms.
+  - **Fix 2 (Validation)**: C7 `hasCalculatedData` check now accepts presence of **inputs** in `monthly_data` / `yearly_data` even without `emissions.co2e` — covers hydrated records.
+  - **Fix 3 (C7 audit log skip)**: removed `persistCalcAuditLog` call from C7 branch — the calc-engine endpoint doesn't accept C7's per-employee shape and was returning HTTP 400. Restores parity with pre-refactor behaviour (legacy never called audit log for C7).
+  - **C7 EDIT save VERIFIED FIXED via manual screenshot test**: single PUT 200, no failing audit POST, dialog closes cleanly, list refreshes.
+
+  - **Step3FrequencyRenderer** (`/modules/emissions/shared/renderers/Step3FrequencyRenderer.jsx`): thin adapter re-exporting the existing 1140-line `Step3YearMonthlyData` as a module-attachable renderer.
+  - **`EmissionEntryForm.js`** now resolves `activeModule` via the registry (mirroring `Emissions.js` EDIT lookup) and uses `module.Step3Renderer` for Step 3 (falls back to direct import). Architectural symmetry between EDIT and CREATE.
+
+  - **CREATE Migration Plan documented** at `/app/memory/CREATE_MIGRATION_PLAN.md` — 8 phases mapped, risks identified, ~5–6 session estimate.
+  - **Phase A of CREATE migration shipped**: extended `CategoryModuleInterface.js` JSDoc with `validateCreateSubmission` + `buildCreatePayload` contract (mirror of EDIT contract) and documented `Step3Renderer` + `CreateWizard` renderer slots.
+
 - ✅ Phase 7j (Feb 2026): Scope 2 Extracted + Legacy `handleSubmit` Block DELETED
   - Created `/modules/emissions/categories/Scope2Modules.js` with `GenericScope2Module` (one generic module covers all Scope 2 sub-categories — Purchased Electricity, Steam, Heating, Cooling).
   - **Reused shared `Scope1Edit` helpers** on Scope 2 (already supported `scope === 'scope2'` in override-justification check + payload spreads).

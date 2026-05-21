@@ -48,6 +48,39 @@
  * @property {Function} getDefaultValues - Returns default form values
  * @property {Object} [tableColumns] - Column definitions for list view
  * @property {Object} [uploadConfig] - Bulk upload configuration
+ *
+ * --- EDIT-flow contract (Phase 7i complete) ---
+ * @property {Function} [validateEditSubmission] - Validates the EDIT
+ *           dialog `ctx` and returns `{ valid: boolean, errorMessage?: string }`.
+ *           Called by `Emissions.js handleSubmit` module dispatch.
+ * @property {Function} [buildEditPayload] - Builds the PUT payload from
+ *           the EDIT dialog `ctx`. Returns a plain object sent to
+ *           `/api/emissions/{id}`.
+ *
+ * --- CREATE-flow contract (Phase 7l — scoped, see CREATE_MIGRATION_PLAN.md) ---
+ * @property {Function} [validateCreateSubmission] - Validates the CREATE
+ *           wizard `ctx` (frequencyType, monthlyData, yearlyData,
+ *           reportingYear, dynamicInputFields, dynamicFieldValues,
+ *           processNames, formData...) and returns `{ valid, errorMessage }`.
+ * @property {Function} [buildCreatePayload] - Builds the POST payload(s)
+ *           for `/api/emissions`. For monthly frequency this should
+ *           return an Array<payload> (one per filled month). For yearly
+ *           frequency a single payload.
+ *
+ * --- Renderer slots (UI delegation) ---
+ * @property {React.ComponentType} [DynamicFieldsRenderer] - EDIT-dialog
+ *           dynamic-field section renderer (Phase 7d–7e).
+ * @property {React.ComponentType} [Step3Renderer] - CREATE-wizard Step 3
+ *           (year/monthly accordion) renderer (Phase 7k).
+ * @property {React.ComponentType} [CreateWizard] - Full CREATE-wizard
+ *           override (Phase 7l Phase H — optional, future).
+ *
+ * --- Capability flags (Phase 7e) ---
+ * @property {Array<string>} [capabilities] - Capability tags like
+ *           'asset-name', 'journey-locations', 'subcategory', etc.
+ * @property {Function} [hasCapability] - `(cap: string) => boolean` lookup.
+ *
+ * --- Optional extras ---
  * @property {React.Component} [FormSection] - Custom form section component (optional)
  * @property {React.Component} [EditSection] - Custom edit section component (optional)
  * @property {Function} [transformForChart] - Transform data for dashboard charts

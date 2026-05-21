@@ -2900,8 +2900,11 @@ export default function Emissions() {
         
         if (response.data) {
           toast.success(`Updated ${editEmployees.length} employee commuting records (${totalCo2e.toFixed(4)} tCO2e total)`);
-          // Persist calc audit log so override sources reload correctly on re-edit
-          await persistCalcAuditLog(editingEmission.id);
+          // NOTE: Audit log persistence (POST /calc-engine/execute-by-category)
+          // is intentionally skipped for C7. The calc-engine endpoint expects
+          // aggregated `dynamicFieldValues`-based inputs; C7's per-employee
+          // per-month inputs don't match that contract and return HTTP 400.
+          // The legacy code also did NOT persist the audit log for C7.
           setDialogOpen(false);
           resetForm();
           fetchData(); // Refresh the emissions list
