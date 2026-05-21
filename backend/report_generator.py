@@ -2719,54 +2719,137 @@ class GHGReportGenerator:
         return buf
     
     def _create_category_chart(self, categories: Dict[str, float]) -> io.BytesIO:
-        """Create category-wise emission distribution chart - reduced size by 15%"""
-        fig, ax = plt.subplots(figsize=(7.5, 4.5))  # Slightly larger for better label spacing
+        """Create category-wise emission distribution chart with clean legend below.
         
+        Features:
+        - No labels around the pie chart (cleaner look)
+        - Intelligent grouping of small categories into "Others" 
+        - Clean legend box below chart with full category names
+        - Color swatches and percentages in legend
+        """
         if not categories:
             categories = {'No Data': 0}
         
         labels = list(categories.keys())
         values = list(categories.values())
-        colors = plt.cm.Set3(np.linspace(0, 1, len(labels)))
-        
-        # Filter out very small values (< 1% of total) to reduce label clutter
         total = sum(values) if values else 1
-        significant_data = [(l, v) for l, v in zip(labels, values) if v / total >= 0.01]
-        other_value = sum(v for l, v in zip(labels, values) if v / total < 0.01)
         
-        if other_value > 0:
-            significant_data.append(('Other (<1% each)', other_value))
+        # Configuration for "Others" grouping
+        MIN_CATEGORY_PERCENT = 2.0  # Categories below this % get grouped into "Others"
+        MAX_OTHERS_PERCENT = 5.0    # If combined small categories exceed this %, keep them separate
+        
+        # Separate significant categories from small ones
+        significant_data = []
+        others_data = []
+        
+        for label, value in zip(labels, values):
+            pct = (value / total) * 100 if total > 0 else 0
+            if pct >= MIN_CATEGORY_PERCENT:
+                significant_data.append((label, value, pct))
+            else:
+                others_data.append((label, value, pct))
+        
+        # Calculate combined "Others" percentage
+        others_total = sum(v for _, v, _ in others_data)
+        others_pct = (others_total / total) * 100 if total > 0 else 0
+        
+        # If combined small categories are substantial, don't group them
+        # But if they're truly negligible, group them
+        if others_data and others_pct > 0:
+            if others_pct <= MAX_OTHERS_PERCENT or len(others_data) > 5:
+                # Group into "Others"
+                significant_data.append((f'Others ({len(others_data)} categories)', others_total, others_pct))
+            else:
+                # Keep them separate since they're individually small but combined substantial
+                significant_data.extend(others_data)
+        
+        # Sort by value descending
+        significant_data.sort(key=lambda x: x[1], reverse=True)
         
         if significant_data:
-            labels, values = zip(*significant_data)
-            labels, values = list(labels), list(values)
+            labels = [item[0] for item in significant_data]
+            values = [item[1] for item in significant_data]
+            percentages = [item[2] for item in significant_data]
+        else:
+            labels, values, percentages = ['No Data'], [1], [100.0]
         
-        # Use shorter labels if they're too long
-        short_labels = [l[:15] + '...' if len(l) > 15 else l for l in labels]
+        # Create figure with space for legend below
+        fig = plt.figure(figsize=(8, 6.5))
         
-        # Calculate label distances based on number of slices
-        label_dist = 1.35 if len(labels) > 5 else 1.25
-        pct_dist = 0.75 if len(labels) > 5 else 0.70
+        # Create GridSpec for pie chart (top) and legend (bottom)
+        gs = fig.add_gridspec(2, 1, height_ratios=[3, 1.2], hspace=0.05)
+        ax_pie = fig.add_subplot(gs[0])
+        ax_legend = fig.add_subplot(gs[1])
         
-        wedges, texts, autotexts = ax.pie(values, labels=short_labels, autopct=lambda pct: f'{pct:.1f}%' if pct >= 2 else '',
-                                           colors=colors, startangle=90,
-                                           pctdistance=pct_dist, labeldistance=label_dist,
-                                           textprops={'fontsize': 7})
+        # Generate colors
+        base_colors = plt.cm.Set3(np.linspace(0, 1, max(12, len(labels))))
+        colors = base_colors[:len(labels)]
         
-        # Adjust text properties to prevent overlap and cutting
-        for i, (text, autotext) in enumerate(zip(texts, autotexts)):
-            text.set_fontsize(7)
-            autotext.set_fontsize(6)
-            autotext.set_fontweight('bold')
-            # Hide labels for very small slices to reduce clutter
-            if values[i] / total < 0.02:
-                text.set_visible(False)
+        # Special color for "Others" - make it gray
+        for i, label in enumerate(labels):
+            if 'Others' in label:
+                colors[i] = (0.7, 0.7, 0.7, 1.0)  # Gray for "Others"
         
-        ax.set_title('Category-wise Emission Distribution', fontsize=10, fontweight='bold', pad=15)
-        plt.tight_layout(pad=3)
+        # Create pie chart WITHOUT labels (clean look)
+        wedges, _ = ax_pie.pie(
+            values, 
+            colors=colors, 
+            startangle=90,
+            wedgeprops=dict(width=1, edgecolor='white', linewidth=1.5)
+        )
+        
+        # Add percentage labels INSIDE the pie slices (only for significant portions)
+        for i, (wedge, pct) in enumerate(zip(wedges, percentages)):
+            if pct >= 3:  # Only show percentage for slices >= 3%
+                # Calculate position for text inside the slice
+                ang = (wedge.theta2 - wedge.theta1) / 2. + wedge.theta1
+                x = 0.6 * np.cos(np.deg2rad(ang))
+                y = 0.6 * np.sin(np.deg2rad(ang))
+                ax_pie.text(x, y, f'{pct:.1f}%', ha='center', va='center', 
+                           fontsize=8, fontweight='bold', color='black')
+        
+        ax_pie.set_title('Category-wise Emission Distribution', fontsize=11, fontweight='bold', pad=10)
+        
+        # Create legend box below the chart
+        ax_legend.axis('off')
+        
+        # Calculate layout for legend items
+        num_items = len(labels)
+        cols = 2 if num_items <= 8 else 3
+        rows = (num_items + cols - 1) // cols
+        
+        # Create legend items
+        legend_y_start = 0.95
+        legend_y_step = 0.95 / max(rows, 1)
+        col_width = 1.0 / cols
+        
+        for i, (label, value, pct) in enumerate(zip(labels, values, percentages)):
+            row = i // cols
+            col = i % cols
+            
+            x_pos = col * col_width + 0.02
+            y_pos = legend_y_start - (row * legend_y_step)
+            
+            # Color swatch
+            ax_legend.add_patch(plt.Rectangle((x_pos, y_pos - 0.04), 0.03, 0.06, 
+                                               facecolor=colors[i], edgecolor='black', linewidth=0.5))
+            
+            # Truncate very long labels for legend display
+            display_label = label[:35] + '...' if len(label) > 35 else label
+            
+            # Label text with percentage
+            ax_legend.text(x_pos + 0.045, y_pos - 0.01, 
+                          f'{display_label} ({pct:.1f}%)', 
+                          fontsize=7, va='center', ha='left',
+                          wrap=True)
+        
+        ax_legend.set_xlim(0, 1)
+        ax_legend.set_ylim(0, 1)
+        
+        plt.tight_layout(pad=1.5)
         
         buf = io.BytesIO()
-        plt.savefig(buf, format='png', dpi=120, bbox_inches='tight', pad_inches=0.4)
+        plt.savefig(buf, format='png', dpi=120, bbox_inches='tight', pad_inches=0.3, facecolor='white')
         buf.seek(0)
         plt.close(fig)
         return buf
