@@ -68,10 +68,10 @@ src/
 │                   ├── MethodSelector.js
 │                   └── steps/                    # ✅ Step extraction components
 │                       ├── index.js
-│                       ├── Step1BasicSelection.js    # (template created, not yet in use)
-│                       ├── Step2ProcessResponsibility.js  # ✅ In use
-│                       ├── Step3YearMonthlyData.js   # (template created, not yet in use)
-│                       └── Step4Notes.js             # ✅ In use
+│                       ├── Step1BasicSelection.js    # ✅ In use (~773 lines)
+│                       ├── Step2ProcessResponsibility.js  # ✅ In use (~250 lines)
+│                       ├── Step3YearMonthlyData.js   # ✅ In use (~1141 lines)
+│                       └── Step4Notes.js             # ✅ In use (~120 lines)
 │
 ├── utils/                        # ✅ Utility functions
 │   ├── logger/
@@ -265,20 +265,20 @@ The refactoring is designed to be **incremental** and **non-breaking**:
    - Migrated inline constants to centralized modules
    - Replaced duplicate category detection patterns with imports
 
-5. **Phase 5 (Partial)**: Continue EmissionEntryForm.js migration
+5. **Phase 5 (Complete)**: Continue EmissionEntryForm.js migration
    - ✅ Created Step component directory structure
+   - ✅ Extracted Step 1 (Basic Selection) → `Step1BasicSelection.js` (~773 lines)
    - ✅ Extracted Step 2 (Process & Responsibility) → `Step2ProcessResponsibility.js` (~250 lines)
+   - ✅ Extracted Step 3 (Year & Monthly Data) → `Step3YearMonthlyData.js` (~1141 lines)
    - ✅ Extracted Step 4 (Notes & Summary) → `Step4Notes.js` (~120 lines)
-   - ⏸️ Step 1 and Step 3 deferred due to complexity (tight coupling with parent state)
-   - Current: 6054 lines (reduced from 6336, ~282 lines extracted)
+   - **Final: 4479 lines (reduced from 6056, ~1577 lines extracted = 26% reduction)**
    - Step components located at: `/app/frontend/src/modules/ghg/emissions/shared/components/steps/`
+   - All 4 form steps now use modular components with proper prop passing
 
-6. **Phase 6 (Next)**: Continue Step Extraction & Emissions.js Migration
-   - Extract Step 1 (Basic Selection) - ~700 lines
-   - Extract Step 3 (Year & Monthly Data) - ~1000 lines
-   - Target EmissionEntryForm.js: ~2500 lines total
-   - Migrate Emissions.js (list/edit) - similar refactoring approach
-   - Extract edit form components
+6. **Phase 6 (Next)**: Emissions.js Migration
+   - Migrate Emissions.js (list/edit - currently >7000 lines)
+   - Extract edit dialog components to use shared step components
+   - Apply similar modular pattern to edit form
 
 7. **Phase 7**: Additional modules
    - Scope 1/2 category modules

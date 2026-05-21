@@ -18,7 +18,7 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 - `/app/backend/server.py` - Main API (~10,000+ lines, needs refactoring)
 - `/app/frontend/src/pages/Dashboard.js` - Dashboard with analytics
 - `/app/frontend/src/pages/Emissions.js` - Emissions management (~7000+ lines)
-- `/app/frontend/src/components/EmissionEntryForm.js` - Entry form (~6054 lines, partially refactored)
+- `/app/frontend/src/components/EmissionEntryForm.js` - Entry form (~4479 lines, Phase 5 complete)
 - `/app/frontend/src/components/MultiEmployeeInput.jsx` - C6/C7 employee table input
 - `/app/frontend/src/pages/Sinks.js` - GHG Sinks module with Monthly/Yearly data entry
 
@@ -26,23 +26,36 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 
 ### May 2026 Session (Latest)
 
-**May 26, 2026 - Phase 5 Frontend Refactoring (Partial)**
+**May 26, 2026 - Phase 5 Frontend Refactoring (Complete)**
 
-1. **Step 2 Component Extraction**
+1. **Step 1 Component Extraction (NEW)**
+   - Extracted Step 1 (Basic Selection) from EmissionEntryForm.js
+   - Using `/app/frontend/src/modules/ghg/emissions/shared/components/steps/Step1BasicSelection.js`
+   - Component handles: Facility selection, Scope radio buttons, Category dropdown, Fuel/Activity selection
+   - ~690 lines replaced with component call
+
+2. **Step 3 Component Extraction (NEW)**
+   - Extracted Step 3 (Year & Monthly Data) from EmissionEntryForm.js
+   - Using `/app/frontend/src/modules/ghg/emissions/shared/components/steps/Step3YearMonthlyData.js`
+   - Component handles: Reporting year, Frequency, Monthly accordions, Yearly data, Evidence uploads
+   - ~1016 lines replaced with component call
+
+3. **Step 2 Component Extraction**
    - Extracted Step 2 (Process & Responsibility) from EmissionEntryForm.js
    - Created `/app/frontend/src/modules/ghg/emissions/shared/components/steps/Step2ProcessResponsibility.js`
    - Component handles: Process names, Responsible person, Designation, Contact, Asset name, Location fields
    - ~250 lines extracted
 
-2. **Step 4 Component Extraction**
+4. **Step 4 Component Extraction**
    - Extracted Step 4 (Notes & Summary) from EmissionEntryForm.js
    - Created `/app/frontend/src/modules/ghg/emissions/shared/components/steps/Step4Notes.js`
    - Component handles: Additional notes, Review summary with all form data
    - ~120 lines extracted
 
-3. **EmissionEntryForm.js Line Reduction**
-   - Reduced from 6336 lines to 6054 lines (~282 lines extracted)
-   - Step 1 and Step 3 deferred due to tight coupling with parent state
+5. **EmissionEntryForm.js Final Reduction**
+   - **Reduced from 6056 lines to 4479 lines (~1577 lines = 26% reduction)**
+   - All 4 form steps now use modular components
+   - Used Python script for safe large-block JSX replacement (search_replace fails on 700+ line strings)
 
 **May 19, 2026 - C9 Customer Labels & Sinks Yearly Entry**
 
