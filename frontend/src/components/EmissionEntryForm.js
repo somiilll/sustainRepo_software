@@ -3854,7 +3854,131 @@ export default function EmissionEntryForm({
         return;
       }
 
-      // REGULAR FUEL EMISSIONS HANDLING
+      // ===========================================
+      // CREATE MIGRATION PHASE C — C1 PoC SHORT-CIRCUIT
+      // ===========================================
+      // For C1 (Purchased Goods), route the entire per-month CREATE loop
+      // through the module's `buildCreatePayload` + helpers. All other
+      // categories continue through the legacy block below until they
+      // are migrated in Phases D/E/F.
+      //
+      // This dispatch deliberately scopes to scope==='scope3' + category
+      // starting with 'c1' so we don't accidentally route biogenic-scope3
+      // or other paths through the new code yet.
+      const c1ActiveModule = (() => {
+        if (frequencyType !== 'monthly') return null;
+        if (scope !== 'scope3') return null;
+        const codeMatch = (category || '').toLowerCase().match(/^(c\d+)/);
+        if (!codeMatch || codeMatch[1] !== 'c1') return null;
+        const mod = categoryRegistry.get('c1');
+        return mod?.buildCreatePayload ? mod : null;
+      })();
+
+      if (c1ActiveModule) {
+        // 1. Module-owned validation (extras beyond canProceedToStep)
+        const modValidation = c1ActiveModule.validateCreateSubmission({
+          formData: { asset_name: assetName },
+          processNames,
+          assetName,
+        });
+        if (!modValidation.valid) {
+          toast.error(modValidation.errorMessage);
+          setIsSaving(false);
+          return;
+        }
+
+        let successCount = 0;
+        const errors = [];
+        for (const [monthKey, data] of monthsWithData) {
+          const actualYear = getActualYearForMonth(monthKey);
+          const reportingPeriod = `${actualYear}-${monthKey}`;
+
+          const baseCtx = {
+            // record-shaped fields
+            scope, category, facilityId, fuelId, selectedFuel, useCustomFuel, customFuelName, customSource,
+            biogenicScopeSelection,
+            // scope 3 specifics
+            scope3Method, scope3ActivityId, scope3ActivityType, scope3Subcategory,
+            scope3CustomActivity, useCustomActivity,
+            // capability-aware fields
+            supplierName, supplierCode, employeeName, employeeId,
+            assetName, fromLocation, toLocation,
+            // common
+            notes, responsiblePerson, responsiblePersonDesignation, responsiblePersonContact,
+            validProcesses,
+            // calc engine context inputs
+            dynamicInputFields,
+            filteredScope3Activities, requiresSubcategory, centralizedUnits,
+            defaultUnit,
+            buildDecisionInputs,
+            // calc engine outputs (filled below per-month)
+            calculatedCO2: 0, calculatedCH4: 0, calculatedN2O: 0, calculatedCO2e: 0,
+            resolvedFormulaId: null,
+            reportingPeriod,
+          };
+
+          // 2. Build inputs / overrides / decision context via the module helpers
+          const { inputs, userOverrides } = c1ActiveModule.extractInputsForCalcEngine(data, baseCtx);
+          const { decisionInputs, context, isScope3Like } = c1ActiveModule.buildDecisionContext(data, baseCtx);
+
+          // 3. Call calc engine (kept in host page — needs axios + auth)
+          let calculatedCO2 = 0, calculatedCH4 = 0, calculatedN2O = 0, calculatedCO2e = 0;
+          let resolvedFormulaId = null;
+          const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === (isScope3Like ? 'scope3' : scope));
+          if (categoryObj?.id && !useCustomFuel) {
+            try {
+              const calcResp = await axios.post(`${API}/calc-engine/execute-by-category`, {
+                category_id: categoryObj.id,
+                decision_inputs: decisionInputs,
+                inputs,
+                context,
+                user_overrides: userOverrides,
+                dry_run: false,
+                ...(isScope3Like && scope3ActivityId && { scope3_ef_id: scope3ActivityId }),
+              }, { headers: getAuthHeader() });
+              if (calcResp.data?.ok) {
+                const r = calcResp.data;
+                calculatedCO2 = r.outputs?.co2?.value || r.co2_emissions || 0;
+                calculatedCH4 = r.outputs?.ch4?.value || r.ch4_emissions || 0;
+                calculatedN2O = r.outputs?.n2o?.value || r.n2o_emissions || 0;
+                calculatedCO2e = r.outputs?.co2e?.value || r.co2e_emissions || 0;
+                resolvedFormulaId = r.resolved_formula?.id || r.formula_id || null;
+              }
+            } catch (e) {
+              // Fall through with zeros — record persisted, can be recalculated later
+            }
+          } else if (useCustomFuel) {
+            const customEF = parseFloat(customEmissionFactor) || 0;
+            const primaryQty = parseFloat(data[dynamicInputFields[0]?.variable] || 0);
+            calculatedCO2 = primaryQty * customEF;
+            calculatedCO2e = calculatedCO2;
+          }
+
+          // 4. Build payload via module helper
+          const payload = c1ActiveModule.buildCreatePayload(data, {
+            ...baseCtx,
+            calculatedCO2, calculatedCH4, calculatedN2O, calculatedCO2e,
+            resolvedFormulaId,
+          });
+
+          // 5. POST
+          try {
+            await axios.post(`${API}/emissions`, payload, { headers: getAuthHeader() });
+            successCount++;
+          } catch (err) {
+            errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: Save failed`);
+          }
+        }
+
+        if (successCount > 0) toast.success(`Created ${successCount} emission record(s) successfully`);
+        if (errors.length > 0) toast.error(`Failed to save some records. Please try again.`);
+        if (successCount > 0) onSuccess?.();
+        setIsSaving(false);
+        return;
+      }
+
+      // REGULAR FUEL EMISSIONS HANDLING (legacy — covers all scopes/categories
+      // not yet migrated to module dispatch)
       // Create emission record for each month with data
       let successCount = 0;
       const errors = [];
