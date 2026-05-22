@@ -3219,7 +3219,37 @@ export default function EmissionEntryForm({
     }
 
     setIsSaving(true); // Disable button immediately
-    
+
+    // Shared module-resolution helper (used by both monthly & yearly dispatch).
+    // Returns the active category module (with `buildCreatePayload`) or null
+    // if the scope/category combo is not yet wired through the registry.
+    const resolveDispatchModule = () => {
+      const cat = (category || '').toLowerCase();
+      let mod = null;
+      if (scope === 'scope3') {
+        const codeMatch = cat.match(/^(c\d+)/);
+        if (!codeMatch) return null;
+        if (codeMatch[1] === 'c7') return null; // C7 has its own dedicated branch
+        mod = categoryRegistry.get(codeMatch[1]);
+      } else if (scope === 'scope1') {
+        if (cat.includes('stationary')) mod = categoryRegistry.get('stationary_combustion');
+        else if (cat.includes('mobile')) mod = categoryRegistry.get('mobile_combustion');
+        else if (cat.includes('fugitive')) mod = categoryRegistry.get('fugitive_emissions');
+        else mod = categoryRegistry.getGenericModule?.('scope1');
+      } else if (scope === 'scope2') {
+        mod = categoryRegistry.getGenericModule?.('scope2');
+      } else if (scope === 'biogenic') {
+        if (biogenicScopeSelection === 'scope3') {
+          const codeMatch = cat.match(/^(c\d+)/);
+          if (codeMatch && codeMatch[1] === 'c7') return null;
+          mod = categoryRegistry.getGenericModule?.('scope3');
+        } else if (biogenicScopeSelection === 'scope1') {
+          mod = categoryRegistry.getGenericModule?.('scope1');
+        }
+      }
+      return mod?.buildCreatePayload ? mod : null;
+    };
+
     try {
       const validProcesses = processNames.filter(p => p.name && p.name.trim() !== '');
       
@@ -3409,170 +3439,115 @@ export default function EmissionEntryForm({
             toast.success(`Created yearly emission record for ${yearlyReportingPeriod}`);
             onSuccess?.();
           } else if (dynamicInputFields.length > 0) {
-            // Dynamic fields yearly
-            dynamicInputFields.forEach(field => {
-              const value = yearlyData[field.variable] || yearlyData[field.fieldKey];
-              if (value === undefined || value === null || value === '') return;
-              
-              const numValue = parseFloat(value);
-              if (!Number.isFinite(numValue)) return;
-              
-              let unit = yearlyData[`${field.variable}_unit`] || field.expectedUnit || '';
-              
-              if (!field.isOverride && primaryQuantity === 0) {
-                primaryQuantity = numValue;
-                primaryUnit = unit;
-              }
-              
-              // Build inputs object for calc engine - same logic as monthly
-              if (field.isOverride) {
-                // Override fields go to userOverrides if the override checkbox is checked
-                const overrideKey = `override_${field.variable}`;
-                if (yearlyData[overrideKey]) {
-                  userOverrides[field.variable] = { value: numValue, unit: unit };
-                }
-              } else {
-                // Regular inputs (including optional non-override fields like ef_quantity)
-                inputs[field.variable] = { value: numValue, unit: unit };
-              }
-            });
-            
-            const decisionInputs = buildDecisionInputs(yearlyData);
-            const matchedEFForContext = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-            
-            const context = {
-              fuel_name: selectedFuel?.fuel_name,
-              fuel_id: fuelId || '',
-              scope: effectiveScope,
-              category: category,
-              facility_id: facilityId,
-              reporting_period: yearlyReportingPeriod, // For currency conversion year lookup
-              ...(isScope3Like && {
-                calculation_method_scope3: scope3Method,
-                scope3_ef_id: scope3ActivityId,
-                scope3_ef_default_unit: matchedEFForContext?.default_unit || '',
-                activity: matchedEFForContext?.activity || scope3CustomActivity,
-              }),
-            };
-            
-            // Get category ID for calc-engine
-            const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === effectiveScope);
-            if (!categoryObj?.id) {
-              toast.error('Category configuration not found');
+            // ============================================================
+            // YEARLY DISPATCH (post-Phase F: module-driven, single record)
+            // ============================================================
+            // Mirrors the monthly dispatch but runs ONCE with `yearlyData`
+            // as the row and `yearlyReportingPeriod` as the reporting period.
+            // Module resolution follows the same scope/category/biogenic
+            // logic; payload shape matches modular monthly + adds
+            // `frequency_type: 'yearly'` for backend differentiation.
+            const yearlyMod = resolveDispatchModule();
+
+            if (!yearlyMod) {
+              console.error('[EmissionEntryForm] No module dispatched for yearly', { scope, category, biogenicScopeSelection });
+              toast.error('This category is not yet supported for yearly submission. Please reload the page or contact support.');
               setIsSaving(false);
               return;
             }
-            
-            // Execute calc engine
-            const calcResponse = await axios.post(`${API}/calc-engine/execute-by-category`, {
-              category_id: categoryObj.id,
-              inputs,
-              context,
-              decision_inputs: decisionInputs,
-              dry_run: false,
-              user_overrides: userOverrides,
-              // Pass scope3_ef_id at top level for backend to lookup fuel_database (fugitive emissions)
-              ...(isScope3Like && scope3ActivityId && { scope3_ef_id: scope3ActivityId }),
-            }, { headers: getAuthHeader() });
-            
-            const calcResult = calcResponse.data;
-            const outputs = calcResult.outputs || {};
-            const calculatedCO2e = outputs.co2e?.value || outputs.total_co2e?.value || 0;
-            
-            // Merge override values into dynamic_field_values for persistence
-            // Include is_override flag so edit dialog can restore the override checkbox state
-            const dynamicFieldValuesToSave = { ...inputs };
-            Object.entries(userOverrides).forEach(([key, val]) => {
-              dynamicFieldValuesToSave[key] = {
-                ...val,
-                is_override: true,
-                justification: yearlyData[`${key}_justification`] || ''
-              };
+
+            // Module-owned validation (same context shape as monthly dispatch)
+            const yModValidation = yearlyMod.validateCreateSubmission({
+              formData: { asset_name: assetName },
+              processNames,
+              assetName,
+              fuelId,
+              useCustomFuel,
+              customFuelName,
+              isOverrideCV: false,
+              isOverrideDensity: false,
+              overrideEmissionFactorHeat: false,
+              overrideJustification: '',
+              scope,
             });
-            
-            // Add scope3 metadata fields to dynamic_field_values for edit dialog restoration
-            if (isScope3Like) {
-              dynamicFieldValuesToSave.calculation_method_scope3 = { value: scope3Method, unit: '' };
-              dynamicFieldValuesToSave.scope3_ef_id = { value: scope3ActivityId || '', unit: '' };
-              dynamicFieldValuesToSave.scope3_activity = { 
-                value: matchedEFForContext?.activity || scope3CustomActivity || '', 
-                unit: '' 
-              };
-              dynamicFieldValuesToSave.scope3_activity_type = { value: scope3ActivityType || '', unit: '' };
-              dynamicFieldValuesToSave.scope3_subcategory = { value: scope3Subcategory || '', unit: '' };
+            if (!yModValidation.valid) {
+              toast.error(yModValidation.errorMessage);
+              setIsSaving(false);
+              return;
             }
-            
-            const payload = {
-              facility_id: facilityId,
-              reporting_period: yearlyReportingPeriod,
-              frequency_type: 'yearly',
-              scope: scope,
-              category: category,
-              // For Scope 1/2, use fuel_type as sub_category so it shows in GHG emissions card
-              sub_category: (scope === 'scope1' || scope === 'scope2') 
-                ? (selectedFuel?.fuel_name || '') 
-                : (scope3Subcategory || ''),
-              fuel_type: selectedFuel?.fuel_name || scope3ActivityType || '',
-              fuel_database_id: fuelId || null,  // FIXED: Save the fuel database ID
-              quantity: primaryQuantity,
-              quantity_unit: primaryUnit,
-              unit: primaryUnit,
-              dynamic_field_values: dynamicFieldValuesToSave,  // FIXED: Include overrides
-              user_overrides: userOverrides,  // FIXED: Also save user_overrides separately
-              outputs: outputs,
-              formula_id: calcResult.formula_id || calcResult.resolved_formula?.id || null,
-              formula_used: calcResult.formula_used,
-              emission_factor_used: calcResult.emission_factor_used,
-              calculated_co2e: calculatedCO2e,
-              co2e_emissions: calculatedCO2e,
-              biogenic_scope_selection: scope === 'biogenic' ? biogenicScopeSelection : null,
-              notes: notes,
-              responsible_person: responsiblePerson,
-              responsible_person_designation: responsiblePersonDesignation,
-              responsible_person_contact: responsiblePersonContact,
-              process_names: validProcesses.map(p => p.name),
-              process_descriptions: validProcesses.map(p => ({ name: p.name, description: p.description || '' })),
-              ...(isScope3Like && {
-                supplier_name: supplierName || null,
-                supplier_code: supplierCode || null,
-                calculation_method_scope3: scope3Method,
-                scope3_activity_type: scope3ActivityType || '',
-                scope3_activity: matchedEFForContext?.activity || scope3CustomActivity || '',
-                scope3_ef_id: scope3ActivityId,
-                // Asset Name for C8/C13/C14/C15
-                ...((['c8', 'c13', 'c14', 'c15'].some(c => category?.toLowerCase()?.includes(c))) ? {
-                  asset_name: assetName || null,
-                } : {}),
-                // From/To Location for C4/C6/C9 (transportation/travel)
-                ...((['c4', 'c6', 'c9'].some(c => category?.toLowerCase()?.includes(c))) ? {
-                  from_location: fromLocation || null,
-                  to_location: toLocation || null,
-                } : {}),
+
+            const yBaseCtx = {
+              scope, category, facilityId, fuelId, selectedFuel, useCustomFuel, customFuelName, customSource,
+              biogenicScopeSelection,
+              scope3Method, scope3ActivityId, scope3ActivityType, scope3Subcategory,
+              scope3CustomActivity, useCustomActivity,
+              supplierName, supplierCode, employeeName, employeeId,
+              assetName, fromLocation, toLocation,
+              notes, responsiblePerson, responsiblePersonDesignation, responsiblePersonContact,
+              validProcesses,
+              dynamicInputFields,
+              filteredScope3Activities, requiresSubcategory, centralizedUnits,
+              defaultUnit,
+              buildDecisionInputs,
+              // Per-row override flags read from yearlyData (yearly has a single row).
+              isOverrideCV: !!yearlyData.overrideCalorificValue,
+              isOverrideDensity: !!yearlyData.overrideDensity,
+              overrideEmissionFactorHeat: !!yearlyData.overrideEmissionFactorHeat,
+              overrideJustification: yearlyData.calorificValueJustification || yearlyData.densityJustification || yearlyData.emissionFactorHeatJustification || '',
+              calculatedCO2: 0, calculatedCH4: 0, calculatedN2O: 0, calculatedCO2e: 0,
+              resolvedFormulaId: null,
+              reportingPeriod: yearlyReportingPeriod,
+            };
+
+            const { inputs: yInputs, userOverrides: yOverrides } = yearlyMod.extractInputsForCalcEngine(yearlyData, yBaseCtx);
+            const { decisionInputs: yDecisionInputs, context: yContext, isScope3Like: yIsScope3Like } = yearlyMod.buildDecisionContext(yearlyData, yBaseCtx);
+
+            let yCalcCO2 = 0, yCalcCH4 = 0, yCalcN2O = 0, yCalcCO2e = 0;
+            let yResolvedFormulaId = null;
+
+            const yEffectiveScope = yIsScope3Like ? 'scope3' : scope;
+            const yCategoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === yEffectiveScope);
+
+            if (yCategoryObj?.id && !useCustomFuel) {
+              try {
+                const calcResp = await axios.post(`${API}/calc-engine/execute-by-category`, {
+                  category_id: yCategoryObj.id,
+                  decision_inputs: yDecisionInputs,
+                  inputs: yInputs,
+                  context: yContext,
+                  user_overrides: yOverrides,
+                  dry_run: false,
+                  ...(yIsScope3Like && scope3ActivityId && { scope3_ef_id: scope3ActivityId }),
+                }, { headers: getAuthHeader() });
+                if (calcResp.data?.ok) {
+                  const r = calcResp.data;
+                  yCalcCO2 = r.outputs?.co2?.value || r.co2_emissions || 0;
+                  yCalcCH4 = r.outputs?.ch4?.value || r.ch4_emissions || 0;
+                  yCalcN2O = r.outputs?.n2o?.value || r.n2o_emissions || 0;
+                  yCalcCO2e = r.outputs?.co2e?.value || r.co2e_emissions || 0;
+                  yResolvedFormulaId = r.resolved_formula?.id || r.formula_id || null;
+                }
+              } catch (e) {
+                // Fall through with zeros — record persisted, can be recalculated later
+              }
+            } else if (useCustomFuel) {
+              const customEF = parseFloat(customEmissionFactor) || 0;
+              const primaryQty = parseFloat(yearlyData[dynamicInputFields[0]?.variable] || 0);
+              yCalcCO2 = primaryQty * customEF;
+              yCalcCO2e = yCalcCO2;
+            }
+
+            const yPayload = {
+              ...yearlyMod.buildCreatePayload(yearlyData, {
+                ...yBaseCtx,
+                calculatedCO2: yCalcCO2, calculatedCH4: yCalcCH4, calculatedN2O: yCalcN2O, calculatedCO2e: yCalcCO2e,
+                resolvedFormulaId: yResolvedFormulaId,
               }),
-            };
-            
-            await axios.post(`${API}/emissions`, payload, { headers: getAuthHeader() });
-            toast.success(`Created yearly emission record for ${yearlyReportingPeriod}`);
-            onSuccess?.();
-          } else {
-            // Legacy simple mode yearly
-            const payload = {
-              facility_id: facilityId,
-              reporting_period: yearlyReportingPeriod,
+              // Yearly-only marker (legacy parity)
               frequency_type: 'yearly',
-              scope: scope,
-              category: category,
-              sub_category: scope3Subcategory || '',
-              fuel_type: selectedFuel?.fuel_name || '',
-              fuel_database_id: fuelId || null,
-              quantity: parseFloat(yearlyData.quantity) || 0,
-              quantity_unit: yearlyData.unit || defaultUnit,
-              unit: yearlyData.unit || defaultUnit,
-              notes: notes,
-              responsible_person: responsiblePerson,
             };
-            
-            await axios.post(`${API}/emissions`, payload, { headers: getAuthHeader() });
+
+            await axios.post(`${API}/emissions`, yPayload, { headers: getAuthHeader() });
             toast.success(`Created yearly emission record for ${yearlyReportingPeriod}`);
             onSuccess?.();
           }
@@ -3717,40 +3692,7 @@ export default function EmissionEntryForm({
       //   - scope is scope1/scope2/scope3 OR biogenic (Phase F)
       //   - active module exposes buildCreatePayload
       //   - category is NOT C7 (multi-employee — has its own dedicated branch)
-      const dispatchActiveModule = (() => {
-        if (frequencyType !== 'monthly') return null;
-        const cat = (category || '').toLowerCase();
-
-        let mod = null;
-        if (scope === 'scope3') {
-          // Phase D: all flat-field Scope 3 (C1–C6, C8–C15). Skip C7.
-          const codeMatch = cat.match(/^(c\d+)/);
-          if (!codeMatch) return null;
-          if (codeMatch[1] === 'c7') return null;
-          mod = categoryRegistry.get(codeMatch[1]);
-        } else if (scope === 'scope1') {
-          // Phase E: Scope 1 (Stationary / Mobile / Fugitive + Generic)
-          if (cat.includes('stationary')) mod = categoryRegistry.get('stationary_combustion');
-          else if (cat.includes('mobile')) mod = categoryRegistry.get('mobile_combustion');
-          else if (cat.includes('fugitive')) mod = categoryRegistry.get('fugitive_emissions');
-          else mod = categoryRegistry.getGenericModule?.('scope1');
-        } else if (scope === 'scope2') {
-          // Phase E: Scope 2 (single generic module)
-          mod = categoryRegistry.getGenericModule?.('scope2');
-        } else if (scope === 'biogenic') {
-          // Phase F: Biogenic — route to generic Scope 1 or Scope 3 fallback
-          // depending on biogenicScopeSelection. Skip biogenic-scope3 + C7.
-          if (biogenicScopeSelection === 'scope3') {
-            const codeMatch = cat.match(/^(c\d+)/);
-            if (codeMatch && codeMatch[1] === 'c7') return null;
-            mod = categoryRegistry.getGenericModule?.('scope3');
-          } else if (biogenicScopeSelection === 'scope1') {
-            mod = categoryRegistry.getGenericModule?.('scope1');
-          }
-        }
-
-        return mod?.buildCreatePayload ? mod : null;
-      })();
+      const dispatchActiveModule = frequencyType === 'monthly' ? resolveDispatchModule() : null;
 
       if (dispatchActiveModule) {
         // 1. Module-owned validation
@@ -3866,360 +3808,17 @@ export default function EmissionEntryForm({
         return;
       }
 
-      // REGULAR FUEL EMISSIONS HANDLING (legacy — covers all scopes/categories
-      // not yet migrated to module dispatch)
-      // Create emission record for each month with data
-      let successCount = 0;
-      const errors = [];
-      
-      for (const [monthKey, data] of monthsWithData) {
-        const actualYear = getActualYearForMonth(monthKey);
-        const reportingPeriod = `${actualYear}-${monthKey}`;
-        
-        // ============================================================================
-        // BUILD INPUTS DYNAMICALLY FROM dynamicInputFields
-        // No hardcoded field names - loop through the mappings
-        // ============================================================================
-        const inputs = {};
-        const userOverrides = {};
-        let primaryQuantity = 0;
-        let primaryUnit = defaultUnit;
-        
-        // Define isScope3Like early since it's used in the loop below
-        const isScope3Like = scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3');
-        const effectiveScope = isScope3Like ? 'scope3' : scope;
-        
-        dynamicInputFields.forEach(field => {
-          const value = data[field.variable] || data[field.fieldKey];
-          if (value === undefined || value === null || value === '') return;
-          
-          const numValue = parseFloat(value);
-          if (!Number.isFinite(numValue)) return;
-          
-          // Determine unit based on unit_source from the mapping - MUST match dropdown display logic
-          let unit;
-          let fieldUnits = [];
-          
-          if (field.unitSource === 'fuel') {
-            // Get unit from fuel's allowed_units
-            // For Scope 3 subcategory categories (C8, C10, C11, C13, C14), fallback to filteredScope3Activities
-            if (isScope3Like && requiresSubcategory && !selectedFuel && scope3ActivityId) {
-              const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-              fieldUnits = matchedActivity?.allowed_units || [];
-            } else {
-              fieldUnits = selectedFuel?.allowed_units || [];
-            }
-            unit = data[`${field.variable}_unit`] || data.unit || fieldUnits[0] || field.expectedUnit;
-          } else if (field.unitSource === 'all_units') {
-            // All centralized units (simple + compound)
-            fieldUnits = centralizedUnits.map(u => u.symbol);
-            unit = data[`${field.variable}_unit`] || fieldUnits[0] || field.expectedUnit || '';
-          } else if (field.unitSource === 'scope3_ef') {
-            // For scope3_ef: Priority 1: scope3_ef.allowed_units, Priority 2: field mapping, Priority 3: formula expected_unit
-            const matchedEF = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-            if (matchedEF?.allowed_units?.length > 0) {
-              fieldUnits = matchedEF.allowed_units;
-            } else if (field.allowedUnits?.length > 0) {
-              fieldUnits = field.allowedUnits;
-            } else if (field.expectedUnit) {
-              fieldUnits = [field.expectedUnit];
-            } else {
-              fieldUnits = [];
-            }
-            unit = data[`${field.variable}_unit`] || fieldUnits[0] || field.expectedUnit || '';
-          } else {
-            // Static units from field mapping
-            fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
-            unit = data[`${field.variable}_unit`] || fieldUnits[0] || field.expectedUnit || '';
-          }
-          
-          // Track primary quantity (first non-override field, typically qty or qty_energy)
-          if (!field.isOverride && primaryQuantity === 0) {
-            primaryQuantity = numValue;
-            primaryUnit = unit;
-          }
-          
-          // Build inputs object for calc engine
-          if (field.isOverride) {
-            // Override fields go to userOverrides if the override checkbox is checked
-            const overrideKey = `override_${field.variable}`;
-            if (data[overrideKey]) {
-              userOverrides[field.variable] = { value: numValue, unit: unit };
-            }
-          } else {
-            // Regular inputs
-            inputs[field.variable] = { value: numValue, unit: unit };
-          }
-        });
-        
-        // ============================================================================
-        // BUILD DECISION CONTEXT FROM maps_to_context IN MAPPINGS
-        // The decision tree will use this to select the correct formula
-        // ============================================================================
-        const decisionInputs = buildDecisionInputs(data);
-        
-        // Add fuel context
-        const matchedEFForContext = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-        
-        // For Scope 3 subcategory categories (C8, C10, C11, C13, C14) with fugitive emissions,
-        // use the activity name as fuel_name since the activity IS the fuel (e.g., "HFC-32")
-        // Skip this for supplier_basis as it uses a basic formula without fuel_database lookup
-        
-        // Determine if this is a scope3-like flow (regular scope3 or biogenic scope3)
-        // isScope3Like and effectiveScope already defined above
-        
-        let fuelNameForContext = selectedFuel?.fuel_name;
-        if (isScope3Like && requiresSubcategory && scope3Method !== 'supplier_basis' && scope3Subcategory === 'fugitive_emissions' && matchedEFForContext?.activity) {
-          fuelNameForContext = matchedEFForContext.activity;
-        }
-        
-        const context = {
-          fuel_name: fuelNameForContext,
-          fuel_id: fuelId,
-          scope: effectiveScope, // Use effective scope for context
-          category: category,
-          facility_id: facilityId,
-          reporting_period: reportingPeriod, // For currency conversion year lookup
-          // Scope 3 specific context (also applies to biogenic scope3)
-          ...(isScope3Like && {
-            calculation_method_scope3: scope3Method,
-            scope3_ef_id: scope3ActivityId,
-            // For supplier_basis with custom activity, use the custom activity name
-            activity: (scope3Method === 'supplier_basis' && useCustomActivity) 
-              ? scope3CustomActivity 
-              : matchedEFForContext?.activity,
-            // Pass default_unit for auto-conversion (falls back to formula's expected_unit if not set)
-            scope3_ef_default_unit: matchedEFForContext?.default_unit || '',
-          }),
-        };
-        
-        // ============================================================================
-        // CALL BACKEND CALC ENGINE
-        // The backend will traverse decision tree and apply correct formula
-        // ============================================================================
-        const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === effectiveScope);
-        
-        let calculatedCO2 = 0;
-        let calculatedCH4 = 0;
-        let calculatedN2O = 0;
-        let calculatedCO2e = 0;
-        let resolvedFormulaId = null; // Capture formula_id from calc-engine response
-        
-        if (categoryObj?.id && !useCustomFuel) {
-          try {
-            const calcResponse = await axios.post(
-              `${API}/calc-engine/execute-by-category`,
-              {
-                category_id: categoryObj.id,
-                decision_inputs: decisionInputs,
-                inputs: inputs,
-                context: context,
-                user_overrides: userOverrides,
-                dry_run: false,
-                // Pass scope3_ef_id at top level for backend to lookup fuel_database (fugitive emissions)
-                ...(isScope3Like && scope3ActivityId && { scope3_ef_id: scope3ActivityId }),
-              },
-              { headers: getAuthHeader() }
-            );
-            
-            if (calcResponse.data.ok) {
-              const result = calcResponse.data;
-              // Extract calculated values from result
-              calculatedCO2 = result.outputs?.co2?.value || result.co2_emissions || 0;
-              calculatedCH4 = result.outputs?.ch4?.value || result.ch4_emissions || 0;
-              calculatedN2O = result.outputs?.n2o?.value || result.n2o_emissions || 0;
-              calculatedCO2e = result.outputs?.co2e?.value || result.co2e_emissions || 0;
-              // Capture formula_id from calc-engine response (reliable source of truth)
-              resolvedFormulaId = result.resolved_formula?.id || result.formula_id || null;
-            }
-          } catch (calcErr) {
-            // Fall through to use 0 values - will be saved but may need recalculation
-          }
-        } else if (useCustomFuel) {
-          // Custom fuel: simple Quantity × Emission Factor
-          const customEF = parseFloat(customEmissionFactor) || 0;
-          calculatedCO2 = primaryQuantity * customEF;
-          calculatedCO2e = calculatedCO2;
-        }
-        
-        // ============================================================================
-        // BUILD NEW DYNAMIC PAYLOAD STRUCTURE
-        // ============================================================================
-        
-        // Build dynamic_field_values from all form inputs
-        const dynamicFieldValues = {};
-        dynamicInputFields.forEach(field => {
-          const value = data[field.variable] || data[field.fieldKey];
-          // Use the same unit resolution as the dropdown display
-          let fieldUnits = [];
-          if (field.unitSource === 'fuel') {
-            // For Scope 3 subcategory categories (C8, C10, C11, C13, C14), fallback to filteredScope3Activities
-            if (isScope3Like && requiresSubcategory && !selectedFuel && scope3ActivityId) {
-              const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-              fieldUnits = matchedActivity?.allowed_units || [];
-            } else {
-              fieldUnits = selectedFuel?.allowed_units || [];
-            }
-          } else if (field.unitSource === 'all_units') {
-            // For all_units, use all centralized units (simple + compound)
-            fieldUnits = centralizedUnits.map(u => u.symbol);
-          } else if (field.unitSource === 'scope3_ef') {
-            // For scope3_ef: Priority 1: scope3_ef.allowed_units, Priority 2: field mapping, Priority 3: formula expected_unit
-            const matchedEF = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-            if (matchedEF?.allowed_units?.length > 0) {
-              fieldUnits = matchedEF.allowed_units;
-            } else if (field.allowedUnits?.length > 0) {
-              fieldUnits = field.allowedUnits;
-            } else if (field.expectedUnit) {
-              fieldUnits = [field.expectedUnit];
-            } else {
-              fieldUnits = [];
-            }
-          } else {
-            // static - use allowed_units from mapping
-            fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
-          }
-          const unit = data[`${field.variable}_unit`] || fieldUnits[0] || field.expectedUnit || '';
-          
-          if (field.isOverride) {
-            const isOverridden = data[`override_${field.variable}`] || false;
-            dynamicFieldValues[field.variable] = {
-              value: isOverridden && value !== undefined && value !== '' ? parseFloat(value) : null,
-              unit: unit,
-              is_override: isOverridden,
-              justification: data[`${field.variable}_justification`] || ''
-            };
-          } else if (!field.required) {
-            // For optional fields (not required, not override), check if checkbox is enabled
-            const isOptionalOverridden = data[`override_${field.variable}`] || false;
-            const parsedValue = value !== undefined && value !== '' ? parseFloat(value) : null;
-            dynamicFieldValues[field.variable] = {
-              value: isOptionalOverridden ? parsedValue : null,
-              unit: unit,
-              ...(isOptionalOverridden && parsedValue !== null && { is_override: true })
-            };
-          } else {
-            // Required field - always save value
-            const parsedValue = value !== undefined && value !== '' ? parseFloat(value) : null;
-            dynamicFieldValues[field.variable] = {
-              value: parsedValue,
-              unit: unit
-            };
-          }
-        });
-        
-        // Build outputs from calculation results
-        const outputs = {
-          co2: { value: calculatedCO2 || 0, unit: 'tCO2' },
-          ch4: { value: calculatedCH4 || 0, unit: 'tCH4' },
-          n2o: { value: calculatedN2O || 0, unit: 'tN2O' },
-          co2e: { value: calculatedCO2e || 0, unit: 'tCO2e' }
-        };
-        
-        const payload = {
-          facility_id: facilityId,
-          reporting_period: reportingPeriod,
-          scope: scope, // Keep original scope for record (biogenic stays biogenic)
-          category: category,
-          sub_category: isScope3Like 
-            ? (filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || '')
-            : (useCustomFuel ? customFuelName : selectedFuel?.fuel_name || ''),
-          fuel_type: useCustomFuel ? customFuelName : selectedFuel?.fuel_name || '',
-          fuel_database_id: isScope3Like ? null : (useCustomFuel ? null : fuelId),
-          
-          // Store formula_id from calc-engine response for ALL scopes (reliable source of truth)
-          formula_id: resolvedFormulaId,
-          
-          // Biogenic-specific fields
-          ...(scope === 'biogenic' && {
-            biogenic_scope_selection: biogenicScopeSelection, // 'scope1' or 'scope3'
-          }),
-          
-          // Scope 3 specific fields (also applies to biogenic scope3)
-          ...(isScope3Like && {
-            calculation_method_scope3: scope3Method,
-            scope3_ef_id: scope3Method === 'supplier_basis' ? null : scope3ActivityId,
-            scope3_activity: (scope3Method === 'supplier_basis' && useCustomActivity)
-              ? scope3CustomActivity 
-              : (filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || ''),
-            scope3_activity_type: scope3ActivityType || '',
-            scope3_subcategory: scope3Subcategory || '',
-          }),
-          
-          // New dynamic structure
-          dynamic_field_values: {
-            ...dynamicFieldValues,
-            // Also store Scope 3 fields in dynamic_field_values as proper dict structure
-            ...(isScope3Like && {
-              calculation_method_scope3: { value: scope3Method, unit: '' },
-              scope3_ef_id: { value: (scope3Method === 'supplier_basis' && useCustomActivity) ? '' : scope3ActivityId, unit: '' },
-              scope3_activity: { 
-                value: (scope3Method === 'supplier_basis' && useCustomActivity)
-                  ? scope3CustomActivity 
-                  : (filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || ''), 
-                unit: '' 
-              },
-              scope3_activity_type: { value: scope3ActivityType || '', unit: '' },
-              scope3_subcategory: { value: scope3Subcategory || '', unit: '' },
-            }),
-            // Store biogenic selection in dynamic_field_values
-            ...(scope === 'biogenic' && {
-              biogenic_scope_selection: { value: biogenicScopeSelection, unit: '' },
-            }),
-          },
-          outputs: outputs,
-          
-          // Metadata
-          source_of_information: useCustomFuel ? customSource : selectedFuel?.source || '',
-          notes: notes,
-          justification: useCustomFuel ? `Custom fuel type: ${customFuelName}` : null,
-          evidence_url: data.evidences?.map(e => e.url).join(',') || '',
-          responsible_person: responsiblePerson,
-          responsible_person_designation: responsiblePersonDesignation,
-          responsible_person_contact: responsiblePersonContact,
-          process_names: validProcesses.map(p => p.name),
-          process_descriptions: validProcesses.map(p => ({ name: p.name, description: p.description || '' })),
-          
-          // Scope 3 optional supplier/employee fields (also for biogenic scope3)
-          ...(isScope3Like && {
-            supplier_name: supplierName || null,
-            supplier_code: supplierCode || null,
-            ...(category === 'Employee Commuting' && {
-              employee_name: employeeName || null,
-              employee_id: employeeId || null,
-            }),
-            // Asset Name for C8/C13/C14/C15
-            ...((['c8', 'c13', 'c14', 'c15'].some(c => category?.toLowerCase()?.includes(c))) ? {
-              asset_name: assetName || null,
-            } : {}),
-            // From/To Location for C4/C6/C9 (transportation/travel)
-            ...((['c4', 'c6', 'c9'].some(c => category?.toLowerCase()?.includes(c))) ? {
-              from_location: fromLocation || null,
-              to_location: toLocation || null,
-            } : {}),
-          }),
-        };
-
-        // Debug: Log payload to verify asset_name is included
-        try {
-          const saveResponse = await axios.post(`${API}/emissions`, payload, {
-            headers: getAuthHeader()
-          });
-          successCount++;
-        } catch (err) {
-          errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: Save failed`);
-        }
-      }
-
-      if (successCount > 0) {
-        toast.success(`Created ${successCount} emission record(s) successfully`);
-      }
-      if (errors.length > 0) {
-        toast.error(`Failed to save some records. Please try again.`);
-      }
-      if (successCount > 0) {
-        onSuccess?.();
-      }
+      // ===========================================
+      // DEFENSIVE FALLBACK (post-Phase F)
+      // ===========================================
+      // The dispatch block above covers every reachable monthly path:
+      //   - Scope 1 (Stationary/Mobile/Fugitive + Generic), Scope 2 (Generic),
+      //     Scope 3 flat (C1–C6, C8–C15), biogenic+scope1, biogenic+scope3.
+      //   - C7 multi-employee returns early in its own dedicated branch above.
+      // If we reach here, no module matched — surface a clear error so the
+      // bug is observable instead of silently producing no record.
+      console.error('[EmissionEntryForm] No module dispatched for', { scope, category, frequencyType, biogenicScopeSelection });
+      toast.error('This category is not yet supported for direct submission. Please reload the page or contact support.');
     } catch (error) {
       toast.error('Failed to save emissions. Please try again.');
     } finally {
