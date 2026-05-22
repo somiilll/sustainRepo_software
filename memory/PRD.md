@@ -211,6 +211,14 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 - P1: Dashboard "No Data" after toggling organization Scope access
 - P2: C7 Edit Dialog Stale State (yearly financial periods not transforming correctly)
 
+- ✅ Phase 7l-D/E + Contract Test (Feb 2026): CREATE Migration BROADENED + Boot Verifier
+  - **Phase D**: Broadened the dispatch gate from `/^c1/` to `/^(c\d+)/` (excluding C7) — all flat-field Scope 3 (C1–C6, C8–C15) now route through module dispatch.
+  - **Phase E**: Added Scope 1 (Stationary/Mobile/Fugitive + generic) and Scope 2 (generic) dispatch using `Scope1Create` helpers. Per-row CV/density/EFH override flags read from `data` (per-month row) so override_justification appends correctly.
+  - **Biogenic + C7 still on legacy** — explicitly excluded from the gate. Biogenic falls through (not in scope1|2|3 explicit), C7 explicit `if (codeMatch[1] === 'c7') return null`.
+  - **Module Contract Verifier** at `/modules/emissions/core/verifyModuleContracts.js` (~270 lines): runs once at boot, generates synthetic ctx for each canonical module (C1–C15 + 3 Scope 1 = 18 total), asserts EDIT + CREATE surfaces wired, validates payload shape (universal keys, scope-3 keys for Scope 3 modules, capability-aware asset_name/journey-locations consistency). Warn-only — never breaks runtime.
+  - **Boot logs verified**: `[Emissions] Module contract verification PASSED — 18 modules checked, EDIT+CREATE surfaces clean.`
+  - **Testing iter_76 PASSED 100% for 3 critical contracts** (Scope 1 Stationary Diesel, Scope 2 Non-Renewable Electricity, Scope 3 C2 Capital Goods Spend Based) with byte-level network payload capture confirming each scope's expected key shape and capability-aware extras.
+
 - ✅ Phase 7l-C (Feb 2026): CREATE Migration Phase C — C1 PoC SHIPPED & VERIFIED
   - **Added C1-only short-circuit** at the top of `EmissionEntryForm.handleSubmit` (`/components/EmissionEntryForm.js` lines ~3857–3970), gated by `frequencyType === 'monthly' && scope === 'scope3' && /^c1/.test(category) && module.buildCreatePayload`.
   - Per-month loop now drives entirely through module helpers: `extractInputsForCalcEngine` → calc engine → `buildCreatePayload` → POST.
