@@ -2493,7 +2493,7 @@ export default function EmissionEntryForm({
     filteredScope3Activities, dynamicInputFields, centralizedUnits,
     // Helpers
     canProceedToStep, getAuthHeader, onSuccess, getActualYearForMonth,
-    evaluateFormula, buildDecisionContext, buildDecisionInputs, extractInputsForCalcEngine,
+    evaluateFormula, buildDecisionInputs,
     // Editing
     editingEmission,
   });

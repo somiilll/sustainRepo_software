@@ -42,8 +42,8 @@ export function useEmissionSubmit(ctx) {
       templateInputValues, dynamicCategories, setIsSaving, isC7EmployeeCommuting,
       isProcessEmissions, requiresSubcategory, selectedFuel, filteredScope3Activities,
       dynamicInputFields, centralizedUnits, canProceedToStep, getAuthHeader,
-      onSuccess, getActualYearForMonth, evaluateFormula, buildDecisionContext,
-      buildDecisionInputs, extractInputsForCalcEngine, editingEmission,
+      onSuccess, getActualYearForMonth, evaluateFormula,
+      buildDecisionInputs, editingEmission,
     } = ctx;
 
     // Prevent duplicate submissions
