@@ -2482,20 +2482,52 @@ export default function Emissions() {
 
   // Deep-link from /ghg/approvals: open the edit dialog for ?edit=<id> once
   // the emissions list is loaded. Strips the param after firing so a refresh
-  // doesn't re-trigger.
+  // doesn't re-trigger. If the record isn't in the loaded list (e.g. admin
+  // view filters out pending records), falls back to fetching it directly.
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const editId = params.get('edit');
     if (!editId) return;
-    if (loading || !emissions || emissions.length === 0) return;
-    const target = emissions.find((e) => e.id === editId);
-    if (!target) return;
-    handleEdit(target);
-    params.delete('edit');
-    navigate(
-      { pathname: location.pathname, search: params.toString() },
-      { replace: true }
-    );
+    if (loading) return;
+
+    const target = (emissions || []).find((e) => e.id === editId);
+    const stripParam = () => {
+      params.delete('edit');
+      navigate(
+        { pathname: location.pathname, search: params.toString() },
+        { replace: true }
+      );
+    };
+
+    if (target) {
+      handleEdit(target);
+      stripParam();
+      return;
+    }
+
+    // Fallback: fetch single record directly (covers admin opening pending
+    // records from the Approvals page, which are excluded from /api/emissions).
+    let cancelled = false;
+    (async () => {
+      try {
+        const resp = await axios.get(`${API}/emissions/${editId}`, {
+          headers: getAuthHeader(),
+        });
+        if (cancelled) return;
+        if (resp?.data) {
+          handleEdit(resp.data);
+          stripParam();
+        }
+      } catch (err) {
+        if (!cancelled) {
+          toast.error(err?.response?.data?.detail || 'Failed to load record');
+          stripParam();
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [location.search, emissions, loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDelete = async (id) => {

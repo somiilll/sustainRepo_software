@@ -600,6 +600,36 @@ async def get_emission_records(
     return [EmissionRecordResponse(**r) for r in records]
 
 
+@router.get("/emissions/{record_id}", response_model=EmissionRecordResponse)
+async def get_emission_record(record_id: str, current_user: dict = Depends(get_current_user)):
+    """Fetch a single emission record from approved OR pending collection.
+
+    Used by the Approvals deep-link so admins can open the edit dialog for a
+    pending submission that the GHG ledger filters out.
+    """
+    record, _ = await find_emission_anywhere(record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Emission record not found")
+
+    # Role-based access check.
+    role = current_user.get("role")
+    if role == "super_admin":
+        pass
+    elif role == "admin":
+        if record.get("organization_id") != current_user.get("organization_id"):
+            raise HTTPException(status_code=403, detail="Not authorized")
+    else:  # regular user
+        assigned = current_user.get("assigned_facilities", []) or []
+        is_own_pending = (
+            record.get("approval_status", "approved") != "approved"
+            and record.get("created_by") == current_user.get("id")
+        )
+        if record.get("facility_id") not in assigned and not is_own_pending:
+            raise HTTPException(status_code=403, detail="Not authorized")
+
+    return EmissionRecordResponse(**record)
+
+
 @router.get("/emissions/{record_id}/history", response_model=List[EmissionHistoryResponse])
 async def get_emission_history(record_id: str, current_user: dict = Depends(get_current_user)):
     # Sort by changed_at descending so newest entry appears first.
