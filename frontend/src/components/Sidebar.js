@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
-import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Building, UserCog, Flame, Globe, User, Calculator, Layers, Database, Ruler, Settings2, TreeDeciduous, Thermometer, FileCode2, CalendarClock, FolderTree, Beaker, Variable, Code2, GitFork, Scale, FormInput, Link2, ChevronDown, ChevronRight, FlaskConical, HardDrive, History, FileSpreadsheet, Upload, DollarSign } from 'lucide-react';
+import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Building, UserCog, Flame, Globe, User, Calculator, Layers, Database, Ruler, Settings2, TreeDeciduous, Thermometer, FileCode2, CalendarClock, FolderTree, Beaker, Variable, Code2, GitFork, Scale, FormInput, Link2, ChevronDown, ChevronRight, FlaskConical, HardDrive, History, FileSpreadsheet, Upload, DollarSign, ClipboardCheck } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -11,8 +12,28 @@ const LOGO_URL = 'https://customer-assets.emergentagent.com/job_d67b5362-a184-47
 export default function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
-  const [expandedMenus, setExpandedMenus] = useState({ ghgCalc: true, ghgData: true });
+  const { user, logout, getAuthHeader } = useAuth();
+  const [expandedMenus, setExpandedMenus] = useState({ ghgCalc: true, ghgData: true, ghg: true });
+  const [enabledAccess, setEnabledAccess] = useState([]);
+  const [approvalEnabled, setApprovalEnabled] = useState(false);
+
+  // Pull the current org's scope-access + approval flag once on mount so
+  // the GHG sub-menu only shows scopes the org actually has.
+  useEffect(() => {
+    let cancelled = false;
+    if (!user || user.role === 'super_admin' || !user.organization_id) return;
+    (async () => {
+      try {
+        const { data } = await axios.get(`${API}/organizations/my`, { headers: getAuthHeader() });
+        if (cancelled) return;
+        setEnabledAccess(data?.enabled_access || []);
+        setApprovalEnabled(!!data?.approval_workflow_enabled);
+      } catch {
+        /* ignore — fall back to no access */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id, user?.organization_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleMenu = (menu) => {
     setExpandedMenus(prev => ({ ...prev, [menu]: !prev[menu] }));
@@ -55,11 +76,29 @@ export default function Sidebar() {
     { path: '/super-admin/sectors', label: 'Sectors', icon: Layers },
   ];
 
+  // Visibility flags driven by the org's enabled_access list.
+  const hasScope12 = enabledAccess.includes('scope1_2') || enabledAccess.includes('scope1_2_3');
+  const hasScope123 = enabledAccess.includes('scope1_2_3');
+
+  // GHG Emissions sub-menu items (per-org filtered).
+  const ghgEmissionsItems = [
+    hasScope12 && { path: '/ghg/scope1', label: 'Scope 1', icon: Gauge },
+    hasScope12 && { path: '/ghg/scope2', label: 'Scope 2', icon: Gauge },
+    hasScope123 && { path: '/ghg/scope3', label: 'Scope 3', icon: Gauge },
+    (hasScope12 || hasScope123) && { path: '/ghg/biogenic', label: 'Biogenic', icon: TreeDeciduous },
+    approvalEnabled && user?.role === 'admin' && {
+      path: '/ghg/approvals', label: 'Approvals', icon: ClipboardCheck,
+    },
+  ].filter(Boolean);
+
+  const isGhgActive = ghgEmissionsItems.some((i) => location.pathname.startsWith(i.path)) ||
+    location.pathname.startsWith('/ghg') || location.pathname === '/emissions';
+
   const adminItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/organization', label: 'Organization', icon: Building },
     { path: '/facilities', label: 'Facilities', icon: Building2 },
-    { path: '/emissions', label: 'GHG Emissions', icon: Gauge },
+    { type: 'group', key: 'ghg', label: 'GHG Emissions', icon: Gauge, items: ghgEmissionsItems },
     { path: '/bulk-upload', label: 'Bulk Upload', icon: Upload },
     { path: '/sinks', label: 'GHG Sinks', icon: TreeDeciduous },
     { path: '/base-year-emissions', label: 'Base Year Emissions', icon: CalendarClock },
@@ -72,7 +111,7 @@ export default function Sidebar() {
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/organization', label: 'Organization', icon: Building },
     { path: '/facilities', label: 'Facilities', icon: Building2 },
-    { path: '/emissions', label: 'GHG Emissions', icon: Gauge },
+    { type: 'group', key: 'ghg', label: 'GHG Emissions', icon: Gauge, items: ghgEmissionsItems },
     { path: '/bulk-upload', label: 'Bulk Upload', icon: Upload },
     { path: '/sinks', label: 'GHG Sinks', icon: TreeDeciduous },
     { path: '/base-year-emissions', label: 'Base Year Emissions', icon: CalendarClock },
@@ -217,6 +256,51 @@ export default function Sidebar() {
 
         {/* Admin and User navigation */}
         {user?.role !== 'super_admin' && navItems.map((item) => {
+          // Render expandable group (e.g. GHG Emissions sub-links).
+          if (item.type === 'group') {
+            const Icon = item.icon;
+            const expanded = expandedMenus[item.key];
+            const groupActive = item.items?.some((sub) => location.pathname.startsWith(sub.path));
+            return (
+              <div key={item.key}>
+                <button
+                  onClick={() => toggleMenu(item.key)}
+                  data-testid={`nav-group-${item.key}`}
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-all ${
+                    groupActive ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'text-text-secondary hover:bg-stone-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon className="w-5 h-5" />
+                    <span className="font-medium">{item.label}</span>
+                  </div>
+                  {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                </button>
+                {expanded && item.items?.length > 0 && (
+                  <div className="ml-4 mt-1 space-y-1 border-l-2 border-emerald-200 pl-2">
+                    {item.items.map((sub) => {
+                      const SubIcon = sub.icon;
+                      const isActive = location.pathname === sub.path || location.pathname.startsWith(sub.path + '/');
+                      return (
+                        <Link
+                          key={sub.path}
+                          to={sub.path}
+                          data-testid={`nav-${sub.label.toLowerCase().replace(/\s+/g, '-')}`}
+                          className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-sm ${
+                            isActive ? 'bg-primary text-white' : 'text-text-secondary hover:bg-stone-50'
+                          }`}
+                        >
+                          <SubIcon className="w-4 h-4" />
+                          <span className="font-medium">{sub.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
           const Icon = item.icon;
           const isActive = location.pathname === item.path;
           

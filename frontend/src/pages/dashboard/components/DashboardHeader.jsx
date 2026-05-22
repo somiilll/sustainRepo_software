@@ -5,6 +5,7 @@
 import React, { useEffect, useState } from 'react';
 import { Filter, Radio } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
+import PendingApprovalBell from '../../../modules/ghg/components/PendingApprovalBell';
 
 function formatRelative(date) {
   if (!date) return '';
@@ -44,15 +45,18 @@ export default function DashboardHeader({ showFilters, onToggleFilters, isLive, 
         </div>
         <p className="text-text-secondary">Overview of your GHG emissions data</p>
       </div>
-      <Button
-        onClick={onToggleFilters}
-        variant="outline"
-        className="rounded-full"
-        data-testid="toggle-filters-btn"
-      >
-        <Filter className="w-4 h-4 mr-2" />
-        {showFilters ? 'Hide' : 'Show'} Filters
-      </Button>
+      <div className="flex items-center gap-2">
+        <PendingApprovalBell />
+        <Button
+          onClick={onToggleFilters}
+          variant="outline"
+          className="rounded-full"
+          data-testid="toggle-filters-btn"
+        >
+          <Filter className="w-4 h-4 mr-2" />
+          {showFilters ? 'Hide' : 'Show'} Filters
+        </Button>
+      </div>
     </div>
   );
 }

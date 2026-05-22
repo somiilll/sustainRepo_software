@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
@@ -58,7 +59,15 @@ export default function Emissions() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [selectedEmissionHistory, setSelectedEmissionHistory] = useState([]);
-  const [activeScope, setActiveScope] = useState('scope1');
+  // Drive the active scope from the route so /ghg/scope1, /ghg/scope2, etc.
+  // each show only their own scope. Clicking a tab still works (in-page nav).
+  const location = useLocation();
+  const navigate = useNavigate();
+  const pathScope = (location.pathname.match(/\/ghg\/(scope[123]|biogenic)/) || [])[1] || null;
+  const [activeScope, setActiveScope] = useState(pathScope || 'scope1');
+  useEffect(() => {
+    if (pathScope && pathScope !== activeScope) setActiveScope(pathScope);
+  }, [pathScope]); // eslint-disable-line react-hooks/exhaustive-deps
   const [filterFacility, setFilterFacility] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterFrequency, setFilterFrequency] = useState(''); // 'monthly', 'yearly', or '' for all
@@ -4785,6 +4794,10 @@ export default function Emissions() {
         const isScope3 = value === 'scope3';
         if (isScope3 && !hasScope3Access) return;
         setActiveScope(value);
+        // Keep the URL in sync when used inside the GHG workspace.
+        if (location.pathname.startsWith('/ghg/')) {
+          navigate(`/ghg/${value}`, { replace: true });
+        }
         // Reset category filter when changing scopes to prevent showing no emissions
         setFilterCategory('');
         // Reset biogenic state when changing tabs
