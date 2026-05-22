@@ -4805,6 +4805,7 @@ export default function Emissions() {
           setBiogenicScopeSelection('');
         }
       }} className="w-full">
+        {!location.pathname.startsWith('/ghg/') && (
         <TabsList className="grid w-full max-w-2xl" style={{ gridTemplateColumns: `repeat(${Math.max(dynamicScopes.length, 1)}, minmax(0, 1fr))` }}>
           {dynamicScopes.map(s => {
             const isScope3 = s.code === 'scope3';
@@ -4827,8 +4828,9 @@ export default function Emissions() {
             );
           })}
         </TabsList>
+        )}
 
-        <TabsContent value={activeScope} className="mt-6">
+        <TabsContent value={activeScope} className={location.pathname.startsWith('/ghg/') ? 'mt-0' : 'mt-6'}>
           {/* Enterprise Data Grid Layout */}
           <EmissionDataGrid
             activeScope={activeScope}
