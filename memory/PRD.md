@@ -211,6 +211,25 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 - P1: Dashboard "No Data" after toggling organization Scope access
 - P2: C7 Edit Dialog Stale State (yearly financial periods not transforming correctly)
 
+- ✅ Phase 7l-H (Feb 2026): Dashboard Modularized — Scope-Aware Variant Architecture
+  - **`Dashboard.js`: 1481 → 33 lines** (router only). The previous monolithic dashboard is split into 12 focused files totaling 1463 lines — each file has a single responsibility.
+  - **Variant architecture**: `Dashboard.js` calls `useDashboardData()` once and dispatches to either `DashboardScope12` (orgs without Scope 3 access) or `DashboardScope123` (orgs with `enabled_access` including 'scope1_2_3'). No double-fetching: hook output flows from router → variant → leaf components via prop.
+  - **New file tree** (`/app/frontend/src/pages/dashboard/`):
+    - `useDashboardData.js` (270 lines) — single source of truth: data fetching (organization, facilities, base-year, dashboard-stats, latest-period), filter state, all memoized derivations (`filteredData`, `baseYearComparison`, `hasScope3Access`).
+    - `dashboardConstants.js` (32 lines) — colors + glassmorphism styles.
+    - `DashboardScope12.jsx` (71 lines) — composes Header → Filters → KPIs+ScopeCard (Scope 1/2/Biogenic) → BaseYear → Category+Fuel.
+    - `DashboardScope123.jsx` (76 lines) — same composition + **Scope3VisualizationsCard** between top section and base year card.
+    - `components/DashboardHeader.jsx` (27 lines).
+    - `components/DashboardFilters.jsx` (183 lines) — date-range picker + facility multi-select + reset.
+    - `components/KpiCards.jsx` (62 lines) — Total Emissions, Total Sinks, Net Emissions trio.
+    - `components/EmissionsByScopeCard.jsx` (102 lines) — donut + horizontal bars; capability-aware (`hasScope3Access` toggles Scope 3 segment).
+    - `components/Scope3VisualizationsCard.jsx` (213 lines) — **EXCLUSIVE TO Scope123**: trend area chart (S1/S2/S3) + Scope 3 emission hotspots ranked panel.
+    - `components/BaseYearComparisonCard.jsx` (161 lines) — direct (S1+S2+Biogenic Direct) and indirect (S3+Biogenic Indirect) panels with progress bars; capability-aware.
+    - `components/CategoryAndFuelAnalysis.jsx` (233 lines) — bottom row pair: top contributors with progress bars + fuel donut/ranking.
+  - **Verified end-to-end**: logged in as `goyalsomil@hotmail.com` (org with Scope 1+2+3 access) → router correctly rendered `data-testid="dashboard-scope123"` (NOT Scope12) → all 9 expected cards present with live data (4133.2 tCO₂e total, Scope 3 trend area + hotspots populated, Scope 3 = 79.8% of mix). Scope 1+2-only org would route to `DashboardScope12` automatically.
+  - **Pluggable scope-12 vs scope-123 layouts**: each variant is now a small composition file; future scope-3-only features can be added to `Scope3VisualizationsCard` without touching `DashboardScope12`. Inverse holds for Scope 1+2-specific widgets.
+  - **NOT addressed in this iteration** (deferred): the P1 Dashboard "no data" bug after toggling org scope access — this is a backend `get_dashboard_stats` query issue, separate from the modularization layer.
+
 - ✅ Phase 7l-G (Feb 2026): Legacy `handleSubmit` Tail Trimmed — 401 lines removed
   - **Step A**: Deleted the dead legacy monthly fallback (`REGULAR FUEL EMISSIONS HANDLING` block, ~344 lines) in `EmissionEntryForm.handleSubmit`. Replaced with a defensive `console.error + toast.error('This category is not yet supported for direct submission. Please reload the page or contact support.')` (~12 lines). After Phases C/D/E/F shipped, the dispatch above covered every reachable monthly path (Scope 1 Stationary/Mobile/Fugitive + Generic, Scope 2 Generic, Scope 3 flat C1–C6 + C8–C15, biogenic+scope1, biogenic+scope3) — the legacy fallback was unreachable in practice.
   - **Step B**: Migrated the YEARLY frequency handler's dynamic-fields branch to module dispatch. New yearly orchestrator (~120 lines) reuses `validateCreateSubmission` + `extractInputsForCalcEngine` + `buildDecisionContext` + `buildCreatePayload` from `Scope1Create` / `Scope3FlatCreate` with `reportingPeriod = yearlyReportingPeriod`, then spreads `frequency_type: 'yearly'` on top before a SINGLE POST to `/api/emissions`. Process Emissions yearly branch retained inline (template-driven, unique formula). Dead "legacy simple-mode yearly" branch deleted entirely.
