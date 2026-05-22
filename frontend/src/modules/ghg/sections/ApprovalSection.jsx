@@ -38,12 +38,11 @@ export default function ApprovalSection() {
   const [viewing, setViewing] = useState(null);
 
   const pending = usePendingApprovals({ enabled: perms.canViewApprovals, status: 'pending' });
-  const approved = usePendingApprovals({ enabled: perms.canViewApprovals, status: 'approved' });
   const rejected = usePendingApprovals({ enabled: perms.canViewApprovals, status: 'rejected' });
 
   const refetchAll = async () => {
     setSelectedIds([]);
-    await Promise.all([pending.refetch(), approved.refetch(), rejected.refetch()]);
+    await Promise.all([pending.refetch(), rejected.refetch()]);
   };
 
   const actions = useApprovalActions({ onSettled: refetchAll });
@@ -67,9 +66,8 @@ export default function ApprovalSection() {
 
   const tabRows = useMemo(() => {
     if (activeTab === 'pending') return pending.items;
-    if (activeTab === 'approved') return approved.items;
     return rejected.items;
-  }, [activeTab, pending.items, approved.items, rejected.items]);
+  }, [activeTab, pending.items, rejected.items]);
 
   const onToggleSelect = (id, checked) => {
     setSelectedIds((prev) => (checked ? [...new Set([...prev, id])] : prev.filter((x) => x !== id)));
@@ -171,11 +169,10 @@ export default function ApprovalSection() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full max-w-lg grid-cols-3">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
           <TabsTrigger value="pending" data-testid="approvals-tab-pending">
             Pending {pending.count > 0 ? `(${pending.count})` : ''}
           </TabsTrigger>
-          <TabsTrigger value="approved" data-testid="approvals-tab-approved">Approved</TabsTrigger>
           <TabsTrigger value="rejected" data-testid="approvals-tab-rejected">Rejected</TabsTrigger>
         </TabsList>
 
@@ -189,8 +186,7 @@ export default function ApprovalSection() {
             onToggleSelectAll={onToggleSelectAll}
             perRowActions={renderRowActions}
             emptyText={
-              activeTab === 'pending' ? 'No pending requests' :
-              activeTab === 'approved' ? 'No approved requests yet' : 'No rejected requests'
+              activeTab === 'pending' ? 'No pending requests' : 'No rejected requests'
             }
             searchValue={search}
             onSearchChange={setSearch}

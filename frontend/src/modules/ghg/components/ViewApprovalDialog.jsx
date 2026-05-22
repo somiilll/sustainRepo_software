@@ -67,8 +67,7 @@ export default function ViewApprovalDialog({
           {renderField('Category', meta.category)}
           {renderField('Sub-category', snap.sub_category)}
           {renderField('Reporting Period', snap.reporting_period)}
-          {renderField('Quantity', snap.quantity != null ? `${snap.quantity} ${snap.quantity_unit || ''}`.trim() : null)}
-          {renderField('Total Emissions (tCO₂e)', Number(total).toFixed(6))}
+          {renderField('Total Emissions (tCO₂e)', total != null ? String(Number(total)) : null)}
           {snap.notes && renderField('Notes', snap.notes)}
           {request.final_comment && renderField('Final comment', request.final_comment)}
         </div>

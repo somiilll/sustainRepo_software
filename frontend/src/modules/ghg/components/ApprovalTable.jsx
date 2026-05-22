@@ -189,7 +189,7 @@ export default function ApprovalTable({
                   {snap.reporting_period || '—'}
                 </div>
                 <div className="w-24 text-sm font-semibold text-primary text-right">
-                  {Number(total).toFixed(4)}
+                  {String(Number(total))}
                 </div>
                 <div className="w-28 text-xs text-text-secondary truncate">
                   {r.submitted_at ? format(new Date(r.submitted_at), 'd MMM, HH:mm') : '—'}
