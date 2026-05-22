@@ -211,6 +211,18 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 - P1: Dashboard "No Data" after toggling organization Scope access
 - P2: C7 Edit Dialog Stale State (yearly financial periods not transforming correctly)
 
+- ✅ Phase 7l-C (Feb 2026): CREATE Migration Phase C — C1 PoC SHIPPED & VERIFIED
+  - **Added C1-only short-circuit** at the top of `EmissionEntryForm.handleSubmit` (`/components/EmissionEntryForm.js` lines ~3857–3970), gated by `frequencyType === 'monthly' && scope === 'scope3' && /^c1/.test(category) && module.buildCreatePayload`.
+  - Per-month loop now drives entirely through module helpers: `extractInputsForCalcEngine` → calc engine → `buildCreatePayload` → POST.
+  - **All other scopes/categories continue through legacy code** (gating logic verified by code review — C2, S1, C7 cannot accidentally enter the new branch).
+  - **Manual E2E verification PASSED** via Playwright: full Add Emission flow — Facility A → Scope 3 → C1 → Spend Based → Soybean Farming → Process + Person → April 2026 / 1000 → Submit:
+    - POST `/api/calc-engine/execute-by-category` → 200 (CO2e = 0.0228 tCO2e)
+    - POST `/api/emissions` → 200/201 (single record persisted, dialog closed, list refreshed)
+    - Payload contains all 26 expected keys including scope3_ef_id, calculation_method_scope3='spend_basis', scope3_activity='Soybean Farming', dynamic_field_values dict, outputs, process_names
+    - Payload correctly EXCLUDES asset_name + from_location (C1 has no asset-name / journey-locations capability)
+    - supplier_name + supplier_code present (Scope 3 always has these)
+  - **Architectural milestone**: CREATE flow now demonstrably traverses module dispatch end-to-end. Phase D (broaden to C2–C15) can begin.
+
 - ✅ Phase 7l-B (Feb 2026): CREATE Migration Phase B — Shared Helpers
   - **Created `/modules/emissions/categories/shared/Scope3FlatCreate.js`** (~360 lines): capability-aware `validateCreateSubmission` + `buildCreatePayload` + `createScope3FlatCreateApi(module)` factory + helper exports (`extractInputsForCalcEngine`, `buildDynamicFieldValues`, `buildDecisionContext`). Mirrors `Scope3FlatEdit.js`. Capability-aware: `asset_name` (C8/C13/C14/C15), `from_location`/`to_location` (C4/C6/C9), employee fields (C7).
   - **Created `/modules/emissions/categories/shared/Scope1Create.js`** (~250 lines): same surface for Scope 1/2 + biogenic-scope1. CV/density/EFH override semantics + override_justification min-length 20 chars preserved.
