@@ -44,9 +44,11 @@ _REQUIRED_MODULES: List[str] = [
     "modules.dashboards",
     "modules.uploads",
     "modules.audit",
+    "modules.emissions.categories",
     "repositories",
     "jobs",
     "events",
+    "events.event_bus",
 ]
 
 
