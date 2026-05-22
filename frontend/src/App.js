@@ -12,6 +12,7 @@ import Emissions from './pages/Emissions';
 import ApprovalSection from './modules/ghg/sections/ApprovalSection';
 import Sinks from './pages/Sinks';
 import BaseYearEmissions from './pages/BaseYearEmissions';
+import BaseYearAndTargets from './pages/BaseYearAndTargets';
 import Reports from './pages/Reports';
 import UserManagement from './pages/UserManagement';
 import OrganizationDetails from './pages/OrganizationDetails';
@@ -231,7 +232,7 @@ const AppRoutes = () => {
           <Route path="emissions/dynamic" element={<DynamicEmissionsTest />} />
           <Route path="bulk-upload" element={<BulkUpload />} />
           <Route path="sinks" element={<Sinks />} />
-          <Route path="base-year-emissions" element={<BaseYearEmissions />} />
+          <Route path="base-year-emissions" element={<BaseYearAndTargets />} />
           <Route path="reports" element={<Reports />} />
           <Route path="users" element={
             <AdminRoute>

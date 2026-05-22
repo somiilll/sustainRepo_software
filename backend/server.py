@@ -89,6 +89,9 @@ from modules.superadmin.router import router as superadmin_router
 # Approval workflow extension (per-org opt-in feature).
 from modules.approvals.router import router as approvals_router
 
+# Targets domain (multi-target reduction management).
+from modules.targets.router import router as targets_router
+
 # Set Playwright browsers path BEFORE any playwright imports
 os.environ['PLAYWRIGHT_BROWSERS_PATH'] = '/app/.playwright'
 
@@ -120,6 +123,9 @@ api_router.include_router(superadmin_router)
 
 # Approval workflow extension (org opt-in)
 api_router.include_router(approvals_router)
+
+# Targets module (org-level reduction targets)
+api_router.include_router(targets_router)
 
 # Run module contract verifier at import time. Phase B1: log-only, will be
 # escalated to fail-fast in dev once all modules expose their contracts.

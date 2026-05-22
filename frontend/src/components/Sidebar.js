@@ -101,7 +101,7 @@ export default function Sidebar() {
     { type: 'group', key: 'ghg', label: 'GHG Emissions', icon: Gauge, items: ghgEmissionsItems },
     { path: '/bulk-upload', label: 'Bulk Upload', icon: Upload },
     { path: '/sinks', label: 'GHG Sinks', icon: TreeDeciduous },
-    { path: '/base-year-emissions', label: 'Base Year Emissions', icon: CalendarClock },
+    { path: '/base-year-emissions', label: 'Base Year Emissions and Target Setting', icon: CalendarClock },
     { path: '/reports', label: 'Reports', icon: FileText },
     { path: '/users', label: 'Users', icon: Users },
     { path: '/audit-trails', label: 'Audit Trails', icon: History },
@@ -114,7 +114,7 @@ export default function Sidebar() {
     { type: 'group', key: 'ghg', label: 'GHG Emissions', icon: Gauge, items: ghgEmissionsItems },
     { path: '/bulk-upload', label: 'Bulk Upload', icon: Upload },
     { path: '/sinks', label: 'GHG Sinks', icon: TreeDeciduous },
-    { path: '/base-year-emissions', label: 'Base Year Emissions', icon: CalendarClock },
+    { path: '/base-year-emissions', label: 'Base Year Emissions and Target Setting', icon: CalendarClock },
     { path: '/reports', label: 'Reports', icon: FileText },
   ];
 
