@@ -38,7 +38,6 @@ export const CATEGORY_CATALOG = {
   scope2: [
     { id: 'purchased_electricity', name: 'Purchased Electricity' },
     { id: 'purchased_steam', name: 'Purchased Steam / Heat' },
-    { id: 'purchased_cooling', name: 'Purchased Cooling' },
   ],
   scope3: [
     { id: 'c1', name: 'C1 - Purchased Goods and Services' },
