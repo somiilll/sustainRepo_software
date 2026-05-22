@@ -56,6 +56,9 @@ class OrganizationCreate(BaseModel):
     payment_ledger: Optional[List[dict]] = None
     invoice_history: Optional[List[dict]] = None
 
+    # Approval workflow (per-org opt-in extension).
+    approval_workflow_enabled: Optional[bool] = False
+
     @field_validator('pincode')
     @classmethod
     def validate_pincode(cls, v):
@@ -123,3 +126,7 @@ class OrganizationResponse(BaseModel):
     secondary_contact_email: Optional[str] = None
     payment_ledger: Optional[List[dict]] = None
     invoice_history: Optional[List[dict]] = None
+
+    # Approval workflow (per-org opt-in extension; super-admin controlled).
+    approval_workflow_enabled: Optional[bool] = False
+

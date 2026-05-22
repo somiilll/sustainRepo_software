@@ -17,6 +17,16 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 
 from audit_logger import AuditAction, AuditModule, get_audit_logger
+from modules.approvals.emission_flow import (
+    APPROVED_COLLECTION,
+    PENDING_COLLECTION,
+    fetch_pending_for_user,
+    find_emission_anywhere,
+    intercept_create as approval_intercept_create,
+    intercept_delete as approval_intercept_delete,
+    intercept_update as approval_intercept_update,
+    merge_visible_emissions,
+)
 from modules.auth.dependencies import get_current_user
 from modules.emissions.contracts import (
     EmissionHistoryResponse,
@@ -141,8 +151,34 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     record_dict["updated_by_email"] = None
     record_dict["updated_by_name"] = None
     
+    # Approval workflow gate (set approval_status + create approval_request if needed).
+    # When pending, the doc is written into pending_emission_records by the hook
+    # and we early-return — the rest of the normal create flow (history,
+    # event-bus, base-year sync) does NOT run for unapproved records.
+    approval_pending = await approval_intercept_create(record_dict, dict(record_dict), current_user)
+    if approval_pending:
+        # Audit the submission attempt, then return.
+        await audit_logger.log(
+            action=AuditAction.CREATE,
+            module=AuditModule.EMISSION,
+            user_id=current_user["id"],
+            user_email=current_user["email"],
+            user_role=current_user.get("role", "user"),
+            organization_id=record_dict["organization_id"],
+            resource_id=record_id,
+            resource_name=f"{record_data.scope} - {record_data.category} ({record_data.reporting_period})",
+            description=f"Submitted emission record for approval ({record_data.category})",
+            new_values=record_dict,
+            metadata={
+                "scope": record_data.scope,
+                "category": record_data.category,
+                "facility_id": record_data.facility_id,
+                "approval_status": record_dict.get("approval_status"),
+            },
+        )
+        return EmissionRecordResponse(**record_dict)
+    
     await db.emission_records.insert_one(record_dict)
-
     # Phase B11: emit emission.saved (best-effort; never break write path).
     try:
         from events.event_bus import event_bus, Events
@@ -289,22 +325,23 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     history_new_values["co2e_emissions"] = record_dict["co2e_emissions"]
     history_new_values["total_emissions"] = record_dict["total_emissions"]
     
-    creation_history = {
-        "id": str(uuid.uuid4()),
-        "emission_id": record_id,
-        "facility_id": record_data.facility_id,
-        "organization_id": record_dict["organization_id"],
-        "changed_by": current_user["id"],
-        "changed_by_email": current_user.get("email", ""),
-        "changed_by_name": current_user.get("full_name", ""),
-        "changed_at": created_at,
-        "changes": {
-            "action": "created",
-            "old_values": None,
-            "new_values": history_new_values
+    if not approval_pending:
+        creation_history = {
+            "id": str(uuid.uuid4()),
+            "emission_id": record_id,
+            "facility_id": record_data.facility_id,
+            "organization_id": record_dict["organization_id"],
+            "changed_by": current_user["id"],
+            "changed_by_email": current_user.get("email", ""),
+            "changed_by_name": current_user.get("full_name", ""),
+            "changed_at": created_at,
+            "changes": {
+                "action": "created",
+                "old_values": None,
+                "new_values": history_new_values
+            }
         }
-    }
-    await db.emission_history.insert_one(creation_history)
+        await db.emission_history.insert_one(creation_history)
     
     # Audit log
     await audit_logger.log(
@@ -337,9 +374,23 @@ async def update_emission_record(
     record_data: EmissionRecordCreate,
     current_user: dict = Depends(get_current_user)
 ):
-    existing = await db.emission_records.find_one({"id": record_id}, {"_id": 0})
+    # Records can live in either emission_records (approved) or
+    # pending_emission_records (in-flight). Look in both.
+    existing, source_collection = await find_emission_anywhere(record_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Emission record not found")
+    
+    # Approval-workflow gate (no-op when org doesn't have it enabled).
+    approval_action, approval_payload = await approval_intercept_update(
+        existing, source_collection, record_data, current_user
+    )
+    if approval_action == "block":
+        raise HTTPException(status_code=403, detail=approval_payload.get("detail", "Not authorized"))
+    if approval_action == "queue":
+        # Approval request created; emission_records untouched. Return original.
+        return EmissionRecordResponse(**(approval_payload or existing))
+    skip_history = approval_action == "skip_history"
+    target_collection = (approval_payload or {}).get("target_collection", source_collection)
     
     # Prevent changing frequency_type once saved
     existing_frequency = existing.get("frequency_type", "monthly")
@@ -422,30 +473,39 @@ async def update_emission_record(
             "new_values": history_new_values
         }
     }
-    await db.emission_history.insert_one(history_dict)
+    if not skip_history:
+        await db.emission_history.insert_one(history_dict)
     
     update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
     update_dict["updated_by"] = current_user["id"]
     update_dict["updated_by_email"] = current_user.get("email", "")
     update_dict["updated_by_name"] = current_user.get("full_name", "")
-    update_dict["version"] = existing.get("version", 0) + 1  # Increment version
+    if not skip_history:
+        update_dict["version"] = existing.get("version", 0) + 1  # Increment version
+    else:
+        # Editing a record that is still under review — preserve version.
+        update_dict["version"] = existing.get("version", 0)
+        # Preserve approval_status so it doesn't get overwritten by the form payload.
+        update_dict["approval_status"] = existing.get("approval_status")
     
-    await db.emission_records.update_one({"id": record_id}, {"$set": update_dict})
-    updated = await db.emission_records.find_one({"id": record_id}, {"_id": 0})
+    await db[target_collection].update_one({"id": record_id}, {"$set": update_dict})
+    updated = await db[target_collection].find_one({"id": record_id}, {"_id": 0})
 
     # Phase B11: emit emission.updated (best-effort).
-    try:
-        from events.event_bus import event_bus, Events
-        event_bus.emit_nowait(Events.EMISSION_UPDATED, {
-            "record_id": record_id,
-            "scope": record_data.scope,
-            "category": record_data.category,
-            "facility_id": record_data.facility_id,
-            "organization_id": existing.get("organization_id"),
-            "user_id": current_user.get("id"),
-        })
-    except Exception:
-        pass
+    # Skip when we wrote to the pending collection — no approved data changed.
+    if target_collection == APPROVED_COLLECTION:
+        try:
+            from events.event_bus import event_bus, Events
+            event_bus.emit_nowait(Events.EMISSION_UPDATED, {
+                "record_id": record_id,
+                "scope": record_data.scope,
+                "category": record_data.category,
+                "facility_id": record_data.facility_id,
+                "organization_id": existing.get("organization_id"),
+                "user_id": current_user.get("id"),
+            })
+        except Exception:
+            pass
     
     # Audit log
     await audit_logger.log(
@@ -503,6 +563,9 @@ async def get_emission_records(
         query["scope"] = scope
 
     records = await db.emission_records.find(query, {"_id": 0}).to_list(10000)
+    # Pull in pending / rejected proposals so the FE can show them with badges.
+    pending_records = await fetch_pending_for_user(current_user, query)
+    records = merge_visible_emissions(records, pending_records)
 
     # Batch-resolve display names for created_by / updated_by ids.
     user_ids = set()
@@ -567,27 +630,37 @@ async def get_emission_history(record_id: str, current_user: dict = Depends(get_
 
 @router.delete("/emissions/{record_id}")
 async def delete_emission_record(record_id: str, current_user: dict = Depends(get_current_user)):
-    existing = await db.emission_records.find_one({"id": record_id}, {"_id": 0})
+    existing, source_collection = await find_emission_anywhere(record_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Emission record not found")
 
-    result = await db.emission_records.delete_one({"id": record_id})
+    # Approval-workflow gate.
+    delete_action, delete_payload = await approval_intercept_delete(existing, source_collection, current_user)
+    if delete_action == "block":
+        raise HTTPException(status_code=403, detail=(delete_payload or {}).get("detail", "Not authorized"))
+    if delete_action == "queue":
+        return {"message": "Delete request submitted for approval"}
+
+    target_collection = (delete_payload or {}).get("target_collection", source_collection)
+    result = await db[target_collection].delete_one({"id": record_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Emission record not found")
 
     # Phase B11: emit emission.deleted (best-effort).
-    try:
-        from events.event_bus import event_bus, Events
-        event_bus.emit_nowait(Events.EMISSION_DELETED, {
-            "record_id": record_id,
-            "scope": existing.get("scope"),
-            "category": existing.get("category"),
-            "facility_id": existing.get("facility_id"),
-            "organization_id": existing.get("organization_id"),
-            "user_id": current_user.get("id"),
-        })
-    except Exception:
-        pass
+    # Only emit when an approved record actually leaves the dashboard view.
+    if target_collection == APPROVED_COLLECTION:
+        try:
+            from events.event_bus import event_bus, Events
+            event_bus.emit_nowait(Events.EMISSION_DELETED, {
+                "record_id": record_id,
+                "scope": existing.get("scope"),
+                "category": existing.get("category"),
+                "facility_id": existing.get("facility_id"),
+                "organization_id": existing.get("organization_id"),
+                "user_id": current_user.get("id"),
+            })
+        except Exception:
+            pass
 
     audit_logger = get_audit_logger()
     await audit_logger.log(

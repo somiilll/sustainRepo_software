@@ -38,7 +38,7 @@ async def update_my_organization(org_data: OrganizationCreate, current_user: dic
     update_dict = org_data.model_dump(exclude_unset=True)
 
     # Fields that admin shouldn't be able to overwrite (super-admin only).
-    fields_to_preserve = ['id', 'is_active', 'is_deleted', 'max_facilities', 'max_admins', 'max_users', 'subscription_expires_at']
+    fields_to_preserve = ['id', 'is_active', 'is_deleted', 'max_facilities', 'max_admins', 'max_users', 'subscription_expires_at', 'approval_workflow_enabled']
     for field in fields_to_preserve:
         update_dict.pop(field, None)
 

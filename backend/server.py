@@ -86,6 +86,9 @@ from modules.reports.router import router as reports_router
 from modules.superadmin.router import router as superadmin_router
 # Phase B9: Pydantic models moved to modules/superadmin/contracts.py.
 
+# Approval workflow extension (per-org opt-in feature).
+from modules.approvals.router import router as approvals_router
+
 # Set Playwright browsers path BEFORE any playwright imports
 os.environ['PLAYWRIGHT_BROWSERS_PATH'] = '/app/.playwright'
 
@@ -114,6 +117,9 @@ api_router.include_router(dashboards_ws_router)
 api_router.include_router(reports_router)
 # Phase B9 router (Super-admin / Platform Config — ~91 routes)
 api_router.include_router(superadmin_router)
+
+# Approval workflow extension (org opt-in)
+api_router.include_router(approvals_router)
 
 # Run module contract verifier at import time. Phase B1: log-only, will be
 # escalated to fail-fast in dev once all modules expose their contracts.

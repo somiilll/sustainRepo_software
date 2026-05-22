@@ -720,6 +720,18 @@ Five phases executed end-to-end with **37/37 regression tests PASS** (iteration_
   - Architectural pattern: category module owns logic; orchestration in page
 
 ## Completed Tasks
+- ✅ Approval Workflow Backend (Feb 2026) — per-org opt-in extension
+  - **Modular layout** at `/app/backend/modules/approvals/`:
+    - `contracts.py` — Pydantic models (forward-compatible multi-stage / multi-approver shape)
+    - `service.py`   — generic stage-decision mechanics (list, count, decide)
+    - `emission_flow.py` — emission-specific hooks: `intercept_create/update/delete`, `finalize_emission_decision`, `merge_visible_emissions`
+    - `router.py`    — 3 thin endpoints: `GET /api/approvals`, `GET /api/approvals/count`, `POST /api/approvals/{id}/decide`
+  - **Storage model**: approved records → `emission_records`; pending/rejected → new `pending_emission_records` collection
+  - **Org config**: `approval_workflow_enabled` on Organization (super-admin controlled — admin cannot self-toggle; preserved in admin PUT)
+  - **Triggered for**: CREATE / UPDATE / DELETE when role=`user` and org flag=on. Admin/super-admin auto-publish with normal history.
+  - **Version-history rule**: no history written while pending/rejected; first history entry is created on approve (action=created or updated)
+  - **Future-proof payload**: `stages[]` with `required_role`, `required_user_ids`, `approval_type` (any/all/majority) ready for multi-step chains without migration
+  - Verified end-to-end via direct service-layer test: 8/8 checks pass (create→pending, reject→no history, approve create→moves to emission_records + first history, user update on approved→pending_update doc, approve update→applied + history, user delete→pending_delete doc, approve delete→fully removed)
 - ✅ Phase E6 (Feb 2026): Emissions.js JSX modularization
   - Created `/app/frontend/src/pages/emissions/components/` directory
   - Extracted `EmissionHistoryDialog.jsx` (~494 lines) — version history dialog with field-level diff rendering
