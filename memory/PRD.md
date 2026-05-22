@@ -211,6 +211,42 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 - P1: Dashboard "No Data" after toggling organization Scope access
 - P2: C7 Edit Dialog Stale State (yearly financial periods not transforming correctly)
 
+- ✅ Phase 7l-L — Backend Phases B3 + B4 (Feb 2026): Facilities/Orgs/Sinks Domain Extraction + Emissions Read/List + Repositories
+  - **Combined `server.py` reduction: 10749 → 9889 lines (−860 lines, −8.0%)**. Routes moved out of `server.py`: 162 → 133 (−29 modular routes).
+  - **Phase B3 — Facilities + Organizations + Sinks (13 routes)**:
+    - `modules/organizations/{contracts,router}.py` — `OrganizationCreate`, `OrganizationResponse` Pydantic models + 2 routes (`GET /organizations/my`, `PUT /organizations/my`).
+    - `modules/facilities/{contracts,router}.py` — `FacilityCreate`, `FacilityResponse` (with pincode + equity-share validators) + 6 routes (`POST /facilities`, `GET /facilities`, `GET /facilities/{id}`, `PUT /facilities/{id}`, `PATCH /facilities/{id}/toggle-active`, `DELETE /facilities/{id}` with cascade-delete).
+    - `modules/sinks/{contracts,router}.py` (new domain) — `SinkCreate`, `SinkResponse` + 5 routes (`POST/GET-list/GET-by-id/PUT/DELETE /sinks`) with R2 evidence-file cleanup on delete.
+    - All existing role-based access checks (super_admin/admin/user, org-scoped, facility-assigned) preserved byte-identically.
+  - **Phase B4 — Emissions read/list + Repositories + Service skeleton (3 routes + scaffolding)**:
+    - `modules/emissions/contracts.py` — `EmissionRecordCreate`, `EmissionRecordResponse`, `EmissionHistoryResponse`, `DynamicFieldValue` Pydantic models (largest set yet; >150 optional fields covering all scopes + C7 multi-employee).
+    - `modules/emissions/router.py` — 3 read/list routes:
+      - `GET /emissions` — list with role-scoped filtering, batch-resolved created_by/updated_by names.
+      - `GET /emissions/{record_id}/history` — sorted-newest-first audit log with user-name population.
+      - `DELETE /emissions/{record_id}` — delete + audit-log entry.
+    - `modules/emissions/service.py` (skeleton for Phase B5) — `resolve_user_record_filter()` and `check_record_access()` helpers, replicating the role-scoped permission semantics from server.py inline checks.
+    - `repositories/emissions_repository.py` — `EmissionsRepository` with `find_by_id`, `list_for_facilities`/`org`/`all`, `insert/update/delete`, `history_for_record/insert_history`. Module-level singleton.
+    - **Deferred to Phase B5**: `POST /emissions`, `PUT /emissions/{id}`, and all 7 `POST/GET/DELETE /emissions/c7/*` routes — these contain calc-engine + audit-pipeline integration that will move alongside the calc service in B5.
+  - **Repositories layer expands**:
+    - `repositories/organizations_repository.py` — `find_by_id`, `update`.
+    - `repositories/facilities_repository.py` — `find_by_id`, `list_for_org/user/all`, `count_for_org`, `find_by_name_in_org`, `insert/update`.
+    - `repositories/sinks_repository.py` — `find_by_id`, `list_for_org/facilities/all`, `insert/update/delete`.
+    - `repositories/emissions_repository.py` — full emission CRUD + history methods.
+    - All routes still use raw `db.collection.find_*()` calls in this phase to preserve byte-identical behaviour; adoption migrates incrementally in Phase B5+.
+  - **server.py top-of-file imports** now include the modular routers (auth, users, health, facilities, organizations, sinks, emissions) all wired through `api_router.include_router(...)`. Re-imports preserve all bare-name references in legacy code blocks.
+  - **Verified E2E** (all behaviors byte-identical post-revert + clean re-apply):
+    - `/api/health/contracts` → 20 modules passed
+    - `/api/auth/login` → 165-char JWT
+    - `/api/organizations/my` → org returned (modular router)
+    - `/api/facilities` → 6 facilities (modular router)
+    - `/api/sinks` → 7 sink records (modular router)
+    - `/api/emissions` → 40 emission records with first id intact (modular router)
+    - `/api/emissions/c7/{...}` legacy routes still work (no regression)
+    - `/api/dashboard/stats` → 4194.63 tCO₂e total, Scope 1: 251.86 (byte-identical)
+    - All 133 server.py routes + 29 modular routes register cleanly
+  - **Mid-phase incident**: an over-aggressive end-token in the dedupe script consumed 4800 lines of unrelated routes between DELETE /emissions and POST /emissions/c7/month. Caught immediately via post-script `python -c "import server"` smoke test (NameError on C7 model). Reverted via `git checkout HEAD -- backend/server.py` and re-applied with a corrected anchor (`# Phase B3: 5 sink routes...` marker). Final result: **clean −860 lines**, all routes register, all smoke tests pass.
+  - **Architectural milestone**: With Phase B4 the architectural template is fully proven across 4 domains (auth, users, organizations, facilities, sinks, emissions). Each subsequent phase (B5 calc-engine + emissions POST/PUT/C7 → B6 bulk uploads → B7 dashboards → B8 reports → B9 super-admin → B10 backend category registry → B11 jobs/events → B12 tests) follows the same pattern: extract contracts, build router, add repository, wire to server.py, dedupe legacy.
+
 - ✅ Phase 7l-K — Backend Phase B2 (Feb 2026): Auth + Users Domain Extraction + Health-Contracts Endpoint
   - **`server.py`: 11290 → 10749 lines (−541 lines, −4.8%)**. 162 → 151 routes (−11 routes moved into per-domain modular routers).
   - **New `/api/health/contracts` endpoint** (per session enhancement request): runs the module contract verifier on demand and returns structured JSON `{status, modules_checked, passed: [...], failed: [{path, error_type, error}]}`. Lets frontend or CI verify backend modular health without scraping logs.

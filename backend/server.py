@@ -66,6 +66,14 @@ from modules.auth.router import router as auth_router
 from modules.users.router import router as users_admin_router
 from app.router.health import router as health_router
 
+# Phase B3: facilities + organizations + sinks routers.
+from modules.facilities.router import router as facilities_router
+from modules.organizations.router import router as organizations_router
+from modules.sinks.router import router as sinks_router
+
+# Phase B4: emissions read/list router (POST/PUT remain in this file until Phase B5).
+from modules.emissions.router import router as emissions_router
+
 # Set Playwright browsers path BEFORE any playwright imports
 os.environ['PLAYWRIGHT_BROWSERS_PATH'] = '/app/.playwright'
 
@@ -78,6 +86,12 @@ api_router = APIRouter(prefix="/api")
 api_router.include_router(auth_router)
 api_router.include_router(users_admin_router)
 api_router.include_router(health_router)
+# Phase B3 routers
+api_router.include_router(facilities_router)
+api_router.include_router(organizations_router)
+api_router.include_router(sinks_router)
+# Phase B4 router (emissions read/list — POST/PUT remain in this file until Phase B5)
+api_router.include_router(emissions_router)
 
 # Run module contract verifier at import time. Phase B1: log-only, will be
 # escalated to fail-fast in dev once all modules expose their contracts.
@@ -726,219 +740,29 @@ from modules.auth.contracts import (  # noqa: E402
 )
 from modules.users.contracts import UserCreateRequest  # noqa: E402
 
+# Phase B3: re-import org/facility/sink contracts so any legacy code in this
+# file referencing the bare names continues to work unchanged.
+from modules.organizations.contracts import OrganizationCreate, OrganizationResponse  # noqa: E402
+from modules.facilities.contracts import FacilityCreate, FacilityResponse  # noqa: E402
+from modules.sinks.contracts import SinkCreate, SinkResponse  # noqa: E402
+
+# Phase B4: re-import emissions contracts so legacy POST/PUT routes still work
+# (they remain in this file until Phase B5).
+from modules.emissions.contracts import (  # noqa: E402
+    EmissionRecordCreate, EmissionRecordResponse, EmissionHistoryResponse, DynamicFieldValue,
+)
+
 # Phase B2: get_current_user / get_super_admin_user / get_admin_user moved to
 # modules/auth/dependencies.py and imported at the top of this file.
 
 # Phase B2: auth/user Pydantic models moved to modules/auth/contracts.py
 # and modules/users/contracts.py — re-imported at the top of this file.
 
-class OrganizationCreate(BaseModel):
-    name: str
-    logo: Optional[str] = None
-    corporate_address: Optional[str] = None
-    city: Optional[str] = None
-    state: Optional[str] = None
-    country: Optional[str] = None
-    pincode: Optional[str] = None
-    general_description: Optional[str] = None
-    mission: Optional[str] = None
-    vision: Optional[str] = None
-    process_description: Optional[str] = None
-    reporting_frequency: Optional[str] = "yearly"
-    reporting_year_type: Optional[str] = None  # "financial_year" or "calendar_year"
-    # Organization Boundaries - Control Approach or Equity Share Approach
-    org_boundaries_approach: Optional[str] = None  # "control" or "equity_share"
-    org_boundaries_equity_percentage: Optional[float] = None  # Legacy field - percentage now set per facility
-    org_boundaries: Optional[str] = None  # Legacy field for additional notes
-    equity_share_reported_data_type: Optional[str] = None  # "org_share" or "total_facility" - what the reported data represents
-    base_year: Optional[int] = None
-    attachments: Optional[List[dict]] = None
-    other_information: Optional[str] = None  # Renamed from remarks
-    # New fields
-    person_responsible: Optional[str] = None
-    person_responsible_designation: Optional[str] = None
-    person_responsible_contact: Optional[str] = None
-    report_purpose: Optional[str] = None
-    ghg_reduction_initiatives: Optional[str] = None
-    internal_performance_tracking: Optional[str] = None
-    max_facilities: Optional[int] = 10
-    max_admins: Optional[int] = 5
-    max_users: Optional[int] = 20
-    subscription_expires_at: Optional[str] = None  # ISO date string, org auto-deactivates after this date (Required for SuperAdmin creation)
-    # Control type selections (multi-select)
-    control_financial: Optional[bool] = False
-    control_operational: Optional[bool] = False
-    # Uncertainty Assessment selections (multi-select)
-    uncertainty_assessment: Optional[List[str]] = None
-    # Report Access Control - which report templates org can access
-    # Options: 'scope1_2' (current), 'scope1_2_3' (future), 'scope3_only' (future), 'cbam' (future)
-    enabled_access: Optional[List[str]] = None  # Default will be ['scope1_2'] if None
-    
-    # ===== SuperAdmin-only Internal Fields =====
-    # These fields are only visible/editable by SuperAdmin
-    date_of_joining: Optional[str] = None  # ISO date string - when the org was onboarded
-    selected_plan: Optional[str] = None  # Subscription plan name
-    trial_period_end_date: Optional[str] = None  # ISO date string
-    organization_size: Optional[str] = None  # Number of employees range
-    payment_status: Optional[str] = None  # "Active", "Pending", "Overdue"
-    internal_notes: Optional[str] = None  # Internal remarks for SuperAdmin
-    lead_source: Optional[str] = None  # "Referral", "Website", "Partner", "Event"
-    # Primary Contact (POC)
-    poc_name: Optional[str] = None
-    poc_designation: Optional[str] = None
-    poc_phone: Optional[str] = None
-    poc_email: Optional[str] = None
-    # Secondary Contact
-    secondary_contact_name: Optional[str] = None
-    secondary_contact_phone: Optional[str] = None
-    secondary_contact_email: Optional[str] = None
-    # Payment Ledger - list of payment entries
-    payment_ledger: Optional[List[dict]] = None  # [{date, amount, description, status}]
-    # Invoice History - list of invoice attachments
-    invoice_history: Optional[List[dict]] = None  # [{date, filename, url, amount}]
-    
-    @field_validator('pincode')
-    @classmethod
-    def validate_pincode(cls, v):
-        if v is not None and v != '':
-            # Remove any spaces
-            v = v.strip()
-            if not v.isdigit() or len(v) != 6:
-                raise ValueError('Pincode must be exactly 6 digits')
-        return v
+# Phase B3: OrganizationCreate / OrganizationResponse moved to modules/organizations/contracts.py
+# (re-imported at the top of this file).
 
-class OrganizationResponse(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    id: str
-    name: str
-    logo: Optional[str] = None
-    corporate_address: str
-    city: Optional[str] = None
-    state: Optional[str] = None
-    country: Optional[str] = None
-    pincode: Optional[str] = None
-    general_description: Optional[str] = None
-    mission: Optional[str] = None
-    vision: Optional[str] = None
-    process_description: Optional[str] = None
-    reporting_frequency: Optional[str] = None
-    reporting_year_type: Optional[str] = None  # "financial_year" or "calendar_year"
-    # Organization Boundaries
-    org_boundaries_approach: Optional[str] = None
-    org_boundaries_equity_percentage: Optional[float] = None  # Legacy field
-    org_boundaries: Optional[str] = None
-    equity_share_reported_data_type: Optional[str] = None  # "org_share" or "total_facility"
-    base_year: Optional[int] = None
-    attachments: Optional[List[dict]] = None
-    other_information: Optional[str] = None  # Renamed from remarks
-    remarks: Optional[str] = None  # Keep for backward compatibility
-    # New fields
-    person_responsible: Optional[str] = None
-    person_responsible_designation: Optional[str] = None
-    person_responsible_contact: Optional[str] = None
-    report_purpose: Optional[str] = None
-    ghg_reduction_initiatives: Optional[str] = None
-    internal_performance_tracking: Optional[str] = None
-    is_deleted: bool = False
-    is_active: bool = True
-    subscription_expires_at: Optional[str] = None
-    created_at: str
-    max_facilities: Optional[int] = 10
-    max_admins: Optional[int] = 5
-    max_users: Optional[int] = 20
-    # Control type selections (multi-select)
-    control_financial: Optional[bool] = False
-    control_operational: Optional[bool] = False
-    # Uncertainty Assessment selections (multi-select)
-    uncertainty_assessment: Optional[List[str]] = None
-    # Report Access Control - which report templates org can access
-    enabled_access: Optional[List[str]] = None  # e.g., ['scope1_2', 'scope1_2_3', 'cbam']
-    
-    # ===== SuperAdmin-only Internal Fields =====
-    date_of_joining: Optional[str] = None
-    selected_plan: Optional[str] = None
-    trial_period_end_date: Optional[str] = None
-    organization_size: Optional[str] = None
-    payment_status: Optional[str] = None
-    internal_notes: Optional[str] = None
-    lead_source: Optional[str] = None
-    poc_name: Optional[str] = None
-    poc_designation: Optional[str] = None
-    poc_phone: Optional[str] = None
-    poc_email: Optional[str] = None
-    secondary_contact_name: Optional[str] = None
-    secondary_contact_phone: Optional[str] = None
-    secondary_contact_email: Optional[str] = None
-    payment_ledger: Optional[List[dict]] = None
-    invoice_history: Optional[List[dict]] = None
-
-class FacilityCreate(BaseModel):
-    name: str
-    address: str
-    city: Optional[str] = None
-    state: Optional[str] = None
-    country: Optional[str] = None
-    pincode: Optional[str] = None
-    products_services: Optional[str] = None  # Renamed from products_manufactured
-    machinery_equipment: Optional[str] = None  # Renamed from machinery_used
-    process_description: Optional[str] = None
-    sector: Optional[str] = None
-    sub_sector: Optional[str] = None  # New field for sub-sector
-    responsible_person: Optional[str] = None
-    responsible_person_designation: Optional[str] = None
-    responsible_person_contact: Optional[str] = None
-    monitoring_frequency: str = "monthly"
-    reporting_frequency: str = "monthly"
-    attachments: Optional[List[dict]] = None  # [{type, name, url}]
-    other_information: Optional[str] = None  # Renamed from remarks
-    is_active: bool = True  # Soft delete flag
-    equity_share_percentage: Optional[float] = 100.0  # Percentage of equity in this facility (for equity share approach)
-    
-    @field_validator('pincode')
-    @classmethod
-    def validate_pincode(cls, v):
-        if v is not None and v != '':
-            v = v.strip()
-            if not v.isdigit() or len(v) != 6:
-                raise ValueError('Pincode must be exactly 6 digits')
-        return v
-    
-    @field_validator('equity_share_percentage')
-    @classmethod
-    def validate_equity_percentage(cls, v):
-        if v is not None:
-            if v <= 0 or v > 100:
-                raise ValueError('Equity share percentage must be between 0 and 100')
-        return v
-
-class FacilityResponse(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    id: str
-    name: str
-    address: str
-    city: Optional[str] = None
-    state: Optional[str] = None
-    country: Optional[str] = None
-    pincode: Optional[str] = None
-    products_services: Optional[str] = None  # Renamed from products_manufactured
-    products_manufactured: Optional[str] = None  # Keep for backward compatibility
-    machinery_equipment: Optional[str] = None  # Renamed from machinery_used
-    machinery_used: Optional[str] = None  # Keep for backward compatibility
-    process_description: Optional[str] = None
-    sector: Optional[str] = None
-    sub_sector: Optional[str] = None  # New field for sub-sector
-    responsible_person: Optional[str] = None
-    responsible_person_designation: Optional[str] = None
-    responsible_person_contact: Optional[str] = None
-    monitoring_frequency: Optional[str] = "monthly"
-    reporting_frequency: Optional[str] = "monthly"
-    organization_id: Optional[str] = None
-    attachments: Optional[List[dict]] = None
-    other_information: Optional[str] = None  # Renamed from remarks
-    remarks: Optional[str] = None  # Keep for backward compatibility
-    is_active: bool = True  # Soft delete flag
-    equity_share_percentage: Optional[float] = 100.0  # Percentage of equity in this facility
-    created_at: str
+# Phase B3: FacilityCreate / FacilityResponse moved to modules/facilities/contracts.py
+# (re-imported at the top of this file).
 
 class EmissionFactorCreate(BaseModel):
     name: str
@@ -1348,195 +1172,8 @@ class EmissionConfigurationResponse(BaseModel):
     updated_by: Optional[str] = None
     updated_at: Optional[str] = None
 
-class DynamicFieldValue(BaseModel):
-    """Single dynamic field value with unit and override status"""
-    value: Optional[float] = None
-    unit: Optional[str] = None
-    is_override: Optional[bool] = False
-    justification: Optional[str] = None
-
-
-class EmissionRecordCreate(BaseModel):
-    facility_id: str
-    organization_id: Optional[str] = None  # Will be set from facility if not provided
-    reporting_period: str  # Monthly: "2025-03", Yearly: "CY2025" or "FY 2025-2026"
-    frequency_type: Optional[str] = "monthly"  # "monthly" or "yearly" - locked once saved
-    scope: str
-    category: str
-    sub_category: str
-    fuel_type: Optional[str] = None
-    
-    # Scope 3 specific fields
-    calculation_method_scope3: Optional[str] = None  # spend_basis, activity_basis, supplier_basis
-    scope3_ef_id: Optional[str] = None  # Reference to scope3_ef table
-    scope3_activity: Optional[str] = None  # Activity name from scope3_ef
-    formula_id: Optional[str] = None  # Reference to ce_formulas - the formula used for calculation
-    
-    # Biogenic specific fields
-    biogenic_scope_selection: Optional[str] = None  # 'scope1' or 'scope3' for biogenic emissions
-    
-    # Scope 3 Supplier Info (optional, applicable to all Scope 3 categories)
-    supplier_name: Optional[str] = None
-    supplier_code: Optional[str] = None
-    
-    # Scope 3 Employee Commuting specific fields (optional) - for single employee backward compat
-    employee_name: Optional[str] = None
-    employee_id: Optional[str] = None
-    
-    # Scope 3 Asset Name (for C8/C13/C14/C15 categories)
-    asset_name: Optional[str] = None
-    
-    # Scope 3 From/To Location (for C4/C6/C7/C9 transportation/travel categories)
-    from_location: Optional[str] = None
-    to_location: Optional[str] = None
-    
-    # Scope 3 Customer Info (for C9 Downstream Transportation)
-    customer_name: Optional[str] = None
-    customer_code: Optional[str] = None
-    
-    # Scope 3 C6 Business Travel specific fields
-    nights_stayed: Optional[int] = None
-    rooms_taken: Optional[int] = None
-    
-    # Multi-Employee Data Structure (for C7 Employee Commuting)
-    # Structure: [{ "name": "Employee A", "employee_id": "E001", "department": "IT", 
-    #              "monthly_data": { "jan": { "km_travelled": 120, "emissions": { "co2e": 10.5 } }, ... } }]
-    employees: Optional[List[Dict[str, Any]]] = None
-    # Monthly aggregated totals: { "jan": { "co2e": 18.7 }, "feb": { "co2e": 20.1 }, ... }
-    monthly_totals: Optional[Dict[str, Dict[str, float]]] = None
-    # Yearly aggregated total
-    yearly_total: Optional[Dict[str, float]] = None
-    
-    # DYNAMIC FIELD VALUES - stores all input values keyed by variable name
-    # Example: {"qty": {"value": 1000, "unit": "kg"}, "cv": {"value": 45.5, "unit": "MJ/kg", "is_override": true}}
-    dynamic_field_values: Optional[Dict[str, Dict[str, Any]]] = {}
-    
-    # Calculated emission outputs
-    outputs: Optional[Dict[str, Dict[str, Any]]] = {}  # {"co2": {"value": 3.2, "unit": "tCO2"}, ...}
-    
-    # Metadata
-    fuel_database_id: Optional[str] = None  # Reference to fuel database entry
-    source_of_information: Optional[str] = None
-    notes: Optional[str] = None
-    justification: Optional[str] = None
-    evidence_url: Optional[str] = None
-    responsible_person: Optional[str] = None
-    responsible_person_designation: Optional[str] = None
-    responsible_person_contact: Optional[str] = None
-    
-    # Process names (multiple)
-    process_names: Optional[List[str]] = []
-    # Process descriptions (name + description pairs)
-    process_descriptions: Optional[List[Dict[str, str]]] = []
-
-class EmissionRecordResponse(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    id: str
-    facility_id: str
-    reporting_period: Optional[str] = None  # Monthly: "2025-03", Yearly: "CY2025" or "FY 2025-2026"
-    frequency_type: Optional[str] = "monthly"  # "monthly" or "yearly" - locked once saved
-    scope: str
-    category: str
-    sub_category: Optional[str] = None
-    fuel_type: Optional[str] = None
-    
-    # Scope 3 specific fields
-    calculation_method_scope3: Optional[str] = None
-    scope3_ef_id: Optional[str] = None
-    scope3_activity: Optional[str] = None
-    formula_id: Optional[str] = None  # Reference to ce_formulas - the formula used for calculation
-    
-    # Biogenic specific fields
-    biogenic_scope_selection: Optional[str] = None  # 'scope1' or 'scope3' for biogenic emissions
-    
-    # Scope 3 Supplier Info (optional, applicable to all Scope 3 categories)
-    supplier_name: Optional[str] = None
-    supplier_code: Optional[str] = None
-    
-    # Scope 3 Employee Commuting specific fields (optional) - for single employee backward compat
-    employee_name: Optional[str] = None
-    employee_id: Optional[str] = None
-    
-    # Scope 3 Asset Name (for C8/C13/C14/C15 categories)
-    asset_name: Optional[str] = None
-    
-    # Scope 3 From/To Location (for C4/C6/C7/C9 transportation/travel categories)
-    from_location: Optional[str] = None
-    to_location: Optional[str] = None
-    
-    # Scope 3 Customer Info (for C9 Downstream Transportation)
-    customer_name: Optional[str] = None
-    customer_code: Optional[str] = None
-    
-    # Scope 3 C6 Business Travel specific fields
-    nights_stayed: Optional[int] = None
-    rooms_taken: Optional[int] = None
-    
-    # Multi-Employee Data Structure (for C7 Employee Commuting)
-    employees: Optional[List[Dict[str, Any]]] = None
-    monthly_totals: Optional[Dict[str, Dict[str, float]]] = None
-    yearly_total: Optional[Dict[str, float]] = None
-    
-    # DYNAMIC FIELD VALUES - stores all input values keyed by variable name
-    dynamic_field_values: Optional[Dict[str, Dict[str, Any]]] = {}
-    
-    # Calculated emission outputs
-    outputs: Optional[Dict[str, Dict[str, Any]]] = {}
-    
-    # Convenience accessors for common outputs (derived from outputs dict)
-    co2_emissions: Optional[float] = None
-    ch4_emissions: Optional[float] = None
-    n2o_emissions: Optional[float] = None
-    co2e_emissions: Optional[float] = None
-    total_emissions: Optional[float] = None  # Same as co2e_emissions
-    
-    # Metadata
-    fuel_database_id: Optional[str] = None
-    source_of_information: Optional[str] = None
-    notes: Optional[str] = None
-    justification: Optional[str] = None
-    evidence_url: Optional[str] = None
-    responsible_person: Optional[str] = None
-    responsible_person_designation: Optional[str] = None
-    responsible_person_contact: Optional[str] = None
-    
-    # Source tracking (e.g., "bulk_upload", "manual")
-    source: Optional[str] = None
-    bulk_upload_id: Optional[str] = None
-    
-    # Emission factor tracking
-    emission_factor_used: Optional[float] = None
-    emission_factor_unit: Optional[str] = None
-    unit_conversion_applied: Optional[bool] = None
-    
-    # Process names
-    process_names: Optional[List[str]] = []
-    process_descriptions: Optional[List[Dict[str, str]]] = []
-    
-    # Audit fields
-    created_by: Optional[str] = None
-    created_by_email: Optional[str] = None
-    created_by_name: Optional[str] = None
-    created_at: str
-    updated_by: Optional[str] = None
-    updated_by_email: Optional[str] = None
-    updated_by_name: Optional[str] = None
-    updated_at: Optional[str] = None
-
-class EmissionHistoryResponse(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    id: str
-    emission_id: str
-    changed_by: str
-    changed_by_email: Optional[str] = None
-    changed_by_name: Optional[str] = None
-    changed_at: str
-    version: Optional[int] = None
-    scope: Optional[str] = None
-    category: Optional[str] = None
-    field_changes: Optional[List[Dict[str, Any]]] = None  # Field-level changes
-    changes_summary: Optional[str] = None  # Summary like "5 field(s) changed"
-    changes: Dict[str, Any]
+# Phase B4: DynamicFieldValue / EmissionRecordCreate / EmissionRecordResponse /
+# EmissionHistoryResponse moved to modules/emissions/contracts.py — re-imported above.
 
 class DashboardStats(BaseModel):
     total_facilities: int
@@ -1567,42 +1204,8 @@ class DashboardStats(BaseModel):
     base_year_comparison: Optional[Dict[str, Any]] = None  # Base year data for comparison
 
 # Sink Models
-class SinkCreate(BaseModel):
-    facility_id: str
-    reporting_year: str
-    reporting_month: Optional[int] = None  # 0-11 (Jan=0, Dec=11), null for yearly
-    total_emissions_reduced: float
-    description: Optional[str] = None
-    evidence_urls: Optional[List[str]] = None
-    evidence_files: Optional[List[Dict[str, str]]] = None  # [{name, url, file_id}]
-    frequency_type: Optional[str] = "monthly"  # "monthly" or "yearly"
-    # Legacy fields kept for backward compat
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
-    evidence_url: Optional[str] = None
-    monthly_data: Optional[Dict[str, Any]] = None
-
-class SinkResponse(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    id: str
-    facility_id: str
-    organization_id: Optional[str] = None
-    reporting_year: Optional[str] = None
-    reporting_month: Optional[int] = None  # null for yearly
-    total_emissions_reduced: float
-    description: Optional[str] = None
-    evidence_urls: Optional[List[str]] = None
-    evidence_files: Optional[List[Dict[str, str]]] = None
-    frequency_type: Optional[str] = "monthly"  # "monthly" or "yearly"
-    created_at: str
-    updated_at: Optional[str] = None
-    # Legacy fields
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
-    evidence_url: Optional[str] = None
-    monthly_data: Optional[Dict[str, Any]] = None
-    period_type: Optional[str] = None
-    reporting_period: Optional[str] = None
+# Phase B3: SinkCreate / SinkResponse moved to modules/sinks/contracts.py
+# (re-imported at the top of this file).
 
 # Calculation Formula Models
 class CalculationFormulaCreate(BaseModel):
@@ -3682,218 +3285,9 @@ async def get_super_admin_dashboard(current_user: dict = Depends(get_super_admin
     }
 
 # Organization endpoints (Admin access + User read-only)
-@api_router.get("/organizations/my", response_model=OrganizationResponse)
-async def get_my_organization(current_user: dict = Depends(get_current_user)):
-    """Get organization details - Admin can edit, User can only view"""
-    if current_user["role"] == "super_admin":
-        raise HTTPException(status_code=400, detail="Super Admin does not belong to an organization")
-    
-    if not current_user.get("organization_id"):
-        raise HTTPException(status_code=404, detail="No organization assigned")
-    
-    org = await db.organizations.find_one({"id": current_user["organization_id"]}, {"_id": 0})
-    if not org:
-        raise HTTPException(status_code=404, detail="Organization not found")
-    return OrganizationResponse(**org)
-
-@api_router.put("/organizations/my", response_model=OrganizationResponse)
-async def update_my_organization(org_data: OrganizationCreate, current_user: dict = Depends(get_admin_user)):
-    """Update organization - Admin only"""
-    if not current_user.get("organization_id"):
-        raise HTTPException(status_code=404, detail="No organization assigned")
-    
-    existing = await db.organizations.find_one({"id": current_user["organization_id"]}, {"_id": 0})
-    if not existing:
-        raise HTTPException(status_code=404, detail="Organization not found")
-    
-    # Only update provided fields, preserve existing data for unset fields
-    update_dict = org_data.model_dump(exclude_unset=True)
-    
-    # Remove fields that shouldn't be overwritten during edit by admin
-    fields_to_preserve = ['id', 'is_active', 'is_deleted', 'max_facilities', 'max_admins', 'max_users', 'subscription_expires_at']
-    for field in fields_to_preserve:
-        update_dict.pop(field, None)
-    
-    await db.organizations.update_one(
-        {"id": current_user["organization_id"]},
-        {"$set": update_dict}
-    )
-    
-    updated = await db.organizations.find_one({"id": current_user["organization_id"]}, {"_id": 0})
-    
-    # Audit log
-    await audit_logger.log(
-        action=AuditAction.UPDATE,
-        module=AuditModule.ORGANIZATION,
-        user_id=current_user["id"],
-        user_email=current_user["email"],
-        user_role=current_user.get("role", "admin"),
-        organization_id=current_user["organization_id"],
-        resource_id=current_user["organization_id"],
-        resource_name=existing.get("name", "Organization"),
-        description=f"Updated organization '{existing.get('name', 'Unknown')}'",
-        old_values=existing,
-        new_values=update_dict
-    )
-    
-    return OrganizationResponse(**updated)
-
+# Phase B3: /organizations/my (GET, PUT) moved to modules/organizations/router.py
 # Facility endpoints
-@api_router.post("/facilities", response_model=FacilityResponse)
-async def create_facility(facility_data: FacilityCreate, current_user: dict = Depends(get_admin_user)):
-    if not current_user.get("organization_id"):
-        raise HTTPException(status_code=400, detail="No organization assigned")
-    
-    org_id = current_user["organization_id"]
-    
-    # Check max_facilities limit
-    org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
-    if org:
-        max_facilities = org.get("max_facilities", 10)
-        current_facility_count = await db.facilities.count_documents({"organization_id": org_id})
-        if current_facility_count >= max_facilities:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Maximum facility limit ({max_facilities}) reached for your organization. Contact your administrator."
-            )
-    
-    # Check for duplicate facility name within the organization
-    existing = await db.facilities.find_one({
-        "name": facility_data.name,
-        "organization_id": org_id
-    })
-    if existing:
-        raise HTTPException(status_code=400, detail=f"A facility with the name '{facility_data.name}' already exists in your organization")
-    
-    facility_dict = facility_data.model_dump()
-    facility_dict["id"] = str(uuid.uuid4())
-    facility_dict["organization_id"] = org_id
-    facility_dict["created_at"] = datetime.now(timezone.utc).isoformat()
-    
-    await db.facilities.insert_one(facility_dict)
-    
-    # Audit log
-    await audit_logger.log(
-        action=AuditAction.CREATE,
-        module=AuditModule.FACILITY,
-        user_id=current_user["id"],
-        user_email=current_user["email"],
-        user_role=current_user.get("role", "admin"),
-        organization_id=org_id,
-        resource_id=facility_dict["id"],
-        resource_name=facility_data.name,
-        description=f"Created facility '{facility_data.name}'",
-        new_values=facility_dict
-    )
-    
-    return FacilityResponse(**facility_dict)
-
-@api_router.get("/facilities", response_model=List[FacilityResponse])
-async def get_facilities(current_user: dict = Depends(get_current_user)):
-    if current_user["role"] == "super_admin":
-        facilities = await db.facilities.find({}, {"_id": 0}).to_list(1000)
-    elif current_user["role"] == "admin":
-        org_id = current_user.get("organization_id")
-        if not org_id:
-            return []  # Admin without organization has no facilities
-        facilities = await db.facilities.find(
-            {"organization_id": org_id},
-            {"_id": 0}
-        ).to_list(1000)
-    else:  # user
-        assigned = current_user.get("assigned_facilities", [])
-        facilities = await db.facilities.find({"id": {"$in": assigned}}, {"_id": 0}).to_list(1000)
-    return [FacilityResponse(**f) for f in facilities]
-
-@api_router.get("/facilities/{facility_id}", response_model=FacilityResponse)
-async def get_facility(facility_id: str, current_user: dict = Depends(get_current_user)):
-    facility = await db.facilities.find_one({"id": facility_id}, {"_id": 0})
-    if not facility:
-        raise HTTPException(status_code=404, detail="Facility not found")
-    
-    # Check access
-    if current_user["role"] == "user" and facility_id not in current_user.get("assigned_facilities", []):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    if current_user["role"] == "admin" and facility["organization_id"] != current_user.get("organization_id"):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    return FacilityResponse(**facility)
-
-@api_router.put("/facilities/{facility_id}", response_model=FacilityResponse)
-async def update_facility(facility_id: str, facility_data: FacilityCreate, current_user: dict = Depends(get_current_user)):
-    facility = await db.facilities.find_one({"id": facility_id}, {"_id": 0})
-    if not facility:
-        raise HTTPException(status_code=404, detail="Facility not found")
-    
-    # Check access
-    if current_user["role"] == "user" and facility_id not in current_user.get("assigned_facilities", []):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    if current_user["role"] == "admin" and facility["organization_id"] != current_user.get("organization_id"):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    old_values = dict(facility)
-    update_dict = facility_data.model_dump()
-    await db.facilities.update_one({"id": facility_id}, {"$set": update_dict})
-    
-    updated = await db.facilities.find_one({"id": facility_id}, {"_id": 0})
-    
-    # Audit log
-    await audit_logger.log(
-        action=AuditAction.UPDATE,
-        module=AuditModule.FACILITY,
-        user_id=current_user["id"],
-        user_email=current_user["email"],
-        user_role=current_user.get("role", "user"),
-        organization_id=facility.get("organization_id"),
-        resource_id=facility_id,
-        resource_name=facility_data.name,
-        description=f"Updated facility '{facility_data.name}'",
-        old_values=old_values,
-        new_values=update_dict
-    )
-    
-    return FacilityResponse(**updated)
-
-@api_router.patch("/facilities/{facility_id}/toggle-active")
-async def toggle_facility_active(facility_id: str, current_user: dict = Depends(get_admin_user)):
-    """Toggle facility active status (soft delete/restore)"""
-    facility = await db.facilities.find_one({"id": facility_id}, {"_id": 0})
-    if not facility:
-        raise HTTPException(status_code=404, detail="Facility not found")
-    
-    if current_user["role"] == "admin" and facility["organization_id"] != current_user.get("organization_id"):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    new_status = not facility.get("is_active", True)
-    await db.facilities.update_one(
-        {"id": facility_id}, 
-        {"$set": {"is_active": new_status}}
-    )
-    
-    action = "activated" if new_status else "deactivated"
-    return {"message": f"Facility {action} successfully", "is_active": new_status}
-
-@api_router.delete("/facilities/{facility_id}")
-async def delete_facility(facility_id: str, current_user: dict = Depends(get_admin_user)):
-    facility = await db.facilities.find_one({"id": facility_id}, {"_id": 0})
-    if not facility:
-        raise HTTPException(status_code=404, detail="Facility not found")
-    
-    if current_user["role"] == "admin" and facility["organization_id"] != current_user.get("organization_id"):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    from cascade_delete import cascade_delete_facility
-    from r2_storage import get_r2_storage
-    r2 = get_r2_storage()
-    result = await cascade_delete_facility(db, r2, facility_id)
-    if not result.get("found"):
-        raise HTTPException(status_code=404, detail="Facility not found")
-    
-    return {
-        "message": f"Facility '{result.get('facility')}' and all related data deleted successfully",
-        "deleted_counts": result["deleted_counts"],
-    }
-
+# Phase B3: 6 facility routes moved to modules/facilities/router.py
 # Emission factors endpoints
 # NOTE: Standard factors endpoint removed - all standard factors now come from database via /emission-factors
 
@@ -4755,72 +4149,7 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     
     return EmissionRecordResponse(**record_dict)
 
-@api_router.get("/emissions", response_model=List[EmissionRecordResponse])
-async def get_emission_records(
-    facility_id: Optional[str] = None,
-    reporting_period: Optional[str] = None,
-    scope: Optional[str] = None,
-    current_user: dict = Depends(get_current_user)
-):
-    query = {}
-    
-    if current_user["role"] == "super_admin":
-        pass  # Can see all
-    elif current_user["role"] == "admin":
-        # Get all facilities in org
-        org_id = current_user.get("organization_id")
-        if not org_id:
-            return []  # Admin without organization has no emissions
-        facilities = await db.facilities.find(
-            {"organization_id": org_id},
-            {"_id": 0}
-        ).to_list(1000)
-        facility_ids = [f["id"] for f in facilities]
-        query["facility_id"] = {"$in": facility_ids}
-    else:  # user
-        assigned = current_user.get("assigned_facilities", [])
-        query["facility_id"] = {"$in": assigned}
-    
-    if facility_id:
-        query["facility_id"] = facility_id
-    if reporting_period:
-        query["reporting_period"] = reporting_period
-    if scope:
-        query["scope"] = scope
-    
-    records = await db.emission_records.find(query, {"_id": 0}).to_list(10000)
-    
-    # Collect all unique user IDs for batch lookup
-    user_ids = set()
-    for r in records:
-        if r.get("created_by"):
-            user_ids.add(r["created_by"])
-        if r.get("updated_by"):
-            user_ids.add(r["updated_by"])
-    
-    # Fetch user names in batch
-    user_map = {}
-    if user_ids:
-        users = await db.users.find({"id": {"$in": list(user_ids)}}, {"_id": 0, "id": 1, "full_name": 1, "email": 1}).to_list(1000)
-        user_map = {u["id"]: u for u in users}
-    
-    # Populate names for records that don't have them
-    for r in records:
-        if r.get("created_by") and not r.get("created_by_name"):
-            user = user_map.get(r["created_by"])
-            if user:
-                r["created_by_name"] = user.get("full_name", "")
-                if not r.get("created_by_email"):
-                    r["created_by_email"] = user.get("email", "")
-        if r.get("updated_by") and not r.get("updated_by_name"):
-            user = user_map.get(r["updated_by"])
-            if user:
-                r["updated_by_name"] = user.get("full_name", "")
-                if not r.get("updated_by_email"):
-                    r["updated_by_email"] = user.get("email", "")
-    
-    return [EmissionRecordResponse(**r) for r in records]
-
+# Phase B4: GET /emissions moved to modules/emissions/router.py
 @api_router.put("/emissions/{record_id}", response_model=EmissionRecordResponse)
 async def update_emission_record(
     record_id: str,
@@ -4946,199 +4275,10 @@ async def update_emission_record(
     
     return EmissionRecordResponse(**updated)
 
-@api_router.get("/emissions/{record_id}/history", response_model=List[EmissionHistoryResponse])
-async def get_emission_history(record_id: str, current_user: dict = Depends(get_current_user)):
-    # Sort by changed_at descending so newest entry appears first
-    history = await db.emission_history.find(
-        {"emission_id": record_id}, 
-        {"_id": 0}
-    ).sort("changed_at", -1).to_list(1000)
-    
-    # Populate changed_by_email and changed_by_name for each history entry
-    for entry in history:
-        if entry.get("changed_by"):
-            user = await db.users.find_one({"id": entry["changed_by"]}, {"_id": 0, "email": 1, "full_name": 1})
-            if user:
-                entry["changed_by_email"] = user.get("email", "Unknown User")
-                entry["changed_by_name"] = user.get("full_name", "")
-            else:
-                entry["changed_by_email"] = "Unknown User"
-                entry["changed_by_name"] = ""
-        else:
-            entry["changed_by_email"] = "Unknown User"
-            entry["changed_by_name"] = ""
-    
-    return [EmissionHistoryResponse(**h) for h in history]
+# Phase B4: GET /emissions/{id}/history moved to modules/emissions/router.py
+# Phase B4: DELETE /emissions/{id} moved to modules/emissions/router.py
 
-@api_router.delete("/emissions/{record_id}")
-async def delete_emission_record(record_id: str, current_user: dict = Depends(get_current_user)):
-    # Get existing record before deletion for audit
-    existing = await db.emission_records.find_one({"id": record_id}, {"_id": 0})
-    if not existing:
-        raise HTTPException(status_code=404, detail="Emission record not found")
-    
-    result = await db.emission_records.delete_one({"id": record_id})
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Emission record not found")
-    
-    # Audit log
-    await audit_logger.log(
-        action=AuditAction.DELETE,
-        module=AuditModule.EMISSION,
-        user_id=current_user["id"],
-        user_email=current_user["email"],
-        user_role=current_user.get("role", "user"),
-        organization_id=existing.get("organization_id"),
-        resource_id=record_id,
-        resource_name=f"{existing.get('scope', '')} - {existing.get('category', '')} ({existing.get('reporting_period', '')})",
-        description=f"Deleted emission record for {existing.get('category', 'Unknown')}",
-        old_values=existing,
-        metadata={
-            "scope": existing.get("scope"),
-            "category": existing.get("category"),
-            "total_emissions": existing.get("total_emissions")
-        }
-    )
-    
-    return {"message": "Emission record deleted successfully"}
-
-# Sinks (Carbon Removal) endpoints
-@api_router.post("/sinks", response_model=SinkResponse)
-async def create_sink(sink_data: SinkCreate, current_user: dict = Depends(get_current_user)):
-    # Verify facility access
-    facility = await db.facilities.find_one({"id": sink_data.facility_id}, {"_id": 0})
-    if not facility:
-        raise HTTPException(status_code=404, detail="Facility not found")
-    
-    # Check access
-    if current_user["role"] == "user":
-        if sink_data.facility_id not in current_user.get("assigned_facilities", []):
-            raise HTTPException(status_code=403, detail="Not authorized for this facility")
-    elif current_user["role"] == "admin":
-        if facility.get("organization_id") != current_user.get("organization_id"):
-            raise HTTPException(status_code=403, detail="Not authorized for this facility")
-    
-    # Check organization's enabled_access for sinks
-    organization = await db.organizations.find_one({"id": facility.get("organization_id")}, {"_id": 0})
-    if organization:
-        enabled_access = organization.get("enabled_access")
-        # If enabled_access is None, default to scope1_2. If it's an empty list, no access.
-        if enabled_access is None:
-            enabled_access = ["scope1_2"]
-        # Check if organization has access to create sinks (scope1_2 or scope1_2_3 allows sinks)
-        has_sink_access = any(access in enabled_access for access in ["scope1_2", "scope1_2_3"])
-        if not has_sink_access:
-            raise HTTPException(
-                status_code=403, 
-                detail="Your organization does not have access to add carbon sinks. Please contact your administrator."
-            )
-    
-    sink_dict = {
-        "id": str(uuid.uuid4()),
-        "facility_id": sink_data.facility_id,
-        "organization_id": facility.get("organization_id"),
-        "reporting_year": sink_data.reporting_year,
-        "reporting_month": sink_data.reporting_month,
-        "total_emissions_reduced": sink_data.total_emissions_reduced,
-        "description": sink_data.description,
-        "evidence_urls": sink_data.evidence_urls or [],
-        "evidence_files": sink_data.evidence_files or [],
-        "frequency_type": sink_data.frequency_type or "monthly",
-        "start_date": sink_data.start_date,
-        "end_date": sink_data.end_date,
-        "monthly_data": sink_data.monthly_data,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "updated_at": None
-    }
-    
-    await db.sinks.insert_one(sink_dict)
-    return SinkResponse(**sink_dict)
-
-@api_router.get("/sinks", response_model=List[SinkResponse])
-async def get_sinks(current_user: dict = Depends(get_current_user)):
-    if current_user["role"] == "super_admin":
-        sinks = await db.sinks.find({}, {"_id": 0}).to_list(10000)
-    elif current_user["role"] == "admin":
-        org_id = current_user.get("organization_id")
-        sinks = await db.sinks.find({"organization_id": org_id}, {"_id": 0}).to_list(10000)
-    else:
-        facility_ids = current_user.get("assigned_facilities", [])
-        sinks = await db.sinks.find({"facility_id": {"$in": facility_ids}}, {"_id": 0}).to_list(10000)
-    
-    return [SinkResponse(**s) for s in sinks]
-
-@api_router.get("/sinks/{sink_id}", response_model=SinkResponse)
-async def get_sink(sink_id: str, current_user: dict = Depends(get_current_user)):
-    sink = await db.sinks.find_one({"id": sink_id}, {"_id": 0})
-    if not sink:
-        raise HTTPException(status_code=404, detail="Sink record not found")
-    return SinkResponse(**sink)
-
-@api_router.put("/sinks/{sink_id}", response_model=SinkResponse)
-async def update_sink(sink_id: str, sink_data: SinkCreate, current_user: dict = Depends(get_current_user)):
-    existing = await db.sinks.find_one({"id": sink_id}, {"_id": 0})
-    if not existing:
-        raise HTTPException(status_code=404, detail="Sink record not found")
-    
-    # Preserve original frequency_type - don't allow changing once set
-    existing_frequency = existing.get("frequency_type", "monthly")
-    
-    update_dict = {
-        "facility_id": sink_data.facility_id,
-        "reporting_year": sink_data.reporting_year,
-        "reporting_month": sink_data.reporting_month,
-        "total_emissions_reduced": sink_data.total_emissions_reduced,
-        "description": sink_data.description,
-        "evidence_urls": sink_data.evidence_urls or [],
-        "evidence_files": sink_data.evidence_files or [],
-        "frequency_type": existing_frequency,  # Keep original frequency_type
-        "start_date": sink_data.start_date,
-        "end_date": sink_data.end_date,
-        "monthly_data": sink_data.monthly_data,
-        "updated_at": datetime.now(timezone.utc).isoformat()
-    }
-    
-    await db.sinks.update_one({"id": sink_id}, {"$set": update_dict})
-    updated = await db.sinks.find_one({"id": sink_id}, {"_id": 0})
-    return SinkResponse(**updated)
-
-@api_router.delete("/sinks/{sink_id}")
-async def delete_sink(sink_id: str, current_user: dict = Depends(get_current_user)):
-    # First, get the sink to find associated files
-    sink = await db.sinks.find_one({"id": sink_id}, {"_id": 0})
-    if not sink:
-        raise HTTPException(status_code=404, detail="Sink record not found")
-    
-    # Delete associated files from R2 storage
-    evidence_files = sink.get("evidence_files", [])
-    if evidence_files:
-        try:
-            r2 = get_r2_storage()
-            for file_info in evidence_files:
-                file_id = file_info.get("file_id")
-                if file_id:
-                    # Get file record to find R2 key
-                    file_record = await db.uploaded_files.find_one({"id": file_id}, {"_id": 0})
-                    if file_record and file_record.get("r2_key"):
-                        # Delete from R2
-                        try:
-                            await r2.delete_file(
-                                bucket_type=file_record.get("bucket_type", "evidence"),
-                                key=file_record["r2_key"]
-                            )
-                        except Exception as e:
-                            logging.warning(f"Failed to delete R2 file {file_record['r2_key']}: {e}")
-                        
-                        # Delete file record from database
-                        await db.uploaded_files.delete_one({"id": file_id})
-        except Exception as e:
-            logging.error(f"Error cleaning up sink files: {e}")
-    
-    # Delete the sink record
-    result = await db.sinks.delete_one({"id": sink_id})
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Sink record not found")
-    return {"message": "Sink record and associated files deleted successfully"}
+# Phase B3: 5 sink routes moved to modules/sinks/router.py
 
 # ===== Base Year Emissions Endpoints =====
 
