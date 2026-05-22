@@ -827,15 +827,8 @@ DEFAULT_UNITS = [
 
 
 
-# GWP Constants (IPCC AR6 100-year values) - These are defaults, actual values come from DB
-GWP_VALUES = {
-    "CO2": 1,
-    "CH4": 27.9,  # AR6 value (was 28 in AR5)
-    "N2O": 273    # AR6 value (same as AR5)
-}
-
-# Default GWP source info
-GWP_DEFAULT_SOURCE = "IPCC AR6"
+# GWP Constants moved to shared/constants/gwp.py (Phase B9).
+from shared.constants.gwp import GWP_VALUES, GWP_DEFAULT_SOURCE  # noqa: F401
 
 # ============================================
 # UNIT NORMALIZATION SYSTEM (AI-Compatible)

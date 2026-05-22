@@ -77,14 +77,8 @@ from shared.helpers.passwords import generate_random_password, get_password_hash
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# GWP Constants (IPCC AR6 100-year values) - These are defaults; actual values come from DB.
-# Lifted from server.py during Phase B9 refactor (originally lines 830-838).
-GWP_VALUES = {
-    "CO2": 1,
-    "CH4": 27.9,  # AR6 value (was 28 in AR5)
-    "N2O": 273    # AR6 value (same as AR5)
-}
-GWP_DEFAULT_SOURCE = "IPCC AR6"
+# GWP Constants — single source of truth at shared/constants/gwp.py.
+from shared.constants.gwp import GWP_VALUES, GWP_DEFAULT_SOURCE  # noqa: E402,F401
 
 
 # Super Admin - Organization endpoints

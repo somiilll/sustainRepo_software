@@ -24,6 +24,56 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 
 ## What's Been Implemented
 
+### Feb 2026 Session — Backend Modularization Phases B7–B11 (COMPLETE)
+
+**Feb 22, 2026 — Phases B7–B11: Server.py shrunk 8643 → 3409 lines (−5234 lines, −60.5%)**
+
+Five phases executed end-to-end with **37/37 regression tests PASS** (iteration_79):
+
+- **Phase B7 — Dashboards** (~990 lines moved):
+  - `modules/dashboards/contracts.py` — `DashboardStats` Pydantic model (28 fields) lifted from server.py.
+  - `modules/dashboards/router.py` (1011 lines) — `GET /dashboard/stats` + `GET /dashboard/supplier-hotspots` lifted verbatim. All inline helpers preserved (`extract_year_from_period`, `is_yearly_period_in_range`, `calculate_proration_factor`, `should_include_emission`, `get_adjusted_emission`, etc.).
+  - **Verified byte-identical**: `total_emissions: 4194.63 tCO₂e`, `scope1: 251.86`, `scope2: 73.83`, `scope3: 3350.85`, `scope3_categories_reported: 7` — exact match across all 22 prior phase verifications.
+
+- **Phase B8 — Reports** (~1440 lines moved):
+  - `modules/reports/router.py` (1486 lines) — 5 routes: `GET /reports/facility/{id}`, `POST /reports/combined`, `POST /reports/ghg-inventory`, `GET /reports/download/{token}`, `POST /reports/ai-summary`.
+  - `shared/cache/downloads.py` — `pending_downloads` dict extracted to a shared singleton (formerly a server.py global). Both server.py and the new router import the same dict so download tokens stay valid across the cutover.
+  - All heavy imports (docx, matplotlib, anthropic, reportlab, mammoth, playwright) preserved as lazy/inline imports inside route bodies — same as legacy.
+
+- **Phase B9 — Super-admin / Platform Config** (~2465 lines moved — largest single phase ever):
+  - `modules/superadmin/contracts.py` (415 lines) — 28 Pydantic models lifted: `EmissionFactorCreate/Response`, `UnitCreate/Response`, `FuelDatabaseCreate/Response`, `Scope3EFCreate/Response`, `UnitConfig/Response`, `FormulaParameterCreate/Response`, `FormulaDefinitionCreate/Response`, `EmissionConfigurationCreate/Response`, `CalculationFormulaCreate/Response`, `SectorCreate/Response`, `ProcessTemplateInputField/PredefinedInput/Create/Response`, `GWPConfigCreate/Update`, `CurrencyConversionCreate/Update`.
+  - `modules/superadmin/router.py` (2502 lines) — **91 routes** covering: `/super-admin/organizations/*`, `/super-admin/admins/*`, `/super-admin/emission-factors/*`, `/units/*`, `/super-admin/fuel-database/*`, `/fuel-database/*`, `/super-admin/scope3-ef/*`, `/scope3-ef/*`, `/emission-categories`, `/base-year/*`, `/gwp-config(s)/*`, `/gwp-values`, `/currency-conversion/*`, `/super-admin/currency-conversion(s)/*`, `/super-admin/formula-parameters/*`, `/formula-parameters`, `/super-admin/formula-definitions/*`, `/formula-definitions`, `/super-admin/emission-configurations/*`, `/emission-configurations`, `/super-admin/dashboard`, `/emission-factors`, `/emission-factors/standard`, `/custom-emission-factors/*`, `/calculation-formulas/*`, `/super-admin/sectors/*`, `/sectors`, `/super-admin/process-templates/*`, `/process-templates`.
+  - `shared/constants/gwp.py` — `GWP_VALUES` and `GWP_DEFAULT_SOURCE` extracted to a shared module imported by both server.py (legacy) and superadmin router. (Caught and fixed during testing iter_79: a NameError in superadmin router because the constants block wasn't lifted on the first pass.)
+  - **Verified across 25+ endpoints**: 14 orgs, 15 admins, 32 units, 502 fuels, 13 emission categories, 10 sectors, GWP values byte-identical, all super-admin dashboard fields intact.
+
+- **Phase B10 — Backend Category Registry** (NEW infrastructure, 159 lines):
+  - `modules/emissions/categories/registry.py` — Python mirror of frontend `categoryRegistry`. Provides `category_registry` singleton with `get/has/all/by_scope/has_capability` methods.
+  - 25 canonical descriptors seeded: 4 Scope 1, 4 Scope 2, 15 Scope 3 (C1–C15 with `asset-name`, `journey-locations`, `multi-employee`, `subcategory` capability flags), 2 biogenic.
+  - Read-only / pure-Python (no DB calls). Lets backend code do `category_registry.has_capability('c4', 'journey-locations')` instead of inline `['c4','c6','c9'].some(...)` chains.
+  - In-process tests PASS: registry.has('c7') ✓, registry.has_capability('c8', 'asset-name') ✓, by_scope('scope3') returns 15 descriptors ✓.
+
+- **Phase B11 — In-process Event Bus** (NEW infrastructure, 137 lines):
+  - `events/event_bus.py` — `EventBus` class with `subscribe/unsubscribe/on/emit/emit_nowait/clear/handler_count`.
+  - Both sync and async handlers supported. Failures in one handler do NOT abort emit (logged + swallowed). Idempotent registration.
+  - Canonical events declared (`Events.AUDIT_PERSISTED`, `EMISSION_SAVED/UPDATED/DELETED`, `REPORT_GENERATED`, `UPLOAD_COMPLETED`, `FACTOR_OVERRIDDEN`).
+  - In-process tests PASS: subscribe (sync + async), idempotent re-subscribe, error isolation across handlers, `unsubscribe` working.
+
+- **Contract Verifier** extended: `modules.emissions.categories`, `events.event_bus` added → 22 modules now verified at boot (was 20). `GET /api/health/contracts` returns `status='passed', modules_checked=22, failed=[]`.
+
+- **Cumulative server.py reduction across all phases**:
+  - B1: 11290 → 11260 (−30)
+  - B2: 11260 → 10749 (−541)
+  - B3+B4: 10749 → 9889 (−860)
+  - B5: 9889 → 8643 (−1246)
+  - **B7: 8643 → 7637 (−1006)**
+  - **B8: 7637 → 6202 (−1435)**
+  - **B9: 6202 → 3409 (−2793)**
+  - **Total**: **11290 → 3409 lines (−7881 lines, −69.8%)**
+
+- **Pre-existing bugs (NOT regressions)** — left untouched per user instruction:
+  - `GET /api/reports/facility/{id}` returns 500 KeyError 'quantity' for legacy emission records — code path identical pre/post refactor.
+  - `GET /api/emissions/c7/yearly/{facility_id}/{reporting_year}` returns 422 due to route-ordering shadow.
+
 ### May 2026 Session (Latest)
 
 **May 26, 2026 - Phase 5 Frontend Refactoring (Complete)**
