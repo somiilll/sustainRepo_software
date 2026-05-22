@@ -720,6 +720,13 @@ Five phases executed end-to-end with **37/37 regression tests PASS** (iteration_
   - Architectural pattern: category module owns logic; orchestration in page
 
 ## Completed Tasks
+- ✅ Phase E6 (Feb 2026): Emissions.js JSX modularization
+  - Created `/app/frontend/src/pages/emissions/components/` directory
+  - Extracted `EmissionHistoryDialog.jsx` (~494 lines) — version history dialog with field-level diff rendering
+  - Extracted `EmissionDataGrid.jsx` (~327 lines) — header row, data rows for Scope 1/2/3/biogenic, and empty state
+  - Emissions.js: 5651 → 4902 lines (-749 lines / -13%)
+  - Smoke-tested: GHG Emissions page renders 8 rows, History dialog opens with field changes intact
+  - **NO logic changes — byte-identical behavior** preserved per directive
 - ✅ Phase 5: Extract Step 1-4 from EmissionEntryForm.js (26% reduction)
 - ✅ Phase 5b: Extract standalone utilities (hooks, validation, payload builders)
 - ✅ Phase 6: Extract and integrate EmissionFilters, form sections into Emissions.js
