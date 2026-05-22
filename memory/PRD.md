@@ -211,6 +211,14 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 - P1: Dashboard "No Data" after toggling organization Scope access
 - P2: C7 Edit Dialog Stale State (yearly financial periods not transforming correctly)
 
+- ✅ Phase 7l-B (Feb 2026): CREATE Migration Phase B — Shared Helpers
+  - **Created `/modules/emissions/categories/shared/Scope3FlatCreate.js`** (~360 lines): capability-aware `validateCreateSubmission` + `buildCreatePayload` + `createScope3FlatCreateApi(module)` factory + helper exports (`extractInputsForCalcEngine`, `buildDynamicFieldValues`, `buildDecisionContext`). Mirrors `Scope3FlatEdit.js`. Capability-aware: `asset_name` (C8/C13/C14/C15), `from_location`/`to_location` (C4/C6/C9), employee fields (C7).
+  - **Created `/modules/emissions/categories/shared/Scope1Create.js`** (~250 lines): same surface for Scope 1/2 + biogenic-scope1. CV/density/EFH override semantics + override_justification min-length 20 chars preserved.
+  - **Wired both into `initializeCategoryModules()`**: every flat-field Scope 3 module (C1–C6, C8–C15) + GenericScope3 + all Scope 1 modules (Stationary/Mobile/Fugitive + Generic) + GenericScope2 now expose `validateCreateSubmission` + `buildCreatePayload` + helper functions on the registry.
+  - **Behaviour preserved**: validations, payload shape, dynamic_field_values structure, calc-engine context all byte-identical to legacy `EmissionEntryForm.js handleSubmit`.
+  - **Init log unchanged at 41 entries** — same modules, just more methods attached. Smoke test confirms clean compile + page renders.
+  - **Phase C (C1 PoC) ready to start**: `EmissionEntryForm.js handleSubmit` can now look up `activeModule.buildCreatePayload(...)` for any flat-field Scope 3 / Scope 1 / Scope 2 record.
+
 - ✅ Phase 7k+l (Feb 2026): C7 Save Fix + Step3Renderer Wiring + CREATE Migration Scoped
   - **Investigated C7 Update silent no-op** — reproduced via console logging. Root cause: C7 module's `hasCalculatedData` validation rejected hydrated records where `emissions.co2e` was `null/undefined` after `handleEdit` transformation. Toast was firing but Sonner auto-closed before test harness captured.
   - **Fix 1 (Hydration)**: `handleEdit` now clones `emissions` and normalises `co2e: null/undefined` → `0` for both monthly and yearly transforms.

@@ -145,12 +145,20 @@ export function initializeCategoryModules() {
   // module's `hasCapability(...)` so payload appends asset_name /
   // journey-locations / etc. automatically per the module's capabilities.
   const { createScope3FlatEditApi } = require('./categories/shared/Scope3FlatEdit');
+  const { createScope3FlatCreateApi } = require('./categories/shared/Scope3FlatCreate');
   FLAT_FIELD_SCOPE3_CATEGORIES.forEach((id) => {
     const mod = categoryRegistry.get(id);
     if (!mod) return;
     const editApi = createScope3FlatEditApi(mod);
     mod.validateEditSubmission = editApi.validateEditSubmission;
     mod.buildEditPayload = editApi.buildEditPayload;
+    // CREATE-flow (Phase 7l B) — same module exposes both surfaces.
+    const createApi = createScope3FlatCreateApi(mod);
+    mod.validateCreateSubmission = createApi.validateCreateSubmission;
+    mod.buildCreatePayload = createApi.buildCreatePayload;
+    mod.extractInputsForCalcEngine = createApi.extractInputsForCalcEngine;
+    mod.buildDynamicFieldValues = createApi.buildDynamicFieldValues;
+    mod.buildDecisionContext = createApi.buildDecisionContext;
   });
 
   // Also attach to the GenericScope3 fallback module. This handles
@@ -166,12 +174,20 @@ export function initializeCategoryModules() {
     const genericEditApi = createScope3FlatEditApi(genericScope3);
     genericScope3.validateEditSubmission = genericEditApi.validateEditSubmission;
     genericScope3.buildEditPayload = genericEditApi.buildEditPayload;
+    // CREATE-flow surface
+    const genericCreateApi = createScope3FlatCreateApi(genericScope3);
+    genericScope3.validateCreateSubmission = genericCreateApi.validateCreateSubmission;
+    genericScope3.buildCreatePayload = genericCreateApi.buildCreatePayload;
+    genericScope3.extractInputsForCalcEngine = genericCreateApi.extractInputsForCalcEngine;
+    genericScope3.buildDynamicFieldValues = genericCreateApi.buildDynamicFieldValues;
+    genericScope3.buildDecisionContext = genericCreateApi.buildDecisionContext;
   }
 
   // Attach Scope 1 edit-flow business logic to all Scope 1 modules
   // (Stationary Combustion, Mobile Combustion, Fugitive Emissions, generic).
   // The generic Scope 1 module also handles biogenic-scope1 edits as fallback.
   const { createScope1EditApi } = require('./categories/shared/Scope1Edit');
+  const { createScope1CreateApi } = require('./categories/shared/Scope1Create');
   const SCOPE1_MODULE_IDS = [
     'stationary_combustion',
     'mobile_combustion',
@@ -185,6 +201,12 @@ export function initializeCategoryModules() {
     const editApi = createScope1EditApi(mod);
     mod.validateEditSubmission = editApi.validateEditSubmission;
     mod.buildEditPayload = editApi.buildEditPayload;
+    const createApi = createScope1CreateApi(mod);
+    mod.validateCreateSubmission = createApi.validateCreateSubmission;
+    mod.buildCreatePayload = createApi.buildCreatePayload;
+    mod.extractInputsForCalcEngine = createApi.extractInputsForCalcEngine;
+    mod.buildDynamicFieldValues = createApi.buildDynamicFieldValues;
+    mod.buildDecisionContext = createApi.buildDecisionContext;
   });
 
   // Generic Scope 1 fallback (handles unmatched Scope 1 categories AND biogenic-scope1)
@@ -196,11 +218,17 @@ export function initializeCategoryModules() {
     const genericS1EditApi = createScope1EditApi(genericScope1);
     genericScope1.validateEditSubmission = genericS1EditApi.validateEditSubmission;
     genericScope1.buildEditPayload = genericS1EditApi.buildEditPayload;
+    const genericS1CreateApi = createScope1CreateApi(genericScope1);
+    genericScope1.validateCreateSubmission = genericS1CreateApi.validateCreateSubmission;
+    genericScope1.buildCreatePayload = genericS1CreateApi.buildCreatePayload;
+    genericScope1.extractInputsForCalcEngine = genericS1CreateApi.extractInputsForCalcEngine;
+    genericScope1.buildDynamicFieldValues = genericS1CreateApi.buildDynamicFieldValues;
+    genericScope1.buildDecisionContext = genericS1CreateApi.buildDecisionContext;
   }
 
   // Generic Scope 2 — same payload shape and validation as Scope 1, so we
-  // attach the SAME shared `Scope1Edit` helpers. The helpers already gate
-  // `scope1 || scope2` for override-justification semantics.
+  // attach the SAME shared `Scope1Edit` / `Scope1Create` helpers. The helpers
+  // already gate `scope1 || scope2` for override-justification semantics.
   const genericScope2 = categoryRegistry.getGenericModule('scope2');
   if (genericScope2) {
     genericScope2.capabilities = genericScope2.capabilities || [];
@@ -209,6 +237,12 @@ export function initializeCategoryModules() {
     const genericS2EditApi = createScope1EditApi(genericScope2);
     genericScope2.validateEditSubmission = genericS2EditApi.validateEditSubmission;
     genericScope2.buildEditPayload = genericS2EditApi.buildEditPayload;
+    const genericS2CreateApi = createScope1CreateApi(genericScope2);
+    genericScope2.validateCreateSubmission = genericS2CreateApi.validateCreateSubmission;
+    genericScope2.buildCreatePayload = genericS2CreateApi.buildCreatePayload;
+    genericScope2.extractInputsForCalcEngine = genericS2CreateApi.extractInputsForCalcEngine;
+    genericScope2.buildDynamicFieldValues = genericS2CreateApi.buildDynamicFieldValues;
+    genericScope2.buildDecisionContext = genericS2CreateApi.buildDecisionContext;
   }
 
   // Attach Step3Renderer to Scope 1/2 + generic fallback modules too.
