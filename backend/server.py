@@ -1,8 +1,6 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 import json
@@ -12,7 +10,6 @@ from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timezone, timedelta
 import jwt
-from passlib.context import CryptContext
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -26,39 +23,52 @@ import string
 import shutil
 from fastapi.responses import StreamingResponse, FileResponse
 import asyncio
-import resend
 import anthropic
 from audit_logger import AuditLogger, AuditAction, AuditModule, init_audit_logger, get_audit_logger
 
-ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+# ============================================================================
+# Phase B1: Foundation refactor — centralized config + helpers
+# ----------------------------------------------------------------------------
+# `app.config.env` loads `.env` once and exposes typed module-level constants.
+# `shared.database.mongo` owns the single Motor client + db handle.
+# `shared.helpers.passwords` / `tokens` / `email` host pure helpers that used
+# to be defined inline here. The originals are removed below; their callers
+# (any line in this file referencing the names) continue to work because we
+# re-export the same identifiers via the imports below.
+# ============================================================================
+from app.config.env import (
+    BACKEND_DIR as ROOT_DIR,  # legacy alias kept for any inline path usage
+    JWT_SECRET as SECRET_KEY,
+    JWT_ALGORITHM as ALGORITHM,
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    RESEND_API_KEY,
+    SENDER_EMAIL,
+    ANTHROPIC_API_KEY,
+)
+from shared.database.mongo import client, db
+from shared.helpers.passwords import (
+    pwd_context,
+    generate_random_password,
+    verify_password as _shared_verify_password,
+    get_password_hash as _shared_get_password_hash,
+)
+from shared.helpers.tokens import (
+    create_access_token as _shared_create_access_token,
+)
+from shared.helpers.email import send_email
+from app.bootstrap.contract_verifier import verify_module_contracts
 
 # Set Playwright browsers path BEFORE any playwright imports
 os.environ['PLAYWRIGHT_BROWSERS_PATH'] = '/app/.playwright'
-
-# Anthropic Claude API for AI Reports
-ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
-
-# MongoDB connection - auto-detect SSL for Atlas vs local
-import certifi
-mongo_url = os.environ['MONGO_URL']
-# Use SSL certificates only for mongodb+srv (Atlas) connections
-if mongo_url.startswith('mongodb+srv://'):
-    client = AsyncIOMotorClient(mongo_url, tlsCAFile=certifi.where())
-else:
-    client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
-
-# Security
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-SECRET_KEY = os.environ.get('JWT_SECRET', 'your-secret-key-change-in-production')
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 43200
 
 security = HTTPBearer()
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
+
+# Run module contract verifier at import time. Phase B1: log-only, will be
+# escalated to fail-fast in dev once all modules expose their contracts.
+verify_module_contracts()
 
 # Initialize Audit Logger
 audit_logger = init_audit_logger(db)
@@ -67,43 +77,8 @@ audit_logger = init_audit_logger(db)
 # Key: download_token, Value: {"buffer": BytesIO, "filename": str, "created_at": datetime}
 pending_downloads: Dict[str, Dict[str, Any]] = {}
 
-# Resend Email configuration
-RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
-SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'noreply@sustainrepo.com')
-
-# Initialize Resend
-if RESEND_API_KEY:
-    resend.api_key = RESEND_API_KEY
-
 # NOTE: Hardcoded emission factors removed. All standard factors are now managed by Super Admin in database.
 # Admin/User can only use standard factors or create custom factors with justification.
-
-# Helper functions
-def generate_random_password(length=12):
-    characters = string.ascii_letters + string.digits + string.punctuation
-    return ''.join(secrets.choice(characters) for _ in range(length))
-
-async def send_email(to_email: str, subject: str, body: str):
-    """Send email using Resend"""
-    if not RESEND_API_KEY:
-        logging.warning("Resend API key not configured, skipping email")
-        return False
-    
-    try:
-        params = {
-            "from": SENDER_EMAIL,
-            "to": [to_email],
-            "subject": subject,
-            "html": body
-        }
-        
-        # Run sync SDK in thread to keep FastAPI non-blocking
-        email = await asyncio.to_thread(resend.Emails.send, params)
-        logging.info(f"Email sent to {to_email}, ID: {email.get('id')}")
-        return True
-    except Exception as e:
-        logging.error(f"Failed to send email: {str(e)}")
-        return False
 
 
 def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: list = None) -> list:
@@ -711,17 +686,16 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
 
 
 def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+    return _shared_verify_password(plain_password, hashed_password)
 
 def get_password_hash(password):
-    return pwd_context.hash(password)
+    return _shared_get_password_hash(password)
 
 def create_access_token(data: dict):
-    to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+    # Delegates to shared.helpers.tokens — same JWT_SECRET / ALGORITHM /
+    # ACCESS_TOKEN_EXPIRE_MINUTES (re-exported above as SECRET_KEY / ALGORITHM /
+    # ACCESS_TOKEN_EXPIRE_MINUTES). Behaviour is byte-identical.
+    return _shared_create_access_token(data)
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:

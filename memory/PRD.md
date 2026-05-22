@@ -211,6 +211,38 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 - P1: Dashboard "No Data" after toggling organization Scope access
 - P2: C7 Edit Dialog Stale State (yearly financial periods not transforming correctly)
 
+- ✅ Phase 7l-J — Backend Phase B1 (Feb 2026): Foundation Refactor — Skeleton + Safe Extractions
+  - **Goal**: lay the modular backend chassis without changing ANY business logic, calculations, formulas, APIs, payloads, or audit behavior. Forward-compatible with phases B2–B12.
+  - **New directory tree** under `/app/backend/`:
+    - `app/{bootstrap,config,errors,logging,router,middleware,providers}/` — application wiring layer.
+    - `shared/{database,helpers,validators,contracts,constants,utils,cache,queue}/` — cross-cutting utilities.
+    - `modules/{auth,users,organizations,facilities,emissions,emissions/categories,calculations,reports,dashboards,uploads,audit}/` — domain modules (currently empty `__init__.py` stubs documenting future ownership; phases B2–B11 populate them).
+    - `repositories/`, `jobs/`, `events/` — top-level architectural folders for DB abstraction, background jobs, event-driven hooks.
+  - **Safe extractions** (byte-identical behaviour preserved):
+    - `app/config/env.py` — single source of truth for `MONGO_URL`, `DB_NAME`, `JWT_SECRET`, `JWT_ALGORITHM`, `ACCESS_TOKEN_EXPIRE_MINUTES`, `RESEND_API_KEY`, `SENDER_EMAIL`, `ANTHROPIC_API_KEY`. Loads `.env` once at import.
+    - `shared/database/mongo.py` — Motor `AsyncIOMotorClient` + `db` singleton. Atlas-vs-local SSL detection lives here once. server.py now imports `client, db` from this module.
+    - `shared/helpers/passwords.py` — `pwd_context`, `generate_random_password`, `verify_password`, `get_password_hash` (deduped from server.py).
+    - `shared/helpers/tokens.py` — `create_access_token`, `decode_access_token`.
+    - `shared/helpers/email.py` — Resend SDK wrapper (`send_email`).
+    - `app/logging/logger.py` — structured logger with single configuration entry point.
+    - `app/errors/exceptions.py` — exception hierarchy: `AppError`, `ValidationError`, `AuthorizationError`, `NotFoundError`, `CalculationError`, `UploadError`, `AuditError` (declared, not yet adopted by routes — routes still use `HTTPException` per "no behavior change" rule).
+    - `app/bootstrap/contract_verifier.py` — Python equivalent of frontend's `verifyModuleContracts.js`. Imports each declared module at boot to catch syntax errors / missing files. Currently log-only; future phases will fail-fast in dev.
+  - **server.py changes**:
+    - Top-of-file imports replaced with imports from the new modules.
+    - Inline `verify_password`/`get_password_hash`/`create_access_token` now thin delegates to `shared.helpers.*` (signatures preserved — no caller breakage).
+    - `verify_module_contracts()` runs at import time (logs PASSED for 20 modules).
+    - **Net**: 11286 → 11260 lines. (Bigger savings deferred to phases B2+ which will move full route blocks out.)
+  - **Verified end-to-end** (all routes still register, all behaviors byte-identical):
+    - `python -c 'import server'` → contract verifier logs `PASSED — 20 module(s) importable`.
+    - Backend supervisor: `RUNNING`.
+    - `POST /api/auth/login` → 165-char JWT token returned (verifies new shared `tokens.py` and `passwords.py` work).
+    - `GET /api/organizations/my` → org returned with `enabled_access: ['scope1_2', 'scope1_2_3']`.
+    - `GET /api/dashboard/stats` → 4194.63 tCO₂e total, Scope 1: 251.86, 7 Scope 3 categories — identical to pre-refactor.
+    - `GET /api/facilities` → 6 facilities returned.
+    - `GET /api/emissions` → 40 emission records returned.
+    - All 162 routes still register. Lint clean across all new packages.
+  - **Architectural milestone**: backend now has the same modular discipline pattern the frontend uses (`categoryRegistry` + `verifyModuleContracts`). Each subsequent phase (B2 auth/users → B3 facilities/orgs → B4 emissions → … → B11 jobs/events → B12 tests) can move routes incrementally into the corresponding `modules/<domain>/router.py` without disturbing other domains. Repositories layer ready to absorb `db.collection.find_one(...)` direct accesses as each domain migrates.
+
 - ✅ Phase 7l-I (Feb 2026): Bulk Upload Modularized — Pluggable Per-Scope Architecture
   - **`BulkUpload.js`: 665 → 143 lines** (thin orchestrator). The previous monolithic page is split into **18 focused files** under `/app/frontend/src/modules/bulkUpload/` totaling ~1006 lines, each with a single responsibility.
   - **Registry-based architecture** mirroring the emissions category registry: per-scope modules self-register on import; the page calls `bulkUploadRegistry.list(organization)` to discover available modules + computed status (`available` / `restricted` / `not_implemented`).
