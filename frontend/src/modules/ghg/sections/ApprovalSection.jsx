@@ -14,13 +14,7 @@ import {
   TabsTrigger,
 } from '../../../components/ui/tabs';
 import { Button } from '../../../components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '../../../components/ui/dialog';
-import { Eye, CheckCircle2, XCircle } from 'lucide-react';
+import { CheckCircle2, XCircle, Edit as EditIcon } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import useGHGPermissions from '../hooks/useGHGPermissions';
 import usePendingApprovals from '../hooks/usePendingApprovals';
@@ -107,19 +101,29 @@ export default function ApprovalSection() {
     ? selectedIds
     : (activeTab === 'pending' ? pending.items.map((r) => r.id) : []);
 
+  // Map a request's scope to the workspace route that hosts its edit dialog.
+  const scopeToRoute = (scope) => {
+    if (scope === 'scope2') return '/ghg/scope2';
+    if (scope === 'scope3') return '/ghg/scope3';
+    if (scope === 'biogenic') return '/ghg/biogenic';
+    return '/ghg/scope1';
+  };
+
   // Per-row actions render.
   const renderRowActions = (r) => (
     <>
-      <Button
-        size="sm"
-        variant="ghost"
-        className="h-7 w-7 p-0"
-        title="View"
-        onClick={() => setViewing(r)}
-        data-testid={`approval-view-${r.id}`}
-      >
-        <Eye className="w-3.5 h-3.5 text-stone-600" />
-      </Button>
+      {activeTab === 'pending' && (
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 w-7 p-0"
+          title="Edit & approve"
+          onClick={() => navigate(`${scopeToRoute(r?.metadata?.scope)}?edit=${r.entity_id}`)}
+          data-testid={`approval-edit-${r.id}`}
+        >
+          <EditIcon className="w-3.5 h-3.5 text-stone-600" />
+        </Button>
+      )}
       {activeTab === 'pending' && (
         <>
           <Button

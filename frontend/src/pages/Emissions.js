@@ -2480,6 +2480,24 @@ export default function Emissions() {
     getAuthHeader,
   });
 
+  // Deep-link from /ghg/approvals: open the edit dialog for ?edit=<id> once
+  // the emissions list is loaded. Strips the param after firing so a refresh
+  // doesn't re-trigger.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const editId = params.get('edit');
+    if (!editId) return;
+    if (loading || !emissions || emissions.length === 0) return;
+    const target = emissions.find((e) => e.id === editId);
+    if (!target) return;
+    handleEdit(target);
+    params.delete('edit');
+    navigate(
+      { pathname: location.pathname, search: params.toString() },
+      { replace: true }
+    );
+  }, [location.search, emissions, loading]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleDelete = async (id) => {
     try {
       await axios.delete(`${API}/emissions/${id}`, {
@@ -2487,8 +2505,7 @@ export default function Emissions() {
       });
       toast.success('Emission record deleted successfully');
       setDeleteConfirmOpen(false);
-      setEmissionToDelete(null);
-      fetchData();
+      setEmissionToDelete(null);      fetchData();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Delete failed');
     }

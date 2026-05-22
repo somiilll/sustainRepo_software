@@ -79,6 +79,28 @@ export default function EmissionDataGrid({
           const calcMethod = emission.calculation_method_scope3 || dfv.calculation_method_scope3;
           const totalEmissions = emission.outputs?.co2e?.value || emission.co2e_emissions || emission.total_emissions || 0;
 
+          // Approval-status badge meta (rendered next to Custom badge in every scope row).
+          const approvalStatus = emission.approval_status;
+          const approvalBadge = (() => {
+            switch (approvalStatus) {
+              case 'pending_create': return { text: 'Pending for approval', cls: 'bg-amber-100 text-amber-700' };
+              case 'pending_update': return { text: 'Pending update', cls: 'bg-amber-100 text-amber-700' };
+              case 'pending_delete': return { text: 'Pending delete', cls: 'bg-amber-100 text-amber-700' };
+              case 'rejected_create':
+              case 'rejected_update':
+              case 'rejected_delete': return { text: 'Rejected', cls: 'bg-red-100 text-red-700' };
+              default: return null;
+            }
+          })();
+          const ApprovalBadge = approvalBadge ? (
+            <span
+              className={`px-1.5 py-0.5 text-[9px] font-semibold rounded flex-shrink-0 ${approvalBadge.cls}`}
+              data-testid={`approval-badge-${emission.id}`}
+            >
+              {approvalBadge.text}
+            </span>
+          ) : null;
+
           // Get activity/sub-category display
           // For Scope 3 OR Biogenic Scope 3, look up the activity label using scope3_ef_id
           let activityDisplay = '-';
@@ -154,6 +176,7 @@ export default function EmissionDataGrid({
                         Custom
                       </span>
                     )}
+                    {ApprovalBadge}
                     {emission.evidence_url && (
                       <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Has Evidence" />
                     )}
@@ -196,6 +219,7 @@ export default function EmissionDataGrid({
                         Custom
                       </span>
                     )}
+                    {ApprovalBadge}
                     {emission.evidence_url && (
                       <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Has Evidence" />
                     )}
@@ -247,6 +271,7 @@ export default function EmissionDataGrid({
                         Custom
                       </span>
                     )}
+                    {ApprovalBadge}
                     {emission.evidence_url && (
                       <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Has Evidence" />
                     )}
