@@ -24,6 +24,33 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 
 ## What's Been Implemented
 
+### Feb 2026 Session — Emissions.js Modularization E1+E2+E3 COMPLETE
+
+**Feb 22, 2026 — E1+E2+E3 (low+medium risk dedup) shipped (Emissions.js −312 lines, −4.7%)**
+
+- **E1 (LOW risk)** — Pure unit/conversion utilities:
+  - Created `src/pages/emissions/utils/units.js` (159 lines) with `unitsMatch`, `isVolumeUnit`, `getConversionFactor`, `hasConversionDefined` as pure functions taking `centralizedUnits` / `formulaParameters` as explicit args (no closure capture).
+  - Replaced inline definitions with thin wrappers that bind local state.
+  - Verified end-to-end at runtime: tooltip "9809 L → 8958.37 kg via Density 0.913281 kg/L" confirms all 4 utilities working.
+
+- **E2 (LOW risk)** — Evidence-management hook:
+  - Created `src/pages/emissions/useEvidenceManagement.js` (216 lines) exposing 6 handlers: `handleFileUpload`, `handleDeleteExistingEvidence`, `handleDeleteAllEvidences`, `handleRemoveEvidence`, `handleViewEvidence`, `handleDownloadEvidence`.
+  - Hook owns NO state (deps injected from parent), so it stays correctly wired through re-renders.
+  - Verified at runtime: Edit dialog renders Evidence Documents section with handlers bound.
+
+- **E3 (MEDIUM risk)** — Calc engine audit log persistence helper:
+  - Created `src/pages/emissions/utils/persistCalcAuditLog.js` (125 lines) extracting the 84-line inner closure from `handleSubmit`. Helper takes `(emissionId, ctx)` where ctx is the page-state bundle. Best-effort semantics preserved (try/catch with console.warn — never blocks user save flow).
+  - Verified by API trace at runtime: `PUT /api/emissions/{id} 200` immediately followed by `POST /api/calc-engine/execute-by-category 200`, proving the extracted helper fires from the legacy edit-flow handleSubmit on every successful save.
+
+- **Bug caught + fixed during testing** (iter_85 first run): wrong relative import path `'../../../lib/uploadUtils'` resolved outside `src/`. Fixed to `'../../lib/uploadUtils'`. Iter_85 second run: 100% PASS.
+
+- **Honest scope note**: full direct reuse of `useEmissionSubmit` hook (built earlier in this session for EmissionEntryForm) was NOT pursued because Emissions.js edit-flow `handleSubmit` operates on a different state shape (`formData` / `dynamicFieldValues`) vs. the form's (`monthlyData` / `employees`). Translating between shapes would have been higher-risk than the dedup gain. Future E4-E6 phases may converge them via shared category-module dispatch.
+
+- **Cumulative metrics**:
+  - **Emissions.js: 6688 → 6376 lines (−312 lines, −4.7%)**
+
+- **Verified** (testing_agent_v3_fork iter_85): 100% PASS on E1+E2+E3 verification scope. Edit-Save round-trip executes the EXACT API sequence; History dialog works; units display correctly; ZERO pageerrors.
+
 ### Feb 2026 Session — EmissionEntryForm Refactor F1–F6 COMPLETE
 
 **Feb 22, 2026 — F5 + F6 (Option B, no split) shipped (cumulative −1328 lines, −32.2%)**
