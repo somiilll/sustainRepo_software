@@ -58,13 +58,26 @@ from shared.helpers.tokens import (
 from shared.helpers.email import send_email
 from app.bootstrap.contract_verifier import verify_module_contracts
 
+# Phase B2: extracted auth deps + per-domain routers.
+# server.py keeps the legacy class definitions and route handlers commented
+# out / removed below; the new modular routers are included in the api_router.
+from modules.auth.dependencies import get_current_user, get_super_admin_user, get_admin_user, security
+from modules.auth.router import router as auth_router
+from modules.users.router import router as users_admin_router
+from app.router.health import router as health_router
+
 # Set Playwright browsers path BEFORE any playwright imports
 os.environ['PLAYWRIGHT_BROWSERS_PATH'] = '/app/.playwright'
 
-security = HTTPBearer()
-
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
+
+# Phase B2: include modular routers.
+# These routers carry their own routes — we register them on `api_router`
+# so the existing `/api/...` prefix is preserved.
+api_router.include_router(auth_router)
+api_router.include_router(users_admin_router)
+api_router.include_router(health_router)
 
 # Run module contract verifier at import time. Phase B1: log-only, will be
 # escalated to fail-fast in dev once all modules expose their contracts.
@@ -697,117 +710,27 @@ def create_access_token(data: dict):
     # ACCESS_TOKEN_EXPIRE_MINUTES). Behaviour is byte-identical.
     return _shared_create_access_token(data)
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    try:
-        token = credentials.credentials
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("sub")
-        if user_id is None:
-            raise HTTPException(status_code=401, detail="Invalid authentication credentials")
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token has expired")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    
-    user = await db.users.find_one({"id": user_id}, {"_id": 0})
-    if user is None:
-        raise HTTPException(status_code=401, detail="User not found")
-    
-    # Check if user is deleted
-    if user.get("is_deleted"):
-        raise HTTPException(status_code=403, detail="Your account has been deleted. Please contact your administrator.")
-    
-    # Check if user is active
-    if not user.get("is_active", True):
-        raise HTTPException(status_code=403, detail="Your account has been deactivated. Please contact your administrator.")
-    
-    # For non-super admin users, check if their organization is active and subscription valid
-    if user.get("role") != "super_admin" and user.get("organization_id"):
-        org = await db.organizations.find_one({"id": user["organization_id"]}, {"_id": 0})
-        
-        # Check if organization is active
-        if org and (org.get("is_deleted") or not org.get("is_active", True)):
-            raise HTTPException(status_code=403, detail="Your organization has been deactivated. Please contact your administrator.")
-        
-        # Check if subscription has expired
-        if org and org.get("subscription_expires_at"):
-            try:
-                expires_str = org["subscription_expires_at"]
-                now = datetime.now(timezone.utc)
-                
-                # Handle different date formats
-                if 'T' in str(expires_str):
-                    expires_at = datetime.fromisoformat(expires_str.replace('Z', '+00:00'))
-                    is_expired = expires_at < now
-                else:
-                    expires_date = datetime.strptime(str(expires_str), '%Y-%m-%d').date()
-                    is_expired = expires_date < now.date()
-                
-                if is_expired:
-                    raise HTTPException(status_code=403, detail="Your organization's subscription has expired. Please contact your administrator to renew.")
-            except (ValueError, TypeError) as e:
-                print(f"Subscription date parse error: {e}")
-                pass  # If date parsing fails, allow access
-    
-    return user
+# Phase B2: get_current_user, get_super_admin_user, get_admin_user are now
+# imported from modules.auth.dependencies (top of file). Definitions removed
+# from this file; behaviour is byte-identical.
 
-async def get_super_admin_user(current_user: dict = Depends(get_current_user)):
-    if current_user.get("role") != "super_admin":
-        raise HTTPException(status_code=403, detail="Super admin access required")
-    return current_user
+# Phase B2: auth Pydantic models (UserBase, UserCreate, UserLogin, PasswordChange,
+# PasswordReset, ProfileUpdate, UserCreateRequest, UserResponse, TokenResponse)
+# are now defined in modules/auth/contracts.py and modules/users/contracts.py.
+# We re-import them here so any legacy code in this file that still references
+# the bare names continues to work.
+from modules.auth.contracts import (  # noqa: E402
+    UserBase, UserCreate, UserLogin,
+    PasswordChange, PasswordReset, ProfileUpdate,
+    UserResponse, TokenResponse, ResetPasswordRequest,
+)
+from modules.users.contracts import UserCreateRequest  # noqa: E402
 
-async def get_admin_user(current_user: dict = Depends(get_current_user)):
-    if current_user.get("role") not in ["super_admin", "admin"]:
-        raise HTTPException(status_code=403, detail="Admin access required")
-    return current_user
+# Phase B2: get_current_user / get_super_admin_user / get_admin_user moved to
+# modules/auth/dependencies.py and imported at the top of this file.
 
-# Models
-class UserBase(BaseModel):
-    email: EmailStr
-    full_name: str
-    role: str = "user"
-
-class UserCreate(UserBase):
-    password: str
-    organization_id: Optional[str] = None
-
-class UserLogin(BaseModel):
-    email: EmailStr
-    password: str
-
-class PasswordChange(BaseModel):
-    old_password: str
-    new_password: str
-
-class PasswordReset(BaseModel):
-    email: EmailStr
-    recovery_contact: str  # mobile or recovery email
-
-class ProfileUpdate(BaseModel):
-    full_name: str
-
-class UserCreateRequest(BaseModel):
-    email: EmailStr
-    full_name: str
-    assigned_facilities: List[str] = []
-
-class UserResponse(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    id: str
-    email: str
-    full_name: str
-    role: str
-    organization_id: Optional[str] = None
-    assigned_facilities: List[str] = []
-    requires_password_change: bool = False
-    recovery_email: Optional[str] = None
-    recovery_mobile: Optional[str] = None
-    created_at: str
-
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str
-    user: UserResponse
+# Phase B2: auth/user Pydantic models moved to modules/auth/contracts.py
+# and modules/users/contracts.py — re-imported at the top of this file.
 
 class OrganizationCreate(BaseModel):
     name: str
@@ -1888,273 +1811,9 @@ async def get_config_labels():
 
 
 # Auth endpoints
-@api_router.post("/auth/signup", response_model=TokenResponse)
-async def signup(user_data: UserCreate):
-    existing = await db.users.find_one({"email": user_data.email, "is_deleted": {"$ne": True}}, {"_id": 0})
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
-    user_dict = {
-        "id": str(uuid.uuid4()),
-        "email": user_data.email,
-        "full_name": user_data.full_name,
-        "role": user_data.role,
-        "password_hash": get_password_hash(user_data.password),
-        "organization_id": user_data.organization_id,
-        "assigned_facilities": [],
-        "requires_password_change": False,
-        "recovery_email": None,
-        "recovery_mobile": None,
-        "created_at": datetime.now(timezone.utc).isoformat()
-    }
-    
-    await db.users.insert_one(user_dict)
-    
-    access_token = create_access_token(data={"sub": user_dict["id"]})
-    user_response = UserResponse(**{k: v for k, v in user_dict.items() if k != "password_hash"})
-    
-    return TokenResponse(access_token=access_token, token_type="bearer", user=user_response)
-
-@api_router.post("/auth/login", response_model=TokenResponse)
-async def login(credentials: UserLogin):
-    user = await db.users.find_one({"email": credentials.email}, {"_id": 0})
-    if not user or not verify_password(credentials.password, user["password_hash"]):
-        raise HTTPException(status_code=401, detail="Incorrect email or password")
-    
-    # Check if user is deleted
-    if user.get("is_deleted", False):
-        raise HTTPException(status_code=403, detail="Your account has been deleted. Please contact your administrator.")
-    
-    # Check if user is active
-    if not user.get("is_active", True):
-        raise HTTPException(status_code=403, detail="Your account has been deactivated. Please contact your administrator.")
-    
-    # For non-super admin users, check if their organization is active
-    if user.get("role") != "super_admin" and user.get("organization_id"):
-        org = await db.organizations.find_one({"id": user["organization_id"]}, {"_id": 0})
-        if org and (org.get("is_deleted") or not org.get("is_active", True)):
-            raise HTTPException(status_code=403, detail="Your organization has been deactivated. Please contact your administrator.")
-        
-        # Check if subscription has expired
-        if org and org.get("subscription_expires_at"):
-            from datetime import datetime, date
-            try:
-                expires_str = org["subscription_expires_at"]
-                now = datetime.now(timezone.utc)
-                
-                # Handle different date formats
-                if 'T' in str(expires_str):
-                    # Full ISO format with time
-                    expires_at = datetime.fromisoformat(expires_str.replace('Z', '+00:00'))
-                    is_expired = expires_at < now
-                else:
-                    # Date only format (YYYY-MM-DD) - consider expired at end of that day
-                    expires_date = datetime.strptime(str(expires_str), '%Y-%m-%d').date()
-                    is_expired = expires_date < now.date()
-                
-                if is_expired:
-                    raise HTTPException(status_code=403, detail="Your organization's subscription has expired. Please contact your administrator to renew.")
-            except (ValueError, TypeError) as e:
-                print(f"Subscription date parse error: {e}")
-                pass  # If date parsing fails, allow login
-    
-    access_token = create_access_token(data={"sub": user["id"]})
-    user_response = UserResponse(**{k: v for k, v in user.items() if k != "password_hash"})
-    
-    return TokenResponse(access_token=access_token, token_type="bearer", user=user_response)
-
-@api_router.post("/auth/change-password")
-async def change_password(password_data: PasswordChange, current_user: dict = Depends(get_current_user)):
-    if not verify_password(password_data.old_password, current_user["password_hash"]):
-        raise HTTPException(status_code=400, detail="Incorrect old password")
-    
-    # Validate new password is different from current
-    if password_data.old_password == password_data.new_password:
-        raise HTTPException(status_code=400, detail="New password must be different from current password")
-    
-    # Validate password strength
-    if len(password_data.new_password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long")
-    if not any(c.isupper() for c in password_data.new_password):
-        raise HTTPException(status_code=400, detail="Password must contain at least one uppercase letter")
-    if not any(c.islower() for c in password_data.new_password):
-        raise HTTPException(status_code=400, detail="Password must contain at least one lowercase letter")
-    if not any(c.isdigit() for c in password_data.new_password):
-        raise HTTPException(status_code=400, detail="Password must contain at least one number")
-    if not any(c in '!@#$%^&*()_+-=[]{}|;:,.<>?' for c in password_data.new_password):
-        raise HTTPException(status_code=400, detail="Password must contain at least one special character (!@#$%^&*()_+-=[]{}|;:,.<>?)")
-    
-    new_hash = get_password_hash(password_data.new_password)
-    await db.users.update_one(
-        {"id": current_user["id"]},
-        {"$set": {"password_hash": new_hash, "requires_password_change": False}}
-    )
-    return {"message": "Password changed successfully"}
-
-@api_router.post("/auth/forgot-password")
-async def forgot_password(reset_data: PasswordReset):
-    user = await db.users.find_one({"email": reset_data.email}, {"_id": 0})
-    if not user:
-        # Don't reveal if user exists
-        return {"message": "If the email exists, recovery instructions will be sent"}
-    
-    # Generate reset token
-    reset_token = str(uuid.uuid4())
-    await db.password_resets.insert_one({
-        "id": reset_token,
-        "user_id": user["id"],
-        "email": user["email"],
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "expires_at": (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat(),
-        "used": False
-    })
-    
-    # Get frontend URL from environment or use default
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://ghg-modular.preview.emergentagent.com')
-    reset_link = f"{frontend_url}/reset-password?token={reset_token}"
-    
-    # Send email with beautiful template
-    logo_url = "https://customer-assets.emergentagent.com/job_d67b5362-a184-47b7-81eb-abb9d39b89dd/artifacts/qllw2r8k_Logo_v3.png"
-    email_body = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    </head>
-    <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8f9fa;">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f8f9fa; padding: 40px 20px;">
-            <tr>
-                <td align="center">
-                    <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
-                        <!-- Header -->
-                        <tr>
-                            <td style="background-color: #ffffff; padding: 30px; border-radius: 12px 12px 0 0; text-align: center; border-bottom: 1px solid #e5e7eb;">
-                                <img src="{logo_url}" alt="SustainRepo Logo" style="width: 60px; height: 60px; border-radius: 8px; margin-bottom: 10px;">
-                                <h1 style="color: #1f2937; margin: 10px 0 0 0; font-size: 24px; font-weight: 600;">SustainRepo</h1>
-                                <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">Carbon Accounting Platform</p>
-                            </td>
-                        </tr>
-                        <!-- Content -->
-                        <tr>
-                            <td style="padding: 40px 30px;">
-                                <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 20px;">Password Reset Request</h2>
-                                <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
-                                    Hello <strong style="color: #2eb67d;">{user.get('full_name', 'User')}</strong>,
-                                </p>
-                                <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 25px 0;">
-                                    We received a request to reset your password. Click the button below to create a new password:
-                                </p>
-                                <table role="presentation" cellspacing="0" cellpadding="0" style="margin: 0 auto 25px auto;">
-                                    <tr>
-                                        <td style="background-color: #2eb67d; border-radius: 8px;">
-                                            <a href="{reset_link}" style="display: inline-block; padding: 14px 32px; color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 600;">Reset Password</a>
-                                        </td>
-                                    </tr>
-                                </table>
-                                <p style="color: #6b7280; font-size: 13px; line-height: 1.6; margin: 0 0 15px 0;">
-                                    If the button doesn't work, copy and paste this link into your browser:
-                                </p>
-                                <p style="color: #2eb67d; font-size: 13px; word-break: break-all; margin: 0 0 25px 0;">
-                                    {reset_link}
-                                </p>
-                                <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; border-radius: 4px;">
-                                    <p style="color: #92400e; font-size: 13px; margin: 0;">
-                                        <strong>Important:</strong> This link will expire in 24 hours. If you didn't request a password reset, please ignore this email.
-                                    </p>
-                                </div>
-                            </td>
-                        </tr>
-                        <!-- Footer -->
-                        <tr>
-                            <td style="background-color: #f9fafb; padding: 20px 30px; border-radius: 0 0 12px 12px; border-top: 1px solid #e5e7eb;">
-                                <p style="color: #6b7280; font-size: 12px; margin: 0; text-align: center;">
-                                    &copy; 2026 SustainRepo. All rights reserved.
-                                </p>
-                            </td>
-                        </tr>
-                    </table>
-                </td>
-            </tr>
-        </table>
-    </body>
-    </html>
-    """
-    
-    await send_email(user["email"], "Reset Your SustainRepo Password", email_body)
-    
-    return {"message": "If the email exists, recovery instructions will be sent"}
-
-class ResetPasswordRequest(BaseModel):
-    token: str
-    new_password: str
-
-@api_router.post("/auth/reset-password")
-async def reset_password(reset_data: ResetPasswordRequest):
-    """Reset password using token from email"""
-    # Find the reset token
-    reset_record = await db.password_resets.find_one({
-        "id": reset_data.token,
-        "used": False
-    }, {"_id": 0})
-    
-    if not reset_record:
-        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
-    
-    # Check if token has expired
-    expires_at = datetime.fromisoformat(reset_record["expires_at"].replace('Z', '+00:00'))
-    if datetime.now(timezone.utc) > expires_at:
-        raise HTTPException(status_code=400, detail="Reset token has expired")
-    
-    # Validate password strength
-    if len(reset_data.new_password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long")
-    if not any(c.isupper() for c in reset_data.new_password):
-        raise HTTPException(status_code=400, detail="Password must contain at least one uppercase letter")
-    if not any(c.islower() for c in reset_data.new_password):
-        raise HTTPException(status_code=400, detail="Password must contain at least one lowercase letter")
-    if not any(c.isdigit() for c in reset_data.new_password):
-        raise HTTPException(status_code=400, detail="Password must contain at least one number")
-    if not any(c in '!@#$%^&*()_+-=[]{}|;:,.<>?' for c in reset_data.new_password):
-        raise HTTPException(status_code=400, detail="Password must contain at least one special character (!@#$%^&*()_+-=[]{}|;:,.<>?)")
-    
-    # Update user's password
-    new_hash = get_password_hash(reset_data.new_password)
-    await db.users.update_one(
-        {"id": reset_record["user_id"]},
-        {"$set": {"password_hash": new_hash, "requires_password_change": False}}
-    )
-    
-    # Mark token as used
-    await db.password_resets.update_one(
-        {"id": reset_data.token},
-        {"$set": {"used": True, "used_at": datetime.now(timezone.utc).isoformat()}}
-    )
-    
-    return {"message": "Password reset successfully. You can now login with your new password."}
-
-@api_router.get("/auth/me", response_model=UserResponse)
-async def get_me(current_user: dict = Depends(get_current_user)):
-    return UserResponse(**current_user)
-
-@api_router.put("/auth/profile", response_model=UserResponse)
-async def update_profile(profile_data: ProfileUpdate, current_user: dict = Depends(get_current_user)):
-    """Update current user's profile (name)"""
-    # Validate name
-    if not profile_data.full_name or len(profile_data.full_name.strip()) < 2:
-        raise HTTPException(status_code=400, detail="Name must be at least 2 characters")
-    
-    # Update user in database
-    update_dict = {
-        "full_name": profile_data.full_name.strip(),
-        "updated_at": datetime.now(timezone.utc).isoformat()
-    }
-    
-    await db.users.update_one({"id": current_user["id"]}, {"$set": update_dict})
-    
-    # Fetch and return updated user
-    updated_user = await db.users.find_one({"id": current_user["id"]}, {"_id": 0})
-    return UserResponse(**updated_user)
+# Phase B2: 7 auth routes (/auth/signup, /auth/login, /auth/change-password,
+# /auth/forgot-password, /auth/reset-password, /auth/me, /auth/profile) moved to
+# modules/auth/router.py — included on api_router at the top of this file.
 
 # Super Admin - Organization endpoints
 @api_router.post("/super-admin/organizations", response_model=OrganizationResponse)
@@ -9713,180 +9372,10 @@ async def get_file_info(file_id: str):
     }
 
 # Admin user management endpoints
-@api_router.post("/admin/users")
-async def create_user(
-    user_data: UserCreateRequest,
-    current_user: dict = Depends(get_admin_user)
-):
-    org_id = current_user.get("organization_id")
-    if not org_id:
-        raise HTTPException(status_code=400, detail="No organization assigned")
-    
-    # Check max_users limit
-    org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
-    if org:
-        max_users = org.get("max_users", 20)
-        current_user_count = await db.users.count_documents({
-            "organization_id": org_id,
-            "role": "user",
-            "is_deleted": {"$ne": True}
-        })
-        if current_user_count >= max_users:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Maximum user limit ({max_users}) reached for your organization"
-            )
-    
-    # Check if email exists (exclude soft-deleted users to allow email reuse)
-    existing = await db.users.find_one({"email": user_data.email, "is_deleted": {"$ne": True}}, {"_id": 0})
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
-    temp_password = generate_random_password()
-    
-    user_dict = {
-        "id": str(uuid.uuid4()),
-        "email": user_data.email,
-        "full_name": user_data.full_name,
-        "role": "user",
-        "password_hash": get_password_hash(temp_password),
-        "organization_id": org_id,
-        "assigned_facilities": user_data.assigned_facilities,
-        "requires_password_change": True,
-        "created_at": datetime.now(timezone.utc).isoformat()
-    }
-    
-    await db.users.insert_one(user_dict)
-    
-    # Get organization name for the email
-    org = await db.organizations.find_one({"id": org_id}, {"_id": 0, "name": 1})
-    org_name = org.get("name", "your organization") if org else "your organization"
-    
-    # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://ghg-modular.preview.emergentagent.com')
-    
-    # Send welcome email with beautiful template
-    email_body = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    </head>
-    <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8f9fa;">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f8f9fa; padding: 40px 20px;">
-            <tr>
-                <td align="center">
-                    <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
-                        <!-- Header -->
-                        <tr>
-                            <td style="background-color: #ffffff; padding: 30px; border-radius: 12px 12px 0 0; text-align: center; border-bottom: 1px solid #e5e7eb;">
-                                <img src="https://customer-assets.emergentagent.com/job_d67b5362-a184-47b7-81eb-abb9d39b89dd/artifacts/qllw2r8k_Logo_v3.png" alt="SustainRepo Logo" style="width: 60px; height: 60px; border-radius: 8px; margin-bottom: 10px;">
-                                <h1 style="color: #1f2937; margin: 10px 0 0 0; font-size: 24px; font-weight: 600;">SustainRepo</h1>
-                                <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">Carbon Accounting Platform</p>
-                            </td>
-                        </tr>
-                        <!-- Content -->
-                        <tr>
-                            <td style="padding: 40px 30px;">
-                                <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 20px;">Welcome to SustainRepo!</h2>
-                                <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
-                                    Hello <strong style="color: #2eb67d;">{user_data.full_name}</strong>,
-                                </p>
-                                <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 25px 0;">
-                                    You have been invited to join <strong style="color: #2eb67d;">{org_name}</strong> on SustainRepo. Below are your login credentials:
-                                </p>
-                                <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
-                                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
-                                        <tr>
-                                            <td style="padding: 10px 0; border-bottom: 1px solid #e5e7eb;">
-                                                <span style="color: #6b7280; font-size: 13px; display: block; margin-bottom: 4px;">Email</span>
-                                                <strong style="color: #1f2937; font-size: 15px;">{user_data.email}</strong>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td style="padding: 10px 0;">
-                                                <span style="color: #6b7280; font-size: 13px; display: block; margin-bottom: 4px;">Temporary Password</span>
-                                                <div style="background-color: #ffffff; padding: 14px 20px; border-radius: 8px; border: 2px solid #2eb67d; display: inline-block;">
-                                                    <code style="color: #000000; font-size: 20px; font-family: 'Courier New', Courier, monospace; letter-spacing: 3px; font-weight: bold;">{temp_password}</code>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    </table>
-                                </div>
-                                <table role="presentation" cellspacing="0" cellpadding="0" style="margin: 0 auto 25px auto;">
-                                    <tr>
-                                        <td style="background-color: #2eb67d; border-radius: 8px;">
-                                            <a href="{frontend_url}/login" style="display: inline-block; padding: 14px 32px; color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 600;">Login to SustainRepo</a>
-                                        </td>
-                                    </tr>
-                                </table>
-                                <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; border-radius: 4px;">
-                                    <p style="color: #92400e; font-size: 13px; margin: 0;">
-                                        <strong>Important:</strong> Please change your password upon first login for security purposes.
-                                    </p>
-                                </div>
-                            </td>
-                        </tr>
-                        <!-- Footer -->
-                        <tr>
-                            <td style="background-color: #f9fafb; padding: 20px 30px; border-radius: 0 0 12px 12px; border-top: 1px solid #e5e7eb;">
-                                <p style="color: #6b7280; font-size: 12px; margin: 0; text-align: center;">
-                                    &copy; 2026 SustainRepo. All rights reserved.
-                                </p>
-                            </td>
-                        </tr>
-                    </table>
-                </td>
-            </tr>
-        </table>
-    </body>
-    </html>
-    """
-    
-    await send_email(user_data.email, "Welcome to SustainRepo - Your Account is Ready!", email_body)
-    
-    # Don't return temp_password - it's sent via email only
-    return {"message": "User created and email sent"}
+# Phase B2: 4 admin user-management routes (POST/GET /admin/users,
+# PUT /admin/users/{id}/assign-facilities, DELETE /admin/users/{id}) moved
+# to modules/users/router.py — included on api_router at the top of this file.
 
-@api_router.get("/admin/users", response_model=List[UserResponse])
-async def get_all_users(current_user: dict = Depends(get_admin_user)):
-    org_id = current_user.get("organization_id")
-    if not org_id:
-        return []  # Admin without organization has no users to manage
-    # Exclude deleted users from the list
-    query = {"organization_id": org_id, "role": "user", "is_deleted": {"$ne": True}}
-    users = await db.users.find(query, {"_id": 0, "password_hash": 0}).to_list(1000)
-    return [UserResponse(**u) for u in users]
-
-@api_router.put("/admin/users/{user_id}/assign-facilities")
-async def assign_facilities(user_id: str, facility_ids: List[str], current_user: dict = Depends(get_admin_user)):
-    user = await db.users.find_one({"id": user_id}, {"_id": 0})
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    await db.users.update_one({"id": user_id}, {"$set": {"assigned_facilities": facility_ids}})
-    return {"message": "Facilities assigned successfully"}
-
-@api_router.delete("/admin/users/{user_id}")
-async def delete_user(user_id: str, current_user: dict = Depends(get_admin_user)):
-    if user_id == current_user["id"]:
-        raise HTTPException(status_code=400, detail="Cannot delete your own account")
-    
-    # Verify user exists and belongs to the same organization
-    user_to_delete = await db.users.find_one({"id": user_id}, {"_id": 0})
-    if not user_to_delete:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    # Admin can only delete users from their own organization
-    if current_user["role"] == "admin":
-        if user_to_delete.get("organization_id") != current_user.get("organization_id"):
-            raise HTTPException(status_code=403, detail="Not authorized to delete users from other organizations")
-    
-    # Hard delete: permanently remove user from database
-    await db.users.delete_one({"id": user_id})
-    
-    return {"message": "User deleted permanently."}
 
 # Health check
 @api_router.get("/health")

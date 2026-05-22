@@ -211,6 +211,37 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 - P1: Dashboard "No Data" after toggling organization Scope access
 - P2: C7 Edit Dialog Stale State (yearly financial periods not transforming correctly)
 
+- ✅ Phase 7l-K — Backend Phase B2 (Feb 2026): Auth + Users Domain Extraction + Health-Contracts Endpoint
+  - **`server.py`: 11290 → 10749 lines (−541 lines, −4.8%)**. 162 → 151 routes (−11 routes moved into per-domain modular routers).
+  - **New `/api/health/contracts` endpoint** (per session enhancement request): runs the module contract verifier on demand and returns structured JSON `{status, modules_checked, passed: [...], failed: [{path, error_type, error}]}`. Lets frontend or CI verify backend modular health without scraping logs.
+    - Lives in `app/router/health.py`. Verified: `GET /api/health/contracts` returns `{status: "passed", modules_checked: 20, failed: 0}`.
+  - **Auth domain extraction** (`modules/auth/`):
+    - `contracts.py` — `UserBase`, `UserCreate`, `UserLogin`, `PasswordChange`, `PasswordReset`, `ProfileUpdate`, `ResetPasswordRequest`, `UserResponse`, `TokenResponse` Pydantic models. server.py re-imports them at the top so any legacy code referencing the bare names still works.
+    - `dependencies.py` — `security` HTTPBearer + `get_current_user` + `get_super_admin_user` + `get_admin_user` FastAPI deps. Behaviour byte-identical to legacy: token decode → 401, missing user → 401, soft-deleted/inactive/expired-org → 403 (super-admin exempt; date parse failures lenient).
+    - `email_templates.py` — extracted password-reset + new-user-invite HTML templates.
+    - `router.py` — 7 routes wired:
+      - `POST /auth/signup` — bcrypt hash + JWT issue
+      - `POST /auth/login` — credentials + active-account + active-org + non-expired-subscription checks
+      - `POST /auth/change-password` — old-password verify + strength validation + hash update
+      - `POST /auth/forgot-password` — generates reset token + sends Resend HTML email (info-leak-safe response)
+      - `POST /auth/reset-password` — token validation + strength check + token-marked-used
+      - `GET /auth/me` — returns current user
+      - `PUT /auth/profile` — full_name update with min-length 2 validation
+    - All 7 endpoints verified byte-identical to legacy via curl smoke tests.
+  - **Users admin domain extraction** (`modules/users/`):
+    - `contracts.py` — `UserCreateRequest` Pydantic model.
+    - `router.py` — 4 routes wired:
+      - `POST /admin/users` — invite flow with `max_users` enforcement + email uniqueness + temp password + welcome email
+      - `GET /admin/users` — lists active org users (excludes soft-deleted)
+      - `PUT /admin/users/{user_id}/assign-facilities` — facility allocation
+      - `DELETE /admin/users/{user_id}` — hard delete with self-delete + cross-org guards
+    - `GET /api/admin/users` verified: returns 2 active users.
+  - **Repositories layer kicks off** (`repositories/users_repository.py`):
+    - `UsersRepository` class with `find_by_id`, `find_by_email`, `find_by_email_any`, `insert`, `update`, `delete`, `list_active_users_in_org`, `count_active_users_in_org`. Routes don't yet use it (Phase B2 is purely "extract" — refactor to repository in Phase B4). Module-level `users_repository` singleton ready for adoption.
+  - **Contract verifier** still PASSES — 20 modules importable, 0 failures.
+  - **All E2E smoke tests pass**: `/api/auth/login` (JWT 165 chars), `/api/auth/me`, `/api/admin/users`, `/api/dashboard/stats` (4194.63 tCO₂e identical to pre-refactor), `/api/organizations/my`, `/api/facilities` (6).
+  - **Architectural milestone**: First domain fully extracted from `server.py` into `modules/<domain>/router.py` + `contracts.py` + `dependencies.py` + `email_templates.py`. Pattern is now proven and ready to apply to Facilities/Organizations/Sinks (Phase B3), Emissions (Phase B4), and so on.
+
 - ✅ Phase 7l-J — Backend Phase B1 (Feb 2026): Foundation Refactor — Skeleton + Safe Extractions
   - **Goal**: lay the modular backend chassis without changing ANY business logic, calculations, formulas, APIs, payloads, or audit behavior. Forward-compatible with phases B2–B12.
   - **New directory tree** under `/app/backend/`:
