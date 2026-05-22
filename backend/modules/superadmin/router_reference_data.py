@@ -338,9 +338,9 @@ async def get_emission_categories(
         {"scope": "scope1", "name": "Process Emissions", "category": "Process Emissions"},
         # Scope 2 categories
         {"scope": "scope2", "name": "Purchased Electricity", "category": "Purchased Electricity"},
-        {"scope": "scope2", "name": "Purchased Steam", "category": "Purchased Steam"},
-        {"scope": "scope2", "name": "Purchased Heating", "category": "Purchased Heating"},
-        {"scope": "scope2", "name": "Purchased Cooling", "category": "Purchased Cooling"},
+        # NOTE: 'Purchased Steam', 'Purchased Heating', 'Purchased Cooling' removed
+        # on user's request — do NOT re-add. Active 'Purchased Steam/Heat'
+        # category is managed via the super-admin UI.
         # Biogenic categories
         {"scope": "biogenic", "name": "Biogenic CO2 Emissions", "category": "Biogenic CO2 Emissions"},
         {"scope": "biogenic", "name": "Biofuel Combustion", "category": "Biofuel Combustion"},

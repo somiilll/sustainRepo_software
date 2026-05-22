@@ -75,9 +75,9 @@ _SEED: List[CategoryDescriptor] = [
     CategoryDescriptor(id="process_emissions", scope="scope1", name="Process Emissions"),
     # Scope 2
     CategoryDescriptor(id="purchased_electricity", scope="scope2", name="Purchased Electricity"),
-    CategoryDescriptor(id="purchased_steam", scope="scope2", name="Purchased Steam"),
-    CategoryDescriptor(id="purchased_heating", scope="scope2", name="Purchased Heating"),
-    CategoryDescriptor(id="purchased_cooling", scope="scope2", name="Purchased Cooling"),
+    # NOTE: 'Purchased Steam', 'Purchased Heating', 'Purchased Cooling' removed
+    # on user's request — do NOT re-add. Active 'Purchased Steam/Heat'
+    # category is managed via the super-admin UI (not seeded here).
     # Scope 3 (C1–C15) — capabilities mirror frontend scope3-definitions.
     _s3("c1", "Purchased Goods and Services"),
     _s3("c2", "Capital Goods"),

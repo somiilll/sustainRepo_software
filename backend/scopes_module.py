@@ -100,9 +100,9 @@ DEFAULT_CATEGORIES = {
     ],
     "scope2": [
         {"name": "Purchased Electricity", "code": "purchased_electricity", "display_order": 1},
-        {"name": "Purchased Heat/Steam", "code": "purchased_heat_steam", "display_order": 2},
-        {"name": "Purchased Cooling", "code": "purchased_cooling", "display_order": 3},
-        {"name": "Renewable Electricity", "code": "renewable_electricity", "display_order": 4},
+        # NOTE: 'Purchased Heat/Steam', 'Purchased Cooling' and 'Renewable Electricity'
+        # used to be seeded here. They were removed on the user's request — do NOT re-add.
+        # The active 'Purchased Steam/Heat' category is created via the super-admin UI.
     ],
     "scope3": [],
     "biogenic": [
