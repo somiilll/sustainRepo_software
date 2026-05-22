@@ -327,6 +327,14 @@ export default function EmissionHistoryDialog({
                 skipFields.push('total_emissions');
               }
 
+              // For Scope 2 records, hide the "Activity" field (sub_category /
+              // activity_name) — it duplicates the category for these records.
+              const isScope2Record =
+                newValues?.scope === 'scope2' || oldValues?.scope === 'scope2';
+              if (isScope2Record) {
+                skipFields.push('sub_category', 'activity_name');
+              }
+
               if (history.field_changes && history.field_changes.length > 0) {
                 // New format: backend provides field_changes array
                 changedFields = history.field_changes
