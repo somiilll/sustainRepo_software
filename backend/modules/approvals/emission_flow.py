@@ -113,14 +113,36 @@ async def intercept_create(record_dict: dict, snapshot: dict, current_user: dict
 # UPDATE hook
 # ---------------------------------------------------------------------------
 
+def _enrich_snapshot_with_totals(snapshot: dict) -> dict:
+    """Populate denormalized emission fields on a snapshot from outputs.
+
+    The Approvals UI reads `total_emissions` / `co2e_emissions` directly from
+    `entity_snapshot`. The Pydantic create-model doesn't declare these fields,
+    so a bare `model_dump()` lacks them — re-add them here so re-saved
+    snapshots stay consistent with the create-time shape.
+    """
+    enriched = dict(snapshot)
+    outputs = enriched.get("outputs") or {}
+    enriched["co2_emissions"] = (outputs.get("co2") or {}).get("value", 0) or 0
+    enriched["ch4_emissions"] = (outputs.get("ch4") or {}).get("value", 0) or 0
+    enriched["n2o_emissions"] = (outputs.get("n2o") or {}).get("value", 0) or 0
+    enriched["co2e_emissions"] = (outputs.get("co2e") or {}).get("value", 0) or 0
+    enriched["total_emissions"] = enriched["co2e_emissions"]
+    return enriched
+
+
 async def _refresh_approval_snapshot(entity_id: str, snapshot: dict) -> None:
-    """Keep the open approval_request's snapshot in sync after an admin edit."""
+    """Keep the open approval_request's snapshot in sync after an edit.
+
+    Stores an enriched snapshot (with denormalized totals) so the Approvals
+    table stays in sync with the live pending record.
+    """
     req = await db.approval_requests.find_one(
         {"entity_type": "emission", "entity_id": entity_id, "status": "pending"},
         {"_id": 0, "id": 1},
     )
     if req:
-        await update_request_snapshot(req["id"], snapshot)
+        await update_request_snapshot(req["id"], _enrich_snapshot_with_totals(snapshot))
 
 
 async def _auto_approve_admin_edit(
