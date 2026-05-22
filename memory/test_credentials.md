@@ -19,6 +19,13 @@
 - **Role:** admin
 - **Organization:** test-org-2
 
+## OILES INDIA — Regular User (for Approval Workflow testing)
+- **Email:** ruthvikanchuri3123@gmail.com
+- **Password:** Test123!
+- **Role:** user
+- **Organization:** OILES INDIA PVT. LTD.
+- **Notes:** Has pending_create records. Use to verify "Pending for approval" badges in GHG ledger.
+
 ## Notes
 - All passwords follow the pattern: minimum 8 characters with uppercase, lowercase, and numbers
 - SuperAdmin can manage all organizations, users, and platform configurations

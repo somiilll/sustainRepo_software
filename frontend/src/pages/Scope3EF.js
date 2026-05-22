@@ -916,7 +916,7 @@ export default function Scope3EF() {
                     <SelectItem value="none">None (Stationary & Mobile only)</SelectItem>
                     <SelectItem value="stationary_combustion">Stationary Combustion</SelectItem>
                     <SelectItem value="mobile_combustion">Mobile Combustion</SelectItem>
-                    <SelectItem value="electricity">Electricity</SelectItem>
+                    <SelectItem value="energy">Energy</SelectItem>
                     <SelectItem value="process_emissions">Process Emissions</SelectItem>
                   </SelectContent>
                 </Select>

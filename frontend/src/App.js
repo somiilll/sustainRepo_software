@@ -9,8 +9,10 @@ import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import Facilities from './pages/Facilities';
 import Emissions from './pages/Emissions';
+import ApprovalSection from './modules/ghg/sections/ApprovalSection';
 import Sinks from './pages/Sinks';
 import BaseYearEmissions from './pages/BaseYearEmissions';
+import BaseYearAndTargets from './pages/BaseYearAndTargets';
 import Reports from './pages/Reports';
 import UserManagement from './pages/UserManagement';
 import OrganizationDetails from './pages/OrganizationDetails';
@@ -39,6 +41,11 @@ import AuditTrails from './pages/AuditTrails';
 import BulkUpload from './pages/BulkUpload';
 import Layout from './components/Layout';
 import PasswordChangeModal from './components/PasswordChangeModal';
+import { initializeCategoryModules } from './modules/emissions';
+
+// Initialize the emissions Category Registry once at app boot.
+// Pure registration step — does not alter any existing business logic.
+initializeCategoryModules();
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -215,11 +222,17 @@ const AppRoutes = () => {
           {/* Admin & User Routes */}
           <Route path="organization" element={<OrganizationDetails />} />
           <Route path="facilities" element={<Facilities />} />
-          <Route path="emissions" element={<Emissions />} />
+          <Route path="emissions" element={<Navigate to="/ghg/scope1" replace />} />
+          <Route path="ghg" element={<Navigate to="/ghg/scope1" replace />} />
+          <Route path="ghg/scope1" element={<Emissions />} />
+          <Route path="ghg/scope2" element={<Emissions />} />
+          <Route path="ghg/scope3" element={<Emissions />} />
+          <Route path="ghg/biogenic" element={<Emissions />} />
+          <Route path="ghg/approvals" element={<ApprovalSection />} />
           <Route path="emissions/dynamic" element={<DynamicEmissionsTest />} />
           <Route path="bulk-upload" element={<BulkUpload />} />
           <Route path="sinks" element={<Sinks />} />
-          <Route path="base-year-emissions" element={<BaseYearEmissions />} />
+          <Route path="base-year-emissions" element={<BaseYearAndTargets />} />
           <Route path="reports" element={<Reports />} />
           <Route path="users" element={
             <AdminRoute>

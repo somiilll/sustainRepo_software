@@ -1,0 +1,68 @@
+{
+  "summary": "Iter73 (frontend-only, post-472-line-deletion regression sweep): ALL 7 EDIT-SAVE PATHS PASS after Scope2Modules generic dispatch wired in + legacy inline handleSubmit block removed from Emissions.js. Init log confirmed '[Emissions] Category modules initialized: 41 entries' (was 40, +1 = generic-scope2 module). Scope 2 module dispatch path verified for both record id=3b126dfa (Renewable Electricity Custom) AND second record id=74ab1cf1 (Non-Renewable Electricity Custom). All 5 regressions (S1 Stationary, S1 Mobile, biogenic-scope1, S3 C2, biogenic-scope3) continue to PUT 200 + dual audit POST 200 with correct payload shape. Defensive fallback toast 'No category module matched for this emission' did NOT fire for any record. C7 was explicitly skipped per request.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_evidence": {
+    "init_log_observed": "[Emissions] Category modules initialized: 41 entries (matches expected +1 for generic-scope2)",
+    "scope2_primary_3b126dfa": {
+      "record": "Facility A FY2025-26 312 kWh Renewable Electricity Custom",
+      "PUT_status": 200,
+      "audit_POST_responses": [200, 200],
+      "put_top_level_keys": ["category","dynamic_field_values","evidence_url","facility_id","formula_id","frequency_type","fuel_database_id","fuel_type","justification","notes","outputs","process_descriptions","process_names","reporting_period","responsible_person","responsible_person_contact","responsible_person_designation","scope","source_of_information","sub_category"],
+      "fuel_database_id_present": true,
+      "fuel_database_id_value": "646edd59-6245-4b87-bac6-38886c154e76",
+      "has_scope3_keys": false,
+      "has_biogenic_keys": false,
+      "has_asset_name": false,
+      "has_from_to_location": false,
+      "renewable_custom_preserved": "YES — Scope 2 table after save still shows 'Renewable Electricity Custom' for Facility A 312 kWh row (62.4000 tCO2e displayed)",
+      "verdict": "PASS — Scope 2 generic module dispatch fires the same clean payload shape as Scope 1 (no scope3/biogenic/asset/location pollution)."
+    },
+    "scope2_second_74ab1cf1": {
+      "record": "Facility B 8981 kWh Non-Renewable Electricity Custom (2026-01)",
+      "PUT_status": 200,
+      "audit_POST_responses": [200, 200],
+      "put_top_level_keys_match_scope1_shape": true,
+      "fuel_database_id": "646edd59-6245-4b87-bac6-38886c154e76",
+      "has_scope3_keys": false,
+      "has_biogenic_keys": false,
+      "verdict": "PASS — second Scope 2 record confirms module dispatch is consistent."
+    },
+    "scope2_third_visible_id": "2e681b2c-ff15-4c1e-866b-b0c2464e8fe1 (not edited, but visible in Scope 2 tab — Facility B 43.43 MWh Non-Renewable Custom 2026-02)",
+    "regression_scope1_stationary_36e87c71": {"PUT_status": 200, "audit_POST_status": [200, 200], "fuel_database_id": "418089e1-29c2-42d8-b844-25d39d9ff854", "verdict": "PASS"},
+    "regression_scope1_mobile_3983081a": {"PUT_status": 200, "audit_POST_status": [200, 200], "fuel_database_id": "38c80c6a-ea07-453e-9105-be0f4082e225", "verdict": "PASS"},
+    "regression_biogenic_scope1_f01e314a": {"PUT_status": 200, "audit_POST_status": [200, 200], "biogenic_scope_selection_top_level": true, "biogenic_scope_selection_in_dfv": "scope1", "verdict": "PASS"},
+    "regression_scope3_c2_fcd7a5f0": {"PUT_status": 200, "audit_POST_status": [200, 200], "calculation_method_scope3_present": true, "verdict": "PASS"},
+    "regression_biogenic_scope3_511601e9": {"PUT_status": 200, "audit_POST_status": [200, 200], "biogenic_scope_selection_top_level": true, "biogenic_scope_selection_in_dfv": "scope3", "verdict": "PASS"},
+    "defensive_fallback_toast_fired_for_any_record": false,
+    "negative_validation_empty_process_names": {
+      "attempted_on": "3b126dfa (Scope 2)",
+      "outcome": "INCONCLUSIVE — could not locate a dedicated process_names input field via name='process_names' / id*='process' / label='Process Name' selectors in the Scope 2 edit dialog within 30s. The Scope 2 module likely renders process_names through a different markup path (possibly dynamic field array or hidden). Re-attempting save with the dialog as-is succeeded (PUT 200), as process_names was non-empty by default. Not a blocker — purely a test harness selector gap. Main agent may want to expose a stable data-testid on process_names input to support negative validation tests across all scopes."
+    }
+  },
+  "critical_code_review_comments": [
+    "GenericScope2Module dispatch is working correctly — payload shape exactly mirrors Scope 1 (same top-level keys: fuel_database_id present, no scope3_*, no biogenic_*, no asset_name, no from/to_location). Confirms shared Scope1Edit helpers are reused properly.",
+    "Init log count incremented from 40 → 41 entries as expected (+1 generic-scope2). No additional unintended registrations.",
+    "Defensive fallback toast 'No category module matched for this emission. Cannot save.' did NOT fire across 7 distinct records spanning Scope 1 (stationary/mobile), Scope 2 (renewable/non-renewable), Scope 3 (C2), Biogenic (scope1/scope3) — module lookup resolves cleanly for all valid records.",
+    "472-line deletion appears clean — no regressions detected in any of the 6 verified non-C7 flows. C7 skipped per explicit request.",
+    "Test harness selector gap: process_names input lacks a stable data-testid, blocking automated negative-validation across scopes. Suggest main agent add data-testid='process-names-input' (or equivalent) to the shared field component so empty-validation can be regressed in future iterations.",
+    "Pre-existing hydration warnings (EditFormSections option/select <span> children; MultiEmployeeInput nested <button> in AccordionTrigger) remain — unchanged from iter_72, not introduced this iteration."
+  ],
+  "test_report_links": [],
+  "action_items": [
+    "[Optional] Expose data-testid on process_names input field across all scope modules to enable automated negative-validation testing.",
+    "[Carryover from iter_72, NOT this iteration] C7 multi-employee Update click silently no-ops — separate investigation, not affected by 472-line deletion."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only per request)", "frontend": "7/7 critical PASS (S2 primary, S2 second, S1 Stationary, S1 Mobile, biogenic-S1, S3 C2, biogenic-S3). Negative validation INCONCLUSIVE due to selector gap (not a code defect). C7 skipped per request."},
+  "test_credentials": "goyalsomil@hotmail.com / Test123! (admin, OILES INDIA PVT. LTD.)",
+  "seed_data_creation": "None — only appended notes text on 6 records: 3b126dfa, 74ab1cf1, 36e87c71, 3983081a, f01e314a, fcd7a5f0, 511601e9.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Scope 2 tab has 3 records: Facility A FY2025-26 312 kWh Renewable Custom (id=3b126dfa), Facility B 2026-01 8981 kWh Non-Renewable Custom (id=74ab1cf1), Facility B 2026-02 43.43 MWh Non-Renewable Custom (id=2e681b2c). All resolve through GenericScope2Module via activeCategoryModule. Init log count is 41 entries post-this iteration. Pattern: clear request capture before clicking Update button; expect 1 PUT (200) to /api/emissions/{id} + 2 POSTs (both 200) to /api/calc-engine/execute-by-category (one dry_run=true preview, one dry_run=false persist). C7 (id=a5b0a09c) Update click still no-ops — unresolved from iter_71/72, was explicitly skipped this iteration per request.",
+  "rca_of_the_issue": "N/A — no bug found this iteration. Scope 2 module dispatch + 472-line legacy code deletion verified as clean refactor with zero regressions across all 6 verifiable paths."
+}

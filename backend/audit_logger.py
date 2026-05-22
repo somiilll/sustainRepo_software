@@ -150,6 +150,23 @@ class AuditLogger:
         audit_entry = {k: v for k, v in audit_entry.items() if v is not None}
         
         await self.collection.insert_one(audit_entry)
+
+        # Phase B11: emit audit.persisted event (best-effort, never breaks audit insert).
+        try:
+            from events.event_bus import event_bus, Events
+            event_bus.emit_nowait(Events.AUDIT_PERSISTED, {
+                "audit_id": audit_entry["id"],
+                "action": audit_entry["action"],
+                "module": audit_entry["module"],
+                "user_id": user_id,
+                "organization_id": organization_id,
+                "resource_id": resource_id,
+                "timestamp": audit_entry["timestamp"],
+            })
+        except Exception:
+            # Audit must never fail because of an event handler.
+            pass
+
         return audit_entry["id"]
     
     def _sanitize_values(self, values: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:

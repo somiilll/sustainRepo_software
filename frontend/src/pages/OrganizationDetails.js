@@ -14,6 +14,17 @@ import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+// Helper function to ensure URL has proper protocol for external links
+const ensureProtocol = (url) => {
+  if (!url) return url;
+  // If it's an internal API URL or already has a protocol, return as-is
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/api/')) {
+    return url;
+  }
+  // Add https:// to external URLs
+  return `https://${url}`;
+};
+
 const COUNTRIES = [
   'India', 'United States', 'United Kingdom', 'Germany', 'France', 'Australia', 
   'Canada', 'Japan', 'China', 'Brazil', 'European Union', 'Other'
@@ -1023,7 +1034,7 @@ export default function OrganizationDetails() {
                   {formData.attachments.map((att, idx) => {
                     // Construct proper view and download URLs for uploaded files
                     const isUploadedFile = att.url && (att.url.includes('/api/files/') || att.type === 'file');
-                    let viewUrl = att.url;
+                    let viewUrl = isUploadedFile ? att.url : ensureProtocol(att.url);
                     let downloadUrl = att.url;
                     if (isUploadedFile) {
                       const fileIdMatch = att.url.match(/\/api\/files\/([^\/]+)/);
@@ -1129,23 +1140,22 @@ export default function OrganizationDetails() {
         <Card className="p-6 border border-stone-200 rounded-xl bg-white">
           <div className="space-y-6">
             <div className="flex items-start gap-4 mb-4">
-              {organization?.logo && !logoError && (
+              {organization?.logo && !logoError ? (
                 <img src={getFullLogoUrl(organization.logo)} alt={organization.name} className="w-20 h-20 object-contain rounded-lg border border-stone-200" onError={() => setLogoError(true)} />
-              )}
-              <div className="flex items-center gap-3">
+              ) : (
                 <div className="bg-primary/10 p-3 rounded-lg"><Building className="w-6 h-6 text-primary" /></div>
-                <div>
-                  <h2 className="text-2xl font-heading font-bold text-text-primary">{organization?.name}</h2>
-                  <div className="flex items-start gap-1 text-sm text-text-muted">
-                    <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                    <span>
-                      {organization?.corporate_address}
-                      {organization?.city && `, ${organization.city}`}
-                      {organization?.state && `, ${organization.state}`}
-                      {organization?.country && ` - ${organization.country}`}
-                      {organization?.pincode && ` (${organization.pincode})`}
-                    </span>
-                  </div>
+              )}
+              <div>
+                <h2 className="text-2xl font-heading font-bold text-text-primary">{organization?.name}</h2>
+                <div className="flex items-start gap-1 text-sm text-text-muted">
+                  <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>
+                    {organization?.corporate_address}
+                    {organization?.city && `, ${organization.city}`}
+                    {organization?.state && `, ${organization.state}`}
+                    {organization?.country && ` - ${organization.country}`}
+                    {organization?.pincode && ` (${organization.pincode})`}
+                  </span>
                 </div>
               </div>
             </div>
@@ -1312,7 +1322,7 @@ export default function OrganizationDetails() {
                   {organization.attachments.map((att, idx) => {
                     // Construct proper view and download URLs for uploaded files
                     const isUploadedFile = att.url && (att.url.includes('/api/files/') || att.type === 'file');
-                    let viewUrl = att.url;
+                    let viewUrl = isUploadedFile ? att.url : ensureProtocol(att.url);
                     let downloadUrl = att.url;
                     let fileId = null;
                     if (isUploadedFile) {

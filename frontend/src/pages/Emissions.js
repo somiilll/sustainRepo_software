@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
@@ -11,6 +12,8 @@ import { MonthYearPicker } from '../components/ui/month-year-picker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import EmissionFilters from './emissions/EmissionFilters';
+import { FacilityScopeSection, BiogenicScopeSection, CategorySection, Scope3MethodSection, ResponsiblePersonSection, ProcessNamesSection, NotesSection, SubmitButtonSection } from './emissions/EditFormSections';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion';
 import { FileUpload } from '../components/ui/file-upload';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
@@ -21,6 +24,18 @@ import EmissionEntryForm from '../components/EmissionEntryForm';
 import MultiEmployeeInput from '../components/MultiEmployeeInput';
 import { useCalcEngine } from '../hooks/useCalcEngine';
 import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
+import {
+  unitsMatch as unitsMatchShared,
+  isVolumeUnit as isVolumeUnitShared,
+  getConversionFactor as getConversionFactorShared,
+  hasConversionDefined as hasConversionDefinedShared,
+} from './emissions/utils/units';
+import useEvidenceManagement from './emissions/useEvidenceManagement';
+import { persistCalcAuditLog as persistCalcAuditLogShared } from './emissions/utils/persistCalcAuditLog';
+import { editEmissionDispatch as editEmissionDispatchShared } from './emissions/utils/editEmissionDispatch';
+import { categoryRegistry } from '../modules/emissions';
+import EmissionHistoryDialog from './emissions/components/EmissionHistoryDialog';
+import EmissionDataGrid from './emissions/components/EmissionDataGrid';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -44,7 +59,15 @@ export default function Emissions() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [selectedEmissionHistory, setSelectedEmissionHistory] = useState([]);
-  const [activeScope, setActiveScope] = useState('scope1');
+  // Drive the active scope from the route so /ghg/scope1, /ghg/scope2, etc.
+  // each show only their own scope. Clicking a tab still works (in-page nav).
+  const location = useLocation();
+  const navigate = useNavigate();
+  const pathScope = (location.pathname.match(/\/ghg\/(scope[123]|biogenic)/) || [])[1] || null;
+  const [activeScope, setActiveScope] = useState(pathScope || 'scope1');
+  useEffect(() => {
+    if (pathScope && pathScope !== activeScope) setActiveScope(pathScope);
+  }, [pathScope]); // eslint-disable-line react-hooks/exhaustive-deps
   const [filterFacility, setFilterFacility] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterFrequency, setFilterFrequency] = useState(''); // 'monthly', 'yearly', or '' for all
@@ -128,6 +151,9 @@ export default function Emissions() {
   const [editFormConfig, setEditFormConfig] = useState(null);
   const [editFormConfigLoading, setEditFormConfigLoading] = useState(false);
   
+  // Loading state for edit dialog - prevents showing partial/stale data
+  const [isEditLoading, setIsEditLoading] = useState(false);
+  
   // Dynamic input field values for the edit form (keyed by field.field_key)
   const [dynamicFieldValues, setDynamicFieldValues] = useState({});
   
@@ -182,6 +208,8 @@ export default function Emissions() {
     employee_name: '',
     employee_id: '',
     asset_name: '', // Asset Name for C8/C13/C14/C15
+    from_location: '', // From Location for C4/C6/C7/C9
+    to_location: '', // To Location for C4/C6/C7/C9
   });
 
   // CRITICAL: Use refs to always have fresh values in event handlers
@@ -509,7 +537,8 @@ export default function Emissions() {
         'fugitive_emissions': ['fugitive'],
         'stationary_combustion': ['stationary'],
         'mobile_combustion': ['mobile'],
-        'electricity': ['electricity'],
+        'energy': ['energy', 'electricity'],  // Support both new and legacy
+        'electricity': ['energy', 'electricity'],  // Legacy support
         'process_emissions': ['process']
       };
       
@@ -777,6 +806,11 @@ export default function Emissions() {
       // The fallback is only needed for fields without saved units
       const getFieldUnit = (field, savedUnit) => {
         if (savedUnit) return savedUnit;
+        // If unitSource is 'fuel', use fuel's allowed_units
+        const selectedFuelForUnit = fuelDatabase.find(f => f.id === formData.fuel_id);
+        if (field.unitSource === 'fuel' && selectedFuelForUnit?.allowed_units?.length > 0) {
+          return selectedFuelForUnit.allowed_units[0];
+        }
         // Fallback: use field's allowed units or expected unit
         const fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
         return fieldUnits[0] || field.expectedUnit || '';
@@ -979,46 +1013,28 @@ export default function Emissions() {
   }, [dialogOpen, editingEmissionId, editingEmission, dynamicInputFields, getAuthHeader]);
 
   // Check if two unit strings match using centralized unit aliases
-  const unitsMatch = (unit1, unit2) => {
-    if (!unit1 || !unit2) return false;
-    const u1 = unit1.toLowerCase().trim();
-    const u2 = unit2.toLowerCase().trim();
-    
-    // Direct match
-    if (u1 === u2) return true;
-    
-    // Check if both belong to the same unit (via aliases from centralized units)
-    for (const unit of centralizedUnits) {
-      const allNames = [
-        unit.symbol.toLowerCase(),
-        unit.name.toLowerCase(),
-        ...(unit.aliases || []).map(a => a.toLowerCase())
-      ];
-      const hasU1 = allNames.includes(u1);
-      const hasU2 = allNames.includes(u2);
-      if (hasU1 && hasU2) return true;
-    }
-    
-    return false;
-  };
+  // E1: Pure unit-matching utility (delegates to shared util)
+  const unitsMatch = (unit1, unit2) => unitsMatchShared(unit1, unit2, centralizedUnits);
 
-  // Check if a unit is a volume unit
-  const isVolumeUnit = (unitStr) => {
-    if (!unitStr) return false;
-    const u = unitStr.toLowerCase().trim();
-    
-    for (const unit of centralizedUnits) {
-      if (unit.unit_type === 'volume') {
-        const allNames = [
-          unit.symbol.toLowerCase(),
-          unit.name.toLowerCase(),
-          ...(unit.aliases || []).map(a => a.toLowerCase())
-        ];
-        if (allNames.includes(u)) return true;
-      }
-    }
-    return false;
-  };
+  // E1: Pure volume-unit check (delegates to shared util)
+  const isVolumeUnit = (unitStr) => isVolumeUnitShared(unitStr, centralizedUnits);
+
+  // E2: Evidence + history handlers extracted to useEvidenceManagement hook.
+  const {
+    handleFileUpload,
+    handleDeleteExistingEvidence,
+    handleDeleteAllEvidences,
+    handleRemoveEvidence,
+    handleViewEvidence,
+    handleDownloadEvidence,
+  } = useEvidenceManagement({
+    existingEvidences,
+    uploadedEvidence,
+    setFormData,
+    setExistingEvidences,
+    setUploadedEvidence,
+    getAuthHeader,
+  });
 
   const fetchHistory = async (emissionId) => {
     try {
@@ -1182,6 +1198,58 @@ export default function Emissions() {
     const cat = formData.category?.toLowerCase() || '';
     return cat.includes('c7') || cat.includes('employee commuting');
   }, [formData.scope, formData.category]);
+
+  // Pluggable category renderer + edit-flow lookup. The page delegates
+  // the dynamic-fields portion of the Scope 3 edit dialog to the module
+  // returned (via `module.DynamicFieldsRenderer`), and the save flow to
+  // `module.buildEditPayload`.
+  //
+  // Resolution:
+  //   - Scope 3 explicit            → match by category code (c1..c15)
+  //   - Biogenic + scope3 selection → generic Scope 3 module
+  //   - Scope 1                     → match by category name
+  //                                   (Stationary/Mobile/Fugitive Combustion)
+  //                                   or generic Scope 1 fallback
+  //   - Biogenic + scope1 selection → generic Scope 1 module
+  //   - All other scopes/states     → legacy inline path (returns null)
+  const activeCategoryModule = useMemo(() => {
+    const cat = (formData.category || '').toLowerCase();
+
+    // 1. Plain Scope 3 → match by category code; if no match, stay on legacy
+    if (formData.scope === 'scope3') {
+      const codeMatch = cat.match(/^(c\d+)/);
+      if (!codeMatch) return null;
+      return categoryRegistry.get(codeMatch[1]) || null;
+    }
+
+    // 2. Biogenic + scope3 selection → generic Scope 3 (same payload shape)
+    if (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3') {
+      return categoryRegistry.getGenericModule?.('scope3') || null;
+    }
+
+    // 3. Scope 1 → match by category name
+    if (formData.scope === 'scope1') {
+      if (cat.includes('stationary')) return categoryRegistry.get('stationary_combustion');
+      if (cat.includes('mobile')) return categoryRegistry.get('mobile_combustion');
+      if (cat.includes('fugitive')) return categoryRegistry.get('fugitive_emissions');
+      return categoryRegistry.getGenericModule?.('scope1') || null;
+    }
+
+    // 4. Scope 2 → single generic module (purchased electricity/steam/heating/cooling)
+    if (formData.scope === 'scope2') {
+      return categoryRegistry.getGenericModule?.('scope2') || null;
+    }
+
+    // 5. Biogenic + scope1 selection → generic Scope 1
+    if (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope1') {
+      return categoryRegistry.getGenericModule?.('scope1') || null;
+    }
+
+    // 6. Unknown → legacy path (safety fallback)
+    return null;
+  }, [formData.scope, formData.category, biogenicScopeSelection]);
+
+  const ModuleDynamicFieldsRenderer = activeCategoryModule?.DynamicFieldsRenderer || null;
 
   // Clear employee calculations when activity changes for C7 edit
   // This forces users to recalculate with the new activity's emission factor
@@ -1397,26 +1465,34 @@ export default function Emissions() {
 
   // Get available activity types for C6/C7 categories
   const availableScope3ActivityTypes = useMemo(() => {
-    if (formData.scope !== 'scope3' || !scope3EFData.length || !selectedCategory) return [];
+    if (formData.scope !== 'scope3' || !selectedCategory) return [];
     
     // Only show activity type filter for C6 and C7
-    const isC6orC7 = selectedCategory.toLowerCase().includes('c6') || 
-                     selectedCategory.toLowerCase().includes('c7') ||
-                     selectedCategory.toLowerCase().includes('business travel') ||
-                     selectedCategory.toLowerCase().includes('employee commuting');
+    const isC6 = selectedCategory.toLowerCase().includes('c6') || 
+                 selectedCategory.toLowerCase().includes('business travel');
+    const isC7 = selectedCategory.toLowerCase().includes('c7') ||
+                 selectedCategory.toLowerCase().includes('employee commuting');
     
-    if (!isC6orC7) return [];
+    if (!isC6 && !isC7) return [];
     
     const activityTypes = new Set();
     
-    scope3EFData.forEach(ef => {
-      if (ef.category?.toLowerCase() === selectedCategory.toLowerCase() && ef.activity_type) {
-        // Also filter by method if selected
-        if (!scope3Method || scope3Method === 'supplier_basis' || ef.method === scope3Method) {
-          activityTypes.add(ef.activity_type);
+    // Add activity types from scope3_ef data
+    if (scope3EFData.length) {
+      scope3EFData.forEach(ef => {
+        if (ef.category?.toLowerCase() === selectedCategory.toLowerCase() && ef.activity_type) {
+          // Also filter by method if selected
+          if (!scope3Method || scope3Method === 'supplier_basis' || ef.method === scope3Method) {
+            activityTypes.add(ef.activity_type);
+          }
         }
-      }
-    });
+      });
+    }
+    
+    // Add "Others" option for supplier_basis method - only for C6 (not C7)
+    if (scope3Method === 'supplier_basis' && isC6) {
+      activityTypes.add('others');
+    }
     
     return Array.from(activityTypes).sort();
   }, [formData.scope, scope3EFData, selectedCategory, scope3Method]);
@@ -1446,7 +1522,7 @@ export default function Emissions() {
       { value: 'stationary_combustion', label: 'Stationary Combustion' },
       { value: 'mobile_combustion', label: 'Mobile Combustion' },
       { value: 'fugitive_emissions', label: 'Fugitive Emissions' },
-      { value: 'electricity', label: 'Electricity' }
+      { value: 'energy', label: 'Energy' }
     ];
     
     // For supplier_basis, include process_emissions
@@ -1519,24 +1595,27 @@ export default function Emissions() {
         }));
       }
       
-      // For stationary_combustion, mobile_combustion, and electricity, filter from scope3_ef
+      // For stationary_combustion, mobile_combustion, and energy, filter from scope3_ef
       if (scope3Subcategory === 'stationary_combustion' || 
           scope3Subcategory === 'mobile_combustion' || 
-          scope3Subcategory === 'electricity') {
+          scope3Subcategory === 'energy' ||
+          scope3Subcategory === 'electricity') {  // Support legacy 'electricity' value
         let filtered = baseData.filter(ef => 
           ef.category?.toLowerCase() === catLower
         );
         
         // Filter by subcategory field if it exists on the entry
-        // For electricity: ONLY show entries with exact match (no fallback to null/empty)
+        // For energy: ONLY show entries with exact match (no fallback to null/empty)
         // For stationary/mobile: If entry has no subcategory defined, show in both
+        const energySubcategory = scope3Subcategory === 'electricity' ? 'energy' : scope3Subcategory;
         filtered = filtered.filter(ef => {
-          if (scope3Subcategory === 'electricity') {
-            // Strict matching - only show entries explicitly marked as electricity
+          if (energySubcategory === 'energy') {
+            // Strict matching - only show entries explicitly marked as energy
+            // Also support legacy 'electricity' entries
             if (Array.isArray(ef.subcategory)) {
-              return ef.subcategory.includes(scope3Subcategory);
+              return ef.subcategory.includes('energy') || ef.subcategory.includes('electricity');
             }
-            return ef.subcategory === scope3Subcategory;
+            return ef.subcategory === 'energy' || ef.subcategory === 'electricity';
           }
           
           // For stationary/mobile: fallback to null/empty subcategory
@@ -1764,90 +1843,13 @@ export default function Emissions() {
   // The Super Admin defines conversions as: "X from_unit = 1 to_unit" (e.g., 1000 g = 1 kg)
   // So the multiplier represents how many from_units make 1 to_unit
   // To convert: divide the value by the multiplier (e.g., 1000g / 1000 = 1kg)
-  const getConversionFactor = (paramKey, selectedUnit) => {
-    if (!selectedUnit) return 1;
-    
-    // Find the parameter definition from Super Admin with exact or related key matching
-    // Order matters: first check exact match, then related keys
-    let param = formulaParameters.find(p => p.parameter_key === paramKey);
-    
-    // If no exact match, try common variations
-    if (!param) {
-      param = formulaParameters.find(p => 
-        p.parameter_key === paramKey.replace('_fuel', '') ||
-        p.parameter_key === paramKey.replace('quantity', 'quantity_fuel')
-      );
-    }
-    
-    // For electricity_quantity specifically, also check if paramKey references it
-    if (!param && (paramKey === 'electricity_quantity' || paramKey.includes('electricity'))) {
-      param = formulaParameters.find(p => p.parameter_key === 'electricity_quantity');
-    }
-    
-    if (!param || !param.unit_conversions || param.unit_conversions.length === 0) {
-      return 1; // No conversion defined, use as-is
-    }
-    
-    // Find the conversion rule for the selected unit
-    const conversion = param.unit_conversions.find(c => 
-      c.from_unit.toLowerCase() === selectedUnit.toLowerCase()
-    );
-    
-    if (conversion && conversion.multiplier !== 0) {
-      // The multiplier represents "how many from_unit = 1 to_unit"
-      // So to convert from from_unit to to_unit, we DIVIDE by multiplier
-      // Example: 1000 g with multiplier 1000 → 1000/1000 = 1 kg
-      return 1 / conversion.multiplier;
-    }
-    
-    // Check if selected unit is the target unit (base unit - no conversion needed)
-    const isBaseUnit = param.unit_conversions.some(c => 
-      c.to_unit.toLowerCase() === selectedUnit.toLowerCase()
-    );
-    
-    if (isBaseUnit) {
-      return 1; // Already in base unit
-    }
-    
-    return 1; // Default: no conversion (but this means config is missing)
-  };
+  // E1: Conversion factor lookup (delegates to shared util)
+  const getConversionFactor = (paramKey, selectedUnit) =>
+    getConversionFactorShared(paramKey, selectedUnit, formulaParameters);
 
-  // Check if a conversion is defined for a unit (separate from the factor value)
-  const hasConversionDefined = (paramKey, selectedUnit) => {
-    if (!selectedUnit) return false;
-    
-    // Find the parameter with exact or related key matching
-    let param = formulaParameters.find(p => p.parameter_key === paramKey);
-    
-    // If no exact match, try common variations
-    if (!param) {
-      param = formulaParameters.find(p => 
-        p.parameter_key === paramKey.replace('_fuel', '') ||
-        p.parameter_key === paramKey.replace('quantity', 'quantity_fuel')
-      );
-    }
-    
-    // For electricity_quantity specifically
-    if (!param && (paramKey === 'electricity_quantity' || paramKey.includes('electricity'))) {
-      param = formulaParameters.find(p => p.parameter_key === 'electricity_quantity');
-    }
-    
-    if (!param || !param.unit_conversions || param.unit_conversions.length === 0) {
-      return false;
-    }
-    
-    // Check if conversion exists for this unit OR if it's the target unit (base unit)
-    const hasDirectConversion = param.unit_conversions.some(c => 
-      c.from_unit.toLowerCase() === selectedUnit.toLowerCase()
-    );
-    
-    // Also check if selected unit is the target unit (base unit needs no conversion)
-    const isBaseUnit = param.unit_conversions.some(c => 
-      c.to_unit.toLowerCase() === selectedUnit.toLowerCase()
-    );
-    
-    return hasDirectConversion || isBaseUnit;
-  };
+  // E1: Conversion-defined check (delegates to shared util)
+  const hasConversionDefined = (paramKey, selectedUnit) =>
+    hasConversionDefinedShared(paramKey, selectedUnit, formulaParameters);
 
   // Convert quantity to kg based on selected unit (now uses dynamic units)
   const getQuantityInKg = useMemo(() => {
@@ -1874,310 +1876,10 @@ export default function Emissions() {
     return fuelDatabase.find(f => f.id === formData.fuel_id);
   }, [formData.fuel_id, fuelDatabase]);
 
-  // Dynamic parameter value resolver using formula's input_mappings
-  // If no mappings defined, falls back to intelligent defaults
-  const getParameterValueDynamic = useCallback((paramKey, formula, customParams = {}) => {
-    // First, check if customParams has an override
-    if (customParams[paramKey] !== undefined) {
-      return customParams[paramKey];
-    }
+  // E5: Dead-code block removed (getParameterValueDynamic, getParameterValue,
+  // findFormulaForScope, executeFormula) — these were never called from production
+  // paths after migration to backend calc engine. Saved ~304 lines.
 
-    // Check formula's input_mappings
-    const inputMappings = formula?.input_mappings || [];
-    const mapping = inputMappings.find(m => m.parameter_key === paramKey);
-    
-    if (mapping) {
-      const sourceType = mapping.source_type;
-      const sourceField = mapping.source_field;
-      
-      if (sourceType === 'user_input') {
-        // Get value from formData
-        const rawValue = parseFloat(formData[sourceField]) || 0;
-        // Apply conversion if this is a quantity field
-        if (sourceField === 'quantity') {
-          const conversion = getConversionFactor(paramKey, formData.quantity_unit);
-          return rawValue * conversion;
-        }
-        return rawValue;
-      } else if (sourceType === 'fuel_database') {
-        // Check if Admin has enabled override for this field
-        // When override is enabled, use formData value instead of fuel database value
-        // Handle both source_field variations (calorific_value) and param_key variations (ncv)
-        const isCalorificParam = sourceField === 'calorific_value' || paramKey === 'ncv' || paramKey === 'net_calorific_value' || paramKey.includes('calorific');
-        const isDensityParam = sourceField === 'density' || paramKey === 'density' || paramKey.includes('density');
-        const isEmissionFactorCO2Param = sourceField === 'emission_factor_co2' || paramKey === 'emission_factor_co2' || 
-                                          paramKey.includes('emission_factor_co2') || paramKey.includes('ef_co2') ||
-                                          paramKey === 'co2_emission_factor' || paramKey === 'ef';
-        
-        // Check for Custom CO2 Emission Factor (Heat Basis) override FIRST
-        if (isEmissionFactorCO2Param && overrideEmissionFactorHeat && formData.emission_factor_heat) {
-          return parseFloat(formData.emission_factor_heat) || 0;
-        }
-        
-        if (isCalorificParam && overrideCalorificValue) {
-          return parseFloat(formData.calorific_value) || 0;
-        }
-        if (isDensityParam && overrideDensity) {
-          return parseFloat(formData.density) || 1;
-        }
-        // Get value from selected fuel
-        if (selectedFuel && selectedFuel[sourceField] !== undefined) {
-          return parseFloat(selectedFuel[sourceField]) || 0;
-        }
-        // Fallback to formData if fuel not selected
-        return parseFloat(formData[sourceField]) || 0;
-      } else if (sourceType === 'formula_parameter') {
-        // Get value from formula parameters (e.g., GWP values)
-        const param = formulaParameters.find(p => p.parameter_key === sourceField);
-        if (param && param.default_value !== null && param.default_value !== undefined) {
-          return parseFloat(param.default_value);
-        }
-        return 0;
-      } else if (sourceType === 'constant') {
-        // Use the constant value defined in mapping
-        return parseFloat(mapping.default_value) || 0;
-      }
-    }
-    
-    // Fallback: intelligent defaults based on parameter key patterns
-    // This ensures backward compatibility when no mappings are configured
-    const rawQuantity = parseFloat(formData.quantity) || 0;
-    const selectedUnit = formData.quantity_unit || 'kg';
-    const quantityConversion = getConversionFactor(paramKey, selectedUnit);
-    
-    // Match common parameter patterns
-    if (paramKey.includes('quantity') || paramKey === 'quantity_fuel' || paramKey === 'electricity_quantity') {
-      return rawQuantity * quantityConversion;
-    }
-    // Check calorific value - respect override flag
-    if (paramKey.includes('calorific') || paramKey === 'ncv' || paramKey === 'net_calorific_value') {
-      // When override is enabled, use formData value (user-entered)
-      // When override is disabled, also use formData because it's populated from selected fuel
-      return parseFloat(formData.calorific_value) || 0;
-    }
-    // Check density - respect override flag
-    if (paramKey.includes('density')) {
-      // When override is enabled, use formData value (user-entered)
-      // When override is disabled, also use formData because it's populated from selected fuel
-      return parseFloat(formData.density) || 1;
-    }
-    if (paramKey.includes('emission_factor_co2') || paramKey === 'co2_emission_factor' || paramKey === 'ef_co2' || paramKey === 'ef') {
-      // Use overridden EF Heat Basis if enabled, otherwise use standard emission_factor_co2
-      if (overrideEmissionFactorHeat && formData.emission_factor_heat) {
-        return parseFloat(formData.emission_factor_heat) || 0;
-      }
-      return parseFloat(formData.emission_factor_co2) || 0;
-    }
-    if (paramKey.includes('emission_factor_ch4') || paramKey === 'ch4_emission_factor') {
-      return parseFloat(formData.emission_factor_ch4) || 0;
-    }
-    if (paramKey.includes('emission_factor_n2o') || paramKey === 'n2o_emission_factor') {
-      return parseFloat(formData.emission_factor_n2o) || 0;
-    }
-    if (paramKey === 'co2_electricity' || paramKey.includes('emission_factor_basis')) {
-      return parseFloat(formData.emission_factor_basis_quantity) || 0;
-    }
-    if (paramKey === 'conversion_factor' || paramKey === 'kg_tonne_conversion') {
-      return parseFloat(formData.conversion_factor) || 1;
-    }
-    // GWP Fugitives - get from selected fuel
-    if (paramKey === 'gwp_fugitives' || paramKey.includes('gwp_fugitive')) {
-      return selectedFuel?.gwp_fugitives ? parseFloat(selectedFuel.gwp_fugitives) : 0;
-    }
-    
-    // Check formula parameters for default values (e.g., GWP)
-    const superAdminParam = formulaParameters.find(p => p.parameter_key === paramKey);
-    if (superAdminParam && superAdminParam.default_value !== null && superAdminParam.default_value !== undefined) {
-      return parseFloat(superAdminParam.default_value);
-    }
-    
-    return 1; // Default fallback
-  }, [formData, selectedFuel, formulaParameters, getConversionFactor, overrideCalorificValue, overrideDensity, overrideEmissionFactorHeat]);
-
-  // Legacy getParameterValue for backward compatibility (uses default formula context)
-  const getParameterValue = (paramKey) => {
-    return getParameterValueDynamic(paramKey, null, {});
-  };
-
-  // Find the best matching formula for a given scope and category using emission configurations
-  // Returns the formula with highest priority that matches the scope and optionally the category
-  const findFormulaForScope = useCallback((scope, category = null, gasType = null) => {
-    // ONLY use emission configurations (SuperAdmin-defined mappings)
-    // No fallback - if no configuration exists, return null
-    
-    // Filter configurations by scope
-    let matchingConfigs = emissionConfigurations.filter(c => 
-      c.is_active && c.scope === scope
-    );
-    
-    // If category specified, prefer configs that match the category
-    if (category) {
-      const categoryMatches = matchingConfigs.filter(c => {
-        // Support both old (single category) and new (multiple categories) format
-        const configCategories = c.categories || (c.category ? [c.category] : []);
-        if (configCategories.length === 0) return true; // Config applies to all categories
-        return configCategories.some(cat => cat.toLowerCase() === category.toLowerCase());
-      });
-      
-      if (categoryMatches.length > 0) {
-        // Sort by specificity - prefer configs with fewer categories (more specific)
-        // A config with just ['Fugitive Emissions'] should rank higher than one with multiple categories
-        categoryMatches.sort((a, b) => {
-          const aCats = a.categories || (a.category ? [a.category] : []);
-          const bCats = b.categories || (b.category ? [b.category] : []);
-          // Fewer categories = more specific = higher priority
-          if (aCats.length !== bCats.length) {
-            return aCats.length - bCats.length;
-          }
-          // Same number of categories, use priority
-          return (b.priority || 0) - (a.priority || 0);
-        });
-        matchingConfigs = categoryMatches;
-      }
-    } else {
-      // Sort by priority (highest first)
-      matchingConfigs.sort((a, b) => (b.priority || 0) - (a.priority || 0));
-    }
-    
-    // Iterate through ALL matching configs to find one whose formula matches the gasType
-    for (const config of matchingConfigs) {
-      const formula = formulaDefinitions.find(f => f.id === config.formula_id);
-      
-      if (!formula) continue;
-      
-      // If no gasType specified, return the first found formula
-      if (!gasType) {
-        return formula;
-      }
-      
-      // Check if formula matches the requested gas type
-      const keyLower = (formula.formula_key || '').toLowerCase();
-      
-      if (gasType === 'co2' && keyLower.includes('co2') && !keyLower.includes('co2e')) {
-        return formula;
-      }
-      if (gasType === 'ch4' && keyLower.includes('ch4')) {
-        return formula;
-      }
-      if (gasType === 'n2o' && keyLower.includes('n2o')) {
-        return formula;
-      }
-      if (gasType === 'co2e' && (keyLower.includes('co2e') || keyLower.includes('total'))) {
-        return formula;
-      }
-      if (gasType === 'electricity' && keyLower.includes('electricity')) {
-        return formula;
-      }
-      // For fugitive emissions, also check for 'fugitive' in the key
-      if (gasType === 'co2' && keyLower.includes('fugitive')) {
-        return formula;
-      }
-    }
-    
-    // No matching configuration/formula found
-    return null;
-  }, [emissionConfigurations, formulaDefinitions]);
-
-  // Execute a formula by processing its components with their operations
-  // Supports conditional components that only apply for certain unit types
-  // customParams allows passing custom parameter values (e.g., for electricity formula)
-  const executeFormula = (formula, customParams = {}) => {
-    if (!formula || !formula.components || formula.components.length === 0) {
-      return null;
-    }
-    
-    // Determine if current unit is mass or volume using centralized units
-    const selectedUnit = formData.quantity_unit || 'kg';
-    const selectedUnitIsVolume = isVolumeUnit(selectedUnit);
-    const selectedUnitIsMass = !selectedUnitIsVolume;
-    
-    let result = null;
-    const steps = [];
-    const skippedComponents = [];
-    
-    for (let i = 0; i < formula.components.length; i++) {
-      const comp = formula.components[i];
-      const condition = comp.condition || 'always';
-      
-      // Check if this component should be applied based on condition
-      let shouldApply = true;
-      if (condition === 'volume_units' && !selectedUnitIsVolume) {
-        shouldApply = false;
-        skippedComponents.push(`${comp.parameter_name} (skipped - mass unit selected)`);
-      } else if (condition === 'mass_units' && !selectedUnitIsMass) {
-        shouldApply = false;
-        skippedComponents.push(`${comp.parameter_name} (skipped - volume unit selected)`);
-      }
-      
-      if (!shouldApply) {
-        continue; // Skip this component
-      }
-      
-      // Use dynamic parameter resolver with formula context
-      // customParams takes priority, then formula's input_mappings, then intelligent defaults
-      const value = customParams[comp.parameter_key] !== undefined 
-        ? customParams[comp.parameter_key] 
-        : getParameterValueDynamic(comp.parameter_key, formula, customParams);
-      
-      if (result === null || comp.operation === 'base') {
-        // First applicable component is the base value
-        result = value;
-        const conditionNote = condition !== 'always' ? ` [${condition}]` : '';
-        // Add "(Unit Conversion Applied)" for quantity parameters
-        const isQuantityParam = comp.parameter_key?.includes('quantity') || comp.parameter_name?.toLowerCase().includes('quantity');
-        const conversionNote = isQuantityParam ? ' (Unit Conversion Applied)' : '';
-        // Format value to 6 decimal places max to avoid floating point display issues
-        const displayValue = Number.isInteger(value) ? value : parseFloat(value.toFixed(6));
-        steps.push(`${comp.parameter_name}${conversionNote}${conditionNote} = ${displayValue}`);
-      } else {
-        // Apply operation
-        const conditionNote = condition !== 'always' ? ` [${condition}]` : '';
-        // Format value and result to 6 decimal places max
-        const displayValue = Number.isInteger(value) ? value : parseFloat(value.toFixed(6));
-        switch (comp.operation) {
-          case 'multiply':
-            result = result * value;
-            const displayResultMul = Number.isInteger(result) ? result : parseFloat(result.toFixed(6));
-            steps.push(`× ${comp.parameter_name}${conditionNote} (${displayValue}) = ${displayResultMul}`);
-            break;
-          case 'divide':
-            result = value !== 0 ? result / value : result;
-            const displayResultDiv = Number.isInteger(result) ? result : parseFloat(result.toFixed(6));
-            steps.push(`÷ ${comp.parameter_name}${conditionNote} (${displayValue}) = ${displayResultDiv}`);
-            break;
-          case 'add':
-            result = result + value;
-            const displayResultAdd = Number.isInteger(result) ? result : parseFloat(result.toFixed(6));
-            steps.push(`+ ${comp.parameter_name}${conditionNote} (${displayValue}) = ${displayResultAdd}`);
-            break;
-          case 'subtract':
-            result = result - value;
-            const displayResultSub = Number.isInteger(result) ? result : parseFloat(result.toFixed(6));
-            steps.push(`- ${comp.parameter_name}${conditionNote} (${displayValue}) = ${displayResultSub}`);
-            break;
-          default:
-            result = result * value;
-            const displayResultDef = Number.isInteger(result) ? result : parseFloat(result.toFixed(6));
-            steps.push(`× ${comp.parameter_name}${conditionNote} (${displayValue}) = ${displayResultDef}`);
-        }
-      }
-    }
-    
-    // If all components were skipped, return null
-    if (result === null) {
-      return null;
-    }
-    
-    return { 
-      result, 
-      steps, 
-      skippedComponents,
-      formula_name: formula.formula_name, 
-      formula_expression: formula.formula_expression,
-      output_unit: formula.output_unit || '',
-      unitType: selectedUnitIsVolume ? 'volume' : 'mass'
-    };
-  };
 
   // Legacy calculation removed - using backend calc engine exclusively
   const calculatedEmissions = null;
@@ -2571,306 +2273,74 @@ export default function Emissions() {
       formData.calorific_value, overrideCalorificValue, overrideDensity, overrideEmissionFactorHeat,
       editingEmission]);
 
-  const handleFileUpload = async (file) => {
-    const sizeErr = validateFileSize(file);
-    if (sizeErr) {
-      throw new Error(sizeErr);
-    }
-    const formDataUpload = new FormData();
-    formDataUpload.append('file', file);
-
-    try {
-      const response = await axios.post(`${API}/upload/evidence?bucket_type=emission_evidence`, formDataUpload, {
-        headers: {
-          ...getAuthHeader(),
-          'Content-Type': 'multipart/form-data'
-        }
-      });
-      
-      // Don't set uploadedEvidence for multi-file uploads - it blocks the upload zone
-      // Instead, we track files in existingEvidences which are displayed separately
-      
-      // Append new evidence URL to existing ones (don't replace)
-      setFormData(prev => {
-        const existingUrls = prev.evidence_url ? prev.evidence_url.split(',').filter(u => u.trim()) : [];
-        const newUrls = [...existingUrls, response.data.url];
-        return {
-          ...prev,
-          evidence_url: newUrls.join(',')
-        };
-      });
-      
-      // Add to existingEvidences for immediate display - use original filename from server response
-      setExistingEvidences(prev => [...prev, {
-        url: response.data.url,
-        filename: response.data.filename || file.name,  // Use original filename
-        file_id: response.data.file_id
-      }]);
-      
-      toast.success('File uploaded successfully');
-    } catch (error) {
-      console.error('Upload error:', error);
-      throw new Error(getUploadErrorMessage(error, file));
-    }
-  };
-
-  // Delete a single existing evidence
-  const handleDeleteExistingEvidence = async (index) => {
-    const evidenceToDelete = existingEvidences[index];
-    
-    // Try to delete from server if it's an uploaded file
-    if (evidenceToDelete.url.includes('/api/files/')) {
-      const fileIdMatch = evidenceToDelete.url.match(/\/api\/files\/([a-f0-9-]+)/i);
-      if (fileIdMatch) {
-        try {
-          await axios.delete(`${API}/files/${fileIdMatch[1]}`, {
-            headers: getAuthHeader()
-          });
-        } catch (error) {
-          console.error('Failed to delete file from server:', error);
-        }
-      }
-    }
-    
-    // Remove from existingEvidences state
-    const newEvidences = existingEvidences.filter((_, i) => i !== index);
-    setExistingEvidences(newEvidences);
-    
-    // Update evidence_url in formData
-    setFormData(prev => ({
-      ...prev,
-      evidence_url: newEvidences.map(e => e.url).join(',')
-    }));
-    
-    toast.success('Evidence removed');
-  };
-
-  // Delete all evidences
-  const handleDeleteAllEvidences = async () => {
-    // Try to delete all uploaded files from server
-    for (const evidence of existingEvidences) {
-      if (evidence.url.includes('/api/files/')) {
-        const fileIdMatch = evidence.url.match(/\/api\/files\/([a-f0-9-]+)/i);
-        if (fileIdMatch) {
-          try {
-            await axios.delete(`${API}/files/${fileIdMatch[1]}`, {
-              headers: getAuthHeader()
-            });
-          } catch (error) {
-            console.error('Failed to delete file from server:', error);
-          }
-        }
-      }
-    }
-    
-    setExistingEvidences([]);
-    setFormData(prev => ({ ...prev, evidence_url: '' }));
-    toast.success('All evidences removed');
-  };
-
-  const handleRemoveEvidence = async () => {
-    if (uploadedEvidence?.file_id) {
-      try {
-        await axios.delete(`${API}/files/${uploadedEvidence.file_id}`, {
-          headers: getAuthHeader()
-        });
-      } catch (error) {
-        console.error('Failed to delete file:', error);
-      }
-    }
-    setUploadedEvidence(null);
-    setFormData(prev => ({ ...prev, evidence_url: '' }));
-  };
+  // E2: handleFileUpload, handleDeleteExistingEvidence, handleDeleteAllEvidences,
+  // handleRemoveEvidence — moved to useEvidenceManagement hook.
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // E3: persistCalcAuditLog moved to ./emissions/utils/persistCalcAuditLog.
+    // Thin wrapper binds local state for the dispatch branches below.
+    const persistCalcAuditLogLocal = (emissionId) => persistCalcAuditLogShared(emissionId, {
+      formData,
+      biogenicScopeSelection,
+      dynamicCategories,
+      selectedCategory,
+      dynamicInputFields,
+      dynamicFieldValues,
+      buildEditDecisionInputs,
+      filteredScope3Activities,
+      scope3ActivityId,
+      scope3Method,
+      scope3Subcategory,
+      useCustomActivity,
+      scope3CustomActivity,
+      requiresSubcategory,
+      selectedFuel,
+      getAuthHeader,
+    });
     
     // C7 EMPLOYEE COMMUTING - Always uses multi-employee mode
+    // Business logic (validation + payload construction) lives in the C7 category module.
+    // UI rendering stays in Emissions.js via MultiEmployeeInput.
     if (isEditC7EmployeeCommuting) {
-      // Validate that at least one employee exists
-      if (editEmployees.length === 0) {
-        toast.error('Please add at least one employee');
+      const c7Module = categoryRegistry.get('c7');
+      if (!c7Module || !c7Module.validateEditSubmission || !c7Module.buildEditPayload) {
+        toast.error('C7 module not initialised. Please reload the page.');
         return;
       }
-      
-      // Check if this is yearly or monthly mode
-      const isYearlyMode = editingEmission?.frequency_type === 'yearly';
-      
-      // Validate employee data (name required, at least one month/year with data)
-      const employeeErrors = [];
-      editEmployees.forEach((emp, index) => {
-        // Check employee name is required
-        if (!emp.name || emp.name.trim() === '') {
-          employeeErrors.push(`Employee ${index + 1}: Employee Name is required.`);
-        }
-        
-        if (isYearlyMode) {
-          // For yearly mode: check yearly_data OR direct inputs
-          const hasYearlyData = Object.values(emp.yearly_data?.inputs || {}).some(v => 
-            v !== '' && v !== null && v !== undefined && v !== 0
-          );
-          const hasDirectInputs = emp.inputs && Object.values(emp.inputs).some(v =>
-            v !== '' && v !== null && v !== undefined && v !== 0
-          );
-          
-          if (!hasYearlyData && !hasDirectInputs) {
-            employeeErrors.push(`${emp.name || `Employee ${index + 1}`}: Please enter annual data or remove the employee.`);
-          }
-        } else {
-          // For monthly mode: check at least one month has data
-          const hasAnyMonthData = Object.values(emp.monthly_data || {}).some(monthData => {
-            if (!monthData?.inputs) return false;
-            return Object.values(monthData.inputs).some(v => 
-              v !== '' && v !== null && v !== undefined && v !== 0
-            );
-          });
-          
-          if (!hasAnyMonthData) {
-            employeeErrors.push(`${emp.name || `Employee ${index + 1}`}: Please enter data for at least one month or remove the employee.`);
-          }
-        }
+
+      // 1. Validate via module
+      const validation = c7Module.validateEditSubmission({
+        editEmployees,
+        editingEmission,
+        processNames: formData.process_names,
       });
-      
-      if (employeeErrors.length > 0) {
-        // Show first error as toast, log all
-        toast.error(employeeErrors[0]);
-        console.warn('Employee validation errors:', employeeErrors);
+      if (!validation.valid) {
+        toast.error(validation.errorMessage);
         return;
       }
-      
-      // Validate that at least one employee has calculated emissions
-      const hasCalculatedData = editEmployees.some(emp => {
-        if (isYearlyMode) {
-          // Check yearly_data emissions OR direct emissions
-          const hasYearlyEmissions = emp.yearly_data?.emissions?.co2e !== null && emp.yearly_data?.emissions?.co2e !== undefined;
-          const hasDirectEmissions = emp.emissions?.co2e !== null && emp.emissions?.co2e !== undefined;
-          return hasYearlyEmissions || hasDirectEmissions;
-        } else {
-          // Check monthly_data emissions
-          return Object.values(emp.monthly_data || {}).some(m => m?.emissions?.co2e !== null && m?.emissions?.co2e !== undefined);
-        }
+
+      // 2. Build payload via module
+      const builtPayload = c7Module.buildEditPayload({
+        formData,
+        editingEmission,
+        editEmployees,
+        scope3Method,
+        scope3ActivityId,
+        scope3ActivityType,
+        scope3CustomActivity,
+        useCustomActivity,
+        filteredScope3Activities,
+        editEmployeeMonthlyTotals,
+        editEmployeeYearlyTotal,
+        validProcessNames: validation.validProcessNames,
       });
-      
-      if (!hasCalculatedData) {
-        toast.error('Please calculate emissions for at least one employee');
-        return;
-      }
-      
-      // Calculate total emissions
-      const totalCo2e = editEmployees.reduce((sum, emp) => {
-        if (isYearlyMode) {
-          // Sum from yearly_data or direct emissions
-          return sum + (emp.yearly_data?.emissions?.co2e || emp.emissions?.co2e || 0);
-        } else {
-          // Sum from monthly_data
-          return sum + Object.values(emp.monthly_data || {}).reduce((empSum, m) => {
-            return empSum + (m?.emissions?.co2e || 0);
-          }, 0);
-        }
-      }, 0);
-      
-      // Extract formula_id from the first employee's calculated data
-      // (all employees use the same formula for the same activity type)
-      let extractedFormulaId = editingEmission?.formula_id || null;
-      if (isYearlyMode) {
-        // Check yearly_data or direct calculation_details
-        for (const emp of editEmployees) {
-          const formulaId = emp.yearly_data?.calculation_details?.formula_id || emp.calculation_details?.formula_id;
-          if (formulaId) {
-            extractedFormulaId = formulaId;
-            break;
-          }
-        }
-      } else {
-        for (const emp of editEmployees) {
-          for (const monthKey of Object.keys(emp.monthly_data || {})) {
-            const monthData = emp.monthly_data[monthKey];
-            if (monthData?.calculation_details?.formula_id) {
-              extractedFormulaId = monthData.calculation_details.formula_id;
-              break;
-            }
-          }
-          if (extractedFormulaId && extractedFormulaId !== editingEmission?.formula_id) break;
-        }
-      }
-      
-      // Look up the activity label from scope3_ef_id
-      const matchedActivityForSave = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-      const activityLabel = matchedActivityForSave?.activity || matchedActivityForSave?.fuel_name || scope3ActivityType;
-      
-      // Construct reporting_period from formData fields
-      const c7ReportingPeriod = formData.reporting_period_start && formData.reporting_period_end
-        ? (formData.reporting_period_start === formData.reporting_period_end
-            ? formData.reporting_period_start
-            : `${formData.reporting_period_start} to ${formData.reporting_period_end}`)
-        : editingEmission?.reporting_period || `${new Date().getFullYear()}-01 to ${new Date().getFullYear()}-12`;
-      
-      // Validate process names for C7
-      const validProcessNames = formData.process_names.filter(p => p.name && p.name.trim() !== '');
-      if (validProcessNames.length === 0) {
-        toast.error('At least one Name of Process is required');
-        return;
-      }
-      
-      const payload = {
-        facility_id: formData.facility_id,
-        reporting_period: c7ReportingPeriod,
-        frequency_type: editingEmission?.frequency_type || 'monthly', // Preserve frequency_type on edit
-        scope: 'scope3',
-        category: formData.category,
-        sub_category: formData.sub_category || '',
-        calculation_method_scope3: scope3Method,
-        activity_type: scope3ActivityType, // Send activity_type for backend to update
-        scope3_activity_type: scope3ActivityType, // Also send scope3_activity_type
-        scope3_activity: activityLabel, // Save the display label, not internal key
-        scope3_ef_id: scope3ActivityId || filteredScope3Activities[0]?.id || null,
-        formula_id: extractedFormulaId,
-        
-        // Multi-employee specific data - structure depends on yearly vs monthly
-        employees: editEmployees.map(emp => {
-          const baseEmployee = {
-            id: emp.id,
-            name: emp.name,
-            employee_id: emp.employee_id,
-            department: emp.department,
-            activity_type: scope3ActivityType || emp.activity_type,
-          };
-          
-          if (isYearlyMode) {
-            // For yearly mode: use flat inputs/emissions at employee level
-            return {
-              ...baseEmployee,
-              inputs: emp.yearly_data?.inputs || emp.inputs || {},
-              emissions: emp.yearly_data?.emissions || emp.emissions || {},
-              calculation_details: emp.yearly_data?.calculation_details || emp.calculation_details,
-            };
-          } else {
-            // For monthly mode: use monthly_data structure
-            return {
-              ...baseEmployee,
-              monthly_data: emp.monthly_data,
-            };
-          }
-        }),
-        monthly_totals: isYearlyMode ? null : editEmployeeMonthlyTotals,
-        yearly_total: editEmployeeYearlyTotal,
-        
-        // Aggregated outputs
-        outputs: {
-          co2e: { value: totalCo2e, unit: 'tCO2e' },
-        },
-        
-        // Metadata
-        process_names: validProcessNames.map(p => p.name),
-        process_descriptions: validProcessNames.map(p => ({ name: p.name, description: p.description || '' })),
-        notes: formData.notes || '',
-        source_of_information: `Multi-employee commuting data for ${editEmployees.length} employee(s)`,
-        justification: null,
-        responsible_person: formData.responsible_person,
-        responsible_person_designation: formData.responsible_person_designation || '',
-        responsible_person_contact: formData.responsible_person_contact || '',
-      };
-      
+      const totalCo2e = builtPayload.__totalCo2e;
+      // Strip orchestration-only field before sending
+      const payload = { ...builtPayload };
+      delete payload.__totalCo2e;
+
       try {
         setIsSaving(true);
         const response = await axios.put(`${API}/emissions/${editingEmission.id}`, payload, {
@@ -2879,6 +2349,11 @@ export default function Emissions() {
         
         if (response.data) {
           toast.success(`Updated ${editEmployees.length} employee commuting records (${totalCo2e.toFixed(4)} tCO2e total)`);
+          // NOTE: Audit log persistence (POST /calc-engine/execute-by-category)
+          // is intentionally skipped for C7. The calc-engine endpoint expects
+          // aggregated `dynamicFieldValues`-based inputs; C7's per-employee
+          // per-month inputs don't match that contract and return HTTP 400.
+          // The legacy code also did NOT persist the audit log for C7.
           setDialogOpen(false);
           resetForm();
           fetchData(); // Refresh the emissions list
@@ -2891,982 +2366,169 @@ export default function Emissions() {
       return;
     }
     
-    // FIRST: Read actual values from DOM before any validation
-    const cvCheckbox = document.querySelector('[data-testid="override-calorific-checkbox"]');
-    const densityCheckbox = document.querySelector('[data-testid="override-density-checkbox"]');
-    const cvInput = document.querySelector('[data-testid="calorific-value-input"]');
-    const densityInput = document.querySelector('[data-testid="density-input"]');
-    
-    const isOverrideCV = cvCheckbox?.checked || false;
-    const isOverrideDensity = densityCheckbox?.checked || false;
-    const cvValue = cvInput?.value || '';
-    const densityValue = densityInput?.value || '';
-    
-    // Validate override justifications - USE DOM VALUES, not state
-    if (isOverrideCV && !formData.calorific_value_justification?.trim()) {
-      toast.error('Justification is required when overriding Calorific Value');
-      return;
-    }
-    if (isOverrideDensity && !formData.density_justification?.trim()) {
-      toast.error('Justification is required when overriding Density');
-      return;
-    }
-    
-    // #17: Validate main override justification for Scope 1/2 when ANY override is enabled
-    const hasAnyOverride = isOverrideCV || isOverrideDensity || overrideEmissionFactorHeat;
-    if (hasAnyOverride && (formData.scope === 'scope1' || formData.scope === 'scope2')) {
-      if (!overrideJustification?.trim() || overrideJustification.trim().length < 20) {
-        toast.error('Override justification must be at least 20 characters when overriding default values');
-        return;
-      }
-    }
+    // FLAT-FIELD SCOPE 3 + SCOPE 1 CATEGORIES — module-owned validation +
+    // payload (config-driven path). Applies to any module exposing
+    // `buildEditPayload` EXCEPT C7 (which has its own multi-employee
+    // branch above). Scope 2 still uses the legacy path until migrated.
+    if (
+      activeCategoryModule?.buildEditPayload &&
+      activeCategoryModule?.id !== 'c7'
+    ) {
+      // Read override DOM flags for Scope 1 (no-op for Scope 3 paths)
+      const cvCheckbox = document.querySelector('[data-testid="override-calorific-checkbox"]');
+      const densityCheckbox = document.querySelector('[data-testid="override-density-checkbox"]');
+      const isOverrideCV = cvCheckbox?.checked || false;
+      const isOverrideDensity = densityCheckbox?.checked || false;
 
-    // Validate required fields - only check fields where is_override is explicitly false (required inputs)
-    // Fields with is_override=true or is_override=null/undefined are optional (can come from DB)
-    if (dynamicInputFields.length > 0) {
-      for (const field of dynamicInputFields) {
-        // Only validate fields where isOverride is explicitly false (required user inputs)
-        // Skip fields that are: override fields (isOverride=true), or optional fields (isOverride=null/undefined)
-        if (!field.isOverrideExplicitlyFalse) {
-          continue;
-        }
-        
-        // Check numeric fields
-        if (field.fieldType === 'number' || !field.fieldType) {
-          const value = dynamicFieldValues[field.variable];
-          const numValue = parseFloat(value);
-          
-          if (!value || isNaN(numValue) || numValue <= 0) {
-            toast.error(`${field.label || field.variable} must be greater than 0`);
-            return;
-          }
-        }
-      }
-    }
-
-    // Validate at least one process name is provided
-    const validProcessNames = formData.process_names.filter(p => p.name && p.name.trim() !== '');
-    if (validProcessNames.length === 0) {
-      toast.error('At least one Name of Process is required');
-      return;
-    }
-    
-    // Validate that all processes with names have descriptions
-    const processesWithoutDescription = validProcessNames.filter(p => !p.description || p.description.trim() === '');
-    if (processesWithoutDescription.length > 0) {
-      toast.error(`Please add description for process: "${processesWithoutDescription[0].name}"`);
-      return;
-    }
-
-    // Validate fuel/activity selection based on scope
-    // For biogenic scope3, treat it like scope3 (uses activities instead of fuels)
-    const isBiogenicScope3Save = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
-    const isScope3LikeSave = formData.scope === 'scope3' || isBiogenicScope3Save;
-    
-    if (isScope3LikeSave) {
-      if (!scope3Method) {
-        toast.error('Please select a calculation method');
-        return;
-      }
-      // For supplier_basis with custom activity, check custom activity instead of activityId
-      if (scope3Method === 'supplier_basis' && useCustomActivity) {
-        if (!scope3CustomActivity?.trim()) {
-          toast.error('Please enter a custom activity name');
-          return;
-        }
-      } else {
-        if (!scope3ActivityId) {
-          toast.error('Please select an activity type');
-          return;
-        }
-      }
-      
-      // For supplier_basis, validate that units are provided for input fields
-      if (scope3Method === 'supplier_basis') {
-        const supplierFields = dynamicInputFields.filter(f => 
-          f.variable?.includes('supplier') || f.variable?.includes('Supplier')
-        );
-        for (const field of supplierFields) {
-          const value = dynamicFieldValues[field.variable];
-          const unit = dynamicFieldValues[`${field.variable}_unit`];
-          // If value is provided but unit is empty, show error
-          if (value !== undefined && value !== '' && (!unit || unit.trim() === '')) {
-            toast.error(`Please enter a unit for ${field.label}`);
-            return;
-          }
-        }
-      }
-    } else {
-      if (!formData.fuel_id) {
-        toast.error('Please select a fuel from the database');
-        return;
-      }
-    }
-
-    // Calculate total emissions using backend calc engine
-    const calc = effectiveCalculatedEmissions;
-    if (!calc) {
-      toast.error('Unable to calculate emissions. Please check all values.');
-      return;
-    }
-    
-    // Validate override values are valid when enabled
-    if (overrideCalorificValue && calc) {
-      const overrideCV = parseFloat(formData.calorific_value);
-      if (!overrideCV || overrideCV <= 0) {
-        toast.error('Please enter a valid Calorific Value when override is enabled');
-        return;
-      }
-    }
-    if (overrideDensity && calc) {
-      const overrideD = parseFloat(formData.density);
-      if (!overrideD || overrideD <= 0) {
-        toast.error('Please enter a valid Density when override is enabled');
-        return;
-      }
-    }
-    if (overrideEmissionFactorHeat && calc) {
-      const overrideEFH = parseFloat(formData.emission_factor_heat);
-      if (!overrideEFH || overrideEFH <= 0) {
-        toast.error('Please enter a valid Custom CO₂ Emission Factor (Heat Basis) when override is enabled');
-        return;
-      }
-    }
-    
-    // Validate dynamic override and optional fields - if checkbox is checked, value must be entered
-    const overrideAndOptionalFields = dynamicInputFields.filter(f => f.isOverride || (!f.required && !f.isOverride));
-    for (const field of overrideAndOptionalFields) {
-      const isCheckboxChecked = dynamicFieldValues[`override_${field.variable}`];
-      const value = dynamicFieldValues[field.variable];
-      const hasValue = value !== '' && value !== null && value !== undefined && parseFloat(value) > 0;
-      
-      if (isCheckboxChecked && !hasValue) {
-        const fieldLabel = typeof field.label === 'object' ? field.label.value : (field.label || field.variable);
-        toast.error(`Please enter a value for "${fieldLabel}" or uncheck the Override Default checkbox`);
-        return;
-      }
-    }
-    
-    try {
-      // Combine start and end periods
-      const reportingPeriod = formData.reporting_period_start === formData.reporting_period_end
-        ? formData.reporting_period_start
-        : `${formData.reporting_period_start} to ${formData.reporting_period_end}`;
-
-      // ============================================================================
-      // BUILD DYNAMIC FIELD VALUES - All inputs keyed by variable name
-      // ============================================================================
-      const dynamicValues = {};
-      
-      // Helper to get the correct unit for a field (same logic as dropdown display)
-      const getFieldUnitForSave = (field) => {
-        const storedUnit = dynamicFieldValues[`${field.variable}_unit`];
-        if (storedUnit) return storedUnit;
-        // Get fieldUnits the same way the dropdown does
-        let fieldUnits = [];
-        if (field.unitSource === 'fuel') {
-          // For Scope 3 (or biogenic scope3) activities, fallback to filteredScope3Activities
-          if (isScope3LikeSave && !selectedFuel && scope3ActivityId) {
-            const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-            fieldUnits = matchedActivity?.allowed_units || [];
-          } else {
-            fieldUnits = selectedFuel?.allowed_units || [];
-          }
-        } else if (field.unitSource === 'all_units') {
-          // For all_units, use all centralized units (simple + compound)
-          fieldUnits = centralizedUnits.map(u => u.symbol);
-        } else if (field.unitSource === 'scope3_ef') {
-          // For scope3_ef: Priority 1: scope3_ef.allowed_units, Priority 2: field mapping, Priority 3: formula expected_unit
-          const matchedEF = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-          if (matchedEF?.allowed_units?.length > 0) {
-            fieldUnits = matchedEF.allowed_units;
-          } else if (field.allowedUnits?.length > 0) {
-            fieldUnits = field.allowedUnits;
-          } else if (field.expectedUnit) {
-            fieldUnits = [field.expectedUnit];
-          } else {
-            fieldUnits = [];
-          }
-        } else {
-          // static - use allowed_units from mapping
-          fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
-        }
-        return fieldUnits[0] || field.expectedUnit || '';
-      };
-      
-      if (dynamicInputFields.length > 0) {
-        dynamicInputFields.forEach(field => {
-          const variable = field.variable;
-          const value = dynamicFieldValues[variable];
-          const unit = getFieldUnitForSave(field);
-          
-          if (field.isOverride) {
-            // Override field - include is_override flag and justification
-            const isOverridden = dynamicFieldValues[`override_${variable}`] || false;
-            dynamicValues[variable] = {
-              value: isOverridden && value !== undefined && value !== '' ? parseFloat(value) : null,
-              unit: unit,
-              is_override: isOverridden,
-              justification: dynamicFieldValues[`${variable}_justification`] || ''
-            };
-          } else if (!field.required) {
-            // For optional fields (not required, not override), check if checkbox is enabled
-            const isOptionalOverridden = dynamicFieldValues[`override_${variable}`] || false;
-            const parsedValue = value !== undefined && value !== '' ? parseFloat(value) : null;
-            dynamicValues[variable] = {
-              value: isOptionalOverridden ? parsedValue : null,
-              unit: unit,
-              ...(isOptionalOverridden && parsedValue !== null && { is_override: true })
-            };
-          } else {
-            // Required field - always save value
-            const parsedValue = value !== undefined && value !== '' ? parseFloat(value) : null;
-            dynamicValues[variable] = {
-              value: parsedValue,
-              unit: unit
-            };
-          }
-        });
-      }
-      
-      // Build outputs from calculation results
-      const outputs = {};
-      if (effectiveCalculatedEmissions) {
-        outputs.co2 = { value: effectiveCalculatedEmissions.co2Emissions || 0, unit: 'tCO2' };
-        outputs.ch4 = { value: effectiveCalculatedEmissions.ch4Emissions || 0, unit: 'tCH4' };
-        outputs.n2o = { value: effectiveCalculatedEmissions.n2oEmissions || 0, unit: 'tN2O' };
-        outputs.co2e = { value: effectiveCalculatedEmissions.co2eEmissions || 0, unit: 'tCO2e' };
-      }
-
-      // Prepare payload with new dynamic structure
-      const payload = {
-        facility_id: formData.facility_id,
-        reporting_period: reportingPeriod,
-        frequency_type: editingEmission?.frequency_type || 'monthly', // Preserve frequency_type on edit
-        scope: formData.scope,
-        category: formData.category,
-        sub_category: formData.sub_category,
-        fuel_type: formData.fuel_type,
-        fuel_database_id: isScope3LikeSave ? null : formData.fuel_id,
-        
-        // Store formula_id: prefer recalculated value from calc-engine, fallback to existing
-        formula_id: effectiveCalculatedEmissions?.formulaId || editingEmission?.formula_id || null,
-        
-        // Biogenic-specific fields
-        ...(formData.scope === 'biogenic' && {
-          biogenic_scope_selection: biogenicScopeSelection,
-        }),
-        
-        // Scope 3 specific fields (also applies to biogenic scope3)
-        ...(isScope3LikeSave && {
-          // For supplier_basis: use scope3ActivityId if available, null otherwise
-          // For other methods: always use scope3ActivityId
-          scope3_ef_id: scope3Method === 'supplier_basis' 
-            ? (useCustomActivity ? null : (scope3ActivityId || null))
-            : scope3ActivityId,
-          calculation_method_scope3: scope3Method,
-          scope3_activity: scope3Method === 'supplier_basis'
-            ? (useCustomActivity 
-                ? scope3CustomActivity 
-                : (filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || scope3CustomActivity || ''))
-            : (filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || ''),
-        }),
-        
-        // Dynamic field values - all inputs keyed by variable name
-        dynamic_field_values: {
-          ...dynamicValues,
-          // Include Scope 3 method and activity in dynamic values for persistence (as proper dict structure)
-          ...(isScope3LikeSave && {
-            calculation_method_scope3: { value: scope3Method, unit: '' },
-            scope3_ef_id: { 
-              value: scope3Method === 'supplier_basis' 
-                ? (useCustomActivity ? '' : (scope3ActivityId || ''))
-                : (scope3ActivityId || ''), 
-              unit: '' 
-            },
-            scope3_activity: { 
-              value: scope3Method === 'supplier_basis'
-                ? (useCustomActivity 
-                    ? scope3CustomActivity 
-                    : (filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || scope3CustomActivity || ''))
-                : (filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || ''), 
-              unit: '' 
-            },
-            scope3_activity_type: { value: scope3ActivityType || '', unit: '' },
-            scope3_subcategory: { value: scope3Subcategory || '', unit: '' },
-          }),
-          // Store biogenic selection in dynamic_field_values
-          ...(formData.scope === 'biogenic' && {
-            biogenic_scope_selection: { value: biogenicScopeSelection, unit: '' },
-          }),
-        },
-        
-        // Calculated outputs
-        outputs: outputs,
-        
-        // Metadata
-        source_of_information: formData.source_of_information,
-        notes: formData.notes,
-        justification: formData.justification,
-        evidence_url: formData.evidence_url,
-        responsible_person: formData.responsible_person,
-        responsible_person_designation: formData.responsible_person_designation,
-        responsible_person_contact: formData.responsible_person_contact,
-        
-        // Process names
-        process_names: formData.process_names.filter(p => p.name && p.name.trim() !== '').map(p => p.name),
-        process_descriptions: formData.process_names.filter(p => p.name && p.name.trim() !== '').map(p => ({
-          name: p.name,
-          description: p.description || ''
-        })),
-        
-        // #17: Override justification (Scope 1/2 only when any override is enabled)
-        ...((formData.scope === 'scope1' || formData.scope === 'scope2') && (isOverrideCV || isOverrideDensity || overrideEmissionFactorHeat) && {
-          override_justification: overrideJustification,
-        }),
-        
-        // Scope 3 optional supplier/employee fields (also for biogenic scope3)
-        ...(isScope3LikeSave && {
-          supplier_name: formData.supplier_name || null,
-          supplier_code: formData.supplier_code || null,
-          ...(formData.category === 'Employee Commuting' ? {
-            employee_name: formData.employee_name || null,
-            employee_id: formData.employee_id || null,
-          } : {}),
-          // Asset Name for C8/C13/C14/C15
-          ...(['c8', 'c13', 'c14', 'c15'].some(c => formData.category?.toLowerCase()?.includes(c)) ? {
-            asset_name: formData.asset_name || null,
-          } : {}),
-        }),
-      };
-      
-      // Debug: Log asset_name in save payload
-      // Debug: Log what we're saving
-      let emissionId = editingEmission?.id;
-      
-      if (editingEmission) {
-        // Check if there are any actual changes before updating
-        const hasChanges = (() => {
-          const oldDfv = editingEmission.dynamic_field_values || {};
-          const oldOutputs = editingEmission.outputs || {};
-          
-          // Compare dynamic field values
-          for (const key of Object.keys(dynamicValues)) {
-            const newVal = dynamicValues[key];
-            const oldVal = oldDfv[key];
-            
-            if (!oldVal) {
-              if (newVal?.value !== null && newVal?.value !== undefined) return true;
-              continue;
-            }
-            
-            if (newVal?.value !== oldVal?.value) return true;
-            if (newVal?.unit !== oldVal?.unit) return true;
-            if (newVal?.is_override !== oldVal?.is_override) return true;
-          }
-          
-          // Compare outputs
-          for (const key of Object.keys(outputs)) {
-            const newVal = outputs[key];
-            const oldVal = oldOutputs[key];
-            
-            if (!oldVal) {
-              if (newVal?.value !== null && newVal?.value !== undefined && newVal?.value !== 0) return true;
-              continue;
-            }
-            
-            // Allow small floating point differences
-            if (Math.abs((newVal?.value || 0) - (oldVal?.value || 0)) > 0.0001) return true;
-          }
-          
-          // Compare metadata fields
-          if (formData.source_of_information !== (editingEmission.source_of_information || '')) return true;
-          if (formData.notes !== (editingEmission.notes || '')) return true;
-          if (formData.justification !== (editingEmission.justification || '')) return true;
-          if (formData.evidence_url !== (editingEmission.evidence_url || '')) return true;
-          if (formData.responsible_person !== (editingEmission.responsible_person || '')) return true;
-          if (formData.responsible_person_designation !== (editingEmission.responsible_person_designation || '')) return true;
-          if (formData.responsible_person_contact !== (editingEmission.responsible_person_contact || '')) return true;
-          
-          // Compare supplier fields
-          if (formData.supplier_name !== (editingEmission.supplier_name || '')) return true;
-          if (formData.supplier_code !== (editingEmission.supplier_code || '')) return true;
-          
-          // Compare asset name (for C8/C13/C14/C15)
-          if (formData.asset_name !== (editingEmission.asset_name || '')) return true;
-          
-          // Compare reporting period
-          const newReportingPeriod = formData.reporting_period_start === formData.reporting_period_end
-            ? formData.reporting_period_start
-            : `${formData.reporting_period_start} to ${formData.reporting_period_end}`;
-          if (newReportingPeriod !== (editingEmission.reporting_period || '')) return true;
-          
-          // Compare process names
-          const oldProcessNames = editingEmission.process_names || [];
-          const newProcessNames = payload.process_names || [];
-          if (JSON.stringify(oldProcessNames) !== JSON.stringify(newProcessNames)) return true;
-          
-          // Compare scope3 activity (custom activity changes)
-          const oldScope3Activity = editingEmission.scope3_activity || '';
-          const newScope3Activity = payload.scope3_activity || '';
-          if (oldScope3Activity !== newScope3Activity) return true;
-          
-          // Compare scope3_ef_id (activity selection changes)
-          const oldScope3EfId = editingEmission.scope3_ef_id || '';
-          const newScope3EfId = payload.scope3_ef_id || '';
-          if (oldScope3EfId !== newScope3EfId) return true;
-          
-          // Compare calculation method
-          const oldMethod = editingEmission.calculation_method_scope3 || '';
-          const newMethod = payload.calculation_method_scope3 || '';
-          if (oldMethod !== newMethod) return true;
-          
-          return false;
-        })();
-        
-        if (!hasChanges) {
-          toast.info('No changes detected');
-          setIsFormDirty(false); // Reset dirty flag since there are no actual changes
-          return;
-        }
-        
-        // DEBUG: Log the save payload for fugitive emissions
-        console.log('[FUGITIVE DEBUG - handleSubmit] Saving emission:', {
-          isEdit: !!editingEmission,
-          emission_id: editingEmission?.id,
-          scope3Method,
-          scope3Subcategory,
-          scope3ActivityId,
-          payloadCategory: payload.category,
-          payloadScope3EfId: payload.scope3_ef_id,
-          payloadDynamicFieldValues: payload.dynamic_field_values,
-          payloadOutputs: payload.outputs,
-        });
-        
-        await axios.put(`${API}/emissions/${editingEmission.id}`, payload, {
-          headers: getAuthHeader()
-        });
-        toast.success('Emission record updated successfully');
-      } else {
-        const createResponse = await axios.post(`${API}/emissions`, payload, {
-          headers: getAuthHeader()
-        });
-        emissionId = createResponse.data?.id;
-        toast.success('Emission record created successfully');
-      }
-      
-      // After saving, also persist the calculation audit log
-      // This ensures override sources are saved for re-edit
-      if (emissionId && dynamicInputFields.length > 0) {
-        try {
-          const categoryObj = dynamicCategories.find(
-            c => c.name === (formData.category || selectedCategory) && c.scope_code === formData.scope
-          );
-          
-          if (categoryObj?.id) {
-            // Build inputs from dynamic fields
-            const inputs = {};
-            dynamicInputFields.filter(f => !f.isOverride).forEach(field => {
-              const value = dynamicFieldValues[field.variable];
-              if (value !== undefined && value !== '' && value !== null) {
-                const numValue = parseFloat(value);
-                if (!isNaN(numValue)) {
-                  const unit = dynamicFieldValues[`${field.variable}_unit`] || field.expectedUnit || '';
-                  inputs[field.variable] = { value: numValue, unit: unit };
-                }
-              }
-            });
-            
-            // Build user overrides from override fields
-            const userOverrides = {};
-            dynamicInputFields.filter(f => f.isOverride).forEach(field => {
-              const overrideKey = `override_${field.variable}`;
-              if (dynamicFieldValues[overrideKey]) {
-                const value = dynamicFieldValues[field.variable];
-                if (value !== undefined && value !== null && value !== '') {
-                  const unit = dynamicFieldValues[`${field.variable}_unit`] || field.expectedUnit || '';
-                  userOverrides[field.variable] = { value: parseFloat(value), unit: unit };
-                }
-              }
-            });
-            
-            // Build decision inputs
-            const decisionInputs = buildEditDecisionInputs();
-            
-            // Build the scope3 context with default_unit for auto-conversion
-            const matchedEFForSave = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-            const scope3Context = formData.scope === 'scope3' ? {
-              calculation_method_scope3: scope3Method,
-              scope3_ef_id: scope3ActivityId,
-              // For supplier_basis with custom activity, use the custom activity name
-              activity: (scope3Method === 'supplier_basis' && useCustomActivity) 
-                ? scope3CustomActivity 
-                : matchedEFForSave?.activity,
-              scope3_ef_default_unit: matchedEFForSave?.default_unit || '',
-            } : {};
-            
-            // For Scope 3 subcategory categories (C8, C10, C11, C13, C14) with fugitive emissions,
-            // use the activity name as fuel_name since the activity IS the fuel (e.g., "HFC-32")
-            // Skip this for supplier_basis as it uses a basic formula without fuel_database lookup
-            let fuelNameForContext = selectedFuel?.fuel_name;
-            if (formData.scope === 'scope3' && requiresSubcategory && scope3Method !== 'supplier_basis' && scope3Subcategory === 'fugitive_emissions' && matchedEFForSave?.activity) {
-              fuelNameForContext = matchedEFForSave.activity;
-            }
-            
-            // DEBUG: Log the calc engine call for audit persistence
-            const calcPayload = {
-              category_id: categoryObj.id,
-              decision_inputs: decisionInputs,
-              inputs: inputs,
-              context: {
-                fuel_name: fuelNameForContext,
-                fuel_id: selectedFuel?.id,
-                scope: formData.scope,
-                category: formData.category || selectedCategory,
-                reporting_period: formData.reporting_period_start, // For currency conversion year lookup
-                // Scope 3 specific context
-                ...scope3Context,
-              },
-              user_overrides: userOverrides,
-              dry_run: false,
-              emission_record_id: emissionId,
-              // Pass scope3_ef_id at top level for backend to lookup fuel_database (fugitive emissions)
-              ...(formData.scope === 'scope3' && scope3ActivityId && { scope3_ef_id: scope3ActivityId }),
-            };
-            
-            console.log('[FUGITIVE DEBUG - Audit Save] Calc Engine Payload:', JSON.stringify(calcPayload, null, 2));
-            
-            // Call calc engine with dry_run: false to persist audit log
-            await axios.post(
-              `${API}/calc-engine/execute-by-category`,
-              calcPayload,
-              { headers: getAuthHeader() }
-            );
-          }
-        } catch (auditError) {
-          console.warn('Failed to persist audit log:', auditError);
-          // Don't fail the whole save if audit log fails
-        }
-      }
-      
-      setDialogOpen(false);
-      resetForm();
-      fetchData();
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Operation failed');
-    }
-  };
-
-  const handleEdit = async (emission) => {
-    // Parse reporting_period - could be "February 2025" or "2025-02" or "February 2025 to March 2025"
-    const parseReportingPeriod = (periodStr) => {
-      if (!periodStr) return '';
-      
-      // If already in YYYY-MM format
-      if (/^\d{4}-\d{2}$/.test(periodStr)) {
-        return periodStr;
-      }
-      
-      // Try to parse "Month Year" format (e.g., "February 2025")
-      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                          'July', 'August', 'September', 'October', 'November', 'December'];
-      const match = periodStr.match(/^(\w+)\s+(\d{4})$/);
-      if (match) {
-        const monthIndex = monthNames.indexOf(match[1]);
-        if (monthIndex >= 0) {
-          return `${match[2]}-${String(monthIndex + 1).padStart(2, '0')}`;
-        }
-      }
-      
-      return periodStr; // Return as-is if can't parse
-    };
-    
-    const [startPeriodRaw, endPeriodRaw] = emission.reporting_period?.includes(' to ')
-      ? emission.reporting_period.split(' to ')
-      : [emission.reporting_period, emission.reporting_period];
-    
-    const startPeriod = parseReportingPeriod(startPeriodRaw);
-    const endPeriod = parseReportingPeriod(endPeriodRaw);
-
-    setEditingEmission(emission);
-    
-    // Set frequency type from the emission (locked once saved, defaults to 'monthly' for legacy records)
-    const freqType = emission.frequency_type || 'monthly';
-    setEditFrequencyType(freqType);
-    
-    // Check if this emission was created with a fuel from database
-    // First try by ID, then by fuel_type name (for yearly records that may not have fuel_database_id)
-    let fuelFromDb = emission.fuel_database_id 
-      ? fuelDatabase.find(f => f.id === emission.fuel_database_id)
-      : null;
-    
-    // If no fuel found by ID but we have fuel_type, try to find by name
-    if (!fuelFromDb && emission.fuel_type) {
-      fuelFromDb = fuelDatabase.find(f => f.fuel_name === emission.fuel_type);
-    }
-    
-    // Set the category state for UI display
-    setSelectedCategory(emission.category || '');
-    
-    // Handle biogenic emissions - restore biogenicScopeSelection
-    if (emission.scope === 'biogenic') {
-      const dynamicValues = emission.dynamic_field_values || {};
-      const biogenicSelection = emission.biogenic_scope_selection || 
-        (typeof dynamicValues.biogenic_scope_selection === 'object' 
-          ? dynamicValues.biogenic_scope_selection.value 
-          : dynamicValues.biogenic_scope_selection) || '';
-      setBiogenicScopeSelection(biogenicSelection);
-      
-      // If biogenic scope3, also load scope3 fields
-      if (biogenicSelection === 'scope3') {
-        const method = emission.calculation_method_scope3 || dynamicValues.calculation_method_scope3 || '';
-        
-        let activityId = emission.scope3_ef_id || dynamicValues.scope3_ef_id || '';
-        if (typeof activityId === 'object' && activityId.value) {
-          activityId = activityId.value;
-        }
-        
-        let activityType = emission.scope3_activity_type || '';
-        if (!activityType && dynamicValues.scope3_activity_type) {
-          activityType = typeof dynamicValues.scope3_activity_type === 'object' 
-            ? dynamicValues.scope3_activity_type.value 
-            : dynamicValues.scope3_activity_type;
-        }
-        
-        let customActivity = '';
-        let isCustomActivity = false;
-        if (method === 'supplier_basis') {
-          const scope3Activity = dynamicValues.scope3_activity;
-          customActivity = typeof scope3Activity === 'object'
-            ? scope3Activity.value
-            : (emission.scope3_activity || scope3Activity || '');
-          
-          const topLevelEfId = emission.scope3_ef_id;
-          const dynamicEfId = dynamicValues.scope3_ef_id;
-          const dynamicEfIdValue = typeof dynamicEfId === 'object' ? dynamicEfId.value : dynamicEfId;
-          
-          if (dynamicEfIdValue && dynamicEfIdValue !== '') {
-            activityId = dynamicEfIdValue;
-            isCustomActivity = false;
-          } else if (topLevelEfId && topLevelEfId !== '') {
-            activityId = topLevelEfId;
-            isCustomActivity = false;
-          } else if (customActivity && customActivity.trim() !== '') {
-            isCustomActivity = true;
-            activityId = '';
-          }
-        }
-        
-        setScope3Method(method);
-        setScope3ActivityType(activityType);
-        setScope3Subcategory(''); // Biogenic doesn't use subcategory
-        setScope3ActivityId(activityId);
-        setScope3CustomActivity(customActivity);
-        setUseCustomActivity(isCustomActivity);
-      }
-    }
-    // Set Scope 3 specific fields if applicable
-    else if (emission.scope === 'scope3') {
-      // Extract method and activity from top-level fields or dynamic_field_values
-      const dynamicValues = emission.dynamic_field_values || {};
-      const method = emission.calculation_method_scope3 || dynamicValues.calculation_method_scope3 || '';
-      
-      // Handle activityId which may be stored as string or object {value, unit}
-      let activityId = emission.scope3_ef_id || dynamicValues.scope3_ef_id || '';
-      if (typeof activityId === 'object' && activityId.value) {
-        activityId = activityId.value;
-      }
-      
-      // Get activity type from stored field first, then fall back to lookup
-      let activityType = emission.scope3_activity_type || emission.activity_type || '';
-      if (!activityType && dynamicValues.scope3_activity_type) {
-        activityType = typeof dynamicValues.scope3_activity_type === 'object' 
-          ? dynamicValues.scope3_activity_type.value 
-          : dynamicValues.scope3_activity_type;
-      }
-      
-      // For C7 records, check employees array for activity_type if not found at top level
-      const isC7 = emission.category?.toLowerCase().includes('c7') || emission.category?.toLowerCase().includes('employee commuting');
-      if (!activityType && isC7 && emission.employees?.length > 0) {
-        activityType = emission.employees[0].activity_type || '';
-      }
-      
-      // If still no activity type, try to look it up from scope3EFData (for legacy records)
-      if (!activityType && activityId && scope3EFData.length > 0) {
-        const matchedEF = scope3EFData.find(ef => ef.id === activityId);
-        activityType = matchedEF?.activity_type || '';
-      }
-      
-      // Normalize activity type to match dropdown values (e.g., 'Work From Home' -> 'wfh', 'Water Travel' -> 'water_travel')
-      // The dropdown uses lowercase underscore format from scope3_ef.activity_type
-      if (activityType && isC7) {
-        // Check if it's already in the correct format (lowercase with underscores)
-        const normalizedType = activityType.toLowerCase().replace(/\s+/g, '_');
-        // Map display names back to internal values
-        const displayToInternalMap = {
-          'work_from_home': 'wfh',
-          'car_travel': 'car_travel',
-          'bus_travel': 'bus_travel', 
-          'rail_travel': 'rail_travel',
-          'air_travel': 'air_travel',
-          'taxi_travel': 'taxi_travel',
-          'bike_travel': 'bike_travel',
-          'water_travel': 'water_travel',
-          'hotel_stay': 'hotel_stay',
-        };
-        activityType = displayToInternalMap[normalizedType] || normalizedType;
-      }
-      
-      // Get subcategory from stored field (for C8/C10/C11/C13/C14)
-      let subcategory = '';
-      if (dynamicValues.scope3_subcategory) {
-        subcategory = typeof dynamicValues.scope3_subcategory === 'object'
-          ? dynamicValues.scope3_subcategory.value
-          : dynamicValues.scope3_subcategory;
-      }
-      
-      // DEBUG: Log extracted scope3 values from emission record
-      console.log('[FUGITIVE DEBUG - handleEdit] Extracted Scope3 values:', {
-        emission_id: emission.id,
-        emission_category: emission.category,
-        method,
-        activityId,
-        activityType,
-        subcategory,
-        dynamicValues_scope3_subcategory: dynamicValues.scope3_subcategory,
-        dynamicValues_scope3_ef_id: dynamicValues.scope3_ef_id,
-        emission_scope3_ef_id: emission.scope3_ef_id,
-        fugitiveEmissionsDataCount: fugitiveEmissionsData.length,
+      const validation = activeCategoryModule.validateEditSubmission({
+        // Scope 3 props
+        scope3Method,
+        scope3ActivityId,
+        scope3CustomActivity,
+        useCustomActivity,
+        // Common props
+        dynamicInputFields,
+        dynamicFieldValues,
+        processNames: formData.process_names,
+        effectiveCalculatedEmissions,
+        formData,
+        // Scope 1 props
+        isOverrideCV,
+        isOverrideDensity,
+        overrideCalorificValue,
+        overrideDensity,
+        overrideEmissionFactorHeat,
+        overrideJustification,
       });
-      
-      // Get custom activity for supplier_basis
-      let customActivity = '';
-      let isCustomActivity = false;
-      if (method === 'supplier_basis') {
-        // For supplier_basis, the activity name is stored in scope3_activity
-        const scope3Activity = dynamicValues.scope3_activity;
-        customActivity = typeof scope3Activity === 'object'
-          ? scope3Activity.value
-          : (emission.scope3_activity || scope3Activity || '');
-        
-        // Determine if this is a custom activity entry
-        // Check BOTH top-level scope3_ef_id AND dynamic_field_values.scope3_ef_id
-        // It's a custom activity ONLY if BOTH are null/empty
-        const topLevelEfId = emission.scope3_ef_id;
-        const dynamicEfId = dynamicValues.scope3_ef_id;
-        const dynamicEfIdValue = typeof dynamicEfId === 'object' ? dynamicEfId.value : dynamicEfId;
-        
-        // Use dynamic value as source of truth for activityId (it's more reliably stored)
-        if (dynamicEfIdValue && dynamicEfIdValue !== '') {
-          activityId = dynamicEfIdValue;
-          isCustomActivity = false;
-        } else if (topLevelEfId && topLevelEfId !== '') {
-          activityId = topLevelEfId;
-          isCustomActivity = false;
-        } else if (customActivity && customActivity.trim() !== '') {
-          // No activity ID anywhere but has a custom activity name
-          isCustomActivity = true;
-          activityId = '';
+      if (!validation.valid) {
+        toast.error(validation.errorMessage);
+        return;
+      }
+
+      try {
+        const payload = activeCategoryModule.buildEditPayload({
+          // Scope 3 props
+          scope3Method,
+          scope3ActivityId,
+          scope3ActivityType,
+          scope3Subcategory,
+          scope3CustomActivity,
+          useCustomActivity,
+          // Common
+          formData,
+          editingEmission,
+          biogenicScopeSelection,
+          dynamicInputFields,
+          dynamicFieldValues,
+          effectiveCalculatedEmissions,
+          selectedFuel,
+          filteredScope3Activities,
+          centralizedUnits,
+          // Scope 1 override flags
+          isOverrideCV,
+          isOverrideDensity,
+          overrideEmissionFactorHeat,
+          overrideJustification,
+        });
+
+        setIsSaving(true);
+        const response = await axios.put(`${API}/emissions/${editingEmission.id}`, payload, {
+          headers: getAuthHeader()
+        });
+        if (response.data) {
+          toast.success('Emission updated successfully');
+          // Persist calc audit log so override sources reload correctly on re-edit
+          await persistCalcAuditLogLocal(editingEmission.id);
+          setDialogOpen(false);
+          resetForm();
+          fetchData();
         }
+      } catch (error) {
+        toast.error('Failed to update emissions. Please try again.');
+      } finally {
+        setIsSaving(false);
       }
-      
-      // If subcategory is fugitive_emissions and activityId exists, check if it's from fugitiveEmissionsData
-      // This handles the case where the activity came from fuel_database
-      if (subcategory === 'fugitive_emissions' && activityId && fugitiveEmissionsData.length > 0) {
-        const matchedFugitive = fugitiveEmissionsData.find(f => f.id === activityId);
-        // Fugitive emission validation happens silently
-      }
-      
-      setScope3Method(method);
-      setScope3ActivityType(activityType);
-      setScope3Subcategory(subcategory);
-      setScope3ActivityId(activityId);
-      setScope3CustomActivity(customActivity);
-      setUseCustomActivity(isCustomActivity);
-      
-      // Check if this is a C7 record - always load employee data (reuse isC7 from above)
-      if (isC7) {
-        // Check if this is a new monthly model record (has reporting_period like "2026-01")
-        const isMonthlyModel = emission.reporting_period && /^\d{4}-\d{2}$/.test(emission.reporting_period);
-        
-        if (isMonthlyModel) {
-          // Extract month from reporting_period (e.g., "2026-01" -> "jan")
-          const monthNum = parseInt(emission.reporting_period.split('-')[1], 10);
-          const monthKeys = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-          const monthKey = monthKeys[monthNum - 1];
-          
-          // Transform employees to have monthly_data structure for MultiEmployeeInput compatibility
-          // Check if employee already has monthly_data (new save format) vs flat structure (old format)
-          const transformedEmployees = (emission.employees || []).map(emp => {
-            // If employee already has monthly_data with the expected month, use it directly
-            if (emp.monthly_data && emp.monthly_data[monthKey]) {
-              return emp; // Already in correct format
-            }
-            // Otherwise, construct monthly_data from flat emp.inputs/emp.emissions (old format)
-            return {
-              ...emp,
-              monthly_data: {
-                [monthKey]: {
-                  inputs: emp.inputs || {},
-                  emissions: emp.emissions || {},
-                  calculation_details: emp.calculation_details || null, // Include calculation_details for display
-                }
-              }
-            };
-          });
-          setEditEmployees(transformedEmployees);
-          
-          // Store the editing month for reference
-          setEditC7Month(monthKey);
-        } else if (freqType === 'yearly') {
-          // YEARLY MODE: Transform employees to have yearly_data structure
-          const transformedEmployees = (emission.employees || []).map(emp => {
-            // If employee already has yearly_data, use it directly
-            if (emp.yearly_data && emp.yearly_data.inputs) {
-              return emp; // Already in correct format
-            }
-            // Otherwise, construct yearly_data from flat emp.inputs/emp.emissions
-            return {
-              ...emp,
-              yearly_data: {
-                inputs: emp.inputs || {},
-                emissions: emp.emissions || {},
-                calculation_details: emp.calculation_details || null, // Include calculation_details for display
-              }
-            };
-          });
-          setEditEmployees(transformedEmployees);
-          setEditC7Month(null);
-        } else {
-          // Old model - employees already have monthly_data structure
-          setEditEmployees(emission.employees || []);
-          setEditC7Month(null);
-        }
-        setEditEmployeeMonthlyTotals(emission.monthly_totals || {});
-        setEditEmployeeYearlyTotal(emission.yearly_total || {});
-      } else {
-        // Not a monthly model - reset to yearly totals
-        setEditEmployees([]);
-        setEditEmployeeMonthlyTotals({});
-        setEditEmployeeYearlyTotal({});
-        setEditC7Month(null);
-      }
-    } else {
-      // Non-C7 category - only reset C7-specific employee data, NOT scope3 fields
-      // The scope3 fields (method, subcategory, activityId, etc.) were already set above
-      // and should be preserved for C8, C10, C11, C13, C14 categories
-      setEditEmployees([]);
-      setEditEmployeeMonthlyTotals({});
-      setEditEmployeeYearlyTotal({});
-      setEditC7Month(null);
+      return;
     }
-    
-    // Reset legacy override flags (not used with new dynamic structure)
-    setOverrideCalorificValue(false);
-    setOverrideDensity(false);
-    setOverrideEmissionFactorHeat(false);
-    // Load override justification if exists (#17)
-    setOverrideJustification(emission.override_justification || '');
-    
-    setFormData({
-      facility_id: emission.facility_id,
-      reporting_period_start: startPeriod,
-      reporting_period_end: endPeriod,
-      scope: emission.scope,
-      category: emission.category === 'Custom' ? '' : (emission.category || ''),
-      sub_category: emission.sub_category || '',
-      fuel_id: emission.fuel_database_id || fuelFromDb?.id || '',
-      fuel_type: emission.fuel_type || '',
-      quantity: '', // Will be populated from dynamic_field_values
-      quantity_unit: '',
-      emission_factor_co2: '',
-      emission_factor_ch4: '',
-      emission_factor_n2o: '',
-      emission_factor_basis_quantity: fuelFromDb?.emission_factor_basis_quantity?.toString() || '',
-      emission_factor_basis_unit: fuelFromDb?.emission_factor_basis_unit || 'tCO2/MWh',
-      calorific_value: '',
-      calorific_value_unit: fuelFromDb?.calorific_value_unit || '',
-      calorific_value_justification: '',
-      density: '',
-      density_unit: fuelFromDb?.density_unit || '',
-      density_justification: '',
-      emission_factor_heat: '',
-      emission_factor_heat_justification: '',
-      conversion_factor: '1',
-      source_of_information: emission.source_of_information || '',
-      justification: emission.justification || '',
-      notes: emission.notes || '',
-      responsible_person: emission.responsible_person || '',
-      responsible_person_designation: emission.responsible_person_designation || '',
-      responsible_person_contact: emission.responsible_person_contact || '',
-      evidence_url: emission.evidence_url || '',
-      // Scope 3 optional fields
-      supplier_name: emission.supplier_name || '',
-      supplier_code: emission.supplier_code || '',
-      employee_name: emission.employee_name || '',
-      employee_id: emission.employee_id || '',
-      asset_name: emission.asset_name || '', // Asset Name for C8/C13/C14/C15
-      // Load process names with descriptions
-      process_names: (() => {
-        if (emission.process_descriptions?.length > 0) {
-          return emission.process_descriptions.map(pd => ({
-            name: pd.name || '',
-            description: pd.description || ''
-          }));
-        }
-        if (emission.process_names?.length > 0) {
-          return emission.process_names.map(name => ({
-            name: typeof name === 'string' ? name : (name.name || ''),
-            description: typeof name === 'object' ? (name.description || '') : ''
-          }));
-        }
-        return [{ name: '', description: '' }];
-      })(),
+
+    // No module matched — defensive fallback.
+    // With Scope 1/2/3 + biogenic all routed through module dispatch above,
+    // this branch should be unreachable for any valid emission record.
+    // If it fires, it indicates an unregistered category or a stale dialog.
+    toast.error('No category module matched for this emission. Cannot save.');
+    console.error('[Emissions.handleSubmit] No active category module for', {
+      scope: formData.scope,
+      category: formData.category,
+      biogenicScopeSelection,
     });
-    
-    // Parse existing evidences from evidence_url (comma-separated)
-    if (emission.evidence_url) {
-      const existingUrls = emission.evidence_url.split(',').filter(url => url.trim());
-      
-      // Fetch actual filenames for each file
-      const evidencesWithFilenames = await Promise.all(
-        existingUrls.map(async (url, idx) => {
-          const trimmedUrl = url.trim();
-          const fileIdMatch = trimmedUrl.match(/\/api\/files\/([a-f0-9-]+)/i);
-          if (fileIdMatch) {
-            try {
-              const response = await axios.get(`${API}/files/${fileIdMatch[1]}/info`);
-              return {
-                url: trimmedUrl,
-                filename: response.data.filename || `Evidence ${idx + 1}`,
-                file_id: fileIdMatch[1]
-              };
-            } catch (error) {
-              console.error('Failed to fetch file info:', error);
-              return { url: trimmedUrl, filename: `Evidence ${idx + 1}` };
-            }
-          }
-          return { url: trimmedUrl, filename: `Evidence ${idx + 1}` };
-        })
-      );
-      
-      setExistingEvidences(evidencesWithFilenames);
-    } else {
-      setExistingEvidences([]);
-    }
-    
-    // Dynamic field values will be populated from audit_log after form config loads
-    // Set initial empty state - the useEffect will populate once dynamicInputFields is available
-    setDynamicFieldValues({});
-    
-    // Clear previous audit log to prevent stale data showing
-    setEmissionAuditLog([]);
-    
-    // Store the emission ID for fetching audit log
-    setEditingEmissionId(emission.id);
-    
-    setDialogOpen(true);
   };
+
+  // E4: handleEdit body extracted to ./emissions/utils/editEmissionDispatch.js.
+  const handleEdit = (emission) => editEmissionDispatchShared(emission, {
+    // State reads
+    scope3EFData, fugitiveEmissionsData, fuelDatabase,
+    // Setters
+    setEditEmployees, setEditEmployeeMonthlyTotals, setEditEmployeeYearlyTotal,
+    setDynamicFieldValues, setExistingEvidences, setEditingEmissionId,
+    setEmissionAuditLog, setIsEditLoading, setDialogOpen,
+    setScope3Method, setScope3ActivityId, setScope3ActivityType,
+    setScope3Subcategory, setScope3CustomActivity, setUseCustomActivity,
+    setBiogenicScopeSelection, setEditFrequencyType, setEditingEmission,
+    setOverrideCalorificValue, setOverrideDensity, setOverrideEmissionFactorHeat,
+    setOverrideJustification, setSelectedCategory, setFormData, setEditC7Month,
+    // Helpers
+    getAuthHeader,
+  });
+
+  // Deep-link from /ghg/approvals: open the edit dialog for ?edit=<id> once
+  // the emissions list is loaded. Strips the param after firing so a refresh
+  // doesn't re-trigger. If the record isn't in the loaded list (e.g. admin
+  // view filters out pending records), falls back to fetching it directly.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const editId = params.get('edit');
+    if (!editId) return;
+    if (loading) return;
+
+    const target = (emissions || []).find((e) => e.id === editId);
+    const stripParam = () => {
+      params.delete('edit');
+      navigate(
+        { pathname: location.pathname, search: params.toString() },
+        { replace: true }
+      );
+    };
+
+    if (target) {
+      handleEdit(target);
+      stripParam();
+      return;
+    }
+
+    // Fallback: fetch single record directly (covers admin opening pending
+    // records from the Approvals page, which are excluded from /api/emissions).
+    let cancelled = false;
+    (async () => {
+      try {
+        const resp = await axios.get(`${API}/emissions/${editId}`, {
+          headers: getAuthHeader(),
+        });
+        if (cancelled) return;
+        if (resp?.data) {
+          handleEdit(resp.data);
+          stripParam();
+        }
+      } catch (err) {
+        if (!cancelled) {
+          toast.error(err?.response?.data?.detail || 'Failed to load record');
+          stripParam();
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [location.search, emissions, loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDelete = async (id) => {
     try {
@@ -3875,8 +2537,7 @@ export default function Emissions() {
       });
       toast.success('Emission record deleted successfully');
       setDeleteConfirmOpen(false);
-      setEmissionToDelete(null);
-      fetchData();
+      setEmissionToDelete(null);      fetchData();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Delete failed');
     }
@@ -3929,6 +2590,8 @@ export default function Emissions() {
       employee_name: '',
       employee_id: '',
       asset_name: '', // Asset Name for C8/C13/C14/C15
+      from_location: '', // From Location for C4/C6/C7/C9
+      to_location: '', // To Location for C4/C6/C7/C9
     });
     setUploadedEvidence(null);
     setExistingEvidences([]); // Clear existing evidences
@@ -3956,6 +2619,7 @@ export default function Emissions() {
     if (!open) {
       resetForm();
       setIsFormDirty(false);
+      setIsEditLoading(false); // Reset edit loading state when dialog closes
     }
   };
   
@@ -3977,6 +2641,7 @@ export default function Emissions() {
   const handleDiscardChanges = () => {
     setShowUnsavedChangesDialog(false);
     setIsFormDirty(false);
+    setIsEditLoading(false); // Reset edit loading state
     setDialogOpen(false);
     resetForm();
   };
@@ -4049,29 +2714,46 @@ export default function Emissions() {
       };
       const normalizedActivityType = normalizeActivityType(activityType);
       
-      // Priority: 1) Selected scope3ActivityId, 2) First match for activity_type
-      let matchedActivity = null;
-      if (scope3ActivityId) {
-        matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-      }
-      
-      // Fallback to activity_type match if no specific activity selected
-      if (!matchedActivity) {
-        matchedActivity = filteredScope3Activities.find(a => 
+      // For supplier_basis with custom activity, skip activity ID requirement
+      if (!useCustomActivity && !scope3ActivityId) {
+        // Priority: 1) Selected scope3ActivityId, 2) First match for activity_type
+        let matchedActivity = filteredScope3Activities.find(a => 
           a.activity_type === activityType || 
           normalizeActivityType(a.activity_type) === normalizedActivityType
         );
-      }
-
-      if (!matchedActivity) {
-        toast.error(`Activity "${activityType}" not found. Please select a valid activity.`);
-        setIsCalculatingEditEmployee(false);
-        return;
+        
+        if (!matchedActivity) {
+          toast.error('Please select a specific activity from the dropdown or use custom activity');
+          setIsCalculatingEditEmployee(false);
+          return;
+        }
       }
       
-      // Use the matched activity's emission factor for supplier_basis if no custom EF provided
-      const efFromActivity = matchedActivity.emission_factor;
-      const efUnitFromActivity = matchedActivity.ef_unit;
+      // Find matched activity (may be null for custom activity)
+      let matchedActivity = null;
+      if (!useCustomActivity) {
+        if (scope3ActivityId) {
+          matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+        }
+        
+        // Fallback to activity_type match if no specific activity selected
+        if (!matchedActivity) {
+          matchedActivity = filteredScope3Activities.find(a => 
+            a.activity_type === activityType || 
+            normalizeActivityType(a.activity_type) === normalizedActivityType
+          );
+        }
+
+        if (!matchedActivity) {
+          toast.error(`Activity "${activityType}" not found. Please select a valid activity.`);
+          setIsCalculatingEditEmployee(false);
+          return;
+        }
+      }
+      
+      // Use the matched activity's emission factor for supplier_basis if no custom EF provided (or null for custom activity)
+      const efFromActivity = matchedActivity?.emission_factor || null;
+      const efUnitFromActivity = matchedActivity?.ef_unit || null;
 
       // Build decision_inputs for decision tree traversal
       const decisionInputs = {
@@ -4109,10 +2791,12 @@ export default function Emissions() {
         context: {
           ...decisionInputs,
           reporting_period: formData.reporting_period_start, // For currency conversion year lookup
-          activity: matchedActivity.activity, // For emission factor lookup
-          fuel_name: matchedActivity.activity, // Alias for property source mapping
+          activity: matchedActivity?.activity || scope3CustomActivity || 'Custom Activity', // For emission factor lookup
+          fuel_name: matchedActivity?.activity || scope3CustomActivity || 'Custom Activity', // Alias for property source mapping
+          scope3_ef_id: matchedActivity?.id || null,
+          use_custom_activity: useCustomActivity,
         },
-        scope3_ef_id: matchedActivity.id,
+        scope3_ef_id: matchedActivity?.id || null,
       };
 
       // Call calc engine
@@ -4221,7 +2905,7 @@ export default function Emissions() {
     } finally {
       setIsCalculatingEditEmployee(false);
     }
-  }, [scope3Method, scope3ActivityType, filteredScope3Activities, dynamicCategories, formData.category, dynamicInputFields, getAuthHeader]);
+  }, [scope3Method, scope3ActivityType, scope3ActivityId, filteredScope3Activities, dynamicCategories, formData.category, dynamicInputFields, getAuthHeader, useCustomActivity, scope3CustomActivity]);
 
   // Get unique categories from emissions for filtering
   const getCategories = useMemo(() => {
@@ -4408,56 +3092,7 @@ export default function Emissions() {
   // Check if user is regular user (not admin or super_admin)
   const isRegularUser = user?.role === 'user';
 
-  const handleViewEvidence = (evidenceUrl, e) => {
-    e.preventDefault();
-    if (!evidenceUrl) {
-      toast.error('No evidence file available');
-      return;
-    }
-    
-    // Extract file ID and open view URL
-    const fileIdMatch = evidenceUrl.match(/\/api\/files\/([a-f0-9-]+)/i);
-    if (fileIdMatch) {
-      const fileId = fileIdMatch[1];
-      window.open(`${BACKEND_URL}/api/files/${fileId}/view`, '_blank');
-      return;
-    }
-    
-    // For external or other URLs
-    if (evidenceUrl.startsWith('http')) {
-      window.open(evidenceUrl, '_blank');
-    } else if (evidenceUrl.startsWith('/api')) {
-      window.open(`${BACKEND_URL}${evidenceUrl}`, '_blank');
-    } else {
-      window.open(`${API}${evidenceUrl}`, '_blank');
-    }
-  };
-
-  const handleDownloadEvidence = async (evidenceUrl, e, filename) => {
-    e.preventDefault();
-    if (!evidenceUrl) {
-      toast.error('No evidence file available');
-      return;
-    }
-    
-    // Extract file ID and use fetch + blob for download
-    const fileIdMatch = evidenceUrl.match(/\/api\/files\/([a-f0-9-]+)/i);
-    if (fileIdMatch) {
-      const fileId = fileIdMatch[1];
-      const downloadUrl = `${BACKEND_URL}/api/files/${fileId}/download`;
-      await downloadFileHelper(downloadUrl, filename || 'evidence-file');
-      return;
-    }
-    
-    // For external URLs, open in new tab (can't use fetch due to CORS)
-    if (evidenceUrl.startsWith('http')) {
-      window.open(evidenceUrl, '_blank');
-    } else if (evidenceUrl.startsWith('/api')) {
-      await downloadFileHelper(`${BACKEND_URL}${evidenceUrl}`, filename || 'file');
-    } else {
-      await downloadFileHelper(`${API}${evidenceUrl}`, filename || 'file');
-    }
-  };
+  // E2: handleViewEvidence + handleDownloadEvidence — moved to useEvidenceManagement hook.
 
   if (loading) {
     return (
@@ -4522,6 +3157,7 @@ export default function Emissions() {
                 </Button>
               </DialogTrigger>
               <DialogContent 
+                key={editingEmission?.id || 'new'}
                 className="max-w-4xl max-h-[90vh] overflow-y-auto"
                 onInteractOutside={handleInteractOutside}
                 onEscapeKeyDown={handleEscapeKeyDown}
@@ -4555,6 +3191,7 @@ export default function Emissions() {
                   hasScope3Access={hasScope3Access}
                   getAuthHeader={getAuthHeader}
                   configLabels={configLabels}
+                  organization={organization}
                   onFormChange={markFormDirty}
                   onSuccess={() => {
                     setDialogOpen(false);
@@ -4565,112 +3202,52 @@ export default function Emissions() {
                   onCancel={() => handleDialogChange(false)}
                 />
               ) : (
-                /* Keep existing edit form for backward compatibility */
-                <form onSubmit={handleSubmit} className="space-y-5" data-testid="emission-form">
-                {/* Facility and Scope Selection */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="facility">Facility *</Label>
-                    <select
-                      id="facility"
-                      value={formData.facility_id}
-                      onChange={(e) => { setFormData({ ...formData, facility_id: e.target.value }); markFormDirty(); }}
-                      required
-                      className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                      data-testid="emission-facility-select"
-                    >
-                      <option value="">Select Facility</option>
-                      {facilities.filter(f => f.is_active !== false).map(f => (
-                        <option key={f.id} value={f.id}>{f.name} {f.country ? `(${f.country})` : ''}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Scope *</Label>
-                    <div className="flex gap-4 h-10 items-center flex-wrap">
-                      {dynamicScopes.map(scope => {
-                        // Scope 3 requires organization access, biogenic is always enabled
-                        const isScope3 = scope.code === 'scope3';
-                        const isDisabled = isScope3 && !hasScope3Access;
-                        return (
-                          <label key={scope.code} className={`flex items-center gap-2 relative ${isDisabled ? 'opacity-60 cursor-not-allowed' : ''}`}>
-                            <input
-                              type="radio"
-                              value={scope.code}
-                              checked={formData.scope === scope.code}
-                              disabled={isDisabled}
-                              onChange={(e) => {
-                                setFormData({ ...formData, scope: e.target.value, fuel_id: '', category: '', sub_category: '' });
-                                handleFuelSelect('');
-                                // Reset biogenic scope selection when changing primary scope
-                                if (e.target.value !== 'biogenic') {
-                                  setBiogenicScopeSelection('');
-                                }
-                              }}
-                              className="text-primary"
-                              data-testid={`scope-radio-${scope.code}`}
-                            />
-                            <span>{scope.name}</span>
-                            {isDisabled && (
-                              <span className="px-1.5 py-0.5 bg-stone-200 text-stone-600 text-[9px] font-semibold rounded whitespace-nowrap">
-                                Not Available
-                              </span>
-                            )}
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
+                /* Edit form with loading gate - prevents showing stale/partial data */
+                (() => {
+                  // Data-based loading gate for C7 Employee Commuting (has deeply nested employee data)
+                  const isC7Category = formData.category?.toLowerCase()?.includes('c7') || 
+                                       formData.category?.toLowerCase()?.includes('employee commuting');
                   
-                {/* Biogenic Scope Selection - Show when biogenic is selected */}
-                {formData.scope === 'biogenic' && (
-                  <div className="space-y-1.5 p-3 bg-green-50 rounded-lg border border-green-200">
-                    <Label className="text-green-800">Select Biogenic Emission Type *</Label>
-                    <div className="flex gap-4 h-10 items-center">
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="radio"
-                          value="scope1"
-                          checked={biogenicScopeSelection === 'scope1'}
-                          onChange={(e) => {
-                            setBiogenicScopeSelection(e.target.value);
-                            setFormData(prev => ({ ...prev, category: '', fuel_id: '' }));
-                            handleFuelSelect('');
-                          }}
-                          className="text-green-600"
-                          data-testid="biogenic-scope-radio-scope1"
-                        />
-                        <span className="text-green-800">Direct Biogenic</span>
-                      </label>
-                      <label className={`flex items-center gap-2 ${!hasScope3Access ? 'opacity-60 cursor-not-allowed' : ''}`}>
-                        <input
-                          type="radio"
-                          value="scope3"
-                          checked={biogenicScopeSelection === 'scope3'}
-                          disabled={!hasScope3Access}
-                          onChange={(e) => {
-                            setBiogenicScopeSelection(e.target.value);
-                            setFormData(prev => ({ ...prev, category: '', fuel_id: '' }));
-                            handleFuelSelect('');
-                          }}
-                          className="text-green-600"
-                          data-testid="biogenic-scope-radio-scope3"
-                        />
-                        <span className="text-green-800">Indirect Biogenic</span>
-                        {!hasScope3Access && (
-                          <span className="px-1.5 py-0.5 bg-stone-200 text-stone-600 text-[9px] font-semibold rounded whitespace-nowrap">
-                            Not Available
-                          </span>
-                        )}
-                      </label>
-                    </div>
-                    {loadingBiogenicCategories && (
-                      <p className="text-xs text-green-600">Loading biogenic categories...</p>
-                    )}
-                  </div>
-                )}
+                  // For C7, check that employees are populated with valid data
+                  const isC7DataReady = !isC7Category || 
+                                        (editEmployees.length > 0 && editEmployees[0]?.id);
+                  
+                  // Show loading if explicitly loading OR if C7 data isn't ready yet
+                  if (isEditLoading || !isC7DataReady) {
+                    return (
+                      <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                        <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                        <p className="text-sm text-gray-500">Loading emission data...</p>
+                      </div>
+                    );
+                  }
+                  
+                  return (
+                <form onSubmit={handleSubmit} className="space-y-5" data-testid="emission-form">
+                {/* Facility and Scope Selection - Extracted Component */}
+                <FacilityScopeSection
+                  formData={formData}
+                  setFormData={setFormData}
+                  facilities={facilities}
+                  dynamicScopes={dynamicScopes}
+                  hasScope3Access={hasScope3Access}
+                  handleFuelSelect={handleFuelSelect}
+                  setBiogenicScopeSelection={setBiogenicScopeSelection}
+                  markFormDirty={markFormDirty}
+                />
+                
+                {/* Biogenic Scope Selection - Extracted Component */}
+                <BiogenicScopeSection
+                  formData={formData}
+                  setFormData={setFormData}
+                  biogenicScopeSelection={biogenicScopeSelection}
+                  setBiogenicScopeSelection={setBiogenicScopeSelection}
+                  hasScope3Access={hasScope3Access}
+                  handleFuelSelect={handleFuelSelect}
+                  loadingBiogenicCategories={loadingBiogenicCategories}
+                />
 
+                
                 {/* Reporting Period - Handle both Monthly and Yearly records for editing */}
                 {editingEmission ? (
                   <div className="space-y-2">
@@ -4984,6 +3561,7 @@ export default function Emissions() {
                                     'wfh': 'Work From Home',
                                     'hotel_stay': 'Hotel Stay',
                                     'water_travel': 'Water Travel',
+                                    'others': 'Others',
                                   };
                                   return (
                                     <option key={type} value={type}>
@@ -5136,26 +3714,26 @@ export default function Emissions() {
                       {/* Scope 3 Supplier Information (optional) - shown for all Scope 3 categories */}
                       {formData.scope === 'scope3' && selectedCategory && (
                         <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                          <h4 className="font-medium mb-2 text-blue-800 text-sm">Supplier Information (Optional)</h4>
+                          <h4 className="font-medium mb-2 text-blue-800 text-sm">{selectedCategory?.toLowerCase()?.includes('c9') ? 'Customer' : 'Supplier'} Information (Optional)</h4>
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1.5">
-                              <Label htmlFor="supplier_name" className="text-xs">Supplier Name</Label>
+                              <Label htmlFor="supplier_name" className="text-xs">{selectedCategory?.toLowerCase()?.includes('c9') ? 'Customer Name' : 'Supplier Name'}</Label>
                               <Input
                                 id="supplier_name"
                                 value={formData.supplier_name}
                                 onChange={(e) => setFormData({ ...formData, supplier_name: e.target.value })}
-                                placeholder="Enter supplier name..."
+                                placeholder={selectedCategory?.toLowerCase()?.includes('c9') ? 'Enter customer name...' : 'Enter supplier name...'}
                                 className="bg-white h-9"
                                 data-testid="edit-supplier-name-input"
                               />
                             </div>
                             <div className="space-y-1.5">
-                              <Label htmlFor="supplier_code" className="text-xs">Supplier Code</Label>
+                              <Label htmlFor="supplier_code" className="text-xs">{selectedCategory?.toLowerCase()?.includes('c9') ? 'Customer Code' : 'Supplier Code'}</Label>
                               <Input
                                 id="supplier_code"
                                 value={formData.supplier_code}
                                 onChange={(e) => setFormData({ ...formData, supplier_code: e.target.value })}
-                                placeholder="Enter supplier code..."
+                                placeholder={selectedCategory?.toLowerCase()?.includes('c9') ? 'Enter customer code...' : 'Enter supplier code...'}
                                 className="bg-white h-9"
                                 data-testid="edit-supplier-code-input"
                               />
@@ -5196,7 +3774,8 @@ export default function Emissions() {
                       )}
 
                       {/* Asset Name for C8/C13/C14/C15 (Leased Assets, Franchises, Investments) */}
-                      {formData.scope === 'scope3' && selectedCategory && ['c8', 'c13', 'c14', 'c15'].some(c => selectedCategory.toLowerCase().includes(c)) && (
+                      {/* Asset Name section — driven by module capability 'asset-name' (C8/C13/C14/C15) */}
+                      {formData.scope === 'scope3' && activeCategoryModule?.hasCapability?.('asset-name') && (
                         <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
                           <h4 className="font-medium mb-2 text-amber-800 text-sm">Asset Information</h4>
                           <div className="space-y-1.5">
@@ -5210,6 +3789,38 @@ export default function Emissions() {
                               data-testid="edit-asset-name-input"
                             />
                             <p className="text-xs text-amber-600">Name or identifier of the leased asset, franchise, or investment</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* From/To Location for C4/C6/C9 (Transportation/Travel categories) */}
+                      {/* Journey Details — driven by module capability 'journey-locations' (C4/C6/C9) */}
+                      {formData.scope === 'scope3' && activeCategoryModule?.hasCapability?.('journey-locations') && !isEditC7EmployeeCommuting && (
+                        <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                          <h4 className="font-medium mb-2 text-blue-800 text-sm">Journey Details (Optional)</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="space-y-1.5">
+                              <Label htmlFor="from_location" className="text-xs">From Location</Label>
+                              <Input
+                                id="from_location"
+                                value={formData.from_location}
+                                onChange={(e) => setFormData({ ...formData, from_location: e.target.value })}
+                                placeholder="E.g., City A, Warehouse"
+                                className="bg-white h-9"
+                                data-testid="edit-from-location-input"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label htmlFor="to_location" className="text-xs">To Location</Label>
+                              <Input
+                                id="to_location"
+                                value={formData.to_location}
+                                onChange={(e) => setFormData({ ...formData, to_location: e.target.value })}
+                                placeholder="E.g., City B, Distribution Center"
+                                className="bg-white h-9"
+                                data-testid="edit-to-location-input"
+                              />
+                            </div>
                           </div>
                         </div>
                       )}
@@ -5317,6 +3928,7 @@ export default function Emissions() {
                 {isEditC7EmployeeCommuting && editingEmission && (
                   <div className="space-y-4 border-t pt-4">
                     <MultiEmployeeInput
+                      key={`employees-${editingEmission?.id}-${editEmployees.map(e => e.id).join('-')}`}
                       entityLabel="Employee"
                       fields={dynamicInputFields.length > 0 ? dynamicInputFields.map(f => ({
                         variable: f.variable,
@@ -5358,18 +3970,30 @@ export default function Emissions() {
                     </div>
                   </div>
                 ) : !isEditC7EmployeeCommuting && dynamicInputFields.length > 0 && true ? (
+                  /* Pluggable category renderer (PoC: C1 routes through registry). */
+                  ModuleDynamicFieldsRenderer ? (
+                    <ModuleDynamicFieldsRenderer
+                      dynamicInputFields={dynamicInputFields}
+                      dynamicFieldValues={dynamicFieldValues}
+                      updateDynamicFieldValue={updateDynamicFieldValue}
+                      formData={formData}
+                      setFormData={setFormData}
+                      scope3Method={scope3Method}
+                      selectedFuel={selectedFuel}
+                      requiresSubcategory={requiresSubcategory}
+                      scope3ActivityId={scope3ActivityId}
+                      filteredScope3Activities={filteredScope3Activities}
+                      centralizedUnits={centralizedUnits}
+                      markFormDirty={markFormDirty}
+                    />
+                  ) : (
                   <div className="space-y-4">
                     <div className="text-sm text-stone-500 mb-2 flex items-center gap-2">
                       Input Fields (from calculation engine configuration)
-                      {editFrequencyType === 'yearly' && (
-                        <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full font-medium">
-                          Annual Totals
-                        </span>
-                      )}
                     </div>
                     
-                    {/* Supplier Method Disclaimer */}
-                    {scope3Method === 'supplier_basis' && (
+                    {/* Supplier Method Disclaimer - Only for Scope 3 with supplier_basis */}
+                    {formData.scope === 'scope3' && scope3Method === 'supplier_basis' && (
                       <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
                         <p className="text-sm text-amber-800">
                           <span className="font-semibold">Note:</span> For the Supplier Method, the emission factor numerator must be in tCO2e, and the denominator must correspond to the same unit used in the "Quantity Used" field.
@@ -5446,9 +4070,6 @@ export default function Emissions() {
                             <div className="flex items-center justify-between">
                               <Label className="font-medium">
                                 {field.label}
-                                {editFrequencyType === 'yearly' && (
-                                  <span className="text-purple-600 ml-1 text-xs font-normal">(Annual Total)</span>
-                                )}
                                 {field.required && <span className="text-red-500 ml-1">*</span>}
                                 {!showUnitSelector && !isSupplierBasisUnitField && field.expectedUnit && (
                                   <span className="text-muted-foreground ml-1 text-xs font-normal">({field.expectedUnit})</span>
@@ -5619,6 +4240,7 @@ export default function Emissions() {
                       </div>
                     </div>
                   </div>
+                  )
                 ) : !isEditC7EmployeeCommuting ? (
                   /* LEGACY: Hardcoded fields when no dynamic config */
                   <div className="grid grid-cols-2 gap-4 items-end">
@@ -5949,12 +4571,12 @@ export default function Emissions() {
                         </div>
                         
                         {/* N2O Emissions */}
-                        <div className="bg-white/70 p-3 rounded-lg border border-purple-100">
-                          <p className="text-xs text-purple-600 font-medium mb-1">N₂O Emissions</p>
-                          <p className="text-lg font-bold text-purple-700">
+                        <div className="bg-white/70 p-3 rounded-lg border border-amber-100">
+                          <p className="text-xs text-amber-600 font-medium mb-1">N₂O Emissions</p>
+                          <p className="text-lg font-bold text-amber-700">
                             {(effectiveCalculatedEmissions.n2oEmissions ?? 0).toFixed(2)}
                           </p>
-                          <p className="text-xs text-purple-500">{effectiveCalculatedEmissions.n2oOutputUnit || 'tN2O'}</p>
+                          <p className="text-xs text-amber-500">{effectiveCalculatedEmissions.n2oOutputUnit || 'tN2O'}</p>
                         </div>
                         
                         {/* CO2e Total */}
@@ -6012,11 +4634,13 @@ export default function Emissions() {
                                 const displayUnit = entry.unit === '1' ? '' : entry.unit;
                                 const sourceName = entry.source_name || entry.source || '';
                                 return (
-                                  <div key={i} className="p-2 bg-amber-50 rounded border border-amber-200">
-                                    <span className="text-amber-800 font-medium">{entry.property_label || entry.property}</span>
-                                    {' = '}{typeof entry.value === 'number' ? entry.value.toFixed(6) : entry.value}{displayUnit && ` ${displayUnit}`}
+                                  <div key={i} className="p-2 bg-amber-50 rounded border border-amber-200 flex justify-between items-center">
+                                    <span>
+                                      <span className="text-amber-800 font-medium">{entry.property_label || entry.property}</span>
+                                      {' = '}{typeof entry.value === 'number' ? entry.value.toFixed(6) : entry.value}{displayUnit && ` ${displayUnit}`}
+                                    </span>
                                     {sourceName && (
-                                      <span className="text-amber-600 text-xs ml-2">(Source - {sourceName})</span>
+                                      <span className="text-amber-600 text-xs ml-4 whitespace-nowrap">(Source - {sourceName})</span>
                                     )}
                                   </div>
                                 );
@@ -6026,7 +4650,7 @@ export default function Emissions() {
                                 return null;
                               }
                               if (entry.step === 'formula_step') {
-                                const isOutput = ['co2', 'ch4', 'n2o', 'co2e'].includes(entry.name);
+                                const isOutput = ['co2', 'ch4', 'n2o', 'co2e'].includes(entry.name?.toLowerCase());
                                 return (
                                   <div key={i} className={`p-2 rounded border ${isOutput ? 'bg-emerald-50 border-emerald-200' : 'bg-blue-50 border-blue-200'}`}>
                                     <span className={`font-medium ${isOutput ? 'text-emerald-700' : 'text-blue-700'}`}>
@@ -6152,41 +4776,22 @@ export default function Emissions() {
                   />
                 </div>
 
-                {/* Notes */}
-                <div className="space-y-2">
-                  <Label htmlFor="notes">Notes</Label>
-                  <textarea
-                    id="notes"
-                    value={formData.notes}
-                    onChange={(e) => { setFormData({ ...formData, notes: e.target.value }); markFormDirty(); }}
-                    rows={2}
-                    className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2"
-                  />
-                </div>
+                {/* Notes - Extracted Component */}
+                <NotesSection
+                  formData={formData}
+                  setFormData={(newData) => { setFormData(newData); markFormDirty(); }}
+                />
 
-                <div className="flex justify-end gap-3 pt-4">
-                  <Button type="button" variant="outline" onClick={() => handleDialogChange(false)}>
-                    Cancel
-                  </Button>
-                  <Button 
-                    type="submit" 
-                    className="bg-primary hover:bg-primary/90 text-white"
-                    disabled={isCalculating}
-                  >
-                    {isCalculating ? (
-                      <>
-                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Calculating...
-                      </>
-                    ) : (
-                      `${editingEmission ? 'Update' : 'Add'} Emission`
-                    )}
-                  </Button>
-                </div>
+                {/* Submit Buttons - Extracted Component */}
+                <SubmitButtonSection
+                  editingEmission={editingEmission}
+                  isSaving={isSaving}
+                  isCalculating={isCalculating}
+                  handleDialogChange={handleDialogChange}
+                />
               </form>
+                  );
+                })()
               )}
             </DialogContent>
           </Dialog>
@@ -6215,128 +4820,22 @@ export default function Emissions() {
       </div>
 
       {showFilters && (
-        <Card className="p-4 border border-stone-200 rounded-xl bg-white">
-          <div className="flex flex-col gap-4">
-            {/* First row: Facility, Category, and Entry Type */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>Facility</Label>
-                <select
-                  value={filterFacility}
-                  onChange={(e) => setFilterFacility(e.target.value)}
-                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
-                >
-                  <option value="">All Facilities</option>
-                  {facilities.map(f => (
-                    <option key={f.id} value={f.id}>{f.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label>Category</Label>
-                <select
-                  value={filterCategory}
-                  onChange={(e) => setFilterCategory(e.target.value)}
-                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
-                >
-                  <option value="">All Categories</option>
-                  {uniqueCategories.map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label>Entry Type</Label>
-                <select
-                  value={filterFrequency}
-                  onChange={(e) => setFilterFrequency(e.target.value)}
-                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
-                  data-testid="filter-frequency-select"
-                >
-                  <option value="">All Entries</option>
-                  <option value="monthly">Monthly Only</option>
-                  <option value="yearly">Yearly Only</option>
-                </select>
-              </div>
-            </div>
-            
-            {/* Second row: Date Range, Sort, and Clear button */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-              <div className="space-y-2">
-                <Label>Start Period</Label>
-                <MonthYearPicker
-                  value={filterDateRange.from ? format(filterDateRange.from, 'yyyy-MM') : ''}
-                  maxDate={filterDateRange.to ? format(filterDateRange.to, 'yyyy-MM') : undefined}
-                  disableFuture={true}
-                  onChange={(val) => setFilterDateRange(prev => ({ 
-                    ...prev, 
-                    from: val ? new Date(val) : null 
-                  }))}
-                  placeholder="From"
-                  className="w-full bg-stone-50"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>End Period</Label>
-                <MonthYearPicker
-                  value={filterDateRange.to ? format(filterDateRange.to, 'yyyy-MM') : ''}
-                  minDate={filterDateRange.from ? format(filterDateRange.from, 'yyyy-MM') : undefined}
-                  disableFuture={true}
-                  onChange={(val) => setFilterDateRange(prev => ({ 
-                    ...prev, 
-                    to: val ? new Date(val) : null 
-                  }))}
-                  placeholder="To"
-                  className="w-full bg-stone-50"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Sort By</Label>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
-                  data-testid="sort-by-select"
-                >
-                  <option value="date">Date</option>
-                  <option value="created_at">Created At</option>
-                  <option value="updated_at">Last Updated</option>
-                  <option value="facility">Facility</option>
-                  <option value="fuel">Fuel Type</option>
-                  <option value="emissions">Emissions (CO₂e)</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label>Order</Label>
-                <select
-                  value={sortOrder}
-                  onChange={(e) => setSortOrder(e.target.value)}
-                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
-                  data-testid="sort-order-select"
-                >
-                  <option value="desc">Descending</option>
-                  <option value="asc">Ascending</option>
-                </select>
-              </div>
-              <div className="flex items-end">
-                <Button
-                  onClick={() => {
-                    setFilterFacility('');
-                    setFilterCategory('');
-                    setFilterFrequency('');
-                    setFilterDateRange({ from: null, to: null });
-                    setSortBy('date');
-                    setSortOrder('desc');
-                  }}
-                  variant="outline"
-                  className="w-full h-10"
-                >
-                  Clear All
-                </Button>
-              </div>
-            </div>
-          </div>
-        </Card>
+        <EmissionFilters
+          filterFacility={filterFacility}
+          setFilterFacility={setFilterFacility}
+          filterCategory={filterCategory}
+          setFilterCategory={setFilterCategory}
+          filterFrequency={filterFrequency}
+          setFilterFrequency={setFilterFrequency}
+          filterDateRange={filterDateRange}
+          setFilterDateRange={setFilterDateRange}
+          sortBy={sortBy}
+          setSortBy={setSortBy}
+          sortOrder={sortOrder}
+          setSortOrder={setSortOrder}
+          facilities={facilities}
+          uniqueCategories={uniqueCategories}
+        />
       )}
 
       <Tabs value={activeScope} onValueChange={(value) => { 
@@ -6344,6 +4843,10 @@ export default function Emissions() {
         const isScope3 = value === 'scope3';
         if (isScope3 && !hasScope3Access) return;
         setActiveScope(value);
+        // Keep the URL in sync when used inside the GHG workspace.
+        if (location.pathname.startsWith('/ghg/')) {
+          navigate(`/ghg/${value}`, { replace: true });
+        }
         // Reset category filter when changing scopes to prevent showing no emissions
         setFilterCategory('');
         // Reset biogenic state when changing tabs
@@ -6351,6 +4854,7 @@ export default function Emissions() {
           setBiogenicScopeSelection('');
         }
       }} className="w-full">
+        {!location.pathname.startsWith('/ghg/') && (
         <TabsList className="grid w-full max-w-2xl" style={{ gridTemplateColumns: `repeat(${Math.max(dynamicScopes.length, 1)}, minmax(0, 1fr))` }}>
           {dynamicScopes.map(s => {
             const isScope3 = s.code === 'scope3';
@@ -6373,306 +4877,26 @@ export default function Emissions() {
             );
           })}
         </TabsList>
+        )}
 
-        <TabsContent value={activeScope} className="mt-6">
+        <TabsContent value={activeScope} className={location.pathname.startsWith('/ghg/') ? 'mt-0' : 'mt-6'}>
           {/* Enterprise Data Grid Layout */}
-          <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
-            {/* Fixed Header Row */}
-            <div className="bg-stone-50 border-b border-stone-200 px-4 py-3 sticky top-0 z-10">
-              <div className="flex items-center gap-3 text-xs font-semibold text-stone-600 uppercase tracking-wider">
-                {/* Scope 3 Headers */}
-                {activeScope === 'scope3' && (
-                  <>
-                    <div className="w-36 flex-shrink-0">Facility</div>
-                    <div className="w-24 flex-shrink-0">Period</div>
-                    <div className="w-52 flex-shrink-0">Category</div>
-                    <div className="flex-1 min-w-[120px] pl-2">Activity</div>
-                    <div className="w-20 flex-shrink-0 text-center">Method</div>
-                    <div className="w-28 flex-shrink-0 text-right normal-case">tCO₂e</div>
-                    <div className="w-28 flex-shrink-0 text-center">Actions</div>
-                  </>
-                )}
-                {/* Scope 1 & 2 Headers */}
-                {(activeScope === 'scope1' || activeScope === 'scope2') && (
-                  <>
-                    <div className="w-36 flex-shrink-0">Facility</div>
-                    <div className="w-24 flex-shrink-0">Period</div>
-                    <div className="w-44 flex-shrink-0">Category</div>
-                    <div className="flex-1 min-w-[140px]">Sub-category</div>
-                    <div className="w-32 flex-shrink-0 text-right">Quantity</div>
-                    <div className="w-28 flex-shrink-0 text-right normal-case">tCO₂e</div>
-                    <div className="w-28 flex-shrink-0 text-center">Actions</div>
-                  </>
-                )}
-                {/* Biogenic Headers */}
-                {activeScope === 'biogenic' && (
-                  <>
-                    <div className="w-36 flex-shrink-0">Facility</div>
-                    <div className="w-24 flex-shrink-0">Period</div>
-                    <div className="w-20 flex-shrink-0">Type</div>
-                    <div className="w-36 flex-shrink-0">Category</div>
-                    <div className="flex-1 min-w-[120px]">Activity / Fuel</div>
-                    <div className="w-20 flex-shrink-0 text-center">Method</div>
-                    <div className="w-28 flex-shrink-0 text-right normal-case">tCO₂e</div>
-                    <div className="w-28 flex-shrink-0 text-center">Actions</div>
-                  </>
-                )}
-              </div>
-            </div>
-            
-            {/* Data Rows */}
-            <div className="divide-y divide-stone-100">
-              {filteredEmissions.map((emission) => {
-                const facility = facilities.find(f => f.id === emission.facility_id);
-                const dfv = emission.dynamic_field_values || {};
-                const hasOverride = Object.values(dfv).some(field => field?.is_override === true);
-                const calcMethod = emission.calculation_method_scope3 || dfv.calculation_method_scope3;
-                const totalEmissions = emission.outputs?.co2e?.value || emission.co2e_emissions || emission.total_emissions || 0;
-                
-                // Get activity/sub-category display
-                // For Scope 3 OR Biogenic Scope 3, look up the activity label using scope3_ef_id
-                let activityDisplay = '-';
-                const isBiogenicScope3 = emission.scope === 'biogenic' && 
-                  (emission.biogenic_scope_selection === 'scope3' || dfv.biogenic_scope_selection?.value === 'scope3');
-                
-                if (emission.scope === 'scope3' || isBiogenicScope3) {
-                  // First try to find the label by scope3_ef_id
-                  if (emission.scope3_ef_id) {
-                    const matchedEf = filteredScope3Activities.find(a => a.id === emission.scope3_ef_id);
-                    if (matchedEf) {
-                      activityDisplay = matchedEf.activity || matchedEf.fuel_name || emission.scope3_activity || '-';
-                    } else {
-                      // Fallback to stored scope3_activity if no match found
-                      activityDisplay = emission.scope3_activity || dfv.scope3_activity || emission.sub_category || '-';
-                    }
-                  } else {
-                    // No scope3_ef_id - use scope3_activity (common for supplier_basis with custom activity)
-                    activityDisplay = emission.scope3_activity || dfv.scope3_activity || emission.sub_category || '-';
-                  }
-                } else {
-                  activityDisplay = emission.sub_category || emission.fuel_type || '-';
-                }
-                
-                // Get calculation method display using centralized labels
-                const methodDisplay = getMethodLabel(calcMethod, true);
-                
-                // Get quantity display for Scope 1/2
-                const getQuantityDisplay = () => {
-                  let qtyField = dfv.qty || dfv.qty_energy;
-                  if (qtyField?.value !== null && qtyField?.value !== undefined) {
-                    return `${qtyField.value} ${qtyField.unit || 'kg'}`;
-                  }
-                  return `${emission.quantity || 0} ${emission.quantity_unit || 'kg'}`;
-                };
-                
-                // Extract year from reporting period
-                const reportingYear = emission.reporting_period?.match(/\d{4}/)?.[0] || emission.reporting_year || '-';
-                
-                // Biogenic scope type
-                const biogenicScope = emission.biogenic_scope_selection || 
-                  (dfv.biogenic_scope_selection?.value) || 
-                  (emission.scope === 'biogenic' ? 'Direct' : '-');
-                
-                return (
-                  <div 
-                    key={emission.id}
-                    className="px-4 py-3 flex items-center gap-3 hover:bg-green-50/50 transition-colors cursor-pointer group"
-                    data-testid={`emission-row-${emission.id}`}
-                  >
-                    {/* Scope 3 Row */}
-                    {activeScope === 'scope3' && (
-                      <>
-                        <div className="w-36 flex-shrink-0">
-                          <p className="text-sm font-medium text-text-primary truncate" title={facility?.name}>
-                            {facility?.name || 'Unknown'}
-                          </p>
-                        </div>
-                        <div className="w-24 flex-shrink-0 text-sm text-text-secondary truncate flex items-center gap-1" title={emission.reporting_period}>
-                          {emission.reporting_period || reportingYear}
-                        </div>
-                        <div className="w-52 flex-shrink-0">
-                          <p className="text-sm text-text-primary truncate" title={emission.category}>
-                            {emission.category}
-                          </p>
-                        </div>
-                        <div className="flex-1 min-w-[120px] pl-2 flex items-center gap-2">
-                          <p className="text-sm text-text-primary truncate" title={activityDisplay}>
-                            {activityDisplay}
-                          </p>
-                          {hasOverride && (
-                            <span className="px-1.5 py-0.5 bg-violet-100 text-violet-700 text-[9px] font-semibold rounded flex-shrink-0">
-                              Custom
-                            </span>
-                          )}
-                          {emission.evidence_url && (
-                            <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Has Evidence" />
-                          )}
-                        </div>
-                        <div className="w-20 flex-shrink-0 text-center">
-                          <span className="inline-flex px-2 py-0.5 bg-stone-100 text-stone-700 text-xs font-medium rounded">
-                            {methodDisplay}
-                          </span>
-                        </div>
-                        <div className="w-28 flex-shrink-0 text-right">
-                          <span className="text-sm font-semibold text-primary">
-                            {totalEmissions.toFixed(4)}
-                          </span>
-                        </div>
-                      </>
-                    )}
-                    
-                    {/* Scope 1 & 2 Row */}
-                    {(activeScope === 'scope1' || activeScope === 'scope2') && (
-                      <>
-                        <div className="w-36 flex-shrink-0">
-                          <p className="text-sm font-medium text-text-primary truncate" title={facility?.name}>
-                            {facility?.name || 'Unknown'}
-                          </p>
-                        </div>
-                        <div className="w-24 flex-shrink-0 text-sm text-text-secondary truncate flex items-center gap-1" title={emission.reporting_period}>
-                          {emission.reporting_period || reportingYear}
-                        </div>
-                        <div className="w-44 flex-shrink-0">
-                          <p className="text-sm text-text-primary truncate" title={emission.category}>
-                            {emission.category}
-                          </p>
-                        </div>
-                        <div className="flex-1 min-w-[140px] flex items-center gap-2">
-                          <p className="text-sm text-text-primary truncate" title={activityDisplay}>
-                            {activityDisplay}
-                          </p>
-                          {hasOverride && (
-                            <span className="px-1.5 py-0.5 bg-violet-100 text-violet-700 text-[9px] font-semibold rounded flex-shrink-0">
-                              Custom
-                            </span>
-                          )}
-                          {emission.evidence_url && (
-                            <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Has Evidence" />
-                          )}
-                        </div>
-                        <div className="w-32 flex-shrink-0 text-right text-sm text-text-secondary">
-                          {getQuantityDisplay()}
-                        </div>
-                        <div className="w-28 flex-shrink-0 text-right">
-                          <span className="text-sm font-semibold text-primary">
-                            {totalEmissions.toFixed(4)}
-                          </span>
-                        </div>
-                      </>
-                    )}
-                    
-                    {/* Biogenic Row */}
-                    {activeScope === 'biogenic' && (
-                      <>
-                        <div className="w-36 flex-shrink-0">
-                          <p className="text-sm font-medium text-text-primary truncate" title={facility?.name}>
-                            {facility?.name || 'Unknown'}
-                          </p>
-                        </div>
-                        <div className="w-24 flex-shrink-0 text-sm text-text-secondary truncate flex items-center gap-1" title={emission.reporting_period}>
-                          {emission.reporting_period || reportingYear}
-                        </div>
-                        <div className="w-20 flex-shrink-0">
-                          <span className="inline-flex px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded">
-                            {biogenicScope === 'scope1' ? 'Direct' : biogenicScope === 'scope3' ? 'Indirect' : biogenicScope}
-                          </span>
-                        </div>
-                        <div className="w-36 flex-shrink-0">
-                          <p className="text-sm text-text-primary truncate" title={emission.category}>
-                            {emission.category}
-                          </p>
-                        </div>
-                        <div className="flex-1 min-w-[120px] flex items-center gap-2">
-                          <p className="text-sm text-text-primary truncate" title={
-                            biogenicScope === 'scope3' 
-                              ? activityDisplay 
-                              : (emission.fuel_type || emission.sub_category || activityDisplay || '-')
-                          }>
-                            {biogenicScope === 'scope3' 
-                              ? activityDisplay 
-                              : (emission.fuel_type || emission.sub_category || activityDisplay || '-')}
-                          </p>
-                          {hasOverride && (
-                            <span className="px-1.5 py-0.5 bg-violet-100 text-violet-700 text-[9px] font-semibold rounded flex-shrink-0">
-                              Custom
-                            </span>
-                          )}
-                          {emission.evidence_url && (
-                            <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Has Evidence" />
-                          )}
-                        </div>
-                        <div className="w-20 flex-shrink-0 text-center">
-                          {biogenicScope === 'scope3' ? (
-                            <span className="inline-flex px-2 py-0.5 bg-stone-100 text-stone-700 text-xs font-medium rounded">
-                              {methodDisplay}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-stone-400">-</span>
-                          )}
-                        </div>
-                        <div className="w-28 flex-shrink-0 text-right">
-                          <span className="text-sm font-semibold text-primary">
-                            {totalEmissions.toFixed(4)}
-                          </span>
-                        </div>
-                      </>
-                    )}
-                    
-                    {/* Action Buttons - Common for all scopes */}
-                    <div className="w-28 flex-shrink-0 flex items-center justify-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={(e) => { e.stopPropagation(); handleEdit(emission); }}
-                        title="Edit"
-                        className="h-7 w-7 p-0"
-                        data-testid={`edit-emission-${emission.id}`}
-                      >
-                        <Edit className="w-3.5 h-3.5 text-stone-600" />
-                      </Button>
-                      {!isRegularUser && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={(e) => { e.stopPropagation(); fetchHistory(emission.id); }}
-                          title="History"
-                          className="h-7 w-7 p-0"
-                          data-testid={`history-emission-${emission.id}`}
-                        >
-                          <History className="w-3.5 h-3.5 text-stone-600" />
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={(e) => { e.stopPropagation(); openDeleteConfirm(emission); }}
-                        title="Delete"
-                        className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
-                        data-testid={`delete-emission-${emission.id}`}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            
-            {/* Empty State */}
-            {filteredEmissions.length === 0 && (
-              <div className="text-center py-12 border-t border-stone-100">
-                <Activity className="w-16 h-16 mx-auto text-text-muted mb-4" />
-                <h3 className="text-xl font-heading font-bold text-text-primary mb-2">
-                  No {activeScope === 'biogenic' ? 'Biogenic' : `Scope ${activeScope.slice(-1)}`} emissions
-                </h3>
-                <p className="text-text-secondary mb-4">
-                  {showFilters && (filterFacility || filterDateRange.from || filterDateRange.to || filterCategory || filterFrequency) 
-                    ? 'Try adjusting your filters' 
-                    : 'Add your first emission record'}
-                </p>
-              </div>
-            )}
-          </div>
+          <EmissionDataGrid
+            activeScope={activeScope}
+            filteredEmissions={filteredEmissions}
+            facilities={facilities}
+            filteredScope3Activities={filteredScope3Activities}
+            getMethodLabel={getMethodLabel}
+            isRegularUser={isRegularUser}
+            handleEdit={handleEdit}
+            fetchHistory={fetchHistory}
+            openDeleteConfirm={openDeleteConfirm}
+            showFilters={showFilters}
+            filterFacility={filterFacility}
+            filterDateRange={filterDateRange}
+            filterCategory={filterCategory}
+            filterFrequency={filterFrequency}
+          />
 
             {/* Delete Confirmation Dialog */}
             <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
@@ -6708,386 +4932,11 @@ export default function Emissions() {
 
       {/* Version History Dialog - With field-level changes */}
       {!isRegularUser && (
-        <Dialog open={historyDialogOpen} onOpenChange={setHistoryDialogOpen}>
-          <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Version History</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              {selectedEmissionHistory.length > 0 ? (
-                selectedEmissionHistory.map((history, idx) => {
-                  // Determine if this is a creation or update based on old_values
-                  const hasOldValues = history.changes?.old_values && Object.keys(history.changes.old_values).length > 0;
-                  const action = history.changes?.action || (hasOldValues ? 'updated' : 'created');
-                  const isCreation = action === 'created' || !hasOldValues;
-                  const oldValues = history.changes?.old_values || {};
-                  const newValues = history.changes?.new_values || {};
-                  
-                  // Field label mapping for better display
-                  const fieldLabelMap = {
-                    'quantity': 'Quantity',
-                    'quantity_unit': 'Unit',
-                    'category': 'Category',
-                    'sub_category': 'Activity',
-                    'subcategory': 'Sub Category',
-                    'activity_name': 'Activity',
-                    'fuel_type': 'Fuel Type',
-                    'fuel_name': 'Fuel Name',
-                    'scope': 'Scope',
-                    'reporting_period': 'Reporting Period',
-                    'reporting_year': 'Reporting Year',
-                    'responsible_person': 'Person Responsible',
-                    'process_names': 'Process Names',
-                    'notes': 'Notes',
-                    'total_emissions': 'Total Emissions (tCO₂e)',
-                    'co2_emissions': 'CO₂ Emissions',
-                    'ch4_emissions': 'CH₄ Emissions',
-                    'n2o_emissions': 'N₂O Emissions',
-                    'co2e_emissions': 'CO₂e Emissions',
-                    'activity': 'Activity',
-                    'scope3_activity': 'Scope 3 Activity',
-                    'scope3_activity_type': 'Activity Type',
-                    'calculation_method_scope3': 'Calculation Method',
-                    'emission_factor': 'Emission Factor',
-                    'ef_unit': 'EF Unit',
-                    'ef_source': 'EF Source',
-                    'supplier_name': 'Supplier Name',
-                    'distance_travelled': 'Distance Travelled',
-                    'employees': 'Employees',
-                    'monthly_totals': 'Monthly Totals',
-                    'monthly_total': 'Monthly Total',
-                    'yearly_total': 'Yearly Total',
-                    'dynamic_field_values': 'Input Values',
-                    'input_values': 'Input Values',
-                    'inputs': 'Inputs',
-                    'outputs': 'Outputs',
-                    'evidence': 'Evidence',
-                    'evidence_url': 'Evidence',
-                  };
-                  
-                  // Helper to format value for display - with proper nested object expansion
-                  const formatValue = (val, depth = 0) => {
-                    if (val === null || val === undefined) return '(empty)';
-                    if (typeof val === 'number') return val.toFixed(4);
-                    if (typeof val === 'string') return val || '(empty)';
-                    if (Array.isArray(val)) {
-                      if (val.length === 0) return '(empty)';
-                      // For arrays of primitives, join them
-                      if (val.every(v => typeof v !== 'object' || v === null)) {
-                        return val.filter(v => v !== null && v !== undefined).join(', ');
-                      }
-                      // For arrays of objects (like employees), show count
-                      return `${val.length} item(s)`;
-                    }
-                    if (typeof val === 'object') {
-                      // Skip internal fields
-                      const skipKeys = [
-                        'scope3_ef_id', 'ef_id', 'formula_id', 'id', '_id', 'matched_formula_id',
-                        'co2', 'ch4', 'n2o', 'ppp', 'inflation_rate', 'scope3_subcategory', 'scope3_activity_type',
-                        'scope3_activity', 'biogenic_scope_selection'
-                      ];
-                      const keys = Object.keys(val).filter(k => !skipKeys.includes(k));
-                      if (keys.length === 0) return '(empty)';
-                      
-                      // For nested objects, expand key-value pairs nicely
-                      const entries = keys
-                        .filter(k => val[k] !== null && val[k] !== undefined && val[k] !== '')
-                        .map(k => {
-                          const v = val[k];
-                          // Handle nested objects (like {value: 100, unit: 'kg'})
-                          if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
-                            if (v.value !== undefined && v.unit !== undefined) {
-                              return `${k}: ${v.value} ${v.unit}`;
-                            }
-                            return `${k}: ${JSON.stringify(v)}`;
-                          }
-                          if (typeof v === 'number') return `${k}: ${v.toFixed ? v.toFixed(4) : v}`;
-                          return `${k}: ${v}`;
-                        });
-                      
-                      return entries.join(', ') || '(empty)';
-                    }
-                    return String(val) || '(empty)';
-                  };
-                  
-                  // Render complex value with expandable view
-                  const renderValue = (val, label, field) => {
-                    if (val === null || val === undefined) return <span className="text-stone-400">(empty)</span>;
-                    
-                    // Handle evidence field specially
-                    if (field === 'evidence') {
-                      return <span className="font-medium">{val}</span>;
-                    }
-                    
-                    // Handle calculation_method_scope3 - show readable name instead of NaN
-                    if (field === 'calculation_method_scope3') {
-                      const methodNames = {
-                        'spend_based': 'Spend Based',
-                        'average_data': 'Average Data',
-                        'supplier_basis': 'Supplier Basis',
-                        'distance_based': 'Distance Based',
-                        'fuel_based': 'Fuel Based',
-                        'asset_based': 'Asset Based',
-                        'lessor_based': 'Lessor Based',
-                        'lessee_based': 'Lessee Based',
-                        'investment_based': 'Investment Based',
-                        'equity_based': 'Equity Based'
-                      };
-                      const displayVal = methodNames[val] || val || '(not set)';
-                      return <span className="font-medium">{displayVal}</span>;
-                    }
-                    
-                    // Handle sub_category for Scope 3 (shows activity name)
-                    if (field === 'sub_category' || field === 'scope3_activity') {
-                      return <span className="font-medium">{val || '(not set)'}</span>;
-                    }
-                    
-                    // For Outputs, only show co2e (not individual gases for Scope 3)
-                    if (label === 'Outputs' && typeof val === 'object') {
-                      const co2eVal = val.co2e;
-                      if (co2eVal) {
-                        const displayVal = typeof co2eVal === 'object' && co2eVal.value !== undefined
-                          ? `${Number(co2eVal.value).toFixed(6)} ${co2eVal.unit || 'tCO₂e'}`
-                          : `${Number(co2eVal).toFixed(6)} tCO₂e`;
-                        return <span className="font-medium">{displayVal}</span>;
-                      }
-                    }
-                    
-                    // Handle input_values (dynamic_field_values with only changed fields)
-                    if (field === 'input_values' && typeof val === 'object') {
-                      const keys = Object.keys(val).filter(k => 
-                        val[k]?.value !== null && val[k]?.value !== undefined && val[k]?.value !== ''
-                      );
-                      if (keys.length === 0) return <span className="text-stone-400">(empty)</span>;
-                      
-                      const fieldLabelMap = {
-                        'qty': 'Quantity',
-                        'cv': 'Calorific Value',
-                        'density': 'Density',
-                        'ef': 'Emission Factor',
-                        'ef_heat': 'EF (Heat Basis)',
-                        'activity_value': 'Activity Value',
-                        'spent_value': 'Spent Value',
-                        'calculation_method_scope3': 'Calculation Method'
-                      };
-                      
-                      return (
-                        <div className="text-xs space-y-0.5">
-                          {keys.map(k => {
-                            const v = val[k];
-                            if (!v || v.value === null || v.value === undefined) return null;
-                            
-                            // Format with full precision (up to 10 decimal places, trimmed)
-                            const numVal = Number(v.value);
-                            const displayVal = !isNaN(numVal) 
-                              ? `${numVal.toFixed(10).replace(/\.?0+$/, '')}${v.unit ? ' ' + v.unit : ''}`
-                              : String(v.value);
-                            
-                            return (
-                              <div key={k} className="flex gap-1">
-                                <span className="text-stone-500 capitalize">{fieldLabelMap[k] || k.replace(/_/g, ' ')}:</span>
-                                <span className="font-medium">{displayVal}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      );
-                    }
-                    
-                    // Check if it's a complex object that needs special rendering
-                    if (typeof val === 'object' && !Array.isArray(val)) {
-                      // Fields to skip in version history display (internal IDs and redundant fields)
-                      const skipKeys = [
-                        'scope3_ef_id', 'ef_id', 'formula_id', 'id', '_id', 'matched_formula_id',
-                        'co2', 'ch4', 'n2o', 'ppp', 'inflation_rate', 'scope3_subcategory', 'scope3_activity_type',
-                        'scope3_activity', 'biogenic_scope_selection'
-                      ];
-                      
-                      const keys = Object.keys(val).filter(k => !skipKeys.includes(k) && !k.startsWith('override_'));
-                      if (keys.length > 0) {
-                        return (
-                          <div className="text-xs space-y-0.5">
-                            {keys.slice(0, 8).map(k => {
-                              const v = val[k];
-                              if (v === null || v === undefined || v === '') return null;
-                              
-                              // Format value based on type - use full precision
-                              let displayVal = v;
-                              if (typeof v === 'object' && v !== null) {
-                                if (v.value !== undefined) {
-                                  const numVal = Number(v.value);
-                                  displayVal = !isNaN(numVal)
-                                    ? `${numVal.toFixed(10).replace(/\.?0+$/, '')}${v.unit ? ' ' + v.unit : ''}`
-                                    : String(v.value);
-                                } else {
-                                  displayVal = JSON.stringify(v);
-                                }
-                              } else if (typeof v === 'number') {
-                                displayVal = v.toFixed(10).replace(/\.?0+$/, '');
-                              }
-                              
-                              return (
-                                <div key={k} className="flex gap-1">
-                                  <span className="text-stone-500 capitalize">{k.replace(/_/g, ' ')}:</span>
-                                  <span className="font-medium">{displayVal}</span>
-                                </div>
-                              );
-                            })}
-                            {keys.length > 8 && (
-                              <span className="text-stone-400">+{keys.length - 8} more...</span>
-                            )}
-                          </div>
-                        );
-                      }
-                      return <span className="text-stone-400">(empty)</span>;
-                    }
-                    
-                    // For simple values - use full precision for numbers
-                    if (typeof val === 'number') {
-                      return <span>{val.toFixed(10).replace(/\.?0+$/, '')}</span>;
-                    }
-                    return <span>{formatValue(val)}</span>;
-                  };
-                  
-                  // Use field_changes from backend if available (new format), otherwise compute manually
-                  let changedFields = [];
-                  
-                  // Fields to skip in version history (internal IDs, metadata, individual gases for Scope 3)
-                  const skipFields = [
-                    'scope3_ef_id', 'ef_id', 'formula_id', 'id', '_id', 'matched_formula_id',
-                    'scope3_subcategory', 'scope3_activity_type', 'ppp', 'inflation_rate',
-                    'scope3_activity', 'biogenic_scope_selection'
-                  ];
-                  
-                  if (history.field_changes && history.field_changes.length > 0) {
-                    // New format: backend provides field_changes array
-                    changedFields = history.field_changes
-                      .filter(fc => !skipFields.includes(fc.field))
-                      .map(fc => ({
-                        label: fieldLabelMap[fc.field] || fc.field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-                        oldValue: fc.old_value,
-                        newValue: fc.new_value,
-                        field: fc.field,
-                        isComplex: typeof fc.old_value === 'object' || typeof fc.new_value === 'object'
-                      }));
-                  } else if (!isCreation && oldValues && newValues) {
-                    // Fallback: Legacy format - compute from old_values/new_values
-                    const getEmissionValue = (obj, primaryKey, fallbackKey) => {
-                      return obj[primaryKey] ?? obj[fallbackKey] ?? null;
-                    };
-                    
-                    const fieldsToCompare = [
-                      { key: 'quantity', label: 'Quantity' },
-                      { key: 'quantity_unit', label: 'Unit' },
-                      { key: 'category', label: 'Category' },
-                      { key: 'sub_category', label: 'Sub Category' },
-                      { key: 'fuel_type', label: 'Fuel Type' },
-                      { key: 'scope', label: 'Scope' },
-                      { key: 'calculation_method_scope3', label: 'Calculation Method' },
-                      { key: 'reporting_period', label: 'Reporting Period' },
-                      { key: 'responsible_person', label: 'Person Responsible' },
-                      { key: 'process_names', label: 'Process Names' },
-                      { key: 'notes', label: 'Notes' },
-                      { key: 'total_emissions', label: 'Total Emissions (tCO₂e)', fallback: 'calculated_co2e' },
-                      { key: 'co2_emissions', label: 'CO₂ Emissions', fallback: 'calculated_co2' },
-                      { key: 'ch4_emissions', label: 'CH₄ Emissions', fallback: 'calculated_ch4' },
-                      { key: 'n2o_emissions', label: 'N₂O Emissions', fallback: 'calculated_n2o' },
-                    ];
-                    
-                    fieldsToCompare.forEach(({ key, label, fallback }) => {
-                      let oldVal = fallback ? getEmissionValue(oldValues, key, fallback) : oldValues[key];
-                      let newVal = fallback ? getEmissionValue(newValues, key, fallback) : newValues[key];
-                      
-                      if ((oldVal === null || oldVal === undefined) && (newVal === null || newVal === undefined)) {
-                        return;
-                      }
-                      
-                      const oldStr = formatValue(oldVal);
-                      const newStr = formatValue(newVal);
-                      
-                      if (oldStr === newStr) return;
-                      
-                      // Store raw values for proper rendering
-                      changedFields.push({ 
-                        label, 
-                        oldValue: oldVal, 
-                        newValue: newVal, 
-                        field: key,
-                        isComplex: typeof oldVal === 'object' || typeof newVal === 'object'
-                      });
-                    });
-                  }
-                  
-                  return (
-                    <Card key={history.id} className="p-4 border border-stone-200 rounded-lg">
-                      <div className="flex items-start gap-3">
-                        <div className={`p-2 rounded-lg ${isCreation ? 'bg-green-100' : 'bg-primary/10'}`}>
-                          <History className={`w-4 h-4 ${isCreation ? 'text-green-600' : 'text-primary'}`} />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between mb-2">
-                            <p className="text-sm font-medium text-text-primary">
-                              {isCreation ? 'Created' : 'Updated'}
-                            </p>
-                            <span className={`text-xs px-2 py-1 rounded ${
-                              idx === 0 ? 'bg-blue-100 text-blue-700' : 
-                              idx === selectedEmissionHistory.length - 1 ? 'bg-green-100 text-green-700' : 'bg-stone-100'
-                            }`}>
-                              {idx === 0 ? 'Latest' : idx === selectedEmissionHistory.length - 1 ? 'Initial' : ''}
-                            </span>
-                          </div>
-                          <div className="space-y-2">
-                            <p className="text-sm text-text-primary flex items-center gap-2">
-                              <CalendarIcon className="w-4 h-4 text-text-muted" />
-                              {new Date(history.changed_at).toLocaleString()}
-                            </p>
-                            <p className="text-sm text-text-secondary flex items-center gap-2">
-                              <User className="w-4 h-4 text-text-muted" />
-                              {history.changed_by_name || history.changed_by_email || 'Unknown User'}
-                            </p>
-                          </div>
-                          
-                          {/* Show changed fields for updates only */}
-                          {!isCreation && changedFields.length > 0 && (
-                            <div className="mt-4 pt-4 border-t border-stone-200">
-                              <p className="text-xs font-semibold text-text-muted uppercase mb-3">Changes Made</p>
-                              <div className="space-y-2">
-                                {changedFields.map((field, fieldIdx) => (
-                                  <div key={fieldIdx} className="bg-stone-50 rounded-lg p-3">
-                                    <p className="text-xs font-medium text-text-primary mb-2">{field.label}</p>
-                                    <div className="grid grid-cols-2 gap-3 text-sm">
-                                      <div className="bg-red-50 p-2 rounded border border-red-100">
-                                        <span className="text-xs text-red-600 font-medium block mb-1">Old Value</span>
-                                        <div className="text-red-800 break-words">
-                                          {renderValue(field.oldValue, field.label, field.field)}
-                                        </div>
-                                      </div>
-                                      <div className="bg-green-50 p-2 rounded border border-green-100">
-                                        <span className="text-xs text-green-600 font-medium block mb-1">New Value</span>
-                                        <div className="text-green-800 break-words">
-                                          {renderValue(field.newValue, field.label, field.field)}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </Card>
-                  );
-                })
-              ) : (
-                <div className="text-center py-8 text-text-muted">
-                  <History className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                  <p>No version history available</p>
-                </div>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
+        <EmissionHistoryDialog
+          open={historyDialogOpen}
+          onOpenChange={setHistoryDialogOpen}
+          history={selectedEmissionHistory}
+        />
       )}
       
       {/* Unsaved Changes Confirmation Dialog (#19) */}

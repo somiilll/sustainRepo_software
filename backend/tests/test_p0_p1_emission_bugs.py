@@ -17,7 +17,7 @@ import os
 import uuid
 from datetime import datetime
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://emissions-staging-1.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://ghg-modular.preview.emergentagent.com')
 
 class TestEmissionBugFixes:
     """Test P0 and P1 emission bug fixes"""

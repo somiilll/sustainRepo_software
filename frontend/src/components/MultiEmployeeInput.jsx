@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -88,6 +88,29 @@ const MultiEmployeeInput = ({
 
   // Check if we're in yearly mode
   const isYearlyMode = frequencyType === 'yearly';
+
+  // Track selected month for calculation details per employee (format: { employeeId: monthKey })
+  const [selectedMonthsForDetails, setSelectedMonthsForDetails] = useState({});
+  
+  // Auto-select first month with emissions for EACH employee in edit mode for calculation details
+  useEffect(() => {
+    if (isEditMode && !isYearlyMode && employees.length > 0) {
+      const newSelections = {};
+      for (const emp of employees) {
+        if (emp.monthly_data && !selectedMonthsForDetails[emp.id]) {
+          for (const [monthKey, monthData] of Object.entries(emp.monthly_data)) {
+            if (monthData?.emissions?.co2e !== null && monthData?.emissions?.co2e !== undefined) {
+              newSelections[emp.id] = monthKey;
+              break;
+            }
+          }
+        }
+      }
+      if (Object.keys(newSelections).length > 0) {
+        setSelectedMonthsForDetails(prev => ({ ...prev, ...newSelections }));
+      }
+    }
+  }, [isEditMode, isYearlyMode, employees]);
 
   // Validate all employees - returns { isValid, errors }
   const validateEmployees = useCallback(() => {
@@ -204,6 +227,8 @@ const MultiEmployeeInput = ({
       name: '',
       employee_id: '',
       department: '',
+      from_location: '', // Optional: Journey starting point
+      to_location: '', // Optional: Journey destination
       activity_type: selectedActivityType, // Use activity type from step 1
       calculation_method: calculationMethod, // Store calculation method
       monthly_data: {},
@@ -282,6 +307,22 @@ const MultiEmployeeInput = ({
 
   // Update monthly input value for an employee
   const handleMonthlyInputChange = useCallback((employeeId, monthKey, variable, value) => {
+    // Fields that must be whole numbers (integers)
+    const integerOnlyFields = [
+      'qty_days_travelled', 'working_days', 'qty_passengers', 'qty_passenger',
+      'number_of_passengers', 'qty_nights', 'number_of_nights', 'qty_rooms',
+      'qty_room', 'number_of_rooms', 'no_of_employees'
+    ];
+    
+    // Validate integer-only fields
+    if (integerOnlyFields.includes(variable) && value !== '') {
+      const numValue = parseFloat(value);
+      if (!Number.isInteger(numValue)) {
+        toast.error(`${variable.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())} must be a whole number`);
+        return;
+      }
+    }
+    
     // Validate working_days and qty_days_travelled don't exceed days in month
     if ((variable === 'working_days' || variable === 'qty_days_travelled') && value !== '') {
       const numValue = parseFloat(value);
@@ -305,6 +346,18 @@ const MultiEmployeeInput = ({
     const updatedEmployees = employees.map(emp => {
       if (emp.id === employeeId) {
         const monthData = emp.monthly_data?.[monthKey] || { inputs: {}, emissions: null };
+        const oldValue = monthData.inputs?.[variable];
+        
+        // Compare values properly - convert to same type for comparison
+        // Treat empty string, null, undefined as equivalent
+        const normalizeValue = (v) => {
+          if (v === '' || v === null || v === undefined) return null;
+          return parseFloat(v);
+        };
+        const oldNormalized = normalizeValue(oldValue);
+        const newNormalized = normalizeValue(value);
+        const valueChanged = oldNormalized !== newNormalized;
+        
         return {
           ...emp,
           monthly_data: {
@@ -315,9 +368,11 @@ const MultiEmployeeInput = ({
                 ...monthData.inputs,
                 [variable]: value,
               },
-              // Clear emissions and calculation_details when input changes (needs recalculation)
-              emissions: null,
-              calculation_details: null,
+              // Only clear emissions and calculation_details if value actually changed
+              ...(valueChanged ? {
+                emissions: null,
+                calculation_details: null,
+              } : {}),
             },
           },
         };
@@ -329,6 +384,22 @@ const MultiEmployeeInput = ({
 
   // NEW: Update yearly input value for an employee
   const handleYearlyInputChange = useCallback((employeeId, variable, value) => {
+    // Fields that must be whole numbers (integers)
+    const integerOnlyFields = [
+      'qty_days_travelled', 'working_days', 'qty_passengers', 'qty_passenger',
+      'number_of_passengers', 'qty_nights', 'number_of_nights', 'qty_rooms',
+      'qty_room', 'number_of_rooms', 'no_of_employees'
+    ];
+    
+    // Validate integer-only fields
+    if (integerOnlyFields.includes(variable) && value !== '') {
+      const numValue = parseFloat(value);
+      if (!Number.isInteger(numValue)) {
+        toast.error(`${variable.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())} must be a whole number`);
+        return;
+      }
+    }
+    
     // Validate working_hour_per_day doesn't exceed 24 hours
     if (variable === 'working_hour_per_day' && value !== '') {
       const numValue = parseFloat(value);
@@ -353,6 +424,18 @@ const MultiEmployeeInput = ({
     const updatedEmployees = employees.map(emp => {
       if (emp.id === employeeId) {
         const yearlyData = emp.yearly_data || { inputs: {}, emissions: null };
+        const oldValue = yearlyData.inputs?.[variable];
+        
+        // Compare values properly - convert to same type for comparison
+        // Treat empty string, null, undefined as equivalent
+        const normalizeValue = (v) => {
+          if (v === '' || v === null || v === undefined) return null;
+          return parseFloat(v);
+        };
+        const oldNormalized = normalizeValue(oldValue);
+        const newNormalized = normalizeValue(value);
+        const valueChanged = oldNormalized !== newNormalized;
+        
         return {
           ...emp,
           yearly_data: {
@@ -361,9 +444,11 @@ const MultiEmployeeInput = ({
               ...yearlyData.inputs,
               [variable]: value,
             },
-            // Clear emissions when input changes (needs recalculation)
-            emissions: null,
-            calculation_details: null,
+            // Only clear emissions if value actually changed
+            ...(valueChanged ? {
+              emissions: null,
+              calculation_details: null,
+            } : {}),
           },
         };
       }
@@ -584,10 +669,16 @@ const MultiEmployeeInput = ({
     return Number(num).toFixed(decimals);
   };
 
-  // Check if a month has input data
+  // Check if a month has input data (ignore metadata fields)
   const monthHasInputData = useCallback((monthData) => {
     if (!monthData?.inputs) return false;
-    return Object.values(monthData.inputs).some(v => v !== '' && v !== null && v !== undefined);
+    // Fields to ignore when checking for input data
+    const metadataFields = ['from_location', 'to_location', 'employee_name', 'employee_id', 'department'];
+    return Object.entries(monthData.inputs).some(([key, value]) => {
+      // Skip metadata fields and unit fields
+      if (metadataFields.includes(key) || key.endsWith('_unit')) return false;
+      return value !== '' && value !== null && value !== undefined;
+    });
   }, []);
 
   return (
@@ -655,7 +746,7 @@ const MultiEmployeeInput = ({
                   <span className="font-medium">{emissionFactorInfo.source}</span>
                 </div>
               )}
-              {emissionFactorInfo.formula && (
+              {emissionFactorInfo.formula && false && (
                 <div className="col-span-full">
                   <span className="text-gray-600">Formula: </span>
                   <code className="text-xs bg-blue-100 px-2 py-1 rounded text-blue-800">
@@ -832,6 +923,28 @@ const MultiEmployeeInput = ({
                         data-testid={`employee-department-${empIndex}`}
                       />
                     </div>
+                    <div>
+                      <Label className="text-sm text-gray-600">From Location</Label>
+                      <Input
+                        value={employee.from_location || ''}
+                        onChange={(e) => handleEmployeeInfoChange(employee.id, 'from_location', e.target.value)}
+                        placeholder="E.g., Home, City A"
+                        disabled={disabled}
+                        className="mt-1"
+                        data-testid={`employee-from-location-${empIndex}`}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-sm text-gray-600">To Location</Label>
+                      <Input
+                        value={employee.to_location || ''}
+                        onChange={(e) => handleEmployeeInfoChange(employee.id, 'to_location', e.target.value)}
+                        placeholder="E.g., Office, City B"
+                        disabled={disabled}
+                        className="mt-1"
+                        data-testid={`employee-to-location-${empIndex}`}
+                      />
+                    </div>
                   </div>
 
                   {/* Monthly Data Grid OR Yearly Data Entry - Based on form-level frequencyType */}
@@ -931,13 +1044,7 @@ const MultiEmployeeInput = ({
                               <div className="mt-3 pt-3 border-t border-gray-200">
                                 <div className="text-xs text-gray-500 mb-2">Calculation Details</div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                                  {/* Formula Name - show at top, spans full width */}
-                                  {employee.yearly_data.calculation_details?.formula_name && (
-                                    <div className="col-span-1 md:col-span-2 lg:col-span-3 px-2 py-1.5 bg-purple-50 border-l-2 border-purple-400 rounded-r">
-                                      <span className="text-purple-700 font-semibold">Formula: </span>
-                                      <span className="text-purple-600">{employee.yearly_data.calculation_details.formula_name}</span>
-                                    </div>
-                                  )}
+                                  {/* Formula Name - hidden for C7 */}
                                   
                                   {/* Input values */}
                                   {Object.entries(employee.yearly_data?.inputs || {})
@@ -992,7 +1099,7 @@ const MultiEmployeeInput = ({
                       </Card>
                     </div>
                   ) : (
-                    /* MONTHLY MODE: Existing monthly data grid */
+                    /* MONTHLY MODE: Ledger table format for cleaner view */
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-medium text-gray-700">Monthly Data</Label>
@@ -1009,177 +1116,225 @@ const MultiEmployeeInput = ({
                         </Button>
                       </div>
                       
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {activeMonths.map((monthKey) => {
-                          const monthInfo = MONTHS.find(m => m.key === monthKey);
-                          const monthData = employee.monthly_data?.[monthKey] || { inputs: {}, emissions: null };
-                          const currentFields = getFieldsForActivityType();
-                          const hasData = monthHasInputData(monthData);
-                          const hasEmissions = monthData.emissions?.co2e !== null && monthData.emissions?.co2e !== undefined;
-                          
-                          // Check if this month is in the future
-                          const isMonthInFuture = isFutureMonth ? isFutureMonth(monthKey) : false;
-                          
-                          // In edit mode with calculation details, make card span full width
-                          const shouldSpanFull = isEditMode && hasEmissions && monthData.calculation_details;
-                          
-                          return (
-                            <Card 
-                              key={monthKey} 
-                              className={`p-3 ${shouldSpanFull ? 'col-span-1 md:col-span-2 lg:col-span-3' : ''} ${isMonthInFuture ? 'opacity-50 bg-gray-100' : hasEmissions ? 'border-emerald-300 bg-emerald-50/50' : hasData ? 'border-amber-300 bg-amber-50/30' : 'border-gray-200'}`}
-                          >
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-sm font-medium text-gray-700">
-                                {monthInfo?.label}
-                                {isMonthInFuture && <span className="ml-1 text-xs text-gray-400">(Future)</span>}
-                              </span>
-                              {isMonthInFuture ? (
-                                <span className="text-xs text-gray-400">
-                                  Cannot add future data
-                                </span>
-                              ) : hasEmissions ? (
-                                <span className="text-xs font-semibold text-emerald-600">
-                                  {formatNumber(monthData.emissions.co2e)} tCO2e
-                                </span>
-                              ) : hasData ? (
-                                <span className="text-xs text-amber-600">
-                                  Needs calculation
-                                </span>
-                              ) : null}
-                            </div>
-                            
-                            <div className="space-y-2">
-                              {currentFields.map((field) => {
-                                // Check if this is supplier-basis and needs free-text unit
-                                const isSupplierBasis = calculationMethod === 'supplier_basis';
-                                const needsUnitInput = isSupplierBasis && field.variable?.includes('supplier');
-                                // Get stored unit for supplier-basis
-                                const storedUnit = monthData.inputs?.[`${field.variable}_unit`] || '';
-                                // Unitless count fields - should never show unit
+                      {/* Ledger Table */}
+                      <div className="border border-gray-200 rounded-lg overflow-hidden">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50 border-b border-gray-200">
+                            <tr>
+                              {/* Hide Month column in edit mode - already shown in dialog header */}
+                              {!isEditMode && (
+                                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 w-36">Month</th>
+                              )}
+                              {getFieldsForActivityType().map((field) => {
                                 const isUnitlessCountField = ['qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms', 'number_of_passengers', 'number_of_nights', 'number_of_rooms', 'qty_days_travelled', 'working_days'].includes(field.variable);
-                                
                                 return (
-                                  <div key={field.variable}>
-                                    <Label className="text-xs text-gray-500">
-                                      {field.label}
-                                      {field.required && <span className="text-red-500 ml-1">*</span>}
-                                      {field.unit && !needsUnitInput && !isUnitlessCountField && (
-                                        <span className="ml-1 text-gray-400">({field.unit})</span>
-                                      )}
-                                      {needsUnitInput && storedUnit && (
-                                        <span className="ml-1 text-gray-400">({storedUnit})</span>
-                                      )}
-                                    </Label>
-                                    <div className="flex items-center gap-2 mt-1">
-                                      <Input
-                                        type="number"
-                                        min="0"
-                                        max={(field.variable === 'working_days' || field.variable === 'qty_days_travelled') ? getDaysInMonth(monthKey, reportingYear) : (field.variable === 'working_hour_per_day' ? 24 : undefined)}
-                                        step="any"
-                                        value={monthData.inputs?.[field.variable] ?? ''}
-                                        onChange={(e) => handleMonthlyInputChange(
-                                          employee.id, 
-                                          monthKey, 
-                                          field.variable, 
-                                          e.target.value ? Math.max(0, parseFloat(e.target.value)) : ''
-                                        )}
-                                        placeholder={(field.variable === 'working_days' || field.variable === 'qty_days_travelled') ? `Max ${getDaysInMonth(monthKey, reportingYear)} days` : (field.variable === 'working_hour_per_day' ? 'Max 24 hours' : 'Enter value')}
-                                        disabled={disabled || isMonthInFuture}
-                                        className={`h-8 text-sm ${needsUnitInput ? 'w-2/3' : 'flex-1'}`}
-                                        data-testid={`employee-${empIndex}-${monthKey}-${field.variable}`}
-                                      />
-                                      {/* Supplier-basis: Free text unit input (#8) */}
-                                      {needsUnitInput ? (
-                                        <Input
-                                          type="text"
-                                          value={storedUnit}
-                                          onChange={(e) => handleMonthlyInputChange(
-                                            employee.id, 
-                                            monthKey, 
-                                            `${field.variable}_unit`, 
-                                            e.target.value
-                                          )}
-                                          placeholder="Unit"
-                                          disabled={disabled || isMonthInFuture}
-                                          className="h-8 text-sm w-1/3"
-                                          data-testid={`employee-${empIndex}-${monthKey}-${field.variable}-unit`}
-                                        />
-                                      ) : field.unit && !isUnitlessCountField && (
-                                        <span className="text-xs text-gray-500 min-w-[40px]">{field.unit}</span>
-                                      )}
-                                    </div>
-                                  </div>
+                                  <th key={field.variable} className="px-3 py-2 text-left text-xs font-semibold text-gray-600">
+                                    {field.label}
+                                    {field.required && <span className="text-red-500 ml-0.5">*</span>}
+                                    {field.unit && !isUnitlessCountField && (
+                                      <span className="font-normal text-gray-400 ml-1">({field.unit})</span>
+                                    )}
+                                  </th>
                                 );
                               })}
-                            </div>
-                            
-                            {/* Calculation Ledger - Show ONLY in Edit mode when emissions calculated */}
-                            {isEditMode && hasEmissions && monthData.emissions && (
-                              <div className="mt-3 pt-3 border-t border-gray-200">
-                                <div className="text-xs text-gray-500 mb-2">Calculation Details</div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                                  {/* Formula Name - show at top, spans full width */}
-                                  {monthData.calculation_details?.formula_name && (
-                                    <div className="col-span-1 md:col-span-2 lg:col-span-3 px-2 py-1.5 bg-purple-50 border-l-2 border-purple-400 rounded-r">
-                                      <span className="text-purple-700 font-semibold">Formula: </span>
-                                      <span className="text-purple-600">{monthData.calculation_details.formula_name}</span>
-                                    </div>
+                              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-28">Emissions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {activeMonths.map((monthKey, rowIndex) => {
+                              const monthInfo = MONTHS.find(m => m.key === monthKey);
+                              const monthData = employee.monthly_data?.[monthKey] || { inputs: {}, emissions: null };
+                              const currentFields = getFieldsForActivityType();
+                              const hasData = monthHasInputData(monthData);
+                              const hasEmissions = monthData.emissions?.co2e !== null && monthData.emissions?.co2e !== undefined;
+                              
+                              // Check if this month is in the future
+                              const isMonthInFuture = isFutureMonth ? isFutureMonth(monthKey) : false;
+                              
+                              // Get month label with year for financial year
+                              const getMonthLabel = () => {
+                                const monthIndex = MONTHS.findIndex(m => m.key === monthKey);
+                                const year = parseInt(reportingYear);
+                                if (reportingYearType === 'financial') {
+                                  // For FY: Jan-Mar belong to next calendar year
+                                  if (monthIndex >= 0 && monthIndex <= 2) {
+                                    return `${monthInfo?.label} - ${year + 1}`;
+                                  }
+                                  return `${monthInfo?.label} - ${year}`;
+                                }
+                                return `${monthInfo?.label} - ${year}`;
+                              };
+                              
+                              return (
+                                <tr 
+                                  key={monthKey} 
+                                  onClick={() => {
+                                    if (!isMonthInFuture && hasEmissions) {
+                                      // Toggle selection for this employee's month
+                                      setSelectedMonthsForDetails(prev => ({
+                                        ...prev,
+                                        [employee.id]: prev[employee.id] === monthKey ? null : monthKey
+                                      }));
+                                    }
+                                  }}
+                                  className={`${isMonthInFuture ? 'bg-gray-50 opacity-60' : rowIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} ${hasEmissions ? 'bg-emerald-50/30' : ''} ${selectedMonthsForDetails[employee.id] === monthKey ? 'ring-2 ring-emerald-400 ring-inset' : ''} ${!isMonthInFuture && hasEmissions ? 'cursor-pointer hover:bg-emerald-50/50' : ''}`}
+                                >
+                                  {/* Month Column - Hide in edit mode */}
+                                  {!isEditMode && (
+                                    <td className="px-3 py-2 whitespace-nowrap">
+                                      <span className="text-sm font-medium text-gray-700">{getMonthLabel()}</span>
+                                      {isMonthInFuture && (
+                                        <span className="ml-1 text-xs bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded">Future</span>
+                                      )}
+                                    </td>
                                   )}
                                   
-                                  {/* Input values */}
-                                  {Object.entries(monthData.inputs || {})
-                                    .filter(([k, v]) => v !== '' && v !== null && !k.includes('_unit'))
-                                    .map(([k, v]) => {
-                                      const field = currentFields.find(f => f.variable === k);
-                                      const label = field?.label || k;
-                                      const unitKey = `${k}_unit`;
-                                      const unit = monthData.inputs?.[unitKey] || field?.unit || '';
-                                      return (
-                                        <div key={k} className="px-2 py-1 bg-blue-50 border-l-2 border-blue-300 rounded-r">
-                                          <span className="text-gray-600 text-sm">Input: </span>
-                                          <span className="text-blue-600 font-medium text-sm">{label}</span>
-                                          <span className="text-gray-800 text-sm"> = {v}</span>
-                                          {unit && <span className="text-gray-500 text-sm ml-1">{unit}</span>}
+                                  {/* Input Columns */}
+                                  {currentFields.map((field) => {
+                                    const isSupplierBasis = calculationMethod === 'supplier_basis';
+                                    const needsUnitInput = isSupplierBasis && field.variable?.includes('supplier');
+                                    const storedUnit = monthData.inputs?.[`${field.variable}_unit`] || '';
+                                    const isUnitlessCountField = ['qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms', 'number_of_passengers', 'number_of_nights', 'number_of_rooms', 'qty_days_travelled', 'working_days'].includes(field.variable);
+                                    
+                                    return (
+                                      <td key={field.variable} className="px-3 py-1.5">
+                                        <div className="flex items-center gap-1">
+                                          <Input
+                                            type="number"
+                                            min="0"
+                                            max={(field.variable === 'working_days' || field.variable === 'qty_days_travelled') ? getDaysInMonth(monthKey, reportingYear) : (field.variable === 'working_hour_per_day' ? 24 : undefined)}
+                                            step="any"
+                                            value={monthData.inputs?.[field.variable] ?? ''}
+                                            onChange={(e) => handleMonthlyInputChange(
+                                              employee.id, 
+                                              monthKey, 
+                                              field.variable, 
+                                              e.target.value ? Math.max(0, parseFloat(e.target.value)) : ''
+                                            )}
+                                            placeholder={(field.variable === 'working_days' || field.variable === 'qty_days_travelled') ? `≤${getDaysInMonth(monthKey, reportingYear)}` : '—'}
+                                            disabled={disabled || isMonthInFuture}
+                                            className={`h-8 text-sm ${needsUnitInput ? 'w-20' : 'w-24'}`}
+                                            data-testid={`employee-${empIndex}-${monthKey}-${field.variable}`}
+                                          />
+                                          {needsUnitInput && (
+                                            <Input
+                                              type="text"
+                                              value={storedUnit}
+                                              onChange={(e) => handleMonthlyInputChange(
+                                                employee.id, 
+                                                monthKey, 
+                                                `${field.variable}_unit`, 
+                                                e.target.value
+                                              )}
+                                              placeholder="unit"
+                                              disabled={disabled || isMonthInFuture}
+                                              className="h-8 text-sm w-16"
+                                              data-testid={`employee-${empIndex}-${monthKey}-${field.variable}-unit`}
+                                            />
+                                          )}
                                         </div>
-                                      );
-                                    })}
+                                      </td>
+                                    );
+                                  })}
                                   
-                                  {/* Applied factors from calculation (emission factors, etc.) */}
-                                  {monthData.calculation_details?.applied_factors && 
-                                    Object.entries(monthData.calculation_details.applied_factors).map(([key, factor]) => (
-                                      <div key={key} className="px-2 py-1 bg-amber-50 border-l-2 border-amber-300 rounded-r">
-                                        <span className="text-amber-700 font-medium text-sm">{factor.label || key}: </span>
-                                        <span className="text-gray-800 text-sm">{typeof factor.value === 'number' ? factor.value.toFixed(6) : factor.value}</span>
-                                        {factor.unit && <span className="text-gray-500 text-sm ml-1">{factor.unit}</span>}
-                                      </div>
-                                    ))
-                                  }
-                                  
-                                  {/* Formula step from audit log - shows the calculation expression */}
-                                  {monthData.calculation_details?.audit_log?.filter(step => step.step === 'formula_step').map((step, idx) => (
-                                    <div key={idx} className="col-span-1 md:col-span-2 lg:col-span-2 px-2 py-1.5 bg-cyan-50 border-l-2 border-cyan-400 rounded-r">
-                                      <div className="text-xs text-cyan-600 mb-0.5">Calculation:</div>
-                                      <div className="text-cyan-700 font-medium text-sm">{step.expression_readable || step.expression}</div>
-                                      <div className="text-cyan-600 text-sm">= {typeof step.output === 'number' ? step.output.toFixed(6) : step.output}</div>
+                                  {/* Emissions Column */}
+                                  <td className="px-3 py-2 text-right whitespace-nowrap">
+                                    {isMonthInFuture ? (
+                                      <span className="text-xs text-gray-400">—</span>
+                                    ) : hasEmissions ? (
+                                      <span className="text-sm font-semibold text-emerald-600">
+                                        {formatNumber(monthData.emissions.co2e)} tCO₂e
+                                      </span>
+                                    ) : hasData ? (
+                                      <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
+                                        Pending
+                                      </span>
+                                    ) : (
+                                      <span className="text-xs text-gray-400">—</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                      
+                      {/* Calculation Details Section - Shows when a month row is selected for this employee */}
+                      {isEditMode && selectedMonthsForDetails[employee.id] && (() => {
+                        const selectedMonthKey = selectedMonthsForDetails[employee.id];
+                        const monthData = employee.monthly_data?.[selectedMonthKey];
+                        const currentFields = getFieldsForActivityType();
+                        
+                        if (!monthData?.emissions) return null;
+                        
+                        return (
+                          <div className="mt-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="text-sm font-semibold text-slate-700">
+                                Calculation Details
+                              </div>
+                              <button 
+                                type="button"
+                                onClick={() => setSelectedMonthsForDetails(prev => ({ ...prev, [employee.id]: null }))}
+                                className="text-xs text-slate-500 hover:text-slate-700"
+                              >
+                                Close
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                              {/* Input values */}
+                              {Object.entries(monthData.inputs || {})
+                                .filter(([k, v]) => v !== '' && v !== null && !k.includes('_unit'))
+                                .map(([k, v]) => {
+                                  const field = currentFields.find(f => f.variable === k);
+                                  const label = field?.label || k;
+                                  const unitKey = `${k}_unit`;
+                                  const unit = monthData.inputs?.[unitKey] || field?.unit || '';
+                                  return (
+                                    <div key={k} className="px-2 py-1 bg-blue-50 border-l-2 border-blue-300 rounded-r">
+                                      <span className="text-gray-600 text-sm">Input: </span>
+                                      <span className="text-blue-600 font-medium text-sm">{label}</span>
+                                      <span className="text-gray-800 text-sm"> = {v}</span>
+                                      {unit && <span className="text-gray-500 text-sm ml-1">{unit}</span>}
                                     </div>
-                                  ))}
-                                  
-                                  {/* Final outputs */}
-                                  <div className="px-2 py-1.5 bg-emerald-100 border-l-2 border-emerald-400 rounded-r">
-                                    <div className="text-emerald-700 font-semibold text-sm">Output:</div>
-                                    <div className="text-emerald-600 font-medium text-sm">
-                                      CO₂e: {formatNumber(monthData.emissions?.co2e || 0, 6)} tCO₂e
-                                    </div>
+                                  );
+                                })}
+                              
+                              {/* Applied factors from calculation (emission factors, etc.) */}
+                              {monthData.calculation_details?.applied_factors && 
+                                Object.entries(monthData.calculation_details.applied_factors).map(([key, factor]) => (
+                                  <div key={key} className="px-2 py-1 bg-amber-50 border-l-2 border-amber-300 rounded-r">
+                                    <span className="text-amber-700 font-medium text-sm">{factor.label || key}: </span>
+                                    <span className="text-gray-800 text-sm">{typeof factor.value === 'number' ? factor.value.toFixed(6) : factor.value}</span>
+                                    {factor.unit && <span className="text-gray-500 text-sm ml-1">{factor.unit}</span>}
                                   </div>
+                                ))
+                              }
+                              
+                              {/* Formula step from audit log - shows the calculation expression */}
+                              {monthData.calculation_details?.audit_log?.filter(step => step.step === 'formula_step').map((step, idx) => (
+                                <div key={idx} className="col-span-1 md:col-span-2 lg:col-span-2 px-2 py-1.5 bg-cyan-50 border-l-2 border-cyan-400 rounded-r">
+                                  <div className="text-xs text-cyan-600 mb-0.5">Calculation:</div>
+                                  <div className="text-cyan-700 font-medium text-sm">{step.expression_readable || step.expression}</div>
+                                  <div className="text-cyan-600 text-sm">= {typeof step.output === 'number' ? step.output.toFixed(6) : step.output}</div>
+                                </div>
+                              ))}
+                              
+                              {/* Final outputs */}
+                              <div className="px-2 py-1.5 bg-emerald-100 border-l-2 border-emerald-400 rounded-r">
+                                <div className="text-emerald-700 font-semibold text-sm">Output:</div>
+                                <div className="text-emerald-600 font-medium text-sm">
+                                  CO₂e: {formatNumber(monthData.emissions?.co2e || 0, 6)} tCO₂e
                                 </div>
                               </div>
-                            )}
-                          </Card>
+                            </div>
+                          </div>
                         );
-                      })}
+                      })()}
                     </div>
-                  </div>
                   )}
+
 
                   {/* Employee Summary */}
                   <div className="mt-4 p-3 bg-emerald-50 rounded-lg">

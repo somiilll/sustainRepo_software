@@ -731,9 +731,18 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             if not formula_id:
                 raise HTTPException(status_code=400, detail="Decision tree did not resolve to a formula")
         else:
-            # No decision tree - look up formula directly by category_id
+            # No decision tree - look up formula directly by category.
+            # Match BOTH `category_id` (legacy singular) and `category_ids`
+            # (current plural array). Same pattern used at line 914 below.
             formula_doc = await db.ce_formulas.find_one(
-                {"category_id": req.category_id, "is_active": True}, {"_id": 0},
+                {
+                    "is_active": True,
+                    "$or": [
+                        {"category_id": req.category_id},
+                        {"category_ids": req.category_id},
+                    ],
+                },
+                {"_id": 0},
             )
             logger.info(f"[FUGITIVE DEBUG - Backend] direct formula lookup found: {formula_doc is not None}")
             if formula_doc:

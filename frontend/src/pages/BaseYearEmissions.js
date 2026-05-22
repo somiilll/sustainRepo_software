@@ -40,7 +40,7 @@ import { Building, Building2, CalendarClock, Check, X, Loader2, History, Plus, A
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-export default function BaseYearEmissions() {
+export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
   const { user, getAuthHeader } = useAuth();
   const [loading, setLoading] = useState(true);
   const [organization, setOrganization] = useState(null);
@@ -1498,6 +1498,18 @@ export default function BaseYearEmissions() {
                 <CalendarClock className="w-3 h-3 mr-1" />
                 Change
               </Button>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteRecord(record.id);
+                }}
+              >
+                <Trash2 className="w-3 h-3 mr-1" />
+                Delete
+              </Button>
             </div>
           </div>
         ) : (
@@ -1512,12 +1524,14 @@ export default function BaseYearEmissions() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-heading font-bold text-text-primary">Base Year Emissions</h1>
-        <p className="text-text-muted mt-1">
-          Set up base year emissions for comparing and tracking GHG reduction progress
-        </p>
-      </div>
+      {!hideTopHeader && (
+        <div>
+          <h1 className="text-2xl font-heading font-bold text-text-primary">Base Year Emissions</h1>
+          <p className="text-text-muted mt-1">
+            Set up base year emissions for comparing and tracking GHG reduction progress
+          </p>
+        </div>
+      )}
 
       {/* Info Banner */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
@@ -2475,6 +2489,17 @@ export default function BaseYearEmissions() {
                   </Button>
                 </div>
                 <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    className="text-red-500 hover:text-red-700 hover:bg-red-50 border-red-200"
+                    onClick={() => {
+                      setShowViewDialog(false);
+                      handleDeleteRecord(viewRecord.id);
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4 mr-1" />
+                    Delete
+                  </Button>
                   <Button variant="outline" onClick={() => { setShowViewDialog(false); setViewRecord(null); }}>
                     Close
                   </Button>
@@ -2548,37 +2573,6 @@ export default function BaseYearEmissions() {
                         <p><span className="font-medium">Total tCO₂e:</span> {(deletion.emissions_data?.reduce((sum, e) => sum + (parseFloat(e.tco2e) || 0), 0) || 0).toFixed(4)}</p>
                         <p><span className="font-medium">Entries:</span> {deletion.emissions_data?.length || 0}</p>
                       </div>
-                      
-                      {/* Show version history from deleted record if available */}
-                      {deletion.version_history && deletion.version_history.length > 0 && (
-                        <details className="mt-2">
-                          <summary className="text-xs text-text-muted cursor-pointer hover:text-text-primary">
-                            View {deletion.version_history.length} version(s) before deletion
-                          </summary>
-                          <div className="mt-2 pl-2 border-l-2 border-red-200 space-y-2">
-                            {deletion.version_history.map((v, vIdx) => (
-                              <div key={vIdx} className="text-xs bg-white p-2 rounded">
-                                <div className="flex justify-between">
-                                  <span className="font-medium">Version {v.version}</span>
-                                  <span className="text-text-muted">{new Date(v.changed_at).toLocaleString()}</span>
-                                </div>
-                                {v.changes && v.changes.length > 0 && (
-                                  <div className="mt-1 space-y-1">
-                                    {v.changes.map((c, cIdx) => (
-                                      <div key={cIdx} className="flex gap-2">
-                                        <span>{c.scope}/{c.category}</span>
-                                        <span className="text-red-500">{(parseFloat(c.previous_value) || 0).toFixed(2)}</span>
-                                        <span>→</span>
-                                        <span className="text-green-600">{(parseFloat(c.new_value) || 0).toFixed(2)}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </details>
-                      )}
                     </div>
                   ))}
                 </div>

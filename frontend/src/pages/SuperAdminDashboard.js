@@ -6,6 +6,12 @@ import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '../components/ui/dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -23,6 +29,11 @@ import {
   CircleDollarSign,
   X,
   Filter as FilterIcon,
+  BarChart3,
+  Leaf,
+  ChevronDown,
+  ChevronRight,
+  Loader2,
 } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -104,6 +115,39 @@ export default function SuperAdminDashboard() {
   const [expiryFilter, setExpiryFilter] = useState('all');
   const [paymentFilter, setPaymentFilter] = useState('all');
   const { getAuthHeader } = useAuth();
+  
+  // Scope 3 & Biogenic Stats Dialog
+  const [statsDialogOpen, setStatsDialogOpen] = useState(false);
+  const [selectedOrgForStats, setSelectedOrgForStats] = useState(null);
+  const [scope3BiogenicStats, setScope3BiogenicStats] = useState(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState({});
+  
+  const fetchScope3BiogenicStats = async (org) => {
+    setSelectedOrgForStats(org);
+    setStatsDialogOpen(true);
+    setLoadingStats(true);
+    setScope3BiogenicStats(null);
+    setExpandedCategories({});
+    
+    try {
+      const res = await axios.get(`${API}/super-admin/organizations/${org.organization_id}/scope3-biogenic-stats`, {
+        headers: getAuthHeader()
+      });
+      setScope3BiogenicStats(res.data);
+    } catch (e) {
+      console.error('Failed to fetch Scope 3/Biogenic stats:', e);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+  
+  const toggleCategoryExpand = (category) => {
+    setExpandedCategories(prev => ({
+      ...prev,
+      [category]: !prev[category]
+    }));
+  };
 
   useEffect(() => {
     (async () => {
@@ -384,6 +428,20 @@ export default function SuperAdminDashboard() {
                   </div>
                 </div>
               </div>
+              
+              {/* View Scope 3 & Biogenic Stats Button */}
+              <div className="mt-3 pt-3 border-t border-stone-200">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fetchScope3BiogenicStats(org)}
+                  className="text-xs"
+                >
+                  <BarChart3 className="w-3.5 h-3.5 mr-1.5" />
+                  View Scope 3 & Biogenic Stats
+                </Button>
+              </div>
+              
               {org.expiry.state === 'expired' && (
                 <div className="mt-3 flex items-center gap-2 text-sm text-red-600">
                   <AlertTriangle className="w-4 h-4" />
@@ -398,6 +456,172 @@ export default function SuperAdminDashboard() {
           </div>
         )}
       </div>
+      
+      {/* Scope 3 & Biogenic Stats Dialog */}
+      <Dialog open={statsDialogOpen} onOpenChange={setStatsDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-primary" />
+              Scope 3 & Biogenic Stats - {selectedOrgForStats?.organization_name}
+            </DialogTitle>
+          </DialogHeader>
+          
+          {loadingStats ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : scope3BiogenicStats ? (
+            <div className="space-y-6">
+              {/* Scope 3 Overview by Method */}
+              <div className="p-4 bg-blue-50 rounded-lg">
+                <h3 className="font-semibold text-blue-800 mb-3 flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4" />
+                  Scope 3 - By Calculation Method
+                </h3>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-white p-3 rounded-lg border border-blue-200">
+                    <p className="text-xs text-text-muted mb-1">Activity Basis</p>
+                    <p className="text-lg font-semibold text-blue-700">
+                      {scope3BiogenicStats.scope3_by_method?.activity_basis?.count || 0} records
+                    </p>
+                    <p className="text-sm text-blue-600">
+                      {(scope3BiogenicStats.scope3_by_method?.activity_basis?.tco2e || 0).toFixed(4)} tCO₂e
+                    </p>
+                  </div>
+                  <div className="bg-white p-3 rounded-lg border border-blue-200">
+                    <p className="text-xs text-text-muted mb-1">Spend Basis</p>
+                    <p className="text-lg font-semibold text-orange-600">
+                      {scope3BiogenicStats.scope3_by_method?.spend_basis?.count || 0} records
+                    </p>
+                    <p className="text-sm text-orange-500">
+                      {(scope3BiogenicStats.scope3_by_method?.spend_basis?.tco2e || 0).toFixed(4)} tCO₂e
+                    </p>
+                  </div>
+                  <div className="bg-white p-3 rounded-lg border border-blue-200">
+                    <p className="text-xs text-text-muted mb-1">Supplier Basis</p>
+                    <p className="text-lg font-semibold text-purple-600">
+                      {scope3BiogenicStats.scope3_by_method?.supplier_basis?.count || 0} records
+                    </p>
+                    <p className="text-sm text-purple-500">
+                      {(scope3BiogenicStats.scope3_by_method?.supplier_basis?.tco2e || 0).toFixed(4)} tCO₂e
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Scope 3 Categories with Method Breakdown */}
+              <div className="p-4 bg-stone-50 rounded-lg">
+                <h3 className="font-semibold text-stone-800 mb-3 flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4" />
+                  Scope 3 - Categories ({scope3BiogenicStats.scope3_categories?.length || 0})
+                </h3>
+                {scope3BiogenicStats.scope3_categories?.length > 0 ? (
+                  <div className="space-y-2">
+                    {scope3BiogenicStats.scope3_categories.map((cat, idx) => (
+                      <div key={idx} className="bg-white rounded-lg border border-stone-200 overflow-hidden">
+                        <div 
+                          className="p-3 flex items-center justify-between cursor-pointer hover:bg-stone-50"
+                          onClick={() => toggleCategoryExpand(cat.category)}
+                        >
+                          <div className="flex items-center gap-2">
+                            {expandedCategories[cat.category] ? (
+                              <ChevronDown className="w-4 h-4 text-stone-400" />
+                            ) : (
+                              <ChevronRight className="w-4 h-4 text-stone-400" />
+                            )}
+                            <span className="font-medium text-sm">{cat.category}</span>
+                          </div>
+                          <div className="flex items-center gap-4 text-sm">
+                            <span className="text-stone-500">{cat.total_count} records</span>
+                            <span className="font-semibold text-emerald-600">{cat.total_tco2e.toFixed(4)} tCO₂e</span>
+                          </div>
+                        </div>
+                        {expandedCategories[cat.category] && (
+                          <div className="px-3 pb-3 pt-1 border-t border-stone-100">
+                            <div className="grid grid-cols-3 gap-2 text-xs">
+                              {cat.by_method?.activity_basis && (
+                                <div className="p-2 bg-blue-50 rounded">
+                                  <p className="text-blue-700 font-medium">Activity</p>
+                                  <p className="text-blue-600">{cat.by_method.activity_basis.count} records / {cat.by_method.activity_basis.tco2e.toFixed(4)} tCO₂e</p>
+                                </div>
+                              )}
+                              {cat.by_method?.spend_basis && (
+                                <div className="p-2 bg-orange-50 rounded">
+                                  <p className="text-orange-700 font-medium">Spend</p>
+                                  <p className="text-orange-600">{cat.by_method.spend_basis.count} records / {cat.by_method.spend_basis.tco2e.toFixed(4)} tCO₂e</p>
+                                </div>
+                              )}
+                              {cat.by_method?.supplier_basis && (
+                                <div className="p-2 bg-purple-50 rounded">
+                                  <p className="text-purple-700 font-medium">Supplier</p>
+                                  <p className="text-purple-600">{cat.by_method.supplier_basis.count} records / {cat.by_method.supplier_basis.tco2e.toFixed(4)} tCO₂e</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-text-muted">No Scope 3 data available</p>
+                )}
+              </div>
+              
+              {/* Biogenic Emissions */}
+              <div className="p-4 bg-green-50 rounded-lg">
+                <h3 className="font-semibold text-green-800 mb-3 flex items-center gap-2">
+                  <Leaf className="w-4 h-4" />
+                  Biogenic Emissions
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Direct Biogenic */}
+                  <div className="bg-white p-4 rounded-lg border border-green-200">
+                    <h4 className="font-medium text-green-700 mb-2">Direct Biogenic</h4>
+                    <p className="text-2xl font-semibold text-green-600">
+                      {(scope3BiogenicStats.biogenic?.direct?.tco2e || 0).toFixed(4)} tCO₂e
+                    </p>
+                    <p className="text-sm text-green-500">
+                      {scope3BiogenicStats.biogenic?.direct?.count || 0} records
+                    </p>
+                  </div>
+                  
+                  {/* Indirect Biogenic */}
+                  <div className="bg-white p-4 rounded-lg border border-green-200">
+                    <h4 className="font-medium text-teal-700 mb-2">Indirect Biogenic</h4>
+                    <p className="text-2xl font-semibold text-teal-600">
+                      {(scope3BiogenicStats.biogenic?.indirect?.tco2e || 0).toFixed(4)} tCO₂e
+                    </p>
+                    <p className="text-sm text-teal-500">
+                      {scope3BiogenicStats.biogenic?.indirect?.count || 0} records
+                    </p>
+                    
+                    {/* Indirect by Category */}
+                    {scope3BiogenicStats.biogenic?.indirect?.by_category?.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-teal-100">
+                        <p className="text-xs font-medium text-teal-600 mb-2">By Category:</p>
+                        <div className="space-y-1">
+                          {scope3BiogenicStats.biogenic.indirect.by_category.map((cat, idx) => (
+                            <div key={idx} className="flex justify-between text-xs">
+                              <span className="text-stone-600 truncate mr-2">{cat.category}</span>
+                              <span className="text-teal-600 font-medium whitespace-nowrap">{cat.count} / {cat.tco2e.toFixed(4)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-text-muted">
+              Failed to load stats. Please try again.
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

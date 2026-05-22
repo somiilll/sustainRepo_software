@@ -1,0 +1,678 @@
+/**
+ * useEmissionSubmit — F6 (Option B).
+ *
+ * Encapsulates the full Save-flow that previously lived inline as
+ * `handleSubmit` in EmissionEntryForm.js (617 lines). Returns a single
+ * `submit()` function the form can call from its Save button.
+ *
+ * Strict NO-LOGIC-CHANGE policy — the body was lifted byte-identically;
+ * only the closure scope was reified into `ctx` and `setters` arguments.
+ *
+ * The hook orchestrates:
+ *  - C7 multi-employee yearly + monthly create
+ *  - Module dispatch via `categoryRegistry` (Scope 1/2 generic + per-category
+ *    Scope 3 modules + biogenic + Stationary/Mobile/Fugitive)
+ *  - `editingEmission` update path (PUT /emissions/{id})
+ *  - Process Emissions branch (POST /emissions with template inputs)
+ *  - Final fallback toast for unsupported categories
+ *
+ * Behaviour byte-identical: validation gate, toast messages, axios endpoints,
+ * audit-history persistence, success/error semantics all preserved.
+ */
+import axios from 'axios';
+import { toast } from 'sonner';
+
+import { categoryRegistry } from '../../../../emissions';
+
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const API = `${BACKEND_URL}/api`;
+
+export function useEmissionSubmit(ctx) {
+  const submit = async () => {
+    const {
+      facilityId, scope, category, fuelId,
+      useCustomFuel, customFuelName, customEmissionFactor, customSource,
+      isSaving, scope3Method, scope3ActivityId, scope3ActivityType,
+      scope3Subcategory, scope3CustomActivity, useCustomActivity, biogenicScopeSelection,
+      employees, frequencyType, reportingYearType, reportingYear,
+      monthlyData, yearlyData, processNames, responsiblePerson,
+      responsiblePersonDesignation, responsiblePersonContact, notes, supplierName,
+      supplierCode, employeeName, employeeId, assetName,
+      fromLocation, toLocation, selectedSubIndustry, selectedTemplate,
+      templateInputValues, dynamicCategories, setIsSaving, isC7EmployeeCommuting,
+      isProcessEmissions, requiresSubcategory, selectedFuel, filteredScope3Activities,
+      dynamicInputFields, centralizedUnits, defaultUnit, canProceedToStep, getAuthHeader,
+      onSuccess, getActualYearForMonth, evaluateFormula,
+      buildDecisionInputs, editingEmission,
+    } = ctx;
+
+    // Prevent duplicate submissions
+    if (isSaving) return;
+    
+    const validation = canProceedToStep(5); // Final validation
+    if (!validation.valid) {
+      toast.error(validation.message);
+      return;
+    }
+
+    setIsSaving(true); // Disable button immediately
+
+    // Shared module-resolution helper (used by both monthly & yearly dispatch).
+    // Returns the active category module (with `buildCreatePayload`) or null
+    // if the scope/category combo is not yet wired through the registry.
+    const resolveDispatchModule = () => {
+      const cat = (category || '').toLowerCase();
+      let mod = null;
+      if (scope === 'scope3') {
+        const codeMatch = cat.match(/^(c\d+)/);
+        if (!codeMatch) return null;
+        if (codeMatch[1] === 'c7') return null; // C7 has its own dedicated branch
+        mod = categoryRegistry.get(codeMatch[1]);
+      } else if (scope === 'scope1') {
+        if (cat.includes('stationary')) mod = categoryRegistry.get('stationary_combustion');
+        else if (cat.includes('mobile')) mod = categoryRegistry.get('mobile_combustion');
+        else if (cat.includes('fugitive')) mod = categoryRegistry.get('fugitive_emissions');
+        else mod = categoryRegistry.getGenericModule?.('scope1');
+      } else if (scope === 'scope2') {
+        mod = categoryRegistry.getGenericModule?.('scope2');
+      } else if (scope === 'biogenic') {
+        if (biogenicScopeSelection === 'scope3') {
+          const codeMatch = cat.match(/^(c\d+)/);
+          if (codeMatch && codeMatch[1] === 'c7') return null;
+          mod = categoryRegistry.getGenericModule?.('scope3');
+        } else if (biogenicScopeSelection === 'scope1') {
+          mod = categoryRegistry.getGenericModule?.('scope1');
+        }
+      }
+      return mod?.buildCreatePayload ? mod : null;
+    };
+
+    try {
+      const validProcesses = processNames.filter(p => p.name && p.name.trim() !== '');
+      
+      // ===========================================
+      // C7 EMPLOYEE COMMUTING HANDLING (Phase F: module dispatch)
+      // ===========================================
+      // Multi-employee yearly + monthly CREATE flow.
+      // Logic lives in /modules/emissions/categories/C7EmployeeCommuting/create.js
+      // Dedicated endpoints: /api/emissions/c7/yearly and /api/emissions/c7/month
+      if (isC7EmployeeCommuting && employees.length > 0) {
+        const c7Module = categoryRegistry.get('c7');
+        if (!c7Module?.buildCreatePayload) {
+          toast.error('C7 module not registered. Please reload the page.');
+          setIsSaving(false);
+          return;
+        }
+
+        const c7Ctx = {
+          employees,
+          frequencyType,
+          facilityId,
+          reportingYearType,
+          reportingYear,
+          scope3Method,
+          scope3ActivityId,
+          scope3ActivityType,
+          scope3CustomActivity,
+          useCustomActivity,
+          filteredScope3Activities,
+          notes,
+          responsiblePerson,
+          responsiblePersonDesignation,
+          responsiblePersonContact,
+          processNames,
+          validProcesses,
+          getActualYearForMonth,
+        };
+
+        // 1. Module-owned validation (employee names + per-mode data presence + calc check)
+        const c7Validation = c7Module.validateCreateSubmission(c7Ctx);
+        if (!c7Validation.valid) {
+          toast.error(c7Validation.errorMessage);
+          setIsSaving(false);
+          return;
+        }
+
+        // 2. Module-owned payload construction (yearly: single payload, monthly: list of payloads)
+        const c7Built = c7Module.buildCreatePayload(null, c7Ctx);
+
+        // 3. POST + UI semantics (kept here — orchestration responsibility of the page/form)
+        if (c7Built.mode === 'yearly') {
+          try {
+            await axios.post(`${API}${c7Built.endpoint}`, c7Built.payload, {
+              headers: getAuthHeader(),
+            });
+            toast.success(`Created yearly C7 Employee Commuting record for ${c7Built.reportingPeriod}`);
+            onSuccess?.();
+          } catch (error) {
+            console.error('Error saving yearly C7 emission:', error);
+            const detail = error.response?.data?.detail;
+            const errorMsg = Array.isArray(detail)
+              ? detail.map((e) => e.msg || e.message || JSON.stringify(e)).join(', ')
+              : (typeof detail === 'string' ? detail : 'Failed to save yearly C7 emission');
+            toast.error(errorMsg);
+          } finally {
+            setIsSaving(false);
+          }
+          return;
+        }
+
+        // monthly: post each month-payload sequentially
+        if (!c7Built.payloads || c7Built.payloads.length === 0) {
+          toast.error('No valid monthly data to save');
+          setIsSaving(false);
+          return;
+        }
+
+        let successCount = 0;
+        let totalCo2e = 0;
+        const errors = [];
+        for (const { monthKey, monthCo2e, payload } of c7Built.payloads) {
+          totalCo2e += monthCo2e;
+          try {
+            await axios.post(`${API}${c7Built.endpoint}`, payload, {
+              headers: getAuthHeader(),
+            });
+            successCount++;
+          } catch (err) {
+            console.error(`[C7] Failed to save ${monthKey}:`, err);
+            errors.push(monthKey);
+          }
+        }
+
+        if (successCount > 0) {
+          if (errors.length > 0) {
+            toast.warning(`Saved ${successCount}/${c7Built.payloads.length} months. Failed: ${errors.join(', ')}`);
+          } else {
+            toast.success(`Saved ${successCount} month(s) for ${employees.length} employee(s) (${totalCo2e.toFixed(4)} tCO₂e total)`);
+          }
+          if (typeof onSuccess === 'function') onSuccess();
+        } else {
+          toast.error('Failed to save C7 emissions. Please try again.');
+        }
+
+        setIsSaving(false);
+        return;
+      }
+      
+      // ===========================================
+      // YEARLY FREQUENCY HANDLING (New)
+      // ===========================================
+      if (frequencyType === 'yearly') {
+        // Build reporting period string for yearly
+        const yearlyReportingPeriod = reportingYearType === 'financial' 
+          ? `FY ${reportingYear}-${(parseInt(reportingYear) + 1).toString().slice(-2)}`
+          : `CY${reportingYear}`;
+        
+        // Validate yearly data has at least one value
+        let hasYearlyData = false;
+        if (isProcessEmissions && selectedTemplate) {
+          hasYearlyData = selectedTemplate.input_fields?.some(f => 
+            yearlyData[f.key] && parseFloat(yearlyData[f.key]) > 0
+          );
+        } else if (dynamicInputFields.length > 0) {
+          const requiredFields = dynamicInputFields.filter(f => !f.isOverride);
+          hasYearlyData = requiredFields.some(f => {
+            const value = yearlyData[f.variable] || yearlyData[f.fieldKey];
+            return value && parseFloat(value) > 0;
+          });
+        } else {
+          hasYearlyData = yearlyData.quantity && parseFloat(yearlyData.quantity) > 0;
+        }
+        
+        if (!hasYearlyData) {
+          toast.error('Please enter annual data');
+          setIsSaving(false);
+          return;
+        }
+        
+        try {
+          // Build the yearly payload similar to monthly but with yearly-specific fields
+          const isScope3Like = scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3');
+          const effectiveScope = isScope3Like ? 'scope3' : scope;
+          
+          // Build inputs from yearlyData
+          const inputs = {};
+          const userOverrides = {};
+          let primaryQuantity = 0;
+          let primaryUnit = '';
+          
+          if (isProcessEmissions && selectedTemplate) {
+            // Process emissions yearly
+            const formulaValues = {};
+            selectedTemplate.input_fields?.forEach(field => {
+              formulaValues[field.key] = parseFloat(yearlyData[field.key]) || 0;
+              inputs[field.key] = { value: parseFloat(yearlyData[field.key]) || 0, unit: field.unit || '' };
+            });
+            selectedTemplate.predefined_inputs?.forEach(field => {
+              formulaValues[field.key] = parseFloat(templateInputValues[field.key]) || parseFloat(field.value) || 0;
+            });
+            
+            const calculatedEmission = evaluateFormula(selectedTemplate.formula, formulaValues);
+            const primaryInputField = selectedTemplate.input_fields?.[0];
+            primaryQuantity = primaryInputField ? (parseFloat(yearlyData[primaryInputField.key]) || 0) : 0;
+            primaryUnit = primaryInputField?.unit || 'unit';
+            
+            const payload = {
+              facility_id: facilityId,
+              reporting_period: yearlyReportingPeriod,
+              frequency_type: 'yearly',
+              scope: 'scope1',
+              category: 'Process Emissions',
+              sub_category: selectedSubIndustry,
+              fuel_type: selectedTemplate.name,
+              quantity: primaryQuantity,
+              quantity_unit: primaryUnit,
+              unit: primaryUnit,
+              calculated_co2e: calculatedEmission,
+              notes: notes,
+              responsible_person: responsiblePerson,
+              responsible_person_designation: responsiblePersonDesignation,
+              responsible_person_contact: responsiblePersonContact,
+              process_names: [selectedSubIndustry, selectedTemplate.name],
+            };
+            
+            await axios.post(`${API}/emissions`, payload, { headers: getAuthHeader() });
+            toast.success(`Created yearly emission record for ${yearlyReportingPeriod}`);
+            onSuccess?.();
+          } else if (dynamicInputFields.length > 0) {
+            // ============================================================
+            // YEARLY DISPATCH (post-Phase F: module-driven, single record)
+            // ============================================================
+            // Mirrors the monthly dispatch but runs ONCE with `yearlyData`
+            // as the row and `yearlyReportingPeriod` as the reporting period.
+            // Module resolution follows the same scope/category/biogenic
+            // logic; payload shape matches modular monthly + adds
+            // `frequency_type: 'yearly'` for backend differentiation.
+            const yearlyMod = resolveDispatchModule();
+
+            if (!yearlyMod) {
+              console.error('[EmissionEntryForm] No module dispatched for yearly', { scope, category, biogenicScopeSelection });
+              toast.error('This category is not yet supported for yearly submission. Please reload the page or contact support.');
+              setIsSaving(false);
+              return;
+            }
+
+            // Module-owned validation (same context shape as monthly dispatch)
+            const yModValidation = yearlyMod.validateCreateSubmission({
+              formData: { asset_name: assetName },
+              processNames,
+              assetName,
+              fuelId,
+              useCustomFuel,
+              customFuelName,
+              isOverrideCV: false,
+              isOverrideDensity: false,
+              overrideEmissionFactorHeat: false,
+              overrideJustification: '',
+              scope,
+            });
+            if (!yModValidation.valid) {
+              toast.error(yModValidation.errorMessage);
+              setIsSaving(false);
+              return;
+            }
+
+            const yBaseCtx = {
+              scope, category, facilityId, fuelId, selectedFuel, useCustomFuel, customFuelName, customSource,
+              biogenicScopeSelection,
+              scope3Method, scope3ActivityId, scope3ActivityType, scope3Subcategory,
+              scope3CustomActivity, useCustomActivity,
+              supplierName, supplierCode, employeeName, employeeId,
+              assetName, fromLocation, toLocation,
+              notes, responsiblePerson, responsiblePersonDesignation, responsiblePersonContact,
+              validProcesses,
+              dynamicInputFields,
+              filteredScope3Activities, requiresSubcategory, centralizedUnits,
+              defaultUnit,
+              buildDecisionInputs,
+              // Per-row override flags read from yearlyData (yearly has a single row).
+              isOverrideCV: !!yearlyData.overrideCalorificValue,
+              isOverrideDensity: !!yearlyData.overrideDensity,
+              overrideEmissionFactorHeat: !!yearlyData.overrideEmissionFactorHeat,
+              overrideJustification: yearlyData.calorificValueJustification || yearlyData.densityJustification || yearlyData.emissionFactorHeatJustification || '',
+              calculatedCO2: 0, calculatedCH4: 0, calculatedN2O: 0, calculatedCO2e: 0,
+              resolvedFormulaId: null,
+              reportingPeriod: yearlyReportingPeriod,
+            };
+
+            const { inputs: yInputs, userOverrides: yOverrides } = yearlyMod.extractInputsForCalcEngine(yearlyData, yBaseCtx);
+            const { decisionInputs: yDecisionInputs, context: yContext, isScope3Like: yIsScope3Like } = yearlyMod.buildDecisionContext(yearlyData, yBaseCtx);
+
+            let yCalcCO2 = 0, yCalcCH4 = 0, yCalcN2O = 0, yCalcCO2e = 0;
+            let yResolvedFormulaId = null;
+
+            const yEffectiveScope = yIsScope3Like ? 'scope3' : scope;
+            const yCategoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === yEffectiveScope);
+
+            if (yCategoryObj?.id && !useCustomFuel) {
+              try {
+                const calcResp = await axios.post(`${API}/calc-engine/execute-by-category`, {
+                  category_id: yCategoryObj.id,
+                  decision_inputs: yDecisionInputs,
+                  inputs: yInputs,
+                  context: yContext,
+                  user_overrides: yOverrides,
+                  dry_run: false,
+                  ...(yIsScope3Like && scope3ActivityId && { scope3_ef_id: scope3ActivityId }),
+                }, { headers: getAuthHeader() });
+                if (calcResp.data?.ok) {
+                  const r = calcResp.data;
+                  yCalcCO2 = r.outputs?.co2?.value || r.co2_emissions || 0;
+                  yCalcCH4 = r.outputs?.ch4?.value || r.ch4_emissions || 0;
+                  yCalcN2O = r.outputs?.n2o?.value || r.n2o_emissions || 0;
+                  yCalcCO2e = r.outputs?.co2e?.value || r.co2e_emissions || 0;
+                  yResolvedFormulaId = r.resolved_formula?.id || r.formula_id || null;
+                }
+              } catch (e) {
+                // Fall through with zeros — record persisted, can be recalculated later
+              }
+            } else if (useCustomFuel) {
+              const customEF = parseFloat(customEmissionFactor) || 0;
+              const primaryQty = parseFloat(yearlyData[dynamicInputFields[0]?.variable] || 0);
+              yCalcCO2 = primaryQty * customEF;
+              yCalcCO2e = yCalcCO2;
+            }
+
+            const yPayload = {
+              ...yearlyMod.buildCreatePayload(yearlyData, {
+                ...yBaseCtx,
+                calculatedCO2: yCalcCO2, calculatedCH4: yCalcCH4, calculatedN2O: yCalcN2O, calculatedCO2e: yCalcCO2e,
+                resolvedFormulaId: yResolvedFormulaId,
+              }),
+              // Yearly-only marker (legacy parity)
+              frequency_type: 'yearly',
+            };
+
+            await axios.post(`${API}/emissions`, yPayload, { headers: getAuthHeader() });
+            toast.success(`Created yearly emission record for ${yearlyReportingPeriod}`);
+            onSuccess?.();
+          }
+        } catch (error) {
+          console.error('Error saving yearly emission:', error);
+          const detail = error.response?.data?.detail;
+          const errorMsg = Array.isArray(detail) 
+            ? detail.map(e => e.msg || e.message || JSON.stringify(e)).join(', ')
+            : (typeof detail === 'string' ? detail : 'Failed to save yearly emission');
+          toast.error(errorMsg);
+        } finally {
+          setIsSaving(false);
+        }
+        return;
+      }
+      
+      // ===========================================
+      // MONTHLY FREQUENCY HANDLING (Existing)
+      // ===========================================
+      // For process emissions, filter months that have template input data
+      // For regular emissions, filter months with dynamic field data
+      let monthsWithData;
+      if (isProcessEmissions && selectedTemplate) {
+        const inputFields = selectedTemplate.input_fields || [];
+        monthsWithData = Object.entries(monthlyData).filter(([_, data]) => {
+          return inputFields.some(field => data?.[field.key] && parseFloat(data[field.key]) > 0);
+        });
+      } else if (dynamicInputFields.length > 0) {
+        // For dynamic form config, check if any required field (non-override) has value
+        const requiredFields = dynamicInputFields.filter(f => !f.isOverride);
+        monthsWithData = Object.entries(monthlyData).filter(([_, data]) => {
+          return requiredFields.some(field => {
+            const value = data?.[field.variable] || data?.[field.fieldKey];
+            return value && parseFloat(value) > 0;
+          });
+        });
+      } else {
+        // No dynamic fields - should not happen if form is loaded correctly
+        monthsWithData = [];
+      }
+
+      if (monthsWithData.length === 0) {
+        toast.error('Please enter data for at least one month');
+        setIsSaving(false);
+        return;
+      }
+
+      // PROCESS EMISSIONS HANDLING
+      if (isProcessEmissions && selectedTemplate) {
+        let successCount = 0;
+        const errors = [];
+        
+        for (const [monthKey, data] of monthsWithData) {
+          const actualYear = getActualYearForMonth(monthKey);
+          const reportingPeriod = `${actualYear}-${monthKey}`;
+          
+          // Build formula values from monthly data (required inputs) and overridden predefined inputs
+          const formulaValues = {};
+          
+          // Add required input values from monthly data
+          selectedTemplate.input_fields?.forEach(field => {
+            formulaValues[field.key] = parseFloat(data[field.key]) || 0;
+          });
+          
+          // Add predefined values (use overridden values from templateInputValues)
+          selectedTemplate.predefined_inputs?.forEach(field => {
+            formulaValues[field.key] = parseFloat(templateInputValues[field.key]) || parseFloat(field.value) || 0;
+          });
+          
+          // Calculate emissions using template formula
+          const calculatedEmission = evaluateFormula(selectedTemplate.formula, formulaValues);
+          
+          // Get the primary input field info for display
+          const primaryInputField = selectedTemplate.input_fields?.[0];
+          const activityQuantity = primaryInputField ? (parseFloat(data[primaryInputField.key]) || 0) : 0;
+          const activityUnit = primaryInputField?.unit || 'unit';
+          
+          const payload = {
+            facility_id: facilityId,
+            reporting_period: reportingPeriod,
+            scope: 'scope1', // Process emissions are Scope 1
+            category: 'Process Emissions',
+            sub_category: selectedSubIndustry,
+            fuel_type: selectedTemplate.name,
+            quantity: activityQuantity,
+            quantity_unit: activityUnit,
+            unit: activityUnit,
+            emission_factor: 1,
+            emission_factor_ch4: null,
+            emission_factor_n2o: null,
+            is_custom_factor: false,
+            source_of_information: `Template: ${selectedTemplate.name}`,
+            notes: notes,
+            responsible_person: responsiblePerson,
+            responsible_person_designation: responsiblePersonDesignation,
+            responsible_person_contact: responsiblePersonContact,
+            process_names: [selectedSubIndustry, selectedTemplate.name],
+            evidence_url: data.evidences?.map(e => e.url).join(',') || '',
+            // Pre-calculated values
+            calculated_co2: calculatedEmission,
+            calculated_ch4: 0,
+            calculated_n2o: 0,
+            calculated_co2e: calculatedEmission,
+            co2_unit: 'tCO2',
+            ch4_unit: 'tCH4',
+            n2o_unit: 'tN2O',
+            co2e_unit: 'tCO2e',
+            // Template metadata
+            template_id: selectedTemplate.id,
+            template_inputs: formulaValues
+          };
+          
+          try {
+            await axios.post(`${API}/emissions`, payload, {
+              headers: getAuthHeader()
+            });
+            successCount++;
+          } catch (err) {
+            console.error(`Failed to save process emission for ${reportingPeriod}:`, err);
+            errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: ${err.response?.data?.detail || 'Failed'}`);
+          }
+        }
+        
+        if (successCount > 0) {
+          toast.success(`Created ${successCount} process emission record(s) successfully`);
+        }
+        if (errors.length > 0) {
+          toast.error(`Failed to save: ${errors.join(', ')}`);
+        }
+        if (successCount > 0) {
+          onSuccess?.();
+        }
+        setIsSaving(false);
+        return;
+      }
+
+      // ===========================================
+      // CREATE MIGRATION PHASES C/D/E/F — Module dispatch
+      // ===========================================
+      // Routes through module helpers when:
+      //   - frequencyType === 'monthly'
+      //   - scope is scope1/scope2/scope3 OR biogenic (Phase F)
+      //   - active module exposes buildCreatePayload
+      //   - category is NOT C7 (multi-employee — has its own dedicated branch)
+      const dispatchActiveModule = frequencyType === 'monthly' ? resolveDispatchModule() : null;
+
+      if (dispatchActiveModule) {
+        // 1. Module-owned validation
+        // Note: per-month override flags (CV/density/EFH) live in monthlyData[m]
+        // and are validated inside the per-month loop below. Pass false at
+        // submission gate; per-row gates re-check via data.* in the loop.
+        const modValidation = dispatchActiveModule.validateCreateSubmission({
+          formData: { asset_name: assetName },
+          processNames,
+          assetName,
+          fuelId,
+          useCustomFuel,
+          customFuelName,
+          isOverrideCV: false,
+          isOverrideDensity: false,
+          overrideEmissionFactorHeat: false,
+          overrideJustification: '',
+          scope,
+        });
+        if (!modValidation.valid) {
+          toast.error(modValidation.errorMessage);
+          setIsSaving(false);
+          return;
+        }
+
+        let successCount = 0;
+        const errors = [];
+        for (const [monthKey, data] of monthsWithData) {
+          const actualYear = getActualYearForMonth(monthKey);
+          const reportingPeriod = `${actualYear}-${monthKey}`;
+
+          const baseCtx = {
+            scope, category, facilityId, fuelId, selectedFuel, useCustomFuel, customFuelName, customSource,
+            biogenicScopeSelection,
+            scope3Method, scope3ActivityId, scope3ActivityType, scope3Subcategory,
+            scope3CustomActivity, useCustomActivity,
+            supplierName, supplierCode, employeeName, employeeId,
+            assetName, fromLocation, toLocation,
+            notes, responsiblePerson, responsiblePersonDesignation, responsiblePersonContact,
+            validProcesses,
+            dynamicInputFields,
+            filteredScope3Activities, requiresSubcategory, centralizedUnits,
+            defaultUnit,
+            buildDecisionInputs,
+            // Per-month CV/density override flags read from `data` (the row).
+            // Pass row-level flags so Scope1Create payload sets override_justification correctly.
+            isOverrideCV: !!data.overrideCalorificValue,
+            isOverrideDensity: !!data.overrideDensity,
+            overrideEmissionFactorHeat: !!data.overrideEmissionFactorHeat,
+            overrideJustification: data.calorificValueJustification || data.densityJustification || data.emissionFactorHeatJustification || '',
+            calculatedCO2: 0, calculatedCH4: 0, calculatedN2O: 0, calculatedCO2e: 0,
+            resolvedFormulaId: null,
+            reportingPeriod,
+          };
+
+          const { inputs, userOverrides } = dispatchActiveModule.extractInputsForCalcEngine(data, baseCtx);
+          const { decisionInputs, context, isScope3Like } = dispatchActiveModule.buildDecisionContext(data, baseCtx);
+
+          let calculatedCO2 = 0, calculatedCH4 = 0, calculatedN2O = 0, calculatedCO2e = 0;
+          let resolvedFormulaId = null;
+
+          // Calc-engine lookup uses scope-specific category code
+          const effectiveScopeForLookup = isScope3Like ? 'scope3' : scope;
+          const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === effectiveScopeForLookup);
+
+          if (categoryObj?.id && !useCustomFuel) {
+            try {
+              const calcResp = await axios.post(`${API}/calc-engine/execute-by-category`, {
+                category_id: categoryObj.id,
+                decision_inputs: decisionInputs,
+                inputs,
+                context,
+                user_overrides: userOverrides,
+                dry_run: false,
+                ...(isScope3Like && scope3ActivityId && { scope3_ef_id: scope3ActivityId }),
+              }, { headers: getAuthHeader() });
+              if (calcResp.data?.ok) {
+                const r = calcResp.data;
+                calculatedCO2 = r.outputs?.co2?.value || r.co2_emissions || 0;
+                calculatedCH4 = r.outputs?.ch4?.value || r.ch4_emissions || 0;
+                calculatedN2O = r.outputs?.n2o?.value || r.n2o_emissions || 0;
+                calculatedCO2e = r.outputs?.co2e?.value || r.co2e_emissions || 0;
+                resolvedFormulaId = r.resolved_formula?.id || r.formula_id || null;
+              }
+            } catch (e) {
+              // Fall through with zeros — record persisted, can be recalculated later
+            }
+          } else if (useCustomFuel) {
+            const customEF = parseFloat(customEmissionFactor) || 0;
+            const primaryQty = parseFloat(data[dynamicInputFields[0]?.variable] || 0);
+            calculatedCO2 = primaryQty * customEF;
+            calculatedCO2e = calculatedCO2;
+          }
+
+          const payload = dispatchActiveModule.buildCreatePayload(data, {
+            ...baseCtx,
+            calculatedCO2, calculatedCH4, calculatedN2O, calculatedCO2e,
+            resolvedFormulaId,
+          });
+
+          try {
+            await axios.post(`${API}/emissions`, payload, { headers: getAuthHeader() });
+            successCount++;
+          } catch (err) {
+            errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: Save failed`);
+          }
+        }
+
+        if (successCount > 0) toast.success(`Created ${successCount} emission record(s) successfully`);
+        if (errors.length > 0) toast.error(`Failed to save some records. Please try again.`);
+        if (successCount > 0) onSuccess?.();
+        setIsSaving(false);
+        return;
+      }
+
+      // ===========================================
+      // DEFENSIVE FALLBACK (post-Phase F)
+      // ===========================================
+      // The dispatch block above covers every reachable monthly path:
+      //   - Scope 1 (Stationary/Mobile/Fugitive + Generic), Scope 2 (Generic),
+      //     Scope 3 flat (C1–C6, C8–C15), biogenic+scope1, biogenic+scope3.
+      //   - C7 multi-employee returns early in its own dedicated branch above.
+      // If we reach here, no module matched — surface a clear error so the
+      // bug is observable instead of silently producing no record.
+      console.error('[EmissionEntryForm] No module dispatched for', { scope, category, frequencyType, biogenicScopeSelection });
+      toast.error('This category is not yet supported for direct submission. Please reload the page or contact support.');
+    } catch (error) {
+      // Temporary diagnostic: surface the underlying exception in DevTools so
+      // we can identify the precise root cause instead of a generic toast.
+      // Remove once the failing path is identified and patched.
+      console.error('[useEmissionSubmit] save failed:', error, {
+        message: error?.message,
+        response: error?.response?.data,
+        status: error?.response?.status,
+        stack: error?.stack,
+      });
+      toast.error('Failed to save emissions. Please try again.');
+    } finally {
+      setIsSaving(false); // Re-enable button after completion
+    }
+  };
+
+  return { submit };
+}
+
+export default useEmissionSubmit;

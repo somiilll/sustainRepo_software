@@ -1176,6 +1176,10 @@ class EmissionCalculator:
             "supplier_name": str(row_data.get("supplier_name") or "") if row_data.get("supplier_name") else None,
             "supplier_code": str(row_data.get("supplier_code") or "") if row_data.get("supplier_code") else None,
             "asset_name": str(row_data.get("asset_name") or "") if row_data.get("asset_name") else None,
+            "from_location": str(row_data.get("from_location") or "") if row_data.get("from_location") else None,
+            "to_location": str(row_data.get("to_location") or "") if row_data.get("to_location") else None,
+            "customer_name": str(row_data.get("customer_name") or "") if row_data.get("customer_name") else None,
+            "customer_code": str(row_data.get("customer_code") or "") if row_data.get("customer_code") else None,
             "source_of_information": "Bulk Upload",
             "responsible_person": str(row_data.get("responsible_person") or "") if row_data.get("responsible_person") else None,
             "responsible_person_designation": str(row_data.get("responsible_designation") or "") if row_data.get("responsible_designation") else None,
@@ -1322,6 +1326,8 @@ class EmissionCalculator:
                     "name": row_data.get("employee_name"),
                     "employee_id": row_data.get("employee_id"),
                     "department": row_data.get("department"),
+                    "from_location": row_data.get("from_location"),
+                    "to_location": row_data.get("to_location"),
                     "activity_type": activity_type,
                     "inputs": inputs,
                     "emissions": emissions_data,
@@ -1336,6 +1342,8 @@ class EmissionCalculator:
                     "name": row_data.get("employee_name"),
                     "employee_id": row_data.get("employee_id"),
                     "department": row_data.get("department"),
+                    "from_location": row_data.get("from_location"),
+                    "to_location": row_data.get("to_location"),
                     "activity_type": activity_type,
                     "monthly_data": {
                         month_key: {
@@ -1416,12 +1424,16 @@ class EmissionCalculator:
             "scope3_ef_id": first_row.get("activity_match", {}).get("activity_id"),
             "scope3_activity": first_row.get("activity_match", {}).get("activity_name"),
             "scope3_activity_type": record_activity_type,
+            "activity_type": record_activity_type,  # Also store at top level for consistency with manual entry
             "formula_id": formula_id,
             "reporting_period": reporting_period,
             "frequency_type": frequency_type,
+            "reporting_year": int(reporting_period.split("-")[0]) if reporting_period and "-" in reporting_period else None,
+            "reporting_month": self._period_to_month_name(reporting_period) if not is_yearly else None,
             "employees": employees,
-            "monthly_totals": monthly_totals if not is_yearly else None,  # Only for monthly mode
-            "yearly_total": {"co2e": total_co2e},
+            "monthly_total": {"co2e": total_co2e, "employee_count": len(employees)} if not is_yearly else None,  # Single month total (matches manual)
+            "monthly_totals": monthly_totals if not is_yearly else None,  # Dict of month -> totals
+            "yearly_total": {"co2e": total_co2e, "employee_count": len(employees)},
             "co2e_emissions": total_co2e,
             "total_emissions": total_co2e,
             "co2_emissions": 0,
@@ -1430,13 +1442,20 @@ class EmissionCalculator:
             "outputs": {
                 "co2e": {"value": total_co2e, "unit": "tCO2e"}
             },
-            "source_of_information": "Bulk Upload",
+            "dynamic_field_values": {},  # Match manual entry format
+            "notes": first_row.get("row_data", {}).get("notes") or "",
+            "source_of_information": f"Multi-employee commuting data for {len(employees)} employee(s)",
             "responsible_person": first_row.get("row_data", {}).get("responsible_person"),
-            "responsible_person_designation": first_row.get("row_data", {}).get("responsible_designation"),
-            "responsible_person_contact": str(first_row.get("row_data", {}).get("responsible_contact") or "") if first_row.get("row_data", {}).get("responsible_contact") else None,
+            "responsible_person_designation": first_row.get("row_data", {}).get("responsible_designation") or "",
+            "responsible_person_contact": str(first_row.get("row_data", {}).get("responsible_contact") or "") if first_row.get("row_data", {}).get("responsible_contact") else "",
+            "process_names": [first_row.get("row_data", {}).get("process_name")] if first_row.get("row_data", {}).get("process_name") else [],
+            "process_descriptions": [{"name": first_row.get("row_data", {}).get("process_name") or "", "description": first_row.get("row_data", {}).get("process_description") or ""}] if first_row.get("row_data", {}).get("process_name") else [],
+            "c7_data_model_version": 2,  # Mark as new C7 data model
+            "version": 1,
             "created_by": user_id,
             "created_at": now.isoformat(),
-            "updated_at": now.isoformat(),
+            "updated_at": None,
+            "updated_by": None,
             "upload_source": "bulk_upload",
             "bulk_upload_job_id": bulk_job_id
         }
@@ -1473,3 +1492,30 @@ class EmissionCalculator:
             return "jan"
         except (ValueError, AttributeError, IndexError):
             return "jan"
+    
+    def _period_to_month_name(self, reporting_period: str) -> str:
+        """Convert reporting period (YYYY-MM) to full month name for reporting_month field.
+        
+        Args:
+            reporting_period: Period in YYYY-MM format (e.g., '2025-05')
+            
+        Returns:
+            Month name in lowercase (e.g., 'may')
+        """
+        if not reporting_period:
+            return None
+        
+        month_num_to_name = {
+            '01': 'jan', '02': 'feb', '03': 'mar', '04': 'apr',
+            '05': 'may', '06': 'jun', '07': 'jul', '08': 'aug',
+            '09': 'sep', '10': 'oct', '11': 'nov', '12': 'dec'
+        }
+        
+        try:
+            parts = reporting_period.split("-")
+            if len(parts) == 2 and len(parts[0]) == 4 and parts[0].isdigit():
+                month_num = parts[1]
+                return month_num_to_name.get(month_num)
+            return None
+        except (ValueError, AttributeError, IndexError):
+            return None
