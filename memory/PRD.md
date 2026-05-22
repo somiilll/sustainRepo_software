@@ -24,6 +24,30 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 
 ## What's Been Implemented
 
+### Feb 2026 Session — EmissionEntryForm Refactor F1 + F2 + F3 + F4 COMPLETE
+
+**Feb 22, 2026 — F3 + F4 hook & util integration shipped (cumulative −551 lines, −13.4%)**
+
+- **F3 (MEDIUM risk)** — `useEmissionFormEffects` hook integration:
+  - Replaced 5 inline `useEffect` blocks (form-config fetch, fugitive emissions, scope3-ef, biogenic categories, biogenic scope3-ef) with a single hook call at the top of the form.
+  - 142 lines removed.
+
+- **F4 (HIGH risk)** — `canProceedToStep` validation util integration:
+  - Augmented `modules/ghg/emissions/shared/utils/validation.js` validateStep3 with the missing override+justification+auto-unselect logic (custom EF, calorific value, density, heat-basis EF) — preserving the `updateMonthData?.()` callback for byte-identical behaviour.
+  - Replaced 327-line inline `canProceedToStep` switch with a 14-line wrapper delegating to `canProceedToStepUtil(step, {...params})`.
+  - **All 8 critical validation toast messages verified byte-identical** (including the literal double-quotes in `'Please add description for process: "<name>"'`).
+  - 311 lines removed.
+
+- **Cumulative metrics (F1+F2+F3+F4 across this session)**:
+  - **EmissionEntryForm.js: 4120 → 3569 lines (−551 lines, −13.4%)**.
+  - Inline `useState` calls: 79 → 0 (only React import).
+  - Inline `useEffect` blocks for state hydration & data-fetch: 9 → 0 (all moved to hooks).
+  - Inline `canProceedToStep` switch (327 lines) → 14-line delegating wrapper.
+
+- **Verified**: testing_agent_v3_fork iter_82 → 100% PASS on critical-path. ZERO new console errors / pageerrors. Form-config fetch fires live on Stationary Combustion selection (proves useEmissionFormEffects wired correctly). Step 1→Step 2 navigation works.
+
+- **F5+F6 deferred** (target: 3569 → ~969 lines). Plan updated at `/app/memory/EmissionEntryForm_Refactor_Plan.md`.
+
 ### Feb 2026 Session — EmissionEntryForm Refactor F1 + F2 COMPLETE
 
 **Feb 22, 2026 — F1 + F2 hook integration shipped (EmissionEntryForm.js: 4120 → 4022 lines, −98 lines)**

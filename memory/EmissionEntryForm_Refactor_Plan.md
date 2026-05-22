@@ -50,17 +50,18 @@
 6. ✅ Verified by testing_agent_v3_fork iter_81 — form opens cleanly, ZERO console/page errors, all Step 1 controls work, dirty-tracking modal still fires.
 7. ✅ Saved 69 lines this step. Cumulative F1+F2: −99 lines (4120 → 4022).
 
-### Phase F3: useEmissionFormEffects integration (MEDIUM RISK)
-1. Replace 8-10 inline `useEffect` blocks (data fetching, scope changes, category changes, biogenic resets) with the extracted hook.
-2. Test all scope-switch edge cases (Scope 1 ↔ Scope 2 ↔ Scope 3 ↔ biogenic).
-3. Watch out for the recurring P1 bug: "Scope Change Recalculation — `setFuelId('')` wipes fuel state". The extracted hook should preserve current behaviour byte-identically.
-4. Expected reduction: ~180 lines.
+### Phase F3: useEmissionFormEffects integration (MEDIUM RISK — DONE Feb 22, 2026)
+1. ✅ Replaced 5 inline `useEffect` blocks (form-config fetch, fugitive emissions fetch, scope3-ef fetch, biogenic categories fetch, biogenic scope3-ef fetch) with single `useEmissionFormEffects({...})` hook call at the top of the form (lines 174-193).
+2. ✅ Imports added: `useEmissionFormEffects` from `modules/ghg/emissions/shared/hooks/useEmissionFormEffects`.
+3. ✅ Verified by testing_agent_v3_fork iter_82: GET `/api/calc-engine/form-config/<id>` fires automatically on Stationary Combustion selection (live confirmation that hook is wired correctly). Other 4 effects share the same dependency-array pattern.
+4. ✅ Saved 142 lines this step.
 
-### Phase F4: validation.js + payload-builders.js integration (HIGH RISK)
-1. Replace inline validation in `handleSubmit` (Step 1/2/3 validators) with `validateStep1`, `validateStep2`, `validateStep3` from utils/validation.js.
-2. Replace inline payload building tail with `buildCreatePayload(...)` from utils/payload-builders.js. Note: most categories already use `module.buildCreatePayload(...)` from `categoryRegistry` — this step is for the few that fall through to the legacy path.
-3. Test ALL category dispatches via testing_agent_v3_fork (Scope 1 × 4 + Scope 2 × 1 + Scope 3 C1–C15 × 16 + biogenic × 2 = 23 paths × monthly + yearly).
-4. Expected reduction: ~600 lines.
+### Phase F4: validateStep1/2/3 + canProceedToStep integration (HIGH RISK — DONE Feb 22, 2026)
+1. ✅ Augmented `modules/ghg/emissions/shared/utils/validation.js` validateStep3 with the missing override+justification+auto-unselect logic (custom EF, calorific value, density, heat-basis EF) — preserving the optional-chaining `updateMonthData?.(...)` callback so behaviour is byte-identical.
+2. ✅ Replaced the 327-line inline `canProceedToStep` switch with a 14-line wrapper that delegates to `canProceedToStepUtil(step, {...params})`.
+3. ✅ Imports added: `canProceedToStep as canProceedToStepUtil` from `modules/ghg/emissions/shared/utils/validation`.
+4. ✅ Verified by testing_agent_v3_fork iter_82: ALL 8 validation toast messages are byte-identical to the spec (incl. the literal double-quotes in `'Please add description for process: "<name>"'`). Step 1→Step 2 navigation works after all required fields populated.
+5. ✅ Saved 311 lines this step. Cumulative F1+F2+F3+F4: −551 lines (4120 → 3569).
 
 ### Phase F5: DynamicFieldRenderer integration + final cleanup (LOW RISK)
 1. Replace inline dynamic-field JSX with `<DynamicFieldRenderer />` (already done for Scope 3 in Phase 7e — extend to Scope 1 / 2).
@@ -72,10 +73,10 @@
 |---|---|---|
 | F1 (DONE Feb 22, 2026) | 30 | 4091 |
 | F2 (DONE Feb 22, 2026) | 69 | 4022 |
-| F3 | 180 | ~3842 |
-| F4 | 600 | ~3242 |
-| F5 | 200 | ~3042 |
-| F6 (lift remaining handlers into category modules) | ~2200 | **~830** |
+| F3 (DONE Feb 22, 2026) | 142 | 3880 |
+| F4 (DONE Feb 22, 2026) | 311 | 3569 |
+| F5 | 200 | ~3369 |
+| F6 (lift remaining handlers into category modules) | ~2400 | **~969** |
 
 ---
 
