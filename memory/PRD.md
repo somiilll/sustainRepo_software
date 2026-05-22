@@ -24,6 +24,23 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 
 ## What's Been Implemented
 
+### Feb 2026 Session — EmissionEntryForm Refactor F1 + F2 COMPLETE
+
+**Feb 22, 2026 — F1 + F2 hook integration shipped (EmissionEntryForm.js: 4120 → 4022 lines, −98 lines)**
+
+- **F1 (LOW risk)** — Calendar/financial month constants:
+  - Moved `MONTHS`, `CALENDAR_YEAR_MONTHS`, `FINANCIAL_YEAR_MONTHS` from inline to `modules/ghg/emissions/shared/constants/emission-form-constants.js`.
+  - 30 lines removed.
+
+- **F2 (MEDIUM risk)** — `useEmissionFormState` hook integration:
+  - Replaced **79 inline `useState` calls → 0** (only the React import survives) via single hook destructure.
+  - Removed 4 duplicated inline `useEffect` blocks now owned by the hook: (a) org reporting-year-type sync, (b) decisionFieldValues sync with scope3Method/ActivityType/Subcategory, (c) auto-enable `useCustomActivity` on `'others'+supplier_basis`, (d) editingEmission frequencyType + yearlyData hydration with cv/density override flags.
+  - Kept the dirty-tracking `useEffect` inline (depends on `onFormChange` prop closure — must NOT hoist).
+  - 69 lines removed.
+  - Verified by testing_agent_v3_fork iter_81: 8/8 smoke checks PASS — page loads, Add Emission opens cleanly, Scope 1→Stationary→Diesel chain works, Step 2 fields fillable, dirty-tracking modal fires correctly, edit buttons mount on records, ZERO console/page errors. Backend smoke: total_emissions=4194.63, health=passed/22 modules.
+
+- **F3-F6 deferred** with clear roadmap at `/app/memory/EmissionEntryForm_Refactor_Plan.md` (target: 4022 → ~830 lines).
+
 ### Feb 2026 Session — Phase B11+: Live Cockpit + Router Split + Event Bus Wiring
 
 **Feb 22, 2026 (PM) — Real-time live cockpit + B9 router split + event emitters wired**
