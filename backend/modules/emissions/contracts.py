@@ -160,6 +160,13 @@ class EmissionRecordResponse(BaseModel):
     updated_by_name: Optional[str] = None
     updated_at: Optional[str] = None
 
+    # Approval workflow fields (visible to FE for status badges).
+    approval_status: Optional[str] = None
+    proposed_by: Optional[str] = None
+    proposed_by_email: Optional[str] = None
+    proposed_by_name: Optional[str] = None
+    proposed_at: Optional[str] = None
+
 
 class EmissionHistoryResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
