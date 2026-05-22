@@ -1749,24 +1749,12 @@ export default function EmissionEntryForm({
       });
       
       if (categoryMatches.length > 0) {
-        // Sort by specificity - prefer configs with fewer categories (more specific)
-        // A config with just ['Fugitive Emissions'] should rank higher than one with multiple categories
-        categoryMatches.sort((a, b) => {
-          const aCats = a.categories || (a.category ? [a.category] : []);
-          const bCats = b.categories || (b.category ? [b.category] : []);
-          // Fewer categories = more specific = higher priority
-          if (aCats.length !== bCats.length) {
-            return aCats.length - bCats.length;
-          }
-          // Same number of categories, use priority
-          return (b.priority || 0) - (a.priority || 0);
-        });
         matchingConfigs = categoryMatches;
       }
-    } else {
-      // Sort by priority (highest first)
-      matchingConfigs.sort((a, b) => (b.priority || 0) - (a.priority || 0));
     }
+    
+    // Sort by priority (highest first)
+    matchingConfigs.sort((a, b) => (b.priority || 0) - (a.priority || 0));
     
     // Find formula matching the gas type
     for (const config of matchingConfigs) {
@@ -1780,10 +1768,8 @@ export default function EmissionEntryForm({
       if (gasType === 'co2' && keyLower.includes('co2') && !keyLower.includes('co2e')) return formula;
       if (gasType === 'ch4' && keyLower.includes('ch4')) return formula;
       if (gasType === 'n2o' && keyLower.includes('n2o')) return formula;
-      if (gasType === 'co2e' && keyLower.includes('co2e')) return formula;
-      if (gasType === 'electricity' && (keyLower.includes('elec') || keyLower.includes('scope2'))) return formula;
-      // For fugitive emissions, also check for 'fugitive' in the key
-      if (gasType === 'co2' && keyLower.includes('fugitive')) return formula;
+      if (gasType === 'co2e' && (keyLower.includes('co2e') || keyLower.includes('total'))) return formula;
+      if (gasType === 'electricity' && keyLower.includes('electricity')) return formula;
     }
     
     return null;
