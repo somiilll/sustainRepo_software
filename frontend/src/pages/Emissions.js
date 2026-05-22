@@ -23,6 +23,14 @@ import EmissionEntryForm from '../components/EmissionEntryForm';
 import MultiEmployeeInput from '../components/MultiEmployeeInput';
 import { useCalcEngine } from '../hooks/useCalcEngine';
 import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
+import {
+  unitsMatch as unitsMatchShared,
+  isVolumeUnit as isVolumeUnitShared,
+  getConversionFactor as getConversionFactorShared,
+  hasConversionDefined as hasConversionDefinedShared,
+} from './emissions/utils/units';
+import useEvidenceManagement from './emissions/useEvidenceManagement';
+import { persistCalcAuditLog as persistCalcAuditLogShared } from './emissions/utils/persistCalcAuditLog';
 import { categoryRegistry } from '../modules/emissions';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -993,46 +1001,28 @@ export default function Emissions() {
   }, [dialogOpen, editingEmissionId, editingEmission, dynamicInputFields, getAuthHeader]);
 
   // Check if two unit strings match using centralized unit aliases
-  const unitsMatch = (unit1, unit2) => {
-    if (!unit1 || !unit2) return false;
-    const u1 = unit1.toLowerCase().trim();
-    const u2 = unit2.toLowerCase().trim();
-    
-    // Direct match
-    if (u1 === u2) return true;
-    
-    // Check if both belong to the same unit (via aliases from centralized units)
-    for (const unit of centralizedUnits) {
-      const allNames = [
-        unit.symbol.toLowerCase(),
-        unit.name.toLowerCase(),
-        ...(unit.aliases || []).map(a => a.toLowerCase())
-      ];
-      const hasU1 = allNames.includes(u1);
-      const hasU2 = allNames.includes(u2);
-      if (hasU1 && hasU2) return true;
-    }
-    
-    return false;
-  };
+  // E1: Pure unit-matching utility (delegates to shared util)
+  const unitsMatch = (unit1, unit2) => unitsMatchShared(unit1, unit2, centralizedUnits);
 
-  // Check if a unit is a volume unit
-  const isVolumeUnit = (unitStr) => {
-    if (!unitStr) return false;
-    const u = unitStr.toLowerCase().trim();
-    
-    for (const unit of centralizedUnits) {
-      if (unit.unit_type === 'volume') {
-        const allNames = [
-          unit.symbol.toLowerCase(),
-          unit.name.toLowerCase(),
-          ...(unit.aliases || []).map(a => a.toLowerCase())
-        ];
-        if (allNames.includes(u)) return true;
-      }
-    }
-    return false;
-  };
+  // E1: Pure volume-unit check (delegates to shared util)
+  const isVolumeUnit = (unitStr) => isVolumeUnitShared(unitStr, centralizedUnits);
+
+  // E2: Evidence + history handlers extracted to useEvidenceManagement hook.
+  const {
+    handleFileUpload,
+    handleDeleteExistingEvidence,
+    handleDeleteAllEvidences,
+    handleRemoveEvidence,
+    handleViewEvidence,
+    handleDownloadEvidence,
+  } = useEvidenceManagement({
+    existingEvidences,
+    uploadedEvidence,
+    setFormData,
+    setExistingEvidences,
+    setUploadedEvidence,
+    getAuthHeader,
+  });
 
   const fetchHistory = async (emissionId) => {
     try {
@@ -1841,90 +1831,13 @@ export default function Emissions() {
   // The Super Admin defines conversions as: "X from_unit = 1 to_unit" (e.g., 1000 g = 1 kg)
   // So the multiplier represents how many from_units make 1 to_unit
   // To convert: divide the value by the multiplier (e.g., 1000g / 1000 = 1kg)
-  const getConversionFactor = (paramKey, selectedUnit) => {
-    if (!selectedUnit) return 1;
-    
-    // Find the parameter definition from Super Admin with exact or related key matching
-    // Order matters: first check exact match, then related keys
-    let param = formulaParameters.find(p => p.parameter_key === paramKey);
-    
-    // If no exact match, try common variations
-    if (!param) {
-      param = formulaParameters.find(p => 
-        p.parameter_key === paramKey.replace('_fuel', '') ||
-        p.parameter_key === paramKey.replace('quantity', 'quantity_fuel')
-      );
-    }
-    
-    // For electricity_quantity specifically, also check if paramKey references it
-    if (!param && (paramKey === 'electricity_quantity' || paramKey.includes('electricity'))) {
-      param = formulaParameters.find(p => p.parameter_key === 'electricity_quantity');
-    }
-    
-    if (!param || !param.unit_conversions || param.unit_conversions.length === 0) {
-      return 1; // No conversion defined, use as-is
-    }
-    
-    // Find the conversion rule for the selected unit
-    const conversion = param.unit_conversions.find(c => 
-      c.from_unit.toLowerCase() === selectedUnit.toLowerCase()
-    );
-    
-    if (conversion && conversion.multiplier !== 0) {
-      // The multiplier represents "how many from_unit = 1 to_unit"
-      // So to convert from from_unit to to_unit, we DIVIDE by multiplier
-      // Example: 1000 g with multiplier 1000 → 1000/1000 = 1 kg
-      return 1 / conversion.multiplier;
-    }
-    
-    // Check if selected unit is the target unit (base unit - no conversion needed)
-    const isBaseUnit = param.unit_conversions.some(c => 
-      c.to_unit.toLowerCase() === selectedUnit.toLowerCase()
-    );
-    
-    if (isBaseUnit) {
-      return 1; // Already in base unit
-    }
-    
-    return 1; // Default: no conversion (but this means config is missing)
-  };
+  // E1: Conversion factor lookup (delegates to shared util)
+  const getConversionFactor = (paramKey, selectedUnit) =>
+    getConversionFactorShared(paramKey, selectedUnit, formulaParameters);
 
-  // Check if a conversion is defined for a unit (separate from the factor value)
-  const hasConversionDefined = (paramKey, selectedUnit) => {
-    if (!selectedUnit) return false;
-    
-    // Find the parameter with exact or related key matching
-    let param = formulaParameters.find(p => p.parameter_key === paramKey);
-    
-    // If no exact match, try common variations
-    if (!param) {
-      param = formulaParameters.find(p => 
-        p.parameter_key === paramKey.replace('_fuel', '') ||
-        p.parameter_key === paramKey.replace('quantity', 'quantity_fuel')
-      );
-    }
-    
-    // For electricity_quantity specifically
-    if (!param && (paramKey === 'electricity_quantity' || paramKey.includes('electricity'))) {
-      param = formulaParameters.find(p => p.parameter_key === 'electricity_quantity');
-    }
-    
-    if (!param || !param.unit_conversions || param.unit_conversions.length === 0) {
-      return false;
-    }
-    
-    // Check if conversion exists for this unit OR if it's the target unit (base unit)
-    const hasDirectConversion = param.unit_conversions.some(c => 
-      c.from_unit.toLowerCase() === selectedUnit.toLowerCase()
-    );
-    
-    // Also check if selected unit is the target unit (base unit needs no conversion)
-    const isBaseUnit = param.unit_conversions.some(c => 
-      c.to_unit.toLowerCase() === selectedUnit.toLowerCase()
-    );
-    
-    return hasDirectConversion || isBaseUnit;
-  };
+  // E1: Conversion-defined check (delegates to shared util)
+  const hasConversionDefined = (paramKey, selectedUnit) =>
+    hasConversionDefinedShared(paramKey, selectedUnit, formulaParameters);
 
   // Convert quantity to kg based on selected unit (now uses dynamic units)
   const getQuantityInKg = useMemo(() => {
@@ -2648,208 +2561,32 @@ export default function Emissions() {
       formData.calorific_value, overrideCalorificValue, overrideDensity, overrideEmissionFactorHeat,
       editingEmission]);
 
-  const handleFileUpload = async (file) => {
-    const sizeErr = validateFileSize(file);
-    if (sizeErr) {
-      throw new Error(sizeErr);
-    }
-    const formDataUpload = new FormData();
-    formDataUpload.append('file', file);
-
-    try {
-      const response = await axios.post(`${API}/upload/evidence?bucket_type=emission_evidence`, formDataUpload, {
-        headers: {
-          ...getAuthHeader(),
-          'Content-Type': 'multipart/form-data'
-        }
-      });
-      
-      // Don't set uploadedEvidence for multi-file uploads - it blocks the upload zone
-      // Instead, we track files in existingEvidences which are displayed separately
-      
-      // Append new evidence URL to existing ones (don't replace)
-      setFormData(prev => {
-        const existingUrls = prev.evidence_url ? prev.evidence_url.split(',').filter(u => u.trim()) : [];
-        const newUrls = [...existingUrls, response.data.url];
-        return {
-          ...prev,
-          evidence_url: newUrls.join(',')
-        };
-      });
-      
-      // Add to existingEvidences for immediate display - use original filename from server response
-      setExistingEvidences(prev => [...prev, {
-        url: response.data.url,
-        filename: response.data.filename || file.name,  // Use original filename
-        file_id: response.data.file_id
-      }]);
-      
-      toast.success('File uploaded successfully');
-    } catch (error) {
-      console.error('Upload error:', error);
-      throw new Error(getUploadErrorMessage(error, file));
-    }
-  };
-
-  // Delete a single existing evidence
-  const handleDeleteExistingEvidence = async (index) => {
-    const evidenceToDelete = existingEvidences[index];
-    
-    // Try to delete from server if it's an uploaded file
-    if (evidenceToDelete.url.includes('/api/files/')) {
-      const fileIdMatch = evidenceToDelete.url.match(/\/api\/files\/([a-f0-9-]+)/i);
-      if (fileIdMatch) {
-        try {
-          await axios.delete(`${API}/files/${fileIdMatch[1]}`, {
-            headers: getAuthHeader()
-          });
-        } catch (error) {
-          console.error('Failed to delete file from server:', error);
-        }
-      }
-    }
-    
-    // Remove from existingEvidences state
-    const newEvidences = existingEvidences.filter((_, i) => i !== index);
-    setExistingEvidences(newEvidences);
-    
-    // Update evidence_url in formData
-    setFormData(prev => ({
-      ...prev,
-      evidence_url: newEvidences.map(e => e.url).join(',')
-    }));
-    
-    toast.success('Evidence removed');
-  };
-
-  // Delete all evidences
-  const handleDeleteAllEvidences = async () => {
-    // Try to delete all uploaded files from server
-    for (const evidence of existingEvidences) {
-      if (evidence.url.includes('/api/files/')) {
-        const fileIdMatch = evidence.url.match(/\/api\/files\/([a-f0-9-]+)/i);
-        if (fileIdMatch) {
-          try {
-            await axios.delete(`${API}/files/${fileIdMatch[1]}`, {
-              headers: getAuthHeader()
-            });
-          } catch (error) {
-            console.error('Failed to delete file from server:', error);
-          }
-        }
-      }
-    }
-    
-    setExistingEvidences([]);
-    setFormData(prev => ({ ...prev, evidence_url: '' }));
-    toast.success('All evidences removed');
-  };
-
-  const handleRemoveEvidence = async () => {
-    if (uploadedEvidence?.file_id) {
-      try {
-        await axios.delete(`${API}/files/${uploadedEvidence.file_id}`, {
-          headers: getAuthHeader()
-        });
-      } catch (error) {
-        console.error('Failed to delete file:', error);
-      }
-    }
-    setUploadedEvidence(null);
-    setFormData(prev => ({ ...prev, evidence_url: '' }));
-  };
+  // E2: handleFileUpload, handleDeleteExistingEvidence, handleDeleteAllEvidences,
+  // handleRemoveEvidence — moved to useEvidenceManagement hook.
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Shared helper: persist the calc engine audit log after a successful
-    // PUT/POST so override sources reload correctly on re-edit. Called by
-    // ALL dispatch branches (C7, module, legacy) for behaviour parity.
-    // Best-effort — never blocks the user flow on failure.
-    const persistCalcAuditLog = async (emissionId) => {
-      if (!emissionId || dynamicInputFields.length === 0) return;
-      try {
-        // Effective scope for category lookup: biogenic-scope3 records use
-        // the underlying Scope 3 category definitions (biogenic categories
-        // are not duplicated under scope_code='biogenic' for Scope 3).
-        const effectiveScope = (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')
-          ? 'scope3'
-          : formData.scope;
-        const categoryObj = dynamicCategories.find(
-          c => c.name === (formData.category || selectedCategory) && c.scope_code === effectiveScope
-        );
-        if (!categoryObj?.id) return;
-
-        // Build inputs from non-override dynamic fields
-        const inputs = {};
-        dynamicInputFields.filter(f => !f.isOverride).forEach(field => {
-          const value = dynamicFieldValues[field.variable];
-          if (value !== undefined && value !== '' && value !== null) {
-            const numValue = parseFloat(value);
-            if (!isNaN(numValue)) {
-              const unit = dynamicFieldValues[`${field.variable}_unit`] || field.expectedUnit || '';
-              inputs[field.variable] = { value: numValue, unit };
-            }
-          }
-        });
-
-        // Build user overrides from override fields
-        const userOverrides = {};
-        dynamicInputFields.filter(f => f.isOverride).forEach(field => {
-          const overrideKey = `override_${field.variable}`;
-          if (dynamicFieldValues[overrideKey]) {
-            const value = dynamicFieldValues[field.variable];
-            if (value !== undefined && value !== null && value !== '') {
-              const unit = dynamicFieldValues[`${field.variable}_unit`] || field.expectedUnit || '';
-              userOverrides[field.variable] = { value: parseFloat(value), unit };
-            }
-          }
-        });
-
-        const decisionInputs = buildEditDecisionInputs();
-
-        const matchedEFForSave = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-        const scope3Context = formData.scope === 'scope3' ? {
-          calculation_method_scope3: scope3Method,
-          scope3_ef_id: scope3ActivityId,
-          activity: (scope3Method === 'supplier_basis' && useCustomActivity)
-            ? scope3CustomActivity
-            : matchedEFForSave?.activity,
-          scope3_ef_default_unit: matchedEFForSave?.default_unit || '',
-        } : {};
-
-        let fuelNameForContext = selectedFuel?.fuel_name;
-        if (formData.scope === 'scope3' && requiresSubcategory && scope3Method !== 'supplier_basis' && scope3Subcategory === 'fugitive_emissions' && matchedEFForSave?.activity) {
-          fuelNameForContext = matchedEFForSave.activity;
-        }
-
-        const calcPayload = {
-          category_id: categoryObj.id,
-          decision_inputs: decisionInputs,
-          inputs,
-          context: {
-            fuel_name: fuelNameForContext,
-            fuel_id: selectedFuel?.id,
-            scope: formData.scope,
-            category: formData.category || selectedCategory,
-            reporting_period: formData.reporting_period_start,
-            ...scope3Context,
-          },
-          user_overrides: userOverrides,
-          dry_run: false,
-          emission_record_id: emissionId,
-          ...(formData.scope === 'scope3' && scope3ActivityId && { scope3_ef_id: scope3ActivityId }),
-        };
-
-        await axios.post(`${API}/calc-engine/execute-by-category`, calcPayload, {
-          headers: getAuthHeader(),
-        });
-      } catch (auditError) {
-        // eslint-disable-next-line no-console
-        console.warn('Failed to persist audit log:', auditError);
-        // Don't fail the save flow on audit log error
-      }
-    };
+    // E3: persistCalcAuditLog moved to ./emissions/utils/persistCalcAuditLog.
+    // Thin wrapper binds local state for the dispatch branches below.
+    const persistCalcAuditLogLocal = (emissionId) => persistCalcAuditLogShared(emissionId, {
+      formData,
+      biogenicScopeSelection,
+      dynamicCategories,
+      selectedCategory,
+      dynamicInputFields,
+      dynamicFieldValues,
+      buildEditDecisionInputs,
+      filteredScope3Activities,
+      scope3ActivityId,
+      scope3Method,
+      scope3Subcategory,
+      useCustomActivity,
+      scope3CustomActivity,
+      requiresSubcategory,
+      selectedFuel,
+      getAuthHeader,
+    });
     
     // C7 EMPLOYEE COMMUTING - Always uses multi-employee mode
     // Business logic (validation + payload construction) lives in the C7 category module.
@@ -2989,7 +2726,7 @@ export default function Emissions() {
         if (response.data) {
           toast.success('Emission updated successfully');
           // Persist calc audit log so override sources reload correctly on re-edit
-          await persistCalcAuditLog(editingEmission.id);
+          await persistCalcAuditLogLocal(editingEmission.id);
           setDialogOpen(false);
           resetForm();
           fetchData();
@@ -4021,56 +3758,7 @@ export default function Emissions() {
   // Check if user is regular user (not admin or super_admin)
   const isRegularUser = user?.role === 'user';
 
-  const handleViewEvidence = (evidenceUrl, e) => {
-    e.preventDefault();
-    if (!evidenceUrl) {
-      toast.error('No evidence file available');
-      return;
-    }
-    
-    // Extract file ID and open view URL
-    const fileIdMatch = evidenceUrl.match(/\/api\/files\/([a-f0-9-]+)/i);
-    if (fileIdMatch) {
-      const fileId = fileIdMatch[1];
-      window.open(`${BACKEND_URL}/api/files/${fileId}/view`, '_blank');
-      return;
-    }
-    
-    // For external or other URLs
-    if (evidenceUrl.startsWith('http')) {
-      window.open(evidenceUrl, '_blank');
-    } else if (evidenceUrl.startsWith('/api')) {
-      window.open(`${BACKEND_URL}${evidenceUrl}`, '_blank');
-    } else {
-      window.open(`${API}${evidenceUrl}`, '_blank');
-    }
-  };
-
-  const handleDownloadEvidence = async (evidenceUrl, e, filename) => {
-    e.preventDefault();
-    if (!evidenceUrl) {
-      toast.error('No evidence file available');
-      return;
-    }
-    
-    // Extract file ID and use fetch + blob for download
-    const fileIdMatch = evidenceUrl.match(/\/api\/files\/([a-f0-9-]+)/i);
-    if (fileIdMatch) {
-      const fileId = fileIdMatch[1];
-      const downloadUrl = `${BACKEND_URL}/api/files/${fileId}/download`;
-      await downloadFileHelper(downloadUrl, filename || 'evidence-file');
-      return;
-    }
-    
-    // For external URLs, open in new tab (can't use fetch due to CORS)
-    if (evidenceUrl.startsWith('http')) {
-      window.open(evidenceUrl, '_blank');
-    } else if (evidenceUrl.startsWith('/api')) {
-      await downloadFileHelper(`${BACKEND_URL}${evidenceUrl}`, filename || 'file');
-    } else {
-      await downloadFileHelper(`${API}${evidenceUrl}`, filename || 'file');
-    }
-  };
+  // E2: handleViewEvidence + handleDownloadEvidence — moved to useEvidenceManagement hook.
 
   if (loading) {
     return (
