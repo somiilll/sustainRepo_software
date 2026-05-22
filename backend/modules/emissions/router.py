@@ -401,7 +401,7 @@ async def update_emission_record(
             detail=f"Cannot change frequency_type from '{existing_frequency}' to '{new_frequency}'. Delete and recreate the record if needed."
         )
     
-    update_dict = record_data.model_dump()
+    update_dict = record_data.model_dump(exclude_unset=True)
     # Ensure frequency_type is preserved
     update_dict["frequency_type"] = existing_frequency
     
