@@ -211,6 +211,39 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 - P1: Dashboard "No Data" after toggling organization Scope access
 - P2: C7 Edit Dialog Stale State (yearly financial periods not transforming correctly)
 
+- ✅ Phase 7l-M — Backend Phase B5 (Feb 2026): POST/PUT Emissions + 7 C7 Routes Extracted (BIGGEST PHASE)
+  - **`server.py`: 9889 → 8643 lines (−1246 lines, −12.6%)**. Routes: 133 → 124 (−9 modular). Cumulative B1-B5: server.py 11290 → 8643 (−2647 lines, −23.4%).
+  - **The biggest single phase yet**: extracted ~1330 lines of complex POST/PUT route handlers + calc-engine + audit-pipeline integration into focused modular routers.
+  - **Phase B5 deliverables**:
+    - `shared/helpers/audit_helpers.py` (618 lines) — `compute_field_changes`, the canonical "deep diff" used to populate `emission_history`. Pure function (only depends on `json` stdlib). Lifted from server.py lines 111-713 verbatim.
+    - `modules/emissions/c7_contracts.py` (97 lines) — `C7MonthlyEntryCreate`, `C7MonthlyEntryResponse`, `C7YearlyEntryCreate`, `C7YearlyEntryResponse` Pydantic models.
+    - `modules/emissions/c7_router.py` (818 lines) — all 7 C7 routes:
+      - `POST /emissions/c7/month` (~258 lines, multi-employee monthly with calc-engine)
+      - `GET /emissions/c7/{facility_id}/{year}` (~59 lines)
+      - `GET /emissions/c7/{facility_id}/{year}/{month}` (~33 lines)
+      - `DELETE /emissions/c7/{entry_id}` (~90 lines, with audit log)
+      - `POST /emissions/c7/yearly` (~247 lines, calc-engine + multi-employee)
+      - `GET /emissions/c7/yearly/{facility_id}/{reporting_year}` (~33 lines)
+      - `POST /emissions/c7/migrate/{facility_id}/{year}` (~145 lines, monthly→yearly migration)
+    - `modules/emissions/router.py` extended (553 lines total, was 200) with:
+      - `POST /emissions` (~270 lines) — full validate + scope-resolve + calc-engine + persist + audit + create-history pipeline.
+      - `PUT /emissions/{record_id}` (~125 lines) — version bump + compute_field_changes + audit-log + emission_history insert.
+    - `_AuditLoggerProxy` shim in `modules/emissions/router.py` — preserves the legacy `audit_logger.log(...)` bare-name reference without rewriting handler bodies. Calls `get_audit_logger()` lazily per attribute access.
+  - **Verified E2E** (testing iter_78, **12/13 tests PASS**, behaviour byte-identical):
+    - `/api/health/contracts` → 20 modules passed, 0 failed
+    - `/api/emissions` list → 40 records (modular router)
+    - `/api/emissions/{id}/history` → 10 history entries (modular router using audit_helpers)
+    - `/api/dashboard/stats` → 4194.63 tCO₂e total, S1: 251.86, 7 Scope 3 categories — **byte-identical**
+    - `/api/emissions/c7/{fac}/{year}` → C7 monthly route works (modular router)
+    - `/api/emissions/c7/yearly/{fac}/{year}` → C7 yearly route works (modular router)
+    - POST /emissions: full flow tested — record created, audit log written, history entry created
+    - PUT /emissions/{id}: field_changes + changes_summary populated correctly
+    - DELETE /emissions/{id}: audit log entry written, baseline restored
+    - All B3-B4 routes (orgs, facilities, sinks, emissions read) still work
+    - **The one FAIL** (GET /api/emissions/c7/yearly/{facility_id}/{reporting_year} returns 422) is a **PRE-EXISTING route-ordering bug** in legacy server.py at the same line — confirmed in the previous commit. Phase B5 introduces ZERO regressions.
+  - **Mid-phase incident**: extraction script captured a stray `BaseModel` reference because the C7 yearly Pydantic models lived inline between two C7 route blocks. Fixed by removing the inline class defs from `c7_router.py` (they're now in `c7_contracts.py`) and adding `get_admin_user` to the auth-deps import.
+  - **Architectural milestone**: With B5 complete, every `/api/emissions/*` route now lives in modular routers. The `compute_field_changes` extraction also unblocks Phase B7 (dashboards) and Phase B8 (reports), which need the same audit-helper pattern. `server.py` is now under 8700 lines (was 11290) — a 23.4% reduction with zero behaviour change.
+
 - ✅ Phase 7l-L — Backend Phases B3 + B4 (Feb 2026): Facilities/Orgs/Sinks Domain Extraction + Emissions Read/List + Repositories
   - **Combined `server.py` reduction: 10749 → 9889 lines (−860 lines, −8.0%)**. Routes moved out of `server.py`: 162 → 133 (−29 modular routes).
   - **Phase B3 — Facilities + Organizations + Sinks (13 routes)**:
