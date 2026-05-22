@@ -307,8 +307,26 @@ export function buildCreatePayload(_ignored, ctx) {
 
 /**
  * Top-level CREATE validator — picks yearly vs monthly.
+ *
+ * Always runs the universal "Employee Name required" pre-check first
+ * (mirrors the legacy inline behaviour in `EmissionEntryForm.handleSubmit`).
  */
 export function validateCreateSubmission(ctx) {
+  const { employees } = ctx;
+  if (!employees || employees.length === 0) {
+    return { valid: false, errorMessage: 'Please add at least one employee' };
+  }
+
+  const employeesWithoutNames = employees.filter(
+    (emp) => !emp.name || emp.name.trim() === ''
+  );
+  if (employeesWithoutNames.length > 0) {
+    return {
+      valid: false,
+      errorMessage: `Employee Name is required for all employees. ${employeesWithoutNames.length} employee(s) missing name.`,
+    };
+  }
+
   if (ctx.frequencyType === 'yearly') {
     return validateYearlyCreateSubmission(ctx);
   }

@@ -3223,96 +3223,65 @@ export default function EmissionEntryForm({
     try {
       const validProcesses = processNames.filter(p => p.name && p.name.trim() !== '');
       
-      // C7 EMPLOYEE COMMUTING HANDLING
+      // ===========================================
+      // C7 EMPLOYEE COMMUTING HANDLING (Phase F: module dispatch)
+      // ===========================================
+      // Multi-employee yearly + monthly CREATE flow.
+      // Logic lives in /modules/emissions/categories/C7EmployeeCommuting/create.js
+      // Dedicated endpoints: /api/emissions/c7/yearly and /api/emissions/c7/month
       if (isC7EmployeeCommuting && employees.length > 0) {
-        // Validate employee names are required
-        const employeesWithoutNames = employees.filter(emp => !emp.name || emp.name.trim() === '');
-        if (employeesWithoutNames.length > 0) {
-          toast.error(`Employee Name is required for all employees. ${employeesWithoutNames.length} employee(s) missing name.`);
+        const c7Module = categoryRegistry.get('c7');
+        if (!c7Module?.buildCreatePayload) {
+          toast.error('C7 module not registered. Please reload the page.');
           setIsSaving(false);
           return;
         }
-        
-        // ===========================================
-        // C7 YEARLY MODE
-        // ===========================================
-        if (frequencyType === 'yearly') {
-          // Validate each employee has yearly data
-          const employeesWithoutData = employees.filter(emp => {
-            const hasYearlyData = Object.values(emp.yearly_data?.inputs || {}).some(v => 
-              v !== '' && v !== null && v !== undefined && v !== 0
-            );
-            return !hasYearlyData;
-          });
-          
-          if (employeesWithoutData.length > 0) {
-            toast.error(`Please enter annual data for: ${employeesWithoutData.map(e => e.name || 'Unnamed').join(', ')}`);
-            setIsSaving(false);
-            return;
-          }
-          
-          // Validate that at least one employee has calculated emissions
-          const hasCalculatedData = employees.some(emp => 
-            emp.yearly_data?.emissions?.co2e !== null && emp.yearly_data?.emissions?.co2e !== undefined
-          );
-          
-          if (!hasCalculatedData) {
-            toast.error('Please calculate emissions for at least one employee');
-            setIsSaving(false);
-            return;
-          }
-          
+
+        const c7Ctx = {
+          employees,
+          frequencyType,
+          facilityId,
+          reportingYearType,
+          reportingYear,
+          scope3Method,
+          scope3ActivityId,
+          scope3ActivityType,
+          scope3CustomActivity,
+          useCustomActivity,
+          filteredScope3Activities,
+          notes,
+          responsiblePerson,
+          responsiblePersonDesignation,
+          responsiblePersonContact,
+          processNames,
+          validProcesses,
+          getActualYearForMonth,
+        };
+
+        // 1. Module-owned validation (employee names + per-mode data presence + calc check)
+        const c7Validation = c7Module.validateCreateSubmission(c7Ctx);
+        if (!c7Validation.valid) {
+          toast.error(c7Validation.errorMessage);
+          setIsSaving(false);
+          return;
+        }
+
+        // 2. Module-owned payload construction (yearly: single payload, monthly: list of payloads)
+        const c7Built = c7Module.buildCreatePayload(null, c7Ctx);
+
+        // 3. POST + UI semantics (kept here — orchestration responsibility of the page/form)
+        if (c7Built.mode === 'yearly') {
           try {
-            // Build yearly reporting period
-            const yearlyReportingPeriod = reportingYearType === 'financial' 
-              ? `FY ${reportingYear}-${(parseInt(reportingYear) + 1).toString().slice(-2)}`
-              : `CY${reportingYear}`;
-            
-            // Build employees array for yearly endpoint
-            const yearlyEmployees = employees
-              .filter(emp => emp.yearly_data?.emissions?.co2e !== null && emp.yearly_data?.emissions?.co2e !== undefined)
-              .map(emp => ({
-                id: emp.id,
-                name: emp.name,
-                employee_id: emp.employee_id,
-                department: emp.department,
-                from_location: emp.from_location || null,
-                to_location: emp.to_location || null,
-                activity_type: emp.activity_type || scope3ActivityType,
-                inputs: emp.yearly_data?.inputs || {},
-                emissions: emp.yearly_data?.emissions || {},
-                calculation_details: emp.yearly_data?.calculation_details || null,
-              }));
-            
-            const payload = {
-              facility_id: facilityId,
-              reporting_year: yearlyReportingPeriod,
-              calculation_method: scope3Method,
-              activity_type: scope3ActivityType,
-              activity_id: scope3ActivityId,
-              activity_name: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || scope3CustomActivity,
-              formula_id: yearlyEmployees[0]?.calculation_details?.formula_id || null,
-              formula_name: yearlyEmployees[0]?.calculation_details?.formula_name || null,
-              employees: yearlyEmployees,
-              notes: notes,
-              responsible_person: responsiblePerson,
-              responsible_person_designation: responsiblePersonDesignation,
-              responsible_person_contact: responsiblePersonContact,
-              process_names: validProcesses.map(p => p.name),
-              process_descriptions: validProcesses.map(p => ({ name: p.name, description: p.description || '' })),
-            };
-            
-            await axios.post(`${API}/emissions/c7/yearly`, payload, {
-              headers: getAuthHeader()
+            await axios.post(`${API}${c7Built.endpoint}`, c7Built.payload, {
+              headers: getAuthHeader(),
             });
-            
-            toast.success(`Created yearly C7 Employee Commuting record for ${yearlyReportingPeriod}`);
+            toast.success(`Created yearly C7 Employee Commuting record for ${c7Built.reportingPeriod}`);
             onSuccess?.();
           } catch (error) {
             console.error('Error saving yearly C7 emission:', error);
             const detail = error.response?.data?.detail;
-            const errorMsg = Array.isArray(detail) 
-              ? detail.map(e => e.msg || e.message || JSON.stringify(e)).join(', ')
+            const errorMsg = Array.isArray(detail)
+              ? detail.map((e) => e.msg || e.message || JSON.stringify(e)).join(', ')
               : (typeof detail === 'string' ? detail : 'Failed to save yearly C7 emission');
             toast.error(errorMsg);
           } finally {
@@ -3320,136 +3289,22 @@ export default function EmissionEntryForm({
           }
           return;
         }
-        
-        // ===========================================
-        // C7 MONTHLY MODE (Existing behavior)
-        // ===========================================
-        // Validate each employee has at least one month with data
-        const employeesWithoutData = employees.filter(emp => {
-          const hasAnyMonthData = Object.values(emp.monthly_data || {}).some(monthData => {
-            if (!monthData?.inputs) return false;
-            return Object.values(monthData.inputs).some(v => 
-              v !== '' && v !== null && v !== undefined && v !== 0
-            );
-          });
-          return !hasAnyMonthData;
-        });
-        
-        if (employeesWithoutData.length > 0) {
-          toast.error(`Please enter data for at least one month for: ${employeesWithoutData.map(e => e.name || 'Unnamed').join(', ')}`);
-          setIsSaving(false);
-          return;
-        }
-        
-        // Validate that at least one employee has calculated emissions
-        const hasCalculatedData = employees.some(emp => 
-          Object.values(emp.monthly_data || {}).some(m => m?.emissions?.co2e !== null && m?.emissions?.co2e !== undefined)
-        );
-        
-        if (!hasCalculatedData) {
-          toast.error('Please calculate emissions for at least one employee/month');
-          setIsSaving(false);
-          return;
-        }
-        
-        // Monthly Entry Model (Fix #10)
-        // Each month gets saved as a separate entry via /api/emissions/c7/month
-        // Group employees by month (each month becomes a separate entry)
-        const monthlyEmployeeGroups = {};
-        employees.forEach(emp => {
-          const monthlyData = emp.monthly_data || {};
-          Object.entries(monthlyData).forEach(([monthKey, monthData]) => {
-            // Only include months with calculated emissions
-            if (monthData?.emissions?.co2e !== null && monthData?.emissions?.co2e !== undefined) {
-              if (!monthlyEmployeeGroups[monthKey]) {
-                monthlyEmployeeGroups[monthKey] = [];
-              }
-              monthlyEmployeeGroups[monthKey].push({
-                id: emp.id,
-                name: emp.name,
-                employee_id: emp.employee_id,
-                department: emp.department,
-                from_location: emp.from_location || null,
-                to_location: emp.to_location || null,
-                activity_type: emp.activity_type || scope3ActivityType,
-                inputs: monthData.inputs || {},
-                emissions: monthData.emissions || {},
-                calculation_details: monthData.calculation_details || null,
-              });
-            }
-          });
-        });
-        
-        const monthsToSave = Object.keys(monthlyEmployeeGroups);
-        if (monthsToSave.length === 0) {
+
+        // monthly: post each month-payload sequentially
+        if (!c7Built.payloads || c7Built.payloads.length === 0) {
           toast.error('No valid monthly data to save');
           setIsSaving(false);
           return;
         }
-        
-        // Get the reporting year from the first active month
-        const monthlyReportingYear = getActualYearForMonth(monthsToSave[0]);
-        
-        // Save each month as a separate C7 entry using the new API
+
         let successCount = 0;
         let totalCo2e = 0;
         const errors = [];
-        
-        for (const monthKey of monthsToSave) {
-          const monthEmployees = monthlyEmployeeGroups[monthKey];
-          const monthCo2e = monthEmployees.reduce((sum, emp) => sum + (emp.emissions?.co2e || 0), 0);
+        for (const { monthKey, monthCo2e, payload } of c7Built.payloads) {
           totalCo2e += monthCo2e;
-          
-          // For custom activity (supplier_basis), use the custom activity name
-          // For standard activities, use the selected activity from the list
-          let activityId = null;
-          let activityName = scope3ActivityType;
-          
-          if (useCustomActivity && scope3CustomActivity?.trim()) {
-            // Custom activity - no ID, just the custom name
-            activityId = null;
-            activityName = scope3CustomActivity.trim();
-          } else if (scope3ActivityId) {
-            // Standard activity from the list
-            const selectedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-            activityId = selectedActivity?.id || null;
-            activityName = selectedActivity?.activity || scope3ActivityType;
-          }
-          
-          // Extract formula_id from any employee's calculation_details (they all use the same formula)
-          // This is more reliable than using React state which might not have updated yet
-          let formulaId = null;
-          let formulaName = '';
-          for (const emp of monthEmployees) {
-            if (emp.calculation_details?.formula_id) {
-              formulaId = emp.calculation_details.formula_id;
-              formulaName = emp.calculation_details.formula_name || '';
-              break;
-            }
-          }
-          
-          const payload = {
-            facility_id: facilityId,
-            reporting_year: monthlyReportingYear,
-            reporting_month: monthKey, // jan, feb, mar, etc.
-            calculation_method: scope3Method,
-            activity_type: scope3ActivityType,
-            activity_id: activityId,
-            activity_name: activityName,
-            formula_id: formulaId,  // Extract from employee calculation_details
-            formula_name: formulaName,
-            employees: monthEmployees,
-            notes: notes || '',
-            responsible_person: responsiblePerson,
-            responsible_person_designation: responsiblePersonDesignation,
-            responsible_person_contact: responsiblePersonContact,
-            process_names: processNames.filter(p => p.name?.trim()).map(p => p.name),
-            process_descriptions: processNames.filter(p => p.name?.trim()).map(p => ({ name: p.name, description: p.description || '' })),
-          };
-          
           try {
-            await axios.post(`${API}/emissions/c7/month`, payload, {
-              headers: getAuthHeader()
+            await axios.post(`${API}${c7Built.endpoint}`, payload, {
+              headers: getAuthHeader(),
             });
             successCount++;
           } catch (err) {
@@ -3457,10 +3312,10 @@ export default function EmissionEntryForm({
             errors.push(monthKey);
           }
         }
-        
+
         if (successCount > 0) {
           if (errors.length > 0) {
-            toast.warning(`Saved ${successCount}/${monthsToSave.length} months. Failed: ${errors.join(', ')}`);
+            toast.warning(`Saved ${successCount}/${c7Built.payloads.length} months. Failed: ${errors.join(', ')}`);
           } else {
             toast.success(`Saved ${successCount} month(s) for ${employees.length} employee(s) (${totalCo2e.toFixed(4)} tCO₂e total)`);
           }
@@ -3468,7 +3323,7 @@ export default function EmissionEntryForm({
         } else {
           toast.error('Failed to save C7 emissions. Please try again.');
         }
-        
+
         setIsSaving(false);
         return;
       }

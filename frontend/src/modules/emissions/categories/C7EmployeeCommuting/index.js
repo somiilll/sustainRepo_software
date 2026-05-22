@@ -390,6 +390,7 @@ const uploadConfig = {
  * Create and export the module
  */
 import { editApi as c7EditApi } from './edit';
+import { createApi as c7CreateApi } from './create';
 
 const C7EmployeeCommutingModule = createCategoryModule({
   ...config,
@@ -410,6 +411,14 @@ C7EmployeeCommutingModule.validateEditSubmission = c7EditApi.validateEditSubmiss
 C7EmployeeCommutingModule.buildEditPayload = c7EditApi.buildEditPayload;
 C7EmployeeCommutingModule.extractTotals = c7EditApi.extractTotals;
 
+// Attach CREATE-flow business logic (Phase F).
+// Multi-employee yearly + monthly payload construction and validation,
+// targeting `/api/emissions/c7/yearly` and `/api/emissions/c7/month`
+// (NOT the generic `/api/emissions` endpoint).
+C7EmployeeCommutingModule.create = c7CreateApi;
+C7EmployeeCommutingModule.validateCreateSubmission = c7CreateApi.validateCreateSubmission;
+C7EmployeeCommutingModule.buildCreatePayload = c7CreateApi.buildCreatePayload;
+
 // Also register with alternative names
 categoryRegistry.register('employee_commuting', C7EmployeeCommutingModule);
 categoryRegistry.register('c7_employee_commuting', C7EmployeeCommutingModule);
@@ -417,3 +426,4 @@ categoryRegistry.register('c7_employee_commuting', C7EmployeeCommutingModule);
 export default C7EmployeeCommutingModule;
 export { config, fields, validationSchema };
 export { c7EditApi as editApi };
+export { c7CreateApi as createApi };
