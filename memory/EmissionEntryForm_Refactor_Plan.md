@@ -75,8 +75,9 @@
 | F2 (DONE Feb 22, 2026) | 69 | 4022 |
 | F3 (DONE Feb 22, 2026) | 142 | 3880 |
 | F4 (DONE Feb 22, 2026) | 311 | 3569 |
-| F5 | 200 | ~3369 |
-| F6 (lift remaining handlers into category modules) | ~2400 | **~969** |
+| F5 (DONE Feb 22, 2026) | 184 | 3385 |
+| F6 — Option B / useEmissionSubmit hook (DONE Feb 22, 2026) | 593 | **2792** |
+| F6 — Option A (Aggressive Lift to ~969) | DEFERRED — not needed for current goals | n/a |
 
 ---
 

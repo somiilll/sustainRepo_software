@@ -24,6 +24,44 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 
 ## What's Been Implemented
 
+### Feb 2026 Session — EmissionEntryForm Refactor F1–F6 COMPLETE
+
+**Feb 22, 2026 — F5 + F6 (Option B, no split) shipped (cumulative −1328 lines, −32.2%)**
+
+- **F5 (LOW risk)** — `<DynamicFieldRenderer />` integration:
+  - Replaced 187-line inline `renderDynamicField` with shared component (also picks up biogenic+scope3 unit-source handling missing from inline version).
+  - Replaced inline `getFieldUnitsForYearly` with shared `getFieldUnits` util.
+  - Fixed transitive 6-dot relative-path bug in `DynamicFieldRenderer.js` (was `../../../../../../components/ui/...`, now correct 5-dot).
+  - 184 lines removed.
+
+- **F6 (MEDIUM risk, Option B chosen — not Aggressive Lift)** — `useEmissionSubmit` hook integration:
+  - Lifted 615-line `handleSubmit` body into a NEW `modules/ghg/emissions/shared/hooks/useEmissionSubmit.js` (668 lines including header/destructure).
+  - Form just assembles a 50-prop ctx and calls `const { submit: handleSubmit } = useEmissionSubmit(ctx);`.
+  - Hook owns the entire Save flow: C7 multi-employee yearly+monthly, Scope 1 (Stationary/Mobile/Fugitive/generic) + Scope 2 generic + Scope 3 (C1–C6, C8–C15) + biogenic+scope1 + biogenic+scope3 + Process Emissions + edit-flow PUT path + audit-history persistence.
+  - Bug caught and fixed during testing (iter_83): `buildDecisionContext` and `extractInputsForCalcEngine` were passed as ctx shorthand but are module-level helpers, not local. Removed from both ctx shorthand AND hook destructure (the hook accesses them via `dispatchActiveModule.buildDecisionContext()` / `yearlyMod.extractInputsForCalcEngine()`). Verified via testing_agent_v3_fork iter_84: 100% PASS on RCA scope.
+  - 593 lines removed.
+
+- **Architecture decision**: User chose **Single-file orchestrator (no Container/UI split)**. Hook boundaries (useEmissionFormState / useEmissionFormEffects / useEmissionSubmit + canProceedToStepUtil + DynamicFieldRenderer) provide the structural separation logically; physical file split would only add prop-drilling overhead with no readability gain.
+
+- **Cumulative metrics (F1+F2+F3+F4+F5+F6 across this session)**:
+  - **EmissionEntryForm.js: 4120 → 2792 lines (−1328 lines, −32.2%)**.
+  - Inline `useState`: 79 → 0
+  - Inline `useEffect` (state + data-fetch): 9 → 0
+  - Inline `canProceedToStep` switch: 327 → 14 lines
+  - Inline `handleSubmit`: 615 → 24 lines (now just ctx assembly + hook call)
+  - Inline `renderDynamicField`: 187 → 16 lines (thin wrapper)
+  - Inline `getFieldUnitsForYearly`: 31 → 12 lines
+
+- **Verified** (iter_82, iter_83, iter_84):
+  - All 8 validation toast messages byte-identical to spec
+  - GET `/api/calc-engine/form-config/<id>` fires live on category selection (proves F3 wired)
+  - Step 1→2→3 navigation works
+  - ZERO new console errors / pageerrors after RCA fix
+  - Add Emission dialog opens cleanly; all native selects (Facility, Category, Fuel) populate
+  - Backend smoke: total_emissions=4194.63 byte-identical, health=passed/22 modules
+
+- **F6 Option A (Aggressive Lift to ~969 lines) NOT pursued** — Option B met the productivity goal at 30% the risk. Form now sits at 2792 lines with clean hook architecture; further lifting into category modules can be a future opt-in.
+
 ### Feb 2026 Session — EmissionEntryForm Refactor F1 + F2 + F3 + F4 COMPLETE
 
 **Feb 22, 2026 — F3 + F4 hook & util integration shipped (cumulative −551 lines, −13.4%)**
