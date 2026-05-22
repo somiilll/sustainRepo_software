@@ -3855,13 +3855,13 @@ export default function EmissionEntryForm({
       }
 
       // ===========================================
-      // CREATE MIGRATION PHASES C/D/E — Module dispatch
+      // CREATE MIGRATION PHASES C/D/E/F — Module dispatch
       // ===========================================
       // Routes through module helpers when:
       //   - frequencyType === 'monthly'
-      //   - scope is scope1/scope2/scope3 (NOT biogenic — Phase F)
+      //   - scope is scope1/scope2/scope3 OR biogenic (Phase F)
       //   - active module exposes buildCreatePayload
-      //   - category is NOT C7 (multi-employee — has its own legacy branch)
+      //   - category is NOT C7 (multi-employee — has its own dedicated branch)
       const dispatchActiveModule = (() => {
         if (frequencyType !== 'monthly') return null;
         const cat = (category || '').toLowerCase();
@@ -3882,6 +3882,16 @@ export default function EmissionEntryForm({
         } else if (scope === 'scope2') {
           // Phase E: Scope 2 (single generic module)
           mod = categoryRegistry.getGenericModule?.('scope2');
+        } else if (scope === 'biogenic') {
+          // Phase F: Biogenic — route to generic Scope 1 or Scope 3 fallback
+          // depending on biogenicScopeSelection. Skip biogenic-scope3 + C7.
+          if (biogenicScopeSelection === 'scope3') {
+            const codeMatch = cat.match(/^(c\d+)/);
+            if (codeMatch && codeMatch[1] === 'c7') return null;
+            mod = categoryRegistry.getGenericModule?.('scope3');
+          } else if (biogenicScopeSelection === 'scope1') {
+            mod = categoryRegistry.getGenericModule?.('scope1');
+          }
         }
 
         return mod?.buildCreatePayload ? mod : null;
