@@ -127,6 +127,7 @@ export default function OrganizationManagement() {
     max_users: 20,
     subscription_expires_at: '',
     enabled_access: ['scope1_2'],
+    approval_workflow_enabled: false,
     // SuperAdmin Internal Fields
     date_of_joining: '',
     selected_plan: '',
@@ -325,6 +326,7 @@ export default function OrganizationManagement() {
       max_users: org.max_users || 20,
       subscription_expires_at: org.subscription_expires_at ? org.subscription_expires_at.split('T')[0] : '',
       enabled_access: org.enabled_access || ['scope1_2'],
+      approval_workflow_enabled: !!org.approval_workflow_enabled,
       // SuperAdmin Internal Fields
       date_of_joining: org.date_of_joining ? org.date_of_joining.split('T')[0] : '',
       selected_plan: org.selected_plan || '',
@@ -363,6 +365,7 @@ export default function OrganizationManagement() {
       max_users: 20,
       subscription_expires_at: '',
       enabled_access: ['scope1_2'],
+      approval_workflow_enabled: false,
       // SuperAdmin Internal Fields
       date_of_joining: '',
       selected_plan: '',
@@ -625,6 +628,31 @@ export default function OrganizationManagement() {
                         <span className="text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded">Available</span>
                       </label>
                     </div>
+                  </div>
+
+                  {/* Approval Workflow Toggle */}
+                  <div className="pt-4 border-t border-stone-200">
+                    <Label className="text-sm font-medium">Approval Workflow</Label>
+                    <p className="text-xs text-text-muted mb-3">
+                      When enabled, every emission record submitted by a user (create, edit, delete) is held for admin review before it appears in dashboards or reports.
+                    </p>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={!!formData.approval_workflow_enabled}
+                        onChange={(e) => setFormData({ ...formData, approval_workflow_enabled: e.target.checked })}
+                        className="w-4 h-4 rounded border-stone-300 text-primary focus:ring-primary"
+                        data-testid="approval-workflow-toggle"
+                      />
+                      <span className="text-sm font-medium">Enable Approval Workflow</span>
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded ${formData.approval_workflow_enabled
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-stone-100 text-stone-600'}`}
+                      >
+                        {formData.approval_workflow_enabled ? 'On' : 'Off'}
+                      </span>
+                    </label>
                   </div>
                 </div>
               </div>
