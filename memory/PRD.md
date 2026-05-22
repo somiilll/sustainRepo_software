@@ -211,6 +211,27 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 - P1: Dashboard "No Data" after toggling organization Scope access
 - P2: C7 Edit Dialog Stale State (yearly financial periods not transforming correctly)
 
+- ✅ Phase 7l-I (Feb 2026): Bulk Upload Modularized — Pluggable Per-Scope Architecture
+  - **`BulkUpload.js`: 665 → 143 lines** (thin orchestrator). The previous monolithic page is split into **18 focused files** under `/app/frontend/src/modules/bulkUpload/` totaling ~1006 lines, each with a single responsibility.
+  - **Registry-based architecture** mirroring the emissions category registry: per-scope modules self-register on import; the page calls `bulkUploadRegistry.list(organization)` to discover available modules + computed status (`available` / `restricted` / `not_implemented`).
+  - **New file tree**:
+    - `core/registry.js` (60 lines) — `BulkUploadRegistry` class with `register/get/list/firstAvailable`. Computes runtime status per org's `enabled_access`.
+    - `core/bulkUploadConstants.js` (20 lines) — `MODULE_STATUS`, `ROW_STATUS`, file-extension constants.
+    - `scopes/Scope3Module.js` (35 lines) — **AVAILABLE** — fully wired to backend `/api/bulk-upload/scope3/*` (template, upload, save, errors, jobs).
+    - `scopes/Scope1Module.js` (39 lines) — **NOT_IMPLEMENTED** placeholder. Endpoints stubbed under `/api/bulk-upload/scope1/*`. UI shows "Coming soon" badge. Flip `notImplemented: false` when backend ships — no other code changes required.
+    - `scopes/Scope2Module.js` (36 lines) — **NOT_IMPLEMENTED** placeholder, mirrors Scope1.
+    - `shared/normalizers.js` (75 lines) — `validateFile`, `normalizeRowResult` (backend → UI shape), `normalizeCategoriesProcessed`, `formatEmissions`, `shortUploadId`.
+    - `shared/payloadBuilders.js` (30 lines) — `buildFileOnlyPayload` (current Scope 3) + `buildPayloadWithMeta` (extensible for future Scope 1/2 metadata).
+    - `shared/responseTransformer.js` (44 lines) — `defaultTransformValidationResponse` — backend `/upload` payload → UI's canonical `validationResult` shape. Per-scope modules can override via `module.transformValidationResponse`.
+    - `shared/apiService.js` (63 lines) — `createBulkUploadApiService(module, authHeader)` builds an axios layer using the module's endpoint URL templates (`{jobId}` interpolation included).
+    - `hooks/useBulkUpload.js` (187 lines) — module-aware orchestration hook: file upload + validate, save, download error report, download template, list jobs. Auto-resets state when active module changes (Scope tab switch).
+    - `components/ScopeTabSelector.jsx` (48 lines) — pill tabs with status-aware disabled/badge states.
+    - `components/UploadHistoryPanel.jsx`, `UploadDropzone.jsx`, `ValidationResultsCard.jsx` (106 lines), `ValidationResultsTable.jsx` (100 lines), `EmptyState.jsx`, `AccessDenied.jsx` — all small, focused presentational components.
+    - `index.js` — barrel boots all scopes via side-effect imports.
+  - **Page** (`/pages/BulkUpload.js`, 143 lines): loads org → computes available modules → defaults to first available scope → renders ScopeTabSelector + UploadDropzone + ValidationResultsCard + ValidationResultsTable. **Zero scope-specific logic** in the page.
+  - **Verified E2E**: logged in as `goyalsomil@hotmail.com` → /bulk-upload → all 3 scope tabs render (Scope 1 + Scope 2 with "Coming soon" badges, Scope 3 active by default). UploadDropzone shows Scope 3 description ("Value chain emissions (C1–C15)…"). EmptyState renders. All 8 expected data-testids present (`bulk-upload-page`, `bulk-upload-scope-tabs`, `scope-tab-scope1`, `scope-tab-scope2`, `scope-tab-scope3`, `upload-dropzone`, `bulk-upload-empty-state`, `toggle-history-btn`).
+  - **Architectural milestone**: future Scope 1/2 backend support requires NO frontend changes besides flipping `notImplemented: false` on the corresponding scope module file. The hook, page, and presentational components automatically pick up the new endpoints. Per-scope normalizers + payload builders + response transformers can also be customized inline in each module file without touching shared infrastructure.
+
 - ✅ Phase 7l-H (Feb 2026): Dashboard Modularized — Scope-Aware Variant Architecture
   - **`Dashboard.js`: 1481 → 33 lines** (router only). The previous monolithic dashboard is split into 12 focused files totaling 1463 lines — each file has a single responsibility.
   - **Variant architecture**: `Dashboard.js` calls `useDashboardData()` once and dispatches to either `DashboardScope12` (orgs without Scope 3 access) or `DashboardScope123` (orgs with `enabled_access` including 'scope1_2_3'). No double-fetching: hook output flows from router → variant → leaf components via prop.
