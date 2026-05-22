@@ -123,6 +123,143 @@ async def _refresh_approval_snapshot(entity_id: str, snapshot: dict) -> None:
         await update_request_snapshot(req["id"], snapshot)
 
 
+async def _auto_approve_admin_edit(
+    existing: dict,
+    source_collection: str,
+    record_data,
+    current_user: dict,
+) -> dict:
+    """Admin edit on a pending record → auto-approve into emission_records.
+
+    Handles both:
+      - pending_create: insert into emission_records, drop pending shadow.
+      - pending_update: apply edited values onto the approved record, drop shadow.
+    Finalizes the open approval_request, writes a history entry, and returns
+    the final approved record dict. Caller (intercept_update) returns
+    `("queue", final_record)` so the router does NOT double-write.
+    """
+    cur_status = existing.get("approval_status") or "approved"
+    is_pending_create = cur_status == "pending_create"
+    now = _now()
+
+    snapshot = record_data.model_dump(exclude_unset=True)
+
+    # Build the merged final record. Start from existing (preserves infra
+    # fields like organization_id, created_by, etc.), overlay edited fields,
+    # then stamp approved + admin metadata.
+    base = await db[APPROVED_COLLECTION].find_one({"id": existing["id"]}, {"_id": 0}) if not is_pending_create else None
+    base = base or existing
+    final_record = dict(base)
+    final_record.update(snapshot)
+    final_record["id"] = existing["id"]
+    final_record["approval_status"] = "approved"
+
+    # Recalculate denormalized emission fields from outputs.
+    outputs = final_record.get("outputs") or {}
+    final_record["co2_emissions"] = (outputs.get("co2") or {}).get("value", 0) or 0
+    final_record["ch4_emissions"] = (outputs.get("ch4") or {}).get("value", 0) or 0
+    final_record["n2o_emissions"] = (outputs.get("n2o") or {}).get("value", 0) or 0
+    final_record["co2e_emissions"] = (outputs.get("co2e") or {}).get("value", 0) or 0
+    final_record["total_emissions"] = final_record["co2e_emissions"]
+
+    # Version + admin metadata.
+    if is_pending_create:
+        final_record["version"] = 1
+    else:
+        final_record["version"] = (base.get("version", 0) or 0) + 1
+    final_record["updated_at"] = now
+    final_record["updated_by"] = current_user.get("id")
+    final_record["updated_by_email"] = current_user.get("email", "")
+    final_record["updated_by_name"] = current_user.get("full_name", "")
+    final_record.pop("_id", None)
+
+    # Persist into approved collection + cleanup pending shadow.
+    if is_pending_create:
+        await db[APPROVED_COLLECTION].insert_one(dict(final_record))
+        await db[PENDING_COLLECTION].delete_one({"id": existing["id"]})
+    else:
+        update_dict = {k: v for k, v in final_record.items() if k not in ("id", "_id")}
+        await db[APPROVED_COLLECTION].update_one(
+            {"id": existing["id"]}, {"$set": update_dict}
+        )
+        await db[PENDING_COLLECTION].delete_one({"id": existing["id"]})
+
+    # Finalize the open approval_request.
+    req = await db.approval_requests.find_one(
+        {"entity_type": "emission", "entity_id": existing["id"], "status": "pending"},
+        {"_id": 0, "id": 1},
+    )
+    if req:
+        await db.approval_requests.update_one(
+            {"id": req["id"]},
+            {"$set": {
+                "status": "approved",
+                "finalized_at": now,
+                "finalized_by": current_user.get("id"),
+                "final_comment": "Auto-approved via admin edit",
+                "entity_snapshot": snapshot,
+            }}
+        )
+
+    # Write history entry.
+    if is_pending_create:
+        history = {
+            "id": str(uuid.uuid4()),
+            "emission_id": existing["id"],
+            "facility_id": final_record.get("facility_id"),
+            "organization_id": final_record.get("organization_id"),
+            "changed_by": current_user.get("id"),
+            "changed_by_email": current_user.get("email", ""),
+            "changed_by_name": current_user.get("full_name", ""),
+            "changed_at": now,
+            "changes": {
+                "action": "created",
+                "old_values": None,
+                "new_values": final_record,
+            },
+        }
+    else:
+        field_changes = compute_field_changes(base, final_record)
+        history = {
+            "id": str(uuid.uuid4()),
+            "emission_id": existing["id"],
+            "facility_id": base.get("facility_id"),
+            "organization_id": base.get("organization_id"),
+            "scope": base.get("scope"),
+            "category": base.get("category"),
+            "changed_by": current_user.get("id"),
+            "changed_by_email": current_user.get("email", ""),
+            "changed_by_name": current_user.get("full_name", ""),
+            "changed_at": now,
+            "version": final_record["version"],
+            "field_changes": field_changes,
+            "changes_summary": f"{len(field_changes)} field(s) changed",
+            "changes": {
+                "action": "updated",
+                "old_values": base,
+                "new_values": final_record,
+            },
+        }
+    await db.emission_history.insert_one(history)
+
+    # Best-effort event-bus emission for live cockpit.
+    try:
+        from events.event_bus import event_bus, Events
+        ev = Events.EMISSION_SAVED if is_pending_create else Events.EMISSION_UPDATED
+        event_bus.emit_nowait(ev, {
+            "record_id": final_record["id"],
+            "scope": final_record.get("scope"),
+            "category": final_record.get("category"),
+            "facility_id": final_record.get("facility_id"),
+            "organization_id": final_record.get("organization_id"),
+            "user_id": current_user.get("id"),
+        })
+    except Exception:
+        pass
+
+    return final_record
+
+
 async def intercept_update(
     existing: dict,
     source_collection: str,
@@ -195,13 +332,12 @@ async def intercept_update(
 
     # --------------------- ADMIN / SUPER_ADMIN --------------------- #
     if role in ("admin", "super_admin"):
-        if cur_status == "pending_create":
-            await _refresh_approval_snapshot(existing["id"], snapshot)
-            return ("skip_history", {"target_collection": PENDING_COLLECTION})
-
-        if cur_status == "pending_update":
-            await _refresh_approval_snapshot(existing["id"], snapshot)
-            return ("skip_history", {"target_collection": PENDING_COLLECTION})
+        # Admin edit on a pending record auto-approves it.
+        if cur_status == "pending_create" or cur_status == "pending_update":
+            final_record = await _auto_approve_admin_edit(
+                existing, source_collection, record_data, current_user
+            )
+            return ("queue", final_record)
 
         if cur_status == "pending_delete":
             return ("block", {"detail": "Cannot edit a record awaiting deletion approval"})
@@ -297,25 +433,22 @@ async def intercept_delete(
 # ---------------------------------------------------------------------------
 
 async def fetch_pending_for_user(current_user: dict, base_query: dict) -> list:
-    """Return pending_emission_records visible to the given user.
+    """Return pending_emission_records visible in the GHG ledger.
 
-    `base_query` carries the same facility/period/scope filter as the approved
-    listing — we apply it to the pending collection too.
+    GHG ledger semantics (different from the Approvals inbox):
+      - super_admin / admin: should NOT see any pending / rejected records here.
+        Those live in the dedicated Approvals section. Returning [] keeps the
+        ledger showing only approved records.
+      - regular user: see only their own non-rejected pending submissions
+        (so the FE can stamp the "Pending for approval" badge).
     """
     role = current_user.get("role")
-    query = dict(base_query)
+    if role in ("super_admin", "admin"):
+        return []
 
-    if role == "super_admin":
-        pass
-    elif role == "admin":
-        org_id = current_user.get("organization_id")
-        if not org_id:
-            return []
-        query["organization_id"] = org_id
-    else:
-        # Regular user: only own submissions, hide everything that was rejected.
-        query["created_by"] = current_user.get("id")
-        query["approval_status"] = {"$nin": list(REJECTED_STATUSES)}
+    query = dict(base_query)
+    query["created_by"] = current_user.get("id")
+    query["approval_status"] = {"$nin": list(REJECTED_STATUSES)}
 
     return await db[PENDING_COLLECTION].find(query, {"_id": 0}).to_list(10000)
 
