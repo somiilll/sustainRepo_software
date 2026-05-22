@@ -142,6 +142,20 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     record_dict["updated_by_name"] = None
     
     await db.emission_records.insert_one(record_dict)
+
+    # Phase B11: emit emission.saved (best-effort; never break write path).
+    try:
+        from events.event_bus import event_bus, Events
+        event_bus.emit_nowait(Events.EMISSION_SAVED, {
+            "record_id": record_dict.get("id"),
+            "scope": record_data.scope,
+            "category": record_data.category,
+            "facility_id": record_data.facility_id,
+            "organization_id": record_dict.get("organization_id"),
+            "user_id": current_user.get("id"),
+        })
+    except Exception:
+        pass
     
     # AUTO-SYNC: Update base year emissions if a base year record exists for this facility
     # This ensures new scope+category combinations are automatically added to base year
@@ -418,6 +432,20 @@ async def update_emission_record(
     
     await db.emission_records.update_one({"id": record_id}, {"$set": update_dict})
     updated = await db.emission_records.find_one({"id": record_id}, {"_id": 0})
+
+    # Phase B11: emit emission.updated (best-effort).
+    try:
+        from events.event_bus import event_bus, Events
+        event_bus.emit_nowait(Events.EMISSION_UPDATED, {
+            "record_id": record_id,
+            "scope": record_data.scope,
+            "category": record_data.category,
+            "facility_id": record_data.facility_id,
+            "organization_id": existing.get("organization_id"),
+            "user_id": current_user.get("id"),
+        })
+    except Exception:
+        pass
     
     # Audit log
     await audit_logger.log(
@@ -546,6 +574,20 @@ async def delete_emission_record(record_id: str, current_user: dict = Depends(ge
     result = await db.emission_records.delete_one({"id": record_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Emission record not found")
+
+    # Phase B11: emit emission.deleted (best-effort).
+    try:
+        from events.event_bus import event_bus, Events
+        event_bus.emit_nowait(Events.EMISSION_DELETED, {
+            "record_id": record_id,
+            "scope": existing.get("scope"),
+            "category": existing.get("category"),
+            "facility_id": existing.get("facility_id"),
+            "organization_id": existing.get("organization_id"),
+            "user_id": current_user.get("id"),
+        })
+    except Exception:
+        pass
 
     audit_logger = get_audit_logger()
     await audit_logger.log(

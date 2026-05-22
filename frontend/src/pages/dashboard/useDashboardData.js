@@ -18,6 +18,7 @@ import axios from 'axios';
 import { format } from 'date-fns';
 import { useAuth } from '../../contexts/AuthContext';
 import { SCOPE_COLORS } from './dashboardConstants';
+import { useDashboardLiveStream } from './useDashboardLiveStream';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -36,7 +37,7 @@ const getPreviousFinancialYear = () => {
 };
 
 export function useDashboardData() {
-  const { getAuthHeader } = useAuth();
+  const { getAuthHeader, token } = useAuth();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [facilities, setFacilities] = useState([]);
@@ -46,9 +47,24 @@ export function useDashboardData() {
   const [showFacilityDropdown, setShowFacilityDropdown] = useState(false);
   const [organization, setOrganization] = useState(null);
   const [baseYearData, setBaseYearData] = useState({ direct: null, indirect: null });
+  const [isLive, setIsLive] = useState(false);
+  const [lastLiveUpdateAt, setLastLiveUpdateAt] = useState(null);
   const facilityDropdownRef = useRef(null);
 
   const hasScope3Access = organization?.enabled_access?.includes('scope1_2_3') || false;
+
+  // Live cockpit: re-fetch dashboard stats on backend emission/audit events.
+  useDashboardLiveStream({
+    token,
+    enabled: !!token,
+    onRefresh: () => {
+      setIsLive(true);
+      setLastLiveUpdateAt(new Date());
+      if (dateRange.from && dateRange.to) fetchStats();
+      // Also refresh base year data + facility list (rare, but cheap).
+      fetchBaseYearData();
+    },
+  });
 
   // Close facility dropdown on outside click
   useEffect(() => {
@@ -264,6 +280,8 @@ export function useDashboardData() {
     facilityDropdownRef,
     // derived
     filteredData, baseYearComparison,
+    // live cockpit
+    isLive, lastLiveUpdateAt,
     // helpers
     getPreviousFinancialYear,
   };

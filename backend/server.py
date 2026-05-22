@@ -77,6 +77,8 @@ from modules.emissions.router import router as emissions_router
 from modules.emissions.c7_router import router as c7_router
 # Phase B7: dashboards router (2 routes — /dashboard/stats, /dashboard/supplier-hotspots).
 from modules.dashboards.router import router as dashboards_router
+# Phase B11+: WebSocket live cockpit.
+from modules.dashboards.ws_router import router as dashboards_ws_router
 # Phase B8: reports router (5 routes — /reports/facility, /reports/combined,
 # /reports/ghg-inventory, /reports/download/{token}, /reports/ai-summary).
 from modules.reports.router import router as reports_router
@@ -106,6 +108,8 @@ api_router.include_router(emissions_router)
 api_router.include_router(c7_router)
 # Phase B7 router (Dashboards — 2 routes)
 api_router.include_router(dashboards_router)
+# Phase B11+ WebSocket router (Live cockpit — /ws/dashboard)
+api_router.include_router(dashboards_ws_router)
 # Phase B8 router (Reports — 5 routes)
 api_router.include_router(reports_router)
 # Phase B9 router (Super-admin / Platform Config — ~91 routes)

@@ -29,6 +29,7 @@ export default function DashboardScope123({ data }) {
     showFacilityDropdown, setShowFacilityDropdown,
     facilityDropdownRef,
     filteredData, baseYearComparison,
+    isLive, lastLiveUpdateAt,
     getPreviousFinancialYear,
   } = data;
 
@@ -43,7 +44,12 @@ export default function DashboardScope123({ data }) {
 
   return (
     <div className="space-y-8" data-testid="dashboard-scope123">
-      <DashboardHeader showFilters={showFilters} onToggleFilters={() => setShowFilters(!showFilters)} />
+      <DashboardHeader
+        showFilters={showFilters}
+        onToggleFilters={() => setShowFilters(!showFilters)}
+        isLive={isLive}
+        lastLiveUpdateAt={lastLiveUpdateAt}
+      />
 
       {showFilters && (
         <DashboardFilters
