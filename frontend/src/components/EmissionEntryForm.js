@@ -22,6 +22,8 @@ import {
   FINANCIAL_YEAR_MONTHS,
 } from '../modules/ghg/emissions/shared/constants/emission-form-constants';
 import useEmissionFormState from '../modules/ghg/emissions/shared/hooks/useEmissionFormState';
+import useEmissionFormEffects from '../modules/ghg/emissions/shared/hooks/useEmissionFormEffects';
+import { canProceedToStep as canProceedToStepUtil } from '../modules/ghg/emissions/shared/utils/validation';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -170,174 +172,31 @@ export default function EmissionEntryForm({
   } = _formState;
 
 
-  // Fetch form config when scope + category changes
-  useEffect(() => {
-    const fetchFormConfig = async () => {
-      // Determine the effective scope for category lookup
-      // - Biogenic Scope 1: fuel_database has scope='biogenic', so look for scope_code === 'biogenic'
-      // - Biogenic Scope 3: uses Scope 3 biogenic categories, so look for scope_code === 'scope3'
-      let effectiveScope = scope;
-      if (scope === 'biogenic') {
-        if (biogenicScopeSelection === 'scope3') {
-          effectiveScope = 'scope3';
-        } else if (biogenicScopeSelection === 'scope1') {
-          effectiveScope = 'biogenic'; // Biogenic Scope 1 uses biogenic categories from fuel_database
-        }
-      }
-      
-      // Find category ID from dynamicCategories
-      const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === effectiveScope);
-      
-      if (!categoryObj?.id) {
-        setFormConfig(null);
-        return;
-      }
-      
-      setLoadingFormConfig(true);
-      try {
-        const response = await axios.get(
-          `${API}/calc-engine/form-config/${categoryObj.id}`,
-          {
-            params: { scope: effectiveScope },
-            headers: getAuthHeader()
-          }
-        );
-        setFormConfig(response.data);
-        setCalcEngineResult(null);
-      } catch (error) {
-        setFormConfig(null);
-      } finally {
-        setLoadingFormConfig(false);
-      }
-    };
-    
-    // Check if it's a process emission (inline check to avoid initialization order issues)
-    const isProcess = category === 'Process Emissions';
-    
-    // For biogenic, also need biogenicScopeSelection to be set
-    const biogenicReady = scope !== 'biogenic' || biogenicScopeSelection;
-    
-    if (scope && category && !isProcess && !useCustomFuel && biogenicReady) {
-      fetchFormConfig();
-    } else {
-      setFormConfig(null);
-    }
-  }, [scope, category, dynamicCategories, getAuthHeader, useCustomFuel, biogenicScopeSelection]);
+  // ============================================================================
+  // F3: Centralized data-fetching effects — replaces 5 inline useEffects
+  // (form-config fetch, fugitive emissions fetch, scope3-ef fetch, biogenic
+  // categories fetch, biogenic scope3-ef fetch). Logic byte-identical.
+  // ============================================================================
+  useEmissionFormEffects({
+    scope,
+    category,
+    biogenicScopeSelection,
+    dynamicCategories,
+    useCustomFuel,
+    getAuthHeader,
+    setFormConfig,
+    setLoadingFormConfig,
+    setCalcEngineResult,
+    setScope3EFData,
+    setLoadingScope3EF,
+    setBiogenicCategories,
+    setLoadingBiogenicCategories,
+    setFugitiveEmissionsData,
+  });
 
   // Sync decisionFieldValues + custom-activity auto-enable now live inside
   // useEmissionFormState (F2 integration). The corresponding inline useEffects
   // were removed here.
-
-  // Fetch fugitive emissions data from fuel_database (Scope 1 fugitive emissions)
-  useEffect(() => {
-    const fetchFugitiveEmissions = async () => {
-      try {
-        // Fetch all fuels and filter for fugitive emissions
-        const response = await axios.get(`${API}/fuel-database`, {
-          headers: getAuthHeader()
-        });
-        const allFuels = response.data || [];
-        
-        // Filter for Fugitive Emissions category and map to activity format
-        const fugitiveActivities = allFuels
-          .filter(f => f.category === 'Fugitive Emissions' || f.categories?.includes('Fugitive Emissions'))
-          .filter(f => f.gwp_fugitives !== null && f.gwp_fugitives !== undefined)
-          .map(f => ({
-            id: f.id,
-            activity: f.fuel_name,
-            emission_factor: f.gwp_fugitives,
-            unit: 'kgCO2e/kg',
-            source: f.source || 'Fugitive Emissions',
-            allowed_units: f.allowed_units || ['kg', 'g', 't'],
-            default_unit: 'kg'
-          }));
-        
-        setFugitiveEmissionsData(fugitiveActivities);
-      } catch (error) {
-        console.error('Failed to fetch fugitive emissions:', error);
-        setFugitiveEmissionsData([]);
-      }
-    };
-    fetchFugitiveEmissions();
-  }, [getAuthHeader]);
-
-  // Fetch Scope 3 EF data when scope is scope3
-  useEffect(() => {
-    const fetchScope3EF = async () => {
-      if (scope !== 'scope3') {
-        setScope3EFData([]);
-        return;
-      }
-      
-      setLoadingScope3EF(true);
-      try {
-        // Fetch all scope3 EF data (bypass pagination for emission entry)
-        const response = await axios.get(`${API}/scope3-ef?limit=10000`, {
-          headers: getAuthHeader()
-        });
-        // Handle both paginated response (response.data.data) and direct array response
-        const efData = response.data?.data || response.data || [];
-        setScope3EFData(Array.isArray(efData) ? efData : []);
-      } catch (error) {
-        console.error('[Scope3 EF] Error fetching:', error);
-        setScope3EFData([]);
-      } finally {
-        setLoadingScope3EF(false);
-      }
-    };
-    
-    fetchScope3EF();
-  }, [scope, getAuthHeader]);
-
-  // Fetch biogenic categories when biogenic tab is active and scope3 is selected
-  useEffect(() => {
-    const fetchBiogenicCategories = async () => {
-      if (scope !== 'biogenic' || biogenicScopeSelection !== 'scope3') {
-        return;
-      }
-      
-      setLoadingBiogenicCategories(true);
-      try {
-        const response = await axios.get(`${API}/scope3-ef/categories-by-sub-scope?sub_scope=biogenic`, {
-          headers: getAuthHeader()
-        });
-        setBiogenicCategories(response.data?.categories || []);
-      } catch (error) {
-        console.error('[Biogenic] Error fetching categories:', error);
-        setBiogenicCategories([]);
-      } finally {
-        setLoadingBiogenicCategories(false);
-      }
-    };
-    
-    fetchBiogenicCategories();
-  }, [scope, biogenicScopeSelection, getAuthHeader]);
-
-  // Fetch biogenic scope3_ef data when biogenic + scope3 is selected
-  useEffect(() => {
-    const fetchBiogenicScope3EF = async () => {
-      if (scope !== 'biogenic' || biogenicScopeSelection !== 'scope3') {
-        return;
-      }
-      
-      setLoadingScope3EF(true);
-      try {
-        // Fetch scope3_ef with sub_scope=biogenic filter
-        const response = await axios.get(`${API}/scope3-ef?sub_scope=biogenic&limit=10000`, {
-          headers: getAuthHeader()
-        });
-        const efData = response.data?.data || response.data || [];
-        setScope3EFData(Array.isArray(efData) ? efData : []);
-      } catch (error) {
-        console.error('[Biogenic Scope3 EF] Error fetching:', error);
-        setScope3EFData([]);
-      } finally {
-        setLoadingScope3EF(false);
-      }
-    };
-    
-    fetchBiogenicScope3EF();
-  }, [scope, biogenicScopeSelection, getAuthHeader]);
 
   // Filter Scope 3 activities based on category, method, industry sector, and year
   // Note: selectedFacility is defined below after fuelDatabase useMemo
@@ -2523,335 +2382,23 @@ export default function EmissionEntryForm({
     return 0;
   }, [monthlyData, yearlyData, frequencyType, isProcessEmissions, selectedTemplate, dynamicInputFields, isC7EmployeeCommuting, employees]);
 
-  // Validation for each step
-  const canProceedToStep = (step) => {
-    switch (step) {
-      case 2:
-        if (!facilityId) return { valid: false, message: 'Please select a facility' };
-        if (!scope) return { valid: false, message: 'Please select a scope' };
-        if (!category) return { valid: false, message: 'Please select a category' };
-        
-        // Process Emissions validation for Step 1
-        if (isProcessEmissions) {
-          if (!selectedSubIndustry) return { valid: false, message: 'Please select a sub-industry' };
-          if (!selectedTemplate) return { valid: false, message: 'Please select an approach/template' };
-          return { valid: true };
-        }
-        
-        // Scope 3 validation
-        if (scope === 'scope3') {
-          if (!scope3Method) return { valid: false, message: 'Please select a calculation method' };
-          // For supplier_basis with custom activity toggle ON, check custom activity
-          // Otherwise check selected activity from dropdown
-          if (scope3Method === 'supplier_basis' && useCustomActivity) {
-            if (!scope3CustomActivity?.trim()) return { valid: false, message: 'Please enter an activity name' };
-          } else {
-            if (!scope3ActivityId) return { valid: false, message: 'Please select an activity type' };
-          }
-          return { valid: true };
-        }
-        
-        // Biogenic Scope 3 validation (uses activities like regular Scope 3)
-        if (scope === 'biogenic' && biogenicScopeSelection === 'scope3') {
-          if (!scope3Method) return { valid: false, message: 'Please select a calculation method' };
-          // For supplier_basis with custom activity toggle ON, check custom activity
-          if (scope3Method === 'supplier_basis' && useCustomActivity) {
-            if (!scope3CustomActivity?.trim()) return { valid: false, message: 'Please enter an activity name' };
-          } else {
-            if (!scope3ActivityId) return { valid: false, message: 'Please select a biogenic activity' };
-          }
-          return { valid: true };
-        }
-        
-        // Biogenic validation - must select scope1 or scope3
-        if (scope === 'biogenic' && !biogenicScopeSelection) {
-          return { valid: false, message: 'Please select a biogenic emission type (Scope 1 or Scope 3)' };
-        }
-        
-        // Regular fuel emissions validation (Scope 1, 2, Biogenic Scope 1)
-        if (!useCustomFuel && !fuelId) return { valid: false, message: 'Please select a fuel type' };
-        if (useCustomFuel && !customFuelName) return { valid: false, message: 'Please enter custom fuel name' };
-        if (useCustomFuel && !customEmissionFactor) return { valid: false, message: 'Please enter emission factor' };
-        // Justification is mandatory for custom fuel type
-        if (useCustomFuel && !customSource?.trim()) return { valid: false, message: 'Please enter source/justification for custom fuel type' };
-        return { valid: true };
-      case 3:
-        // For process emissions, only validate responsible person (no process names needed)
-        if (isProcessEmissions) {
-          if (!responsiblePerson.trim()) return { valid: false, message: 'Please enter person responsible' };
-          return { valid: true };
-        }
-        // For regular emissions, validate process names and responsible person
-        const validProcesses = processNames.filter(p => p.name && p.name.trim() !== '');
-        if (validProcesses.length === 0) return { valid: false, message: 'Please enter at least one process name' };
-        
-        // Check if all processes with names have descriptions
-        const processesWithoutDescription = validProcesses.filter(p => !p.description || p.description.trim() === '');
-        if (processesWithoutDescription.length > 0) {
-          return { valid: false, message: `Please add description for process: "${processesWithoutDescription[0].name}"` };
-        }
-        
-        if (!responsiblePerson.trim()) return { valid: false, message: 'Please enter person responsible' };
-        
-        // Asset Name validation for C8/C13/C14/C15
-        if (requiresAssetName && !assetName?.trim()) {
-          return { valid: false, message: 'Please enter asset name' };
-        }
-        
-        return { valid: true };
-      case 4:
-        // For C7 Employee Commuting, check if at least one employee has calculated data
-        if (isC7EmployeeCommuting) {
-          if (employees.length === 0) {
-            return { valid: false, message: 'Please add at least one employee' };
-          }
-          
-          // For supplier_basis: validate units for all employees
-          if (scope3Method === 'supplier_basis') {
-            const requiredFields = dynamicInputFields.filter(f => f.required && !f.isOverride);
-            
-            if (frequencyType === 'yearly') {
-              // Validate yearly data units for all employees
-              for (const emp of employees) {
-                const inputs = emp.yearly_data?.inputs || {};
-                const hasYearlyData = Object.values(inputs).some(v => 
-                  v !== '' && v !== null && v !== undefined && v !== 0
-                );
-                
-                if (hasYearlyData) {
-                  for (const field of requiredFields) {
-                    const value = inputs[field.variable];
-                    const unit = inputs[`${field.variable}_unit`];
-                    if (value && value !== '' && value !== 0) {
-                      if (!unit || unit.trim() === '') {
-                        const empName = emp.name || 'Unnamed employee';
-                        return { valid: false, message: `Please enter unit for "${field.label}" for ${empName}` };
-                      }
-                    }
-                  }
-                }
-              }
-            } else {
-              // Validate monthly data units for all employees
-              for (const emp of employees) {
-                for (const [monthKey, monthData] of Object.entries(emp.monthly_data || {})) {
-                  const inputs = monthData?.inputs || {};
-                  const hasMonthData = Object.values(inputs).some(v => 
-                    v !== '' && v !== null && v !== undefined && v !== 0
-                  );
-                  
-                  if (hasMonthData) {
-                    for (const field of requiredFields) {
-                      const value = inputs[field.variable];
-                      const unit = inputs[`${field.variable}_unit`];
-                      if (value && value !== '' && value !== 0) {
-                        if (!unit || unit.trim() === '') {
-                          const empName = emp.name || 'Unnamed employee';
-                          const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
-                          return { valid: false, message: `Please enter unit for "${field.label}" for ${empName} in ${monthName}` };
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-          
-          // Check based on frequency type
-          if (frequencyType === 'yearly') {
-            // For yearly mode, check if at least one employee has yearly calculation
-            const hasYearlyData = employees.some(emp => 
-              emp.yearly_data?.emissions?.co2e !== null && emp.yearly_data?.emissions?.co2e !== undefined
-            );
-            if (!hasYearlyData) {
-              return { valid: false, message: 'Please calculate emissions for at least one employee' };
-            }
-          } else {
-            // For monthly mode, check monthly data
-            const hasCalculatedData = employees.some(emp => 
-              Object.values(emp.monthly_data || {}).some(m => m?.emissions?.co2e !== null && m?.emissions?.co2e !== undefined)
-            );
-            if (!hasCalculatedData) {
-              return { valid: false, message: 'Please calculate emissions for at least one employee month' };
-            }
-          }
-          return { valid: true };
-        }
-        
-        // For yearly mode (non-C7), check yearlyData instead of monthly
-        if (frequencyType === 'yearly') {
-          // Check if yearly data has values
-          const hasYearlyInput = Object.values(yearlyData || {}).some(v => v !== '' && v !== null && v !== undefined);
-          if (!hasYearlyInput) {
-            return { valid: false, message: 'Please enter annual data values' };
-          }
-          
-          // For supplier_basis: Validate units are provided for Qty Used and Emission Factor
-          if (scope3Method === 'supplier_basis') {
-            // Check Qty Used unit
-            const qtyValue = yearlyData?.activity_value_supplier_based;
-            const qtyUnit = yearlyData?.activity_value_supplier_based_unit || yearlyData?.unit;
-            if (qtyValue && (!qtyUnit || qtyUnit.trim() === '')) {
-              return { valid: false, message: 'Please enter unit for "Quantity Used"' };
-            }
-            
-            // Check Emission Factor unit
-            const efValue = yearlyData?.emission_factor_supplier_based;
-            const efUnit = yearlyData?.emission_factor_supplier_based_unit;
-            if (efValue && (!efUnit || efUnit.trim() === '')) {
-              return { valid: false, message: 'Please enter unit for "Emission Factor"' };
-            }
-          }
-          
-          // Validate override and optional fields - if checkbox is checked, value must be entered
-          const overrideAndOptionalFields = dynamicInputFields.filter(f => f.isOverride || (!f.required && !f.isOverride));
-          for (const field of overrideAndOptionalFields) {
-            const overrideKey = `override_${field.variable}`;
-            const isCheckboxChecked = yearlyData[overrideKey] === true || yearlyData[overrideKey] === 'true';
-            const value = yearlyData[field.variable];
-            const hasValue = value !== '' && value !== null && value !== undefined && value !== 0;
-            
-            if (isCheckboxChecked && !hasValue) {
-              const fieldLabel = typeof field.label === 'object' ? field.label.value : (field.label || field.variable);
-              return { valid: false, message: `Please enter a value for "${fieldLabel}" or uncheck the Override Default checkbox` };
-            }
-          }
-          
-          return { valid: true };
-        }
-        
-        if (filledMonthsCount === 0) return { valid: false, message: 'Please enter data for at least one month' };
-        
-        // Validate mandatory formula fields for each filled month
-        // Only check REQUIRED (non-optional) inputs
-        if (dynamicInputFields.length > 0) {
-          const requiredFields = dynamicInputFields.filter(f => f.required && !f.isOverride);
-          
-          for (const [monthKey, data] of Object.entries(monthlyData)) {
-            // Check if user has entered data in ANY of the required formula fields
-            const hasAnyRequiredData = requiredFields.some(field => {
-              const value = data[field.variable] || data[field.fieldKey];
-              return value !== '' && value !== null && value !== undefined;
-            });
-            
-            // If user started filling required fields, ALL required fields must be filled
-            if (hasAnyRequiredData) {
-              for (const field of requiredFields) {
-                const value = data[field.variable] || data[field.fieldKey];
-                if (value === '' || value === null || value === undefined) {
-                  const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
-                  const fieldLabel = typeof field.label === 'object' ? field.label.value : (field.label || field.variable);
-                  return { valid: false, message: `Please fill in "${fieldLabel}" for ${monthName}` };
-                }
-              }
-              
-              // For supplier_basis: Validate units are provided for Qty Used and Emission Factor
-              if (scope3Method === 'supplier_basis') {
-                const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
-                
-                // Check Qty Used unit
-                const qtyField = requiredFields.find(f => 
-                  f.variable === 'activity_value_supplier_based' || 
-                  f.variable?.toLowerCase().includes('quantity') ||
-                  f.label?.toLowerCase?.().includes('quantity')
-                );
-                if (qtyField) {
-                  const qtyValue = data[qtyField.variable] || data[qtyField.fieldKey];
-                  const qtyUnit = data[`${qtyField.variable}_unit`] || data.activity_value_supplier_based_unit;
-                  if (qtyValue && (!qtyUnit || qtyUnit.trim() === '')) {
-                    return { valid: false, message: `Please enter unit for "Quantity Used" in ${monthName}` };
-                  }
-                }
-                
-                // Check Emission Factor unit
-                const efField = requiredFields.find(f => 
-                  f.variable === 'emission_factor_supplier_based' || 
-                  f.variable?.toLowerCase().includes('emission_factor') ||
-                  f.label?.toLowerCase?.().includes('emission factor')
-                );
-                if (efField) {
-                  const efValue = data[efField.variable] || data[efField.fieldKey];
-                  const efUnit = data[`${efField.variable}_unit`] || data.emission_factor_supplier_based_unit;
-                  if (efValue && (!efUnit || efUnit.trim() === '')) {
-                    return { valid: false, message: `Please enter unit for "Emission Factor" in ${monthName}` };
-                  }
-                }
-              }
-            }
-          }
-        }
-        
-        // Validate override and optional fields - if checkbox is checked, value must be entered
-        const overrideAndOptionalFields = dynamicInputFields.filter(f => f.isOverride || (!f.required && !f.isOverride));
-        for (const [monthKey, data] of Object.entries(monthlyData)) {
-          for (const field of overrideAndOptionalFields) {
-            const isCheckboxChecked = data[`override_${field.variable}`];
-            const value = data[field.variable] || data[field.fieldKey];
-            const hasValue = value !== '' && value !== null && value !== undefined && value !== 0;
-            
-            if (isCheckboxChecked && !hasValue) {
-              const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
-              const fieldLabel = typeof field.label === 'object' ? field.label.value : (field.label || field.variable);
-              return { valid: false, message: `Please enter a value for "${fieldLabel}" in ${monthName} or uncheck the Override Default checkbox` };
-            }
-          }
-        }
-        
-        // Validate that custom EF months have justification (only for regular emissions)
-        // Also auto-unselect overrides if no value entered
-        if (!isProcessEmissions) {
-          for (const [monthKey, data] of Object.entries(monthlyData)) {
-            // Auto-unselect custom EF if no value entered
-            if (data.useCustomEmissionFactor && !data.customEmissionFactor) {
-              updateMonthData(monthKey, 'useCustomEmissionFactor', false);
-              const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
-              return { valid: false, message: `Custom Emission Factor in ${monthName} was unselected because no value was entered. Please review and try again.` };
-            }
-            if (data.quantity && data.useCustomEmissionFactor && !data.customEmissionFactorSource?.trim()) {
-              const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
-              return { valid: false, message: `Please enter source/justification for custom emission factor in ${monthName}` };
-            }
-            // Auto-unselect calorific value override if no value entered
-            if (data.overrideCalorificValue && !data.calorificValue) {
-              updateMonthData(monthKey, 'overrideCalorificValue', false);
-              const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
-              return { valid: false, message: `Calorific Value override in ${monthName} was unselected because no value was entered. Please review and try again.` };
-            }
-            // Validate calorific value override justification
-            if (data.quantity && data.overrideCalorificValue && data.calorificValue && !data.calorificValueJustification?.trim()) {
-              const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
-              return { valid: false, message: `Please enter justification for calorific value override in ${monthName}` };
-            }
-            // Auto-unselect density override if no value entered
-            if (data.overrideDensity && !data.density) {
-              updateMonthData(monthKey, 'overrideDensity', false);
-              const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
-              return { valid: false, message: `Density override in ${monthName} was unselected because no value was entered. Please review and try again.` };
-            }
-            // Validate density override justification
-            if (data.quantity && data.overrideDensity && data.density && !data.densityJustification?.trim()) {
-              const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
-              return { valid: false, message: `Please enter justification for density override in ${monthName}` };
-            }
-            // Auto-unselect emission factor (heat basis) override if no value entered
-            if (data.overrideEmissionFactorHeat && !data.emissionFactorHeat) {
-              updateMonthData(monthKey, 'overrideEmissionFactorHeat', false);
-              const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
-              return { valid: false, message: `Custom CO2 Emission Factor (Heat Basis) override in ${monthName} was unselected because no value was entered. Please review and try again.` };
-            }
-            // Validate emission factor (heat basis) override justification
-            if (data.quantity && data.overrideEmissionFactorHeat && data.emissionFactorHeat && !data.emissionFactorHeatJustification?.trim()) {
-              const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
-              return { valid: false, message: `Please enter justification for Custom CO2 Emission Factor (Heat Basis) override in ${monthName}` };
-            }
-          }
-        }
-        return { valid: true };
-      default:
-        return { valid: true };
-    }
-  };
+  // F4: Validation dispatcher delegates to extracted utils.
+  // The util `canProceedToStep` covers cases 2/3/4 (legacy case 5 default-true preserved).
+  const canProceedToStep = (step) => canProceedToStepUtil(step, {
+    // Step 1 params
+    facilityId, scope, category,
+    isProcessEmissions, selectedSubIndustry, selectedTemplate,
+    scope3Method, scope3ActivityId, useCustomActivity, scope3CustomActivity,
+    biogenicScopeSelection,
+    useCustomFuel, fuelId, customFuelName, customEmissionFactor, customSource,
+    // Step 2 params
+    processNames, responsiblePerson, requiresAssetName, assetName,
+    // Step 3 params
+    isC7EmployeeCommuting, employees, dynamicInputFields,
+    frequencyType, yearlyData, monthlyData, filledMonthsCount,
+    updateMonthData,
+  });
+
 
   const handleNext = () => {
     const validation = canProceedToStep(currentStep + 1);

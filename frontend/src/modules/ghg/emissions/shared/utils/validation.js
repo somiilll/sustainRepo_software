@@ -298,6 +298,70 @@ export const validateStep3 = ({
     }
   }
 
+  // Validate override and optional fields - if checkbox is checked, value must be entered
+  const overrideAndOptionalFields = dynamicInputFields.filter(f => f.isOverride || (!f.required && !f.isOverride));
+  for (const [monthKey, data] of Object.entries(monthlyData)) {
+    for (const field of overrideAndOptionalFields) {
+      const isCheckboxChecked = data[`override_${field.variable}`];
+      const value = data[field.variable] || data[field.fieldKey];
+      const hasValue = value !== '' && value !== null && value !== undefined && value !== 0;
+
+      if (isCheckboxChecked && !hasValue) {
+        const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+        const fieldLabel = typeof field.label === 'object' ? field.label.value : (field.label || field.variable);
+        return { valid: false, message: `Please enter a value for "${fieldLabel}" in ${monthName} or uncheck the Override Default checkbox` };
+      }
+    }
+  }
+
+  // Validate that custom EF months have justification (only for regular emissions).
+  // Auto-unselect overrides whose value was cleared (mutates state via updateMonthData
+  // callback — preserved from legacy inline validation for byte-identical behaviour).
+  if (!isProcessEmissions) {
+    for (const [monthKey, data] of Object.entries(monthlyData)) {
+      // Auto-unselect custom EF if no value entered
+      if (data.useCustomEmissionFactor && !data.customEmissionFactor) {
+        updateMonthData?.(monthKey, 'useCustomEmissionFactor', false);
+        const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+        return { valid: false, message: `Custom Emission Factor in ${monthName} was unselected because no value was entered. Please review and try again.` };
+      }
+      if (data.quantity && data.useCustomEmissionFactor && !data.customEmissionFactorSource?.trim()) {
+        const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+        return { valid: false, message: `Please enter source/justification for custom emission factor in ${monthName}` };
+      }
+      // Auto-unselect calorific value override if no value entered
+      if (data.overrideCalorificValue && !data.calorificValue) {
+        updateMonthData?.(monthKey, 'overrideCalorificValue', false);
+        const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+        return { valid: false, message: `Calorific Value override in ${monthName} was unselected because no value was entered. Please review and try again.` };
+      }
+      if (data.quantity && data.overrideCalorificValue && data.calorificValue && !data.calorificValueJustification?.trim()) {
+        const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+        return { valid: false, message: `Please enter justification for calorific value override in ${monthName}` };
+      }
+      // Auto-unselect density override if no value entered
+      if (data.overrideDensity && !data.density) {
+        updateMonthData?.(monthKey, 'overrideDensity', false);
+        const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+        return { valid: false, message: `Density override in ${monthName} was unselected because no value was entered. Please review and try again.` };
+      }
+      if (data.quantity && data.overrideDensity && data.density && !data.densityJustification?.trim()) {
+        const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+        return { valid: false, message: `Please enter justification for density override in ${monthName}` };
+      }
+      // Auto-unselect emission factor (heat basis) override if no value entered
+      if (data.overrideEmissionFactorHeat && !data.emissionFactorHeat) {
+        updateMonthData?.(monthKey, 'overrideEmissionFactorHeat', false);
+        const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+        return { valid: false, message: `Custom CO2 Emission Factor (Heat Basis) override in ${monthName} was unselected because no value was entered. Please review and try again.` };
+      }
+      if (data.quantity && data.overrideEmissionFactorHeat && data.emissionFactorHeat && !data.emissionFactorHeatJustification?.trim()) {
+        const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+        return { valid: false, message: `Please enter justification for Custom CO2 Emission Factor (Heat Basis) override in ${monthName}` };
+      }
+    }
+  }
+
   return { valid: true };
 };
 
