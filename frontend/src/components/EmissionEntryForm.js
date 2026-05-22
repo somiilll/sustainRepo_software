@@ -21,6 +21,7 @@ import {
   CALENDAR_YEAR_MONTHS,
   FINANCIAL_YEAR_MONTHS,
 } from '../modules/ghg/emissions/shared/constants/emission-form-constants';
+import useEmissionFormState from '../modules/ghg/emissions/shared/hooks/useEmissionFormState';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -84,67 +85,90 @@ export default function EmissionEntryForm({
     }
     return defaultLabels[method] || method.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   }, [configLabels]);
-  // Form step state
-  const [currentStep, setCurrentStep] = useState(1);
-  const totalSteps = 4; // Keep 4 steps: Scope/Category, Subcategory/Activity, Year+Frequency+Data, Notes
-
-  // Step 1: Basic Selection
-  const [facilityId, setFacilityId] = useState('');
-  const [scope, setScope] = useState('scope1');
-  const [category, setCategory] = useState('');
-  const [fuelId, setFuelId] = useState('');
-  const [useCustomFuel, setUseCustomFuel] = useState(false);
-  const [customFuelName, setCustomFuelName] = useState('');
-  const [customEmissionFactor, setCustomEmissionFactor] = useState('');
-  const [customEmissionFactorUnit, setCustomEmissionFactorUnit] = useState('tCO2/kg'); // Default unit
-  const [customSource, setCustomSource] = useState('');
-  const [isSaving, setIsSaving] = useState(false); // Prevent duplicate submissions
-  const [fuelSearchTerm, setFuelSearchTerm] = useState(''); // Search filter for fuel types
-
-  // Scope 3 specific state
-  const [scope3Method, setScope3Method] = useState(''); // spend_basis or activity_basis
-  const [scope3EFData, setScope3EFData] = useState([]); // Scope 3 EF table data
-  const [scope3ActivityId, setScope3ActivityId] = useState(''); // Selected activity from Scope 3 EF
-  const [scope3ActivityType, setScope3ActivityType] = useState(''); // Activity type filter for C6/C7
-  const [scope3Subcategory, setScope3Subcategory] = useState(''); // Subcategory for C8/C10/C11/C13/C14
-  const [scope3CustomActivity, setScope3CustomActivity] = useState(''); // Custom activity name for supplier_basis
-  const [useCustomActivity, setUseCustomActivity] = useState(false); // Toggle for custom activity in supplier_basis
-  const [fugitiveEmissionsData, setFugitiveEmissionsData] = useState([]); // Fugitive emissions from gwp_fugitives
-  const [loadingScope3EF, setLoadingScope3EF] = useState(false);
-  const [assetName, setAssetName] = useState(''); // Asset Name for C8/C13/C14/C15
-  const [fromLocation, setFromLocation] = useState(''); // From Location for C4/C6/C9
-  const [toLocation, setToLocation] = useState(''); // To Location for C4/C6/C9
-  
-  // Biogenic-specific state
-  const [biogenicScopeSelection, setBiogenicScopeSelection] = useState(''); // 'scope1' or 'scope3' when biogenic is active
-  const [biogenicCategories, setBiogenicCategories] = useState([]); // Categories that have biogenic entries
-  const [loadingBiogenicCategories, setLoadingBiogenicCategories] = useState(false);
-  
-  // Multi-Employee state (for C7 Employee Commuting)
-  // C7 always uses multi-employee mode - no toggle needed
-  const [employees, setEmployees] = useState([]);
-  const [employeeMonthlyTotals, setEmployeeMonthlyTotals] = useState({});
-  const [employeeYearlyTotal, setEmployeeYearlyTotal] = useState({});
-  const [isCalculatingEmployee, setIsCalculatingEmployee] = useState(false);
-  const [c7FormulaId, setC7FormulaId] = useState(null);  // Track formula used for C7 calculations
-  const [c7FormulaName, setC7FormulaName] = useState('');  // Track formula name
-  
-  // Decision tree field values - tracks all decision field selections dynamically
-  const [decisionFieldValues, setDecisionFieldValues] = useState({});
-
-  // Process Emissions state
-  const [selectedSubIndustry, setSelectedSubIndustry] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState(null);
-  const [templateInputValues, setTemplateInputValues] = useState({});
 
   // ============================================================================
-  // Dynamic Form Config from Backend (Phase 3 - Calc Engine Integration)
+  // F2: Centralized form state — replaces ~60 inline useState calls.
+  // The hook also owns 4 useEffects (org year-type sync, decisionFieldValues sync,
+  // custom-activity auto-enable, editingEmission frequency_type/yearlyData load).
+  // Those inline useEffects below this block were removed during F2 integration.
   // ============================================================================
-  const [formConfig, setFormConfig] = useState(null);
-  const [loadingFormConfig, setLoadingFormConfig] = useState(false);
-  const [calcEngineResult, setCalcEngineResult] = useState(null);
-  const [isCalcEngineCalculating, setIsCalcEngineCalculating] = useState(false);
-  const [matchedFormulaId, setMatchedFormulaId] = useState(null); // Store the matched formula ID for saving
+  const _formState = useEmissionFormState({ organization, editingEmission });
+  const {
+    // Step navigation
+    currentStep, setCurrentStep,
+    totalSteps,
+    // Step 1: Basic Selection
+    facilityId, setFacilityId,
+    scope, setScope,
+    category, setCategory,
+    fuelId, setFuelId,
+    useCustomFuel, setUseCustomFuel,
+    customFuelName, setCustomFuelName,
+    customEmissionFactor, setCustomEmissionFactor,
+    customEmissionFactorUnit, setCustomEmissionFactorUnit,
+    customSource, setCustomSource,
+    isSaving, setIsSaving,
+    fuelSearchTerm, setFuelSearchTerm,
+    // Scope 3
+    scope3Method, setScope3Method,
+    scope3EFData, setScope3EFData,
+    scope3ActivityId, setScope3ActivityId,
+    scope3ActivityType, setScope3ActivityType,
+    scope3Subcategory, setScope3Subcategory,
+    scope3CustomActivity, setScope3CustomActivity,
+    useCustomActivity, setUseCustomActivity,
+    fugitiveEmissionsData, setFugitiveEmissionsData,
+    loadingScope3EF, setLoadingScope3EF,
+    assetName, setAssetName,
+    fromLocation, setFromLocation,
+    toLocation, setToLocation,
+    // Biogenic
+    biogenicScopeSelection, setBiogenicScopeSelection,
+    biogenicCategories, setBiogenicCategories,
+    loadingBiogenicCategories, setLoadingBiogenicCategories,
+    // Multi-Employee (C7)
+    employees, setEmployees,
+    employeeMonthlyTotals, setEmployeeMonthlyTotals,
+    employeeYearlyTotal, setEmployeeYearlyTotal,
+    isCalculatingEmployee, setIsCalculatingEmployee,
+    c7FormulaId, setC7FormulaId,
+    c7FormulaName, setC7FormulaName,
+    // Decision tree
+    decisionFieldValues, setDecisionFieldValues,
+    // Process Emissions
+    selectedSubIndustry, setSelectedSubIndustry,
+    selectedTemplate, setSelectedTemplate,
+    templateInputValues, setTemplateInputValues,
+    // Dynamic Form Config (Calc Engine)
+    formConfig, setFormConfig,
+    loadingFormConfig, setLoadingFormConfig,
+    calcEngineResult, setCalcEngineResult,
+    isCalcEngineCalculating, setIsCalcEngineCalculating,
+    matchedFormulaId, setMatchedFormulaId,
+    // Step 2: Process & Responsibility
+    processNames, setProcessNames,
+    responsiblePerson, setResponsiblePerson,
+    responsiblePersonDesignation, setResponsiblePersonDesignation,
+    responsiblePersonContact, setResponsiblePersonContact,
+    // Step 3: Year & Monthly Data
+    reportingYearType, setReportingYearType,
+    hasOrgYearTypePreference,
+    reportingYear, setReportingYear,
+    frequencyType, setFrequencyType,
+    monthlyData, setMonthlyData,
+    yearlyData, setYearlyData,
+    yearlyCalcResult, setYearlyCalcResult,
+    isCalculatingYearly, setIsCalculatingYearly,
+    expandedMonths, setExpandedMonths,
+    // Step 4: Notes
+    notes, setNotes,
+    // Scope 3 optional fields
+    supplierName, setSupplierName,
+    supplierCode, setSupplierCode,
+    employeeName, setEmployeeName,
+    employeeId, setEmployeeId,
+  } = _formState;
+
 
   // Fetch form config when scope + category changes
   useEffect(() => {
@@ -200,31 +224,9 @@ export default function EmissionEntryForm({
     }
   }, [scope, category, dynamicCategories, getAuthHeader, useCustomFuel, biogenicScopeSelection]);
 
-  // Sync decision field values with scope3Method, scope3ActivityType, and scope3Subcategory
-  // This keeps backwards compatibility while enabling dynamic decision fields
-  useEffect(() => {
-    setDecisionFieldValues(prev => {
-      const updated = { ...prev };
-      if (scope3Method) {
-        updated['calculation_method_scope3'] = scope3Method;
-      }
-      if (scope3ActivityType) {
-        updated['activity_type'] = scope3ActivityType;
-      }
-      if (scope3Subcategory) {
-        updated['subcategory_selection'] = scope3Subcategory;
-      }
-      return updated;
-    });
-  }, [scope3Method, scope3ActivityType, scope3Subcategory]);
-
-  // Auto-enable custom activity when "others" activity type is selected with supplier_basis
-  useEffect(() => {
-    if (scope3ActivityType === 'others' && scope3Method === 'supplier_basis') {
-      setUseCustomActivity(true);
-      setScope3ActivityId(''); // Clear any selected activity
-    }
-  }, [scope3ActivityType, scope3Method]);
+  // Sync decisionFieldValues + custom-activity auto-enable now live inside
+  // useEmissionFormState (F2 integration). The corresponding inline useEffects
+  // were removed here.
 
   // Fetch fugitive emissions data from fuel_database (Scope 1 fugitive emissions)
   useEffect(() => {
@@ -708,37 +710,10 @@ export default function EmissionEntryForm({
     return mapping?.quantityUnit || 'kg';
   };
 
-  // Step 2: Process & Responsibility
-  const [processNames, setProcessNames] = useState([{ name: '', description: '' }]);
-  const [responsiblePerson, setResponsiblePerson] = useState('');
-  const [responsiblePersonDesignation, setResponsiblePersonDesignation] = useState('');
-  const [responsiblePersonContact, setResponsiblePersonContact] = useState('');
+  // Step 2 + Step 3 form state moved to useEmissionFormState (F2 integration).
+  // The hook also owns the reporting-year-type org-pref sync useEffect and the
+  // editingEmission frequency_type/yearlyData hydration useEffect.
 
-  // Step 3: Year & Monthly Data
-  // Determine organization's reporting year type preference
-  const orgReportingYearType = organization?.reporting_year_type; // 'financial_year' or 'calendar_year'
-  const hasOrgYearTypePreference = orgReportingYearType === 'financial_year' || orgReportingYearType === 'calendar_year';
-  
-  // Map org preference to form value ('financial' or 'calendar')
-  const defaultYearType = orgReportingYearType === 'financial_year' ? 'financial' : 'calendar';
-  
-  const [reportingYearType, setReportingYearType] = useState(defaultYearType); // 'calendar' or 'financial'
-  
-  // Update reporting year type when organization changes (or on mount)
-  useEffect(() => {
-    if (hasOrgYearTypePreference) {
-      setReportingYearType(defaultYearType);
-    }
-  }, [hasOrgYearTypePreference, defaultYearType]);
-  
-  const [reportingYear, setReportingYear] = useState(new Date().getFullYear().toString());
-  const [frequencyType, setFrequencyType] = useState('monthly'); // 'monthly' or 'yearly' - NEW for yearly support
-  const [monthlyData, setMonthlyData] = useState({});
-  const [yearlyData, setYearlyData] = useState({}); // NEW: Single entry for yearly mode
-  const [yearlyCalcResult, setYearlyCalcResult] = useState(null); // NEW: Store yearly calculation result
-  const [isCalculatingYearly, setIsCalculatingYearly] = useState(false); // NEW: Loading state for yearly calc
-  const [expandedMonths, setExpandedMonths] = useState([]);
-  
   // Helper function to update yearly data with validation
   const updateYearlyData = useCallback((field, value) => {
     // Fields that must be whole numbers (integers)
@@ -758,47 +733,7 @@ export default function EmissionEntryForm({
     }
     
     setYearlyData(prev => ({ ...prev, [field]: value }));
-  }, []);
-  
-  // Load frequencyType from editingEmission when editing
-  useEffect(() => {
-    if (editingEmission) {
-      const freq = editingEmission.frequency_type || 'monthly';
-      setFrequencyType(freq);
-      
-      // If editing yearly record, populate yearlyData from the record's dynamic_field_values
-      if (freq === 'yearly') {
-        const dfv = editingEmission.dynamic_field_values || editingEmission.inputs || {};
-        const initialYearlyData = {};
-        
-        // Extract values from dynamic_field_values
-        Object.entries(dfv).forEach(([key, val]) => {
-          if (val && typeof val === 'object' && 'value' in val) {
-            // It's a {value, unit} object
-            initialYearlyData[key] = val.value;
-            if (val.unit) {
-              initialYearlyData[`${key}_unit`] = val.unit;
-            }
-            // If this is an override field (cv, density), set the override flag
-            if (['cv', 'density'].includes(key)) {
-              initialYearlyData[`override_${key}`] = true;
-            }
-          } else {
-            // Direct value
-            initialYearlyData[key] = val;
-          }
-        });
-        
-        // Also check user_overrides field for override flags
-        const userOverrides = editingEmission.user_overrides || {};
-        Object.keys(userOverrides).forEach(key => {
-          initialYearlyData[`override_${key}`] = true;
-        });
-        
-        setYearlyData(initialYearlyData);
-      }
-    }
-  }, [editingEmission]);
+  }, [setYearlyData]);
 
   // Get active months based on reporting year type
   const activeMonths = useMemo(() => {
@@ -817,8 +752,7 @@ export default function EmissionEntryForm({
     return reportingYear;
   };
 
-  // Step 4: Notes
-  const [notes, setNotes] = useState('');
+  // Step 4: Notes — moved to useEmissionFormState (F2 integration).
   
   // Track form dirty state for unsaved changes protection (#19)
   useEffect(() => {
@@ -830,11 +764,8 @@ export default function EmissionEntryForm({
     }
   }, [currentStep, facilityId, category, fuelId, notes, scope3Method, scope3ActivityType, employees.length, onFormChange]);
   
-  // Scope 3 specific optional fields
-  const [supplierName, setSupplierName] = useState('');
-  const [supplierCode, setSupplierCode] = useState('');
-  const [employeeName, setEmployeeName] = useState('');
-  const [employeeId, setEmployeeId] = useState('');
+  // Scope 3 specific optional fields — moved to useEmissionFormState (F2 integration).
+
 
   // Get selected fuel data
   const selectedFuel = useMemo(() => {
