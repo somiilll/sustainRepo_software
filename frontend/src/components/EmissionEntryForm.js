@@ -16,43 +16,14 @@ import { Step2ProcessResponsibility } from '../modules/ghg/emissions/shared/comp
 import { Step3YearMonthlyData } from '../modules/ghg/emissions/shared/components/steps/Step3YearMonthlyData';
 import { Step4Notes } from '../modules/ghg/emissions/shared/components/steps/Step4Notes';
 import { categoryRegistry } from '../modules/emissions';
+import {
+  MONTHS,
+  CALENDAR_YEAR_MONTHS,
+  FINANCIAL_YEAR_MONTHS,
+} from '../modules/ghg/emissions/shared/constants/emission-form-constants';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
-
-const MONTHS = [
-  { key: '01', name: 'January', short: 'Jan' },
-  { key: '02', name: 'February', short: 'Feb' },
-  { key: '03', name: 'March', short: 'Mar' },
-  { key: '04', name: 'April', short: 'Apr' },
-  { key: '05', name: 'May', short: 'May' },
-  { key: '06', name: 'June', short: 'Jun' },
-  { key: '07', name: 'July', short: 'Jul' },
-  { key: '08', name: 'August', short: 'Aug' },
-  { key: '09', name: 'September', short: 'Sep' },
-  { key: '10', name: 'October', short: 'Oct' },
-  { key: '11', name: 'November', short: 'Nov' },
-  { key: '12', name: 'December', short: 'Dec' }
-];
-
-// Calendar year months (Jan-Dec)
-const CALENDAR_YEAR_MONTHS = MONTHS;
-
-// Financial year months (Apr-Mar)
-const FINANCIAL_YEAR_MONTHS = [
-  { key: '04', name: 'April', short: 'Apr' },
-  { key: '05', name: 'May', short: 'May' },
-  { key: '06', name: 'June', short: 'Jun' },
-  { key: '07', name: 'July', short: 'Jul' },
-  { key: '08', name: 'August', short: 'Aug' },
-  { key: '09', name: 'September', short: 'Sep' },
-  { key: '10', name: 'October', short: 'Oct' },
-  { key: '11', name: 'November', short: 'Nov' },
-  { key: '12', name: 'December', short: 'Dec' },
-  { key: '01', name: 'January', short: 'Jan' },
-  { key: '02', name: 'February', short: 'Feb' },
-  { key: '03', name: 'March', short: 'Mar' }
-];
 
 // Helper to check if unit is volume-based (from centralized units)
 const isVolumeUnit = (unit, centralizedUnits = []) => {

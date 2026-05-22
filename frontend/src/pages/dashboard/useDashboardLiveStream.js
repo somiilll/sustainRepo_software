@@ -41,6 +41,21 @@ export function useDashboardLiveStream({ token, onRefresh, enabled = true }) {
     if (!enabled || !token) return undefined;
     closedByUsRef.current = false;
 
+    // StrictMode-safe: if a previous connection from this hook is still open
+    // (mount-cleanup-mount cycle), close it before opening a new one.
+    if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
+      try { wsRef.current.close(1000, 'remount'); } catch (e) { /* ignore */ }
+      wsRef.current = null;
+    }
+    if (heartbeatRef.current) {
+      clearInterval(heartbeatRef.current);
+      heartbeatRef.current = null;
+    }
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+
     const connect = () => {
       const url = buildWsUrl(token);
       if (!url) return;
