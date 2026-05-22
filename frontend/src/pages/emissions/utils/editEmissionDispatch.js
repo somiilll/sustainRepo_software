@@ -16,7 +16,7 @@ const API = `${BACKEND_URL}/api`;
 export async function editEmissionDispatch(emission, ctx) {
   const {
     // State reads
-    scope3EFData, fugitiveEmissionsData,
+    scope3EFData, fugitiveEmissionsData, fuelDatabase,
     // Setters
     setEditEmployees, setEditEmployeeMonthlyTotals, setEditEmployeeYearlyTotal,
     setDynamicFieldValues, setExistingEvidences, setEditingEmissionId,

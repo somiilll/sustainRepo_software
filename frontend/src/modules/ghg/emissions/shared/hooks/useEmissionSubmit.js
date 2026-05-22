@@ -657,6 +657,15 @@ export function useEmissionSubmit(ctx) {
       console.error('[EmissionEntryForm] No module dispatched for', { scope, category, frequencyType, biogenicScopeSelection });
       toast.error('This category is not yet supported for direct submission. Please reload the page or contact support.');
     } catch (error) {
+      // Temporary diagnostic: surface the underlying exception in DevTools so
+      // we can identify the precise root cause instead of a generic toast.
+      // Remove once the failing path is identified and patched.
+      console.error('[useEmissionSubmit] save failed:', error, {
+        message: error?.message,
+        response: error?.response?.data,
+        status: error?.response?.status,
+        stack: error?.stack,
+      });
       toast.error('Failed to save emissions. Please try again.');
     } finally {
       setIsSaving(false); // Re-enable button after completion

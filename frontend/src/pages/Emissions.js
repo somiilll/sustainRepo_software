@@ -2466,7 +2466,7 @@ export default function Emissions() {
   // E4: handleEdit body extracted to ./emissions/utils/editEmissionDispatch.js.
   const handleEdit = (emission) => editEmissionDispatchShared(emission, {
     // State reads
-    scope3EFData, fugitiveEmissionsData,
+    scope3EFData, fugitiveEmissionsData, fuelDatabase,
     // Setters
     setEditEmployees, setEditEmployeeMonthlyTotals, setEditEmployeeYearlyTotal,
     setDynamicFieldValues, setExistingEvidences, setEditingEmissionId,
