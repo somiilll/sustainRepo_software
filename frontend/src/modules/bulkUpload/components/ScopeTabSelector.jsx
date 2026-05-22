@@ -30,11 +30,6 @@ export default function ScopeTabSelector({ modules, activeId, onSelect }) {
             data-testid={`scope-tab-${mod.id}`}
           >
             <span>{mod.label}</span>
-            {mod.status === MODULE_STATUS.NOT_IMPLEMENTED && (
-              <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-amber-300 text-amber-700 bg-amber-50">
-                Coming soon
-              </Badge>
-            )}
             {mod.status === MODULE_STATUS.RESTRICTED && (
               <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-stone-300 text-stone-500 bg-stone-50">
                 Access required

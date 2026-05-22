@@ -152,7 +152,7 @@ export default function Sidebar() {
                       : 'text-text-secondary hover:bg-stone-50'
                   }`}
                 >
-                  <Icon className="w-5 h-5" />
+                  <Icon className="w-5 h-5 flex-shrink-0" />
                   <span className="font-medium">{item.label}</span>
                 </Link>
               );
@@ -271,7 +271,7 @@ export default function Sidebar() {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <Icon className="w-5 h-5" />
+                    <Icon className="w-5 h-5 flex-shrink-0" />
                     <span className="font-medium">{item.label}</span>
                   </div>
                   {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
@@ -315,7 +315,7 @@ export default function Sidebar() {
                   : 'text-text-secondary hover:bg-stone-50'
               }`}
             >
-              <Icon className="w-5 h-5" />
+              <Icon className="w-5 h-5 flex-shrink-0" />
               <span className="font-medium">{item.label}</span>
             </Link>
           );
