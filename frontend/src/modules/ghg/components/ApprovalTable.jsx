@@ -192,7 +192,10 @@ export default function ApprovalTable({
                   {Number(total).toFixed(2)}
                 </div>
                 <div className="w-28 text-xs text-text-secondary truncate">
-                  {r.submitted_at ? format(new Date(r.submitted_at), 'd MMM, HH:mm') : '—'}
+                  {(() => {
+                    const t = r.last_edited_at || r.submitted_at;
+                    return t ? format(new Date(t), 'd MMM, HH:mm') : '—';
+                  })()}
                 </div>
                 <div className="w-20"><StatusBadge status={r.status} /></div>
                 <div className="w-32 flex items-center justify-end gap-1">

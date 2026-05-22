@@ -131,18 +131,38 @@ def _enrich_snapshot_with_totals(snapshot: dict) -> dict:
     return enriched
 
 
-async def _refresh_approval_snapshot(entity_id: str, snapshot: dict) -> None:
-    """Keep the open approval_request's snapshot in sync after an edit.
+async def _refresh_approval_snapshot(
+    entity_id: str,
+    snapshot: dict,
+    editor: Optional[dict] = None,
+) -> None:
+    """Keep the open approval_request's snapshot + metadata in sync after an edit.
 
-    Stores an enriched snapshot (with denormalized totals) so the Approvals
-    table stays in sync with the live pending record.
+    Stores an enriched snapshot (with denormalized totals), refreshes metadata
+    keys the Approvals table reads (scope/category/facility_id), and stamps
+    last_edited_at/by so the table shows the latest activity time.
     """
     req = await db.approval_requests.find_one(
         {"entity_type": "emission", "entity_id": entity_id, "status": "pending"},
         {"_id": 0, "id": 1},
     )
-    if req:
-        await update_request_snapshot(req["id"], _enrich_snapshot_with_totals(snapshot))
+    if not req:
+        return
+
+    enriched = _enrich_snapshot_with_totals(snapshot)
+    update_set = {
+        "entity_snapshot": enriched,
+        "metadata.scope": enriched.get("scope"),
+        "metadata.category": enriched.get("category"),
+        "metadata.facility_id": enriched.get("facility_id"),
+        "last_edited_at": _now(),
+    }
+    if editor:
+        update_set["last_edited_by"] = editor.get("id")
+        update_set["last_edited_by_email"] = editor.get("email", "")
+        update_set["last_edited_by_name"] = editor.get("full_name", "")
+
+    await db.approval_requests.update_one({"id": req["id"]}, {"$set": update_set})
 
 
 async def _auto_approve_admin_edit(
@@ -316,7 +336,7 @@ async def intercept_update(
             # Editing own pending submission before admin reviews.
             if existing.get("created_by") != current_user.get("id"):
                 return ("block", {"detail": "Not authorized"})
-            await _refresh_approval_snapshot(existing["id"], snapshot)
+            await _refresh_approval_snapshot(existing["id"], snapshot, current_user)
             return ("skip_history", {"target_collection": PENDING_COLLECTION})
 
         if cur_status in PENDING_STATUSES or cur_status in REJECTED_STATUSES:

@@ -59,6 +59,12 @@ class ApprovalRequest(BaseModel):
     final_comment: Optional[str] = None
     metadata: dict = Field(default_factory=dict)
 
+    # Last-edit metadata (set when a user revises a still-pending submission).
+    last_edited_at: Optional[str] = None
+    last_edited_by: Optional[str] = None
+    last_edited_by_email: Optional[str] = None
+    last_edited_by_name: Optional[str] = None
+
 
 class ApprovalDecisionInput(BaseModel):
     """Body for POST /approvals/{id}/decide."""
