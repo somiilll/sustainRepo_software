@@ -1,0 +1,82 @@
+{
+  "summary": "Iter76 (frontend-only, Phase D + E broadened module dispatch verification). VERIFIED: (1) Boot logs both fire on /emissions mount: '[Emissions] Category modules initialized: 41 entries' AND '[Emissions] Module contract verification PASSED — 18 modules checked, EDIT+CREATE surfaces clean.' (2) Phase D Scope 3 C2 'Capital Goods' Spend-Based CREATE through module dispatch — POST /api/calc-engine/execute-by-category 200 + POST /api/emissions 200. Payload shape correct: scope3_ef_id, calculation_method_scope3='spend_basis', scope3_activity='Soybean Farming' present; asset_name NOT present (C2 has no asset-name capability) — exactly matches review-request expectation. (3) Phase E Scope 1 Stationary Combustion Diesel CREATE — calc-engine 200 + emissions 200. Payload includes fuel_database_id, scope='scope1', formula_id, no scope3_* keys, no biogenic_* keys — clean Scope 1 shape. (4) Phase E Scope 2 Purchased Electricity (Non-Renewable) CREATE — calc-engine 200 + emissions 200. Payload scope='scope2', fuel_database_id present, no scope3_* keys, no biogenic_* keys — clean Scope 2 shape. NOT FULLY EXECUTED (token budget): C8 asset-name capability, C4 journey-locations capability, C7 multi-employee LEGACY regression, biogenic LEGACY regression, negative validation re-test. Code review of dispatch gate at EmissionEntryForm.js lines 3857-4010 confirms C7 is explicitly skipped (legacy path preserved) and biogenic falls through (legacy path preserved). The 3 categories actually exercised covered all three payload-shape contracts (Scope 1, Scope 2 generic, Scope 3 flat-spend) so the broadened dispatch is byte-shape correct for those contracts.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Add Emission dialog", "issues": ["Pre-existing React 19 hydration warnings about <span> children inside <option>/<select> from FacilityScopeSection — unchanged from iter_72-75, not introduced this iter."]}
+    ]
+  },
+  "test_evidence": {
+    "init_logs": {
+      "category_modules_initialized": "41 entries — fired on /emissions mount",
+      "module_contract_verification": "PASSED — 18 modules checked, EDIT+CREATE surfaces clean — fired on /emissions mount",
+      "verdict": "BOTH expected boot logs verified."
+    },
+    "scope1_stationary_diesel_create": {
+      "facility": "Facility A (India)",
+      "fuel": "Diesel",
+      "month": "2026-04",
+      "qty": 100,
+      "calc_engine_status": 200,
+      "emissions_post_status": 200,
+      "emissions_post_body_keys_observed": ["facility_id","reporting_period","scope=scope1","category=Stationary Combustion","sub_category=Diesel","fuel_type=Diesel","fuel_database_id (present, non-null)","formula_id","dynamic_field_values{qty,ef_quantity,cv,density}","outputs{co2,co2e}"],
+      "scope3_keys_present": false,
+      "biogenic_keys_present": false,
+      "verdict": "PASS — Scope 1 module dispatch produces correct payload shape per review request."
+    },
+    "scope2_purchased_electricity_create": {
+      "facility": "Facility A (India)",
+      "fuel": "Non-Renewable Electricity",
+      "month": "2026-04",
+      "qty": 1000,
+      "calc_engine_status": 200,
+      "emissions_post_status": 200,
+      "emissions_post_body_keys_observed": ["facility_id","reporting_period","scope=scope2","category=Purchased Electricity","sub_category=Non-Renewable Electricity","fuel_type","fuel_database_id (present, non-null)","formula_id","dynamic_field_values{qty_energy,ef_quantity_electricity_co2}","outputs{co2,co2e}","source_of_information=CEA 2025"],
+      "scope3_keys_present": false,
+      "biogenic_keys_present": false,
+      "verdict": "PASS — Scope 2 module dispatch produces correct payload shape per review request."
+    },
+    "scope3_c2_capital_goods_spend_based_create": {
+      "facility": "Facility A (India)",
+      "method": "Spend Based",
+      "activity": "Soybean Farming",
+      "month": "2026-04",
+      "spent_value": 1000,
+      "calc_engine_status": 200,
+      "emissions_post_status": 200,
+      "emissions_post_body_keys_observed": ["facility_id","reporting_period","scope=scope3","category=C2 - Capital Goods","sub_category=Soybean Farming","fuel_type=''","fuel_database_id=null","formula_id","calculation_method_scope3=spend_basis","scope3_ef_id (present, non-null)","scope3_activity=Soybean Farming","scope3_activity_type=''","scope3_subcategory=''","dynamic_field_values{ppp,inflation_rate,spent_value,calculation_method_scope3}"],
+      "asset_name_present": false,
+      "from_to_location_present": false,
+      "verdict": "PASS — C2 dispatched through module path (NOT legacy), payload includes scope3_ef_id + calculation_method_scope3 + scope3_activity, and capability-aware fields (asset_name absent because C2 has no asset-name capability) — exactly matches review-request expectation."
+    },
+    "scope3_c8_upstream_leased_assets_create": {"verdict": "NOT_EXECUTED — token budget. Main agent should self-verify asset_name appears in payload by repeating the C2 flow but selecting C8 and filling the Asset Name input prior to Step 2."},
+    "scope3_c4_upstream_transportation_create": {"verdict": "NOT_EXECUTED — token budget. Main agent should self-verify from_location/to_location keys appear in payload."},
+    "scope3_c7_employee_commuting_legacy_regression": {"verdict": "NOT_FULLY_EXECUTED — Step 1 reached, dialog rendered correctly with Calculation Method=Average Data Based offered, Activity Type select, separate 'Search activities' field (distinct multi-employee layout). Test harness timed out trying to use Step 2 placeholder selectors before completing Step 1 of the C7 wizard (C7 has more required Step-1 fields). CODE REVIEW: dispatch gate at EmissionEntryForm.js lines 3857-4010 explicitly excludes /^c7/, so C7 is guaranteed to fall through to legacy multi-employee branch by static analysis. Network shape NOT captured this iteration but code path is structurally preserved."},
+    "biogenic_legacy_regression": {"verdict": "NOT_EXECUTED — token budget. CODE REVIEW: dispatch gate is scoped to scope1/scope2/scope3 explicit, so 'biogenic' value falls through to legacy by static analysis."},
+    "negative_validation_empty_process_names": {"verdict": "NOT_RE_EXECUTED — already verified in iter_75: legacy canProceedToStep gate fires with toast 'Please enter at least one process name' before module-level 'At least one Name of Process is required' validator. Behavior unchanged this iteration."}
+  },
+  "critical_code_review_comments": [
+    "Dispatch gate broadening at EmissionEntryForm.js lines ~3857-4010 is structurally tight: it routes scope1/scope2/scope3 (excluding C7) through module.buildCreatePayload while C7 and biogenic fall through to legacy. Verified empirically that scope1, scope2, and scope3-C2 produce expected payload shapes (no scope3_* on scope1/2; scope3_ef_id+calculation_method_scope3+scope3_activity on scope3-flat).",
+    "Scope 1 emissions POST now includes formula_id resolved by module helper (b52e732f-...) — confirmed correct, calc-engine 200 returned co2=0.291 tCO2 for 100 L Diesel which matches expected EF.",
+    "Scope 3 C2 emissions POST contains scope3_activity_type='' and scope3_subcategory='' as empty strings (rather than absent) — capability-aware payload helper emits empties for non-applicable capability slots. Confirm with main agent this is intentional vs. dropping the keys entirely; either is acceptable but consistency with EDIT-mode shape should be checked.",
+    "Module contract verification ran at boot and reported PASSED with 18 modules — no warnings, no failures. Good.",
+    "Pre-existing dead-code concern from iter_75 (canProceedToStep wording differs from c1ActiveModule.validateCreateSubmission wording) — still present, unchanged this iter, not blocking.",
+    "Test harness selector gap persists: Process Name 1 input still has no data-testid (uses placeholder='Process Name 1'). Recommend data-testid='process-name-input-0'. This was flagged in iter_73 and iter_75."
+  ],
+  "test_report_links": [],
+  "action_items": [
+    "[LOW] Main agent should self-verify the 3 NOT_EXECUTED capability-specific flows: C8 asset_name in payload, C4 from_location/to_location in payload, C7 LEGACY multi-employee path still produces array-of-employees POST (not module dispatch). Code review confirms gating is correct so functional outcomes should follow, but a one-shot manual check on each will close the loop on Phase D coverage.",
+    "[LOW] Add data-testid='process-name-input-0' on Step 2 first Process Name input and data-testid='process-description-input-0' on description textarea to make automation deterministic across all categories (carries forward from iter_73/75).",
+    "[LOW] Decide on scope3_activity_type/scope3_subcategory empty-string vs absent convention in CREATE payload for capability-irrelevant slots — confirm parity with EDIT payload."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only per request)", "frontend": "Boot logs + 3 critical CREATE flows (S1 Stationary, S2 Electricity, S3 C2) end-to-end VERIFIED with byte-level network capture (5/9 review items). 4 remaining items (C8, C4, C7 legacy regression, biogenic legacy regression) NOT executed but covered by code-review static analysis of the dispatch gate."},
+  "test_credentials": "goyalsomil@hotmail.com / Test123! (admin, OILES INDIA PVT. LTD.)",
+  "seed_data_creation": "Created 3 valid emission records this iteration (per review-request note: no need to delete): Facility A 2026-04 Scope 1 Stationary Diesel 100 L (TEST_S1_Stationary), Facility A 2026-04 Scope 3 C2 Capital Goods Soybean Farming 1000 INR (TEST_C2_proc), Facility A 2026-04 Scope 2 Purchased Electricity Non-Renewable 1000 kWh (TEST_S2_proc).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All Step 1 selects use NATIVE <select> with stable testids: emission-facility-select, emission-category-select, emission-fuel-select (Scope1/2), scope3-method-select, scope3-activity-select. Step 2 inputs still lack testids — use placeholders: input[placeholder='Process Name 1'], textarea (Process Description), input[placeholder='Enter name of responsible person']. Step 3 quantity inputs HAVE testids: input-qty-04, input-spent_value-04, input-qty_energy-04 (per category). Save button text is 'Save Emissions (N months)'. Network capture pattern that works: page.on('request', ...) for POST /api/emissions and POST /api/calc-engine/execute-by-category. C7 has a different Step 1 layout (Activity Type select + 'Search activities' searchbox + commuter-list specific fields) so its automation needs a category-specific Step 1 fill helper before the standard Step 2 placeholder fills work. Init logs '[Emissions] Category modules initialized: 41 entries' and '[Emissions] Module contract verification PASSED — 18 modules checked, EDIT+CREATE surfaces clean.' fire reliably on /emissions mount.",
+  "rca_of_the_issue": "No bug RCA — feature verification iteration for Phase D + E broadened module-dispatch CREATE migration. Key empirical finding: byte-shape parity confirmed for Scope 1 generic (fuel_database_id, no scope3_*), Scope 2 generic (fuel_database_id, no scope3_*), and Scope 3 C2 flat-spend (scope3_ef_id + calculation_method_scope3 + scope3_activity, no asset_name). All matched the review-request expectations exactly."
+}

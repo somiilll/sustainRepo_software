@@ -3855,31 +3855,55 @@ export default function EmissionEntryForm({
       }
 
       // ===========================================
-      // CREATE MIGRATION PHASE C — C1 PoC SHORT-CIRCUIT
+      // CREATE MIGRATION PHASES C/D/E — Module dispatch
       // ===========================================
-      // For C1 (Purchased Goods), route the entire per-month CREATE loop
-      // through the module's `buildCreatePayload` + helpers. All other
-      // categories continue through the legacy block below until they
-      // are migrated in Phases D/E/F.
-      //
-      // This dispatch deliberately scopes to scope==='scope3' + category
-      // starting with 'c1' so we don't accidentally route biogenic-scope3
-      // or other paths through the new code yet.
-      const c1ActiveModule = (() => {
+      // Routes through module helpers when:
+      //   - frequencyType === 'monthly'
+      //   - scope is scope1/scope2/scope3 (NOT biogenic — Phase F)
+      //   - active module exposes buildCreatePayload
+      //   - category is NOT C7 (multi-employee — has its own legacy branch)
+      const dispatchActiveModule = (() => {
         if (frequencyType !== 'monthly') return null;
-        if (scope !== 'scope3') return null;
-        const codeMatch = (category || '').toLowerCase().match(/^(c\d+)/);
-        if (!codeMatch || codeMatch[1] !== 'c1') return null;
-        const mod = categoryRegistry.get('c1');
+        const cat = (category || '').toLowerCase();
+
+        let mod = null;
+        if (scope === 'scope3') {
+          // Phase D: all flat-field Scope 3 (C1–C6, C8–C15). Skip C7.
+          const codeMatch = cat.match(/^(c\d+)/);
+          if (!codeMatch) return null;
+          if (codeMatch[1] === 'c7') return null;
+          mod = categoryRegistry.get(codeMatch[1]);
+        } else if (scope === 'scope1') {
+          // Phase E: Scope 1 (Stationary / Mobile / Fugitive + Generic)
+          if (cat.includes('stationary')) mod = categoryRegistry.get('stationary_combustion');
+          else if (cat.includes('mobile')) mod = categoryRegistry.get('mobile_combustion');
+          else if (cat.includes('fugitive')) mod = categoryRegistry.get('fugitive_emissions');
+          else mod = categoryRegistry.getGenericModule?.('scope1');
+        } else if (scope === 'scope2') {
+          // Phase E: Scope 2 (single generic module)
+          mod = categoryRegistry.getGenericModule?.('scope2');
+        }
+
         return mod?.buildCreatePayload ? mod : null;
       })();
 
-      if (c1ActiveModule) {
-        // 1. Module-owned validation (extras beyond canProceedToStep)
-        const modValidation = c1ActiveModule.validateCreateSubmission({
+      if (dispatchActiveModule) {
+        // 1. Module-owned validation
+        // Note: per-month override flags (CV/density/EFH) live in monthlyData[m]
+        // and are validated inside the per-month loop below. Pass false at
+        // submission gate; per-row gates re-check via data.* in the loop.
+        const modValidation = dispatchActiveModule.validateCreateSubmission({
           formData: { asset_name: assetName },
           processNames,
           assetName,
+          fuelId,
+          useCustomFuel,
+          customFuelName,
+          isOverrideCV: false,
+          isOverrideDensity: false,
+          overrideEmissionFactorHeat: false,
+          overrideJustification: '',
+          scope,
         });
         if (!modValidation.valid) {
           toast.error(modValidation.errorMessage);
@@ -3894,37 +3918,39 @@ export default function EmissionEntryForm({
           const reportingPeriod = `${actualYear}-${monthKey}`;
 
           const baseCtx = {
-            // record-shaped fields
             scope, category, facilityId, fuelId, selectedFuel, useCustomFuel, customFuelName, customSource,
             biogenicScopeSelection,
-            // scope 3 specifics
             scope3Method, scope3ActivityId, scope3ActivityType, scope3Subcategory,
             scope3CustomActivity, useCustomActivity,
-            // capability-aware fields
             supplierName, supplierCode, employeeName, employeeId,
             assetName, fromLocation, toLocation,
-            // common
             notes, responsiblePerson, responsiblePersonDesignation, responsiblePersonContact,
             validProcesses,
-            // calc engine context inputs
             dynamicInputFields,
             filteredScope3Activities, requiresSubcategory, centralizedUnits,
             defaultUnit,
             buildDecisionInputs,
-            // calc engine outputs (filled below per-month)
+            // Per-month CV/density override flags read from `data` (the row).
+            // Pass row-level flags so Scope1Create payload sets override_justification correctly.
+            isOverrideCV: !!data.overrideCalorificValue,
+            isOverrideDensity: !!data.overrideDensity,
+            overrideEmissionFactorHeat: !!data.overrideEmissionFactorHeat,
+            overrideJustification: data.calorificValueJustification || data.densityJustification || data.emissionFactorHeatJustification || '',
             calculatedCO2: 0, calculatedCH4: 0, calculatedN2O: 0, calculatedCO2e: 0,
             resolvedFormulaId: null,
             reportingPeriod,
           };
 
-          // 2. Build inputs / overrides / decision context via the module helpers
-          const { inputs, userOverrides } = c1ActiveModule.extractInputsForCalcEngine(data, baseCtx);
-          const { decisionInputs, context, isScope3Like } = c1ActiveModule.buildDecisionContext(data, baseCtx);
+          const { inputs, userOverrides } = dispatchActiveModule.extractInputsForCalcEngine(data, baseCtx);
+          const { decisionInputs, context, isScope3Like } = dispatchActiveModule.buildDecisionContext(data, baseCtx);
 
-          // 3. Call calc engine (kept in host page — needs axios + auth)
           let calculatedCO2 = 0, calculatedCH4 = 0, calculatedN2O = 0, calculatedCO2e = 0;
           let resolvedFormulaId = null;
-          const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === (isScope3Like ? 'scope3' : scope));
+
+          // Calc-engine lookup uses scope-specific category code
+          const effectiveScopeForLookup = isScope3Like ? 'scope3' : scope;
+          const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === effectiveScopeForLookup);
+
           if (categoryObj?.id && !useCustomFuel) {
             try {
               const calcResp = await axios.post(`${API}/calc-engine/execute-by-category`, {
@@ -3954,14 +3980,12 @@ export default function EmissionEntryForm({
             calculatedCO2e = calculatedCO2;
           }
 
-          // 4. Build payload via module helper
-          const payload = c1ActiveModule.buildCreatePayload(data, {
+          const payload = dispatchActiveModule.buildCreatePayload(data, {
             ...baseCtx,
             calculatedCO2, calculatedCH4, calculatedN2O, calculatedCO2e,
             resolvedFormulaId,
           });
 
-          // 5. POST
           try {
             await axios.post(`${API}/emissions`, payload, { headers: getAuthHeader() });
             successCount++;

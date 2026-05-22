@@ -254,6 +254,11 @@ export function initializeCategoryModules() {
 
   // eslint-disable-next-line no-console
   console.log(`[Emissions] Category modules initialized: ${categoryRegistry.size} entries`);
+
+  // Run module contract verification (warn-only — never breaks runtime)
+  const { verifyModuleContracts } = require('./core/verifyModuleContracts');
+  verifyModuleContracts(categoryRegistry);
+
   return categoryRegistry.size;
 }
 
