@@ -9,8 +9,8 @@
  */
 
 import React from 'react';
-import { Input } from '../../../../../../components/ui/input';
-import { Label } from '../../../../../../components/ui/label';
+import { Input } from '../../../../../components/ui/input';
+import { Label } from '../../../../../components/ui/label';
 import { toast } from 'sonner';
 
 // Fields that must be whole numbers (integers)
