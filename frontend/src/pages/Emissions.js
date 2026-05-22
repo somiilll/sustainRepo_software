@@ -2475,7 +2475,7 @@ export default function Emissions() {
     setScope3Subcategory, setScope3CustomActivity, setUseCustomActivity,
     setBiogenicScopeSelection, setEditFrequencyType, setEditingEmission,
     setOverrideCalorificValue, setOverrideDensity, setOverrideEmissionFactorHeat,
-    setOverrideJustification, setSelectedCategory, setFormData,
+    setOverrideJustification, setSelectedCategory, setFormData, setEditC7Month,
     // Helpers
     getAuthHeader,
   });

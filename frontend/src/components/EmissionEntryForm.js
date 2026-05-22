@@ -2490,7 +2490,7 @@ export default function EmissionEntryForm({
     setIsSaving,
     // Computed
     isC7EmployeeCommuting, isProcessEmissions, requiresSubcategory, selectedFuel,
-    filteredScope3Activities, dynamicInputFields, centralizedUnits,
+    filteredScope3Activities, dynamicInputFields, centralizedUnits, defaultUnit,
     // Helpers
     canProceedToStep, getAuthHeader, onSuccess, getActualYearForMonth,
     evaluateFormula, buildDecisionInputs,

@@ -25,7 +25,7 @@ export async function editEmissionDispatch(emission, ctx) {
     setScope3Subcategory, setScope3CustomActivity, setUseCustomActivity,
     setBiogenicScopeSelection, setEditFrequencyType, setEditingEmission,
     setOverrideCalorificValue, setOverrideDensity, setOverrideEmissionFactorHeat,
-    setOverrideJustification, setSelectedCategory, setFormData,
+    setOverrideJustification, setSelectedCategory, setFormData, setEditC7Month,
     // Helpers
     getAuthHeader,
   } = ctx;

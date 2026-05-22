@@ -41,7 +41,7 @@ export function useEmissionSubmit(ctx) {
       fromLocation, toLocation, selectedSubIndustry, selectedTemplate,
       templateInputValues, dynamicCategories, setIsSaving, isC7EmployeeCommuting,
       isProcessEmissions, requiresSubcategory, selectedFuel, filteredScope3Activities,
-      dynamicInputFields, centralizedUnits, canProceedToStep, getAuthHeader,
+      dynamicInputFields, centralizedUnits, defaultUnit, canProceedToStep, getAuthHeader,
       onSuccess, getActualYearForMonth, evaluateFormula,
       buildDecisionInputs, editingEmission,
     } = ctx;
