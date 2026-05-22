@@ -1,0 +1,60 @@
+{
+  "summary": "Phase B5 backend refactor regression testing — POST/PUT /emissions and all 7 C7 routes extracted into modules/emissions/{router.py, c7_router.py}. RESULT: 12/13 tests PASS (92.3%). Behaviour is byte-identical for all CRUD + history + audit + dashboard flows. The single FAIL (GET /api/emissions/c7/yearly/{facility_id}/{reporting_year} returns 422) is a PRE-EXISTING route-ordering bug in c7_router.py — verified to exist in the legacy server.py (commit 4d38316) at lines 10680 + 11109 in the SAME order, so Phase B5 has NOT introduced any regression. Behaviour parity goal achieved.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "GET /api/emissions/c7/yearly/{facility_id}/{reporting_year}",
+        "issue": "Returns HTTP 422 (int_parsing error on 'year' path param) for any reporting_year like 'FY 2025-2026', 'CY2025', '2025'. Caused by route-declaration order in c7_router.py — the catch-all GET /emissions/c7/{facility_id}/{year}/{month} (line 356) shadows the more-specific GET /emissions/c7/yearly/{facility_id}/{reporting_year} (line 683). FastAPI matches by registration order, so requests to /emissions/c7/yearly/<uuid>/<rp> get routed to the 3-segment month route with facility_id='yearly', year=<uuid> (must be int → 422). VERIFIED PRE-EXISTING: legacy server.py at commit 4d38316 has the SAME declaration order (lines 10680, 10739, 11109) — Phase B5 preserved this bug byte-for-byte, which actually CONFIRMS the refactor's byte-identical goal."
+      }
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_phase_b5_emissions_refactor.py",
+    "/app/test_reports/pytest/phase_b5_results.xml"
+  ],
+  "test_results": {
+    "regression_smokes": {
+      "GET /api/health/contracts": "PASS — status=passed, modules_checked=20, failed=[]",
+      "GET /api/emissions baseline": "PASS — 40 records, first record has id/scope/category/total_emissions",
+      "GET /api/dashboard/stats": "PASS — total_emissions=4194.63 (±0.05), scope1_emissions=251.86, scope3_by_category has 7 entries"
+    },
+    "emission_crud_flow": {
+      "POST /api/emissions (Scope 1 Diesel monthly 1000L)": "PASS — 200 OK, id returned, co2_emissions=2.65, co2e_emissions=2.68, total_emissions=2.68, dynamic_field_values.quantity.value=1000.0, source_of_information & process_names persisted",
+      "GET /api/emissions after CREATE": "PASS — 41 records, new id present",
+      "GET /api/emissions/{id}/history after CREATE": "PASS — 1 entry, action='created', old_values=null, new_values.co2e_emissions=2.68",
+      "PUT /api/emissions/{id} (quantity 1000→1100, co2e 2.68→2.948)": "PASS — 200 OK, updated_at + updated_by populated, co2e_emissions=2.948, dynamic_field_values.quantity.value=1100.0",
+      "GET /api/emissions/{id}/history after UPDATE": "PASS — 2 entries, latest action='updated', field_changes is non-empty list, changes_summary present ('N field(s) changed')",
+      "GET /api/audit-logs?module=ghg_emission&action=create — CREATE audit log": "PASS — log present with action='create', module='ghg_emission', resource.id matches new record id, user.id + organization_id populated",
+      "DELETE /api/emissions/{id}": "PASS — 200 OK, message='Emission record deleted successfully'",
+      "GET /api/emissions after DELETE": "PASS — back to 40 baseline records, deleted id absent"
+    },
+    "c7_endpoints": {
+      "GET /api/emissions/c7/{facility_id}/{year} (year=2025 + 2024)": "PASS — 200 OK, returns dict with facility_id, facility_name, reporting_year, entries, monthly_totals, yearly_total, has_old_model_data, old_entries_count keys (no 500)",
+      "GET /api/emissions/c7/yearly/{facility_id}/{reporting_year}": "FAIL (pre-existing) — 422 int_parsing on 'year' path param. Route-order shadowing bug. NOT a Phase B5 regression."
+    }
+  },
+  "critical_code_review_comments": [
+    "[B5 REFACTOR — POSITIVE] _AuditLoggerProxy at modules/emissions/router.py:40-45 is a clean lazy-resolution shim that preserves the legacy bare-`audit_logger` reference inside the byte-identical handler bodies. Confirms the audit pipeline (create + update + delete) works end-to-end against the live audit-logs endpoint with correct action/module/resource.id/user.id/organization_id population.",
+    "[B5 REFACTOR — POSITIVE] compute_field_changes import from shared.helpers.audit_helpers works correctly: PUT /emissions/{id} writes a history entry with non-empty field_changes list and changes_summary='N field(s) changed' — matches legacy behaviour.",
+    "[B5 REFACTOR — POSITIVE] Base year auto-sync block (router.py:148-266) executes without exception during POST — no warning surfaced in test logs.",
+    "[ROUTING BUG — pre-existing] c7_router.py must reorder route declarations: move @router.get('/emissions/c7/yearly/{facility_id}/{reporting_year}') (line 683) and @router.post('/emissions/c7/yearly', ...) (line 436) BEFORE @router.get('/emissions/c7/{facility_id}/{year}/{month}') (line 356) AND @router.get('/emissions/c7/{facility_id}/{year}') (line 297). FastAPI route matching is registration-order-sensitive — the more specific literal 'yearly' segment must be registered first. Same applies to the 'migrate' literal at line 716. This bug existed in legacy server.py too; the refactor faithfully preserved it.",
+    "[CONTRACT MISMATCH — minor cosmetic] audit_logger module enum value for emissions is 'ghg_emission' (not 'emission'/'emissions' as one might intuit). Not a bug — just worth flagging in any future contract doc / OpenAPI annotation.",
+    "[FILE SIZE] modules/emissions/router.py is 553 lines, c7_router.py is 818 lines — c7_router is borderline (review guideline >700). Consider splitting C7 monthly / yearly / migrate routes into 3 sub-modules in a future refactor pass."
+  ],
+  "action_items": [
+    "[HIGH — but pre-existing, not a B5 regression] Fix C7 yearly GET route shadowing: reorder @router.get('/emissions/c7/yearly/{facility_id}/{reporting_year}') BEFORE @router.get('/emissions/c7/{facility_id}/{year}/{month}') and @router.get('/emissions/c7/{facility_id}/{year}') in c7_router.py. Also reorder POST /emissions/c7/yearly and POST /emissions/c7/migrate similarly if any other GET/POST shadows them. Then re-run test_phase_b5_emissions_refactor.py::TestC7Endpoints::test_c7_yearly_endpoint to confirm 200/404 (not 422).",
+    "[OPTIONAL] Split c7_router.py (818 lines) into c7_monthly_router.py + c7_yearly_router.py + c7_migrate_router.py."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase_b5_emissions_refactor.py (created — 13 tests covering Phase B5 regression surface)"
+  ],
+  "success_rate": {"backend": "92.3% (12/13)", "frontend": "N/A (backend-only request)"},
+  "test_credentials": "goyalsomil@hotmail.com / Test123! (admin, OILES INDIA PVT. LTD.) — Facility A used for write tests",
+  "seed_data_creation": "Created + deleted 1 transient emission record (TEST_B5_refactor_smoke, Scope 1 Diesel monthly 2025-03 on Facility A) during the CRUD flow. Cleaned up by DELETE in test_07. Baseline restored to 40 records (verified by test_08).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase B5 backend refactor verified byte-identical. Single failure (GET /emissions/c7/yearly/{f}/{rp} → 422) is a pre-existing route-ordering bug in c7_router.py — confirmed to exist in legacy server.py @ commit 4d38316 with the same declaration order. To reproduce: GET /api/emissions/c7/yearly/<any-uuid>/<any-reporting-year> returns 422 with detail loc=['path','year']. Fix path: reorder route decorators in /app/backend/modules/emissions/c7_router.py so the 'yearly' and 'migrate' literal-segment routes come BEFORE the generic /{facility_id}/{year} and /{facility_id}/{year}/{month} routes. After reordering, the existing tests in /app/backend/tests/test_phase_b5_emissions_refactor.py will fully pass without modification.",
+  "rca_of_the_issue": "GET /api/emissions/c7/yearly/{facility_id}/{reporting_year} returns 422: FastAPI dispatches routes by registration order. In c7_router.py, the routes were declared in this order: (1) POST /c7/month, (2) GET /c7/{facility_id}/{year} [line 297], (3) GET /c7/{facility_id}/{year}/{month} [line 356, year:int], (4) DELETE /c7/{entry_id}, (5) POST /c7/yearly, (6) GET /c7/yearly/{facility_id}/{reporting_year} [line 683], (7) POST /c7/migrate/{facility_id}/{year}. Route #3 matches the 3-segment path /c7/yearly/<uuid>/<rp> first (facility_id='yearly', year=<uuid>, month=<rp>) and fails Pydantic int_parsing on the UUID year → 422. The yearly route at line 683 is unreachable. Mitigation: move routes #5 (POST yearly), #6 (GET yearly), #7 (POST migrate) BEFORE routes #2 and #3 in c7_router.py — FastAPI will then match the literal 'yearly'/'migrate' segments first. This bug pre-dates Phase B5 (same order in legacy server.py @ commit 4d38316 lines 10680/10739/11109/11142) — the refactor preserved it faithfully, which actually confirms the byte-identical-behaviour goal of Phase B5."
+}

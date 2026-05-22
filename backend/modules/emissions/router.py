@@ -1,28 +1,446 @@
 """
-Emissions read/list router — Phase B4 extraction.
+Emissions read/list/write router.
 
-Routes (3):
-    GET    /emissions
-    GET    /emissions/{record_id}/history
-    DELETE /emissions/{record_id}
+Phase B4 added: GET /emissions, GET /emissions/{id}/history, DELETE /emissions/{id}.
+Phase B5 added: POST /emissions, PUT /emissions/{id}.
 
-NOT included in Phase B4 (deferred to B5 because they integrate the
-calc-engine and audit pipelines):
-    POST /emissions
-    PUT  /emissions/{record_id}
-
-Behaviour byte-identical to the legacy server.py implementation.
+Phase B5 still keeps these routes thin: they integrate the calc-engine
+service inline (same as legacy server.py) — extracting that flow into a
+dedicated emissions service comes in Phase B5b. Behaviour is byte-identical.
 """
+import json
+import logging
+import uuid
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from audit_logger import AuditAction, AuditModule, get_audit_logger
 from modules.auth.dependencies import get_current_user
-from modules.emissions.contracts import EmissionHistoryResponse, EmissionRecordResponse
+from modules.emissions.contracts import (
+    EmissionHistoryResponse,
+    EmissionRecordCreate,
+    EmissionRecordResponse,
+)
 from shared.database.mongo import db
+from shared.helpers.audit_helpers import compute_field_changes
 
 router = APIRouter()
+
+
+# Module-level audit logger reference. Resolved lazily so it picks up the
+# instance initialized by server.py on app startup.
+def _audit_logger():
+    return get_audit_logger()
+
+
+# Legacy server.py routes referenced `audit_logger` directly. We provide a
+# small alias so the byte-identical handler bodies still work.
+class _AuditLoggerProxy:
+    def __getattr__(self, name):
+        return getattr(get_audit_logger(), name)
+
+
+audit_logger = _AuditLoggerProxy()
+
+
+@router.post("/emissions", response_model=EmissionRecordResponse)
+async def create_emission_record(record_data: EmissionRecordCreate, current_user: dict = Depends(get_current_user)):
+    facility = await db.facilities.find_one({"id": record_data.facility_id}, {"_id": 0})
+    if not facility:
+        raise HTTPException(status_code=404, detail="Facility not found")
+    
+    # Check access
+    if current_user["role"] == "user" and record_data.facility_id not in current_user.get("assigned_facilities", []):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    if current_user["role"] == "admin" and facility["organization_id"] != current_user.get("organization_id"):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Validate frequency_type
+    frequency_type = record_data.frequency_type or "monthly"
+    if frequency_type not in ["monthly", "yearly"]:
+        raise HTTPException(status_code=400, detail="frequency_type must be 'monthly' or 'yearly'")
+    
+    # Validate reporting_period format based on frequency_type
+    reporting_period = record_data.reporting_period
+    if frequency_type == "yearly":
+        # Yearly format: "CY2025" or "FY 2025-2026"
+        if not (reporting_period.startswith("CY") or reporting_period.startswith("FY ")):
+            raise HTTPException(
+                status_code=400, 
+                detail="For yearly frequency, reporting_period must be in format 'CY2025' or 'FY 2025-2026'"
+            )
+        
+        # Note: We no longer block duplicate yearly records - users can add multiple entries
+        # for the same category/subcategory/year if needed
+    else:
+        # Monthly format: "2025-03"
+        import re
+        if not re.match(r'^\d{4}-\d{2}$', reporting_period):
+            raise HTTPException(
+                status_code=400,
+                detail="For monthly frequency, reporting_period must be in format 'YYYY-MM' (e.g., '2025-03')"
+            )
+    
+    # Check organization's enabled_access for emissions
+    organization = await db.organizations.find_one({"id": facility["organization_id"]}, {"_id": 0})
+    if organization:
+        enabled_access = organization.get("enabled_access")
+        # If enabled_access is None, default to scope1_2. If it's an empty list, no access.
+        if enabled_access is None:
+            enabled_access = ["scope1_2"]
+        # Check if organization has access to create emissions (scope1_2 or scope1_2_3 allows Scope 1, 2, biogenic)
+        has_emission_access = any(access in enabled_access for access in ["scope1_2", "scope1_2_3"])
+        if not has_emission_access:
+            raise HTTPException(
+                status_code=403, 
+                detail="Your organization does not have access to add emissions. Please contact your administrator."
+            )
+    
+    record_dict = record_data.model_dump()
+    record_id = str(uuid.uuid4())
+    record_dict["id"] = record_id
+    record_dict["created_by"] = current_user["id"]
+    record_dict["created_by_email"] = current_user.get("email", "")
+    record_dict["created_by_name"] = current_user.get("full_name", "")
+    
+    # For Scope 3 emissions: sync sub_category with scope3_activity
+    if record_data.scope and 'scope3' in record_data.scope.lower():
+        # Check if scope3_activity is provided (either directly or in dynamic_field_values)
+        scope3_activity = record_data.scope3_activity
+        if not scope3_activity and record_data.dynamic_field_values:
+            scope3_act_field = record_data.dynamic_field_values.get('scope3_activity', {})
+            if isinstance(scope3_act_field, dict):
+                scope3_activity = scope3_act_field.get('value')
+        
+        # Update sub_category to match scope3_activity if activity is set
+        if scope3_activity:
+            record_dict["sub_category"] = scope3_activity
+    
+    # ALWAYS ensure organization_id is set (from facility if not provided)
+    if not record_dict.get("organization_id"):
+        facility = await db.facilities.find_one({"id": record_data.facility_id}, {"_id": 0, "organization_id": 1})
+        if facility and facility.get("organization_id"):
+            record_dict["organization_id"] = facility["organization_id"]
+        else:
+            record_dict["organization_id"] = current_user.get("organization_id")
+    
+    # Extract emission values from outputs dict for convenience accessors
+    outputs = record_data.outputs or {}
+    record_dict["co2_emissions"] = outputs.get("co2", {}).get("value", 0) or 0
+    record_dict["ch4_emissions"] = outputs.get("ch4", {}).get("value", 0) or 0
+    record_dict["n2o_emissions"] = outputs.get("n2o", {}).get("value", 0) or 0
+    record_dict["co2e_emissions"] = outputs.get("co2e", {}).get("value", 0) or 0
+    record_dict["total_emissions"] = record_dict["co2e_emissions"]
+    
+    created_at = datetime.now(timezone.utc).isoformat()
+    record_dict["created_at"] = created_at
+    record_dict["updated_at"] = None
+    record_dict["updated_by"] = None
+    record_dict["updated_by_email"] = None
+    record_dict["updated_by_name"] = None
+    
+    await db.emission_records.insert_one(record_dict)
+    
+    # AUTO-SYNC: Update base year emissions if a base year record exists for this facility
+    # This ensures new scope+category combinations are automatically added to base year
+    try:
+        facility_id = record_data.facility_id
+        org_id = record_dict.get("organization_id")
+        scope = record_data.scope.lower() if record_data.scope else ""
+        
+        # Determine scope_group based on the emission's scope
+        if scope in ["scope1", "scope2"] or (scope == "biogenic" and record_data.biogenic_scope_selection != "scope3"):
+            scope_group = "scope12"
+        else:
+            scope_group = "scope3"
+        
+        # For Scope 3, use scope3_activity as subcategory; otherwise use sub_category
+        if "scope3" in scope:
+            subcategory = record_data.scope3_activity or record_data.sub_category or ""
+        else:
+            subcategory = record_data.sub_category or ""
+        
+        # Check if base year record exists for this facility
+        base_year_record = await db.base_year_emissions.find_one({
+            "facility_id": facility_id,
+            "scope_group": scope_group
+        }, {"_id": 0, "id": 1, "base_year": 1, "emissions_data": 1, "version": 1, "version_history": 1})
+        
+        if base_year_record:
+            # Check if this scope+category combination already exists
+            existing_keys = set()
+            for e in base_year_record.get("emissions_data", []):
+                key = f"{e.get('scope', '')}|{e.get('category', '')}|{e.get('subcategory', '')}"
+                existing_keys.add(key)
+            
+            new_key = f"{record_data.scope}|{record_data.category}|{subcategory}"
+            
+            if new_key not in existing_keys:
+                # Add the new combination to base year emissions_data
+                new_entry = {
+                    "scope": record_data.scope,
+                    "category": record_data.category,
+                    "subcategory": subcategory,
+                    "tco2e": record_dict.get("total_emissions", 0) or 0,
+                    "isAutoAdded": True
+                }
+                
+                updated_emissions = base_year_record.get("emissions_data", []) + [new_entry]
+                
+                # Update version history
+                current_version = base_year_record.get("version", 1)
+                version_history = base_year_record.get("version_history", [])
+                version_history.append({
+                    "version": current_version + 1,
+                    "change_type": "auto_add_category",
+                    "added_entries": [new_entry],
+                    "changed_by_name": current_user.get("full_name", current_user.get("email", "")),
+                    "changed_at": datetime.now(timezone.utc).isoformat(),
+                    "change_reason": f"Auto-added from new GHG emission: {record_data.category}"
+                })
+                
+                await db.base_year_emissions.update_one(
+                    {"id": base_year_record["id"]},
+                    {"$set": {
+                        "emissions_data": updated_emissions,
+                        "version": current_version + 1,
+                        "version_history": version_history,
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                        "updated_by": current_user.get("email"),
+                        "updated_by_name": current_user.get("full_name", "")
+                    }}
+                )
+        
+        # Also check organization-level base year record
+        if org_id:
+            org_base_year = await db.base_year_emissions.find_one({
+                "organization_id": org_id,
+                "facility_id": None,
+                "scope_group": scope_group
+            }, {"_id": 0, "id": 1, "base_year": 1, "emissions_data": 1, "version": 1, "version_history": 1})
+            
+            if org_base_year:
+                existing_keys = set()
+                for e in org_base_year.get("emissions_data", []):
+                    key = f"{e.get('scope', '')}|{e.get('category', '')}|{e.get('subcategory', '')}"
+                    existing_keys.add(key)
+                
+                new_key = f"{record_data.scope}|{record_data.category}|{subcategory}"
+                
+                if new_key not in existing_keys:
+                    new_entry = {
+                        "scope": record_data.scope,
+                        "category": record_data.category,
+                        "subcategory": subcategory,
+                        "tco2e": record_dict.get("total_emissions", 0) or 0,
+                        "isAutoAdded": True
+                    }
+                    
+                    updated_emissions = org_base_year.get("emissions_data", []) + [new_entry]
+                    current_version = org_base_year.get("version", 1)
+                    version_history = org_base_year.get("version_history", [])
+                    version_history.append({
+                        "version": current_version + 1,
+                        "change_type": "auto_add_category",
+                        "added_entries": [new_entry],
+                        "changed_by_name": current_user.get("full_name", current_user.get("email", "")),
+                        "changed_at": datetime.now(timezone.utc).isoformat(),
+                        "change_reason": f"Auto-added from new GHG emission: {record_data.category}"
+                    })
+                    
+                    await db.base_year_emissions.update_one(
+                        {"id": org_base_year["id"]},
+                        {"$set": {
+                            "emissions_data": updated_emissions,
+                            "version": current_version + 1,
+                            "version_history": version_history,
+                            "updated_at": datetime.now(timezone.utc).isoformat(),
+                            "updated_by": current_user.get("email"),
+                            "updated_by_name": current_user.get("full_name", "")
+                        }}
+                    )
+    except Exception as e:
+        # Don't fail the emission creation if base year sync fails
+        print(f"Warning: Base year auto-sync failed: {e}")
+    
+    # Create initial version history entry for creation
+    # Include both input data and calculated emission values for proper history display
+    history_new_values = record_data.model_dump()
+    # Add the calculated/stored emission fields that the frontend expects in history
+    history_new_values["co2_emissions"] = record_dict["co2_emissions"]
+    history_new_values["ch4_emissions"] = record_dict["ch4_emissions"]
+    history_new_values["n2o_emissions"] = record_dict["n2o_emissions"]
+    history_new_values["co2e_emissions"] = record_dict["co2e_emissions"]
+    history_new_values["total_emissions"] = record_dict["total_emissions"]
+    
+    creation_history = {
+        "id": str(uuid.uuid4()),
+        "emission_id": record_id,
+        "facility_id": record_data.facility_id,
+        "organization_id": record_dict["organization_id"],
+        "changed_by": current_user["id"],
+        "changed_by_email": current_user.get("email", ""),
+        "changed_by_name": current_user.get("full_name", ""),
+        "changed_at": created_at,
+        "changes": {
+            "action": "created",
+            "old_values": None,
+            "new_values": history_new_values
+        }
+    }
+    await db.emission_history.insert_one(creation_history)
+    
+    # Audit log
+    await audit_logger.log(
+        action=AuditAction.CREATE,
+        module=AuditModule.EMISSION,
+        user_id=current_user["id"],
+        user_email=current_user["email"],
+        user_role=current_user.get("role", "user"),
+        organization_id=record_dict["organization_id"],
+        resource_id=record_id,
+        resource_name=f"{record_data.scope} - {record_data.category} ({record_data.reporting_period})",
+        description=f"Created emission record for {record_data.category}",
+        new_values=record_dict,
+        metadata={
+            "scope": record_data.scope,
+            "category": record_data.category,
+            "facility_id": record_data.facility_id,
+            "total_emissions": record_dict["total_emissions"]
+        }
+    )
+    
+    return EmissionRecordResponse(**record_dict)
+
+# Phase B4: GET /emissions moved to modules/emissions/router.py
+
+
+@router.put("/emissions/{record_id}", response_model=EmissionRecordResponse)
+async def update_emission_record(
+    record_id: str,
+    record_data: EmissionRecordCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    existing = await db.emission_records.find_one({"id": record_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Emission record not found")
+    
+    # Prevent changing frequency_type once saved
+    existing_frequency = existing.get("frequency_type", "monthly")
+    new_frequency = record_data.frequency_type or "monthly"
+    if existing_frequency != new_frequency:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot change frequency_type from '{existing_frequency}' to '{new_frequency}'. Delete and recreate the record if needed."
+        )
+    
+    update_dict = record_data.model_dump()
+    # Ensure frequency_type is preserved
+    update_dict["frequency_type"] = existing_frequency
+    
+    # For Scope 3 emissions: sync sub_category with scope3_activity when activity changes
+    if record_data.scope and 'scope3' in record_data.scope.lower():
+        # Check if scope3_activity is provided (either directly or in dynamic_field_values)
+        scope3_activity = record_data.scope3_activity
+        if not scope3_activity and record_data.dynamic_field_values:
+            scope3_act_field = record_data.dynamic_field_values.get('scope3_activity', {})
+            if isinstance(scope3_act_field, dict):
+                scope3_activity = scope3_act_field.get('value')
+        
+        # Update sub_category to match scope3_activity if activity is set
+        if scope3_activity:
+            update_dict["sub_category"] = scope3_activity
+    
+    # Extract emission values from outputs dict for convenience accessors
+    outputs = record_data.outputs or {}
+    update_dict["co2_emissions"] = outputs.get("co2", {}).get("value", 0) or 0
+    update_dict["ch4_emissions"] = outputs.get("ch4", {}).get("value", 0) or 0
+    update_dict["n2o_emissions"] = outputs.get("n2o", {}).get("value", 0) or 0
+    update_dict["co2e_emissions"] = outputs.get("co2e", {}).get("value", 0) or 0
+    update_dict["total_emissions"] = update_dict["co2e_emissions"]
+    
+    # Prepare new_values for history with proper emission field names
+    history_new_values = record_data.model_dump()
+    history_new_values["co2_emissions"] = update_dict["co2_emissions"]
+    history_new_values["ch4_emissions"] = update_dict["ch4_emissions"]
+    history_new_values["n2o_emissions"] = update_dict["n2o_emissions"]
+    history_new_values["co2e_emissions"] = update_dict["co2e_emissions"]
+    history_new_values["total_emissions"] = update_dict["total_emissions"]
+    
+    # Look up activity names if scope3_ef_id changed (for version history display)
+    old_scope3_ef_id = existing.get("scope3_ef_id")
+    new_scope3_ef_id = history_new_values.get("scope3_ef_id")
+    if old_scope3_ef_id != new_scope3_ef_id:
+        # Look up old activity name
+        if old_scope3_ef_id:
+            old_ef = await db.scope3_ef.find_one({"id": old_scope3_ef_id}, {"_id": 0, "activity": 1, "name": 1})
+            if old_ef:
+                existing["activity_name"] = old_ef.get("activity") or old_ef.get("name") or old_scope3_ef_id
+        # Look up new activity name
+        if new_scope3_ef_id:
+            new_ef = await db.scope3_ef.find_one({"id": new_scope3_ef_id}, {"_id": 0, "activity": 1, "name": 1})
+            if new_ef:
+                history_new_values["activity_name"] = new_ef.get("activity") or new_ef.get("name") or new_scope3_ef_id
+    
+    # Compute field-level changes for better tracking (#3 - Version History)
+    field_changes = compute_field_changes(existing, history_new_values)
+    
+    # Save version history entry for this update with detailed field changes
+    history_dict = {
+        "id": str(uuid.uuid4()),
+        "emission_id": record_id,
+        "facility_id": existing.get("facility_id"),
+        "organization_id": existing.get("organization_id"),
+        "scope": existing.get("scope"),
+        "category": existing.get("category"),
+        "changed_by": current_user["id"],
+        "changed_by_email": current_user.get("email", ""),
+        "changed_by_name": current_user.get("full_name", ""),
+        "changed_at": datetime.now(timezone.utc).isoformat(),
+        "version": existing.get("version", 0) + 1,
+        "field_changes": field_changes,  # New: detailed field-level changes
+        "changes_summary": f"{len(field_changes)} field(s) changed",
+        "changes": {
+            "action": "updated",
+            "old_values": existing,
+            "new_values": history_new_values
+        }
+    }
+    await db.emission_history.insert_one(history_dict)
+    
+    update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
+    update_dict["updated_by"] = current_user["id"]
+    update_dict["updated_by_email"] = current_user.get("email", "")
+    update_dict["updated_by_name"] = current_user.get("full_name", "")
+    update_dict["version"] = existing.get("version", 0) + 1  # Increment version
+    
+    await db.emission_records.update_one({"id": record_id}, {"$set": update_dict})
+    updated = await db.emission_records.find_one({"id": record_id}, {"_id": 0})
+    
+    # Audit log
+    await audit_logger.log(
+        action=AuditAction.UPDATE,
+        module=AuditModule.EMISSION,
+        user_id=current_user["id"],
+        user_email=current_user["email"],
+        user_role=current_user.get("role", "user"),
+        organization_id=existing.get("organization_id"),
+        resource_id=record_id,
+        resource_name=f"{record_data.scope} - {record_data.category} ({record_data.reporting_period})",
+        description=f"Updated emission record for {record_data.category}",
+        old_values=existing,
+        new_values=update_dict,
+        metadata={
+            "scope": record_data.scope,
+            "category": record_data.category,
+            "facility_id": record_data.facility_id,
+            "total_emissions": update_dict["total_emissions"]
+        }
+    )
+    
+    return EmissionRecordResponse(**updated)
 
 
 @router.get("/emissions", response_model=List[EmissionRecordResponse])
