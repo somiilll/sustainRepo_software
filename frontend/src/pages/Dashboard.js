@@ -20,8 +20,8 @@
  */
 import React from 'react';
 import { useDashboardData } from './dashboard/useDashboardData';
-import DashboardScope12 from './dashboard/DashboardScope12';
-import DashboardScope123 from './dashboard/DashboardScope123';
+import DashboardScope12 from '../modules/dashboard/DashboardScope12';
+import DashboardScope123 from '../modules/dashboard/DashboardScope123';
 
 export default function Dashboard() {
   const data = useDashboardData();
