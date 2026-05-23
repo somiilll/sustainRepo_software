@@ -6,6 +6,7 @@
 import React from 'react';
 import { ChevronDown, ChevronUp, SlidersHorizontal, Sparkles } from 'lucide-react';
 import DashboardFilters from '../../../../pages/dashboard/components/DashboardFilters';
+import PendingApprovalBell from '../../../ghg/components/PendingApprovalBell';
 
 export default function StickyFilterBar({
   title = 'Executive Dashboard',
@@ -31,15 +32,18 @@ export default function StickyFilterBar({
           </div>
           {liveBadge}
         </div>
-        <button
-          onClick={() => setShowFilters((s) => !s)}
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-stone-700 border border-stone-200 hover:border-stone-300 bg-white rounded-lg px-3 py-1.5 transition-colors"
-          data-testid="toggle-filters-btn"
-        >
-          <SlidersHorizontal className="w-3.5 h-3.5" />
-          {showFilters ? 'Hide filters' : 'Show filters'}
-          {showFilters ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-        </button>
+        <div className="flex items-center gap-2">
+          <PendingApprovalBell />
+          <button
+            onClick={() => setShowFilters((s) => !s)}
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-stone-700 border border-stone-200 hover:border-stone-300 bg-white rounded-lg px-3 py-1.5 transition-colors"
+            data-testid="toggle-filters-btn"
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            {showFilters ? 'Hide filters' : 'Show filters'}
+            {showFilters ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+        </div>
       </div>
       {showFilters && (
         <div className="mt-3 animate-in fade-in slide-in-from-top-2 duration-200">

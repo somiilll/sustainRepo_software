@@ -97,21 +97,55 @@ export default function GaugeCard({
   }
 
   const target = targets.find((t) => t.id === selectedId) || targets[0];
-  // Progress = (reduction so far) / (target reduction)
-  // For mode=total absolute: target = base - (base * percent/100) OR base - absolute_value.
-  // For now, assume percent target; fall back to 0% if can't compute.
+  // Progress = (reduction so far) / (target reduction).
+  // For mode=total absolute: target = baseYearTotal × (percent/100), OR a flat absolute_value.
   const cfg = target.target_configuration || {};
+  const canComputeProgress = baseYearTotal > 0;
   let targetReduction = 0;
-  let achievedReduction = baseYearTotal - currentTotal;
-  if (target.target_mode === 'total') {
+  const achievedReduction = baseYearTotal - currentTotal;
+  if (target.target_mode === 'total' && canComputeProgress) {
     if (cfg.target_type === 'percentage' && cfg.value != null) {
       targetReduction = (baseYearTotal * Number(cfg.value)) / 100;
     } else if (cfg.target_type === 'absolute' && cfg.value != null) {
       targetReduction = Number(cfg.value);
     }
   }
-  const pct = targetReduction > 0 ? Math.max(0, (achievedReduction / targetReduction) * 100) : 0;
-  const clamped = Math.min(100, pct);
+  const pct = targetReduction > 0 ? (achievedReduction / targetReduction) * 100 : 0;
+  const clamped = Math.min(100, Math.max(0, pct));
+
+  if (!canComputeProgress) {
+    return (
+      <div className="relative overflow-hidden rounded-2xl border border-stone-200/70 bg-white/60 backdrop-blur-xl shadow-sm p-5 flex flex-col" data-testid="kpi-card-reduction-target-achieved">
+        <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 opacity-70" />
+        <div className="flex items-start justify-between mb-1">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Reduction Target Achieved</p>
+          {targets.length > 1 && (
+            <select
+              value={target.id}
+              onChange={(e) => setSelectedId(e.target.value)}
+              className="text-[10px] border border-stone-200 rounded-md px-1.5 py-0.5 bg-white max-w-[110px]"
+              data-testid="kpi-target-selector"
+            >
+              {targets.map((t) => (<option key={t.id} value={t.id}>{t.name}</option>))}
+            </select>
+          )}
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center text-center gap-2 py-2">
+          <TargetIcon className="w-7 h-7 text-amber-500" />
+          <p className="text-xs text-stone-600 leading-snug">Configure a <span className="font-semibold">Base Year</span> to compute target progress.</p>
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-xs"
+            onClick={() => navigate('/base-year-emissions')}
+            data-testid="kpi-set-base-year-btn"
+          >
+            Set Base Year
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-stone-200/70 bg-white/60 backdrop-blur-xl shadow-sm hover:shadow-md transition-all duration-300 p-5 flex flex-col" data-testid="kpi-card-reduction-target-achieved">

@@ -5,8 +5,6 @@
  */
 import React, { useMemo } from 'react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts';
-import GlowSparkline from '../shared/GlowSparkline';
-import { buildFacilitySparkline } from '../../services/dataTransformers';
 
 const BAR_GRADIENT_FROM = '#34D399';
 const BAR_GRADIENT_TO = '#10B981';
@@ -46,29 +44,6 @@ export default function FacilityChart({ facilities = [], height = 320 }) {
           </Bar>
         </BarChart>
       </ResponsiveContainer>
-
-      {/* Glow trend mini-cards below */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 mt-3">
-        {data.slice(0, 5).map((f) => {
-          const spark = buildFacilitySparkline(f);
-          return (
-            <div
-              key={f.id}
-              className="rounded-xl border border-stone-100 bg-white/70 p-2.5 flex items-center gap-2"
-              data-testid={`facility-mini-${f.id}`}
-            >
-              <div className="flex-1 min-w-0">
-                <div className="text-[11px] text-stone-500 truncate" title={f.name}>{f.name}</div>
-                <div className="text-sm font-semibold text-stone-900 tabular-nums">{f.total.toFixed(1)}</div>
-              </div>
-              {/* glowy sparkline like the screenshot reference */}
-              <div className="rounded-lg bg-emerald-50/80 p-1.5">
-                <GlowSparkline data={spark} width={42} height={20} stroke="#10B981" trend="up" showArrow />
-              </div>
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }

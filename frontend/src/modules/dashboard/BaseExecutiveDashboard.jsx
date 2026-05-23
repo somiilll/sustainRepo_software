@@ -99,7 +99,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
   ) : null;
 
   return (
-    <div className="space-y-5 pb-10" data-testid="executive-dashboard">
+    <div className="space-y-6 pb-10" data-testid="executive-dashboard">
       <StickyFilterBar
         title={organization?.name ? `${organization.name} · Executive Dashboard` : 'Executive Dashboard'}
         subtitle={`Reporting window: ${dateRangeLabel}`}
@@ -116,7 +116,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
       ) : (
         <>
           {/* ROW 1: KPI cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
             <KpiCard
               title="Total Emissions"
               value={totals.total}
@@ -147,7 +147,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
           </div>
 
           {/* ROW 2: Trend + Donut */}
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
             <SectionCard
               className="lg:col-span-3"
               title={hasScope3 ? 'Scope 1, 2 & 3 Emissions Trend' : 'Scope 1 & 2 Emissions Trend'}
@@ -169,7 +169,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
           </div>
 
           {/* ROW 3: Operational hotspots */}
-          <div className={`grid grid-cols-1 ${hasScope3 ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} gap-4`}>
+          <div className={`grid grid-cols-1 ${hasScope3 ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} gap-5`}>
             <SectionCard title="Facility-wise Emissions" subtitle="Top contributors" accent="#34D399" testId="section-facility">
               <FacilityChart facilities={facilitySeries} />
             </SectionCard>
@@ -185,12 +185,12 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
             </SectionCard>
           </div>
 
-          {/* ROW 4: Sankey + Heatmap */}
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+          {/* ROW 4: Sankey + Heatmap (more balanced columns so map gets real space) */}
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
             <SectionCard className="lg:col-span-3" title="Base Year vs Current Year" subtitle="Emissions flow comparison" accent="#0F766E" testId="section-sankey">
               <BaseYearSankey nodes={sankey.nodes} links={sankey.links} />
             </SectionCard>
-            <SectionCard title="Geographic Heatmap" subtitle="Facility emission concentration" accent="#EF4444" testId="section-heatmap">
+            <SectionCard className="lg:col-span-2" title="Geographic Heatmap" subtitle="Facility emission concentration" accent="#EF4444" testId="section-heatmap">
               <GeoHeatmap points={heatPoints} />
             </SectionCard>
           </div>

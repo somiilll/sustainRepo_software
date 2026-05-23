@@ -72,10 +72,24 @@ export function buildFacilitySparkline(facility) {
   return norm.map((y, x) => ({ x, y }));
 }
 
-// ---- Scope 3 hotspots: aggregate emissions_by_category for scope3 ----
+// Detect scope from category name + per-scope numeric fields returned by the API.
+// emissions_by_category items look like: { category, total_emissions, scope1, scope2 }
+// Scope 3 categories follow "C1 - ...", "C2 - ...", ..., "C15 - ..." naming.
+// Biogenic categories include the word "Biogenic".
+function detectScopeForCategory(c) {
+  if (c.scope) return String(c.scope).toLowerCase().replace(/\s+/g, '');
+  const name = String(c.category || c.name || '');
+  if (/^C\d+\s*[-–]/i.test(name)) return 'scope3';
+  if (/biogenic/i.test(name)) return 'biogenic';
+  if ((c.scope1 || 0) > 0) return 'scope1';
+  if ((c.scope2 || 0) > 0) return 'scope2';
+  return 'scope1';
+}
+
+// ---- Scope 3 hotspots: pick categories where detected scope === scope3 ----
 export function buildScope3Hotspots(categories = []) {
-  const s3 = (categories || []).filter((c) => (c.scope || '').toLowerCase() === 'scope3');
-  return s3
+  return (categories || [])
+    .filter((c) => detectScopeForCategory(c) === 'scope3')
     .map((c) => ({
       id: c.category || c.name,
       name: c.category || c.name,
@@ -89,7 +103,7 @@ export function buildCategoryBreakdown(categories = []) {
   return (categories || [])
     .map((c) => ({
       name: c.category || c.name,
-      scope: c.scope || 'unknown',
+      scope: detectScopeForCategory(c),
       value: c.total_emissions || c.value || 0,
     }))
     .sort((a, b) => b.value - a.value)
@@ -97,34 +111,46 @@ export function buildCategoryBreakdown(categories = []) {
 }
 
 // ---- Base Year Sankey ----
-// Build nodes/links for Recharts <Sankey>. Flow: BaseYear -> CurrentYear -> Scope contribution.
+// Flow: Base Year scope nodes (left) → Current Year scope nodes (right).
+// Distinct colour per scope; year labels embedded in node names.
 export function buildSankeyData(baseYearComparison, hasScope3) {
   if (!baseYearComparison) return { nodes: [], links: [] };
-  const { directComparison = [], indirectComparison = [] } = baseYearComparison;
+  const { directComparison = [], indirectComparison = [], directBaseYear, indirectBaseYear } = baseYearComparison;
 
-  const scopes = [
+  const baseYearLabel = directBaseYear || indirectBaseYear || 'Base Year';
+  const currentYearLabel = new Date().getFullYear();
+
+  const allScopes = [
     ...directComparison,
     ...(hasScope3 ? indirectComparison.filter((x) => x.scope === 'Scope 3') : []),
   ].filter((s) => (s.base || 0) > 0 || (s.current || 0) > 0);
 
-  const nodes = [
-    { name: 'Base Year' },
-    { name: 'Current Year' },
-    ...scopes.map((s) => ({ name: s.scope })),
-  ];
+  if (!allScopes.length) return { nodes: [], links: [] };
 
-  const links = [];
-  scopes.forEach((s, idx) => {
-    const targetIdx = 2 + idx;
-    // Base → Scope
-    if ((s.base || 0) > 0) {
-      links.push({ source: 0, target: targetIdx, value: Number(s.base.toFixed(2)) });
-    }
-    // Current → Scope (we represent current flow as a separate band)
-    if ((s.current || 0) > 0) {
-      links.push({ source: 1, target: targetIdx, value: Number(s.current.toFixed(2)) });
-    }
-  });
+  // Nodes laid out as: [BaseScope1, BaseScope2, ..., CurrentScope1, CurrentScope2, ...]
+  // Year label is included in node name so the chart "writes" the year on left/right.
+  const baseNodes = allScopes.map((s) => ({
+    name: `${s.scope} · ${baseYearLabel}`,
+    scope: s.scope,
+    side: 'base',
+  }));
+  const currentNodes = allScopes.map((s) => ({
+    name: `${s.scope} · ${currentYearLabel}`,
+    scope: s.scope,
+    side: 'current',
+  }));
+  const nodes = [...baseNodes, ...currentNodes];
+
+  // Link width = max(base, current) so the connection shows the larger value
+  // visually; tooltip shows the flow value exactly.
+  const links = allScopes.map((s, i) => ({
+    source: i,
+    target: allScopes.length + i,
+    value: Number(Math.max(s.base || 0.0001, s.current || 0.0001).toFixed(2)),
+    base: Number((s.base || 0).toFixed(2)),
+    current: Number((s.current || 0).toFixed(2)),
+    scope: s.scope,
+  }));
 
   return { nodes, links };
 }

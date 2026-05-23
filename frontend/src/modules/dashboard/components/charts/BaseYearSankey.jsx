@@ -5,21 +5,24 @@
 import React from 'react';
 import { ResponsiveContainer, Sankey, Tooltip, Layer, Rectangle } from 'recharts';
 
-const NODE_COLORS = {
-  'Base Year': '#A8A29E',
-  'Current Year': '#0F766E',
+const SCOPE_PALETTE = {
   'Scope 1': '#10B981',
   'Scope 2': '#3B82F6',
   'Scope 3': '#8B5CF6',
   'Biogenic': '#F59E0B',
 };
 
+function nodeColor(payload) {
+  const scope = payload?.scope;
+  return SCOPE_PALETTE[scope] || '#78716C';
+}
+
 function SankeyNode({ x, y, width, height, index, payload, containerWidth }) {
-  const isOut = x + width + 6 > containerWidth;
-  const color = NODE_COLORS[payload.name] || '#78716C';
+  const isOut = x + width + 6 > containerWidth - 8;
+  const color = nodeColor(payload);
   return (
     <Layer key={`node-${index}`}>
-      <Rectangle x={x} y={y} width={width} height={height} fill={color} fillOpacity={0.9} />
+      <Rectangle x={x} y={y} width={width} height={height} fill={color} fillOpacity={0.92} />
       <text
         x={isOut ? x - 6 : x + width + 6}
         y={y + height / 2}
@@ -31,6 +34,20 @@ function SankeyNode({ x, y, width, height, index, payload, containerWidth }) {
         {payload.name}
       </text>
     </Layer>
+  );
+}
+
+function SankeyLink({ sourceX, targetX, sourceY, targetY, sourceControlX, targetControlX, linkWidth, payload }) {
+  const color = SCOPE_PALETTE[payload?.scope] || '#A8A29E';
+  const path = `M${sourceX},${sourceY} C${sourceControlX},${sourceY} ${targetControlX},${targetY} ${targetX},${targetY}`;
+  return (
+    <path
+      d={path}
+      fill="none"
+      stroke={color}
+      strokeOpacity={0.32}
+      strokeWidth={linkWidth}
+    />
   );
 }
 
@@ -49,13 +66,20 @@ export default function BaseYearSankey({ nodes = [], links = [], height = 280 })
         <Sankey
           data={{ nodes, links }}
           node={(p) => <SankeyNode {...p} />}
-          link={{ stroke: '#10B981', strokeOpacity: 0.18 }}
-          nodePadding={20}
-          margin={{ top: 8, right: 80, bottom: 8, left: 8 }}
+          link={(p) => <SankeyLink {...p} />}
+          nodePadding={18}
+          nodeWidth={12}
+          margin={{ top: 8, right: 110, bottom: 8, left: 110 }}
         >
           <Tooltip
             contentStyle={{ borderRadius: 10, border: '1px solid #E7E5E4', boxShadow: '0 6px 14px rgba(0,0,0,0.08)', fontSize: 12 }}
-            formatter={(v) => `${Number(v).toFixed(2)} tCO₂e`}
+            formatter={(v, _, p) => {
+              const pl = p?.payload?.payload || p?.payload;
+              if (pl && pl.base != null && pl.current != null) {
+                return [`Base ${pl.base.toFixed(2)} → Current ${pl.current.toFixed(2)} tCO₂e`, pl.scope];
+              }
+              return `${Number(v).toFixed(2)} tCO₂e`;
+            }}
           />
         </Sankey>
       </ResponsiveContainer>
