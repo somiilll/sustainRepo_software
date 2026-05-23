@@ -115,6 +115,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
         </div>
       ) : (
         <>
+          <div className="space-y-4">
           {/* ROW 1: KPI cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
             <KpiCard
@@ -193,6 +194,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
             <SectionCard className="lg:col-span-2" title="Geographic Heatmap" subtitle="Facility emission concentration" accent="#EF4444" testId="section-heatmap">
               <GeoHeatmap points={heatPoints} />
             </SectionCard>
+          </div>
           </div>
 
           {/* Footer freshness */}
