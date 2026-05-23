@@ -99,7 +99,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
   ) : null;
 
   return (
-    <div className="space-y-6 pb-10" data-testid="executive-dashboard">
+    <div className="space-y-10 pb-10" data-testid="executive-dashboard">
       <StickyFilterBar
         title={organization?.name ? `${organization.name} · Executive Dashboard` : 'Executive Dashboard'}
         subtitle={`Reporting window: ${dateRangeLabel}`}
@@ -116,7 +116,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
       ) : (
         <>
           {/* ROW 1: KPI cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
             <KpiCard
               title="Total Emissions"
               value={totals.total}
@@ -147,7 +147,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
           </div>
 
           {/* ROW 2: Trend + Donut */}
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
             <SectionCard
               className="lg:col-span-3"
               title={hasScope3 ? 'Scope 1, 2 & 3 Emissions Trend' : 'Scope 1 & 2 Emissions Trend'}
@@ -169,7 +169,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
           </div>
 
           {/* ROW 3: Operational hotspots */}
-          <div className={`grid grid-cols-1 ${hasScope3 ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} gap-5`}>
+          <div className={`grid grid-cols-1 ${hasScope3 ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} gap-3`}>
             <SectionCard title="Facility-wise Emissions" subtitle="Top contributors" accent="#34D399" testId="section-facility">
               <FacilityChart facilities={facilitySeries} />
             </SectionCard>
@@ -185,10 +185,10 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
             </SectionCard>
           </div>
 
-          {/* ROW 4: Sankey + Heatmap (more balanced columns so map gets real space) */}
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+          {/* ROW 4: Sankey + Heatmap */}
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
             <SectionCard className="lg:col-span-3" title="Base Year vs Current Year" subtitle="Emissions flow comparison" accent="#0F766E" testId="section-sankey">
-              <BaseYearSankey nodes={sankey.nodes} links={sankey.links} />
+              <SankeyWithLabels sankey={sankey} />
             </SectionCard>
             <SectionCard className="lg:col-span-2" title="Geographic Heatmap" subtitle="Facility emission concentration" accent="#EF4444" testId="section-heatmap">
               <GeoHeatmap points={heatPoints} />
@@ -202,6 +202,51 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// ---- Helpers ----
+
+const SANKEY_SCOPE_COLOR = {
+  'Scope 1': '#10B981',
+  'Scope 2': '#3B82F6',
+  'Scope 3': '#8B5CF6',
+  'Biogenic': '#F59E0B',
+};
+
+function SideLabelList({ rows = [], align = 'left' }) {
+  if (!rows.length) return <div className="h-full" />;
+  return (
+    <div className={`flex flex-col justify-around h-full gap-2 ${align === 'right' ? 'items-end text-right' : 'items-start text-left'}`}>
+      {rows.map((r) => (
+        <div key={`${align}-${r.scope}`} className="flex flex-col" data-testid={`sankey-label-${align}-${r.scope.toLowerCase().replace(/\s+/g, '')}`}>
+          <div className="flex items-center gap-1.5">
+            {align === 'left' && <span className="w-2 h-2 rounded-full" style={{ background: SANKEY_SCOPE_COLOR[r.scope] || '#78716C' }} />}
+            <span className="text-[11px] font-semibold text-stone-700">{r.scope}</span>
+            {align === 'right' && <span className="w-2 h-2 rounded-full" style={{ background: SANKEY_SCOPE_COLOR[r.scope] || '#78716C' }} />}
+          </div>
+          <span className="text-[10px] text-stone-500">{r.year}</span>
+          <span className="text-xs font-bold text-stone-900 tabular-nums">{r.value.toFixed(2)} <span className="text-[9px] font-normal text-stone-400">tCO₂e</span></span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SankeyWithLabels({ sankey }) {
+  const empty = !sankey?.nodes?.length || !sankey?.links?.length;
+  return (
+    <div className="grid grid-cols-12 gap-2 items-stretch" style={{ minHeight: 280 }}>
+      <div className="col-span-2">
+        <SideLabelList rows={sankey?.baseRows || []} align="left" />
+      </div>
+      <div className="col-span-8">
+        <BaseYearSankey nodes={sankey.nodes} links={sankey.links} height={empty ? 260 : 280} />
+      </div>
+      <div className="col-span-2">
+        <SideLabelList rows={sankey?.currentRows || []} align="right" />
+      </div>
     </div>
   );
 }

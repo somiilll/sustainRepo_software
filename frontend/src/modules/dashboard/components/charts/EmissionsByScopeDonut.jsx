@@ -71,18 +71,18 @@ export default function EmissionsByScopeDonut({ data = [], height = 200 }) {
       </div>
 
       {/* Legend cards */}
-      <div className="grid grid-cols-2 gap-2 mt-3">
+      <div className="grid grid-cols-2 gap-1.5 mt-3">
         {data.map((d) => (
           <div
             key={d.id}
-            className="flex items-center justify-between rounded-lg px-3 py-2 border border-stone-100 bg-white/60"
+            className="flex items-center justify-between rounded-lg px-2 py-1.5 border border-stone-100 bg-white/60"
             data-testid={`legend-${d.id}`}
           >
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: COLOR_MAP[d.id] || '#A8A29E' }} />
-              <span className="text-xs font-medium text-stone-700 truncate">{d.name}</span>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: COLOR_MAP[d.id] || '#A8A29E' }} />
+              <span className="text-[11px] font-medium text-stone-700 whitespace-nowrap">{d.name}</span>
             </div>
-            <span className="text-xs font-semibold text-stone-900 tabular-nums">{(d.pct || 0).toFixed(1)}%</span>
+            <span className="text-[11px] font-semibold text-stone-900 tabular-nums">{(d.pct || 0).toFixed(1)}%</span>
           </div>
         ))}
       </div>

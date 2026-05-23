@@ -87,8 +87,10 @@ function detectScopeForCategory(c) {
 }
 
 // ---- Scope 3 hotspots: pick categories where detected scope === scope3 ----
+// Returns only the TOP 3 by emissions; everything else gets aggregated into
+// a single "Others" bucket so the executive view stays leadership-focused.
 export function buildScope3Hotspots(categories = []) {
-  return (categories || [])
+  const s3 = (categories || [])
     .filter((c) => detectScopeForCategory(c) === 'scope3')
     .map((c) => ({
       id: c.category || c.name,
@@ -96,9 +98,14 @@ export function buildScope3Hotspots(categories = []) {
       value: c.total_emissions || c.value || 0,
     }))
     .sort((a, b) => b.value - a.value);
+  if (s3.length <= 3) return s3;
+  const top = s3.slice(0, 3);
+  const othersValue = s3.slice(3).reduce((acc, x) => acc + x.value, 0);
+  if (othersValue > 0) top.push({ id: 'Others', name: 'Others', value: othersValue });
+  return top;
 }
 
-// ---- Emission categories breakdown (all scopes, stacked) ----
+// ---- Emission categories breakdown (TOP 3 across scopes, stacked) ----
 export function buildCategoryBreakdown(categories = []) {
   return (categories || [])
     .map((c) => ({
@@ -107,52 +114,74 @@ export function buildCategoryBreakdown(categories = []) {
       value: c.total_emissions || c.value || 0,
     }))
     .sort((a, b) => b.value - a.value)
-    .slice(0, 12);
+    .slice(0, 3);
 }
 
 // ---- Base Year Sankey ----
 // Flow: Base Year scope nodes (left) → Current Year scope nodes (right).
 // Distinct colour per scope; year labels embedded in node names.
+// Also returns `baseRows` / `currentRows` so callers can render side labels
+// OUTSIDE the chart (one row per scope, skipping scopes where the
+// corresponding side has no value).
 export function buildSankeyData(baseYearComparison, hasScope3) {
-  if (!baseYearComparison) return { nodes: [], links: [] };
+  if (!baseYearComparison) return { nodes: [], links: [], baseRows: [], currentRows: [], baseYearLabel: '', currentYearLabel: '' };
   const { directComparison = [], indirectComparison = [], directBaseYear, indirectBaseYear } = baseYearComparison;
 
   const baseYearLabel = directBaseYear || indirectBaseYear || 'Base Year';
-  const currentYearLabel = new Date().getFullYear();
+  const currentYearLabel = String(new Date().getFullYear());
 
   const allScopes = [
     ...directComparison,
     ...(hasScope3 ? indirectComparison.filter((x) => x.scope === 'Scope 3') : []),
   ].filter((s) => (s.base || 0) > 0 || (s.current || 0) > 0);
 
-  if (!allScopes.length) return { nodes: [], links: [] };
+  if (!allScopes.length) {
+    return { nodes: [], links: [], baseRows: [], currentRows: [], baseYearLabel, currentYearLabel };
+  }
 
-  // Nodes laid out as: [BaseScope1, BaseScope2, ..., CurrentScope1, CurrentScope2, ...]
-  // Year label is included in node name so the chart "writes" the year on left/right.
-  const baseNodes = allScopes.map((s) => ({
+  // Sankey nodes — only include sides that actually have data so labels
+  // outside the chart stay aligned with what the user sees in the ribbons.
+  const baseScopes = allScopes.filter((s) => (s.base || 0) > 0);
+  const currentScopes = allScopes.filter((s) => (s.current || 0) > 0);
+
+  const baseNodes = baseScopes.map((s) => ({
     name: `${s.scope} · ${baseYearLabel}`,
     scope: s.scope,
     side: 'base',
   }));
-  const currentNodes = allScopes.map((s) => ({
+  const currentNodes = currentScopes.map((s) => ({
     name: `${s.scope} · ${currentYearLabel}`,
     scope: s.scope,
     side: 'current',
   }));
   const nodes = [...baseNodes, ...currentNodes];
 
-  // Link width = max(base, current) so the connection shows the larger value
-  // visually; tooltip shows the flow value exactly.
-  const links = allScopes.map((s, i) => ({
-    source: i,
-    target: allScopes.length + i,
-    value: Number(Math.max(s.base || 0.0001, s.current || 0.0001).toFixed(2)),
-    base: Number((s.base || 0).toFixed(2)),
-    current: Number((s.current || 0).toFixed(2)),
+  const links = [];
+  baseScopes.forEach((s, i) => {
+    const target = baseNodes.length + currentScopes.findIndex((c) => c.scope === s.scope);
+    if (target < baseNodes.length) return; // matching current scope missing
+    links.push({
+      source: i,
+      target,
+      value: Number((s.base || 0).toFixed(2)),
+      base: Number((s.base || 0).toFixed(2)),
+      current: Number((s.current || 0).toFixed(2)),
+      scope: s.scope,
+    });
+  });
+
+  const baseRows = baseScopes.map((s) => ({
     scope: s.scope,
+    year: baseYearLabel,
+    value: Number((s.base || 0).toFixed(2)),
+  }));
+  const currentRows = currentScopes.map((s) => ({
+    scope: s.scope,
+    year: currentYearLabel,
+    value: Number((s.current || 0).toFixed(2)),
   }));
 
-  return { nodes, links };
+  return { nodes, links, baseRows, currentRows, baseYearLabel, currentYearLabel };
 }
 
 // ---- Heatmap: state → [lat, lng] mapping for Indian states ----

@@ -10,58 +10,28 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '../../../../components/ui/button';
 import AnimatedNumber from '../shared/AnimatedNumber';
 
-function GaugeArc({ pct = 0, size = 160, stroke = 14 }) {
+function GaugeArc({ pct = 0 }) {
   const clamp = Math.max(0, Math.min(100, pct));
-  const radius = (size - stroke) / 2;
-  const cx = size / 2;
-  const cy = size / 2 + 10;
-  // semicircle from 180° to 360° (top-half)
-  const startAngle = Math.PI;          // left
-  const endAngle = 2 * Math.PI;        // right
-  const sweep = endAngle - startAngle; // π
-  const valueAngle = startAngle + sweep * (clamp / 100);
-
-  const polarX = (angle) => cx + radius * Math.cos(angle);
-  const polarY = (angle) => cy + radius * Math.sin(angle);
-
-  const bgPath = `M ${polarX(startAngle)} ${polarY(startAngle)} A ${radius} ${radius} 0 0 1 ${polarX(endAngle)} ${polarY(endAngle)}`;
-  const valuePath = `M ${polarX(startAngle)} ${polarY(startAngle)} A ${radius} ${radius} 0 ${clamp > 50 ? 1 : 0} 1 ${polarX(valueAngle)} ${polarY(valueAngle)}`;
-
   // color: red → amber → emerald
   const color = clamp < 33 ? '#EF4444' : clamp < 66 ? '#F59E0B' : '#10B981';
-
   return (
-    <svg width={size} height={size * 0.62} viewBox={`0 0 ${size} ${size * 0.62 + 10}`} className="overflow-visible">
-      <defs>
-        <linearGradient id="gauge-grad" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#EF4444" />
-          <stop offset="50%" stopColor="#F59E0B" />
-          <stop offset="100%" stopColor="#10B981" />
-        </linearGradient>
-        <filter id="gauge-glow" x="-30%" y="-50%" width="160%" height="200%">
-          <feGaussianBlur stdDeviation="2" />
-        </filter>
-      </defs>
-      <path d={bgPath} fill="none" stroke="#E7E5E4" strokeWidth={stroke} strokeLinecap="round" />
-      <path
-        d={valuePath}
-        fill="none"
-        stroke={color}
-        strokeWidth={stroke}
-        strokeLinecap="round"
-        opacity="0.95"
-        filter="url(#gauge-glow)"
-      />
-      {/* tick marks */}
-      {[0, 25, 50, 75, 100].map((t) => {
-        const a = startAngle + sweep * (t / 100);
-        const x1 = cx + (radius + 4) * Math.cos(a);
-        const y1 = cy + (radius + 4) * Math.sin(a);
-        const x2 = cx + (radius + 10) * Math.cos(a);
-        const y2 = cy + (radius + 10) * Math.sin(a);
-        return <line key={t} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#A8A29E" strokeWidth="1" />;
-      })}
-    </svg>
+    <div className="w-full" data-testid="reduction-target-bar">
+      <div className="relative h-2.5 rounded-full bg-stone-200 overflow-hidden">
+        <div
+          className="h-full rounded-full transition-all duration-700"
+          style={{
+            width: `${clamp}%`,
+            background: `linear-gradient(90deg, ${color}cc 0%, ${color} 100%)`,
+            boxShadow: `0 0 6px ${color}55`,
+          }}
+        />
+      </div>
+      <div className="flex justify-between text-[9px] text-stone-400 mt-1 tabular-nums">
+        <span>0%</span>
+        <span>50%</span>
+        <span>100%</span>
+      </div>
+    </div>
   );
 }
 
@@ -76,7 +46,7 @@ export default function GaugeCard({
   // No targets configured → empty state CTA.
   if (!targets.length) {
     return (
-      <div className="relative overflow-hidden rounded-2xl border border-stone-200/70 bg-white/60 backdrop-blur-xl shadow-sm p-5 flex flex-col" data-testid="kpi-card-reduction-target-achieved">
+      <div className="relative overflow-hidden rounded-2xl border border-stone-200/70 bg-white/60 backdrop-blur-xl shadow-sm p-4 flex flex-col" data-testid="kpi-card-reduction-target-achieved">
         <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 opacity-70" />
         <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500 mb-2">Reduction Target Achieved</p>
         <div className="flex-1 flex flex-col items-center justify-center text-center gap-2 py-3">
@@ -115,7 +85,7 @@ export default function GaugeCard({
 
   if (!canComputeProgress) {
     return (
-      <div className="relative overflow-hidden rounded-2xl border border-stone-200/70 bg-white/60 backdrop-blur-xl shadow-sm p-5 flex flex-col" data-testid="kpi-card-reduction-target-achieved">
+      <div className="relative overflow-hidden rounded-2xl border border-stone-200/70 bg-white/60 backdrop-blur-xl shadow-sm p-4 flex flex-col" data-testid="kpi-card-reduction-target-achieved">
         <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 opacity-70" />
         <div className="flex items-start justify-between mb-1">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Reduction Target Achieved</p>
@@ -148,9 +118,9 @@ export default function GaugeCard({
   }
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-stone-200/70 bg-white/60 backdrop-blur-xl shadow-sm hover:shadow-md transition-all duration-300 p-5 flex flex-col" data-testid="kpi-card-reduction-target-achieved">
+    <div className="relative overflow-hidden rounded-2xl border border-stone-200/70 bg-white/60 backdrop-blur-xl shadow-sm hover:shadow-md transition-all duration-300 p-4 flex flex-col" data-testid="kpi-card-reduction-target-achieved">
       <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-emerald-200 via-emerald-400 to-emerald-200 opacity-70" />
-      <div className="flex items-start justify-between mb-1">
+      <div className="flex items-start justify-between mb-2">
         <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Reduction Target Achieved</p>
         {targets.length > 1 && (
           <select
@@ -166,14 +136,12 @@ export default function GaugeCard({
           </select>
         )}
       </div>
-      <div className="flex items-center justify-center -mt-1">
-        <GaugeArc pct={clamped} />
+      <div className="text-3xl font-bold text-stone-900 tracking-tight tabular-nums">
+        <AnimatedNumber value={clamped} decimals={1} suffix="%" />
       </div>
-      <div className="-mt-6 text-center">
-        <div className="text-2xl font-bold text-stone-900 tabular-nums">
-          <AnimatedNumber value={clamped} decimals={1} suffix="%" />
-        </div>
-        <div className="text-[10px] text-stone-500 mt-0.5 truncate" title={target.name}>{target.name}</div>
+      <div className="text-[11px] text-stone-500 mt-0.5 truncate" title={target.name}>{target.name}</div>
+      <div className="mt-3">
+        <GaugeArc pct={clamped} />
       </div>
     </div>
   );

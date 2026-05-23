@@ -36,7 +36,7 @@ export default function KpiCard({
 
   return (
     <div
-      className="relative overflow-hidden rounded-2xl border border-stone-200/70 bg-white/60 backdrop-blur-xl shadow-sm hover:shadow-md transition-all duration-300 p-5 group"
+      className="relative overflow-hidden rounded-2xl border border-stone-200/70 bg-white/60 backdrop-blur-xl shadow-sm hover:shadow-md transition-all duration-300 p-4 group"
       data-testid={`kpi-card-${title.toLowerCase().replace(/\s+/g, '-')}`}
       aria-label={ariaLabel || title}
     >

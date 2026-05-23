@@ -17,22 +17,11 @@ function nodeColor(payload) {
   return SCOPE_PALETTE[scope] || '#78716C';
 }
 
-function SankeyNode({ x, y, width, height, index, payload, containerWidth }) {
-  const isOut = x + width + 6 > containerWidth - 8;
+function SankeyNode({ x, y, width, height, index, payload }) {
   const color = nodeColor(payload);
   return (
     <Layer key={`node-${index}`}>
       <Rectangle x={x} y={y} width={width} height={height} fill={color} fillOpacity={0.92} />
-      <text
-        x={isOut ? x - 6 : x + width + 6}
-        y={y + height / 2}
-        textAnchor={isOut ? 'end' : 'start'}
-        fontSize={11}
-        fill="#44403C"
-        dominantBaseline="middle"
-      >
-        {payload.name}
-      </text>
     </Layer>
   );
 }
@@ -67,9 +56,9 @@ export default function BaseYearSankey({ nodes = [], links = [], height = 280 })
           data={{ nodes, links }}
           node={(p) => <SankeyNode {...p} />}
           link={(p) => <SankeyLink {...p} />}
-          nodePadding={18}
-          nodeWidth={12}
-          margin={{ top: 8, right: 110, bottom: 8, left: 110 }}
+          nodePadding={16}
+          nodeWidth={10}
+          margin={{ top: 6, right: 10, bottom: 6, left: 10 }}
         >
           <Tooltip
             contentStyle={{ borderRadius: 10, border: '1px solid #E7E5E4', boxShadow: '0 6px 14px rgba(0,0,0,0.08)', fontSize: 12 }}
