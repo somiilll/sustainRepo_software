@@ -40,6 +40,16 @@ import EmissionDataGrid from './emissions/components/EmissionDataGrid';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+// Static help text shown next to specific dynamic field labels in the Edit
+// dialog. Keyed by `field.variable` so it matches regardless of label
+// phrasing across categories.
+const FIELD_HELP = {
+  inflation_rate:
+    'Adjusts values to match the EF publication year. If left empty, system defaults will apply. Enter 1 to turn off inflation adjustment.',
+  ppp:
+    'Accounts for country-specific purchasing power differences. If left empty, system defaults will be used. To disable this adjustment, input the USD/INR exchange rate for the reporting period.',
+};
+
 // Helper function to download files
 const downloadFileHelper = (url, filename) => {
   window.location.href = url;
@@ -4068,11 +4078,30 @@ export default function Emissions() {
                         return (
                           <div key={field.id || field.variable} className="space-y-2">
                             <div className="flex items-center justify-between">
-                              <Label className="font-medium">
+                              <Label className="font-medium flex items-center gap-1.5">
                                 {field.label}
                                 {field.required && <span className="text-red-500 ml-1">*</span>}
                                 {!showUnitSelector && !isSupplierBasisUnitField && field.expectedUnit && (
                                   <span className="text-muted-foreground ml-1 text-xs font-normal">({field.expectedUnit})</span>
+                                )}
+                                {FIELD_HELP[field.variable] && (
+                                  <TooltipProvider delayDuration={150}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <button
+                                          type="button"
+                                          aria-label={`${field.label} info`}
+                                          className="inline-flex items-center justify-center w-4 h-4 rounded-full text-stone-400 hover:text-emerald-600 transition-colors focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                                          data-testid={`field-help-${field.variable}`}
+                                        >
+                                          <Info className="w-3.5 h-3.5" />
+                                        </button>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top" align="start" className="max-w-xs text-xs leading-relaxed">
+                                        {FIELD_HELP[field.variable]}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
                                 )}
                               </Label>
                               
