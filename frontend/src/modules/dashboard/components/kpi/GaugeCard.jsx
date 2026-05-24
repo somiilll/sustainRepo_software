@@ -4,7 +4,7 @@
  * Pure SVG arc (no chart lib needed). Supports a target-selector when
  * multiple targets exist; empty-state CTA when none configured.
  */
-import React, { useState } from 'react';
+import React, {useState} from 'react';
 import { Target as TargetIcon, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../../../components/ui/button';
@@ -35,14 +35,18 @@ function GaugeArc({ pct = 0 }) {
   );
 }
 
+
 export default function GaugeCard({
   targets = [],
+  selectedTarget,
+  selectedTargetId,
+  setSelectedTargetId,
   baseYearTotal = 0,
   currentTotal = 0,
+  targetReduction = 0,
+  reductionAchievedPct = 0,
 }) {
   const navigate = useNavigate();
-  const [selectedId, setSelectedId] = useState(targets[0]?.id || '');
-
   // No targets configured → empty state CTA.
   if (!targets.length) {
     return (
@@ -66,22 +70,11 @@ export default function GaugeCard({
     );
   }
 
-  const target = targets.find((t) => t.id === selectedId) || targets[0];
-  // Progress = (reduction so far) / (target reduction).
-  // For mode=total absolute: target = baseYearTotal × (percent/100), OR a flat absolute_value.
-  const cfg = target.target_configuration || {};
   const canComputeProgress = baseYearTotal > 0;
-  let targetReduction = 0;
-  const achievedReduction = baseYearTotal - currentTotal;
-  if (target.target_mode === 'total' && canComputeProgress) {
-    if (cfg.target_type === 'percentage' && cfg.value != null) {
-      targetReduction = (baseYearTotal * Number(cfg.value)) / 100;
-    } else if (cfg.target_type === 'absolute' && cfg.value != null) {
-      targetReduction = Number(cfg.value);
-    }
-  }
-  const pct = targetReduction > 0 ? (achievedReduction / targetReduction) * 100 : 0;
-  const clamped = Math.min(100, Math.max(0, pct));
+  const clamped = Math.min(
+    100,
+    Math.max(0, reductionAchievedPct || 0)
+  );
 
   if (!canComputeProgress) {
     return (
@@ -91,8 +84,8 @@ export default function GaugeCard({
           <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Reduction Target Achieved</p>
           {targets.length > 1 && (
             <select
-              value={target.id}
-              onChange={(e) => setSelectedId(e.target.value)}
+              value={selectedTarget?.id}
+              onChange={(e) => setSelectedTargetId(e.target.value)}
               className="text-[10px] border border-stone-200 rounded-md px-1.5 py-0.5 bg-white max-w-[110px]"
               data-testid="kpi-target-selector"
             >
@@ -124,8 +117,8 @@ export default function GaugeCard({
         <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Reduction Target Achieved</p>
         {targets.length > 1 && (
           <select
-            value={target.id}
-            onChange={(e) => setSelectedId(e.target.value)}
+            value={selectedTarget?.id}
+            onChange={(e) => setSelectedTargetId(e.target.value)}
             className="text-[10px] border border-stone-200 rounded-md px-1.5 py-0.5 bg-white max-w-[110px]"
             title="Switch target"
             data-testid="kpi-target-selector"
@@ -139,7 +132,7 @@ export default function GaugeCard({
       <div className="text-3xl font-bold text-stone-900 tracking-tight tabular-nums">
         <AnimatedNumber value={clamped} decimals={1} suffix="%" />
       </div>
-      <div className="text-[11px] text-stone-500 mt-0.5 truncate" title={target.name}>{target.name}</div>
+      <div className="text-[11px] text-stone-500 mt-0.5 truncate" title={selectedTarget?.name}>{selectedTarget?.name}</div>
       <div className="mt-3">
         <GaugeArc pct={clamped} />
       </div>

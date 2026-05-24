@@ -12,7 +12,7 @@ const SCOPE_COLORS = {
   biogenic: '#F59E0B',
 };
 
-export default function EmissionCategoriesChart({ data = [], height = 320 }) {
+export default function EmissionCategoriesChart({ data = [], height = 370 }) {
   const chartData = useMemo(() => {
     // pivot per-category, value goes into the matching scope key
     return (data || []).map((c) => ({
@@ -32,10 +32,10 @@ export default function EmissionCategoriesChart({ data = [], height = 320 }) {
   return (
     <div data-testid="emission-categories-chart">
       <ResponsiveContainer width="100%" height={height}>
-        <BarChart data={chartData} layout="vertical" margin={{ top: 8, right: 12, left: 8, bottom: 0 }}>
+        <BarChart data={chartData} layout="vertical" barSize={45} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#E7E5E4" horizontal={false} />
-          <XAxis type="number" stroke="#A8A29E" fontSize={10} tickLine={false} axisLine={false} />
-          <YAxis dataKey="name" type="category" stroke="#A8A29E" fontSize={10} width={120} tickLine={false} axisLine={false} />
+          <XAxis type="number" stroke="#A8A29E" fontSize={10} tickLine={false} axisLine={false} padding={{ right: 0 }}/>
+          <YAxis dataKey="name" type="category" stroke="#A8A29E" fontSize={10} width={60} tickLine={false} axisLine={false}  />
           <Tooltip
             contentStyle={{ borderRadius: 10, border: '1px solid #E7E5E4', boxShadow: '0 6px 14px rgba(0,0,0,0.08)', fontSize: 12 }}
             formatter={(v) => `${Number(v).toFixed(2)} tCO₂e`}

@@ -11,7 +11,24 @@
 import React from 'react';
 import { Input } from '../../../../../components/ui/input';
 import { Label } from '../../../../../components/ui/label';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '../../../../../components/ui/tooltip';
+import { Info } from 'lucide-react';
 import { toast } from 'sonner';
+
+// Field-level help text shown on hover next to the label as an "i" icon.
+// Keyed by `field.variable` so it works whether the label is "Inflation
+// Rate", "PPP", "Purchase Power Value", etc.
+const FIELD_HELP = {
+  inflation_rate:
+    'Adjusts values to match the EF publication year. If left empty, system defaults will apply. Enter 1 to turn off inflation adjustment.',
+  ppp:
+    'Accounts for country-specific purchasing power differences. If left empty, system defaults will be used. To disable this adjustment, input the USD/INR exchange rate for the reporting period.',
+};
 
 // Fields that must be whole numbers (integers)
 const INTEGER_ONLY_FIELDS = [
@@ -147,9 +164,32 @@ export const DynamicFieldRenderer = ({
   return (
     <div key={field.id || field.variable} className="space-y-3">
       <div className="flex items-center justify-between">
-        <Label className="font-medium">
+        <Label className="font-medium flex items-center gap-1.5">
           {field.label}
           {field.required && <span className="text-red-500 ml-1">*</span>}
+          {FIELD_HELP[field.variable] && (
+            <TooltipProvider delayDuration={150}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={`${field.label} info`}
+                    className="inline-flex items-center justify-center w-4 h-4 rounded-full text-stone-400 hover:text-emerald-600 transition-colors focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                    data-testid={`field-help-${field.variable}`}
+                  >
+                    <Info className="w-3.5 h-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="top"
+                  align="start"
+                  className="max-w-xs text-xs leading-relaxed"
+                >
+                  {FIELD_HELP[field.variable]}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </Label>
         
         {showOverrideCheckbox && (

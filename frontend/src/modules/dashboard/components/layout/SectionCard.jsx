@@ -4,7 +4,7 @@
  */
 import React from 'react';
 
-export default function SectionCard({ title, subtitle, action, children, className = '', accent = '#10B981', testId }) {
+export default function SectionCard({ title, subtitle, action, children, className = '', accent = '#10B981', testId, contentClassName = '' }) {
   return (
     <div
       className={`relative overflow-hidden rounded-2xl border border-stone-200/70 bg-white/70 backdrop-blur-sm shadow-sm hover:shadow-md transition-all duration-300 ${className}`}
@@ -14,7 +14,7 @@ export default function SectionCard({ title, subtitle, action, children, classNa
         className="absolute inset-x-0 top-0 h-[2px] opacity-70"
         style={{ background: `linear-gradient(90deg, ${accent}00 0%, ${accent} 50%, ${accent}00 100%)` }}
       />
-      <div className="p-5">
+      <div className={`p-5 ${contentClassName}`}>
         {(title || action) && (
           <div className="flex items-start justify-between mb-3">
             <div>

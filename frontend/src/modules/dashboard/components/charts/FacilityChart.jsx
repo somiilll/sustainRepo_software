@@ -9,7 +9,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 const BAR_GRADIENT_FROM = '#34D399';
 const BAR_GRADIENT_TO = '#10B981';
 
-export default function FacilityChart({ facilities = [], height = 320 }) {
+export default function FacilityChart({ facilities = [], height = 400 }) {
   const data = useMemo(() => facilities.slice(0, 10), [facilities]);
 
   if (!data.length) {

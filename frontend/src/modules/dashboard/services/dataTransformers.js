@@ -98,10 +98,54 @@ export function buildScope3Hotspots(categories = []) {
       value: c.total_emissions || c.value || 0,
     }))
     .sort((a, b) => b.value - a.value);
-  if (s3.length <= 3) return s3;
-  const top = s3.slice(0, 3);
-  const othersValue = s3.slice(3).reduce((acc, x) => acc + x.value, 0);
-  if (othersValue > 0) top.push({ id: 'Others', name: 'Others', value: othersValue });
+    if (!s3.length) return [];
+
+  // Total emissions
+  const total = s3.reduce((sum, item) => sum + item.value, 0);
+
+  // Separate small categories (<2%)
+  const main = [];
+  let othersValue = 0;
+
+  s3.forEach((item) => {
+    const pct = total > 0
+      ? (item.value / total) * 100
+      : 0;
+
+    if (pct < 2) {
+      othersValue += item.value;
+    } else {
+      main.push(item);
+    }
+  });
+
+   if (othersValue > 0) {
+    main.push({
+      id: 'others',
+      name: 'Others',
+      value: othersValue,
+    });
+  }
+
+  // Keep only top 4 visually
+  const sorted = main.sort((a, b) => b.value - a.value);
+
+  if (sorted.length <= 3) return sorted;
+
+  const top = sorted.slice(0, 3);
+
+  const remainingOthers = sorted
+    .slice(3)
+    .reduce((acc, x) => acc + x.value, 0);
+
+  if (remainingOthers > 0) {
+    top.push({
+      id: 'others-extra',
+      name: 'Others',
+      value: remainingOthers,
+    });
+  }
+
   return top;
 }
 
@@ -114,7 +158,7 @@ export function buildCategoryBreakdown(categories = []) {
       value: c.total_emissions || c.value || 0,
     }))
     .sort((a, b) => b.value - a.value)
-    .slice(0, 3);
+    .slice(0, 5);
 }
 
 // ---- Base Year Sankey ----
@@ -123,65 +167,151 @@ export function buildCategoryBreakdown(categories = []) {
 // Also returns `baseRows` / `currentRows` so callers can render side labels
 // OUTSIDE the chart (one row per scope, skipping scopes where the
 // corresponding side has no value).
+
+// export function buildSankeyData(baseYearComparison, hasScope3) {
+//   if (!baseYearComparison) return { nodes: [], links: [], baseRows: [], currentRows: [], baseYearLabel: '', currentYearLabel: '' };
+//   const { directComparison = [], indirectComparison = [], directBaseYear, indirectBaseYear } = baseYearComparison;
+
+//   const baseYearLabel = directBaseYear || indirectBaseYear || 'Base Year';
+//   const currentYearLabel = String(new Date().getFullYear());
+
+//   const allScopes = [
+//     ...directComparison,
+//     ...(hasScope3 ? indirectComparison.filter((x) => x.scope === 'Scope 3') : []),
+//   ].filter((s) => (s.base || 0) > 0 || (s.current || 0) > 0);
+
+//   if (!allScopes.length) {
+//     return { nodes: [], links: [], baseRows: [], currentRows: [], baseYearLabel, currentYearLabel };
+//   }
+
+//   // Sankey nodes — only include sides that actually have data so labels
+//   // outside the chart stay aligned with what the user sees in the ribbons.
+//   const baseScopes = allScopes.filter((s) => (s.base || 0) > 0);
+//   const currentScopes = allScopes.filter((s) => (s.current || 0) > 0);
+
+//   const baseNodes = baseScopes.map((s) => ({
+//     name: `${s.scope} · ${baseYearLabel}`,
+//     scope: s.scope,
+//     side: 'base',
+//   }));
+//   const currentNodes = currentScopes.map((s) => ({
+//     name: `${s.scope} · ${currentYearLabel}`,
+//     scope: s.scope,
+//     side: 'current',
+//   }));
+//   const nodes = [...baseNodes, ...currentNodes];
+
+//   const links = [];
+//   baseScopes.forEach((s, i) => {
+//     const target = baseNodes.length + currentScopes.findIndex((c) => c.scope === s.scope);
+//     if (target < baseNodes.length) return; // matching current scope missing
+//     links.push({
+//       source: i,
+//       target,
+//       value: Number((s.base || 0).toFixed(2)),
+//       base: Number((s.base || 0).toFixed(2)),
+//       current: Number((s.current || 0).toFixed(2)),
+//       scope: s.scope,
+//     });
+//   });
+
+//   const baseRows = baseScopes.map((s) => ({
+//     scope: s.scope,
+//     year: baseYearLabel,
+//     value: Number((s.base || 0).toFixed(2)),
+//   }));
+//   const currentRows = currentScopes.map((s) => ({
+//     scope: s.scope,
+//     year: currentYearLabel,
+//     value: Number((s.current || 0).toFixed(2)),
+//   }));
+
+//   return { nodes, links, baseRows, currentRows, baseYearLabel, currentYearLabel };
+// }
+
+
 export function buildSankeyData(baseYearComparison, hasScope3) {
-  if (!baseYearComparison) return { nodes: [], links: [], baseRows: [], currentRows: [], baseYearLabel: '', currentYearLabel: '' };
-  const { directComparison = [], indirectComparison = [], directBaseYear, indirectBaseYear } = baseYearComparison;
-
-  const baseYearLabel = directBaseYear || indirectBaseYear || 'Base Year';
-  const currentYearLabel = String(new Date().getFullYear());
-
-  const allScopes = [
-    ...directComparison,
-    ...(hasScope3 ? indirectComparison.filter((x) => x.scope === 'Scope 3') : []),
-  ].filter((s) => (s.base || 0) > 0 || (s.current || 0) > 0);
-
-  if (!allScopes.length) {
-    return { nodes: [], links: [], baseRows: [], currentRows: [], baseYearLabel, currentYearLabel };
+  if (!baseYearComparison) {
+    return { nodes: [], links: [], baseRows: [], currentRows: [] };
   }
 
-  // Sankey nodes — only include sides that actually have data so labels
-  // outside the chart stay aligned with what the user sees in the ribbons.
-  const baseScopes = allScopes.filter((s) => (s.base || 0) > 0);
-  const currentScopes = allScopes.filter((s) => (s.current || 0) > 0);
+  const {
+    directComparison = [],
+    indirectComparison = [],
+    directBaseYear,
+    indirectBaseYear,
+  } = baseYearComparison;
 
-  const baseNodes = baseScopes.map((s) => ({
-    name: `${s.scope} · ${baseYearLabel}`,
-    scope: s.scope,
-    side: 'base',
-  }));
-  const currentNodes = currentScopes.map((s) => ({
-    name: `${s.scope} · ${currentYearLabel}`,
-    scope: s.scope,
-    side: 'current',
-  }));
-  const nodes = [...baseNodes, ...currentNodes];
+  const baseYearLabel = directBaseYear || indirectBaseYear || 'Base Year';
+  const currentYearLabel = `FY ${new Date().getFullYear()}`;
+  
 
-  const links = [];
-  baseScopes.forEach((s, i) => {
-    const target = baseNodes.length + currentScopes.findIndex((c) => c.scope === s.scope);
-    if (target < baseNodes.length) return; // matching current scope missing
-    links.push({
-      source: i,
-      target,
-      value: Number((s.base || 0).toFixed(2)),
-      base: Number((s.base || 0).toFixed(2)),
-      current: Number((s.current || 0).toFixed(2)),
+  const scopes = [
+    ...directComparison,
+    ...(hasScope3 ? indirectComparison.filter(x => x.scope === 'Scope 3') : [])
+  ].filter(s => (s.base || 0) > 0 )
+  if (!scopes.length) {
+    return { nodes: [], links: [], baseRows: [], currentRows: [] };
+  }
+
+  // -------------------------
+  // FIXED: ONLY 2 COLUMNS OF NODES
+  // -------------------------
+  const nodes = [
+    // Column 1: Base Year Scopes (Left)
+    ...scopes.map(s => ({
+      name: `base-${s.scope}`,
       scope: s.scope,
-    });
+      side: 'base',
+      value: s.base || 0,
+    })),
+    // Column 2: Current Year Scopes (Right)
+    ...scopes.map(s => ({
+      name: `current-${s.scope}`,
+      scope: s.scope,
+      side: 'current',
+      value: s.current || 0,
+    })),
+  ];
+
+  // -------------------------
+  // FIXED: DIRECT 1-TO-1 LINKS
+  // -------------------------
+  const links = scopes.map((s, i) => {
+    const base = Number(s.base || 0);
+    const current = Number(s.current || 0);
+
+    // Recharts requires a static link width. We use the max so the path 
+    // remains visible even if emissions dropped drastically.
+    const safeValue = Math.max(base, current, 0.01);
+    const changePct = base > 0 ? ((current - base) / base) * 100 : 0;
+
+    return {
+      source: i,                         // Links from Left Column (index)
+      target: scopes.length + i,         // Links to Right Column (index + offset)
+      value: safeValue,
+      base,
+      current,
+      changePct,
+      scope: s.scope,
+    };
   });
 
-  const baseRows = baseScopes.map((s) => ({
-    scope: s.scope,
-    year: baseYearLabel,
-    value: Number((s.base || 0).toFixed(2)),
-  }));
-  const currentRows = currentScopes.map((s) => ({
-    scope: s.scope,
-    year: currentYearLabel,
-    value: Number((s.current || 0).toFixed(2)),
-  }));
 
-  return { nodes, links, baseRows, currentRows, baseYearLabel, currentYearLabel };
+  return {
+    nodes,
+    links,
+    baseRows: scopes.map(s => ({
+      scope: s.scope,
+      year: baseYearLabel,
+      value: s.base || 0,
+    })),
+    currentRows: scopes.map(s => ({
+      scope: s.scope,
+      year: currentYearLabel,
+      value: s.current || 0,
+    })),
+  };
 }
 
 // ---- Heatmap: state → [lat, lng] mapping for Indian states ----
