@@ -175,7 +175,6 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
         const sinksResponse = await axios.get(`${API}/sinks`, {
           headers: getAuthHeader()
         });
-        console.log('[BaseYear] Loaded sinks:', sinksResponse.data?.length);
         setBaseYearSinks(sinksResponse.data);
       } catch (err) {
         console.error('Error fetching sinks:', err);
@@ -443,7 +442,6 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
       
       // Combine: saved data + new combinations + sinks
       const mergedData = [...savedData, ...newCombinations, ...sinksToAdd];
-      console.log('[EditEmissions] Merged data:', savedData.length, 'saved +', newCombinations.length, 'new +', sinksToAdd.length, 'sinks');
       
       setEmissionsData(mergedData);
     } catch (error) {
@@ -549,14 +547,11 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
         url += `?${params.toString()}`;
       }
       
-      console.log('[BaseYear] Fetching combinations:', url, 'scopeGroup:', selectedScopeGroup);
       const response = await axios.get(url, { headers: getAuthHeader() });
       
       let combinations = response.data.combinations || [];
       // Use the has_values flag from the backend to determine if data exists
       let dataExistsForYear = response.data.has_values === true;
-      
-      console.log('[BaseYear] Initial response - combinations:', combinations.length, 'hasValues:', dataExistsForYear);
       
       // If we requested with year filter and got no results, fetch ALL combinations
       if (year && combinations.length === 0 && !forceAllCombinations) {
@@ -566,11 +561,9 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
           fallbackParams.append('scope_group', selectedScopeGroup);
         }
         const allCombosUrl = `${API}/base-year-emissions/emission-combinations/${selectedEntity.type}/${selectedEntity.id}${fallbackParams.toString() ? '?' + fallbackParams.toString() : ''}`;
-        console.log('[BaseYear] Fallback fetch (no data for year):', allCombosUrl);
         const allCombosResponse = await axios.get(allCombosUrl, { headers: getAuthHeader() });
         combinations = allCombosResponse.data.combinations || [];
         dataExistsForYear = false; // No data for this specific year
-        console.log('[BaseYear] Fallback combinations:', combinations.length);
       }
       
       // CRITICAL FIX: Filter combinations to ensure only valid scopes for the scope_group
@@ -589,8 +582,6 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
         });
       }
       
-      console.log('[BaseYear] After scope filter:', combinations.length);
-      
       // SINKS FETCHING - Always fetch sinks for Scope 1&2 when year is selected
       // Sinks should show even if no emissions data exists for that year
       let sinksToAdd = [];
@@ -606,14 +597,10 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
             : String(year);
         }
         
-        console.log('[BaseYear] Constructing yearStr:', yearStr, 'from selectedYear:', selectedYear, 'orgType:', organization?.reporting_year_type);
-        
         // For facilities: get sinks for that specific facility
         // For organizations: get sinks from ALL facilities (pass null to get all)
         const facilityIdFilter = selectedEntity.type === 'facility' ? selectedEntity.id : null;
         const matchedSinks = getSinksForBaseYear(yearStr, facilityIdFilter);
-        
-        console.log('[BaseYear] Sinks for year', yearStr, ':', matchedSinks.length, 'facilityFilter:', facilityIdFilter);
         
         // Aggregate sinks by description/type to avoid duplicates
         const sinkAggregates = {};

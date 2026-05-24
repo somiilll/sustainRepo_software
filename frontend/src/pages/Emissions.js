@@ -84,7 +84,7 @@ export default function Emissions() {
   const [filterDateRange, setFilterDateRange] = useState({ from: null, to: null });
   const [searchQuery, setSearchQuery] = useState(''); // Search query for emissions
   const [showFilters, setShowFilters] = useState(false);
-  const [sortBy, setSortBy] = useState('date'); // Sort options: date, facility, fuel, emissions
+  const [sortBy, setSortBy] = useState('created_at'); // Sort options: date, facility, fuel, emissions
   const [sortOrder, setSortOrder] = useState('desc'); // asc or desc
   const [editingEmission, setEditingEmission] = useState(null);
   const [overrideCalorificValue, setOverrideCalorificValue] = useState(false);
@@ -459,22 +459,7 @@ export default function Emissions() {
         if (scope3Method) url += `&method=${scope3Method}`;
         if (scope3ActivityType) url += `&activity_type=${scope3ActivityType}`;
         
-        console.log('[EDIT FORM CONFIG] Fetching form config...', {
-          url,
-          category: formData.category,
-          scope: effectiveScope,
-          method: scope3Method,
-          activityType: scope3ActivityType,
-          activityId: scope3ActivityId
-        });
-        
         const response = await axios.get(url, { headers: getAuthHeader() });
-        console.log('[EDIT FORM CONFIG] Received:', {
-          hasFormulas: response.data?.formulas?.length || 0,
-          hasInputMappings: response.data?.input_field_mappings?.length || 0,
-          formulas: response.data?.formulas?.map(f => ({ id: f.id, name: f.name, inputs: f.inputs?.map(i => i.variable) })),
-          inputMappings: response.data?.input_field_mappings?.map(m => ({ variable: m.maps_to_variable, label: m.field_label })),
-        });
         setEditFormConfig(response.data);
       } catch (err) {
         console.error('[EDIT FORM CONFIG] Failed to fetch form config:', err);
@@ -484,16 +469,6 @@ export default function Emissions() {
       }
     };
     
-    console.log('[EDIT FORM CONFIG] useEffect triggered', {
-      dialogOpen,
-      category: formData.category,
-      scope: formData.scope,
-      scope3Method,
-      scope3ActivityType,
-      scope3ActivityId,
-      scope3Subcategory,
-    });
-    
     fetchFormConfig();
   }, [dialogOpen, formData.category, formData.scope, dynamicCategories, getAuthHeader, biogenicScopeSelection, scope3Method, scope3ActivityType, scope3ActivityId]);
   
@@ -502,20 +477,8 @@ export default function Emissions() {
   // Maps ce_input_field_mappings to renderable field objects
   // ============================================================================
   const dynamicInputFields = useMemo(() => {
-    console.log('[DYNAMIC INPUT FIELDS] useMemo running...', {
-      hasEditFormConfig: !!editFormConfig,
-      inputMappingsCount: editFormConfig?.input_field_mappings?.length || 0,
-      formulasCount: editFormConfig?.formulas?.length || 0,
-      scope3Method,
-      scope3ActivityType,
-      scope3ActivityId,
-      scope3Subcategory,
-      formDataScope: formData.scope,
-      selectedCategory,
-    });
     
     if (!editFormConfig?.input_field_mappings?.length) {
-      console.log('[DYNAMIC INPUT FIELDS] No input mappings, returning empty');
       return [];
     }
     
@@ -576,7 +539,6 @@ export default function Emissions() {
           const formulaName = f.name?.toLowerCase() || '';
           return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
         });
-        console.log('[DYNAMIC INPUT FIELDS] Subcategory formula match:', { scope3Subcategory, matchedFormula: matchedFormula?.name });
       }
       
       // PRIORITY 1: For activity_type (C6/C7), match formula based on activity type
@@ -1592,12 +1554,6 @@ export default function Emissions() {
     if (isSubcategoryCategory && scope3Subcategory) {
       // For fugitive_emissions, return data from fugitiveEmissionsData instead
       if (scope3Subcategory === 'fugitive_emissions') {
-        console.log('[FUGITIVE DEBUG - filteredScope3Activities] Returning fugitiveEmissionsData:', {
-          fugitiveEmissionsDataCount: fugitiveEmissionsData.length,
-          scope3Method,
-          selectedCategory,
-          sampleData: fugitiveEmissionsData.slice(0, 3).map(f => ({ id: f.id, activity: f.activity, fuel_name: f.fuel_name }))
-        });
         return fugitiveEmissionsData.map(f => ({
           ...f,
           method: scope3Method,
@@ -2064,19 +2020,6 @@ export default function Emissions() {
           // Build scope3 context with default_unit for auto-conversion
           const matchedEFForPreview = filteredScope3Activities.find(a => a.id === scope3ActivityId);
           
-          // DEBUG: Log fugitive emissions context building
-          console.log('[FUGITIVE DEBUG - Live Calc] Context Building:', {
-            isScope3Like,
-            requiresSubcategory,
-            scope3Method,
-            scope3Subcategory,
-            scope3ActivityId,
-            filteredScope3ActivitiesCount: filteredScope3Activities.length,
-            filteredScope3ActivitiesFirst3: filteredScope3Activities.slice(0, 3).map(a => ({ id: a.id, activity: a.activity, fuel_name: a.fuel_name })),
-            matchedEFForPreview: matchedEFForPreview ? { id: matchedEFForPreview.id, activity: matchedEFForPreview.activity, fuel_name: matchedEFForPreview.fuel_name } : null,
-            selectedFuel: selectedFuel ? { id: selectedFuel.id, fuel_name: selectedFuel.fuel_name } : null,
-          });
-          
           const scope3ContextPreview = isScope3Like ? {
             calculation_method_scope3: scope3Method,
             scope3_ef_id: scope3ActivityId,
@@ -2092,22 +2035,9 @@ export default function Emissions() {
           // Skip this for supplier_basis as it uses a basic formula without fuel_database lookup
           let fuelNameForContext = selectedFuel?.fuel_name;
           
-          // DEBUG: Log the condition check
-          console.log('[FUGITIVE DEBUG - Live Calc] Fuel Name Condition Check:', {
-            condition1_isScope3Like: isScope3Like,
-            condition2_requiresSubcategory: requiresSubcategory,
-            condition3_notSupplierBasis: scope3Method !== 'supplier_basis',
-            condition4_isFugitiveEmissions: scope3Subcategory === 'fugitive_emissions',
-            condition5_hasMatchedActivity: !!matchedEFForPreview?.activity,
-            allConditionsMet: isScope3Like && requiresSubcategory && scope3Method !== 'supplier_basis' && scope3Subcategory === 'fugitive_emissions' && matchedEFForPreview?.activity,
-            fuelNameBefore: fuelNameForContext,
-          });
-          
           if (isScope3Like && requiresSubcategory && scope3Method !== 'supplier_basis' && scope3Subcategory === 'fugitive_emissions' && matchedEFForPreview?.activity) {
             fuelNameForContext = matchedEFForPreview.activity;
           }
-          
-          console.log('[FUGITIVE DEBUG - Live Calc] Final fuelNameForContext:', fuelNameForContext);
           
           // Call backend calc engine with dynamic inputs
           const payload = {
@@ -2129,21 +2059,12 @@ export default function Emissions() {
             ...(isScope3Like && scope3ActivityId && { scope3_ef_id: scope3ActivityId }),
           };
           
-          console.log('[FUGITIVE DEBUG - Live Calc] Full Payload:', JSON.stringify(payload, null, 2));
-          
           const response = await axios.post(
             `${API}/calc-engine/execute-by-category`,
             payload,
             { headers: getAuthHeader() }
           );
-          
-          console.log('[YEARLY CALC DEBUG] Backend response:', {
-            ok: response.data?.ok,
-            hasOutputs: !!response.data?.outputs,
-            outputs: response.data?.outputs,
-            error: response.data?.error,
-            fullResponse: response.data
-          });
+        
           
           if (response.data?.ok) {
             // Transform response to match expected format
@@ -3474,16 +3395,11 @@ export default function Emissions() {
                                 value={scope3Method}
                                 onChange={(e) => {
                                   const newMethod = e.target.value;
-                                  console.log('[EDIT DIALOG] Method changed:', {
-                                    oldMethod: scope3Method,
-                                    newMethod: newMethod
-                                  });
                                   setScope3Method(newMethod);
                                   setScope3ActivityType(''); // Reset activity type when method changes
                                   setScope3ActivityId('');
                                   setDynamicFieldValues({}); // Fix #9: Clear stale inputs when method changes
                                   markFormDirty(); // Mark form as dirty when method changes
-                                  console.log('[EDIT DIALOG] Cleared dynamicFieldValues and reset activity type');
                                 }}
                                 required
                                 disabled={!selectedCategory}
@@ -3537,15 +3453,10 @@ export default function Emissions() {
                                 value={scope3ActivityType}
                                 onChange={(e) => {
                                   const newActivityType = e.target.value;
-                                  console.log('[EDIT DIALOG] Activity Type changed:', {
-                                    oldActivityType: scope3ActivityType,
-                                    newActivityType: newActivityType
-                                  });
                                   setScope3ActivityType(newActivityType);
                                   setScope3ActivityId(''); // Reset activity when type changes
                                   setActivitySearchTerm(''); // Clear activity search
                                   setDynamicFieldValues({}); // Fix #9: Clear stale inputs when activity type changes
-                                  console.log('[EDIT DIALOG] Cleared dynamicFieldValues and reset activityId');
                                 }}
                                 required
                                 className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"

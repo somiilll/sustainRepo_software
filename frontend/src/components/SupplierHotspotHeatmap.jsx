@@ -429,8 +429,6 @@ export default function SupplierHotspotHeatmap({ getAuthHeader, filters = {} }) 
       if (filters.facility_id?.length) {
         filters.facility_id.forEach(id => params.append('facility_id', id));
       }
-
-      console.log('Fetching supplier hotspots with params:', params.toString());
       
       const response = await axios.get(
         `${API}/dashboard/supplier-hotspots?${params.toString()}`,

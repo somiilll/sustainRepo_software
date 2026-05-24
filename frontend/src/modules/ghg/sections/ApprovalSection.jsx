@@ -178,6 +178,7 @@ export default function ApprovalSection() {
 
         <TabsContent value={activeTab} className="mt-4">
           <ApprovalTable
+            activeTab={activeTab}
             rows={tabRows}
             facilities={facilities}
             selectable={activeTab === 'pending'}

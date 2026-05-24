@@ -202,21 +202,7 @@ export async function editEmissionDispatch(emission, ctx) {
           ? dynamicValues.scope3_subcategory.value
           : dynamicValues.scope3_subcategory;
       }
-      
-      // DEBUG: Log extracted scope3 values from emission record
-      console.log('[FUGITIVE DEBUG - handleEdit] Extracted Scope3 values:', {
-        emission_id: emission.id,
-        emission_category: emission.category,
-        method,
-        activityId,
-        activityType,
-        subcategory,
-        dynamicValues_scope3_subcategory: dynamicValues.scope3_subcategory,
-        dynamicValues_scope3_ef_id: dynamicValues.scope3_ef_id,
-        emission_scope3_ef_id: emission.scope3_ef_id,
-        fugitiveEmissionsDataCount: fugitiveEmissionsData.length,
-      });
-      
+
       // Get custom activity for supplier_basis
       let customActivity = '';
       let isCustomActivity = false;

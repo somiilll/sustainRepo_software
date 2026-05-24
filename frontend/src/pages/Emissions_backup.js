@@ -1296,15 +1296,6 @@ export default function Emissions() {
         process_names: formData.process_names.filter(name => name.trim() !== '')
       };
       
-      // Debug: Log what we're saving
-      console.log('Saving emission with calculated values:', {
-        co2: payload.calculated_co2,
-        ch4: payload.calculated_ch4,
-        n2o: payload.calculated_n2o,
-        co2e: payload.calculated_co2e,
-        fromCalcObject: calculatedEmissions
-      });
-      
       if (editingEmission) {
         await axios.put(`${API}/emissions/${editingEmission.id}`, payload, {
           headers: getAuthHeader()
