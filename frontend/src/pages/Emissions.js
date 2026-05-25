@@ -2852,6 +2852,12 @@ export default function Emissions() {
     return categories;
   }, [formData.scope, fuelDatabase]);
 
+  // Check if organization has scope 3 access - needed for filtering biogenic scope3 records
+  const hasScope3Access = useMemo(() => {
+    const enabledAccess = organization?.enabled_access;
+    return enabledAccess?.includes('scope1_2_3') || false;
+  }, [organization]);
+
   // Apply filters
   // Get active facilities only for filtering emissions
   const activeFacilityIds = useMemo(() => {
@@ -2862,6 +2868,12 @@ export default function Emissions() {
     let filtered = emissions.filter(e => {
       // Hide emissions from deactivated facilities
       if (!activeFacilityIds.includes(e.facility_id)) return false;
+      
+      // Filter out biogenic records with biogenic_scope_selection='scope3' for orgs without scope3 access
+      // This is a client-side backup in case the backend filter was bypassed
+      if (!hasScope3Access && e.scope === 'biogenic' && e.biogenic_scope_selection === 'scope3') {
+        return false;
+      }
       
       if (e.scope !== activeScope) return false;
       if (filterFacility && e.facility_id !== filterFacility) return false;
@@ -3014,7 +3026,7 @@ export default function Emissions() {
     });
     
     return filtered;
-  }, [emissions, activeScope, filterFacility, filterCategory, filterFrequency, filterDateRange, activeFacilityIds, sortBy, sortOrder, facilities, searchQuery]);
+  }, [emissions, activeScope, filterFacility, filterCategory, filterFrequency, filterDateRange, activeFacilityIds, sortBy, sortOrder, facilities, searchQuery, hasScope3Access]);
 
   const uniqueCategories = useMemo(() => {
     return [...new Set(emissions.filter(e => e.scope === activeScope).map(e => e.category))];
@@ -3040,8 +3052,7 @@ export default function Emissions() {
     ? true  // Default access if not set
     : enabledAccess.some(access => ['scope1_2', 'scope1_2_3'].includes(access));
 
-  // Check if organization has scope 3 access
-  const hasScope3Access = enabledAccess?.includes('scope1_2_3') || false;
+  // hasScope3Access is computed earlier in the component (via useMemo) for use in filteredEmissions
 
   return (
     <div className="space-y-6" data-testid="emissions-page">

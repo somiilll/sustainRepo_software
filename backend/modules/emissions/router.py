@@ -539,6 +539,7 @@ async def get_emission_records(
     current_user: dict = Depends(get_current_user),
 ):
     query = {}
+    org_id = None
     if current_user["role"] == "super_admin":
         pass  # Can see all
     elif current_user["role"] == "admin":
@@ -554,6 +555,8 @@ async def get_emission_records(
     else:  # user
         assigned = current_user.get("assigned_facilities", [])
         query["facility_id"] = {"$in": assigned}
+        # Get org_id from user for access check
+        org_id = current_user.get("organization_id")
 
     if facility_id:
         query["facility_id"] = facility_id
@@ -566,6 +569,23 @@ async def get_emission_records(
     # Pull in pending / rejected proposals so the FE can show them with badges.
     pending_records = await fetch_pending_for_user(current_user, query)
     records = merge_visible_emissions(records, pending_records)
+    
+    # Filter out biogenic records with biogenic_scope_selection='scope3' for orgs without scope3 access
+    # Super admins see all; other users have org-level restrictions
+    if current_user["role"] != "super_admin" and org_id:
+        organization = await db.organizations.find_one({"id": org_id}, {"_id": 0, "enabled_access": 1})
+        enabled_access = organization.get("enabled_access") if organization else None
+        # Default to scope1_2 if enabled_access is None
+        if enabled_access is None:
+            enabled_access = ["scope1_2"]
+        
+        # If org does NOT have scope1_2_3 access, filter out biogenic records with scope3 selection
+        has_scope3_access = "scope1_2_3" in enabled_access
+        if not has_scope3_access:
+            records = [
+                r for r in records
+                if not (r.get("scope") == "biogenic" and r.get("biogenic_scope_selection") == "scope3")
+            ]
 
     # Batch-resolve display names for created_by / updated_by ids.
     user_ids = set()
