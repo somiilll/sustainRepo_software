@@ -293,7 +293,8 @@ export default function FuelDatabase() {
         emission_factor_basis_unit: formData.emission_factor_basis_unit || null,
         gwp_fugitives: formData.gwp_fugitives ? parseFloat(formData.gwp_fugitives) : null,
         density: formData.density ? parseFloat(formData.density) : null,
-        conversion_factor: parseFloat(formData.conversion_factor) || 1
+        conversion_factor: parseFloat(formData.conversion_factor) || 1,
+        year_applicable: formData.year_applicable ? parseInt(formData.year_applicable, 10) : null
       };
 
       if (editingFuel) {
