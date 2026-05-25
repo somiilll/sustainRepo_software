@@ -1288,21 +1288,21 @@ class GHGReportGenerator:
         #             if not description:
         #                 run.font.italic = True
         for row_idx, ((process_name, description), _) in enumerate(unique_processes.items(), 1):
-        row = table.rows[row_idx]
+            row = table.rows[row_idx]
 
-        row.cells[0].text = process_name
-        for paragraph in row.cells[0].paragraphs:
-            for run in paragraph.runs:
-                run.font.bold = True
-                run.font.size = Pt(12)
+            row.cells[0].text = process_name
+            for paragraph in row.cells[0].paragraphs:
+                for run in paragraph.runs:
+                    run.font.bold = True
+                    run.font.size = Pt(12)
 
-        row.cells[1].text = description if description else '-'
-        for paragraph in row.cells[1].paragraphs:
-            for run in paragraph.runs:
-                run.font.size = Pt(12)
-                if not description:
-                    run.font.italic = True
-            
+            row.cells[1].text = description if description else '-'
+            for paragraph in row.cells[1].paragraphs:
+                for run in paragraph.runs:
+                    run.font.size = Pt(12)
+                    if not description:
+                        run.font.italic = True
+                
         doc.add_paragraph()  # Add spacing after table
     
     # ==================== DATA PROCESSING ====================

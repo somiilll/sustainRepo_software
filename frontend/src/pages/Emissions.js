@@ -81,6 +81,7 @@ export default function Emissions() {
   const [filterFacility, setFilterFacility] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterFrequency, setFilterFrequency] = useState(''); // 'monthly', 'yearly', or '' for all
+  const [filterCalculationMethod, setFilterCalculationMethod] = useState(''); // 'activity_basis', 'spend_basis', 'supplier_basis', or '' for all
   const [filterDateRange, setFilterDateRange] = useState({ from: null, to: null });
   const [searchQuery, setSearchQuery] = useState(''); // Search query for emissions
   const [showFilters, setShowFilters] = useState(false);
@@ -2954,6 +2955,12 @@ export default function Emissions() {
       
       if (filterCategory && e.category !== filterCategory) return false;
       
+      // Calculation method filter (only for Scope 3)
+      if (filterCalculationMethod && activeScope === 'scope3') {
+        const emissionMethod = e.calculation_method_scope3 || '';
+        if (filterCalculationMethod !== emissionMethod) return false;
+      }
+      
       // Frequency filter (monthly vs yearly)
       if (filterFrequency) {
         const emissionFrequency = e.frequency_type || 'monthly'; // Legacy records default to monthly
@@ -3026,10 +3033,19 @@ export default function Emissions() {
     });
     
     return filtered;
-  }, [emissions, activeScope, filterFacility, filterCategory, filterFrequency, filterDateRange, activeFacilityIds, sortBy, sortOrder, facilities, searchQuery, hasScope3Access]);
+  }, [emissions, activeScope, filterFacility, filterCategory, filterFrequency, filterCalculationMethod, filterDateRange, activeFacilityIds, sortBy, sortOrder, facilities, searchQuery, hasScope3Access]);
 
   const uniqueCategories = useMemo(() => {
     return [...new Set(emissions.filter(e => e.scope === activeScope).map(e => e.category))];
+  }, [emissions, activeScope]);
+
+  // Get unique calculation methods for Scope 3 emissions (for filter dropdown)
+  const uniqueCalculationMethods = useMemo(() => {
+    if (activeScope !== 'scope3') return [];
+    const methods = emissions
+      .filter(e => e.scope === 'scope3' && e.calculation_method_scope3)
+      .map(e => e.calculation_method_scope3);
+    return [...new Set(methods)].sort();
   }, [emissions, activeScope]);
 
   // Check if user is regular user (not admin or super_admin)
@@ -4778,6 +4794,8 @@ export default function Emissions() {
           setFilterCategory={setFilterCategory}
           filterFrequency={filterFrequency}
           setFilterFrequency={setFilterFrequency}
+          filterCalculationMethod={filterCalculationMethod}
+          setFilterCalculationMethod={setFilterCalculationMethod}
           filterDateRange={filterDateRange}
           setFilterDateRange={setFilterDateRange}
           sortBy={sortBy}
@@ -4786,6 +4804,8 @@ export default function Emissions() {
           setSortOrder={setSortOrder}
           facilities={facilities}
           uniqueCategories={uniqueCategories}
+          uniqueCalculationMethods={uniqueCalculationMethods}
+          isScope3={activeScope === 'scope3'}
         />
       )}
 
@@ -4800,6 +4820,10 @@ export default function Emissions() {
         }
         // Reset category filter when changing scopes to prevent showing no emissions
         setFilterCategory('');
+        // Reset calculation method filter when leaving Scope 3
+        if (value !== 'scope3') {
+          setFilterCalculationMethod('');
+        }
         // Reset biogenic state when changing tabs
         if (value !== 'biogenic') {
           setBiogenicScopeSelection('');
