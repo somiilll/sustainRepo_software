@@ -132,7 +132,7 @@ export default function GaugeCard({
       <div className="text-3xl font-bold text-stone-900 tracking-tight tabular-nums">
         <AnimatedNumber value={clamped} decimals={1} suffix="%" />
       </div>
-      <div className="text-[11px] text-stone-500 mt-0.5 truncate" title={selectedTarget?.name}>{selectedTarget?.name}</div>
+      {/* <div className="text-[11px] text-stone-500 mt-0.5 truncate" title={selectedTarget?.name}>{selectedTarget?.name}</div> */}
       <div className="mt-3">
         <GaugeArc pct={clamped} />
       </div>

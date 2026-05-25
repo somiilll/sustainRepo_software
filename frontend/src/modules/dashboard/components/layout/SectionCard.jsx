@@ -4,7 +4,7 @@
  */
 import React from 'react';
 
-export default function SectionCard({ title, subtitle, action, children, className = '', accent = '#10B981', testId, contentClassName = '' }) {
+export default function SectionCard({ title, subtitle, action, children, className = '', accent = '#10B981', testId, contentClassName = '', header }) {
   return (
     <div
       className={`relative overflow-hidden rounded-2xl border border-stone-200/70 bg-white/70 backdrop-blur-sm shadow-sm hover:shadow-md transition-all duration-300 ${className}`}
@@ -15,13 +15,29 @@ export default function SectionCard({ title, subtitle, action, children, classNa
         style={{ background: `linear-gradient(90deg, ${accent}00 0%, ${accent} 50%, ${accent}00 100%)` }}
       />
       <div className={`p-5 ${contentClassName}`}>
-        {(title || action) && (
-          <div className="flex items-start justify-between mb-3">
-            <div>
-              {title && <h3 className="text-sm font-semibold text-stone-800">{title}</h3>}
-              {subtitle && <p className="text-xs text-stone-500 mt-0.5">{subtitle}</p>}
-            </div>
-            {action}
+        {(title || action || header) && (
+          <div className="mb-3">
+            {header ? (
+              header
+            ) : (
+              <div className="flex items-start justify-between">
+                <div>
+                  {title && (
+                    <h3 className="text-sm font-semibold text-stone-800">
+                      {title}
+                    </h3>
+                  )}
+
+                  {subtitle && (
+                    <p className="text-xs text-stone-500 mt-0.5">
+                      {subtitle}
+                    </p>
+                  )}
+                </div>
+
+                {action}
+              </div>
+            )}
           </div>
         )}
         {children}

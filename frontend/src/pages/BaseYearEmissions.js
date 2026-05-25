@@ -110,6 +110,9 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
   const [biogenicIndirectCategories] = useState(['C3', 'C8', 'C10', 'C11', 'C13', 'C14']); // Fixed categories for Biogenic (Indirect)
   const [biogenicIndirectSubcategories, setBiogenicIndirectSubcategories] = useState([]); // Subcategories for Biogenic (Indirect)
 
+  // Check if organization has Scope 3 access
+  const hasScope3Access = organization?.enabled_access?.includes('scope1_2_3') || false;
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -1527,7 +1530,10 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
           <p className="font-medium">What is Base Year Emissions?</p>
           <p className="mt-1">
             Base year emissions serve as a reference point for tracking your organization's GHG reduction progress over time. 
-            Configure base years for <strong>Scope 1 & 2</strong> (direct and energy emissions) and <strong>Scope 3</strong> (value chain emissions).
+            {hasScope3Access 
+              ? <>Configure base years for <strong>Scope 1 & 2</strong> (direct and energy emissions) and <strong>Scope 3</strong> (value chain emissions).</>
+              : <>Configure base years for <strong>Scope 1 & 2</strong> (direct and energy emissions).</>
+            }
           </p>
         </div>
       </div>
@@ -1541,9 +1547,9 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
           </h2>
           <Card>
             <CardContent className="pt-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className={`grid gap-4 ${hasScope3Access ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 {renderScopeGroupCard('organization', organization.id, organization.name, 'scope12')}
-                {renderScopeGroupCard('organization', organization.id, organization.name, 'scope3')}
+                {hasScope3Access && renderScopeGroupCard('organization', organization.id, organization.name, 'scope3')}
               </div>
             </CardContent>
           </Card>
@@ -1576,9 +1582,9 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className={`grid gap-3 ${hasScope3Access ? 'grid-cols-2' : 'grid-cols-1'}`}>
                     {renderScopeGroupCard('facility', facility.id, facility.name, 'scope12', true)}
-                    {renderScopeGroupCard('facility', facility.id, facility.name, 'scope3', true)}
+                    {hasScope3Access && renderScopeGroupCard('facility', facility.id, facility.name, 'scope3', true)}
                   </div>
                 </CardContent>
               </Card>

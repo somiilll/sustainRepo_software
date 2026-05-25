@@ -209,8 +209,6 @@ export default function ApprovalTable({
               snap.total_emissions ??
               snap.co2e_emissions ??
               0;
-
-            console.log("r", r)
             const rejectionReason =
               r.final_comment ||
               '—';

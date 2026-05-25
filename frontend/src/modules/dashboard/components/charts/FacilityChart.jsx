@@ -32,7 +32,18 @@ export default function FacilityChart({ facilities = [], height = 400 }) {
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#E7E5E4" vertical={false} />
           <XAxis dataKey="name" stroke="#A8A29E" fontSize={10} tickLine={false} axisLine={false} angle={-30} textAnchor="end" interval={0} />
-          <YAxis stroke="#A8A29E" fontSize={11} tickLine={false} axisLine={false} />
+          <YAxis stroke="#A8A29E" fontSize={11} tickLine={false} axisLine={false} label={{
+              value: 'tCO₂e',
+              angle: -90,
+              position: 'insideLeft',
+              offset: 15,
+              style: {
+                textAnchor: 'middle',
+                fill: '#78716C',
+                fontSize: 10,
+                fontWeight: 600,
+              },
+            }} />
           <Tooltip
             contentStyle={{ borderRadius: 10, border: '1px solid #E7E5E4', boxShadow: '0 6px 14px rgba(0,0,0,0.08)', fontSize: 12 }}
             formatter={(v) => [`${Number(v).toFixed(2)} tCO₂e`, 'Total']}

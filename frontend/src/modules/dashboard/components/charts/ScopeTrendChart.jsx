@@ -44,7 +44,18 @@ export default function ScopeTrendChart({ data = [], hasScope3 = false, height =
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#E7E5E4" vertical={false} />
           <XAxis dataKey="period" stroke="#A8A29E" fontSize={11} tickLine={false} axisLine={false} />
-          <YAxis stroke="#A8A29E" fontSize={11} tickLine={false} axisLine={false} />
+          <YAxis stroke="#A8A29E" fontSize={11} tickLine={false} axisLine={false} label={{
+              value: 'tCO₂e',
+              angle: -90,
+              position: 'insideLeft',
+              offset: 15,
+              style: {
+                textAnchor: 'middle',
+                fill: '#78716C',
+                fontSize: 10,
+                fontWeight: 600,
+              },
+            }}/>
           <Tooltip
             contentStyle={{
               borderRadius: 12,

@@ -21,8 +21,8 @@ import EmissionsByScopeDonut from './components/charts/EmissionsByScopeDonut';
 import FacilityChart from './components/charts/FacilityChart';
 import Scope3Hotspots from './components/charts/Scope3Hotspots';
 import EmissionCategoriesChart from './components/charts/EmissionCategoriesChart';
-import BaseYearSankey from './components/charts/BaseYearSankey';
 import GeoHeatmap from './components/charts/GeoHeatmap';
+import BaseYearComparisonChart from './components/charts/BaseYearChart';
 import {
   buildSparklineSeries,
   deriveTrendDeltas,
@@ -30,8 +30,8 @@ import {
   buildFacilitySeries,
   buildScope3Hotspots,
   buildCategoryBreakdown,
-  buildSankeyData,
   buildHeatPoints,
+  buildBaseYearChartData,
 } from './services/dataTransformers';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -48,6 +48,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
     isLive, lastLiveUpdateAt, getPreviousFinancialYear,
   } = data;
 
+  const [heatmapView, setHeatmapView] = useState('india');
   // Targets — fetched once on mount. Errors swallowed (gauge has empty state).
   const [targets, setTargets] = useState([]);
   useEffect(() => {
@@ -71,8 +72,9 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
   const facilitySeries = useMemo(() => buildFacilitySeries(filteredData.facilities), [filteredData.facilities]);
   const scope3Hotspots = useMemo(() => buildScope3Hotspots(stats?.emissions_by_category), [stats]);
   const categoryBreakdown = useMemo(() => buildCategoryBreakdown(stats?.emissions_by_category), [stats]);
-  const sankey = useMemo(() => buildSankeyData(baseYearComparison, hasScope3), [baseYearComparison, hasScope3]);
+  const baseYearChart = useMemo(() => buildBaseYearChartData(baseYearComparison, totals, hasScope3), [baseYearComparison, totals, hasScope3]);
   const heatPoints = useMemo(() => buildHeatPoints(facilities, filteredData.facilities), [facilities, filteredData.facilities]);
+  
 
   const sinksTotal = filteredData.filteredSinks || 0;
   const netEmissions = (totals.total || 0) - sinksTotal;
@@ -157,7 +159,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
   ) : null;
 
   return (
-    <div className="space-y-10 pb-10" data-testid="executive-dashboard">
+    <div className="space-y-6 pb-0" data-testid="executive-dashboard">
       <StickyFilterBar
         title={organization?.name ? `${organization.name} · Executive Dashboard` : 'Executive Dashboard'}
         subtitle={`Reporting window: ${dateRangeLabel}`}
@@ -249,167 +251,72 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
             </SectionCard>
           </div>
 
-          {/* ROW 4: Sankey + Heatmap */}
+          {/* ROW 4: BaseYearChart + Heatmap */}
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
-            <SectionCard className="lg:col-span-3" title="Base Year vs Current Year" subtitle="Emissions flow comparison" accent="#0F766E" testId="section-sankey">
-              <SankeyWithLabels sankey={sankey} />
+            <SectionCard
+              className="lg:col-span-3"
+              title="Base Year vs Current Year"
+              subtitle="Emissions comparison by scope"
+              accent="#0F766E"
+              testId="section-base-comparison"
+            >
+              <BaseYearComparisonChart data={baseYearChart.rows} />
             </SectionCard>
-            <SectionCard className="lg:col-span-2" title="Geographic Heatmap" subtitle="Facility emission concentration" accent="#EF4444" testId="section-heatmap">
-              <GeoHeatmap points={heatPoints} />
+
+            <SectionCard
+              className="lg:col-span-2"
+              accent="#EF4444"
+              testId="section-heatmap"
+              header={
+                <div className="flex items-start justify-between w-full">
+                  <div>
+                    <h3 className="text-sm font-semibold text-stone-900">
+                      Geographic Heatmap
+                    </h3>
+
+                    <p className="text-xs text-stone-500 mt-0.5">
+                      Facility emission concentration
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setHeatmapView('india')}
+                      className={`px-2.5 py-1 text-[11px] rounded-md border transition-colors ${
+                        heatmapView === 'india'
+                          ? 'bg-emerald-600 text-white border-emerald-600'
+                          : 'bg-white border-stone-200 text-stone-600 hover:border-stone-300'
+                      }`}
+                      data-testid="heatmap-toggle-india"
+                    >
+                      India
+                    </button>
+
+                    <button
+                      onClick={() => setHeatmapView('global')}
+                      className={`px-2.5 py-1 text-[11px] rounded-md border transition-colors ${
+                        heatmapView === 'global'
+                          ? 'bg-emerald-600 text-white border-emerald-600'
+                          : 'bg-white border-stone-200 text-stone-600 hover:border-stone-300'
+                      }`}
+                      data-testid="heatmap-toggle-global"
+                    >
+                      Global
+                    </button>
+                  </div>
+                </div>
+              }
+            >
+              <GeoHeatmap
+                points={heatPoints}
+                view={heatmapView}
+              />
             </SectionCard>
+
           </div>
           </div>
         </>
       )}
-    </div>
-  );
-}
-
-// ---- Helpers ----
-
-const SANKEY_SCOPE_COLOR = {
-  'Scope 1': '#10B981',
-  'Scope 2': '#3B82F6',
-  'Scope 3': '#8B5CF6',
-  'Biogenic': '#F59E0B',
-};
-
-// function SideLabelList({ rows = [], align = 'left' }) {
-//   if (!rows.length) return <div className="h-full" />;
-//   return (
-//     <div className={`flex flex-col justify-around h-full gap-2 ${align === 'right' ? 'items-end text-right' : 'items-start text-left'}`}>
-//       {rows.map((r) => (
-//         <div key={`${align}-${r.scope}`} className="flex flex-col" data-testid={`sankey-label-${align}-${r.scope.toLowerCase().replace(/\s+/g, '')}`}>
-//           <div className="flex items-center gap-1.5">
-//             {align === 'left' && <span className="w-2 h-2 rounded-full" style={{ background: SANKEY_SCOPE_COLOR[r.scope] || '#78716C' }} />}
-//             <span className="text-[11px] font-semibold text-stone-700">{r.scope}</span>
-//             {align === 'right' && <span className="w-2 h-2 rounded-full" style={{ background: SANKEY_SCOPE_COLOR[r.scope] || '#78716C' }} />}
-//           </div>
-//           <span className="text-[10px] text-stone-500">{r.year}</span>
-//           <span className="text-xs font-bold text-stone-900 tabular-nums">{r.value.toFixed(2)} <span className="text-[9px] font-normal text-stone-400">tCO₂e</span></span>
-//         </div>
-//       ))}
-//     </div>
-//   );
-// }
-
-function SideLabelList({ rows = [], align = 'left', activeScope }) {
-  if (!rows.length) return <div className="h-full" />;
-
-  return (
-    <div
-      className={`flex flex-col justify-between h-full py-2 gap-3 ${
-        align === 'right'
-          ? 'items-end text-right'
-          : 'items-start text-left'
-      }`}
-    >
-      {rows.map((r) => {
-        const isActive = !activeScope || activeScope === r.scope;
-
-        return (
-          <div
-            key={`${align}-${r.scope}`}
-            className={`flex flex-col transition-opacity duration-200 ${
-              isActive ? 'opacity-100' : 'opacity-30'
-            }`}
-            data-testid={`sankey-label-${align}-${r.scope
-              .toLowerCase()
-              .replace(/\s+/g, '')}`}
-          >
-            <div className="flex items-center gap-1.5">
-              {align === 'left' && (
-                <span
-                  className="w-2 h-2 rounded-full"
-                  style={{
-                    background:
-                      SANKEY_SCOPE_COLOR[r.scope] || '#78716C',
-                  }}
-                />
-              )}
-
-              <span className="text-[11px] font-semibold text-stone-700">
-                {r.scope}
-              </span>
-
-              {align === 'right' && (
-                <span
-                  className="w-2 h-2 rounded-full"
-                  style={{
-                    background:
-                      SANKEY_SCOPE_COLOR[r.scope] || '#78716C',
-                  }}
-                />
-              )}
-            </div>
-
-            <span className="text-[10px] text-stone-500">
-              {r.year}
-            </span>
-
-            <span className="text-xs font-bold text-stone-900 tabular-nums">
-              {r.value.toFixed(2)}{' '}
-              <span className="text-[9px] font-normal text-stone-400">
-                tCO₂e
-              </span>
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// function SankeyWithLabels({ sankey }) {
-//   const empty = !sankey?.nodes?.length || !sankey?.links?.length;
-//   return (
-//     <div className="grid grid-cols-12 gap-2 items-stretch" style={{ minHeight: 280 }}>
-//       <div className="col-span-2">
-//         <SideLabelList rows={sankey?.baseRows || []} align="left" />
-//       </div>
-//       <div className="col-span-8">
-//         <BaseYearSankey nodes={sankey.nodes} links={sankey.links} height={empty ? 260 : 280} />
-//       </div>
-//       <div className="col-span-2">
-//         <SideLabelList rows={sankey?.currentRows || []} align="right" />
-//       </div>
-//     </div>
-//   );
-// }
-
-function SankeyWithLabels({ sankey }) {
-  const empty =
-    !sankey?.nodes?.length || !sankey?.links?.length;
-
-  return (
-    <div
-      className="grid grid-cols-12 gap-3 items-stretch relative"
-      style={{ minHeight: 320 }}
-    >
-      {/* LEFT LABELS */}
-      <div className="col-span-2">
-        <SideLabelList
-          rows={sankey?.baseRows || []}
-          align="left"
-        />
-      </div>
-
-      {/* CENTER SANKEY */}
-      <div className="col-span-8">
-        <BaseYearSankey
-          nodes={sankey.nodes}
-          links={sankey.links}
-          height={empty ? 260 : 320}
-        />
-      </div>
-
-      {/* RIGHT LABELS */}
-      <div className="col-span-2">
-        <SideLabelList
-          rows={sankey?.currentRows || []}
-          align="right"
-        />
-      </div>
     </div>
   );
 }

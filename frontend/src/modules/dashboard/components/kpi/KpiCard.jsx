@@ -7,6 +7,7 @@ import React from 'react';
 import { TrendingUp, TrendingDown, Minus, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import AnimatedNumber from '../shared/AnimatedNumber';
 import GlowSparkline from '../shared/GlowSparkline';
+import TrendArrow from '../shared/TrendArrow';
 
 export default function KpiCard({
   title,
@@ -60,8 +61,14 @@ export default function KpiCard({
           </div>
           <div className="text-[11px] text-stone-500 mt-0.5">{unit}</div>
         </div>
-        {sparkData.length > 1 && (
+        {/* {sparkData.length > 1 && (
           <GlowSparkline data={sparkData} stroke={sparkColor} width={90} height={36} trend={trend} showArrow />
+        )} */}
+        {trend !== 'flat' && (
+          <TrendArrow
+            trend={trend}
+            color={trend === 'up' ? '#EF4444' : '#10B981'}
+          />
         )}
       </div>
       {deltaPct != null && (

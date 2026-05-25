@@ -468,6 +468,7 @@ class GHGReportRequest(BaseModel):
     organization_id: Optional[str] = None  # For SuperAdmin to specify organization
     output_format: str = "docx"  # "docx" or "pdf"
     report_type: str = "scope_1_2"  # "scope_1_2" or "scope_1_2_3"
+    is_complete_organization: bool = True  # Whether all org facilities are included (for org-level sections)
 
 @router.post("/reports/ghg-inventory")
 async def generate_ghg_inventory_report(
@@ -666,7 +667,8 @@ async def generate_ghg_inventory_report(
         sinks_total=total_sinks,
         sinks_data=sinks_data,
         facility_production=facility_production_data,
-        report_type=request.report_type
+        report_type=request.report_type,
+        is_complete_organization=request.is_complete_organization
     )
     
     # Generate filename based on format

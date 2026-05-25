@@ -161,78 +161,19 @@ export function buildCategoryBreakdown(categories = []) {
     .slice(0, 5);
 }
 
-// ---- Base Year Sankey ----
-// Flow: Base Year scope nodes (left) → Current Year scope nodes (right).
-// Distinct colour per scope; year labels embedded in node names.
-// Also returns `baseRows` / `currentRows` so callers can render side labels
-// OUTSIDE the chart (one row per scope, skipping scopes where the
-// corresponding side has no value).
-
-// export function buildSankeyData(baseYearComparison, hasScope3) {
-//   if (!baseYearComparison) return { nodes: [], links: [], baseRows: [], currentRows: [], baseYearLabel: '', currentYearLabel: '' };
-//   const { directComparison = [], indirectComparison = [], directBaseYear, indirectBaseYear } = baseYearComparison;
-
-//   const baseYearLabel = directBaseYear || indirectBaseYear || 'Base Year';
-//   const currentYearLabel = String(new Date().getFullYear());
-
-//   const allScopes = [
-//     ...directComparison,
-//     ...(hasScope3 ? indirectComparison.filter((x) => x.scope === 'Scope 3') : []),
-//   ].filter((s) => (s.base || 0) > 0 || (s.current || 0) > 0);
-
-//   if (!allScopes.length) {
-//     return { nodes: [], links: [], baseRows: [], currentRows: [], baseYearLabel, currentYearLabel };
-//   }
-
-//   // Sankey nodes — only include sides that actually have data so labels
-//   // outside the chart stay aligned with what the user sees in the ribbons.
-//   const baseScopes = allScopes.filter((s) => (s.base || 0) > 0);
-//   const currentScopes = allScopes.filter((s) => (s.current || 0) > 0);
-
-//   const baseNodes = baseScopes.map((s) => ({
-//     name: `${s.scope} · ${baseYearLabel}`,
-//     scope: s.scope,
-//     side: 'base',
-//   }));
-//   const currentNodes = currentScopes.map((s) => ({
-//     name: `${s.scope} · ${currentYearLabel}`,
-//     scope: s.scope,
-//     side: 'current',
-//   }));
-//   const nodes = [...baseNodes, ...currentNodes];
-
-//   const links = [];
-//   baseScopes.forEach((s, i) => {
-//     const target = baseNodes.length + currentScopes.findIndex((c) => c.scope === s.scope);
-//     if (target < baseNodes.length) return; // matching current scope missing
-//     links.push({
-//       source: i,
-//       target,
-//       value: Number((s.base || 0).toFixed(2)),
-//       base: Number((s.base || 0).toFixed(2)),
-//       current: Number((s.current || 0).toFixed(2)),
-//       scope: s.scope,
-//     });
-//   });
-
-//   const baseRows = baseScopes.map((s) => ({
-//     scope: s.scope,
-//     year: baseYearLabel,
-//     value: Number((s.base || 0).toFixed(2)),
-//   }));
-//   const currentRows = currentScopes.map((s) => ({
-//     scope: s.scope,
-//     year: currentYearLabel,
-//     value: Number((s.current || 0).toFixed(2)),
-//   }));
-
-//   return { nodes, links, baseRows, currentRows, baseYearLabel, currentYearLabel };
-// }
-
-
-export function buildSankeyData(baseYearComparison, hasScope3) {
+export function buildBaseYearChartData(
+  baseYearComparison,
+  totals,
+  hasScope3
+) {
   if (!baseYearComparison) {
-    return { nodes: [], links: [], baseRows: [], currentRows: [] };
+    return {
+      rows: [],
+      baseYearLabel: '',
+      reportingYearLabel: '',
+      totalBase: 0,
+      totalReporting: 0,
+    };
   }
 
   const {
@@ -242,75 +183,146 @@ export function buildSankeyData(baseYearComparison, hasScope3) {
     indirectBaseYear,
   } = baseYearComparison;
 
-  const baseYearLabel = directBaseYear || indirectBaseYear || 'Base Year';
-  const currentYearLabel = `FY ${new Date().getFullYear()}`;
-  
+  // -----------------------------------
+  // REPORTING PERIOD LABEL
+  // -----------------------------------
+  const reportingYearLabel = 'Reporting Period';
 
+  // -----------------------------------
+  // BASE YEARS
+  // Scope 1 & 2 can differ from Scope 3
+  // -----------------------------------
+  const scopeBaseYears = {
+    'Scope 1':
+      directBaseYear || 'Base Year',
+
+    'Scope 2':
+      directBaseYear || 'Base Year',
+
+    ...(hasScope3 && {
+      'Scope 3':
+        indirectBaseYear ||
+        'Base Year',
+    }),
+  };
+
+  // -----------------------------------
+  // MERGE SCOPES
+  // -----------------------------------
   const scopes = [
-    ...directComparison,
-    ...(hasScope3 ? indirectComparison.filter(x => x.scope === 'Scope 3') : [])
-  ].filter(s => (s.base || 0) > 0 )
+    ...directComparison.filter(
+    (x) => x.scope !== 'Biogenic'
+    ),
+
+    ...(hasScope3
+      ? indirectComparison.filter(
+          (x) => x.scope === 'Scope 3'
+        )
+      : []),
+  ].filter((s) => (s.base || 0) > 0);
+
+  // -----------------------------------
+  // NO DATA AFTER FILTER
+  // -----------------------------------
   if (!scopes.length) {
-    return { nodes: [], links: [], baseRows: [], currentRows: [] };
+    return {
+      rows: [],
+      reportingYearLabel,
+      totalBase: 0,
+      totalReporting: 0,
+    };
   }
 
-  // -------------------------
-  // FIXED: ONLY 2 COLUMNS OF NODES
-  // -------------------------
-  const nodes = [
-    // Column 1: Base Year Scopes (Left)
-    ...scopes.map(s => ({
-      name: `base-${s.scope}`,
-      scope: s.scope,
-      side: 'base',
-      value: s.base || 0,
-    })),
-    // Column 2: Current Year Scopes (Right)
-    ...scopes.map(s => ({
-      name: `current-${s.scope}`,
-      scope: s.scope,
-      side: 'current',
-      value: s.current || 0,
-    })),
-  ];
+  // -----------------------------------
+  // REPORTING TOTALS
+  // -----------------------------------
+  const reportingMap = {
+    'Scope 1': Number(totals?.scope1 || 0),
 
-  // -------------------------
-  // FIXED: DIRECT 1-TO-1 LINKS
-  // -------------------------
-  const links = scopes.map((s, i) => {
+    'Scope 2': Number(totals?.scope2 || 0),
+
+    ...(hasScope3 && {
+      'Scope 3': Number(
+        totals?.scope3 || 0
+      ),
+    }),
+  };
+
+  // -----------------------------------
+  // BUILD ROWS
+  // -----------------------------------
+  const rows = scopes.map((s) => {
     const base = Number(s.base || 0);
-    const current = Number(s.current || 0);
 
-    // Recharts requires a static link width. We use the max so the path 
-    // remains visible even if emissions dropped drastically.
-    const safeValue = Math.max(base, current, 0.01);
-    const changePct = base > 0 ? ((current - base) / base) * 100 : 0;
+    // Prefer reporting totals
+    // fallback to comparison.current
+    const reporting =
+      reportingMap[s.scope] ??
+      Number(s.current || 0);
 
-    return {
-      source: i,                         // Links from Left Column (index)
-      target: scopes.length + i,         // Links to Right Column (index + offset)
-      value: safeValue,
-      base,
-      current,
-      changePct,
+    const delta = reporting - base;
+
+    const changePct =
+      base > 0
+        ? ((reporting - base) / base) *
+          100
+        : 0;
+
+    const row = {
       scope: s.scope,
+
+      baseYear: Number(
+        base.toFixed(2)
+      ),
+
+      reportingYear: Number(
+        reporting.toFixed(2)
+      ),
+
+      delta: Number(
+        delta.toFixed(2)
+      ),
+
+      changePct: Number(
+        changePct.toFixed(1)
+      ),
+
+      // IMPORTANT
+      baseYearLabel:
+        scopeBaseYears[s.scope] ||
+        'Base Year',
+
+      reportingYearLabel,
     };
+
+    return row;
   });
 
+  // -----------------------------------
+  // TOTALS
+  // -----------------------------------
+  const totalBase = rows.reduce(
+    (sum, r) => sum + r.baseYear,
+    0
+  );
+
+  const totalReporting = rows.reduce(
+    (sum, r) => sum + r.reportingYear,
+    0
+  );
 
   return {
-    nodes,
-    links,
-    baseRows: scopes.map(s => ({
-      scope: s.scope,
-      year: baseYearLabel,
-      value: s.base || 0,
-    })),
-    currentRows: scopes.map(s => ({
-      scope: s.scope,
-      year: currentYearLabel,
-      value: s.current || 0,
-    })),
+    rows,
+
+    reportingYearLabel,
+
+    totalBase: Number(
+      totalBase.toFixed(2)
+    ),
+
+    totalReporting: Number(
+      totalReporting.toFixed(2)
+    ),
   };
 }
 

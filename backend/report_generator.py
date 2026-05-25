@@ -4025,6 +4025,11 @@ class GHGReportGenerator:
             
             self._add_emissions_summary_table(doc, facility_emissions, totals, use_equity_share, equity_pct)
             
+            # Add Scope 3 calculation method breakdown for this facility (if applicable)
+            is_scope3_report = getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3'
+            if is_scope3_report and totals.get('scope3', 0) > 0:
+                self._add_scope3_method_breakdown(doc, facility_emissions, facility_name)
+            
             doc.add_paragraph()
             
             # 4.x.3 Emissions of Previous Years - Use FACILITY-SPECIFIC historical data (already fetched above)
@@ -4134,26 +4139,94 @@ class GHGReportGenerator:
                 
                 doc.add_paragraph()
         
-        # Organization Emissions Section
-        self._add_styled_heading(doc, f"4.{len(facilities)+3} Organization Emissions", level=2)
-        self._add_organization_emissions_table(doc, org_totals)
+        # Organization-level sections - only include if all facilities are selected (is_complete_organization)
+        include_org_sections = getattr(self, 'is_complete_organization', True)
         
-        doc.add_paragraph()
-        
-        # Organization Base Year Emissions - Only show if base year data is available for the organization
-        org_id = organization.get('id')
-        org_base_year_data = self._get_base_year_emissions_for_entity('organization', org_id)
-        if org_base_year_data:
-            self._add_styled_heading(doc, f"4.{len(facilities)+4} Organization Base Year Emissions", level=2)
-            self._add_base_year_emissions_section(doc, org_base_year_data, org_totals, organization.get('name', 'Organization'), 1.0, False, reporting_period_start, reporting_period_end)
+        if include_org_sections:
+            # Organization Emissions Section
+            self._add_styled_heading(doc, f"4.{len(facilities)+3} Organization Emissions", level=2)
+            self._add_organization_emissions_table(doc, org_totals)
+            
+            # Add Scope 3 calculation method breakdown at org level (if applicable)
+            is_scope3_report = getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3'
+            if is_scope3_report and org_totals.get('scope3', 0) > 0:
+                self._add_scope3_method_breakdown(doc, emissions, organization.get('name', 'Organization'))
+            
             doc.add_paragraph()
-        
-        # Organization Analysis
-        analysis_section_num = len(facilities) + 5 if org_base_year_data else len(facilities) + 4
-        self._add_styled_heading(doc, f"4.{analysis_section_num} Organization Analysis", level=2)
-        self._add_organization_analysis(doc, organization, org_totals, facilities)
+            
+            # Organization Base Year Emissions - Only show if base year data is available for the organization
+            org_id = organization.get('id')
+            org_base_year_data = self._get_base_year_emissions_for_entity('organization', org_id)
+            if org_base_year_data:
+                self._add_styled_heading(doc, f"4.{len(facilities)+4} Organization Base Year Emissions", level=2)
+                self._add_base_year_emissions_section(doc, org_base_year_data, org_totals, organization.get('name', 'Organization'), 1.0, False, reporting_period_start, reporting_period_end)
+                doc.add_paragraph()
+            
+            # Organization Analysis
+            analysis_section_num = len(facilities) + 5 if org_base_year_data else len(facilities) + 4
+            self._add_styled_heading(doc, f"4.{analysis_section_num} Organization Analysis", level=2)
+            self._add_organization_analysis(doc, organization, org_totals, facilities)
         
         doc.add_page_break()
+    
+    def _add_scope3_method_breakdown(self, doc: Document, emissions: List[Dict], entity_name: str):
+        """Add inline text showing Scope 3 calculation method breakdown for a facility/organization.
+        
+        Format: "Supplier Basis: 45%, Activity Basis: 30%, Spend Basis: 25%"
+        """
+        # Filter scope 3 emissions
+        scope3_emissions = [e for e in emissions if (e.get('scope') or '').lower() == 'scope3']
+        
+        if not scope3_emissions:
+            return
+        
+        # Analyze emissions by methodology
+        methodology_totals = {
+            'activity_basis': 0.0,
+            'spend_basis': 0.0,
+            'supplier_basis': 0.0,
+            'other': 0.0
+        }
+        
+        for em in scope3_emissions:
+            method = (em.get('calculation_method_scope3') or 'other').lower()
+            co2e = float(em.get('total_emissions') or em.get('co2e_emissions') or 0)
+            
+            # Normalize method name
+            if 'activity' in method:
+                method_key = 'activity_basis'
+            elif 'spend' in method:
+                method_key = 'spend_basis'
+            elif 'supplier' in method:
+                method_key = 'supplier_basis'
+            else:
+                method_key = 'other'
+            
+            methodology_totals[method_key] += co2e
+        
+        # Calculate grand total
+        grand_total = sum(methodology_totals.values())
+        
+        if grand_total > 0:
+            # Build inline text for non-zero methods
+            method_labels = {
+                'supplier_basis': 'Supplier Basis',
+                'activity_basis': 'Activity Basis',
+                'spend_basis': 'Spend Basis',
+                'other': 'Other'
+            }
+            
+            breakdown_parts = []
+            for method_key, label in method_labels.items():
+                if methodology_totals[method_key] > 0:
+                    pct = (methodology_totals[method_key] / grand_total) * 100
+                    breakdown_parts.append(f"{label}: {pct:.1f}%")
+            
+            if breakdown_parts:
+                p = doc.add_paragraph()
+                run = p.add_run("Scope 3 Calculation Method Breakdown: ")
+                run.bold = True
+                p.add_run(", ".join(breakdown_parts))
     
     def _add_emissions_summary_table(self, doc: Document, facility_emissions: List[Dict], totals: Dict, 
                                       use_equity_share: bool = False, equity_pct: float = 100.0):
@@ -4967,15 +5040,20 @@ class GHGReportGenerator:
                        include_previous_years: bool = True,
                        sinks_total: float = 0.0, sinks_data: List[Dict] = None,
                        facility_production: Dict = None,
-                       report_type: str = "scope_1_2") -> io.BytesIO:
+                       report_type: str = "scope_1_2",
+                       is_complete_organization: bool = True) -> io.BytesIO:
         """Generate the complete GHG Inventory Report
         
         Args:
             report_type: "scope_1_2" for Scope 1,2 report or "scope_1_2_3" for Scope 1,2,3 report
+            is_complete_organization: Whether all org facilities are included (for org-level sections)
         """
         
         # Store report type for use in chapter generation
         self.report_type = report_type
+        
+        # Store flag for whether to include org-level sections
+        self.is_complete_organization = is_complete_organization
         
         # Store sinks data for use in calculations
         self.sinks_total = sinks_total
