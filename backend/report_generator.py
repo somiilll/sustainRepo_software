@@ -4462,11 +4462,20 @@ class GHGReportGenerator:
             doc.add_paragraph("No previous year data available.")
     
     def _add_facility_analysis(self, doc: Document, facility_name: str, totals: Dict):
+
+        # Check if this is a Scope 3 report
+        is_scope3_report = getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3'
+
         """Add analysis text for a facility"""
         total_emissions = totals['total']
         scope1 = totals['scope1']
         scope2 = totals['scope2']
+        scope3 = totals.get('scope3', 0) if is_scope3_report else 0
         
+        if is_scope3_report:
+            total_emissions = scope1 + scope2 + scope3
+        else:
+            total_emissions = scope1 + scope2 
         # Total emissions statement
         p = doc.add_paragraph()
         p.add_run(f"Total emissions from {facility_name} amount to ")
@@ -4478,9 +4487,12 @@ class GHGReportGenerator:
         if total_emissions > 0:
             scope1_pct = (scope1 / total_emissions) * 100
             scope2_pct = (scope2 / total_emissions) * 100
-            
             p = doc.add_paragraph()
-            p.add_run(f"Scope 1 (Direct) emissions contribute {scope1_pct:.1f}% ({self._format_number(scope1)} tCO2e) of total emissions, while Scope 2 (Indirect) emissions contribute {scope2_pct:.1f}% ({self._format_number(scope2)} tCO2e).")
+            if is_scope3_report:
+                scope3_pct = (scope3 / total_emissions) * 100
+                p.add_run(f" Scope 1 emissions account for {scope1_pct:.1f}%, Scope 2 emissions account for {scope2_pct:.1f}%, and Scope 3 emissions account for {scope3_pct:.1f}% of total emissions.")
+            else:        
+                p.add_run(f"Scope 1 (Direct) emissions contribute {scope1_pct:.1f}% ({self._format_number(scope1)} tCO2e) of total emissions, while Scope 2 (Indirect) emissions contribute {scope2_pct:.1f}% ({self._format_number(scope2)} tCO2e).")
             
             # Category dominance - use scope1-specific breakdown (use .get() for safety)
             scope1_by_category = totals.get('scope1_by_category', {})
@@ -4513,9 +4525,7 @@ class GHGReportGenerator:
         has_monthly_chart = bool(totals['by_month'])
         has_any_chart = has_scope_chart or has_category_chart or has_fuel_chart or has_monthly_chart
         
-        # Check if this is a Scope 3 report
-        is_scope3_report = getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3'
-        scope3 = totals.get('scope3', 0) if is_scope3_report else None
+
         
         # Add charts (reduced size) - Only add header text if at least one chart is successfully added
         charts_added = False

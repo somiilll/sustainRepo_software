@@ -796,12 +796,6 @@ export default function Reports() {
             <p className="text-text-secondary mb-4">
               Does this include all the facilities/plants in the organization?
             </p>
-            <p className="text-sm text-gray-500">
-              If <strong>Yes</strong>, the report will include Organization Emissions, Organization Analysis, and Organization Base Year Emissions sections.
-            </p>
-            <p className="text-sm text-gray-500 mt-2">
-              If <strong>No</strong>, these organization-level sections will be excluded from the report.
-            </p>
           </div>
           <div className="flex gap-3 justify-end">
             <Button
