@@ -2109,9 +2109,9 @@ class GHGReportGenerator:
             data = []
             
             method_labels = {
-                'activity_basis': 'Activity-Based',
-                'spend_basis': 'Spend-Based',
-                'supplier_basis': 'Supplier-Specific',
+                'activity_basis': 'Average Data Based',
+                'spend_basis': 'Spend Based',
+                'supplier_basis': 'Supplier Based',
                 'other': 'Other/Unspecified'
             }
             

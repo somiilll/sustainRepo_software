@@ -36,6 +36,7 @@ import { editEmissionDispatch as editEmissionDispatchShared } from './emissions/
 import { categoryRegistry } from '../modules/emissions';
 import EmissionHistoryDialog from './emissions/components/EmissionHistoryDialog';
 import EmissionDataGrid from './emissions/components/EmissionDataGrid';
+import {CALCULATION_METHODS_LABELS} from '../constants/calculation-methods'
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -3045,7 +3046,13 @@ export default function Emissions() {
     const methods = emissions
       .filter(e => e.scope === 'scope3' && e.calculation_method_scope3)
       .map(e => e.calculation_method_scope3);
-    return [...new Set(methods)].sort();
+    const unique = [...new Set(methods)].sort();
+
+    return unique.map(method => ({
+      value: method,
+      label: CALCULATION_METHODS_LABELS[method] || method, 
+    }));
+    // return [...new Set(methods)].sort();
   }, [emissions, activeScope]);
 
   // Check if user is regular user (not admin or super_admin)

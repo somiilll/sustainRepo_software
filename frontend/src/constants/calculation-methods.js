@@ -3,6 +3,9 @@
  * Centralized calculation method definitions
  */
 
+
+
+
 // Calculation method identifiers
 export const CALCULATION_METHODS = {
   SPEND_BASIS: 'spend_basis',
@@ -12,6 +15,13 @@ export const CALCULATION_METHODS = {
   FUEL_BASIS: 'fuel_basis',
   ASSET_BASIS: 'asset_basis',
   AVERAGE_DATA: 'average_data',
+};
+
+// calculation Method actual
+export const CALCULATION_METHODS_LABELS = {
+  [CALCULATION_METHODS.SPEND_BASIS]: 'Spend Based',
+  [CALCULATION_METHODS.ACTIVITY_BASIS]: 'Average Data Based',
+  [CALCULATION_METHODS.SUPPLIER_BASIS]: 'Supplier Based'
 };
 
 // Method display labels (full)
