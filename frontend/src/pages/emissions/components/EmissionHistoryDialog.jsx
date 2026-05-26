@@ -27,7 +27,7 @@ export default function EmissionHistoryDialog({
               // Determine if this is a creation, update, or deletion based on old_values
               const hasOldValues = history.changes?.old_values && Object.keys(history.changes.old_values).length > 0;
               const action = history.changes?.action || (hasOldValues ? 'updated' : 'created');
-              const isCreation = action === 'created' || !hasOldValues;
+              const isCreation = action === 'created';
               const isDeletion = action === 'deleted';
               const oldValues = history.changes?.old_values || {};
               const newValues = history.changes?.new_values || {};
