@@ -1,14 +1,20 @@
 # SustainRepo Changelog
 
-## May 26, 2026 — V2 Approval Workflow Backend Complete
+## May 26, 2026 — V2 Approval Workflow (Backend + Frontend P1)
 
-### Approval Workflow V2 (P0 fix)
+### Frontend V2 Schema Wiring (P1)
+- Created `/app/frontend/src/modules/ghg/utils/approvalSchema.js` — central V2 schema helpers (`getRequestType`, `getScope`, `getCategory`, `getFacilityId`, `getSnapshot`, `getOriginalSnapshot`, `getEditHistory`, `getRejectionReason`, `getEntityId`, `getApprovalBadge`, `isPending`, `isRejected`). All read flat V2 fields with V1 fallback for legacy records.
+- **Rewrote `ViewApprovalDialog.jsx`** — drops V1 `metadata` / `entity_snapshot` / `request_type` references; now reads flat V2 fields via helpers. Shows status badge in title, supports update field-diff view, edit history popover, and delete-confirmation banner.
+- Updated `ApprovalTable.jsx` to read scope/category/facility/snapshot/rejection-reason via the new helpers (no more `r?.metadata?.*` chains).
+- Updated `ApprovalSection.jsx` to derive `requestType` and `entityId` via helpers (route to scope page uses `original_record_id` for update/delete navigation).
+- Updated `EmissionDataGrid.jsx` to use centralized `getApprovalBadge()` instead of inline switch.
+
+### Approval Workflow V2 Backend (P0)
 - Fixed broken `intercept_create` signature in `modules/emissions/router.py` (was using V1 args returning bool; now correctly unpacks V2 tuple `(action, pending_record)`).
 - Fixed `intercept_update` and `intercept_delete` to set `created_at` on new pending_records.
 - Added V2 schema fields to `EmissionRecordResponse`: `original_record_id`, `submitted_by`, `submitted_by_email`, `submitted_by_name`, `submitted_at`, `edit_history`, `version_history`, `version`.
 - Backfilled missing `created_at` on legacy pending_records.
-- **Verified E2E (13/13 tests PASS)**: user create → pending_create → admin approve → emission_records (version=1, history populated); user edit → pending_update → admin approve → updated (version=2, history=3 entries); user delete → pending_delete → admin approve → record gone; reject flow → rejected_create status; pending count; admin bypass (direct create/update/delete) all working; org isolation intact.
-- Dashboard stats unaffected (4505.84 tCO₂e, all scopes byte-similar).
+- **Verified E2E (13/13 backend tests PASS)**: full CRUD lifecycle (create→pending_create→approved, update→pending_update→approved with version=2 + 3 history entries, delete→pending_delete→approved deletion, reject→rejected_create). Admin bypass + org isolation intact. Dashboard stats unaffected.
 
 ## May 25, 2026
 

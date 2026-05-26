@@ -22,6 +22,7 @@ import useApprovalActions from '../hooks/useApprovalActions';
 import ApprovalTable from '../components/ApprovalTable';
 import ApprovalActions from '../components/ApprovalActions';
 import ViewApprovalDialog from '../components/ViewApprovalDialog';
+import { getRequestType, getScope, getEntityId } from '../utils/approvalSchema';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -109,7 +110,10 @@ export default function ApprovalSection() {
 
   // Per-row actions render.
   const renderRowActions = (r) => {
-    const isDeleteRequest = r.request_type === 'delete';
+    const requestType = getRequestType(r);
+    const isDeleteRequest = requestType === 'delete';
+    const entityId = getEntityId(r);
+    const scope = getScope(r);
     
     return (
     <>
@@ -132,7 +136,7 @@ export default function ApprovalSection() {
             variant="ghost"
             className="h-7 w-7 p-0"
             title="Edit & approve"
-            onClick={() => navigate(`${scopeToRoute(r?.metadata?.scope)}?edit=${r.entity_id}`)}
+            onClick={() => navigate(`${scopeToRoute(scope)}?edit=${entityId}`)}
             data-testid={`approval-edit-${r.id}`}
           >
             <EditIcon className="w-3.5 h-3.5 text-stone-600" />

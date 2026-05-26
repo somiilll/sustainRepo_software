@@ -14,6 +14,14 @@ import { Card } from '../../../components/ui/card';
 import { Input } from '../../../components/ui/input';
 import { Button } from '../../../components/ui/button';
 import { Search, ChevronLeft, ChevronRight, Inbox } from 'lucide-react';
+import {
+  getRequestType,
+  getScope,
+  getCategory,
+  getFacilityId,
+  getSnapshot,
+  getRejectionReason,
+} from '../utils/approvalSchema';
 
 const PAGE_SIZE = 20;
 
@@ -53,26 +61,27 @@ export default function ApprovalTable({
     const q = (searchValue || '').trim().toLowerCase();
 
     return (rows || []).filter((r) => {
-      if (scopeFilter && r?.metadata?.scope !== scopeFilter) {
+      if (scopeFilter && getScope(r) !== scopeFilter) {
         return false;
       }
 
       if (
         facilityFilter &&
-        r?.metadata?.facility_id !== facilityFilter
+        getFacilityId(r) !== facilityFilter
       ) {
         return false;
       }
 
       if (!q) return true;
 
+      const snap = getSnapshot(r);
       const haystack = [
         r.submitted_by_email,
         r.submitted_by_name,
-        r?.metadata?.scope,
-        r?.metadata?.category,
-        r?.entity_snapshot?.reporting_period,
-        facilityMap[r?.metadata?.facility_id],
+        getScope(r),
+        getCategory(r),
+        snap?.reporting_period,
+        facilityMap[getFacilityId(r)],
       ]
         .filter(Boolean)
         .join(' ')
@@ -204,16 +213,17 @@ export default function ApprovalTable({
       ) : (
         <div className="divide-y divide-stone-100">
           {pageRows.map((r) => {
-            const meta = r.metadata || {};
-            const snap = r.entity_snapshot || {};
+            const snap = getSnapshot(r);
+            const scope = getScope(r);
+            const category = getCategory(r);
+            const facilityId = getFacilityId(r);
+            const requestType = getRequestType(r);
 
             const total =
               snap.total_emissions ??
               snap.co2e_emissions ??
               0;
-            const rejectionReason =
-              r.final_comment ||
-              '—';
+            const rejectionReason = getRejectionReason(r) || '—';
 
             return (
               <div
@@ -243,23 +253,23 @@ export default function ApprovalTable({
                   </p>
 
                   <p className="text-xs text-text-muted truncate">
-                    {r.request_type}
+                    {requestType}
                   </p>
                 </div>
 
                 {/* FACILITY */}
                 <div className="w-36 text-sm text-text-secondary truncate">
-                  {facilityMap[meta.facility_id] || '—'}
+                  {facilityMap[facilityId] || '—'}
                 </div>
 
                 {/* SCOPE */}
                 <div className="w-20 text-sm capitalize">
-                  {meta.scope || '—'}
+                  {scope || '—'}
                 </div>
 
                 {/* CATEGORY */}
                 <div className="flex-1 min-w-[140px] text-sm text-text-primary truncate">
-                  {meta.category || '—'}
+                  {category || '—'}
                 </div>
 
                 {/* PERIOD */}

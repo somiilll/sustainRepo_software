@@ -1,6 +1,7 @@
 import React from 'react';
 import { Button } from '../../../components/ui/button';
 import { Activity, FileText, Edit, History, Trash2 } from 'lucide-react';
+import { getApprovalBadge } from '../../../modules/ghg/utils/approvalSchema';
 
 /**
  * EmissionDataGrid
@@ -80,18 +81,7 @@ export default function EmissionDataGrid({
           const totalEmissions = emission.outputs?.co2e?.value || emission.co2e_emissions || emission.total_emissions || 0;
 
           // Approval-status badge meta (rendered next to Custom badge in every scope row).
-          const approvalStatus = emission.approval_status;
-          const approvalBadge = (() => {
-            switch (approvalStatus) {
-              case 'pending_create': return { text: 'Pending for approval', cls: 'bg-amber-100 text-amber-700' };
-              case 'pending_update': return { text: 'Pending update', cls: 'bg-amber-100 text-amber-700' };
-              case 'pending_delete': return { text: 'Pending delete', cls: 'bg-amber-100 text-amber-700' };
-              case 'rejected_create':
-              case 'rejected_update':
-              case 'rejected_delete': return { text: 'Rejected', cls: 'bg-red-100 text-red-700' };
-              default: return null;
-            }
-          })();
+          const approvalBadge = getApprovalBadge(emission.approval_status);
           const ApprovalBadge = approvalBadge ? (
             <span
               className={`px-1.5 py-0.5 text-[9px] font-semibold rounded flex-shrink-0 ${approvalBadge.cls}`}
