@@ -136,7 +136,7 @@ export default function ApprovalSection() {
             variant="ghost"
             className="h-7 w-7 p-0"
             title="Edit & approve"
-            onClick={() => navigate(`${scopeToRoute(scope)}?edit=${entityId}`)}
+            onClick={() => navigate(`${scopeToRoute(scope)}?edit=${r.id}`)}
             data-testid={`approval-edit-${r.id}`}
           >
             <EditIcon className="w-3.5 h-3.5 text-stone-600" />
