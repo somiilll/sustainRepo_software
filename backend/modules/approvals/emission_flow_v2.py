@@ -192,6 +192,22 @@ async def intercept_create(
 # UPDATE FLOW
 # =============================================================================
 
+def _preserve_tenant_keys(enriched: dict, existing: dict) -> dict:
+    """Drop tenant-scope keys from an incoming payload when they would
+    overwrite the existing record's values with falsy ones.
+
+    PUT payloads from the frontend often send organization_id/facility_id
+    as null. We must never let those clobber the tenant scope, otherwise
+    the record falls out of the admin's org-scoped views (e.g. the
+    Approvals tab filters by organization_id).
+    """
+    safe = dict(enriched)
+    for key in ("organization_id", "facility_id"):
+        if not safe.get(key) and existing.get(key):
+            safe[key] = existing[key]
+    return safe
+
+
 async def intercept_update(
     record_id: str,
     payload: dict,
@@ -221,7 +237,9 @@ async def intercept_update(
     
     # User with approval enabled
     cur_status = existing.get("approval_status") or STATUS_APPROVED
-    enriched = enrich_with_emissions(payload)
+    # Preserve tenant scope (organization_id / facility_id) from the
+    # existing record so a PUT payload sending nulls can't wipe them.
+    enriched = _preserve_tenant_keys(enrich_with_emissions(payload), existing)
     
     # Case 1: Record is already pending delete - block
     if cur_status == STATUS_PENDING_DELETE:
