@@ -64,6 +64,12 @@ class ApprovalRequest(BaseModel):
     last_edited_by: Optional[str] = None
     last_edited_by_email: Optional[str] = None
     last_edited_by_name: Optional[str] = None
+    
+    # Edit history - tracks all edits made while pending
+    edit_history: List[dict] = Field(default_factory=list)
+    
+    # Original values before any edits (for update requests)
+    original_snapshot: Optional[dict] = None
 
 
 class ApprovalDecisionInput(BaseModel):

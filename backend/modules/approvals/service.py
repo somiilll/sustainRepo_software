@@ -55,6 +55,7 @@ async def create_approval_request(
     submitter: dict,
     request_type: str = "create",
     metadata: Optional[dict] = None,
+    original_snapshot: Optional[dict] = None,
 ) -> dict:
     """Persist and return a new approval-request document."""
     doc = {
@@ -75,6 +76,8 @@ async def create_approval_request(
         "finalized_by": None,
         "final_comment": None,
         "metadata": metadata or {},
+        "edit_history": [],
+        "original_snapshot": original_snapshot,  # Store original values for update requests
     }
     await db.approval_requests.insert_one(doc)
     doc.pop("_id", None)

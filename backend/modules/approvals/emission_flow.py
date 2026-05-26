@@ -135,27 +135,49 @@ async def _refresh_approval_snapshot(
     entity_id: str,
     snapshot: dict,
     editor: Optional[dict] = None,
+    old_snapshot: Optional[dict] = None,
 ) -> None:
     """Keep the open approval_request's snapshot + metadata in sync after an edit.
 
     Stores an enriched snapshot (with denormalized totals), refreshes metadata
     keys the Approvals table reads (scope/category/facility_id), and stamps
     last_edited_at/by so the table shows the latest activity time.
+    
+    Also tracks edit history so admin can see what changed between submissions.
     """
     req = await db.approval_requests.find_one(
         {"entity_type": "emission", "entity_id": entity_id, "status": "pending"},
-        {"_id": 0, "id": 1},
+        {"_id": 0, "id": 1, "edit_history": 1, "entity_snapshot": 1},
     )
     if not req:
         return
 
     enriched = _enrich_snapshot_with_totals(snapshot)
+    
+    # Build edit history entry if we have old snapshot info
+    edit_history = req.get("edit_history") or []
+    previous_snapshot = old_snapshot or req.get("entity_snapshot")
+    if editor and previous_snapshot:
+        # Compute what changed
+        field_changes = compute_field_changes(previous_snapshot, enriched)
+        if field_changes:  # Only record if something actually changed
+            edit_entry = {
+                "edited_at": _now(),
+                "edited_by": editor.get("id"),
+                "edited_by_email": editor.get("email", ""),
+                "edited_by_name": editor.get("full_name", ""),
+                "field_changes": field_changes,
+                "changes_summary": f"{len(field_changes)} field(s) changed",
+            }
+            edit_history.append(edit_entry)
+    
     update_set = {
         "entity_snapshot": enriched,
         "metadata.scope": enriched.get("scope"),
         "metadata.category": enriched.get("category"),
         "metadata.facility_id": enriched.get("facility_id"),
         "last_edited_at": _now(),
+        "edit_history": edit_history,
     }
     if editor:
         update_set["last_edited_by"] = editor.get("id")
@@ -369,6 +391,7 @@ async def intercept_update(
                 "category": existing.get("category"),
                 "facility_id": existing.get("facility_id"),
             },
+            original_snapshot=existing,  # Store original approved values for comparison
         )
         return ("queue", existing)
 
@@ -538,11 +561,11 @@ async def finalize_emission_decision(req: dict, current_user: dict) -> None:
 
     if final_status == "approved":
         if request_type == "create":
-            await _approve_create(entity_id, req)
+            await _approve_create(entity_id, req, approver=current_user)
         elif request_type == "update":
-            await _approve_update(entity_id, req)
+            await _approve_update(entity_id, req, approver=current_user)
         elif request_type == "delete":
-            await _approve_delete(entity_id)
+            await _approve_delete(entity_id, req, approver=current_user)
     elif final_status == "rejected":
         new_status = {
             "create": "rejected_create",
@@ -556,7 +579,7 @@ async def finalize_emission_decision(req: dict, current_user: dict) -> None:
             )
 
 
-async def _approve_create(entity_id: str, req: dict) -> None:
+async def _approve_create(entity_id: str, req: dict, approver: dict = None) -> None:
     """Move pending_create doc into emission_records and write history."""
     pending = await db[PENDING_COLLECTION].find_one({"id": entity_id}, {"_id": 0})
     if not pending:
@@ -581,11 +604,16 @@ async def _approve_create(entity_id: str, req: dict) -> None:
             "old_values": None,
             "new_values": req.get("entity_snapshot") or record,
         },
+        # Approval info
+        "approved_by": approver.get("id") if approver else None,
+        "approved_by_email": approver.get("email", "") if approver else "",
+        "approved_by_name": approver.get("full_name", "") if approver else "",
+        "approved_at": _now() if approver else None,
     }
     await db.emission_history.insert_one(history)
 
 
-async def _approve_update(entity_id: str, req: dict) -> None:
+async def _approve_update(entity_id: str, req: dict, approver: dict = None) -> None:
     """Apply the held snapshot to the approved record and write update history."""
     existing = await db[APPROVED_COLLECTION].find_one({"id": entity_id}, {"_id": 0})
     if not existing:
@@ -628,14 +656,47 @@ async def _approve_update(entity_id: str, req: dict) -> None:
             "old_values": existing,
             "new_values": update_dict,
         },
+        # Approval info
+        "approved_by": approver.get("id") if approver else None,
+        "approved_by_email": approver.get("email", "") if approver else "",
+        "approved_by_name": approver.get("full_name", "") if approver else "",
+        "approved_at": _now() if approver else None,
     }
     await db.emission_history.insert_one(history)
     await db[APPROVED_COLLECTION].update_one({"id": entity_id}, {"$set": update_dict})
     await db[PENDING_COLLECTION].delete_one({"id": entity_id})
 
 
-async def _approve_delete(entity_id: str) -> None:
-    """Actually delete the approved record after admin approval."""
+async def _approve_delete(entity_id: str, req: dict = None, approver: dict = None) -> None:
+    """Actually delete the approved record after admin approval and write history."""
+    existing = await db[APPROVED_COLLECTION].find_one({"id": entity_id}, {"_id": 0})
+    
+    # Write deletion history before deleting
+    if existing:
+        history = {
+            "id": str(uuid.uuid4()),
+            "emission_id": entity_id,
+            "facility_id": existing.get("facility_id"),
+            "organization_id": existing.get("organization_id"),
+            "scope": existing.get("scope"),
+            "category": existing.get("category"),
+            "changed_by": req.get("submitted_by") if req else (approver.get("id") if approver else None),
+            "changed_by_email": req.get("submitted_by_email", "") if req else (approver.get("email", "") if approver else ""),
+            "changed_by_name": req.get("submitted_by_name", "") if req else (approver.get("full_name", "") if approver else ""),
+            "changed_at": _now(),
+            "changes": {
+                "action": "deleted",
+                "old_values": existing,
+                "new_values": None,
+            },
+            # Approval info
+            "approved_by": approver.get("id") if approver else None,
+            "approved_by_email": approver.get("email", "") if approver else "",
+            "approved_by_name": approver.get("full_name", "") if approver else "",
+            "approved_at": _now() if approver else None,
+        }
+        await db.emission_history.insert_one(history)
+    
     await db[APPROVED_COLLECTION].delete_one({"id": entity_id})
     await db[PENDING_COLLECTION].delete_one({"id": entity_id})
 

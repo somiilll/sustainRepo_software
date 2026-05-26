@@ -108,19 +108,36 @@ export default function ApprovalSection() {
   };
 
   // Per-row actions render.
-  const renderRowActions = (r) => (
+  const renderRowActions = (r) => {
+    const isDeleteRequest = r.request_type === 'delete';
+    
+    return (
     <>
       {activeTab === 'pending' && (
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-7 w-7 p-0"
-          title="Edit & approve"
-          onClick={() => navigate(`${scopeToRoute(r?.metadata?.scope)}?edit=${r.entity_id}`)}
-          data-testid={`approval-edit-${r.id}`}
-        >
-          <EditIcon className="w-3.5 h-3.5 text-stone-600" />
-        </Button>
+        isDeleteRequest ? (
+          // For delete requests, show View button instead of Edit
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2 text-blue-600 hover:text-blue-700"
+            title="View details"
+            onClick={() => setViewing(r)}
+            data-testid={`approval-view-${r.id}`}
+          >
+            View
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 w-7 p-0"
+            title="Edit & approve"
+            onClick={() => navigate(`${scopeToRoute(r?.metadata?.scope)}?edit=${r.entity_id}`)}
+            data-testid={`approval-edit-${r.id}`}
+          >
+            <EditIcon className="w-3.5 h-3.5 text-stone-600" />
+          </Button>
+        )
       )}
       {activeTab === 'pending' && (
         <>
@@ -150,6 +167,7 @@ export default function ApprovalSection() {
       )}
     </>
   );
+  };
 
   return (
     <div className="space-y-6" data-testid="approvals-page">

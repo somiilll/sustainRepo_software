@@ -1,7 +1,7 @@
 import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../components/ui/dialog';
 import { Card } from '../../../components/ui/card';
-import { History, Calendar as CalendarIcon, User } from 'lucide-react';
+import { History, Calendar as CalendarIcon, User, CheckCircle2 } from 'lucide-react';
 
 /**
  * EmissionHistoryDialog
@@ -24,10 +24,11 @@ export default function EmissionHistoryDialog({
         <div className="space-y-4">
           {selectedEmissionHistory.length > 0 ? (
             selectedEmissionHistory.map((history, idx) => {
-              // Determine if this is a creation or update based on old_values
+              // Determine if this is a creation, update, or deletion based on old_values
               const hasOldValues = history.changes?.old_values && Object.keys(history.changes.old_values).length > 0;
               const action = history.changes?.action || (hasOldValues ? 'updated' : 'created');
               const isCreation = action === 'created' || !hasOldValues;
+              const isDeletion = action === 'deleted';
               const oldValues = history.changes?.old_values || {};
               const newValues = history.changes?.new_values || {};
 
@@ -402,13 +403,19 @@ export default function EmissionHistoryDialog({
               return (
                 <Card key={history.id} className="p-4 border border-stone-200 rounded-lg">
                   <div className="flex items-start gap-3">
-                    <div className={`p-2 rounded-lg ${isCreation ? 'bg-green-100' : 'bg-primary/10'}`}>
-                      <History className={`w-4 h-4 ${isCreation ? 'text-green-600' : 'text-primary'}`} />
+                    <div className={`p-2 rounded-lg ${
+                      isDeletion ? 'bg-red-100' :
+                      isCreation ? 'bg-green-100' : 'bg-primary/10'
+                    }`}>
+                      <History className={`w-4 h-4 ${
+                        isDeletion ? 'text-red-600' :
+                        isCreation ? 'text-green-600' : 'text-primary'
+                      }`} />
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-2">
                         <p className="text-sm font-medium text-text-primary">
-                          {isCreation ? 'Created' : 'Updated'}
+                          {isDeletion ? 'Deleted' : isCreation ? 'Created' : 'Updated'}
                         </p>
                         <span className={`text-xs px-2 py-1 rounded ${
                           idx === 0 ? 'bg-blue-100 text-blue-700' :
@@ -426,6 +433,23 @@ export default function EmissionHistoryDialog({
                           <User className="w-4 h-4 text-text-muted" />
                           {history.changed_by_name || history.changed_by_email || 'Unknown User'}
                         </p>
+                        
+                        {/* Show approval info if available */}
+                        {history.approved_by && (
+                          <div className="mt-2 pt-2 border-t border-stone-100">
+                            <p className="text-sm text-green-600 flex items-center gap-2">
+                              <CheckCircle2 className="w-4 h-4" />
+                              <span>
+                                Approved by <strong>{history.approved_by_name || history.approved_by_email || 'Admin'}</strong>
+                                {history.approved_at && (
+                                  <span className="text-text-muted ml-1">
+                                    on {new Date(history.approved_at).toLocaleString()}
+                                  </span>
+                                )}
+                              </span>
+                            </p>
+                          </div>
+                        )}
                       </div>
 
                       {/* Show changed fields for updates only */}

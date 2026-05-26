@@ -182,3 +182,8 @@ class EmissionHistoryResponse(BaseModel):
     field_changes: Optional[List[Dict[str, Any]]] = None
     changes_summary: Optional[str] = None
     changes: Dict[str, Any]
+    # Approval info
+    approved_by: Optional[str] = None
+    approved_by_email: Optional[str] = None
+    approved_by_name: Optional[str] = None
+    approved_at: Optional[str] = None
