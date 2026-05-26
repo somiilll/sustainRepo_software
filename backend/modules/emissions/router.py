@@ -667,28 +667,49 @@ async def get_emission_record(record_id: str, current_user: dict = Depends(get_c
 @router.get("/emissions/{record_id}/history", response_model=List[EmissionHistoryResponse])
 async def get_emission_history(record_id: str, current_user: dict = Depends(get_current_user)):
     """Get version history for an emission record.
-    
-    Now uses embedded version_history from the record itself,
-    with fallback to legacy emission_history collection.
+
+    History is the single source of truth in `db.emission_history`.
+    - Admin direct create/update writes one doc per change.
+    - Approved-from-pending flow flushes all `pending_records` lifecycle
+      entries (edit_history + version_history + approval entry) to this
+      collection on approval.
+
+    Embedded `version_history` on the record (if any) is treated as a
+    legacy fallback for records approved before this change.
     """
-    # First try to get embedded version_history from the record
-    record, _ = await find_record(record_id)
-    
-    # Also check pending by original_record_id
-    if not record:
-        pending = await db[PENDING_COLLECTION].find_one(
-            {"original_record_id": record_id},
-            {"_id": 0}
-        )
-        if pending:
-            record = pending
-    
-    history = []
-    
-    if record:
-        # Get embedded version_history
-        embedded_history = record.get("version_history", [])
-        for entry in embedded_history:
+    history: List[dict] = []
+
+    # Primary source: emission_history collection.
+    rows = await db.emission_history.find(
+        {"emission_id": record_id},
+        {"_id": 0},
+    ).sort("changed_at", -1).to_list(1000)
+
+    for entry in rows:
+        # Backfill display names if missing.
+        if entry.get("changed_by") and not entry.get("changed_by_email"):
+            user = await db.users.find_one(
+                {"id": entry["changed_by"]},
+                {"_id": 0, "email": 1, "full_name": 1},
+            )
+            if user:
+                entry["changed_by_email"] = user.get("email", "Unknown User")
+                entry["changed_by_name"] = user.get("full_name", "")
+        history.append(entry)
+
+    # Legacy fallback — if collection is empty for this record, surface any
+    # embedded version_history that pre-dates the flush-on-approve change.
+    if not history:
+        record, _ = await find_record(record_id)
+        if not record:
+            pending = await db[PENDING_COLLECTION].find_one(
+                {"original_record_id": record_id},
+                {"_id": 0},
+            )
+            if pending:
+                record = pending
+
+        for entry in (record or {}).get("version_history", []) or []:
             history.append({
                 "id": entry.get("id", str(uuid.uuid4())),
                 "emission_id": record_id,
@@ -704,32 +725,14 @@ async def get_emission_history(record_id: str, current_user: dict = Depends(get_
                 "changes": {
                     "action": entry.get("action", "updated"),
                     "old_values": None,
-                    "new_values": None
+                    "new_values": None,
                 },
                 "approved_by": entry.get("approved_by"),
                 "approved_by_email": entry.get("approved_by_email"),
                 "approved_by_name": entry.get("approved_by_name"),
                 "approved_at": entry.get("approved_at"),
             })
-    
-    # Fallback: Also check legacy emission_history collection
-    legacy_history = await db.emission_history.find(
-        {"emission_id": record_id},
-        {"_id": 0},
-    ).sort("changed_at", -1).to_list(1000)
-    
-    for entry in legacy_history:
-        if entry.get("changed_by"):
-            user = await db.users.find_one(
-                {"id": entry["changed_by"]},
-                {"_id": 0, "email": 1, "full_name": 1},
-            )
-            if user:
-                entry["changed_by_email"] = user.get("email", "Unknown User")
-                entry["changed_by_name"] = user.get("full_name", "")
-        history.append(entry)
-    
-    # Sort by changed_at descending
+
     history.sort(key=lambda x: x.get("changed_at", ""), reverse=True)
 
     return [EmissionHistoryResponse(**h) for h in history]

@@ -1,6 +1,14 @@
 # SustainRepo Changelog
 
-## May 26, 2026 — V2 Approval Workflow (Backend + Frontend P1)
+## May 26, 2026 — V2 Approval Workflow + History Flush-on-Approve
+
+### Version-history storage realigned to spec
+- **While pending**: history stays embedded in `pending_records.version_history` + `edit_history` (unchanged).
+- **On approve (NEW)**: `_flush_pending_history_to_collection` writes one `db.emission_history` doc per entry — edit_history first, then version_history, then the approval entry itself — all keyed by the approved record's id.
+- **Approved record fields** `version_history` and `edit_history` are stripped before insert (PENDING_CREATE) / `$unset` on update (PENDING_UPDATE). Single source of truth for history is now `db.emission_history`.
+- **Approve delete** also writes a final "deleted" event into `db.emission_history` for auditability before removing the approved record.
+- **`GET /emissions/{id}/history`** now reads from `emission_history` collection only; embedded fallback is kept only for legacy records that were approved before this change.
+- Admin direct create/update path (no approval) continues to write to `emission_history` as before — unchanged.
 
 ### Frontend V2 Schema Wiring (P1)
 - Created `/app/frontend/src/modules/ghg/utils/approvalSchema.js` — central V2 schema helpers (`getRequestType`, `getScope`, `getCategory`, `getFacilityId`, `getSnapshot`, `getOriginalSnapshot`, `getEditHistory`, `getRejectionReason`, `getEntityId`, `getApprovalBadge`, `isPending`, `isRejected`). All read flat V2 fields with V1 fallback for legacy records.

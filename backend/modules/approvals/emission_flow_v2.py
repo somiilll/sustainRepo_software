@@ -439,6 +439,108 @@ async def intercept_delete(
 # APPROVAL/REJECTION FLOW
 # =============================================================================
 
+async def _flush_pending_history_to_collection(
+    pending: dict,
+    approved_id: str,
+    approval_entry: dict,
+    action_label: str,
+) -> None:
+    """Convert a pending record's lifecycle entries into separate
+    `emission_history` collection documents, keyed by the approved
+    record's id. Called once per approval.
+
+    Order of insertion (oldest → newest):
+      1. edit_history entries (action='edited_while_pending')
+      2. version_history entries (action carried over: 'update_requested',
+         'delete_requested', etc.)
+      3. The approval_entry itself (action = action_label)
+    """
+    docs: List[Dict[str, Any]] = []
+
+    base_meta = {
+        "facility_id": pending.get("facility_id"),
+        "organization_id": pending.get("organization_id"),
+        "scope": pending.get("scope"),
+        "category": pending.get("category"),
+    }
+
+    for edit in pending.get("edit_history") or []:
+        docs.append({
+            "id": _generate_id(),
+            "emission_id": approved_id,
+            **base_meta,
+            "changed_by": edit.get("edited_by"),
+            "changed_by_email": edit.get("edited_by_email", ""),
+            "changed_by_name": edit.get("edited_by_name", ""),
+            "changed_at": edit.get("edited_at") or _now(),
+            "field_changes": edit.get("field_changes"),
+            "changes_summary": edit.get("changes_summary"),
+            "changes": {
+                "action": "edited_while_pending",
+                "old_values": None,
+                "new_values": None,
+            },
+        })
+
+    for ve in pending.get("version_history") or []:
+        docs.append({
+            "id": _generate_id(),
+            "emission_id": approved_id,
+            **base_meta,
+            "changed_by": ve.get("changed_by"),
+            "changed_by_email": ve.get("changed_by_email", ""),
+            "changed_by_name": ve.get("changed_by_name", ""),
+            "changed_at": ve.get("changed_at") or _now(),
+            "version": ve.get("version"),
+            "field_changes": ve.get("field_changes"),
+            "changes_summary": ve.get("changes_summary"),
+            "changes": {
+                "action": ve.get("action", "updated"),
+                "old_values": None,
+                "new_values": None,
+            },
+        })
+
+    docs.append({
+        "id": _generate_id(),
+        "emission_id": approved_id,
+        **base_meta,
+        "changed_by": approval_entry.get("changed_by"),
+        "changed_by_email": approval_entry.get("changed_by_email", ""),
+        "changed_by_name": approval_entry.get("changed_by_name", ""),
+        "changed_at": approval_entry.get("changed_at") or _now(),
+        "version": approval_entry.get("version"),
+        "field_changes": approval_entry.get("field_changes"),
+        "changes_summary": approval_entry.get("changes_summary"),
+        "changes": {
+            "action": action_label,
+            "old_values": None,
+            "new_values": None,
+        },
+        "approved_by": approval_entry.get("approved_by"),
+        "approved_by_email": approval_entry.get("approved_by_email"),
+        "approved_by_name": approval_entry.get("approved_by_name"),
+        "approved_at": approval_entry.get("approved_at"),
+    })
+
+    if docs:
+        await db.emission_history.insert_many(docs)
+
+
+# Fields stripped from a pending record before it lands in emission_records.
+# History lives in `db.emission_history`, not embedded.
+_PENDING_ONLY_FIELDS = (
+    "original_record_id",
+    "submitted_by",
+    "submitted_by_email",
+    "submitted_by_name",
+    "submitted_at",
+    "edit_history",
+    "version_history",
+    "original_snapshot",
+)
+
+
 async def approve_request(
     pending_id: str,
     approver: dict,
@@ -481,59 +583,74 @@ async def approve_request(
     }
     
     if status == STATUS_PENDING_CREATE:
-        # Create new record in emission_records
-        approved_record = {k: v for k, v in pending.items() 
-                         if k not in ("original_record_id", "submitted_by", "submitted_by_email", 
-                                     "submitted_by_name", "submitted_at", "edit_history", "original_snapshot")}
+        # Create new record in emission_records — history fields are stripped
+        # and flushed to db.emission_history instead.
+        approved_record = {
+            k: v for k, v in pending.items() if k not in _PENDING_ONLY_FIELDS
+        }
         approved_record["approval_status"] = STATUS_APPROVED
-        approved_record["version_history"] = pending.get("version_history", []) + [approval_entry]
-        
+
         await db[APPROVED_COLLECTION].insert_one(approved_record)
+        await _flush_pending_history_to_collection(
+            pending, approved_record["id"], approval_entry, "created"
+        )
         await db[PENDING_COLLECTION].delete_one({"id": pending_id})
-        
+
         return (True, "Record created successfully")
     
     elif status == STATUS_PENDING_UPDATE:
         if not original_id:
             return (False, "Missing original_record_id for update")
         
-        # Get existing record for version history
+        # Get existing record for field-change computation
         existing = await db[APPROVED_COLLECTION].find_one({"id": original_id}, {"_id": 0})
         if not existing:
             return (False, "Original record not found")
         
-        # Compute field changes
+        # Compute field changes (old approved → new pending values)
         field_changes = compute_field_changes(existing, pending)
         approval_entry["field_changes"] = field_changes
         approval_entry["changes_summary"] = f"{len(field_changes)} field(s) changed"
         
-        # Build update data
-        update_data = {k: v for k, v in pending.items()
-                      if k not in ("id", "original_record_id", "submitted_by", "submitted_by_email",
-                                  "submitted_by_name", "submitted_at", "edit_history", "original_snapshot")}
+        # Build update data — strip pending-only fields. History fields are
+        # NOT embedded on the approved record; they go to db.emission_history.
+        update_data = {
+            k: v for k, v in pending.items()
+            if k not in ("id",) + _PENDING_ONLY_FIELDS
+        }
         update_data["approval_status"] = STATUS_APPROVED
         update_data["updated_at"] = _now()
         update_data["updated_by"] = approver.get("id")
         update_data["updated_by_email"] = approver.get("email", "")
         update_data["updated_by_name"] = approver.get("full_name", "")
         
-        # Merge version histories
-        existing_history = existing.get("version_history", [])
-        pending_history = pending.get("version_history", [])
-        update_data["version_history"] = existing_history + pending_history + [approval_entry]
-        
         await db[APPROVED_COLLECTION].update_one(
             {"id": original_id},
-            {"$set": update_data}
+            {
+                "$set": update_data,
+                # Clean up any legacy embedded history fields left on
+                # previously-approved records during this transition.
+                "$unset": {"version_history": "", "edit_history": ""},
+            },
+        )
+        await _flush_pending_history_to_collection(
+            pending, original_id, approval_entry, "updated"
         )
         await db[PENDING_COLLECTION].delete_one({"id": pending_id})
-        
+
         return (True, "Record updated successfully")
     
     elif status == STATUS_PENDING_DELETE:
         if not original_id:
             return (False, "Missing original_record_id for delete")
         
+        # Record a final "deleted" event in db.emission_history before
+        # removing the approved record. Future history reads can still
+        # surface the deletion (if the caller knows the deleted id).
+        await _flush_pending_history_to_collection(
+            pending, original_id, approval_entry, "deleted"
+        )
+
         # Delete from emission_records
         await db[APPROVED_COLLECTION].delete_one({"id": original_id})
         await db[PENDING_COLLECTION].delete_one({"id": pending_id})
