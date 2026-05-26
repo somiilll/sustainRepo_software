@@ -833,12 +833,15 @@ async def fetch_emissions_for_user(
     query: dict = None,
 ) -> List[dict]:
     """
-    Fetch emissions combining approved and pending records for display.
-    
-    - Approved records are shown unless they have a pending update/delete
-    - Pending records are shown with their pending status
-    - Rejected records are NOT shown to regular users (only admins)
-    - Biogenic records are filtered to only show in biogenic scope
+    Fetch emissions for the GHG ledger / scope tabs.
+
+    - Regular users see their own pending records inline (so they can track
+      what's still under review) alongside approved records.
+    - Admins / super_admins see ONLY approved records here. Pending records
+      (creates / updates / deletes) live exclusively in the Approvals module
+      so the GHG scope tabs stay focused on finalized data.
+    - Rejected records are NOT shown to regular users (only admins).
+    - Biogenic records are filtered to only show in biogenic scope.
     """
     query = query or {}
     user_role = current_user.get("role", "user")
@@ -858,39 +861,32 @@ async def fetch_emissions_for_user(
     else:
         assigned = current_user.get("assigned_facilities", [])
         base_query = {**query, "facility_id": {"$in": assigned}}
-    
-    # Fetch approved records (exclude those with pending status - they'll come from pending collection)
-    approved_query = {**base_query}
-    # Only fetch records that are truly approved (not pending_update or pending_delete)
-    approved_query["approval_status"] = {"$nin": [STATUS_PENDING_UPDATE, STATUS_PENDING_DELETE]}
-    approved = await db[APPROVED_COLLECTION].find(approved_query, {"_id": 0}).to_list(10000)
-    
-    # Fetch pending records for this user
+
+    # Admin / super_admin path — scope tabs show approved data only.
     if user_role in ("admin", "super_admin"):
-        # Admins see all pending records for their org
-        pending_query = {**base_query, "approval_status": {"$in": list(PENDING_STATUSES)}}
-    else:
-        # Regular users only see their OWN pending records
-        pending_query = {
-            **base_query,
-            "approval_status": {"$in": list(PENDING_STATUSES)},
-            "submitted_by": user_id
-        }
-    
+        return await db[APPROVED_COLLECTION].find(base_query, {"_id": 0}).to_list(10000)
+
+    # Regular-user path — merge approved + their own pending records,
+    # hiding any approved row that has a pending update/delete.
+    approved_query = {
+        **base_query,
+        "approval_status": {"$nin": [STATUS_PENDING_UPDATE, STATUS_PENDING_DELETE]},
+    }
+    approved = await db[APPROVED_COLLECTION].find(approved_query, {"_id": 0}).to_list(10000)
+
+    pending_query = {
+        **base_query,
+        "approval_status": {"$in": list(PENDING_STATUSES)},
+        "submitted_by": user_id,
+    }
     pending = await db[PENDING_COLLECTION].find(pending_query, {"_id": 0}).to_list(10000)
-    
-    # Build result: merge approved + pending, avoiding duplicates
-    result = []
-    pending_original_ids = {p.get("original_record_id") for p in pending if p.get("original_record_id")}
-    
-    # Add approved records that don't have pending updates/deletes
-    for rec in approved:
-        if rec["id"] not in pending_original_ids:
-            result.append(rec)
-    
-    # Add all pending records (creates, updates, deletes)
+
+    pending_original_ids = {
+        p.get("original_record_id") for p in pending if p.get("original_record_id")
+    }
+
+    result = [rec for rec in approved if rec["id"] not in pending_original_ids]
     result.extend(pending)
-    
     return result
 
 
