@@ -616,14 +616,17 @@ async def fetch_emissions_for_user(
     
     - Approved records are shown unless they have a pending update/delete
     - Pending records are shown with their pending status
+    - Rejected records are NOT shown to regular users (only admins)
+    - Biogenic records are filtered to only show in biogenic scope
     """
     query = query or {}
     user_role = current_user.get("role", "user")
     org_id = current_user.get("organization_id")
+    user_id = current_user.get("id")
     
     # Build base query based on role
     if user_role == "super_admin":
-        base_query = query
+        base_query = dict(query)
     elif user_role == "admin":
         facilities = await db.facilities.find(
             {"organization_id": org_id},
@@ -635,11 +638,25 @@ async def fetch_emissions_for_user(
         assigned = current_user.get("assigned_facilities", [])
         base_query = {**query, "facility_id": {"$in": assigned}}
     
-    # Fetch approved records
-    approved = await db[APPROVED_COLLECTION].find(base_query, {"_id": 0}).to_list(10000)
+    # Fetch approved records (exclude those with pending status - they'll come from pending collection)
+    approved_query = {**base_query}
+    # Only fetch records that are truly approved (not pending_update or pending_delete)
+    approved_query["approval_status"] = {"$nin": [STATUS_PENDING_UPDATE, STATUS_PENDING_DELETE]}
+    approved = await db[APPROVED_COLLECTION].find(approved_query, {"_id": 0}).to_list(10000)
     
-    # Fetch pending records
-    pending = await db[PENDING_COLLECTION].find(base_query, {"_id": 0}).to_list(10000)
+    # Fetch pending records for this user
+    if user_role in ("admin", "super_admin"):
+        # Admins see all pending records for their org
+        pending_query = {**base_query, "approval_status": {"$in": list(PENDING_STATUSES)}}
+    else:
+        # Regular users only see their OWN pending records
+        pending_query = {
+            **base_query,
+            "approval_status": {"$in": list(PENDING_STATUSES)},
+            "submitted_by": user_id
+        }
+    
+    pending = await db[PENDING_COLLECTION].find(pending_query, {"_id": 0}).to_list(10000)
     
     # Build result: merge approved + pending, avoiding duplicates
     result = []
@@ -650,7 +667,7 @@ async def fetch_emissions_for_user(
         if rec["id"] not in pending_original_ids:
             result.append(rec)
     
-    # Add all pending records
+    # Add all pending records (creates, updates, deletes)
     result.extend(pending)
     
     return result

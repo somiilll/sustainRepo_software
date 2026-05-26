@@ -558,6 +558,16 @@ async def get_emission_records(
     # Use the new fetch_emissions_for_user which combines approved + pending
     records = await fetch_emissions_for_user(current_user, query)
     
+    # Filter out biogenic records from non-biogenic scope tabs
+    # Biogenic records should ONLY appear in the biogenic tab
+    if scope and scope != "biogenic":
+        records = [r for r in records if r.get("scope") != "biogenic"]
+    
+    # Filter out rejected records for regular users (admins can see them)
+    if current_user["role"] == "user":
+        from modules.approvals.emission_flow_v2 import REJECTED_STATUSES
+        records = [r for r in records if r.get("approval_status") not in REJECTED_STATUSES]
+    
     # Filter out biogenic records with biogenic_scope_selection='scope3' for orgs without scope3 access
     if current_user["role"] != "super_admin" and org_id:
         organization = await db.organizations.find_one({"id": org_id}, {"_id": 0, "enabled_access": 1})
