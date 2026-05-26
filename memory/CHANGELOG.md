@@ -1,5 +1,15 @@
 # SustainRepo Changelog
 
+## May 26, 2026 — V2 Approval Workflow Backend Complete
+
+### Approval Workflow V2 (P0 fix)
+- Fixed broken `intercept_create` signature in `modules/emissions/router.py` (was using V1 args returning bool; now correctly unpacks V2 tuple `(action, pending_record)`).
+- Fixed `intercept_update` and `intercept_delete` to set `created_at` on new pending_records.
+- Added V2 schema fields to `EmissionRecordResponse`: `original_record_id`, `submitted_by`, `submitted_by_email`, `submitted_by_name`, `submitted_at`, `edit_history`, `version_history`, `version`.
+- Backfilled missing `created_at` on legacy pending_records.
+- **Verified E2E (13/13 tests PASS)**: user create → pending_create → admin approve → emission_records (version=1, history populated); user edit → pending_update → admin approve → updated (version=2, history=3 entries); user delete → pending_delete → admin approve → record gone; reject flow → rejected_create status; pending count; admin bypass (direct create/update/delete) all working; org isolation intact.
+- Dashboard stats unaffected (4505.84 tCO₂e, all scopes byte-similar).
+
 ## May 25, 2026
 
 ### Bug Fixes

@@ -151,32 +151,33 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     record_dict["updated_by_email"] = None
     record_dict["updated_by_name"] = None
     
-    # Approval workflow gate (set approval_status + create approval_request if needed).
-    # When pending, the doc is written into pending_emission_records by the hook
-    # and we early-return — the rest of the normal create flow (history,
-    # event-bus, base-year sync) does NOT run for unapproved records.
-    approval_pending = await approval_intercept_create(record_dict, dict(record_dict), current_user)
-    if approval_pending:
-        # Audit the submission attempt, then return.
+    # V2 Approval workflow gate.
+    # Returns ("apply", None) → continue creating in emission_records (admin / workflow off).
+    # Returns ("queue", pending_record) → record was inserted into pending_records, we early-return.
+    approval_action, pending_record = await approval_intercept_create(
+        record_dict, record_dict["organization_id"], current_user
+    )
+    if approval_action == "queue" and pending_record:
+        # Audit the submission attempt, then return the pending record.
         await audit_logger.log(
             action=AuditAction.CREATE,
             module=AuditModule.EMISSION,
             user_id=current_user["id"],
             user_email=current_user["email"],
             user_role=current_user.get("role", "user"),
-            organization_id=record_dict["organization_id"],
-            resource_id=record_id,
+            organization_id=pending_record.get("organization_id"),
+            resource_id=pending_record.get("id"),
             resource_name=f"{record_data.scope} - {record_data.category} ({record_data.reporting_period})",
             description=f"Submitted emission record for approval ({record_data.category})",
-            new_values=record_dict,
+            new_values=pending_record,
             metadata={
                 "scope": record_data.scope,
                 "category": record_data.category,
                 "facility_id": record_data.facility_id,
-                "approval_status": record_dict.get("approval_status"),
+                "approval_status": pending_record.get("approval_status"),
             },
         )
-        return EmissionRecordResponse(**record_dict)
+        return EmissionRecordResponse(**pending_record)
     
     await db.emission_records.insert_one(record_dict)
     # Phase B11: emit emission.saved (best-effort; never break write path).
@@ -325,7 +326,7 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     history_new_values["co2e_emissions"] = record_dict["co2e_emissions"]
     history_new_values["total_emissions"] = record_dict["total_emissions"]
     
-    if not approval_pending:
+    if True:
         creation_history = {
             "id": str(uuid.uuid4()),
             "emission_id": record_id,

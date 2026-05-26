@@ -329,6 +329,7 @@ async def intercept_update(
             "original_snapshot": existing,
             
             "version": (existing.get("version", 0) or 0) + 1,
+            "created_at": existing.get("created_at") or _now(),
             "updated_at": _now(),
             "updated_by": current_user.get("id"),
             "updated_by_email": current_user.get("email", ""),
@@ -400,6 +401,7 @@ async def intercept_delete(
         "original_record_id": record_id,
         "organization_id": org_id,
         "approval_status": STATUS_PENDING_DELETE,
+        "created_at": existing.get("created_at") or _now(),
         
         # Submission metadata
         "submitted_by": current_user.get("id"),

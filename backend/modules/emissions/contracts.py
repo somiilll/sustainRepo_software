@@ -167,6 +167,16 @@ class EmissionRecordResponse(BaseModel):
     proposed_by_name: Optional[str] = None
     proposed_at: Optional[str] = None
 
+    # V2 Approval workflow fields
+    original_record_id: Optional[str] = None
+    submitted_by: Optional[str] = None
+    submitted_by_email: Optional[str] = None
+    submitted_by_name: Optional[str] = None
+    submitted_at: Optional[str] = None
+    edit_history: Optional[List[Dict[str, Any]]] = None
+    version_history: Optional[List[Dict[str, Any]]] = None
+    version: Optional[int] = None
+
 
 class EmissionHistoryResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
