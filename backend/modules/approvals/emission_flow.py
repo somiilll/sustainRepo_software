@@ -61,13 +61,17 @@ def _now() -> str:
 # ---------------------------------------------------------------------------
 
 async def find_emission_anywhere(record_id: str) -> Tuple[Optional[dict], Optional[str]]:
-    """Return (record, collection_name) — checks approved first, then pending."""
-    rec = await db[APPROVED_COLLECTION].find_one({"id": record_id}, {"_id": 0})
-    if rec:
-        return rec, APPROVED_COLLECTION
+    """Return (record, collection_name) — checks pending first, then approved.
+    
+    Pending is checked first so that users see their latest submitted values
+    when editing a record that's awaiting approval.
+    """
     rec = await db[PENDING_COLLECTION].find_one({"id": record_id}, {"_id": 0})
     if rec:
         return rec, PENDING_COLLECTION
+    rec = await db[APPROVED_COLLECTION].find_one({"id": record_id}, {"_id": 0})
+    if rec:
+        return rec, APPROVED_COLLECTION
     return None, None
 
 
@@ -365,8 +369,11 @@ async def intercept_update(
             return ("block", {"detail": "Record is not editable in its current state"})
 
         # cur_status == "approved" → queue a new pending_update doc.
+        # Enrich snapshot with calculated totals FIRST
+        enriched_snapshot = _enrich_snapshot_with_totals(snapshot)
+        
         pending_doc = dict(existing)
-        pending_doc.update(snapshot)
+        pending_doc.update(enriched_snapshot)  # Use enriched values with calculated emissions
         pending_doc["id"] = existing["id"]  # 1:1 link to approved record
         pending_doc["approval_status"] = "pending_update"
         pending_doc["proposed_by"] = current_user.get("id")
@@ -382,7 +389,7 @@ async def intercept_update(
         await create_approval_request(
             entity_type="emission",
             entity_id=existing["id"],
-            entity_snapshot=snapshot,
+            entity_snapshot=enriched_snapshot,
             organization_id=org_id,
             submitter=current_user,
             request_type="update",
