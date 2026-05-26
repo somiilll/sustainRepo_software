@@ -22,7 +22,7 @@ import useApprovalActions from '../hooks/useApprovalActions';
 import ApprovalTable from '../components/ApprovalTable';
 import ApprovalActions from '../components/ApprovalActions';
 import ViewApprovalDialog from '../components/ViewApprovalDialog';
-import { getRequestType, getScope, getEntityId } from '../utils/approvalSchema';
+import { getRequestType, getScope } from '../utils/approvalSchema';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -112,9 +112,7 @@ export default function ApprovalSection() {
   const renderRowActions = (r) => {
     const requestType = getRequestType(r);
     const isDeleteRequest = requestType === 'delete';
-    const entityId = getEntityId(r);
     const scope = getScope(r);
-    
     return (
     <>
       {activeTab === 'pending' && (

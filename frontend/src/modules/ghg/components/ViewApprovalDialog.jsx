@@ -2,16 +2,13 @@
  * ViewApprovalDialog — read-only view of a V2 approval request, with
  * inline approve/reject controls when caller passes `canDecide`.
  *
- * Supports the V2 schema (flat fields on the pending_records doc):
+ * V2 schema (flat fields on the pending_records doc):
  * - approval_status: 'pending_create' | 'pending_update' | 'pending_delete'
  *                  | 'rejected_create' | 'rejected_update' | 'rejected_delete'
  * - All emission fields (scope, category, quantity, etc.) live at the top
  *   level of the record.
  * - `original_snapshot` carries pre-edit values for update requests.
  * - `edit_history` carries edits made while pending.
- *
- * Legacy V1 records (metadata + entity_snapshot) keep working via
- * `approvalSchema` helpers.
  */
 import React, { useEffect, useState } from 'react';
 import {

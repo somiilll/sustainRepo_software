@@ -97,8 +97,6 @@ export default function ApprovalTable({
     facilityMap,
   ]);
 
-  console.log("r", rows)
-
   const pageRows = filtered.slice(
     page * PAGE_SIZE,
     page * PAGE_SIZE + PAGE_SIZE
