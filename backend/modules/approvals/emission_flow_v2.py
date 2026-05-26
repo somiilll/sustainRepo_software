@@ -400,15 +400,25 @@ async def intercept_delete(
     
     # User with approval enabled
     cur_status = existing.get("approval_status") or STATUS_APPROVED
-    
-    # If already pending, block delete
+
+    # If the record is a pending_create that belongs to this user, allow
+    # the caller to delete it outright from pending_records. The submission
+    # is the user's own draft and never made it to the approved collection,
+    # so they're free to retract it before the admin reviews. The router
+    # already calls `db[source_collection].delete_one(record_id)` after we
+    # return "apply", so we do not need to delete here.
+    if (
+        source == PENDING_COLLECTION
+        and cur_status == STATUS_PENDING_CREATE
+        and existing.get("submitted_by") == current_user.get("id")
+    ):
+        return ("apply", None)
+
+    # Otherwise, if already pending (update / delete request, or someone
+    # else's pending_create), block — the user must cancel via the
+    # approvals UI rather than DELETE.
     if cur_status in PENDING_STATUSES:
         return ("block", "Cannot delete record with pending approval")
-    
-    # If record is only in pending (create), just delete it
-    if source == PENDING_COLLECTION and cur_status == STATUS_PENDING_CREATE:
-        await db[PENDING_COLLECTION].delete_one({"id": record_id})
-        return ("apply", None)
     
     # Create pending delete record
     pending_id = _generate_id()
