@@ -197,3 +197,8 @@ class EmissionHistoryResponse(BaseModel):
     approved_by_email: Optional[str] = None
     approved_by_name: Optional[str] = None
     approved_at: Optional[str] = None
+    # Deletion-request info (only on action="deleted" entries)
+    requested_by: Optional[str] = None
+    requested_by_email: Optional[str] = None
+    requested_by_name: Optional[str] = None
+    requested_at: Optional[str] = None

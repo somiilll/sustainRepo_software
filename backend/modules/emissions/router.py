@@ -483,13 +483,27 @@ async def update_emission_record(
     ):
         from modules.approvals.emission_flow_v2 import approve_request
 
+        # Snapshot the pending record BEFORE applying admin's edits so we
+        # can compute the admin's diff alone (vs the user's proposed values).
+        pre_admin_pending = await db[PENDING_COLLECTION].find_one(
+            {"id": record_id}, {"_id": 0}
+        )
+
         await db[PENDING_COLLECTION].update_one(
             {"id": record_id},
             {"$set": update_dict},
         )
         pending_doc = await db[PENDING_COLLECTION].find_one({"id": record_id}, {"_id": 0})
         original_id = (pending_doc or {}).get("original_record_id")
-        ok, message = await approve_request(record_id, current_user)
+
+        # admin_field_changes = ONLY what the admin changed during approval.
+        admin_diff: List[dict] = []
+        if pre_admin_pending and pending_doc:
+            admin_diff = compute_field_changes(pre_admin_pending, pending_doc) or []
+
+        ok, message = await approve_request(
+            record_id, current_user, admin_field_changes=admin_diff,
+        )
         if not ok:
             raise HTTPException(status_code=400, detail=message)
         approved_id = original_id or record_id

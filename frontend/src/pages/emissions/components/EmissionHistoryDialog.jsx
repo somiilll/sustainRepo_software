@@ -434,13 +434,14 @@ export default function EmissionHistoryDialog({
                           {history.changed_by_name || history.changed_by_email || 'Unknown User'}
                         </p>
                         
-                        {/* Show approval info if available */}
+                        {/* Show approval / requester info */}
                         {history.approved_by && (
                           <div className="mt-2 pt-2 border-t border-stone-100">
                             <p className="text-sm text-green-600 flex items-center gap-2">
                               <CheckCircle2 className="w-4 h-4" />
                               <span>
-                                Approved by <strong>{history.approved_by_name || history.approved_by_email || 'Admin'}</strong>
+                                {isDeletion ? 'Deleted' : 'Approved'} by{' '}
+                                <strong>{history.approved_by_name || history.approved_by_email || 'Admin'}</strong>
                                 {history.approved_at && (
                                   <span className="text-text-muted ml-1">
                                     on {new Date(history.approved_at).toLocaleString()}
@@ -448,6 +449,16 @@ export default function EmissionHistoryDialog({
                                 )}
                               </span>
                             </p>
+                            {isDeletion && history.requested_by && (
+                              <p className="text-xs text-text-muted mt-1 ml-6">
+                                (requested by{' '}
+                                <strong>{history.requested_by_name || history.requested_by_email || 'User'}</strong>
+                                {history.requested_at && (
+                                  <> at {new Date(history.requested_at).toLocaleString()}</>
+                                )}
+                                )
+                              </p>
+                            )}
                           </div>
                         )}
                       </div>

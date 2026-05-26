@@ -461,17 +461,27 @@ async def _flush_pending_history_to_collection(
     pending: dict,
     approved_id: str,
     approval_entry: dict,
-    action_label: str,
+    event_kind: str,
+    admin_field_changes: Optional[List[Dict[str, Any]]] = None,
 ) -> None:
-    """Convert a pending record's lifecycle entries into separate
-    `emission_history` collection documents, keyed by the approved
-    record's id. Called once per approval.
+    """Flush a pending record's lifecycle into separate
+    `db.emission_history` documents.
 
-    Order of insertion (oldest → newest):
-      1. edit_history entries (action='edited_while_pending')
-      2. version_history entries (action carried over: 'update_requested',
-         'delete_requested', etc.)
-      3. The approval_entry itself (action = action_label)
+    event_kind:
+      - "CREATE": pending_create approval
+          • emit initial "created" entry from pending.submitted_at + submitter
+          • emit one "updated" entry per edit_history while pending
+          • emit final approval entry (action="updated", approved_by_* set,
+            field_changes = admin_field_changes if admin edited at approve time)
+      - "UPDATE": pending_update approval
+          • emit one "updated" entry per version_history entry (the user's
+            initial update request, translated from action="update_requested")
+          • emit one "updated" entry per edit_history entry (user re-edits)
+          • emit final approval entry (action="updated", approved_by_* set,
+            field_changes = admin_field_changes for admin's own edits)
+      - "DELETE": pending_delete approval
+          • emit one "deleted" entry — action="deleted", changed_by=approver,
+            approved_by_*=approver, requested_by_*=original submitter.
     """
     docs: List[Dict[str, Any]] = []
 
@@ -482,64 +492,134 @@ async def _flush_pending_history_to_collection(
         "category": pending.get("category"),
     }
 
-    for edit in pending.get("edit_history") or []:
+    # 1) For CREATE flow only: emit the initial "Created" entry.
+    if event_kind == "CREATE":
         docs.append({
             "id": _generate_id(),
             "emission_id": approved_id,
             **base_meta,
-            "changed_by": edit.get("edited_by"),
-            "changed_by_email": edit.get("edited_by_email", ""),
-            "changed_by_name": edit.get("edited_by_name", ""),
-            "changed_at": edit.get("edited_at") or _now(),
-            "field_changes": edit.get("field_changes"),
-            "changes_summary": edit.get("changes_summary"),
+            "changed_by": pending.get("submitted_by") or pending.get("created_by"),
+            "changed_by_email": (
+                pending.get("submitted_by_email")
+                or pending.get("created_by_email", "")
+            ),
+            "changed_by_name": (
+                pending.get("submitted_by_name")
+                or pending.get("created_by_name", "")
+            ),
+            "changed_at": (
+                pending.get("submitted_at") or pending.get("created_at") or _now()
+            ),
+            "version": 1,
+            "field_changes": None,
+            "changes_summary": None,
             "changes": {
-                "action": "edited_while_pending",
+                "action": "created",
                 "old_values": None,
                 "new_values": None,
             },
         })
 
-    for ve in pending.get("version_history") or []:
+    # 2) For UPDATE flow: replay version_history entries as "updated".
+    if event_kind == "UPDATE":
+        for ve in pending.get("version_history") or []:
+            # Translate user's "update_requested" / similar lifecycle markers
+            # into a normal "updated" entry for the history display.
+            docs.append({
+                "id": _generate_id(),
+                "emission_id": approved_id,
+                **base_meta,
+                "changed_by": ve.get("changed_by"),
+                "changed_by_email": ve.get("changed_by_email", ""),
+                "changed_by_name": ve.get("changed_by_name", ""),
+                "changed_at": ve.get("changed_at") or _now(),
+                "version": ve.get("version"),
+                "field_changes": ve.get("field_changes"),
+                "changes_summary": ve.get("changes_summary"),
+                "changes": {
+                    "action": "updated",
+                    "old_values": None,
+                    "new_values": None,
+                },
+            })
+
+    # 3) edit_history entries (user re-edits while pending) — always "updated".
+    if event_kind in ("CREATE", "UPDATE"):
+        for edit in pending.get("edit_history") or []:
+            docs.append({
+                "id": _generate_id(),
+                "emission_id": approved_id,
+                **base_meta,
+                "changed_by": edit.get("edited_by"),
+                "changed_by_email": edit.get("edited_by_email", ""),
+                "changed_by_name": edit.get("edited_by_name", ""),
+                "changed_at": edit.get("edited_at") or _now(),
+                "field_changes": edit.get("field_changes"),
+                "changes_summary": edit.get("changes_summary"),
+                "changes": {
+                    "action": "updated",
+                    "old_values": None,
+                    "new_values": None,
+                },
+            })
+
+    # 4) Final approval / deletion entry.
+    if event_kind == "DELETE":
         docs.append({
             "id": _generate_id(),
             "emission_id": approved_id,
             **base_meta,
-            "changed_by": ve.get("changed_by"),
-            "changed_by_email": ve.get("changed_by_email", ""),
-            "changed_by_name": ve.get("changed_by_name", ""),
-            "changed_at": ve.get("changed_at") or _now(),
-            "version": ve.get("version"),
-            "field_changes": ve.get("field_changes"),
-            "changes_summary": ve.get("changes_summary"),
+            "changed_by": approval_entry.get("changed_by"),
+            "changed_by_email": approval_entry.get("changed_by_email", ""),
+            "changed_by_name": approval_entry.get("changed_by_name", ""),
+            "changed_at": approval_entry.get("changed_at") or _now(),
+            "version": approval_entry.get("version"),
+            "field_changes": None,
+            "changes_summary": None,
             "changes": {
-                "action": ve.get("action", "updated"),
+                "action": "deleted",
                 "old_values": None,
                 "new_values": None,
             },
+            "approved_by": approval_entry.get("approved_by"),
+            "approved_by_email": approval_entry.get("approved_by_email"),
+            "approved_by_name": approval_entry.get("approved_by_name"),
+            "approved_at": approval_entry.get("approved_at"),
+            # Who requested the deletion (original submitter)
+            "requested_by": pending.get("submitted_by"),
+            "requested_by_email": pending.get("submitted_by_email"),
+            "requested_by_name": pending.get("submitted_by_name"),
+            "requested_at": pending.get("submitted_at"),
         })
-
-    docs.append({
-        "id": _generate_id(),
-        "emission_id": approved_id,
-        **base_meta,
-        "changed_by": approval_entry.get("changed_by"),
-        "changed_by_email": approval_entry.get("changed_by_email", ""),
-        "changed_by_name": approval_entry.get("changed_by_name", ""),
-        "changed_at": approval_entry.get("changed_at") or _now(),
-        "version": approval_entry.get("version"),
-        "field_changes": approval_entry.get("field_changes"),
-        "changes_summary": approval_entry.get("changes_summary"),
-        "changes": {
-            "action": action_label,
-            "old_values": None,
-            "new_values": None,
-        },
-        "approved_by": approval_entry.get("approved_by"),
-        "approved_by_email": approval_entry.get("approved_by_email"),
-        "approved_by_name": approval_entry.get("approved_by_name"),
-        "approved_at": approval_entry.get("approved_at"),
-    })
+    else:
+        # CREATE / UPDATE approval entry — action="updated" so the FE renders
+        # the green "Approved by X on Y" sub-line. field_changes is populated
+        # ONLY if the admin actually edited during auto-approve.
+        admin_changed_count = len(admin_field_changes) if admin_field_changes else 0
+        docs.append({
+            "id": _generate_id(),
+            "emission_id": approved_id,
+            **base_meta,
+            "changed_by": approval_entry.get("changed_by"),
+            "changed_by_email": approval_entry.get("changed_by_email", ""),
+            "changed_by_name": approval_entry.get("changed_by_name", ""),
+            "changed_at": approval_entry.get("changed_at") or _now(),
+            "version": approval_entry.get("version"),
+            "field_changes": admin_field_changes if admin_changed_count else None,
+            "changes_summary": (
+                f"{admin_changed_count} field(s) changed during approval"
+                if admin_changed_count else None
+            ),
+            "changes": {
+                "action": "updated",
+                "old_values": None,
+                "new_values": None,
+            },
+            "approved_by": approval_entry.get("approved_by"),
+            "approved_by_email": approval_entry.get("approved_by_email"),
+            "approved_by_name": approval_entry.get("approved_by_name"),
+            "approved_at": approval_entry.get("approved_at"),
+        })
 
     if docs:
         await db.emission_history.insert_many(docs)
@@ -563,15 +643,21 @@ async def approve_request(
     pending_id: str,
     approver: dict,
     admin_changes: Optional[dict] = None,
+    admin_field_changes: Optional[List[Dict[str, Any]]] = None,
 ) -> Tuple[bool, str]:
     """
     Approve a pending request.
-    
+
     Args:
         pending_id: ID of the pending record
         approver: Admin user dict
         admin_changes: Optional dict of changes made by admin during approval
-    
+            (merged into the pending record before promotion)
+        admin_field_changes: Optional pre-computed list of field changes that
+            represent ONLY the admin's edits at approve time. When provided
+            it is recorded on the approval entry so the version-history UI
+            can show what the admin modified vs the user's proposed values.
+
     Returns:
         (success, message)
     """
@@ -610,7 +696,8 @@ async def approve_request(
 
         await db[APPROVED_COLLECTION].insert_one(approved_record)
         await _flush_pending_history_to_collection(
-            pending, approved_record["id"], approval_entry, "created"
+            pending, approved_record["id"], approval_entry,
+            event_kind="CREATE", admin_field_changes=admin_field_changes,
         )
         await db[PENDING_COLLECTION].delete_one({"id": pending_id})
 
@@ -620,15 +707,10 @@ async def approve_request(
         if not original_id:
             return (False, "Missing original_record_id for update")
         
-        # Get existing record for field-change computation
+        # Get existing record (sanity check that we have something to update).
         existing = await db[APPROVED_COLLECTION].find_one({"id": original_id}, {"_id": 0})
         if not existing:
             return (False, "Original record not found")
-        
-        # Compute field changes (old approved → new pending values)
-        field_changes = compute_field_changes(existing, pending)
-        approval_entry["field_changes"] = field_changes
-        approval_entry["changes_summary"] = f"{len(field_changes)} field(s) changed"
         
         # Build update data — strip pending-only fields. History fields are
         # NOT embedded on the approved record; they go to db.emission_history.
@@ -652,7 +734,8 @@ async def approve_request(
             },
         )
         await _flush_pending_history_to_collection(
-            pending, original_id, approval_entry, "updated"
+            pending, original_id, approval_entry,
+            event_kind="UPDATE", admin_field_changes=admin_field_changes,
         )
         await db[PENDING_COLLECTION].delete_one({"id": pending_id})
 
@@ -662,11 +745,12 @@ async def approve_request(
         if not original_id:
             return (False, "Missing original_record_id for delete")
         
-        # Record a final "deleted" event in db.emission_history before
-        # removing the approved record. Future history reads can still
-        # surface the deletion (if the caller knows the deleted id).
+        # Record a final "deleted" event in db.emission_history with the
+        # original submitter as the requester. Future history reads can
+        # still surface the deletion (if the caller knows the deleted id).
         await _flush_pending_history_to_collection(
-            pending, original_id, approval_entry, "deleted"
+            pending, original_id, approval_entry,
+            event_kind="DELETE",
         )
 
         # Delete from emission_records
