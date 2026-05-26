@@ -86,8 +86,8 @@ from modules.reports.router import router as reports_router
 from modules.superadmin.router import router as superadmin_router
 # Phase B9: Pydantic models moved to modules/superadmin/contracts.py.
 
-# Approval workflow extension (per-org opt-in feature).
-from modules.approvals.router import router as approvals_router
+# Approval workflow extension (per-org opt-in feature) - V2 architecture.
+from modules.approvals.router_v2 import router as approvals_router
 
 # Targets domain (multi-target reduction management).
 from modules.targets.router import router as targets_router
