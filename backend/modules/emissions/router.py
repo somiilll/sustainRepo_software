@@ -464,7 +464,80 @@ async def update_emission_record(
     
     # Compute field-level changes for better tracking (#3 - Version History)
     field_changes = compute_field_changes(existing, history_new_values)
-    
+
+    update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
+    update_dict["updated_by"] = current_user["id"]
+    update_dict["updated_by_email"] = current_user.get("email", "")
+    update_dict["updated_by_name"] = current_user.get("full_name", "")
+    update_dict["version"] = existing.get("version", 0) + 1
+
+    # ─── Admin auto-approve ──────────────────────────────────────────────
+    # When an admin / super_admin edits a record that currently lives in
+    # pending_records, treat the save as "edit + approve". The admin's
+    # changes are persisted to the pending doc first, then approve_request
+    # promotes it to emission_records and flushes history to
+    # emission_history (single source of truth).
+    if (
+        source_collection == PENDING_COLLECTION
+        and current_user.get("role") in ("admin", "super_admin")
+    ):
+        from modules.approvals.emission_flow_v2 import approve_request
+
+        await db[PENDING_COLLECTION].update_one(
+            {"id": record_id},
+            {"$set": update_dict},
+        )
+        pending_doc = await db[PENDING_COLLECTION].find_one({"id": record_id}, {"_id": 0})
+        original_id = (pending_doc or {}).get("original_record_id")
+        ok, message = await approve_request(record_id, current_user)
+        if not ok:
+            raise HTTPException(status_code=400, detail=message)
+        approved_id = original_id or record_id
+        approved = await db[APPROVED_COLLECTION].find_one({"id": approved_id}, {"_id": 0})
+        if not approved:
+            raise HTTPException(status_code=500, detail="Approved record not found after auto-approve")
+
+        await audit_logger.log(
+            action=AuditAction.UPDATE,
+            module=AuditModule.EMISSION,
+            user_id=current_user["id"],
+            user_email=current_user["email"],
+            user_role=current_user.get("role", "user"),
+            organization_id=approved.get("organization_id"),
+            resource_id=approved_id,
+            resource_name=f"{record_data.scope} - {record_data.category} ({record_data.reporting_period})",
+            description=(
+                f"Admin edited & auto-approved pending request for {record_data.category}"
+            ),
+            old_values=existing,
+            new_values=approved,
+            metadata={
+                "scope": record_data.scope,
+                "category": record_data.category,
+                "facility_id": record_data.facility_id,
+                "total_emissions": approved.get("total_emissions"),
+                "auto_approved": True,
+            },
+        )
+
+        try:
+            from events.event_bus import event_bus, Events
+            event_bus.emit_nowait(Events.EMISSION_UPDATED, {
+                "record_id": approved_id,
+                "scope": record_data.scope,
+                "category": record_data.category,
+                "facility_id": record_data.facility_id,
+                "organization_id": approved.get("organization_id"),
+                "user_id": current_user.get("id"),
+                "auto_approved": True,
+            })
+        except Exception:
+            pass
+
+        return EmissionRecordResponse(**approved)
+
+    # ─── Normal direct-apply path (approved record edit by admin, or
+    #     legacy admin direct update) ──────────────────────────────────
     # Save version history entry for this update with detailed field changes
     history_dict = {
         "id": str(uuid.uuid4()),
@@ -487,13 +560,7 @@ async def update_emission_record(
         }
     }
     await db.emission_history.insert_one(history_dict)
-    
-    update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
-    update_dict["updated_by"] = current_user["id"]
-    update_dict["updated_by_email"] = current_user.get("email", "")
-    update_dict["updated_by_name"] = current_user.get("full_name", "")
-    update_dict["version"] = existing.get("version", 0) + 1
-    
+
     # Determine target collection - if source was pending, update there; otherwise approved
     target_collection = source_collection or APPROVED_COLLECTION
     await db[target_collection].update_one({"id": record_id}, {"$set": update_dict})
