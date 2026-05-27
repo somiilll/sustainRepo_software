@@ -24,6 +24,7 @@ import EmissionEntryForm from '../components/EmissionEntryForm';
 import MultiEmployeeInput from '../components/MultiEmployeeInput';
 import { useCalcEngine } from '../hooks/useCalcEngine';
 import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
+import { useEmissionsCoreData } from '../hooks/useEmissionsCoreData';
 import {
   unitsMatch as unitsMatchShared,
   isVolumeUnit as isVolumeUnitShared,
@@ -56,14 +57,21 @@ const downloadFileHelper = (url, filename) => {
 };
 
 export default function Emissions() {
-  const [emissions, setEmissions] = useState([]);
-  const [facilities, setFacilities] = useState([]);
-  const [organization, setOrganization] = useState(null);
-  const [fuelDatabase, setFuelDatabase] = useState([]);
-  const [formulaDefinitions, setFormulaDefinitions] = useState([]); // Super Admin defined formulas
-  const [formulaParameters, setFormulaParameters] = useState([]); // Super Admin defined parameters with conversions
-  const [emissionConfigurations, setEmissionConfigurations] = useState([]); // Scope-to-formula mappings
-  const [loading, setLoading] = useState(true);
+  // ============================================================================
+  // CORE DATA - Fetched via custom hook (Phase 1 refactor)
+  // ============================================================================
+  const { getAuthHeader, user } = useAuth();
+  const {
+    emissions, facilities, organization, fuelDatabase,
+    formulaDefinitions, formulaParameters, emissionConfigurations,
+    loading, centralizedUnits, gwpConfig, processTemplates,
+    dynamicScopes, dynamicCategories, configLabels,
+    refresh: fetchData
+  } = useEmissionsCoreData(getAuthHeader);
+  
+  // ============================================================================
+  // LOCAL UI STATE - Not fetched from API
+  // ============================================================================
   const [isSaving, setIsSaving] = useState(false); // Track save operation state
   const [formulaDataReady, setFormulaDataReady] = useState(false); // Track when formula data is loaded
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -94,22 +102,12 @@ export default function Emissions() {
   const [overrideJustification, setOverrideJustification] = useState(''); // #17: Override justification
   const [isCalculating, setIsCalculating] = useState(false); // Track calculation state for save button
   
-  // Centralized Label Configuration (fetched from backend)
-  const [configLabels, setConfigLabels] = useState({
-    calculation_methods: {},
-    calculation_methods_short: {},
-    subcategories: {},
-    product_types: {},
-    scopes: {}
-  });
-  
   // Modal Protection State (#19 - Prevent accidental close)
   const [isFormDirty, setIsFormDirty] = useState(false); // Track if form has unsaved changes
   const [showUnsavedChangesDialog, setShowUnsavedChangesDialog] = useState(false); // Confirmation dialog
   const [pendingCloseAction, setPendingCloseAction] = useState(null); // Store pending close action
   
   const [selectedCategory, setSelectedCategory] = useState(''); // Category selection before fuel
-  const { getAuthHeader, user } = useAuth();
   
   // Scope 3 specific state for inline edit form
   const [scope3EFData, setScope3EFData] = useState([]);
@@ -246,13 +244,8 @@ export default function Emissions() {
 
   const [uploadedEvidence, setUploadedEvidence] = useState(null);
   const [existingEvidences, setExistingEvidences] = useState([]); // Track existing evidences when editing
-  const [centralizedUnits, setCentralizedUnits] = useState([]);
-  const [gwpConfig, setGwpConfig] = useState(null); // GWP Configuration from SuperAdmin
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [emissionToDelete, setEmissionToDelete] = useState(null);
-  const [processTemplates, setProcessTemplates] = useState([]); // Process templates from SuperAdmin
-  const [dynamicScopes, setDynamicScopes] = useState([]);
-  const [dynamicCategories, setDynamicCategories] = useState([]);
 
   // Helper functions for centralized labels
   const getMethodLabel = useCallback((method, short = false) => {
@@ -261,9 +254,12 @@ export default function Emissions() {
     return labels?.[method] || method.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   }, [configLabels]);
 
+  // Mark formula data as ready when core data loads
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (!loading && formulaDefinitions.length >= 0) {
+      setFormulaDataReady(true);
+    }
+  }, [loading, formulaDefinitions]);
 
   // Fetch Scope 3 EF data when scope changes to scope3
   useEffect(() => {
@@ -365,64 +361,6 @@ export default function Emissions() {
     
     fetchBiogenicScope3EF();
   }, [activeScope, biogenicScopeSelection, getAuthHeader]);
-
-  const fetchData = async () => {
-    setFormulaDataReady(false); // Reset formula data ready state
-    try {
-      const [emissionsRes, facilitiesRes, fuelDbRes, formulasRes, paramsRes, unitsRes, configsRes, gwpRes, templatesRes, orgRes, scopesRes, catsRes, labelsRes] = await Promise.all([
-        axios.get(`${API}/emissions`, { headers: getAuthHeader() }),
-        axios.get(`${API}/facilities`, { headers: getAuthHeader() }),
-        axios.get(`${API}/fuel-database`, { headers: getAuthHeader() }),
-        axios.get(`${API}/formula-definitions`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
-        axios.get(`${API}/formula-parameters`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
-        axios.get(`${API}/calc-engine/units`, { headers: getAuthHeader() }).catch(() => ({ data: { simple: [], compound: [] } })),
-        axios.get(`${API}/emission-configurations`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
-        axios.get(`${API}/gwp-config`, { headers: getAuthHeader() }).catch(() => ({ data: null })),
-        axios.get(`${API}/process-templates`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
-        axios.get(`${API}/organizations/my`, { headers: getAuthHeader() }).catch(() => ({ data: null })),
-        axios.get(`${API}/scopes`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
-        axios.get(`${API}/categories`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
-        axios.get(`${API}/config/labels`, { headers: getAuthHeader() }).catch(() => ({ data: null }))
-      ]);
-      setEmissions(emissionsRes.data);
-      setFacilities(facilitiesRes.data);
-      setFuelDatabase(fuelDbRes.data || []);
-      setFormulaDefinitions(formulasRes.data || []);
-      setFormulaParameters(paramsRes.data || []);
-      // Combine simple and compound units for centralizedUnits
-      const allUnits = [...(unitsRes.data?.simple || []), ...(unitsRes.data?.compound || [])];
-      setCentralizedUnits(allUnits);
-      setEmissionConfigurations(configsRes.data || []);
-      setGwpConfig(gwpRes.data || null);
-      setProcessTemplates(templatesRes.data || []);
-      setOrganization(orgRes.data);
-      setDynamicScopes(scopesRes.data || []);
-      setDynamicCategories(catsRes.data || []);
-      // Set config labels if fetched
-      if (labelsRes.data) {
-        setConfigLabels(labelsRes.data);
-      }
-      // Mark formula data as ready AFTER all state updates
-      setFormulaDataReady(true);
-    } catch (error) {
-      console.error('Emissions fetch error:', error);
-      setEmissions([]);
-      setFacilities([]);
-      setFuelDatabase([]);
-      setFormulaDefinitions([]);
-      setFormulaParameters([]);
-      setCentralizedUnits([]);
-      setEmissionConfigurations([]);
-      setGwpConfig(null);
-      setProcessTemplates([]);
-      setOrganization(null);
-      setDynamicScopes([]);
-      setDynamicCategories([]);
-      setFormulaDataReady(true); // Still mark as ready even on error to prevent indefinite loading
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // ============================================================================
   // FETCH FORM CONFIG when category+scope changes in edit dialog
