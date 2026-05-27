@@ -147,9 +147,6 @@ export default function Emissions() {
     error: calcEngineError 
   } = useCalcEngine(getAuthHeader);
   
-  // Track if backend calc engine was used (for future display/logging)
-  const [calcEngineUsed, setCalcEngineUsed] = useState(false);
-  
   // ============================================================================
   // DYNAMIC FORM CONFIG - Loaded from ce_input_field_mappings via form-config API
   // This replaces hardcoded fields with database-driven configuration
@@ -1847,7 +1844,9 @@ export default function Emissions() {
   const {
     backendCalcResult,
     setBackendCalcResult,
-    isCalculating: calcEngineCalculating,
+    calcEngineUsed,
+    setCalcEngineUsed,
+    isCalculatingNetwork,
     calculate: triggerCalcEngine,
     clearResult: clearCalcResult
   } = useEmissionsCalculator(getAuthHeader);
@@ -2062,7 +2061,6 @@ export default function Emissions() {
       
       // Use the calculator hook (handles debouncing and API call)
       triggerCalcEngine(payload);
-      setCalcEngineUsed(true);
       return;
     }
     

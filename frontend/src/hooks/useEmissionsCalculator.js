@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -13,17 +13,19 @@ const API = `${BACKEND_URL}/api`;
  */
 export function useEmissionsCalculator(getAuthHeader) {
   const [backendCalcResult, setBackendCalcResult] = useState(null);
-  const [isCalculating, setIsCalculating] = useState(false);
+  const [calcEngineUsed, setCalcEngineUsed] = useState(false);
+  const [isCalculatingNetwork, setIsCalculatingNetwork] = useState(false);
   const calcTriggerRef = useRef(null);
 
   const calculate = (payload, debounceMs = 400) => {
-    // Clear previous timeout for debouncing
+    // Clear previous timeout
     if (calcTriggerRef.current) {
       clearTimeout(calcTriggerRef.current);
     }
 
-    setIsCalculating(true);
+    setIsCalculatingNetwork(true);
 
+    // Debounce the actual API call
     calcTriggerRef.current = setTimeout(async () => {
       try {
         const response = await axios.post(
@@ -45,14 +47,17 @@ export function useEmissionsCalculator(getAuthHeader) {
             calculationSteps: response.data.audit?.execution_log || {},
             fromBackend: true
           });
+          setCalcEngineUsed(true);
         } else {
           setBackendCalcResult(null);
+          setCalcEngineUsed(false);
         }
       } catch (error) {
-        console.error('[CalcEngine] Error:', error);
+        console.error('[CalcEngine] Backend calculation error:', error);
         setBackendCalcResult(null);
+        setCalcEngineUsed(false);
       } finally {
-        setIsCalculating(false);
+        setIsCalculatingNetwork(false);
       }
     }, debounceMs);
   };
@@ -62,13 +67,25 @@ export function useEmissionsCalculator(getAuthHeader) {
       clearTimeout(calcTriggerRef.current);
     }
     setBackendCalcResult(null);
-    setIsCalculating(false);
+    setCalcEngineUsed(false);
+    setIsCalculatingNetwork(false);
   };
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (calcTriggerRef.current) {
+        clearTimeout(calcTriggerRef.current);
+      }
+    };
+  }, []);
 
   return {
     backendCalcResult,
     setBackendCalcResult,
-    isCalculating,
+    calcEngineUsed,
+    setCalcEngineUsed,
+    isCalculatingNetwork,
     calculate,
     clearResult
   };
