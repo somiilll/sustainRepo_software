@@ -4101,6 +4101,8 @@ export default function Emissions() {
                         const isUnitlessCountField = field.unitSource === 'none';
 
                         const showUnitSelector = !isUnitlessCountField && field.unitSource !== 'text' && fieldUnits.length > 0;
+                        // Freeform text unit input — admin set unit_source = 'text'
+                        const showUnitTextInput = !isUnitlessCountField && field.unitSource === 'text' && !field.variable?.endsWith('_unit');
                         
                         // For supplier_basis method with supplier-based fields, use text input for units
                         const isSupplierBasisUnitField = scope3Method === 'supplier_basis' && 
@@ -4200,7 +4202,7 @@ export default function Emissions() {
                                 ))}
                               </select>
                             ) : (
-                              <div className={showUnitSelector ? "flex gap-2" : ""}>
+                              <div className={(showUnitSelector || showUnitTextInput) ? "flex gap-2" : ""}>
                                 <Input
                                   type={field.fieldType === 'text' ? 'text' : 'number'}
                                   step={field.fieldType === 'number' ? 'any' : undefined}
@@ -4219,9 +4221,22 @@ export default function Emissions() {
                                   }}
                                   onKeyDown={(e) => { if (field.fieldType === 'number' && e.key === '-') e.preventDefault(); }}
                                   disabled={showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`]}
-                                  className={`bg-stone-50 ${showUnitSelector ? 'flex-1' : ''} ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                  className={`bg-stone-50 ${(showUnitSelector || showUnitTextInput) ? 'flex-1' : ''} ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
                                   data-testid={`edit-input-${field.fieldKey}`}
                                 />
+
+                                {/* Freeform text unit input — admin config unit_source = 'text'. */}
+                                {showUnitTextInput && (
+                                  <Input
+                                    type="text"
+                                    value={dynamicFieldValues[`${field.variable}_unit`] || ''}
+                                    onChange={(e) => updateDynamicFieldValue(`${field.variable}_unit`, e.target.value)}
+                                    disabled={showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`]}
+                                    className={`bg-stone-50 border border-stone-200 rounded-lg w-32 h-10 ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                    placeholder="Unit"
+                                    data-testid={`edit-unit-text-${field.fieldKey}`}
+                                  />
+                                )}
                                 
                                 {/* Supplier basis - use text input for units */}
                                 {isSupplierBasisUnitField && (
