@@ -89,23 +89,10 @@ export function initializeCategoryModules() {
   const { registerAllScope3Categories } = require('./categories/CategoryGenerator');
   registerAllScope3Categories();
 
-  // Attach the shared Scope 3 flat-field renderer to all flat-field categories.
-  // The renderer is category-agnostic — it reads everything it needs from the
-  // calc-engine `dynamicInputFields` + props. C7 is excluded (multi-employee).
-  const {
-    Scope3DynamicFieldsRenderer,
-  } = require('./shared/renderers/Scope3DynamicFieldsRenderer');
-
   const FLAT_FIELD_SCOPE3_CATEGORIES = [
     'c1', 'c2', 'c3', 'c4', 'c5', 'c6',
     'c8', 'c9', 'c10', 'c11', 'c12', 'c13', 'c14', 'c15',
   ];
-  FLAT_FIELD_SCOPE3_CATEGORIES.forEach((id) => {
-    const mod = categoryRegistry.get(id);
-    if (mod) {
-      mod.DynamicFieldsRenderer = Scope3DynamicFieldsRenderer;
-    }
-  });
 
   // Attach the shared Step 3 (year/monthly accordion) renderer to ALL modules
   // — this is the CREATE-flow analogue of `DynamicFieldsRenderer`.
@@ -170,7 +157,6 @@ export function initializeCategoryModules() {
     genericScope3.capabilities = genericScope3.capabilities || [];
     genericScope3.hasCapability =
       genericScope3.hasCapability || ((cap) => genericScope3.capabilities.includes(cap));
-    genericScope3.DynamicFieldsRenderer = Scope3DynamicFieldsRenderer;
     const genericEditApi = createScope3FlatEditApi(genericScope3);
     genericScope3.validateEditSubmission = genericEditApi.validateEditSubmission;
     genericScope3.buildEditPayload = genericEditApi.buildEditPayload;
