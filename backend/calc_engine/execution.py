@@ -320,24 +320,21 @@ class CalcEngine:
                     if fm and fm.get("allowed_units"):
                         target_base = fm["allowed_units"][0]
                     elif fm and fm.get("unit_source") == "scope3_ef":
-                        ef_id = (
-                            self.inputs.get("scope3_ef_id")
-                            or self.context.get("scope3_ef_id")
-                            or self.context.get("scope3_ef_default_unit")
-                        )
                         # If we already got scope3_ef_default_unit shortcut, use it.
                         if (
-                            isinstance(self.context.get("scope3_ef_default_unit"), str)
-                            and self.context.get("scope3_ef_default_unit")
+                            isinstance(context.get("scope3_ef_default_unit"), str)
+                            and context.get("scope3_ef_default_unit")
                         ):
-                            target_base = self.context["scope3_ef_default_unit"]
-                        elif ef_id:
-                            ef_id_val = ef_id["value"] if isinstance(ef_id, dict) else ef_id
-                            ef_row = await self.db.scope3_ef.find_one(
-                                {"id": ef_id_val}, {"_id": 0, "unit": 1, "default_unit": 1}
-                            )
-                            if ef_row:
-                                target_base = ef_row.get("default_unit") or ef_row.get("unit")
+                            target_base = context["scope3_ef_default_unit"]
+                        else:
+                            ef_id = inputs.get("scope3_ef_id") or context.get("scope3_ef_id")
+                            if ef_id:
+                                ef_id_val = ef_id["value"] if isinstance(ef_id, dict) else ef_id
+                                ef_row = await self.db.scope3_ef.find_one(
+                                    {"id": ef_id_val}, {"_id": 0, "unit": 1, "default_unit": 1}
+                                )
+                                if ef_row:
+                                    target_base = ef_row.get("default_unit") or ef_row.get("unit")
                 if not target_base:
                     target_base = base_in  # no conversion possible
 
