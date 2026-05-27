@@ -722,7 +722,31 @@ export default function Emissions() {
       options: m.options || [],
     }));
   }, [editFormConfig, formData.scope, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, editingEmission?.formula_id, biogenicScopeSelection]);
-  
+
+  // [DEBUG C11] Log unit_source rehydration for products_expected_usage + fuel_consumed_per_usage
+  useEffect(() => {
+    if (!dialogOpen) return;
+    const pe = dynamicInputFields.find(f => f.variable === 'products_expected_usage');
+    const fc = dynamicInputFields.find(f => f.variable === 'fuel_consumed_per_usage');
+    const rawPe = editFormConfig?.input_field_mappings?.find(m => m.maps_to_variable === 'products_expected_usage');
+    const rawFc = editFormConfig?.input_field_mappings?.find(m => m.maps_to_variable === 'fuel_consumed_per_usage');
+    console.log('[DEBUG C11 Edit]', {
+      scope3Method,
+      typeOfProduct,
+      scope3ActivityType,
+      formulaId: editingEmission?.formula_id,
+      editFormConfigLoaded: !!editFormConfig,
+      mappingsCount: editFormConfig?.input_field_mappings?.length || 0,
+      dynamicInputFieldsCount: dynamicInputFields.length,
+      products_expected_usage_mapped: pe ? { unitSource: pe.unitSource, compoundWith: pe.compoundWithVariable, expectedUnit: pe.expectedUnit, allowedUnits: pe.allowedUnits } : 'NOT IN dynamicInputFields',
+      products_expected_usage_raw: rawPe ? { unit_source: rawPe.unit_source, compound_with_variable: rawPe.compound_with_variable } : 'NOT IN editFormConfig',
+      fuel_consumed_per_usage_mapped: fc ? { unitSource: fc.unitSource, compoundWith: fc.compoundWithVariable } : 'NOT IN dynamicInputFields',
+      fuel_consumed_per_usage_raw: rawFc ? { unit_source: rawFc.unit_source, compound_with_variable: rawFc.compound_with_variable } : 'NOT IN editFormConfig',
+      pe_unit_in_state: dynamicFieldValues['products_expected_usage_unit'],
+      pe_val_in_state: dynamicFieldValues['products_expected_usage'],
+    });
+  }, [dialogOpen, dynamicInputFields, editFormConfig, dynamicFieldValues, scope3Method, typeOfProduct, scope3ActivityType, editingEmission?.formula_id]);
+
   // Build decision context from dynamic field values
   const buildEditDecisionInputs = useCallback(() => {
     const decisionInputs = {};
