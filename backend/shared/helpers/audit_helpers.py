@@ -82,28 +82,18 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
             "field_type": "evidence"
         })
     
-    # Track calculation method changes with readable names
+    # Track calculation method changes with readable names (only *_basis, no *_based fallbacks)
     method_names = {
-        'spend_based': 'Spend Based',
         'spend_basis': 'Spend Based',
         'average_data': 'Average Data',
         'activity_basis': 'Activity Based',
-        'activity_based': 'Activity Based',
-        'supplier_basis': 'Supplier Basis',
-        'supplier_based': 'Supplier Based',
-        'distance_based': 'Distance Based',
+        'supplier_basis': 'Supplier Based',
         'distance_basis': 'Distance Based',
-        'fuel_based': 'Fuel Based',
         'fuel_basis': 'Fuel Based',
-        'asset_based': 'Asset Based',
         'asset_basis': 'Asset Based',
-        'lessor_based': 'Lessor Based',
         'lessor_basis': 'Lessor Based',
-        'lessee_based': 'Lessee Based',
         'lessee_basis': 'Lessee Based',
-        'investment_based': 'Investment Based',
         'investment_basis': 'Investment Based',
-        'equity_based': 'Equity Based',
         'equity_basis': 'Equity Based'
     }
     

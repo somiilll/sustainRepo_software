@@ -9,11 +9,14 @@ import { History, Calendar as CalendarIcon, User, CheckCircle2 } from 'lucide-re
  * Displays the version history of an emission record. Pure presentational component
  * extracted from Emissions.js (Phase E6) — behavior is byte-identical to the original
  * inline JSX. No business logic changes.
+ * 
+ * @param {Object} fieldLabels - Optional field labels from input_field_mappings (fetched from backend)
  */
 export default function EmissionHistoryDialog({
   open,
   onOpenChange,
   history: selectedEmissionHistory = [],
+  fieldLabels: externalFieldLabels = {},
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -33,7 +36,8 @@ export default function EmissionHistoryDialog({
               const newValues = history.changes?.new_values || {};
 
               // Field label mapping for better display
-              const fieldLabelMap = {
+              // External labels from input_field_mappings take priority over defaults
+              const defaultFieldLabelMap = {
                 'quantity': 'Quantity',
                 'quantity_unit': 'Unit',
                 'category': 'Category',
@@ -99,7 +103,7 @@ export default function EmissionHistoryDialog({
                 'employee_rooms_taken': 'Employee Rooms Taken',
                 'employee_no_of_employees': 'Employee Count',
                 'employee_emissions': 'Employee Emissions',
-                // Dynamic input fields (will use display_name from backend)
+                // Dynamic input fields (will be overridden by externalFieldLabels from backend)
                 'employee_input_km_travelled': 'Distance Travelled (km)',
                 'employee_input_qty_days_travelled': 'No. of Days Travelled',
                 'employee_input_distance': 'Distance Travelled',
@@ -114,6 +118,10 @@ export default function EmissionHistoryDialog({
                 'nights_stayed': 'Nights Stayed',
                 'rooms_taken': 'Rooms Taken',
               };
+              
+              // Merge external labels (from input_field_mappings) with defaults
+              // External labels take priority
+              const fieldLabelMap = { ...defaultFieldLabelMap, ...externalFieldLabels };
 
               // Helper to format value for display - with proper nested object expansion
               const formatValue = (val, depth = 0) => {

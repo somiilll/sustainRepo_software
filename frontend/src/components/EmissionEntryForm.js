@@ -78,19 +78,23 @@ export default function EmissionEntryForm({
   configLabels = null, // Centralized label configuration
   organization = null // Organization data for reporting year type
 }) {
-  // Helper to get method labels from centralized config
+  // Helper to get method labels from centralized config (no hardcoded fallbacks)
   const getMethodLabel = useCallback((method, short = false) => {
     if (!method) return '-';
-    const defaultLabels = {
-      activity_basis: short ? 'Average' : 'Average Data Based',
-      spend_basis: short ? 'Spend' : 'Spend Based',
-      supplier_basis: short ? 'Supplier' : 'Supplier Based'
-    };
     if (configLabels) {
       const labels = short ? configLabels.calculation_methods_short : configLabels.calculation_methods;
-      return labels?.[method] || defaultLabels[method] || method.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      return labels?.[method] || method.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     }
-    return defaultLabels[method] || method.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    return method.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  }, [configLabels]);
+  
+  // Helper to get subcategory labels from centralized config
+  const getSubcategoryLabel = useCallback((subcategory) => {
+    if (!subcategory) return '-';
+    if (configLabels?.subcategories) {
+      return configLabels.subcategories[subcategory] || subcategory.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    }
+    return subcategory.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   }, [configLabels]);
 
   // ============================================================================
@@ -496,22 +500,25 @@ export default function EmissionEntryForm({
   const availableSubcategories = useMemo(() => {
     if (!requiresSubcategory || !scope3Method) return [];
     
+    // Get subcategory labels from configLabels (fetched from backend)
+    const subcategoryLabelsMap = configLabels?.subcategories || {};
+    
     // Define available subcategories based on method
     const subcategories = [
-      { value: 'stationary_combustion', label: 'Stationary Combustion' },
-      { value: 'mobile_combustion', label: 'Mobile Combustion' },
-      { value: 'fugitive_emissions', label: 'Fugitive Emissions' },
-      { value: 'energy', label: 'Energy' }
+      { value: 'stationary_combustion', label: subcategoryLabelsMap['stationary_combustion'] || 'Stationary Combustion' },
+      { value: 'mobile_combustion', label: subcategoryLabelsMap['mobile_combustion'] || 'Mobile Combustion' },
+      { value: 'fugitive_emissions', label: subcategoryLabelsMap['fugitive_emissions'] || 'Fugitive Emissions' },
+      { value: 'energy', label: subcategoryLabelsMap['energy'] || 'Energy' }
     ];
     
     // For activity_basis, don't show process_emissions (no data)
     // For supplier_basis, include process_emissions
     if (scope3Method === 'supplier_basis') {
-      subcategories.push({ value: 'process_emissions', label: 'Process Emissions' });
+      subcategories.push({ value: 'process_emissions', label: subcategoryLabelsMap['process_emissions'] || 'Process Emissions' });
     }
     
     return subcategories;
-  }, [requiresSubcategory, scope3Method]);
+  }, [requiresSubcategory, scope3Method, configLabels?.subcategories]);
 
   // Get available methods for selected category from Scope 3 EF
   // Always include supplier_basis as an option (except for biogenic)

@@ -36,7 +36,6 @@ import { editEmissionDispatch as editEmissionDispatchShared } from './emissions/
 import { categoryRegistry } from '../modules/emissions';
 import EmissionHistoryDialog from './emissions/components/EmissionHistoryDialog';
 import EmissionDataGrid from './emissions/components/EmissionDataGrid';
-import {CALCULATION_METHODS_LABELS} from '../constants/calculation-methods'
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -97,16 +96,11 @@ export default function Emissions() {
   
   // Centralized Label Configuration (fetched from backend)
   const [configLabels, setConfigLabels] = useState({
-    calculation_methods: {
-      activity_basis: 'Average Data Based',
-      spend_basis: 'Spend Based',
-      supplier_basis: 'Supplier Based'
-    },
-    calculation_methods_short: {
-      activity_basis: 'Average',
-      spend_basis: 'Spend',
-      supplier_basis: 'Supplier'
-    }
+    calculation_methods: {},
+    calculation_methods_short: {},
+    subcategories: {},
+    product_types: {},
+    scopes: {}
   });
   
   // Modal Protection State (#19 - Prevent accidental close)
@@ -1533,20 +1527,23 @@ export default function Emissions() {
   const availableSubcategories = useMemo(() => {
     if (!requiresSubcategory || !scope3Method) return [];
     
+    // Get subcategory labels from configLabels (fetched from backend)
+    const subcategoryLabelsMap = configLabels.subcategories || {};
+    
     const subcategories = [
-      { value: 'stationary_combustion', label: 'Stationary Combustion' },
-      { value: 'mobile_combustion', label: 'Mobile Combustion' },
-      { value: 'fugitive_emissions', label: 'Fugitive Emissions' },
-      { value: 'energy', label: 'Energy' }
+      { value: 'stationary_combustion', label: subcategoryLabelsMap['stationary_combustion'] || 'Stationary Combustion' },
+      { value: 'mobile_combustion', label: subcategoryLabelsMap['mobile_combustion'] || 'Mobile Combustion' },
+      { value: 'fugitive_emissions', label: subcategoryLabelsMap['fugitive_emissions'] || 'Fugitive Emissions' },
+      { value: 'energy', label: subcategoryLabelsMap['energy'] || 'Energy' }
     ];
     
     // For supplier_basis, include process_emissions
     if (scope3Method === 'supplier_basis') {
-      subcategories.push({ value: 'process_emissions', label: 'Process Emissions' });
+      subcategories.push({ value: 'process_emissions', label: subcategoryLabelsMap['process_emissions'] || 'Process Emissions' });
     }
     
     return subcategories;
-  }, [requiresSubcategory, scope3Method]);
+  }, [requiresSubcategory, scope3Method, configLabels.subcategories]);
 
   // Filter Scope 3 activities based on category, method, activity_type, subcategory, industry sector
   const filteredScope3Activities = useMemo(() => {
@@ -3107,10 +3104,10 @@ export default function Emissions() {
 
     return unique.map(method => ({
       value: method,
-      label: CALCULATION_METHODS_LABELS[method] || method, 
+      label: configLabels.calculation_methods?.[method] || method.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), 
     }));
     // return [...new Set(methods)].sort();
-  }, [emissions, activeScope]);
+  }, [emissions, activeScope, configLabels.calculation_methods]);
 
   // Check if user is regular user (not admin or super_admin)
   const isRegularUser = user?.role === 'user';
