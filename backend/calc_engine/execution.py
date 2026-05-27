@@ -101,6 +101,9 @@ class CalcEngine:
             return  # No mapping = no validation (allow any unit)
         
         unit_source = mapping.get("unit_source", "static")
+        # Sources that don't define / collect a unit at all → skip validation.
+        if unit_source in ("none", "text"):
+            return
         allowed_units = []
         
         if unit_source == "fuel":

@@ -503,15 +503,21 @@ export default function InputFieldMapping() {
                     <SelectItem value="fuel">From Fuel Database (use selected fuel's allowed_units)</SelectItem>
                     <SelectItem value="scope3_ef">From Scope 3 EF (use matched entry's unit)</SelectItem>
                     <SelectItem value="all_units">All Units (user selects from all simple + compound units)</SelectItem>
+                    <SelectItem value="none">None (no unit — for count / unitless fields)</SelectItem>
+                    <SelectItem value="text">Text Input (user types a freeform unit)</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-text-muted">
-                  {form.unit_source === 'fuel' 
+                  {form.unit_source === 'fuel'
                     ? 'Units will be dynamically loaded from the selected fuel\'s allowed_units field'
                     : form.unit_source === 'scope3_ef'
                     ? 'Unit will be loaded from the matched Scope 3 EF entry\'s unit field'
                     : form.unit_source === 'all_units'
                     ? 'User can select any unit from the centralized units list (no transform applied)'
+                    : form.unit_source === 'none'
+                    ? 'No unit is collected (use this for count / working-days style fields)'
+                    : form.unit_source === 'text'
+                    ? 'User will type the unit as freeform text. Do not use on fields that feed a calc step.'
                     : 'Units will be taken from the allowed units list below'}
                 </p>
               </div>
@@ -529,9 +535,9 @@ export default function InputFieldMapping() {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs text-text-muted">
-                    Allowed Units {(form.unit_source === 'fuel' || form.unit_source === 'scope3_ef' || form.unit_source === 'all_units') && <span className="text-amber-600">(ignored when source is Fuel/Scope 3 EF/All Units)</span>}
+                    Allowed Units {(form.unit_source === 'fuel' || form.unit_source === 'scope3_ef' || form.unit_source === 'all_units' || form.unit_source === 'none' || form.unit_source === 'text') && <span className="text-amber-600">(ignored for this source)</span>}
                   </Label>
-                  <div className={`border rounded-md p-2 bg-white max-h-40 overflow-y-auto space-y-1 ${(form.unit_source === 'fuel' || form.unit_source === 'scope3_ef' || form.unit_source === 'all_units') ? 'opacity-50' : ''}`}>
+                  <div className={`border rounded-md p-2 bg-white max-h-40 overflow-y-auto space-y-1 ${(form.unit_source === 'fuel' || form.unit_source === 'scope3_ef' || form.unit_source === 'all_units' || form.unit_source === 'none' || form.unit_source === 'text') ? 'opacity-50' : ''}`}>
                     {units.length === 0 ? (
                       <p className="text-xs text-text-muted p-2">No units defined in system</p>
                     ) : (

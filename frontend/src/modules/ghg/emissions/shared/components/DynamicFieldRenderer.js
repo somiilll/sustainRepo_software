@@ -54,6 +54,12 @@ export const getFieldUnits = ({
   const isScope3Like = scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3');
   let fieldUnits = [];
 
+  // No unit (count / unitless) and freeform-text unit are handled at the
+  // renderer level, not via a units list.
+  if (field.unitSource === 'none' || field.unitSource === 'text') {
+    return [];
+  }
+
   if (field.unitSource === 'fuel') {
     if (isScope3Like && requiresSubcategory && !selectedFuel && scope3ActivityId) {
       const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
@@ -105,7 +111,11 @@ export const DynamicFieldRenderer = ({
   biogenicScopeSelection,
 }) => {
   const isQtyField = field.variable === 'qty' || field.variable === 'qty_energy';
-  
+
+  // Per-field flags driven by the input-field-mapping admin config.
+  const isNoUnitField = field.unitSource === 'none';
+  const isTextUnitField = field.unitSource === 'text';
+
   // Calculate field units
   const fieldUnits = getFieldUnits({
     field,
@@ -123,13 +133,15 @@ export const DynamicFieldRenderer = ({
   const isSupplierBasisField = scope3Method === 'supplier_basis' && 
     (field.variable?.includes('supplier') || field.variable?.includes('Supplier'));
   
-  const showUnitSelector = fieldUnits.length > 0 && !isSupplierBasisField && 
+  const showUnitSelector = !isNoUnitField && !isTextUnitField && fieldUnits.length > 0 && !isSupplierBasisField &&
     (!field.isOverride || (field.isOverride && field.expectedUnit));
   
-  const showFixedUnit = field.isOverride && field.expectedUnit && fieldUnits.length <= 1;
+  const showFixedUnit = !isNoUnitField && !isTextUnitField && field.isOverride && field.expectedUnit && fieldUnits.length <= 1;
   const showSupplierUnitInput = isSupplierBasisField && !field.variable?.endsWith('_unit');
+  // Freeform text unit input driven by admin config (independent of supplier basis).
+  const showTextUnitInput = isTextUnitField && !field.variable?.endsWith('_unit');
   const showOverrideCheckbox = field.isOverride || (!field.required && !field.isOverride);
-  const isUnitlessCountField = INTEGER_ONLY_FIELDS.includes(field.variable);
+  const isUnitlessCountField = isNoUnitField || INTEGER_ONLY_FIELDS.includes(field.variable);
 
   const handleValueChange = (e) => {
     const val = e.target.value;
@@ -228,7 +240,7 @@ export const DynamicFieldRenderer = ({
           ))}
         </select>
       ) : (
-        <div className={(showUnitSelector || showSupplierUnitInput || showFixedUnit) ? "grid grid-cols-3 gap-2" : ""}>
+        <div className={(showUnitSelector || showSupplierUnitInput || showFixedUnit || showTextUnitInput) ? "grid grid-cols-3 gap-2" : ""}>
           <Input
             type={field.fieldType === 'text' ? 'text' : 'number'}
             step={field.fieldType === 'number' ? (isUnitlessCountField ? '1' : 'any') : undefined}
@@ -238,7 +250,7 @@ export const DynamicFieldRenderer = ({
             onChange={handleValueChange}
             onKeyDown={(e) => { if (field.fieldType === 'number' && e.key === '-') e.preventDefault(); }}
             disabled={isDisabled}
-            className={`bg-stone-50 ${(showUnitSelector || showSupplierUnitInput || showFixedUnit) ? 'col-span-2' : ''} ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`bg-stone-50 ${(showUnitSelector || showSupplierUnitInput || showFixedUnit || showTextUnitInput) ? 'col-span-2' : ''} ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
             data-testid={`input-${field.fieldKey}-${monthKey}`}
           />
           
@@ -279,6 +291,19 @@ export const DynamicFieldRenderer = ({
               disabled={isDisabled}
               className={`bg-stone-50 ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
               data-testid={`unit-text-${field.fieldKey}-${monthKey}`}
+            />
+          )}
+
+          {/* Free text unit input driven by admin config (unit_source = "text") */}
+          {showTextUnitInput && !showSupplierUnitInput && (
+            <Input
+              type="text"
+              placeholder="Unit"
+              value={data[`${field.variable}_unit`] || ''}
+              onChange={(e) => updateMonthData(monthKey, `${field.variable}_unit`, e.target.value)}
+              disabled={isDisabled}
+              className={`bg-stone-50 ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              data-testid={`unit-text-input-${field.fieldKey}-${monthKey}`}
             />
           )}
         </div>
