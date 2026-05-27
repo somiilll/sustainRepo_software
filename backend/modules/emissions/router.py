@@ -34,7 +34,7 @@ from modules.emissions.contracts import (
     EmissionRecordResponse,
 )
 from shared.database.mongo import db
-from shared.helpers.audit_helpers import compute_field_changes
+from shared.helpers.audit_helpers import compute_field_changes, get_input_label_map_from_db
 
 router = APIRouter()
 
@@ -462,8 +462,11 @@ async def update_emission_record(
             if new_ef:
                 history_new_values["activity_name"] = new_ef.get("activity") or new_ef.get("name") or new_scope3_ef_id
     
+    # Fetch input labels from DB for field change display
+    input_label_map = await get_input_label_map_from_db(db)
+    
     # Compute field-level changes for better tracking (#3 - Version History)
-    field_changes = compute_field_changes(existing, history_new_values)
+    field_changes = compute_field_changes(existing, history_new_values, input_label_map=input_label_map)
 
     update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
     update_dict["updated_by"] = current_user["id"]
@@ -499,7 +502,7 @@ async def update_emission_record(
         # admin_field_changes = ONLY what the admin changed during approval.
         admin_diff: List[dict] = []
         if pre_admin_pending and pending_doc:
-            admin_diff = compute_field_changes(pre_admin_pending, pending_doc) or []
+            admin_diff = compute_field_changes(pre_admin_pending, pending_doc, input_label_map=input_label_map) or []
 
         ok, message = await approve_request(
             record_id, current_user, admin_field_changes=admin_diff,

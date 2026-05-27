@@ -13,7 +13,54 @@ helper so:
   - future tests can exercise it without spinning up the full FastAPI app
 """
 import json
-def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: list = None) -> list:
+
+# Default input label map (fallback if DB labels not provided)
+DEFAULT_INPUT_LABEL_MAP = {
+    "distance": "Distance Travelled",
+    "km_travelled": "Distance Travelled (km)",
+    "working_days": "Working Days",
+    "working_hours": "Working Hours",
+    "working_hour_per_day": "Working Hours per Day",
+    "days_travelled": "Days Travelled",
+    "qty_days_travelled": "No. of Days Travelled",
+    "nights_stayed": "Nights Stayed",
+    "rooms_taken": "Rooms Taken",
+    "no_of_employees": "No. of Employees",
+    "fuel_consumed": "Fuel Consumed",
+    "fuel_consumed_per_usage": "Fuel Consumed per Usage",
+    "gas_consumed_per_usage": "Gas Consumed per Usage",
+    "electricity_consumed": "Electricity Consumed",
+    "qty": "Quantity",
+    "qty_energy": "Energy Consumed",
+    "activity_value": "Activity Value",
+    "spent_value": "Spent Value",
+    "products_expected_usage": "Expected Product Usage",
+    "units_produced": "Units Produced",
+}
+
+async def get_input_label_map_from_db(db) -> dict:
+    """
+    Fetch input field labels from ce_input_field_mappings collection.
+    Returns a dict mapping variable names to their display labels.
+    Falls back to DEFAULT_INPUT_LABEL_MAP if DB fetch fails.
+    """
+    try:
+        mappings = await db.ce_input_field_mappings.find(
+            {"is_active": True},
+            {"_id": 0, "maps_to_variable": 1, "field_label": 1}
+        ).to_list(None)
+        
+        label_map = {**DEFAULT_INPUT_LABEL_MAP}  # Start with defaults
+        for m in mappings:
+            var = m.get("maps_to_variable")
+            label = m.get("field_label")
+            if var and label:
+                label_map[var] = label
+        return label_map
+    except Exception:
+        return DEFAULT_INPUT_LABEL_MAP
+
+def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: list = None, input_label_map: dict = None) -> list:
     """
     Compute field-level changes between old and new values.
     Returns a list of change objects with field, old_value, new_value.
@@ -22,11 +69,17 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
         old_values: Dictionary of old field values
         new_values: Dictionary of new field values
         fields_to_track: Optional list of field names to track. If None, tracks all fields.
+        input_label_map: Optional dict mapping input variable names to display labels.
+                        If None, uses DEFAULT_INPUT_LABEL_MAP.
     
     Returns:
         List of dicts: [{"field": "field_name", "old_value": x, "new_value": y}, ...]
     """
     changes = []
+    
+    # Use provided input_label_map or fall back to defaults
+    if input_label_map is None:
+        input_label_map = DEFAULT_INPUT_LABEL_MAP
     
     # Default fields to track for emissions - all important fields
     if fields_to_track is None:
@@ -312,23 +365,8 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
                 old_inputs = old_yearly.get("inputs", {}) or old_emp.get("inputs", {}) or {}
                 new_inputs = new_yearly.get("inputs", {}) or new_emp.get("inputs", {}) or {}
                 
-                # Label mapping for common input fields
-                input_label_map = {
-                    "distance": "Distance Travelled",
-                    "km_travelled": "Distance Travelled (km)",
-                    "working_days": "Working Days",
-                    "working_hours": "Working Hours",
-                    "days_travelled": "Days Travelled",
-                    "qty_days_travelled": "No. of Days Travelled",
-                    "nights_stayed": "Nights Stayed",
-                    "rooms_taken": "Rooms Taken",
-                    "no_of_employees": "No. of Employees",
-                    "fuel_consumed": "Fuel Consumed",
-                    "electricity_consumed": "Electricity Consumed",
-                    "qty": "Quantity",
-                    "activity_value": "Activity Value",
-                    "spent_value": "Spent Value",
-                }
+                # Note: input_label_map is now passed as a function parameter
+                # and defaults to DEFAULT_INPUT_LABEL_MAP if not provided
                 
                 # For monthly mode: also check monthly_data
                 old_monthly = old_emp.get("monthly_data", {}) or {}

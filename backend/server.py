@@ -141,8 +141,10 @@ from shared.cache.downloads import pending_downloads
 # NOTE: Hardcoded emission factors removed. All standard factors are now managed by Super Admin in database.
 # Admin/User can only use standard factors or create custom factors with justification.
 
+# Import the shared helper and default label map
+from shared.helpers.audit_helpers import DEFAULT_INPUT_LABEL_MAP, get_input_label_map_from_db
 
-def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: list = None) -> list:
+def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: list = None, input_label_map: dict = None) -> list:
     """
     Compute field-level changes between old and new values.
     Returns a list of change objects with field, old_value, new_value.
@@ -151,11 +153,17 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
         old_values: Dictionary of old field values
         new_values: Dictionary of new field values
         fields_to_track: Optional list of field names to track. If None, tracks all fields.
+        input_label_map: Optional dict mapping input variable names to display labels.
+                        If None, uses DEFAULT_INPUT_LABEL_MAP.
     
     Returns:
         List of dicts: [{"field": "field_name", "old_value": x, "new_value": y}, ...]
     """
     changes = []
+    
+    # Use provided input_label_map or fall back to defaults
+    if input_label_map is None:
+        input_label_map = DEFAULT_INPUT_LABEL_MAP
     
     # Default fields to track for emissions - all important fields
     if fields_to_track is None:
@@ -441,23 +449,8 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
                 old_inputs = old_yearly.get("inputs", {}) or old_emp.get("inputs", {}) or {}
                 new_inputs = new_yearly.get("inputs", {}) or new_emp.get("inputs", {}) or {}
                 
-                # Label mapping for common input fields
-                input_label_map = {
-                    "distance": "Distance Travelled",
-                    "km_travelled": "Distance Travelled (km)",
-                    "working_days": "Working Days",
-                    "working_hours": "Working Hours",
-                    "days_travelled": "Days Travelled",
-                    "qty_days_travelled": "No. of Days Travelled",
-                    "nights_stayed": "Nights Stayed",
-                    "rooms_taken": "Rooms Taken",
-                    "no_of_employees": "No. of Employees",
-                    "fuel_consumed": "Fuel Consumed",
-                    "electricity_consumed": "Electricity Consumed",
-                    "qty": "Quantity",
-                    "activity_value": "Activity Value",
-                    "spent_value": "Spent Value",
-                }
+                # Note: input_label_map is now passed as a function parameter
+                # and defaults to DEFAULT_INPUT_LABEL_MAP if not provided
                 
                 # For monthly mode: also check monthly_data
                 old_monthly = old_emp.get("monthly_data", {}) or {}

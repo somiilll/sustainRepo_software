@@ -21,6 +21,11 @@ from datetime import datetime, timezone
 from typing import Optional, Tuple, List, Dict, Any
 
 from shared.database.mongo import db
+from shared.helpers.audit_helpers import (
+    compute_field_changes as shared_compute_field_changes,
+    get_input_label_map_from_db,
+    DEFAULT_INPUT_LABEL_MAP,
+)
 
 # Collection names
 PENDING_COLLECTION = "pending_records"
@@ -58,31 +63,15 @@ async def is_approval_enabled_for_org(organization_id: Optional[str]) -> bool:
     return bool(org and org.get("approval_workflow_enabled"))
 
 
-def compute_field_changes(old_record: dict, new_record: dict) -> List[Dict[str, Any]]:
-    """Compute field-level changes between old and new records."""
-    changes = []
-    
-    # Fields to track for changes
-    tracked_fields = [
-        'quantity', 'quantity_unit', 'category', 'sub_category', 'fuel_type', 'fuel_name',
-        'reporting_period', 'responsible_person', 'notes', 'total_emissions', 'co2e_emissions',
-        'calculation_method_scope3', 'supplier_name', 'customer_name', 'frequency_type',
-        'yearly_total', 'monthly_totals', 'dynamic_field_values', 'input_values', 'outputs'
-    ]
-    
-    for field in tracked_fields:
-        old_val = old_record.get(field)
-        new_val = new_record.get(field)
-        
-        # Simple comparison (handles None vs missing)
-        if str(old_val) != str(new_val):
-            changes.append({
-                'field': field,
-                'old_value': old_val,
-                'new_value': new_val
-            })
-    
-    return changes
+def compute_field_changes(old_record: dict, new_record: dict, input_label_map: dict = None) -> List[Dict[str, Any]]:
+    """
+    Compute field-level changes between old and new records.
+    This is a wrapper around the shared helper for backwards compatibility.
+    For async contexts, use shared_compute_field_changes directly with await get_input_label_map_from_db(db).
+    """
+    if input_label_map is None:
+        input_label_map = DEFAULT_INPUT_LABEL_MAP
+    return shared_compute_field_changes(old_record, new_record, input_label_map=input_label_map)
 
 
 def enrich_with_emissions(record: dict) -> dict:
