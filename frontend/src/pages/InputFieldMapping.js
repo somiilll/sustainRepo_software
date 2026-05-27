@@ -137,6 +137,7 @@ export default function InputFieldMapping() {
       default_unit: m.default_unit || '',
       allowed_units: m.allowed_units || [],
       unit_source: m.unit_source || 'static',
+      compound_with_variable: m.compound_with_variable || '',
       is_required: m.is_required || false,
       is_override: m.is_override || false,
       display_order: m.display_order || 0,
