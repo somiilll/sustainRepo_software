@@ -25,6 +25,7 @@ import MultiEmployeeInput from '../components/MultiEmployeeInput';
 import { useCalcEngine } from '../hooks/useCalcEngine';
 import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
 import { useEmissionsCoreData } from '../hooks/useEmissionsCoreData';
+import { useEmissionsCalculator } from '../hooks/useEmissionsCalculator';
 import {
   unitsMatch as unitsMatchShared,
   isVolumeUnit as isVolumeUnitShared,
@@ -1841,10 +1842,16 @@ export default function Emissions() {
   // Backend Calculation Engine Integration (Phase 3) - NOW ACTIVE
   // Decision trees are configured for all categories, using backend as primary
   // ============================================================================
+  // CALCULATION ENGINE - via custom hook (Phase 2 refactor)
+  // ============================================================================
+  const {
+    backendCalcResult,
+    setBackendCalcResult,
+    isCalculating: calcEngineCalculating,
+    calculate: triggerCalcEngine,
+    clearResult: clearCalcResult
+  } = useEmissionsCalculator(getAuthHeader);
   
-  // Track calculation state when backend calc engine is used
-  const calcTriggerRef = useRef(null);
-  const [backendCalcResult, setBackendCalcResult] = useState(null);
   const [useBackendCalc, setUseBackendCalc] = useState(true);
   
   // Effect to trigger backend calculations when inputs change
@@ -1852,7 +1859,7 @@ export default function Emissions() {
   useEffect(() => {
     // Skip if dialog not open
     if (!dialogOpen) {
-      setBackendCalcResult(null);
+      clearCalcResult();
       return;
     }
     
@@ -1996,110 +2003,67 @@ export default function Emissions() {
       // Build decision inputs from maps_to_context
       const decisionInputs = buildEditDecisionInputs();
       
-      // Clear previous timeout
-      if (calcTriggerRef.current) {
-        clearTimeout(calcTriggerRef.current);
+      // Determine effective scope for category lookup
+      const isBiogenicScope3 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
+      const effectiveScope = isBiogenicScope3 ? 'scope3' : formData.scope;
+      const isScope3Like = formData.scope === 'scope3' || isBiogenicScope3;
+      
+      // Find category ID
+      const categoryObj = dynamicCategories.find(
+        c => c.name === (formData.category || selectedCategory) && c.scope_code === effectiveScope
+      );
+      
+      if (!categoryObj?.id) {
+        setBackendCalcResult(null);
+        return;
       }
       
-      // Debounce backend calls
-      calcTriggerRef.current = setTimeout(async () => {
-        try {
-          // Determine effective scope for category lookup
-          const isBiogenicScope3 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
-          const effectiveScope = isBiogenicScope3 ? 'scope3' : formData.scope;
-          const isScope3Like = formData.scope === 'scope3' || isBiogenicScope3;
-          
-          // Find category ID
-          const categoryObj = dynamicCategories.find(
-            c => c.name === (formData.category || selectedCategory) && c.scope_code === effectiveScope
-          );
-          
-          if (!categoryObj?.id) {
-            setBackendCalcResult(null);
-            return;
-          }
-          
-          // Build scope3 context with default_unit for auto-conversion
-          const matchedEFForPreview = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-          
-          const scope3ContextPreview = isScope3Like ? {
-            calculation_method_scope3: scope3Method,
-            scope3_ef_id: scope3ActivityId,
-            // For supplier_basis with custom activity, use the custom activity name
-            activity: (scope3Method === 'supplier_basis' && useCustomActivity) 
-              ? scope3CustomActivity 
-              : matchedEFForPreview?.activity,
-            scope3_ef_default_unit: matchedEFForPreview?.default_unit || '',
-          } : {};
-          
-          // For Scope 3 subcategory categories (C8, C10, C11, C13, C14) with fugitive emissions,
-          // use the activity name as fuel_name since the activity IS the fuel (e.g., "HFC-32")
-          // Skip this for supplier_basis as it uses a basic formula without fuel_database lookup
-          let fuelNameForContext = selectedFuel?.fuel_name;
-          
-          if (isScope3Like && requiresSubcategory && scope3Method !== 'supplier_basis' && scope3Subcategory === 'fugitive_emissions' && matchedEFForPreview?.activity) {
-            fuelNameForContext = matchedEFForPreview.activity;
-          }
-          
-          // Call backend calc engine with dynamic inputs
-          const payload = {
-            category_id: categoryObj.id,
-            decision_inputs: decisionInputs,
-            inputs: inputs,
-            context: {
-              fuel_name: fuelNameForContext,
-              fuel_id: selectedFuel?.id,
-              scope: effectiveScope, // Use effective scope for context
-              category: formData.category || selectedCategory,
-              reporting_period: formData.reporting_period_start, // For currency conversion year lookup
-              // Scope 3 specific context
-              ...scope3ContextPreview,
-            },
-            user_overrides: userOverrides,
-            dry_run: true,
-            // Pass scope3_ef_id at top level for backend to lookup fuel_database (fugitive emissions)
-            ...(isScope3Like && scope3ActivityId && { scope3_ef_id: scope3ActivityId }),
-          };
-          
-          const response = await axios.post(
-            `${API}/calc-engine/execute-by-category`,
-            payload,
-            { headers: getAuthHeader() }
-          );
-        
-          
-          if (response.data?.ok) {
-            // Transform response to match expected format
-            const outputs = response.data.outputs || {};
-            const result = {
-              co2Emissions: outputs.co2?.value || response.data.co2_emissions || 0,
-              ch4Emissions: outputs.ch4?.value || response.data.ch4_emissions || 0,
-              n2oEmissions: outputs.n2o?.value || response.data.n2o_emissions || 0,
-              co2eEmissions: outputs.co2e?.value || response.data.co2e_emissions || 0,
-              appliedFormulaName: response.data.resolved_formula?.name || 'Dynamic Calc Engine',
-              formulaId: response.data.resolved_formula?.id || response.data.formula_id || null, // Capture formula_id from calc-engine
-              auditLog: response.data.audit_log || [],  // New format with labels
-              calculationSteps: response.data.audit?.execution_log || {},  // Legacy support
-              fromBackend: true
-            };
-            setBackendCalcResult(result);
-            setCalcEngineUsed(true);
-          } else {
-            setBackendCalcResult(null);
-            setCalcEngineUsed(false);
-          }
-        } catch (error) {
-          console.error('[CalcEngine] Backend calculation error:', error);
-          setBackendCalcResult(null);
-          setCalcEngineUsed(false);
-        }
-      }, 400);
+      // Build scope3 context with default_unit for auto-conversion
+      const matchedEFForPreview = filteredScope3Activities.find(a => a.id === scope3ActivityId);
       
-      return () => {
-        if (calcTriggerRef.current) {
-          clearTimeout(calcTriggerRef.current);
-        }
+      const scope3ContextPreview = isScope3Like ? {
+        calculation_method_scope3: scope3Method,
+        scope3_ef_id: scope3ActivityId,
+        // For supplier_basis with custom activity, use the custom activity name
+        activity: (scope3Method === 'supplier_basis' && useCustomActivity) 
+          ? scope3CustomActivity 
+          : matchedEFForPreview?.activity,
+        scope3_ef_default_unit: matchedEFForPreview?.default_unit || '',
+      } : {};
+      
+      // For Scope 3 subcategory categories (C8, C10, C11, C13, C14) with fugitive emissions,
+      // use the activity name as fuel_name since the activity IS the fuel (e.g., "HFC-32")
+      // Skip this for supplier_basis as it uses a basic formula without fuel_database lookup
+      let fuelNameForContext = selectedFuel?.fuel_name;
+      
+      if (isScope3Like && requiresSubcategory && scope3Method !== 'supplier_basis' && scope3Subcategory === 'fugitive_emissions' && matchedEFForPreview?.activity) {
+        fuelNameForContext = matchedEFForPreview.activity;
+      }
+      
+      // Call backend calc engine with dynamic inputs
+      const payload = {
+        category_id: categoryObj.id,
+        decision_inputs: decisionInputs,
+        inputs: inputs,
+        context: {
+          fuel_name: fuelNameForContext,
+          fuel_id: selectedFuel?.id,
+          scope: effectiveScope, // Use effective scope for context
+          category: formData.category || selectedCategory,
+          reporting_period: formData.reporting_period_start, // For currency conversion year lookup
+          // Scope 3 specific context
+          ...scope3ContextPreview,
+        },
+        user_overrides: userOverrides,
+        dry_run: true,
+        // Pass scope3_ef_id at top level for backend to lookup fuel_database (fugitive emissions)
+        ...(isScope3Like && scope3ActivityId && { scope3_ef_id: scope3ActivityId }),
       };
+      
+      // Use the calculator hook (handles debouncing and API call)
+      triggerCalcEngine(payload);
+      setCalcEngineUsed(true);
+      return;
     }
     
     // FALLBACK: Legacy behavior when no dynamic fields loaded
@@ -2109,55 +2073,39 @@ export default function Emissions() {
       return;
     }
     
-    // Clear previous timeout
-    if (calcTriggerRef.current) {
-      clearTimeout(calcTriggerRef.current);
-    }
+    // Build overrides object - pass custom values when override is enabled
+    const overrides = {
+      override_calorific_value: overrideCalorificValue,
+      calorific_value: overrideCalorificValue ? formData.calorific_value : null,
+      override_density: overrideDensity,
+      density: overrideDensity ? formData.density : null,
+      override_emission_factor_heat: overrideEmissionFactorHeat,
+      emission_factor_heat: overrideEmissionFactorHeat ? formData.emission_factor_heat : null
+    };
     
-    // Debounce backend calls
-    calcTriggerRef.current = setTimeout(async () => {
-      try {
-        // Build overrides object - pass custom values when override is enabled
-        const overrides = {
-          override_calorific_value: overrideCalorificValue,
-          calorific_value: overrideCalorificValue ? formData.calorific_value : null,
-          override_density: overrideDensity,
-          density: overrideDensity ? formData.density : null,
-          override_emission_factor_heat: overrideEmissionFactorHeat,
-          emission_factor_heat: overrideEmissionFactorHeat ? formData.emission_factor_heat : null
-        };
-        
-        // Call the backend calc engine
-        const result = await executeBackendCalc({
-          scope: formData.scope,
-          category: formData.category || selectedCategory,
-          fuel: selectedFuel,
-          quantity: quantity,
-          unit: formData.quantity_unit || 'kg',
-          overrides: overrides,
-          gwpConfig: gwpConfig,
-          dryRun: true
-        });
-        
-        if (result) {
-          setBackendCalcResult(result);
-          setCalcEngineUsed(true);
-        } else {
-          setBackendCalcResult(null);
-          setCalcEngineUsed(false);
-        }
-      } catch (error) {
-        console.error('[CalcEngine] Backend calculation error:', error);
+    // Call the backend calc engine (uses its own debouncing)
+    executeBackendCalc({
+      scope: formData.scope,
+      category: formData.category || selectedCategory,
+      fuel: selectedFuel,
+      quantity: quantity,
+      unit: formData.quantity_unit || 'kg',
+      overrides: overrides,
+      gwpConfig: gwpConfig,
+      dryRun: true
+    }).then(result => {
+      if (result) {
+        setBackendCalcResult(result);
+        setCalcEngineUsed(true);
+      } else {
         setBackendCalcResult(null);
         setCalcEngineUsed(false);
       }
-    }, 400);
-    
-    return () => {
-      if (calcTriggerRef.current) {
-        clearTimeout(calcTriggerRef.current);
-      }
-    };
+    }).catch(error => {
+      console.error('[CalcEngine] Backend calculation error:', error);
+      setBackendCalcResult(null);
+      setCalcEngineUsed(false);
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     dialogOpen, selectedFuel?.id, formData.quantity, formData.quantity_unit,
