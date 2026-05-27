@@ -744,6 +744,9 @@ export default function Emissions() {
       fuel_consumed_per_usage_raw: rawFc ? { unit_source: rawFc.unit_source, compound_with_variable: rawFc.compound_with_variable } : 'NOT IN editFormConfig',
       pe_unit_in_state: dynamicFieldValues['products_expected_usage_unit'],
       pe_val_in_state: dynamicFieldValues['products_expected_usage'],
+      // Which fields actually made it through the filter
+      dynamicInputFieldsList: dynamicInputFields.map(f => ({ variable: f.variable, unitSource: f.unitSource })),
+      allRawMappingVariables: editFormConfig?.input_field_mappings?.map(m => m.maps_to_variable) || [],
     });
   }, [dialogOpen, dynamicInputFields, editFormConfig, dynamicFieldValues, scope3Method, typeOfProduct, scope3ActivityType, editingEmission?.formula_id]);
 
