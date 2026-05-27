@@ -24,9 +24,9 @@
   ],
   "success_rate": {"backend": "100%", "frontend": "not tested (backend-only request)"},
   "test_credentials": "Used goyalsomil@hotmail.com / Test123! (OILES INDIA admin). Direct DB writes used to toggle OILES enabled_access between ['scope1_2','scope1_2_3'] and ['scope1_2'] to simulate both access modes since no super-admin API exists for enabled_access toggling. Original enabled_access restored at teardown.",
-  "seed_data_creation": "No new data created. Leveraged existing OILES INDIA biogenic+scope3 record id=511601e9-0d12-4b25-937f-44ee13c14d54 (FY 2025-26, Facility A, 513.0933318 tCO2e).",
+  "seed_data_creation": "No new data created. Leveraged existing OILES INDIA biogenic+scope3 record id=carbon-approval (FY 2025-26, Facility A, 513.0933318 tCO2e).",
   "retest_needed": false,
   "main_agent_can_self_test": true,
-  "context_for_next_testing_agent": "OILES INDIA org id=9067d872-8a3a-4ed9-8494-e3ef04952f7c has 1 biogenic+scope3 record. Test_GHG_Somil_V1 (id=8b8785b1-fbda-4c32-a810-fa90865f7991) currently has no biogenic+scope3 records of its own, so tests use OILES with DB-toggled enabled_access for both branches. The test file is fully idempotent: it snapshots enabled_access on entry and restores on teardown.",
+  "context_for_next_testing_agent": "OILES INDIA org id=carbon-approval has 1 biogenic+scope3 record. Test_GHG_Somil_V1 (id=carbon-approval) currently has no biogenic+scope3 records of its own, so tests use OILES with DB-toggled enabled_access for both branches. The test file is fully idempotent: it snapshots enabled_access on entry and restores on teardown.",
   "rca of the issue": "N/A - feature implementation verified working. Filter logic in router.py (emissions) lines 575-588 and dashboards/router.py lines 144-156 correctly excludes biogenic+scope3 records when 'scope1_2_3' is not in organization.enabled_access. The frontend client-side filter in Emissions.js (lines 2855-2880) was not tested as backend-only testing was requested, but the backend acts as the authoritative source of truth."
 }
