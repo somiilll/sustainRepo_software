@@ -106,6 +106,9 @@ export const DynamicFieldRenderer = ({
   filteredScope3Activities,
   centralizedUnits,
   biogenicScopeSelection,
+  // Compound unit support — when set, dropdown options are suffixed with
+  // "/<compoundSuffix>". Computed by the parent from the linked field's unit.
+  compoundSuffix = '',
 }) => {
   const isQtyField = field.variable === 'qty' || field.variable === 'qty_energy';
 
@@ -114,7 +117,7 @@ export const DynamicFieldRenderer = ({
   const isTextUnitField = field.unitSource === 'text';
 
   // Calculate field units
-  const fieldUnits = getFieldUnits({
+  const rawFieldUnits = getFieldUnits({
     field,
     scope,
     scope3Method,
@@ -125,6 +128,11 @@ export const DynamicFieldRenderer = ({
     centralizedUnits,
     biogenicScopeSelection,
   });
+
+  // If this field is configured as compound, suffix every option.
+  const fieldUnits = (field.compoundWithVariable && compoundSuffix)
+    ? rawFieldUnits.map(u => `${u}/${compoundSuffix}`)
+    : rawFieldUnits;
   
   // Determine display options
   const isSupplierBasisField = scope3Method === 'supplier_basis' && 

@@ -40,7 +40,12 @@ const EMPTY_FORM = {
   maps_to_context: '',
   default_unit: '',
   allowed_units: [],
-  unit_source: 'static', // 'static' = use allowed_units from mapping, 'fuel' = use fuel's allowed_units
+  unit_source: 'static', // 'static' / 'fuel' / 'scope3_ef' / 'all_units' / 'none' / 'text'
+  // Optional: name of another field's maps_to_variable. When set, the unit
+  // dropdown for this field is rendered with each option suffixed by
+  // "/<that variable's unit>" (e.g. "l/min"). Backend converts only the
+  // base part on save.
+  compound_with_variable: '',
   is_required: false,
   is_override: false,
   display_order: 0,
@@ -519,6 +524,23 @@ export default function InputFieldMapping() {
                     : form.unit_source === 'text'
                     ? 'User will type the unit as freeform text. Do not use on fields that feed a calc step.'
                     : 'Units will be taken from the allowed units list below'}
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs text-text-muted">
+                  Compound with variable <span className="text-text-muted">(optional)</span>
+                </Label>
+                <Input
+                  value={form.compound_with_variable || ''}
+                  onChange={(e) => setForm({ ...form, compound_with_variable: e.target.value })}
+                  placeholder='e.g. "lifetime_expected_usage" (linked variable name)'
+                  data-testid="input-compound-with-variable"
+                />
+                <p className="text-xs text-text-muted">
+                  When set, this field&apos;s unit dropdown is rendered as <code>{'<base>/<linked-unit>'}</code> at runtime
+                  (e.g. <code>l/min</code>). The backend converts only the base part on save and trusts the
+                  linked-variable unit as-is. Leave blank to disable.
                 </p>
               </div>
               

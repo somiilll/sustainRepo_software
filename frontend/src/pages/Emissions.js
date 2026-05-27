@@ -713,6 +713,7 @@ export default function Emissions() {
       fieldType: m.field_type || 'number',
       allowedUnits: m.allowed_units || [],
       unitSource: m.unit_source || 'static',
+      compoundWithVariable: m.compound_with_variable || null,
       placeholder: m.placeholder || `Enter ${m.field_label}`,
       helpText: m.help_text || '',
       mapsToContext: m.maps_to_context,
@@ -4083,11 +4084,23 @@ export default function Emissions() {
                         if (savedUnit && !fieldUnits.includes(savedUnit)) {
                           fieldUnits = [savedUnit, ...fieldUnits];
                         }
-                        
-                        // Unitless count fields - should never show unit selector (C6 Business Travel fields)
-                        const isUnitlessCountField = ['qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms', 'number_of_passengers', 'number_of_nights', 'number_of_rooms', 'qty_days_travelled', 'working_days'].includes(field.variable);
-                        
-                        const showUnitSelector = fieldUnits.length > 0 && !isUnitlessCountField;
+
+                        // Compound unit: suffix every option with "/<linked unit>".
+                        // Read the linked field's `_unit` from dynamicFieldValues
+                        // (text-input units are stored as `<var>_unit`).
+                        if (field.compoundWithVariable) {
+                          const linkedUnitRaw = dynamicFieldValues[`${field.compoundWithVariable}_unit`];
+                          const linkedUnit = (typeof linkedUnitRaw === 'object' ? linkedUnitRaw?.value : linkedUnitRaw) || '';
+                          if (linkedUnit && typeof linkedUnit === 'string' && linkedUnit.trim()) {
+                            const suffix = linkedUnit.trim();
+                            fieldUnits = fieldUnits.map(u => u.includes('/') ? u : `${u}/${suffix}`);
+                          }
+                        }
+
+                        // Unitless count fields - admin-driven via unit_source === 'none'.
+                        const isUnitlessCountField = field.unitSource === 'none';
+
+                        const showUnitSelector = !isUnitlessCountField && field.unitSource !== 'text' && fieldUnits.length > 0;
                         
                         // For supplier_basis method with supplier-based fields, use text input for units
                         const isSupplierBasisUnitField = scope3Method === 'supplier_basis' && 

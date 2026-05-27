@@ -1450,7 +1450,13 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             "applies_to_scopes": payload.get("applies_to_scopes", []),  # Empty = all
             "placeholder": payload.get("placeholder"),
             "help_text": payload.get("help_text"),
-            "unit_source": payload.get("unit_source", "static"),  # 'static' or 'fuel'
+            "unit_source": payload.get("unit_source", "static"),  # 'static' / 'fuel' / 'scope3_ef' / 'all_units' / 'none' / 'text'
+            # Compound unit support: when set to another field's `maps_to_variable`,
+            # the dropdown options are suffixed at render-time with `/<that variable's unit>`.
+            # On save the value is stored as "<base>/<suffix>" (e.g. "kl/min").
+            # The calc engine splits these, converts only the base to the field's
+            # default unit, and trusts the suffix as-is.
+            "compound_with_variable": payload.get("compound_with_variable") or None,
             "validation_rules": payload.get("validation_rules", {}),
             "is_active": True,
             "created_at": datetime.now(timezone.utc).isoformat(),

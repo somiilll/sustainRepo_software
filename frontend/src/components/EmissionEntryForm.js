@@ -939,9 +939,10 @@ export default function EmissionEntryForm({
       fieldType: m.field_type || 'number',
       allowedUnits: m.allowed_units || [],
       unitSource: m.unit_source || 'static',
+      compoundWithVariable: m.compound_with_variable || null,
       placeholder: m.placeholder || `Enter ${m.field_label}`,
       helpText: m.help_text || '',
-      mapsToContext: m.maps_to_context,  // KEY: e.g., "ef_quantity_provided"
+      mapsToContext: m.maps_to_context,
       mapsToContextValueWhenFilled: m.maps_to_context_value_when_filled || 'true',  // Flexible value when filled
       mapsToContextValueWhenEmpty: m.maps_to_context_value_when_empty || 'false',   // Flexible value when empty
       options: m.options || [],  // For select field_type
@@ -2033,6 +2034,13 @@ export default function EmissionEntryForm({
   // F5: Swap inline renderDynamicField/getFieldUnitsForYearly for shared
   // <DynamicFieldRenderer /> component + getFieldUnits util. This also picks up
   // biogenic+scope3 unit-source handling that was missing from the inline path.
+  const computeCompoundSuffix = (field, data) => {
+    if (!field?.compoundWithVariable) return '';
+    const linked = field.compoundWithVariable;
+    const linkedUnit = data?.[`${linked}_unit`];
+    return (typeof linkedUnit === 'string' && linkedUnit.trim()) ? linkedUnit.trim() : '';
+  };
+
   const renderDynamicField = (field, monthKey, data) => (
     <DynamicFieldRenderer
       field={field}
@@ -2047,21 +2055,27 @@ export default function EmissionEntryForm({
       filteredScope3Activities={filteredScope3Activities}
       centralizedUnits={centralizedUnits}
       biogenicScopeSelection={biogenicScopeSelection}
+      compoundSuffix={computeCompoundSuffix(field, data)}
     />
   );
 
   // Helper function to compute field units (same logic as monthly, used for yearly mode)
-  const getFieldUnitsForYearly = (field) => getFieldUnitsShared({
-    field,
-    scope,
-    scope3Method,
-    scope3ActivityId,
-    requiresSubcategory,
-    selectedFuel,
-    filteredScope3Activities,
-    centralizedUnits,
-    biogenicScopeSelection,
-  });
+  const getFieldUnitsForYearly = (field) => {
+    const base = getFieldUnitsShared({
+      field,
+      scope,
+      scope3Method,
+      scope3ActivityId,
+      requiresSubcategory,
+      selectedFuel,
+      filteredScope3Activities,
+      centralizedUnits,
+      biogenicScopeSelection,
+    });
+    const suffix = computeCompoundSuffix(field, yearlyData);
+    if (!suffix) return base;
+    return base.map(u => `${u}/${suffix}`);
+  };
 
 
   // Check if month has data

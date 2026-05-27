@@ -129,9 +129,20 @@ class CalcEngine:
         # If no allowed_units defined, skip validation
         if not allowed_units:
             return
-        
+
+        # Compound unit support (e.g. "kl/min"). When the mapping declares a
+        # `compound_with_variable`, OR when the unit simply has a "/" in it,
+        # validate ONLY the base part against allowed_units. The suffix
+        # (variable_unit) is freeform text from another field and is trusted
+        # as-is — its conversion is handled outside the calc engine.
+        unit_to_check = unit
+        if "/" in unit and (mapping.get("compound_with_variable") or "/" in unit):
+            base_part = unit.split("/", 1)[0].strip()
+            if base_part:
+                unit_to_check = base_part
+
         # Validate unit is in allowed list
-        if unit not in allowed_units:
+        if unit_to_check not in allowed_units:
             source_desc = "fuel" if unit_source == "fuel" else "field mapping"
             raise CalculationError(
                 f"Unit '{unit}' is not allowed for variable '{variable_key}'. "
@@ -275,6 +286,70 @@ class CalcEngine:
                 continue
             raw_value = float(payload["value"])
             raw_unit = payload.get("unit") or target_unit
+
+            # ─── Compound unit normalization ─────────────────────────────
+            # A compound unit like "kl/min" means: the user entered a value
+            # whose base part (kl) is convertible via ce_unit_conversions,
+            # while the suffix part (/min) is freeform — it comes from a
+            # linked field and the formula consumes it as-is.
+            #
+            # We split, convert ONLY the base, and rebuild the compound:
+            #   raw_value=2, raw_unit="kl/min", target_unit="l/min"
+            #   → base_value=2*1000=2000, raw_unit="l/min"
+            # The variable suffix is preserved verbatim. If no conversion
+            # exists for the base, log a warning and pass through.
+            if isinstance(raw_unit, str) and "/" in raw_unit and (
+                not isinstance(target_unit, str) or "/" not in target_unit or
+                raw_unit.split("/", 1)[1].strip() == target_unit.split("/", 1)[1].strip()
+            ):
+                base_in, _, suffix_in = raw_unit.partition("/")
+                base_in = base_in.strip()
+                suffix_in = suffix_in.strip()
+
+                # Decide what the target base should be. If target_unit is
+                # also compound, take its base; otherwise infer from the
+                # field-mapping's first allowed_unit (default base).
+                target_base = None
+                if isinstance(target_unit, str) and "/" in target_unit:
+                    target_base = target_unit.split("/", 1)[0].strip()
+                if not target_base:
+                    fm = await self.db.ce_input_field_mappings.find_one(
+                        {"maps_to_variable": var, "is_active": True}, {"_id": 0}
+                    )
+                    if fm and fm.get("allowed_units"):
+                        target_base = fm["allowed_units"][0]
+                if not target_base:
+                    target_base = base_in  # no conversion possible
+
+                try:
+                    if base_in != target_base:
+                        converted_value, base_audit = await convert(
+                            self.db, raw_value, base_in, target_base
+                        )
+                        raw_value = converted_value
+                        audit.add({
+                            "step": "compound_base_conversion",
+                            "variable": var,
+                            "from": f"{base_in}/{suffix_in}",
+                            "to": f"{target_base}/{suffix_in}",
+                            "factor": base_audit.get("factor", 1.0),
+                            "method": base_audit.get("method"),
+                        })
+                    raw_unit = f"{target_base}/{suffix_in}" if suffix_in else target_base
+                    # Target also rebuilt so downstream `convert()` is a no-op.
+                    target_unit = raw_unit
+                except (ValueError, Exception) as comp_err:
+                    # Conversion not defined → treat as 'all_units'-style
+                    # pass-through. Log a warning in the audit trail.
+                    audit.add({
+                        "step": "compound_base_conversion",
+                        "variable": var,
+                        "from": raw_unit,
+                        "to": raw_unit,
+                        "factor": 1.0,
+                        "note": f"no conversion for base '{base_in}'; passing compound through ({comp_err})",
+                    })
+                    target_unit = raw_unit
 
             audit.add({"step": "input",
                        "variable": var,
