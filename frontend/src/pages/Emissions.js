@@ -4270,16 +4270,10 @@ export default function Emissions() {
                                     className={`bg-stone-50 border border-stone-200 rounded-lg px-3 w-32 h-10 ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
                                     data-testid={`edit-unit-${field.fieldKey}`}
                                   >
-                                    {(() => {
-                                      // Include saved unit in options if not already present
-                                      const savedUnit = dynamicFieldValues[`${field.variable}_unit`];
-                                      const allUnits = savedUnit && !fieldUnits.includes(savedUnit)
-                                        ? [savedUnit, ...fieldUnits]
-                                        : fieldUnits;
-                                      return allUnits.map(u => (
-                                        <option key={u} value={u}>{u}</option>
-                                      ));
-                                    })()}
+                                    {/* savedUnit already included in fieldUnits at line ~4084; no duplicate injection needed */}
+                                    {fieldUnits.map(u => (
+                                      <option key={u} value={u}>{u}</option>
+                                    ))}
                                   </select>
                                 )}
                               </div>
