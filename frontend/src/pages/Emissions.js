@@ -4139,7 +4139,24 @@ export default function Emissions() {
                         
                         // Show checkbox for override fields OR optional fields (not required and not override)
                         const showOverrideCheckbox = field.isOverride || (!field.required && !field.isOverride);
-                        
+
+                        // [DEBUG C11 Edit Render] Per-field render-decision trace
+                        if (field.variable === 'products_expected_usage' || field.variable === 'fuel_consumed_per_usage') {
+                          // eslint-disable-next-line no-console
+                          console.log('[DEBUG C11 Edit RENDER]', field.variable, {
+                            unitSource: field.unitSource,
+                            compoundWith: field.compoundWithVariable,
+                            isUnitlessCountField,
+                            fieldUnits,
+                            showUnitSelector,
+                            showUnitTextInput,
+                            isSupplierBasisUnitField,
+                            value: dynamicFieldValues[field.variable],
+                            unitInState: dynamicFieldValues[`${field.variable}_unit`],
+                            linkedUnitInState: field.compoundWithVariable ? dynamicFieldValues[`${field.compoundWithVariable}_unit`] : undefined,
+                          });
+                        }
+
                         return (
                           <div key={field.id || field.variable} className="space-y-2">
                             <div className="flex items-center justify-between">
