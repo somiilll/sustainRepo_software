@@ -1,5 +1,14 @@
 # SustainRepo Changelog
 
+## May 27, 2026 (later) — Phase 3A: EmissionEditForm Extraction
+
+### Pure JSX extraction (zero logic changes)
+- Created `/app/frontend/src/components/EmissionEditForm.jsx` (1816 lines) — a pure view/rendering component for the Edit Emission dialog.
+- Cut the giant IIFE (Edit form + C7 loading gate) out of `pages/Emissions.js` and replaced it with `<EmissionEditForm ... />` passing ~50 props.
+- `pages/Emissions.js`: 4957 → 3380 lines (−1577 lines, ~32% smaller).
+- All state, refs, effects, memos, and handlers still live in the parent (`pages/Emissions.js`); they are passed in as props. State migration is deferred to Phase 3B.
+- Verified by smoke-testing the Edit dialog on a real Scope 1 record: dialog opens, every section renders (facility/scope, reporting month, category/fuel, processes, dynamic input fields, calculated emissions panel). No compile errors, no console errors.
+
 ## May 27, 2026 — Bug Fixes
 
 ### C11 Fugitive Emissions Unit Conversion Fix (Backend)
