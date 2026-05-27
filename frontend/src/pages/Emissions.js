@@ -4,27 +4,18 @@ import axios from 'axios';
 import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
-import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Textarea } from '../components/ui/textarea';
-import { MonthYearPicker } from '../components/ui/month-year-picker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../components/ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import EmissionFilters from './emissions/EmissionFilters';
-import { FacilityScopeSection, BiogenicScopeSection, CategorySection, Scope3MethodSection, ResponsiblePersonSection, ProcessNamesSection, NotesSection, SubmitButtonSection } from './emissions/EditFormSections';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion';
-import { FileUpload } from '../components/ui/file-upload';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
-import { Plus, Trash2, Activity, History, Filter, FileText, Download, Edit, Calendar as CalendarIcon, User, Eye, Info, Calculator, Upload, X, Check, ChevronRight, ChevronLeft, Loader2, Search, AlertTriangle } from 'lucide-react';
+import { Plus, Filter, X, Search } from 'lucide-react';
 import { toast } from 'sonner';
-import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import EmissionEntryForm from '../components/EmissionEntryForm';
 import EmissionEditForm from '../components/EmissionEditForm';
-import MultiEmployeeInput from '../components/MultiEmployeeInput';
 import { useCalcEngine } from '../hooks/useCalcEngine';
-import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
 import { useEmissionsCoreData } from '../hooks/useEmissionsCoreData';
 import { useEmissionsCalculator } from '../hooks/useEmissionsCalculator';
 import {
@@ -42,21 +33,6 @@ import EmissionDataGrid from './emissions/components/EmissionDataGrid';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
-
-// Static help text shown next to specific dynamic field labels in the Edit
-// dialog. Keyed by `field.variable` so it matches regardless of label
-// phrasing across categories.
-const FIELD_HELP = {
-  inflation_rate:
-    'Adjusts values to match the EF publication year. If left empty, system defaults will apply. Enter 1 to turn off inflation adjustment.',
-  ppp:
-    'Accounts for country-specific purchasing power differences. If left empty, system defaults will be used. To disable this adjustment, input the USD/INR exchange rate for the reporting period.',
-};
-
-// Helper function to download files
-const downloadFileHelper = (url, filename) => {
-  window.location.href = url;
-};
 
 export default function Emissions() {
   // ============================================================================
