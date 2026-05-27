@@ -4086,10 +4086,15 @@ export default function Emissions() {
                         }
 
                         // Compound unit: suffix every option with "/<linked unit>".
-                        // Read the linked field's `_unit` from dynamicFieldValues
-                        // (text-input units are stored as `<var>_unit`).
+                        // Read the linked field's `_unit` from dynamicFieldValues first
+                        // (live edits), then fall back to the saved record so the
+                        // suffix is applied even before the loader hydrates form state.
                         if (field.compoundWithVariable) {
-                          const linkedUnitRaw = dynamicFieldValues[`${field.compoundWithVariable}_unit`];
+                          const linkedVar = field.compoundWithVariable;
+                          let linkedUnitRaw = dynamicFieldValues[`${linkedVar}_unit`];
+                          if (!linkedUnitRaw && editingEmission?.dynamic_field_values?.[linkedVar]) {
+                            linkedUnitRaw = editingEmission.dynamic_field_values[linkedVar]?.unit;
+                          }
                           const linkedUnit = (typeof linkedUnitRaw === 'object' ? linkedUnitRaw?.value : linkedUnitRaw) || '';
                           if (linkedUnit && typeof linkedUnit === 'string' && linkedUnit.trim()) {
                             const suffix = linkedUnit.trim();
