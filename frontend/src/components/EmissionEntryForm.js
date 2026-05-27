@@ -122,6 +122,7 @@ export default function EmissionEntryForm({
     scope3ActivityId, setScope3ActivityId,
     scope3ActivityType, setScope3ActivityType,
     scope3Subcategory, setScope3Subcategory,
+    typeOfProduct, setTypeOfProduct,
     scope3CustomActivity, setScope3CustomActivity,
     useCustomActivity, setUseCustomActivity,
     fugitiveEmissionsData, setFugitiveEmissionsData,
@@ -756,6 +757,7 @@ export default function EmissionEntryForm({
           calculation_method_scope3: scope3Method,
           activity_type: scope3ActivityType || undefined,
           subcategory_selection: scope3Subcategory || undefined,
+          type_of_product: typeOfProduct || undefined,
         };
         
         const formulaId = traverseDecisionTree(formConfig.decision_tree, decisionValues);
@@ -2519,6 +2521,8 @@ export default function EmissionEntryForm({
           requiresSubcategory={requiresSubcategory}
           availableSubcategories={availableSubcategories}
           scope3Subcategory={scope3Subcategory}
+          typeOfProduct={typeOfProduct}
+          setTypeOfProduct={setTypeOfProduct}
           scope3ActivityId={scope3ActivityId}
           filteredScope3Activities={filteredScope3Activities}
           useCustomActivity={useCustomActivity}

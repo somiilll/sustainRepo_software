@@ -63,6 +63,8 @@ const EmissionEditDialog = ({
   setScope3ActivityId,
   scope3Subcategory,
   setScope3Subcategory,
+  typeOfProduct,
+  setTypeOfProduct,
   scope3CustomActivity,
   setScope3CustomActivity,
   useCustomActivity,

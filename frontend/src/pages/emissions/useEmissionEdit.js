@@ -69,6 +69,8 @@ export function useEmissionEdit(getAuthHeader, fetchData) {
   const [scope3ActivityType, setScope3ActivityType] = useState('');
   const [scope3ActivityId, setScope3ActivityId] = useState('');
   const [scope3Subcategory, setScope3Subcategory] = useState('');
+  // C11 decision-tree branch (continuous_usage / one_time_use).
+  const [typeOfProduct, setTypeOfProduct] = useState('');
   const [scope3CustomActivity, setScope3CustomActivity] = useState('');
   const [useCustomActivity, setUseCustomActivity] = useState(false);
   
@@ -142,6 +144,7 @@ export function useEmissionEdit(getAuthHeader, fetchData) {
     setScope3ActivityType('');
     setScope3ActivityId('');
     setScope3Subcategory('');
+    setTypeOfProduct('');
     setScope3CustomActivity('');
     setUseCustomActivity(false);
     setBiogenicScopeSelection('');
@@ -244,6 +247,7 @@ export function useEmissionEdit(getAuthHeader, fetchData) {
         setScope3ActivityType(dfv.scope3_activity_type?.value || '');
         setScope3ActivityId(emission.scope3_ef_id || dfv.scope3_ef_id?.value || '');
         setScope3Subcategory(dfv.scope3_subcategory?.value || '');
+        setTypeOfProduct(emission.type_of_product || dfv.type_of_product?.value || '');
         setScope3CustomActivity(emission.scope3_activity || dfv.scope3_activity?.value || '');
         setUseCustomActivity(dfv.use_custom_activity?.value || false);
       }
@@ -328,6 +332,8 @@ export function useEmissionEdit(getAuthHeader, fetchData) {
     setScope3ActivityId,
     scope3Subcategory,
     setScope3Subcategory,
+    typeOfProduct,
+    setTypeOfProduct,
     scope3CustomActivity,
     setScope3CustomActivity,
     useCustomActivity,

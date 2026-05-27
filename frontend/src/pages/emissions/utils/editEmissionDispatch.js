@@ -22,7 +22,7 @@ export async function editEmissionDispatch(emission, ctx) {
     setDynamicFieldValues, setExistingEvidences, setEditingEmissionId,
     setEmissionAuditLog, setIsEditLoading, setDialogOpen,
     setScope3Method, setScope3ActivityId, setScope3ActivityType,
-    setScope3Subcategory, setScope3CustomActivity, setUseCustomActivity,
+    setScope3Subcategory, setTypeOfProduct, setScope3CustomActivity, setUseCustomActivity,
     setBiogenicScopeSelection, setEditFrequencyType, setEditingEmission,
     setOverrideCalorificValue, setOverrideDensity, setOverrideEmissionFactorHeat,
     setOverrideJustification, setSelectedCategory, setFormData, setEditC7Month,
@@ -138,6 +138,7 @@ export async function editEmissionDispatch(emission, ctx) {
         setScope3Method(method);
         setScope3ActivityType(activityType);
         setScope3Subcategory(''); // Biogenic doesn't use subcategory
+        setTypeOfProduct?.('');
         setScope3ActivityId(activityId);
         setScope3CustomActivity(customActivity);
         setUseCustomActivity(isCustomActivity);
@@ -244,6 +245,16 @@ export async function editEmissionDispatch(emission, ctx) {
       setScope3Method(method);
       setScope3ActivityType(activityType);
       setScope3Subcategory(subcategory);
+      // C11 only — pull type_of_product from top-level or dynamic_field_values.
+      const topTypeOfProduct = emission.type_of_product;
+      const dynTypeOfProduct = dynamicValues.type_of_product;
+      const typeOfProductVal =
+        topTypeOfProduct ||
+        (typeof dynTypeOfProduct === 'object'
+          ? dynTypeOfProduct?.value
+          : dynTypeOfProduct) ||
+        '';
+      setTypeOfProduct?.(typeOfProductVal);
       setScope3ActivityId(activityId);
       setScope3CustomActivity(customActivity);
       setUseCustomActivity(isCustomActivity);

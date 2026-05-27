@@ -176,6 +176,7 @@ export const buildScope3Payload = ({
   scope3ActivityType,
   scope3ActivityId,
   scope3Subcategory,
+  typeOfProduct,
   activityName,
   emissionFactor,
   emissionFactorUnit,
@@ -191,6 +192,14 @@ export const buildScope3Payload = ({
   const isYearly = frequencyType === 'yearly';
   const data = isYearly ? yearlyData : (monthlyData?.[monthKey] || {});
 
+  // Echo type_of_product into dynamic_field_values so the calc-engine
+  // history / report layer can read it from the standard place. The
+  // top-level `type_of_product` field is used by the decision tree.
+  const dfv = { ...(dynamicFieldValues || {}) };
+  if (typeOfProduct) {
+    dfv.type_of_product = { value: typeOfProduct, unit: null };
+  }
+
   return {
     ...basePayload,
     reporting_period: reportingPeriod,
@@ -199,13 +208,14 @@ export const buildScope3Payload = ({
     scope3_activity_type: scope3ActivityType,
     scope3_activity_id: scope3ActivityId,
     scope3_subcategory: scope3Subcategory || null,
+    type_of_product: typeOfProduct || null,
     activity_name: activityName,
     emission_factor: emissionFactor,
     emission_factor_unit: emissionFactorUnit,
     source: source,
     formula_id: formulaId,
     formula_name: formulaName,
-    dynamic_field_values: dynamicFieldValues,
+    dynamic_field_values: dfv,
     calc_engine_result: calcEngineResult,
     // Input values
     quantity: data.qty || data.quantity || null,

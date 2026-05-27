@@ -32,6 +32,10 @@ class EmissionRecordCreate(BaseModel):
     calculation_method_scope3: Optional[str] = None
     scope3_ef_id: Optional[str] = None
     scope3_activity: Optional[str] = None
+    scope3_activity_type: Optional[str] = None
+    scope3_subcategory: Optional[str] = None
+    # C11 only — picks the decision-tree branch (continuous_usage / one_time_use)
+    type_of_product: Optional[str] = None
     formula_id: Optional[str] = None
 
     # Biogenic
@@ -98,6 +102,9 @@ class EmissionRecordResponse(BaseModel):
     calculation_method_scope3: Optional[str] = None
     scope3_ef_id: Optional[str] = None
     scope3_activity: Optional[str] = None
+    scope3_activity_type: Optional[str] = None
+    scope3_subcategory: Optional[str] = None
+    type_of_product: Optional[str] = None
     formula_id: Optional[str] = None
 
     biogenic_scope_selection: Optional[str] = None

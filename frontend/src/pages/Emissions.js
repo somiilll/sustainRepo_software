@@ -123,6 +123,7 @@ export default function Emissions() {
   const [scope3ActivityId, setScope3ActivityId] = useState('');
   const [scope3ActivityType, setScope3ActivityType] = useState(''); // Activity type filter for C6/C7
   const [scope3Subcategory, setScope3Subcategory] = useState(''); // Subcategory filter for C8/C10/C11/C13/C14
+  const [typeOfProduct, setTypeOfProduct] = useState(''); // C11 only — continuous_usage / one_time_use
   const [scope3CustomActivity, setScope3CustomActivity] = useState(''); // Custom activity name for supplier_basis
   const [useCustomActivity, setUseCustomActivity] = useState(false); // Toggle for custom activity
   const [fugitiveEmissionsData, setFugitiveEmissionsData] = useState([]); // Fugitive emissions from fuel_database
@@ -734,6 +735,11 @@ export default function Emissions() {
     if (isScope3Like && scope3Subcategory) {
       decisionInputs['subcategory_selection'] = scope3Subcategory;
     }
+
+    // C11 only — type_of_product is a downstream decision-tree node.
+    if (isScope3Like && typeOfProduct) {
+      decisionInputs['type_of_product'] = typeOfProduct;
+    }
     
     // For biogenic scope3 with subcategory categories (C8/C10/C11/C13/C14),
     // pass 'biogenic' as subcategory_selection to satisfy the decision tree
@@ -747,7 +753,7 @@ export default function Emissions() {
     }
     
     return decisionInputs;
-  }, [dynamicInputFields, dynamicFieldValues, formData.scope, formData.category, scope3Method, scope3ActivityType, scope3Subcategory, biogenicScopeSelection, selectedCategory]);
+  }, [dynamicInputFields, dynamicFieldValues, formData.scope, formData.category, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, selectedCategory]);
 
   // Helper to update dynamic field values
   const updateDynamicFieldValue = useCallback((key, value) => {
@@ -1138,6 +1144,7 @@ export default function Emissions() {
     setScope3ActivityId('');
     setScope3ActivityType('');
     setScope3Subcategory('');
+    setTypeOfProduct('');
     setScope3CustomActivity('');
     setUseCustomActivity(false);
     setActivitySearchTerm(''); // Clear activity search
@@ -2345,6 +2352,7 @@ export default function Emissions() {
           scope3ActivityId,
           scope3ActivityType,
           scope3Subcategory,
+          typeOfProduct,
           scope3CustomActivity,
           useCustomActivity,
           // Common
@@ -2405,7 +2413,7 @@ export default function Emissions() {
     setDynamicFieldValues, setExistingEvidences, setEditingEmissionId,
     setEmissionAuditLog, setIsEditLoading, setDialogOpen,
     setScope3Method, setScope3ActivityId, setScope3ActivityType,
-    setScope3Subcategory, setScope3CustomActivity, setUseCustomActivity,
+    setScope3Subcategory, setTypeOfProduct, setScope3CustomActivity, setUseCustomActivity,
     setBiogenicScopeSelection, setEditFrequencyType, setEditingEmission,
     setOverrideCalorificValue, setOverrideDensity, setOverrideEmissionFactorHeat,
     setOverrideJustification, setSelectedCategory, setFormData, setEditC7Month,
@@ -3431,6 +3439,8 @@ export default function Emissions() {
                                   const newMethod = e.target.value;
                                   setScope3Method(newMethod);
                                   setScope3ActivityType(''); // Reset activity type when method changes
+                                  setScope3Subcategory('');
+                                  setTypeOfProduct('');
                                   setScope3ActivityId('');
                                   setDynamicFieldValues({}); // Fix #9: Clear stale inputs when method changes
                                   markFormDirty(); // Mark form as dirty when method changes
@@ -3539,6 +3549,7 @@ export default function Emissions() {
                                   setScope3Subcategory(e.target.value);
                                   setScope3ActivityId(''); // Reset activity when subcategory changes
                                   setActivitySearchTerm(''); // Clear activity search
+                                  setTypeOfProduct(''); // Reset C11 type_of_product
                                 }}
                                 required
                                 className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
@@ -3553,6 +3564,38 @@ export default function Emissions() {
                               </select>
                             </div>
                           )}
+
+                          {/* C11 Type of Product (only for activity_basis) */}
+                          {(() => {
+                            const catLower = (formData.category || '').toLowerCase();
+                            const isC11 = catLower.includes('c11');
+                            const showTypeOfProduct = isC11
+                              && scope3Method === 'activity_basis'
+                              && requiresSubcategory
+                              && !!scope3Subcategory;
+                            if (!showTypeOfProduct) return null;
+                            return (
+                              <div className="space-y-1.5">
+                                <Label htmlFor="scope3_type_of_product_filter">Step 4: Type of Product *</Label>
+                                <select
+                                  id="scope3_type_of_product_filter"
+                                  value={typeOfProduct || ''}
+                                  onChange={(e) => {
+                                    setTypeOfProduct(e.target.value);
+                                    setScope3ActivityId('');
+                                    setActivitySearchTerm('');
+                                  }}
+                                  required
+                                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                                  data-testid="scope3-type-of-product-filter"
+                                >
+                                  <option value="">Select type of product...</option>
+                                  <option value="continuous_usage">Energy-consuming product over lifetime</option>
+                                  <option value="one_time_use">One-time combustion</option>
+                                </select>
+                              </div>
+                            );
+                          })()}
                           
                           {/* Activity Selection */}
                           <div className="space-y-1.5">
