@@ -949,7 +949,7 @@ export default function EmissionEntryForm({
     
     // Return both fields and the matched formula ID
     return { fields, formulaId };
-  }, [formConfig, dynamicCategories, category, scope, dynamicScopes, scope3Method, scope3ActivityType, scope3Subcategory, biogenicScopeSelection]);
+  }, [formConfig, dynamicCategories, category, scope, dynamicScopes, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection]);
   
   // Extract fields and formula ID from the memoized result
   const dynamicInputFields = dynamicInputFieldsResult?.fields || [];

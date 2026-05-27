@@ -534,9 +534,42 @@ export default function Emissions() {
         return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
       };
       
-      // PRIORITY 0: For subcategory categories (C8/C10/C11/C13/C14), match formula based on subcategory
+      // Helper function to traverse decision tree and find formula_id.
+      // Mirrors the logic used in EmissionEntryForm so create + edit pick
+      // the same formula for the same selections.
+      const traverseDecisionTreeEdit = (node, fieldValues) => {
+        if (!node) return null;
+        if (node.formula_id) return node.formula_id;
+        const fieldName = node.field_name;
+        if (!fieldName) return null;
+        const selectedValue = fieldValues[fieldName];
+        if (!selectedValue) return null;
+        const options = node.options || {};
+        const selectedOption = options[selectedValue];
+        if (!selectedOption) return null;
+        if (selectedOption.formula_id) return selectedOption.formula_id;
+        if (selectedOption.next) return traverseDecisionTreeEdit(selectedOption.next, fieldValues);
+        return null;
+      };
+
+      // PRIORITY 0: Decision tree traversal — uses all the selections the
+      // user made (method, activity_type, subcategory_selection, type_of_product).
+      if (editFormConfig.decision_tree) {
+        const decisionValues = {
+          calculation_method_scope3: scope3Method,
+          activity_type: scope3ActivityType || undefined,
+          subcategory_selection: scope3Subcategory || undefined,
+          type_of_product: typeOfProduct || undefined,
+        };
+        const formulaId = traverseDecisionTreeEdit(editFormConfig.decision_tree, decisionValues);
+        if (formulaId) {
+          matchedFormula = editFormConfig.formulas.find(f => f.id === formulaId);
+        }
+      }
+
+      // PRIORITY 0b: For subcategory categories (C8/C10/C11/C13/C14), match formula based on subcategory
       // This takes precedence because fugitive_emissions formula is specific
-      if (scope3Method === 'activity_basis' && scope3Subcategory && subcategoryToFormulaMap[scope3Subcategory]) {
+      if (!matchedFormula && scope3Method === 'activity_basis' && scope3Subcategory && subcategoryToFormulaMap[scope3Subcategory]) {
         const searchTerms = subcategoryToFormulaMap[scope3Subcategory];
         matchedFormula = editFormConfig.formulas.find(f => {
           const formulaName = f.name?.toLowerCase() || '';
@@ -687,7 +720,7 @@ export default function Emissions() {
       mapsToContextValueWhenEmpty: m.maps_to_context_value_when_empty || 'false',
       options: m.options || [],
     }));
-  }, [editFormConfig, formData.scope, scope3Method, scope3ActivityType, scope3Subcategory, editingEmission?.formula_id, biogenicScopeSelection]);
+  }, [editFormConfig, formData.scope, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, editingEmission?.formula_id, biogenicScopeSelection]);
   
   // Build decision context from dynamic field values
   const buildEditDecisionInputs = useCallback(() => {
