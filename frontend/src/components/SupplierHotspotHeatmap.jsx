@@ -79,6 +79,11 @@ function TreemapChart({ data, width, height, onSupplierClick, viewMode, onCatego
   const innerWidth = width - margin.left - margin.right;
   const innerHeight = height - margin.top - margin.bottom;
 
+  // Guard against zero or negative dimensions (prevents canvas getImageData errors)
+  if (!width || !height || width <= 0 || height <= 0 || innerWidth <= 0 || innerHeight <= 0) {
+    return null;
+  }
+
   // Build hierarchy data based on view mode
   const hierarchyData = useMemo(() => {
     if (viewMode === 'categories') {

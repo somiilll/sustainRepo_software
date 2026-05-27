@@ -1,5 +1,18 @@
 # SustainRepo Changelog
 
+## May 27, 2026 — Bug Fixes
+
+### Canvas getImageData Error Fix
+- Fixed `IndexSizeError: Failed to execute 'getImageData' on 'CanvasRenderingContext2D': The source width is 0` error
+- Added guard in `TreemapChart` component (`SupplierHotspotHeatmap.jsx`) to prevent rendering when width/height is 0 or negative
+- This error occurred when the visx `ParentSize` component passed zero dimensions during initial render or when container was hidden
+
+### C11 Edit Dialog Fix (Verified)
+- Fixed `products_expected_usage` rendering as dropdown instead of text input
+- Fixed `fuel_consumed_per_usage` missing compound suffix (e.g., "kl/year")
+- Root cause: Stale `Scope3DynamicFieldsRenderer.jsx` plugin component was overriding correct inline rendering logic
+- Fix: Deleted stale component and removed registry overrides
+
 ## May 26, 2026 — V2 Approval Workflow + History Flush-on-Approve
 
 ### Version-history storage realigned to spec
