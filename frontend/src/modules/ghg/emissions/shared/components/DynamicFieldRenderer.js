@@ -34,7 +34,7 @@ const FIELD_HELP = {
 const INTEGER_ONLY_FIELDS = [
   'qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms',
   'number_of_passengers', 'number_of_nights', 'number_of_rooms',
-  'qty_days_travelled', 'working_days', 'passengers_travelled'
+  'qty_days_travelled', 'passengers_travelled'
 ];
 
 /**

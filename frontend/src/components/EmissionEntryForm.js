@@ -582,7 +582,7 @@ export default function EmissionEntryForm({
   const updateYearlyData = useCallback((field, value) => {
     // Fields that must be whole numbers (integers)
     const integerOnlyFields = [
-      'qty_days_travelled', 'working_days', 'qty_passengers', 'qty_passenger',
+      'qty_days_travelled', 'qty_passengers', 'qty_passenger',
       'number_of_passengers', 'qty_nights', 'number_of_nights', 'qty_rooms',
       'qty_room', 'number_of_rooms', 'no_of_employees', 'passengers_travelled'
     ];
@@ -1983,7 +1983,7 @@ export default function EmissionEntryForm({
   const updateMonthData = (monthKey, field, value) => {
     // Fields that must be whole numbers (integers)
     const integerOnlyFields = [
-      'qty_days_travelled', 'working_days', 'qty_passengers', 'qty_passenger',
+      'qty_days_travelled', 'qty_passengers', 'qty_passenger',
       'number_of_passengers', 'qty_nights', 'number_of_nights', 'qty_rooms',
       'qty_room', 'number_of_rooms', 'no_of_employees', 'passengers_travelled'
     ];
