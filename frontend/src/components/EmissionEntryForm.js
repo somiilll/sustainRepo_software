@@ -580,22 +580,6 @@ export default function EmissionEntryForm({
 
   // Helper function to update yearly data with validation
   const updateYearlyData = useCallback((field, value) => {
-    // Fields that must be whole numbers (integers)
-    const integerOnlyFields = [
-      'qty_days_travelled', 'qty_passengers', 'qty_passenger',
-      'number_of_passengers', 'qty_nights', 'number_of_nights', 'qty_rooms',
-      'qty_room', 'number_of_rooms', 'no_of_employees', 'passengers_travelled'
-    ];
-    
-    // Validate integer-only fields
-    if (integerOnlyFields.includes(field) && value !== '' && value !== null) {
-      const numValue = parseFloat(value);
-      if (!Number.isInteger(numValue)) {
-        toast.error(`${field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())} must be a whole number`);
-        return;
-      }
-    }
-    
     setYearlyData(prev => ({ ...prev, [field]: value }));
   }, [setYearlyData]);
 
@@ -1981,22 +1965,6 @@ export default function EmissionEntryForm({
 
   // Handle monthly data
   const updateMonthData = (monthKey, field, value) => {
-    // Fields that must be whole numbers (integers)
-    const integerOnlyFields = [
-      'qty_days_travelled', 'qty_passengers', 'qty_passenger',
-      'number_of_passengers', 'qty_nights', 'number_of_nights', 'qty_rooms',
-      'qty_room', 'number_of_rooms', 'no_of_employees', 'passengers_travelled'
-    ];
-    
-    // Validate integer-only fields
-    if (integerOnlyFields.includes(field) && value !== '' && value !== null) {
-      const numValue = parseFloat(value);
-      if (!Number.isInteger(numValue)) {
-        toast.error(`${field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())} must be a whole number`);
-        return;
-      }
-    }
-    
     setMonthlyData(prev => ({
       ...prev,
       [monthKey]: {

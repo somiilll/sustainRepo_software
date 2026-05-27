@@ -30,12 +30,9 @@ const FIELD_HELP = {
     'Accounts for country-specific purchasing power differences. If left empty, system defaults will be used. To disable this adjustment, input the USD/INR exchange rate for the reporting period.',
 };
 
-// Fields that must be whole numbers (integers)
-const INTEGER_ONLY_FIELDS = [
-  'qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms',
-  'number_of_passengers', 'number_of_nights', 'number_of_rooms',
-  'qty_days_travelled', 'passengers_travelled'
-];
+// Integer-only validation is now driven by the input-field-mapping admin
+// config (set unit_source = "none" for count / unitless fields). The
+// `DynamicFieldRenderer` enforces whole numbers via isUnitlessCountField.
 
 /**
  * Calculate available units for a field based on its configuration
@@ -141,7 +138,7 @@ export const DynamicFieldRenderer = ({
   // Freeform text unit input driven by admin config (independent of supplier basis).
   const showTextUnitInput = isTextUnitField && !field.variable?.endsWith('_unit');
   const showOverrideCheckbox = field.isOverride || (!field.required && !field.isOverride);
-  const isUnitlessCountField = isNoUnitField || INTEGER_ONLY_FIELDS.includes(field.variable);
+  const isUnitlessCountField = isNoUnitField;
 
   const handleValueChange = (e) => {
     const val = e.target.value;
