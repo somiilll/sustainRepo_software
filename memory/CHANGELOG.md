@@ -2,6 +2,13 @@
 
 ## May 27, 2026 — Bug Fixes
 
+### C11 Fugitive Emissions Unit Initialization & Conversion Fix
+- Fixed unit not being initialized for `gas_consumed_per_usage` field when user doesn't click dropdown
+- Fixed compound unit not being constructed (e.g., `kg/year`) when base unit is from fuel_database
+- Added proper handling for `unit_source: 'scope3_ef'` in input payload building (EmissionEntryForm.js, Emissions.js)
+- Now correctly defaults to matched activity's `default_unit` or `allowed_units[0]` from fuel_database
+- Fixed Edit Dialog duplicate units dropdown by moving savedUnit inclusion AFTER compound suffix application
+
 ### Canvas getImageData Error Fix
 - Fixed `IndexSizeError: Failed to execute 'getImageData' on 'CanvasRenderingContext2D': The source width is 0` error
 - Added guard in `TreemapChart` component (`SupplierHotspotHeatmap.jsx`) to prevent rendering when width/height is 0 or negative

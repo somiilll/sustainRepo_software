@@ -1271,26 +1271,43 @@ export default function EmissionEntryForm({
     try {
       // Build inputs from month data using the field mappings
       const inputs = {};
+      const matchedActivity = scope3ActivityId ? filteredScope3Activities.find(a => a.id === scope3ActivityId) : null;
+      
       dynamicInputFields.forEach(field => {
         const value = monthData[field.variable] || monthData[field.fieldKey];
         if (value !== undefined && value !== null && value !== '') {
-          // Determine unit
-          let unit = field.expectedUnit;
+          // Determine base unit
+          let baseUnit = field.expectedUnit;
+          
           if (field.unitSource === 'fuel') {
             // For Scope 3 subcategory categories (C8, C10, C11, C13, C14), fallback to filteredScope3Activities
             if (isScope3Like && requiresSubcategory && !selectedFuel && scope3ActivityId) {
-              const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-              unit = monthData[`${field.variable}_unit`] || monthData.unit || matchedActivity?.allowed_units?.[0] || 'kg';
+              baseUnit = monthData[`${field.variable}_unit`] || monthData.unit || matchedActivity?.allowed_units?.[0] || matchedActivity?.default_unit || 'kg';
             } else if (selectedFuel?.allowed_units?.length) {
-              unit = monthData[`${field.variable}_unit`] || monthData.unit || selectedFuel.allowed_units[0];
+              baseUnit = monthData[`${field.variable}_unit`] || monthData.unit || selectedFuel.allowed_units[0];
             }
+          } else if (field.unitSource === 'scope3_ef') {
+            // For scope3_ef: use monthData unit, or fallback to matched activity's default/allowed units
+            baseUnit = monthData[`${field.variable}_unit`] || matchedActivity?.default_unit || matchedActivity?.allowed_units?.[0] || field.expectedUnit || 'kg';
           } else if (monthData[`${field.variable}_unit`]) {
-            unit = monthData[`${field.variable}_unit`];
+            baseUnit = monthData[`${field.variable}_unit`];
+          }
+          
+          // Apply compound suffix if field has compoundWithVariable
+          let finalUnit = baseUnit || 'kg';
+          if (field.compoundWithVariable) {
+            const linkedUnit = monthData[`${field.compoundWithVariable}_unit`];
+            if (linkedUnit && typeof linkedUnit === 'string' && linkedUnit.trim()) {
+              // Only add suffix if baseUnit doesn't already contain it
+              if (!finalUnit.includes('/')) {
+                finalUnit = `${finalUnit}/${linkedUnit.trim()}`;
+              }
+            }
           }
           
           inputs[field.variable] = {
             value: parseFloat(value),
-            unit: unit || 'kg'
+            unit: finalUnit
           };
         }
       });
@@ -1406,21 +1423,40 @@ export default function EmissionEntryForm({
     try {
       // Build inputs from yearly data
       const inputs = {};
+      const matchedActivityForYearly = scope3ActivityId ? filteredScope3Activities.find(a => a.id === scope3ActivityId) : null;
+      
       dynamicInputFields.forEach(field => {
         const value = yearlyData[field.variable];
         if (value !== undefined && value !== null && value !== '') {
-          let unit = field.expectedUnit;
+          // Determine base unit
+          let baseUnit = field.expectedUnit;
+          
           if (field.unitSource === 'fuel') {
             if (isScope3Like && requiresSubcategory && !selectedFuel && scope3ActivityId) {
-              const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-              unit = yearlyData[`${field.variable}_unit`] || matchedActivity?.allowed_units?.[0] || field.expectedUnit;
+              baseUnit = yearlyData[`${field.variable}_unit`] || matchedActivityForYearly?.allowed_units?.[0] || matchedActivityForYearly?.default_unit || field.expectedUnit || 'kg';
             } else {
-              unit = yearlyData[`${field.variable}_unit`] || selectedFuel?.allowed_units?.[0] || field.expectedUnit;
+              baseUnit = yearlyData[`${field.variable}_unit`] || selectedFuel?.allowed_units?.[0] || field.expectedUnit;
             }
+          } else if (field.unitSource === 'scope3_ef') {
+            // For scope3_ef: use yearlyData unit, or fallback to matched activity's default/allowed units
+            baseUnit = yearlyData[`${field.variable}_unit`] || matchedActivityForYearly?.default_unit || matchedActivityForYearly?.allowed_units?.[0] || field.expectedUnit || 'kg';
           } else {
-            unit = yearlyData[`${field.variable}_unit`] || field.expectedUnit || '';
+            baseUnit = yearlyData[`${field.variable}_unit`] || field.expectedUnit || '';
           }
-          inputs[field.variable] = { value: parseFloat(value), unit: unit };
+          
+          // Apply compound suffix if field has compoundWithVariable
+          let finalUnit = baseUnit || 'kg';
+          if (field.compoundWithVariable) {
+            const linkedUnit = yearlyData[`${field.compoundWithVariable}_unit`];
+            if (linkedUnit && typeof linkedUnit === 'string' && linkedUnit.trim()) {
+              // Only add suffix if baseUnit doesn't already contain it
+              if (!finalUnit.includes('/')) {
+                finalUnit = `${finalUnit}/${linkedUnit.trim()}`;
+              }
+            }
+          }
+          
+          inputs[field.variable] = { value: parseFloat(value), unit: finalUnit };
         }
       });
       

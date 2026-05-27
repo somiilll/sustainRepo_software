@@ -1958,6 +1958,7 @@ export default function Emissions() {
       // Build inputs from dynamicFieldValues
       const inputs = {};
       let hasValidInput = false;
+      const matchedActivityForEdit = scope3ActivityId ? filteredScope3Activities.find(a => a.id === scope3ActivityId) : null;
       
       dynamicInputFields.forEach(field => {
         const value = dynamicFieldValues[field.variable];
@@ -1979,18 +1980,32 @@ export default function Emissions() {
         const isBiogenicScope3 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
         const isScope3Like = formData.scope === 'scope3' || isBiogenicScope3;
         
-        // Get unit based on unit_source
-        let unit;
+        // Get base unit based on unit_source
+        let baseUnit;
         if (field.unitSource === 'fuel') {
           // For Scope 3 subcategory categories (C8, C10, C11, C13, C14), fallback to filteredScope3Activities
           if (isScope3Like && requiresSubcategory && !selectedFuel && scope3ActivityId) {
-            const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-            unit = dynamicFieldValues[`${field.variable}_unit`] || matchedActivity?.allowed_units?.[0] || field.expectedUnit;
+            baseUnit = dynamicFieldValues[`${field.variable}_unit`] || matchedActivityForEdit?.allowed_units?.[0] || matchedActivityForEdit?.default_unit || field.expectedUnit || 'kg';
           } else {
-            unit = dynamicFieldValues[`${field.variable}_unit`] || selectedFuel?.allowed_units?.[0] || field.expectedUnit;
+            baseUnit = dynamicFieldValues[`${field.variable}_unit`] || selectedFuel?.allowed_units?.[0] || field.expectedUnit;
           }
+        } else if (field.unitSource === 'scope3_ef') {
+          // For scope3_ef: use dynamicFieldValues unit, or fallback to matched activity's default/allowed units
+          baseUnit = dynamicFieldValues[`${field.variable}_unit`] || matchedActivityForEdit?.default_unit || matchedActivityForEdit?.allowed_units?.[0] || field.expectedUnit || 'kg';
         } else {
-          unit = dynamicFieldValues[`${field.variable}_unit`] || field.expectedUnit || '';
+          baseUnit = dynamicFieldValues[`${field.variable}_unit`] || field.expectedUnit || '';
+        }
+        
+        // Apply compound suffix if field has compoundWithVariable
+        let finalUnit = baseUnit || 'kg';
+        if (field.compoundWithVariable) {
+          const linkedUnit = dynamicFieldValues[`${field.compoundWithVariable}_unit`];
+          if (linkedUnit && typeof linkedUnit === 'string' && linkedUnit.trim()) {
+            // Only add suffix if baseUnit doesn't already contain it
+            if (!finalUnit.includes('/')) {
+              finalUnit = `${finalUnit}/${linkedUnit.trim()}`;
+            }
+          }
         }
         
         // Track if we have any non-override field with a positive value
@@ -1999,7 +2014,7 @@ export default function Emissions() {
           hasValidInput = true;
         }
         
-        inputs[field.variable] = { value: numValue, unit: unit };
+        inputs[field.variable] = { value: numValue, unit: finalUnit };
       });
       
       // Determine if this is a scope3-like flow for calculation checks
@@ -4079,11 +4094,6 @@ export default function Emissions() {
                           // static - use allowed_units from mapping
                           fieldUnits = field.allowedUnits.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
                         }
-                        
-                        // Ensure the saved unit is included in fieldUnits (for edit mode)
-                        if (savedUnit && !fieldUnits.includes(savedUnit)) {
-                          fieldUnits = [savedUnit, ...fieldUnits];
-                        }
 
                         // Compound unit: suffix every option with "/<linked unit>".
                         // Read the linked field's `_unit` from dynamicFieldValues first
@@ -4100,6 +4110,12 @@ export default function Emissions() {
                             const suffix = linkedUnit.trim();
                             fieldUnits = fieldUnits.map(u => u.includes('/') ? u : `${u}/${suffix}`);
                           }
+                        }
+                        
+                        // Ensure the saved unit is included in fieldUnits (for edit mode)
+                        // NOTE: This must happen AFTER compound suffix is applied to avoid duplicates
+                        if (savedUnit && !fieldUnits.includes(savedUnit)) {
+                          fieldUnits = [savedUnit, ...fieldUnits];
                         }
 
                         // Unitless count fields - admin-driven via unit_source === 'none'.
