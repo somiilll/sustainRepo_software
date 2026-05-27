@@ -2450,7 +2450,7 @@ export default function EmissionEntryForm({
     // State
     facilityId, scope, category, fuelId, useCustomFuel, customFuelName,
     customEmissionFactor, customSource, isSaving, scope3Method, scope3ActivityId,
-    scope3ActivityType, scope3Subcategory, scope3CustomActivity, useCustomActivity,
+    scope3ActivityType, scope3Subcategory, typeOfProduct, scope3CustomActivity, useCustomActivity,
     biogenicScopeSelection, employees, frequencyType, reportingYearType, reportingYear,
     monthlyData, yearlyData, processNames, responsiblePerson,
     responsiblePersonDesignation, responsiblePersonContact, notes, supplierName,
