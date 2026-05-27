@@ -2,7 +2,13 @@
 
 ## May 27, 2026 — Bug Fixes
 
-### C11 Fugitive Emissions Unit Initialization & Conversion Fix
+### C11 Fugitive Emissions Unit Conversion Fix (Backend)
+- Fixed unit conversion not happening for `gas_consumed_per_usage` field in C11 fugitive emissions
+- Root cause: When `unit_source: 'fuel'` but `fuel_id` is empty, the backend couldn't find target_base for conversion
+- Added fallback logic in `execution.py` to use `scope3_ef_default_unit` from context when fuel lookup fails
+- Now correctly converts compound units like `t/year` → `kg/year` (factor: 1000) and `g/year` → `kg/year` (factor: 0.001)
+
+### C11 Fugitive Emissions Unit Initialization & Conversion Fix (Frontend)
 - Fixed unit not being initialized for `gas_consumed_per_usage` field when user doesn't click dropdown
 - Fixed compound unit not being constructed (e.g., `kg/year`) when base unit is from fuel_database
 - Added proper handling for `unit_source: 'scope3_ef'` in input payload building (EmissionEntryForm.js, Emissions.js)

@@ -335,6 +335,36 @@ class CalcEngine:
                                 )
                                 if ef_row:
                                     target_base = ef_row.get("default_unit") or ef_row.get("unit")
+                    elif fm and fm.get("unit_source") == "fuel":
+                        # For fuel-based fields (e.g., fugitive emissions in C11)
+                        # Try to get target_base from fuel document first
+                        fuel_id = context.get("fuel_id") or context.get("selectedFuelId")
+                        if fuel_id:
+                            fuel_doc = await self.db.emission_factors.find_one(
+                                {"id": fuel_id}, {"_id": 0, "allowed_units": 1, "default_unit": 1}
+                            )
+                            if fuel_doc:
+                                target_base = fuel_doc.get("default_unit") or (
+                                    fuel_doc.get("allowed_units", [])[0] if fuel_doc.get("allowed_units") else None
+                                )
+                        # Fallback to scope3_ef_default_unit if fuel_id is empty or fuel not found
+                        # This handles C11 fugitive_emissions where fuel_id may be empty but scope3_ef_default_unit exists
+                        if not target_base:
+                            if (
+                                isinstance(context.get("scope3_ef_default_unit"), str)
+                                and context.get("scope3_ef_default_unit")
+                            ):
+                                target_base = context["scope3_ef_default_unit"]
+                            else:
+                                # Try scope3_ef lookup as last resort
+                                ef_id = inputs.get("scope3_ef_id") or context.get("scope3_ef_id")
+                                if ef_id:
+                                    ef_id_val = ef_id["value"] if isinstance(ef_id, dict) else ef_id
+                                    ef_row = await self.db.scope3_ef.find_one(
+                                        {"id": ef_id_val}, {"_id": 0, "unit": 1, "default_unit": 1}
+                                    )
+                                    if ef_row:
+                                        target_base = ef_row.get("default_unit") or ef_row.get("unit")
                 if not target_base:
                     target_base = base_in  # no conversion possible
 
