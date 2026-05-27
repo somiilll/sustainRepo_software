@@ -226,6 +226,7 @@ export default function Emissions() {
   const overrideEmissionFactorHeatRef = useRef(overrideEmissionFactorHeat);
   const formDataRef = useRef(formData);
   
+  
   // Keep refs in sync with state
   useEffect(() => {
     overrideCalorificValueRef.current = overrideCalorificValue;
@@ -1262,35 +1263,43 @@ export default function Emissions() {
 
   // Clear employee calculations when activity changes for C7 edit
   // This forces users to recalculate with the new activity's emission factor
+  const isInitialLoadRef = useRef(true);
   useEffect(() => {
-    if (isEditC7EmployeeCommuting && editEmployees.length > 0 && dialogOpen) {
-      // Clear calculated emissions from all employees while preserving input data
-      setEditEmployees(prevEmployees => prevEmployees.map(emp => ({
-        ...emp,
-        // Clear direct emissions on employee
+  // 1. If the dialog is closed, reset the flag so it's ready for the next time you edit a record.
+  if (!dialogOpen) {
+    isInitialLoadRef.current = true;
+    return;
+  }
+
+  // 2. If the dialog is open but this is the FIRST time the effect is running, 
+  // skip the clearing logic and flip the flag.
+  if (isInitialLoadRef.current) {
+    isInitialLoadRef.current = false;
+    return; 
+  }
+
+  // 3. If we get here, it means the user manually changed the activity dropdown. 
+  // Now it is safe to clear the old calculations.
+  if (isEditC7EmployeeCommuting && editEmployees.length > 0) {
+    setEditEmployees(prevEmployees => prevEmployees.map(emp => ({
+      ...emp,
+      emissions: null,
+      calculation_details: null,
+      monthly_data: Object.fromEntries(
+        Object.entries(emp.monthly_data || {}).map(([month, data]) => [
+          month,
+          { ...data, emissions: null, calculation_details: null }
+        ])
+      ),
+      yearly_data: emp.yearly_data ? {
+        ...emp.yearly_data,
         emissions: null,
         calculation_details: null,
-        // Clear monthly calculations
-        monthly_data: Object.fromEntries(
-          Object.entries(emp.monthly_data || {}).map(([month, data]) => [
-            month,
-            {
-              ...data,
-              emissions: null,
-              calculation_details: null,
-            }
-          ])
-        ),
-        // Clear yearly calculations
-        yearly_data: emp.yearly_data ? {
-          ...emp.yearly_data,
-          emissions: null,
-          calculation_details: null,
-        } : null,
-      })));
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scope3ActivityId, scope3ActivityType]); // Reset when activity changes in edit mode
+      } : null,
+    })));
+  }
+// Note: added dialogOpen and isEditC7EmployeeCommuting to the dependency array to avoid ESLint warnings
+}, [scope3ActivityId, scope3ActivityType, dialogOpen, isEditC7EmployeeCommuting]);
 
   // Active months for C7 Employee Commuting edit (based on reporting period)
   const editActiveMonths = useMemo(() => {
