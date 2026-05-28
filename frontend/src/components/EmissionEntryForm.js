@@ -78,19 +78,23 @@ export default function EmissionEntryForm({
   configLabels = null, // Centralized label configuration
   organization = null // Organization data for reporting year type
 }) {
-  // Helper to get method labels from centralized config
+  // Helper to get method labels from centralized config (no hardcoded fallbacks)
   const getMethodLabel = useCallback((method, short = false) => {
     if (!method) return '-';
-    const defaultLabels = {
-      activity_basis: short ? 'Average' : 'Average Data Based',
-      spend_basis: short ? 'Spend' : 'Spend Based',
-      supplier_basis: short ? 'Supplier' : 'Supplier Based'
-    };
     if (configLabels) {
       const labels = short ? configLabels.calculation_methods_short : configLabels.calculation_methods;
-      return labels?.[method] || defaultLabels[method] || method.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      return labels?.[method] || method.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     }
-    return defaultLabels[method] || method.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    return method.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  }, [configLabels]);
+  
+  // Helper to get subcategory labels from centralized config
+  const getSubcategoryLabel = useCallback((subcategory) => {
+    if (!subcategory) return '-';
+    if (configLabels?.subcategories) {
+      return configLabels.subcategories[subcategory] || subcategory.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    }
+    return subcategory.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   }, [configLabels]);
 
   // ============================================================================
@@ -122,6 +126,7 @@ export default function EmissionEntryForm({
     scope3ActivityId, setScope3ActivityId,
     scope3ActivityType, setScope3ActivityType,
     scope3Subcategory, setScope3Subcategory,
+    typeOfProduct, setTypeOfProduct,
     scope3CustomActivity, setScope3CustomActivity,
     useCustomActivity, setUseCustomActivity,
     fugitiveEmissionsData, setFugitiveEmissionsData,
@@ -495,22 +500,25 @@ export default function EmissionEntryForm({
   const availableSubcategories = useMemo(() => {
     if (!requiresSubcategory || !scope3Method) return [];
     
+    // Get subcategory labels from configLabels (fetched from backend)
+    const subcategoryLabelsMap = configLabels?.subcategories || {};
+    
     // Define available subcategories based on method
     const subcategories = [
-      { value: 'stationary_combustion', label: 'Stationary Combustion' },
-      { value: 'mobile_combustion', label: 'Mobile Combustion' },
-      { value: 'fugitive_emissions', label: 'Fugitive Emissions' },
-      { value: 'energy', label: 'Energy' }
+      { value: 'stationary_combustion', label: subcategoryLabelsMap['stationary_combustion'] || 'Stationary Combustion' },
+      { value: 'mobile_combustion', label: subcategoryLabelsMap['mobile_combustion'] || 'Mobile Combustion' },
+      { value: 'fugitive_emissions', label: subcategoryLabelsMap['fugitive_emissions'] || 'Fugitive Emissions' },
+      { value: 'energy', label: subcategoryLabelsMap['energy'] || 'Energy' }
     ];
     
     // For activity_basis, don't show process_emissions (no data)
     // For supplier_basis, include process_emissions
     if (scope3Method === 'supplier_basis') {
-      subcategories.push({ value: 'process_emissions', label: 'Process Emissions' });
+      subcategories.push({ value: 'process_emissions', label: subcategoryLabelsMap['process_emissions'] || 'Process Emissions' });
     }
     
     return subcategories;
-  }, [requiresSubcategory, scope3Method]);
+  }, [requiresSubcategory, scope3Method, configLabels?.subcategories]);
 
   // Get available methods for selected category from Scope 3 EF
   // Always include supplier_basis as an option (except for biogenic)
@@ -580,22 +588,6 @@ export default function EmissionEntryForm({
 
   // Helper function to update yearly data with validation
   const updateYearlyData = useCallback((field, value) => {
-    // Fields that must be whole numbers (integers)
-    const integerOnlyFields = [
-      'qty_days_travelled', 'working_days', 'qty_passengers', 'qty_passenger',
-      'number_of_passengers', 'qty_nights', 'number_of_nights', 'qty_rooms',
-      'qty_room', 'number_of_rooms', 'no_of_employees', 'passengers_travelled'
-    ];
-    
-    // Validate integer-only fields
-    if (integerOnlyFields.includes(field) && value !== '' && value !== null) {
-      const numValue = parseFloat(value);
-      if (!Number.isInteger(numValue)) {
-        toast.error(`${field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())} must be a whole number`);
-        return;
-      }
-    }
-    
     setYearlyData(prev => ({ ...prev, [field]: value }));
   }, [setYearlyData]);
 
@@ -772,6 +764,7 @@ export default function EmissionEntryForm({
           calculation_method_scope3: scope3Method,
           activity_type: scope3ActivityType || undefined,
           subcategory_selection: scope3Subcategory || undefined,
+          type_of_product: typeOfProduct || undefined,
         };
         
         const formulaId = traverseDecisionTree(formConfig.decision_tree, decisionValues);
@@ -953,9 +946,10 @@ export default function EmissionEntryForm({
       fieldType: m.field_type || 'number',
       allowedUnits: m.allowed_units || [],
       unitSource: m.unit_source || 'static',
+      compoundWithVariable: m.compound_with_variable || null,
       placeholder: m.placeholder || `Enter ${m.field_label}`,
       helpText: m.help_text || '',
-      mapsToContext: m.maps_to_context,  // KEY: e.g., "ef_quantity_provided"
+      mapsToContext: m.maps_to_context,
       mapsToContextValueWhenFilled: m.maps_to_context_value_when_filled || 'true',  // Flexible value when filled
       mapsToContextValueWhenEmpty: m.maps_to_context_value_when_empty || 'false',   // Flexible value when empty
       options: m.options || [],  // For select field_type
@@ -963,7 +957,7 @@ export default function EmissionEntryForm({
     
     // Return both fields and the matched formula ID
     return { fields, formulaId };
-  }, [formConfig, dynamicCategories, category, scope, dynamicScopes, scope3Method, scope3ActivityType, scope3Subcategory, biogenicScopeSelection]);
+  }, [formConfig, dynamicCategories, category, scope, dynamicScopes, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection]);
   
   // Extract fields and formula ID from the memoized result
   const dynamicInputFields = dynamicInputFieldsResult?.fields || [];
@@ -1284,26 +1278,43 @@ export default function EmissionEntryForm({
     try {
       // Build inputs from month data using the field mappings
       const inputs = {};
+      const matchedActivity = scope3ActivityId ? filteredScope3Activities.find(a => a.id === scope3ActivityId) : null;
+      
       dynamicInputFields.forEach(field => {
         const value = monthData[field.variable] || monthData[field.fieldKey];
         if (value !== undefined && value !== null && value !== '') {
-          // Determine unit
-          let unit = field.expectedUnit;
+          // Determine base unit
+          let baseUnit = field.expectedUnit;
+          
           if (field.unitSource === 'fuel') {
             // For Scope 3 subcategory categories (C8, C10, C11, C13, C14), fallback to filteredScope3Activities
             if (isScope3Like && requiresSubcategory && !selectedFuel && scope3ActivityId) {
-              const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-              unit = monthData[`${field.variable}_unit`] || monthData.unit || matchedActivity?.allowed_units?.[0] || 'kg';
+              baseUnit = monthData[`${field.variable}_unit`] || monthData.unit || matchedActivity?.allowed_units?.[0] || matchedActivity?.default_unit || 'kg';
             } else if (selectedFuel?.allowed_units?.length) {
-              unit = monthData[`${field.variable}_unit`] || monthData.unit || selectedFuel.allowed_units[0];
+              baseUnit = monthData[`${field.variable}_unit`] || monthData.unit || selectedFuel.allowed_units[0];
             }
+          } else if (field.unitSource === 'scope3_ef') {
+            // For scope3_ef: use monthData unit, or fallback to matched activity's default/allowed units
+            baseUnit = monthData[`${field.variable}_unit`] || matchedActivity?.default_unit || matchedActivity?.allowed_units?.[0] || field.expectedUnit || 'kg';
           } else if (monthData[`${field.variable}_unit`]) {
-            unit = monthData[`${field.variable}_unit`];
+            baseUnit = monthData[`${field.variable}_unit`];
+          }
+          
+          // Apply compound suffix if field has compoundWithVariable
+          let finalUnit = baseUnit || 'kg';
+          if (field.compoundWithVariable) {
+            const linkedUnit = monthData[`${field.compoundWithVariable}_unit`];
+            if (linkedUnit && typeof linkedUnit === 'string' && linkedUnit.trim()) {
+              // Only add suffix if baseUnit doesn't already contain it
+              if (!finalUnit.includes('/')) {
+                finalUnit = `${finalUnit}/${linkedUnit.trim()}`;
+              }
+            }
           }
           
           inputs[field.variable] = {
             value: parseFloat(value),
-            unit: unit || 'kg'
+            unit: finalUnit
           };
         }
       });
@@ -1419,21 +1430,40 @@ export default function EmissionEntryForm({
     try {
       // Build inputs from yearly data
       const inputs = {};
+      const matchedActivityForYearly = scope3ActivityId ? filteredScope3Activities.find(a => a.id === scope3ActivityId) : null;
+      
       dynamicInputFields.forEach(field => {
         const value = yearlyData[field.variable];
         if (value !== undefined && value !== null && value !== '') {
-          let unit = field.expectedUnit;
+          // Determine base unit
+          let baseUnit = field.expectedUnit;
+          
           if (field.unitSource === 'fuel') {
             if (isScope3Like && requiresSubcategory && !selectedFuel && scope3ActivityId) {
-              const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-              unit = yearlyData[`${field.variable}_unit`] || matchedActivity?.allowed_units?.[0] || field.expectedUnit;
+              baseUnit = yearlyData[`${field.variable}_unit`] || matchedActivityForYearly?.allowed_units?.[0] || matchedActivityForYearly?.default_unit || field.expectedUnit || 'kg';
             } else {
-              unit = yearlyData[`${field.variable}_unit`] || selectedFuel?.allowed_units?.[0] || field.expectedUnit;
+              baseUnit = yearlyData[`${field.variable}_unit`] || selectedFuel?.allowed_units?.[0] || field.expectedUnit;
             }
+          } else if (field.unitSource === 'scope3_ef') {
+            // For scope3_ef: use yearlyData unit, or fallback to matched activity's default/allowed units
+            baseUnit = yearlyData[`${field.variable}_unit`] || matchedActivityForYearly?.default_unit || matchedActivityForYearly?.allowed_units?.[0] || field.expectedUnit || 'kg';
           } else {
-            unit = yearlyData[`${field.variable}_unit`] || field.expectedUnit || '';
+            baseUnit = yearlyData[`${field.variable}_unit`] || field.expectedUnit || '';
           }
-          inputs[field.variable] = { value: parseFloat(value), unit: unit };
+          
+          // Apply compound suffix if field has compoundWithVariable
+          let finalUnit = baseUnit || 'kg';
+          if (field.compoundWithVariable) {
+            const linkedUnit = yearlyData[`${field.compoundWithVariable}_unit`];
+            if (linkedUnit && typeof linkedUnit === 'string' && linkedUnit.trim()) {
+              // Only add suffix if baseUnit doesn't already contain it
+              if (!finalUnit.includes('/')) {
+                finalUnit = `${finalUnit}/${linkedUnit.trim()}`;
+              }
+            }
+          }
+          
+          inputs[field.variable] = { value: parseFloat(value), unit: finalUnit };
         }
       });
       
@@ -1981,22 +2011,6 @@ export default function EmissionEntryForm({
 
   // Handle monthly data
   const updateMonthData = (monthKey, field, value) => {
-    // Fields that must be whole numbers (integers)
-    const integerOnlyFields = [
-      'qty_days_travelled', 'working_days', 'qty_passengers', 'qty_passenger',
-      'number_of_passengers', 'qty_nights', 'number_of_nights', 'qty_rooms',
-      'qty_room', 'number_of_rooms', 'no_of_employees', 'passengers_travelled'
-    ];
-    
-    // Validate integer-only fields
-    if (integerOnlyFields.includes(field) && value !== '' && value !== null) {
-      const numValue = parseFloat(value);
-      if (!Number.isInteger(numValue)) {
-        toast.error(`${field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())} must be a whole number`);
-        return;
-      }
-    }
-    
     setMonthlyData(prev => ({
       ...prev,
       [monthKey]: {
@@ -2063,6 +2077,13 @@ export default function EmissionEntryForm({
   // F5: Swap inline renderDynamicField/getFieldUnitsForYearly for shared
   // <DynamicFieldRenderer /> component + getFieldUnits util. This also picks up
   // biogenic+scope3 unit-source handling that was missing from the inline path.
+  const computeCompoundSuffix = (field, data) => {
+    if (!field?.compoundWithVariable) return '';
+    const linked = field.compoundWithVariable;
+    const linkedUnit = data?.[`${linked}_unit`];
+    return (typeof linkedUnit === 'string' && linkedUnit.trim()) ? linkedUnit.trim() : '';
+  };
+
   const renderDynamicField = (field, monthKey, data) => (
     <DynamicFieldRenderer
       field={field}
@@ -2077,21 +2098,27 @@ export default function EmissionEntryForm({
       filteredScope3Activities={filteredScope3Activities}
       centralizedUnits={centralizedUnits}
       biogenicScopeSelection={biogenicScopeSelection}
+      compoundSuffix={computeCompoundSuffix(field, data)}
     />
   );
 
   // Helper function to compute field units (same logic as monthly, used for yearly mode)
-  const getFieldUnitsForYearly = (field) => getFieldUnitsShared({
-    field,
-    scope,
-    scope3Method,
-    scope3ActivityId,
-    requiresSubcategory,
-    selectedFuel,
-    filteredScope3Activities,
-    centralizedUnits,
-    biogenicScopeSelection,
-  });
+  const getFieldUnitsForYearly = (field) => {
+    const base = getFieldUnitsShared({
+      field,
+      scope,
+      scope3Method,
+      scope3ActivityId,
+      requiresSubcategory,
+      selectedFuel,
+      filteredScope3Activities,
+      centralizedUnits,
+      biogenicScopeSelection,
+    });
+    const suffix = computeCompoundSuffix(field, yearlyData);
+    if (!suffix) return base;
+    return base.map(u => `${u}/${suffix}`);
+  };
 
 
   // Check if month has data
@@ -2466,7 +2493,7 @@ export default function EmissionEntryForm({
     // State
     facilityId, scope, category, fuelId, useCustomFuel, customFuelName,
     customEmissionFactor, customSource, isSaving, scope3Method, scope3ActivityId,
-    scope3ActivityType, scope3Subcategory, scope3CustomActivity, useCustomActivity,
+    scope3ActivityType, scope3Subcategory, typeOfProduct, scope3CustomActivity, useCustomActivity,
     biogenicScopeSelection, employees, frequencyType, reportingYearType, reportingYear,
     monthlyData, yearlyData, processNames, responsiblePerson,
     responsiblePersonDesignation, responsiblePersonContact, notes, supplierName,
@@ -2551,6 +2578,8 @@ export default function EmissionEntryForm({
           requiresSubcategory={requiresSubcategory}
           availableSubcategories={availableSubcategories}
           scope3Subcategory={scope3Subcategory}
+          typeOfProduct={typeOfProduct}
+          setTypeOfProduct={setTypeOfProduct}
           scope3ActivityId={scope3ActivityId}
           filteredScope3Activities={filteredScope3Activities}
           useCustomActivity={useCustomActivity}

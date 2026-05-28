@@ -280,7 +280,6 @@ export default function DynamicEmissionForm({
       
       if (response.data.ok) {
         setCalculationResult(response.data);
-        console.log('Calculation result:', response.data);
       } else {
         setCalcError('Calculation failed');
       }

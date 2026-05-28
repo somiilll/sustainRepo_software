@@ -86,8 +86,8 @@ from modules.reports.router import router as reports_router
 from modules.superadmin.router import router as superadmin_router
 # Phase B9: Pydantic models moved to modules/superadmin/contracts.py.
 
-# Approval workflow extension (per-org opt-in feature).
-from modules.approvals.router import router as approvals_router
+# Approval workflow extension (per-org opt-in feature) - V2 architecture.
+from modules.approvals.router_v2 import router as approvals_router
 
 # Targets domain (multi-target reduction management).
 from modules.targets.router import router as targets_router
@@ -141,8 +141,10 @@ from shared.cache.downloads import pending_downloads
 # NOTE: Hardcoded emission factors removed. All standard factors are now managed by Super Admin in database.
 # Admin/User can only use standard factors or create custom factors with justification.
 
+# Import the shared helper and default label map
+from shared.helpers.audit_helpers import DEFAULT_INPUT_LABEL_MAP, get_input_label_map_from_db
 
-def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: list = None) -> list:
+def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: list = None, input_label_map: dict = None) -> list:
     """
     Compute field-level changes between old and new values.
     Returns a list of change objects with field, old_value, new_value.
@@ -151,11 +153,17 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
         old_values: Dictionary of old field values
         new_values: Dictionary of new field values
         fields_to_track: Optional list of field names to track. If None, tracks all fields.
+        input_label_map: Optional dict mapping input variable names to display labels.
+                        If None, uses DEFAULT_INPUT_LABEL_MAP.
     
     Returns:
         List of dicts: [{"field": "field_name", "old_value": x, "new_value": y}, ...]
     """
     changes = []
+    
+    # Use provided input_label_map or fall back to defaults
+    if input_label_map is None:
+        input_label_map = DEFAULT_INPUT_LABEL_MAP
     
     # Default fields to track for emissions - all important fields
     if fields_to_track is None:
@@ -211,28 +219,18 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
             "field_type": "evidence"
         })
     
-    # Track calculation method changes with readable names
+    # Track calculation method changes with readable names (only *_basis, no *_based fallbacks)
     method_names = {
-        'spend_based': 'Spend Based',
         'spend_basis': 'Spend Based',
         'average_data': 'Average Data',
         'activity_basis': 'Activity Based',
-        'activity_based': 'Activity Based',
-        'supplier_basis': 'Supplier Basis',
-        'supplier_based': 'Supplier Based',
-        'distance_based': 'Distance Based',
+        'supplier_basis': 'Supplier Based',
         'distance_basis': 'Distance Based',
-        'fuel_based': 'Fuel Based',
         'fuel_basis': 'Fuel Based',
-        'asset_based': 'Asset Based',
         'asset_basis': 'Asset Based',
-        'lessor_based': 'Lessor Based',
         'lessor_basis': 'Lessor Based',
-        'lessee_based': 'Lessee Based',
         'lessee_basis': 'Lessee Based',
-        'investment_based': 'Investment Based',
         'investment_basis': 'Investment Based',
-        'equity_based': 'Equity Based',
         'equity_basis': 'Equity Based'
     }
     
@@ -451,23 +449,8 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
                 old_inputs = old_yearly.get("inputs", {}) or old_emp.get("inputs", {}) or {}
                 new_inputs = new_yearly.get("inputs", {}) or new_emp.get("inputs", {}) or {}
                 
-                # Label mapping for common input fields
-                input_label_map = {
-                    "distance": "Distance Travelled",
-                    "km_travelled": "Distance Travelled (km)",
-                    "working_days": "Working Days",
-                    "working_hours": "Working Hours",
-                    "days_travelled": "Days Travelled",
-                    "qty_days_travelled": "No. of Days Travelled",
-                    "nights_stayed": "Nights Stayed",
-                    "rooms_taken": "Rooms Taken",
-                    "no_of_employees": "No. of Employees",
-                    "fuel_consumed": "Fuel Consumed",
-                    "electricity_consumed": "Electricity Consumed",
-                    "qty": "Quantity",
-                    "activity_value": "Activity Value",
-                    "spent_value": "Spent Value",
-                }
+                # Note: input_label_map is now passed as a function parameter
+                # and defaults to DEFAULT_INPUT_LABEL_MAP if not provided
                 
                 # For monthly mode: also check monthly_data
                 old_monthly = old_emp.get("monthly_data", {}) or {}
@@ -1043,36 +1026,92 @@ async def get_config_labels():
     """
     Returns centralized display labels for enum values.
     Frontend should use these labels instead of hardcoding.
+    Labels are fetched from ce_input_field_mappings options.
     """
-    # Fetch from ce_input_field_mappings if available, otherwise use defaults
+    # Fetch calculation_method_scope3 labels from input field mappings
     method_mapping = await db.ce_input_field_mappings.find_one(
-        {"variable_name": "calculation_method_scope3"},
-        {"_id": 0}
+        {"maps_to_variable": "calculation_method_scope3", "is_active": True},
+        {"_id": 0, "options": 1}
     )
     
-    # Default labels (can be overridden by DB config)
-    calculation_method_labels = {
-        "activity_basis": "Average Data Based",
-        "spend_basis": "Spend Based", 
-        "supplier_basis": "Supplier Based"
-    }
+    # Build calculation method labels from DB options
+    calculation_method_labels = {}
+    calculation_method_short_labels = {}
     
-    # Override with DB values if available
     if method_mapping and method_mapping.get("options"):
         for opt in method_mapping.get("options", []):
-            if opt.get("value") and opt.get("label"):
-                calculation_method_labels[opt["value"]] = opt["label"]
+            value = opt.get("value")
+            label = opt.get("label")
+            short_label = opt.get("short_label")
+            if value and label:
+                calculation_method_labels[value] = label
+                # Use short_label if provided, otherwise derive from label
+                calculation_method_short_labels[value] = short_label or label.split()[0] if label else value
     
-    # Short labels for compact displays (tables/grids)
-    calculation_method_short_labels = {
-        "activity_basis": "Average",
-        "spend_basis": "Spend",
-        "supplier_basis": "Supplier"
-    }
+    # Fallback defaults if no mapping exists (will be used until mapping is created)
+    if not calculation_method_labels:
+        calculation_method_labels = {
+            "activity_basis": "Average Data Based",
+            "spend_basis": "Spend Based", 
+            "supplier_basis": "Supplier Based"
+        }
+        calculation_method_short_labels = {
+            "activity_basis": "Average",
+            "spend_basis": "Spend",
+            "supplier_basis": "Supplier"
+        }
+    
+    # Fetch subcategory_selection labels from input field mappings
+    subcategory_mapping = await db.ce_input_field_mappings.find_one(
+        {"maps_to_variable": "subcategory_selection", "is_active": True},
+        {"_id": 0, "options": 1}
+    )
+    
+    subcategory_labels = {}
+    if subcategory_mapping and subcategory_mapping.get("options"):
+        for opt in subcategory_mapping.get("options", []):
+            value = opt.get("value")
+            label = opt.get("label")
+            if value and label:
+                subcategory_labels[value] = label
+    
+    # Fallback defaults for subcategories
+    if not subcategory_labels:
+        subcategory_labels = {
+            "stationary_combustion": "Stationary Combustion",
+            "mobile_combustion": "Mobile Combustion",
+            "fugitive_emissions": "Fugitive Emissions",
+            "energy": "Energy",
+            "process_emissions": "Process Emissions",
+            "biogenic": "Biogenic"
+        }
+    
+    # Fetch type_of_product labels from input field mappings
+    product_type_mapping = await db.ce_input_field_mappings.find_one(
+        {"maps_to_variable": "type_of_product", "is_active": True},
+        {"_id": 0, "options": 1}
+    )
+    
+    product_type_labels = {}
+    if product_type_mapping and product_type_mapping.get("options"):
+        for opt in product_type_mapping.get("options", []):
+            value = opt.get("value")
+            label = opt.get("label")
+            if value and label:
+                product_type_labels[value] = label
+    
+    # Fallback defaults for product types
+    if not product_type_labels:
+        product_type_labels = {
+            "continuous_usage": "Continuous Usage",
+            "one_time_use": "One Time Use"
+        }
     
     return {
         "calculation_methods": calculation_method_labels,
         "calculation_methods_short": calculation_method_short_labels,
+        "subcategories": subcategory_labels,
+        "product_types": product_type_labels,
         "scopes": {
             "scope1": "Scope 1",
             "scope2": "Scope 2", 

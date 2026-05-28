@@ -23,6 +23,15 @@ import MultiEmployeeInput from '../../../../../../components/MultiEmployeeInput'
 // Import month constants
 import { MONTHS } from '../../../../../../constants/months';
 
+// Static help text shown next to specific dynamic field labels. Keyed by
+// `field.variable` so it matches regardless of how the label is worded.
+const FIELD_HELP = {
+  inflation_rate:
+    'Adjusts values to match the EF publication year. If left empty, system defaults will apply. Enter 1 to turn off inflation adjustment.',
+  ppp:
+    'Accounts for country-specific purchasing power differences. If left empty, system defaults will be used. To disable this adjustment, input the USD/INR exchange rate for the reporting period.',
+};
+
 // Import volume unit helper
 import { isVolumeUnit } from '../../../../../../utils/helpers/unit-utils';
 
@@ -801,9 +810,11 @@ const YearlyDataEntry = ({
                 {dynamicInputFields.filter(f => f.required && !f.isOverride).map(field => {
                   const fieldUnits = getFieldUnitsForYearly(field);
                   const isSupplierBasis = scope3Method === 'supplier_basis';
-                  const isUnitlessCountField = ['qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms', 'number_of_passengers', 'number_of_nights', 'number_of_rooms', 'qty_days_travelled', 'working_days'].includes(field.variable);
-                  const showUnitSelector = fieldUnits.length > 0 && !isSupplierBasis && !isUnitlessCountField;
-                  const showUnitTextInput = !isUnitlessCountField && (isSupplierBasis || fieldUnits.length === 0) && !field.variable?.endsWith('_unit');
+                  const isNoUnitField = field.unitSource === 'none';
+                  const isTextUnitField = field.unitSource === 'text';
+                  const isUnitlessCountField = isNoUnitField;
+                  const showUnitSelector = !isNoUnitField && !isTextUnitField && fieldUnits.length > 0 && !isSupplierBasis;
+                  const showUnitTextInput = !isNoUnitField && (isTextUnitField || isSupplierBasis) && !field.variable?.endsWith('_unit');
                   
                   return (
                     <div key={field.variable} className="space-y-2">
@@ -888,9 +899,11 @@ const YearlyDataEntry = ({
                 {dynamicInputFields.filter(f => !f.required && !f.isOverride).map(field => {
                   const fieldUnits = getFieldUnitsForYearly(field);
                   const isSupplierBasis = scope3Method === 'supplier_basis';
-                  const isUnitlessCountField = ['qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms', 'number_of_passengers', 'number_of_nights', 'number_of_rooms', 'qty_days_travelled', 'working_days'].includes(field.variable);
-                  const showUnitSelector = fieldUnits.length > 0 && !isSupplierBasis && !isUnitlessCountField;
-                  const showUnitTextInput = !isUnitlessCountField && (isSupplierBasis || fieldUnits.length === 0) && !field.variable?.endsWith('_unit');
+                  const isNoUnitField = field.unitSource === 'none';
+                  const isTextUnitField = field.unitSource === 'text';
+                  const isUnitlessCountField = isNoUnitField;
+                  const showUnitSelector = !isNoUnitField && !isTextUnitField && fieldUnits.length > 0 && !isSupplierBasis;
+                  const showUnitTextInput = !isNoUnitField && (isTextUnitField || isSupplierBasis) && !field.variable?.endsWith('_unit');
                   const overrideKey = `override_${field.variable}`;
                   const isOverrideEnabled = yearlyData[overrideKey] === true || yearlyData[overrideKey] === 'true';
                   
@@ -899,13 +912,22 @@ const YearlyDataEntry = ({
                       <div className="flex items-center justify-between">
                         <Label className="flex items-center gap-2">
                           {field.label}
-                          {field.tooltip && (
-                            <TooltipProvider>
+                          {(field.tooltip || FIELD_HELP[field.variable]) && (
+                            <TooltipProvider delayDuration={150}>
                               <Tooltip>
-                                <TooltipTrigger>
-                                  <Info className="w-4 h-4 text-stone-400" />
+                                <TooltipTrigger asChild>
+                                  <button
+                                    type="button"
+                                    aria-label={`${field.label} info`}
+                                    className="inline-flex items-center justify-center w-4 h-4 rounded-full text-stone-400 hover:text-emerald-600 transition-colors focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                                    data-testid={`field-help-${field.variable}`}
+                                  >
+                                    <Info className="w-3.5 h-3.5" />
+                                  </button>
                                 </TooltipTrigger>
-                                <TooltipContent>{field.tooltip}</TooltipContent>
+                                <TooltipContent side="top" align="start" className="max-w-xs text-xs leading-relaxed">
+                                  {field.tooltip || FIELD_HELP[field.variable]}
+                                </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
                           )}
@@ -995,13 +1017,22 @@ const YearlyDataEntry = ({
                       <div className="flex items-center justify-between">
                         <Label className="flex items-center gap-2">
                           {field.label}
-                          {field.tooltip && (
-                            <TooltipProvider>
+                          {(field.tooltip || FIELD_HELP[field.variable]) && (
+                            <TooltipProvider delayDuration={150}>
                               <Tooltip>
-                                <TooltipTrigger>
-                                  <Info className="w-4 h-4 text-stone-400" />
+                                <TooltipTrigger asChild>
+                                  <button
+                                    type="button"
+                                    aria-label={`${field.label} info`}
+                                    className="inline-flex items-center justify-center w-4 h-4 rounded-full text-stone-400 hover:text-emerald-600 transition-colors focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                                    data-testid={`field-help-${field.variable}`}
+                                  >
+                                    <Info className="w-3.5 h-3.5" />
+                                  </button>
                                 </TooltipTrigger>
-                                <TooltipContent>{field.tooltip}</TooltipContent>
+                                <TooltipContent side="top" align="start" className="max-w-xs text-xs leading-relaxed">
+                                  {field.tooltip || FIELD_HELP[field.variable]}
+                                </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
                           )}

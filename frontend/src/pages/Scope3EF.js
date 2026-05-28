@@ -318,7 +318,6 @@ export default function Scope3EF() {
     // Find scope by name (since dropdown uses scope.name as value)
     const scope = scopes.find(s => s.name === scopeValue || s.code === scopeValue);
     if (!scope) {
-      console.log('handleScopeChange: Scope not found for', scopeValue);
       setFormData({...formData, scope: scopeValue, category: ''});
       return;
     }
@@ -327,7 +326,6 @@ export default function Scope3EF() {
     const scopeCategories = categories.filter(cat => 
       cat.scope_id === scope.id && cat.is_active !== false
     );
-    console.log('handleScopeChange: Scope', scopeValue, 'has', scopeCategories.length, 'categories');
     
     // Auto-select first category if available
     setFormData({
@@ -432,7 +430,6 @@ export default function Scope3EF() {
       s.id === formData.scope
     );
     if (!scope) {
-      console.log('Scope not found for:', formData.scope, 'Available scopes:', scopes.map(s => s.name));
       return [];
     }
     
@@ -440,7 +437,6 @@ export default function Scope3EF() {
     const scopeCategories = categories.filter(cat => 
       cat.scope_id === scope.id && cat.is_active !== false
     );
-    console.log('Scope selected:', formData.scope, 'Found scope ID:', scope.id, 'Categories found:', scopeCategories.length);
     return scopeCategories;
   }, [formData.scope, scopes, categories]);
 

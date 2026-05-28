@@ -1,0 +1,32 @@
+{
+  "summary": "Backend-only testing for biogenic scope3 filtering based on org enabled_access. Verified GET /api/emissions and GET /api/dashboard/stats correctly hide biogenic records with biogenic_scope_selection='scope3' for orgs without 'scope1_2_3' access, while still showing them for orgs with that access. 5/5 pytest cases passed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_biogenic_scope3_filter.py",
+    "/app/test_reports/pytest/biogenic_scope3_filter.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Data hygiene: 9 biogenic emission_records in DB have organization_id=null and 15 belong to org_id 'c782bc3e-3c95-493b-baaa-b900f85fe01f' (does not match OILES or Test_GHG_Somil_V1). These records are tied to facilities only and may bypass scoped queries if accessed via super_admin or facility-only paths. Recommend a data backfill to ensure organization_id is set on all emission_records for consistent access control.",
+    "In modules/emissions/router.py get_emission_records: the filter correctly compares 'scope1_2_3' in enabled_access. However, the same check is duplicated in modules/dashboards/router.py and modules/sinks/router.py - consider extracting `has_scope3_access(org)` helper in shared/auth to avoid drift.",
+    "DashboardStats.recent_records correctly excludes biogenic scope3 when access restricted (verified). However the biogenic_indirect field also drops to 0 as expected. Confirm front-end gauges (biogenic indirect tile) handle 0 gracefully."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_biogenic_scope3_filter.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "not tested (backend-only request)"},
+  "test_credentials": "Used goyalsomil@hotmail.com / Test123! (OILES INDIA admin). Direct DB writes used to toggle OILES enabled_access between ['scope1_2','scope1_2_3'] and ['scope1_2'] to simulate both access modes since no super-admin API exists for enabled_access toggling. Original enabled_access restored at teardown.",
+  "seed_data_creation": "No new data created. Leveraged existing OILES INDIA biogenic+scope3 record id=carbon-approval (FY 2025-26, Facility A, 513.0933318 tCO2e).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "OILES INDIA org id=carbon-approval has 1 biogenic+scope3 record. Test_GHG_Somil_V1 (id=carbon-approval) currently has no biogenic+scope3 records of its own, so tests use OILES with DB-toggled enabled_access for both branches. The test file is fully idempotent: it snapshots enabled_access on entry and restores on teardown.",
+  "rca of the issue": "N/A - feature implementation verified working. Filter logic in router.py (emissions) lines 575-588 and dashboards/router.py lines 144-156 correctly excludes biogenic+scope3 records when 'scope1_2_3' is not in organization.enabled_access. The frontend client-side filter in Emissions.js (lines 2855-2880) was not tested as backend-only testing was requested, but the backend acts as the authoritative source of truth."
+}

@@ -14,6 +14,22 @@ import { toast } from 'sonner';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+// Helper function to extract error message from API response
+const getErrorMessage = (error, fallbackMessage = 'An error occurred') => {
+  const errorDetail = error.response?.data?.detail;
+  
+  if (typeof errorDetail === 'string') {
+    return errorDetail;
+  } else if (Array.isArray(errorDetail)) {
+    // Pydantic validation errors are arrays of {type, loc, msg, input, url}
+    return errorDetail.map(e => e.msg || e.message || JSON.stringify(e)).join(', ');
+  } else if (errorDetail && typeof errorDetail === 'object') {
+    return errorDetail.msg || errorDetail.message || JSON.stringify(errorDetail);
+  }
+  
+  return fallbackMessage;
+};
+
 // Scopes and Categories are now managed dynamically by SuperAdmin
 // (fetched from /api/scopes and /api/categories).
 
@@ -277,7 +293,8 @@ export default function FuelDatabase() {
         emission_factor_basis_unit: formData.emission_factor_basis_unit || null,
         gwp_fugitives: formData.gwp_fugitives ? parseFloat(formData.gwp_fugitives) : null,
         density: formData.density ? parseFloat(formData.density) : null,
-        conversion_factor: parseFloat(formData.conversion_factor) || 1
+        conversion_factor: parseFloat(formData.conversion_factor) || 1,
+        year_applicable: formData.year_applicable ? parseInt(formData.year_applicable, 10) : null
       };
 
       if (editingFuel) {
@@ -300,7 +317,7 @@ export default function FuelDatabase() {
       resetForm();
       fetchFuels();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Operation failed');
+      toast.error(getErrorMessage(error, 'Operation failed'));
     }
   };
 
@@ -353,7 +370,7 @@ export default function FuelDatabase() {
       setFuelToDelete(null);
       fetchFuels();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Delete failed');
+      toast.error(getErrorMessage(error, 'Delete failed'));
     }
   };
 
@@ -428,7 +445,7 @@ export default function FuelDatabase() {
                     );
                     setImportPreview(res.data);
                   } catch (err) {
-                    toast.error(err.response?.data?.detail || 'Failed to preview import');
+                    toast.error(getErrorMessage(err, 'Failed to preview import'));
                     setImportDialogOpen(false);
                   } finally {
                     setImportLoading(false);
@@ -1290,7 +1307,7 @@ export default function FuelDatabase() {
                         );
                         setImportDialogOpen(false);
                       } catch (err) {
-                        toast.error(err.response?.data?.detail || 'Import failed');
+                        toast.error(getErrorMessage(err, 'Import failed'));
                       } finally {
                         setImportLoading(false);
                       }

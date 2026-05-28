@@ -6,10 +6,23 @@
 import React from 'react';
 import { 
   CALCULATION_METHODS, 
-  METHOD_LABELS, 
-  METHOD_LABELS_SHORT,
-  getMethodLabel 
+  isActivityBased,
+  isSpendBased,
+  isSupplierBased
 } from '../../../../constants/calculation-methods';
+
+/**
+ * Get method label - uses passed configLabels or falls back to formatting the method name
+ * @param {string} method - Method identifier
+ * @param {boolean} short - Use short label
+ * @param {Object} configLabels - Labels from /api/config/labels
+ * @returns {string} Display label
+ */
+const getMethodLabel = (method, short = false, configLabels = {}) => {
+  if (!method) return '-';
+  const labels = short ? configLabels.calculation_methods_short : configLabels.calculation_methods;
+  return labels?.[method] || method.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+};
 
 /**
  * Calculation method selector component
@@ -20,6 +33,7 @@ import {
  * @param {boolean} props.disabled - Whether selector is disabled
  * @param {boolean} props.showShortLabels - Use short labels
  * @param {string} props.className - Additional CSS classes
+ * @param {Object} props.configLabels - Labels from /api/config/labels
  */
 export const MethodSelector = ({
   value,
@@ -28,6 +42,7 @@ export const MethodSelector = ({
   disabled = false,
   showShortLabels = false,
   className = '',
+  configLabels = {},
 }) => {
   // Default methods if none provided
   const methods = availableMethods.length > 0 
@@ -61,7 +76,7 @@ export const MethodSelector = ({
             ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
           `}
         >
-          {getMethodLabel(method, showShortLabels)}
+          {getMethodLabel(method, showShortLabels, configLabels)}
         </button>
       ))}
     </div>
@@ -78,6 +93,7 @@ export const MethodSelectorDropdown = ({
   disabled = false,
   className = '',
   placeholder = 'Select Method',
+  configLabels = {},
 }) => {
   const methods = availableMethods.length > 0 
     ? availableMethods 
@@ -102,7 +118,7 @@ export const MethodSelectorDropdown = ({
       <option value="">{placeholder}</option>
       {methods.map((method) => (
         <option key={method} value={method}>
-          {getMethodLabel(method)}
+          {getMethodLabel(method, false, configLabels)}
         </option>
       ))}
     </select>
@@ -119,6 +135,7 @@ export const MethodSelectorWithDescriptions = ({
   methodDescriptions = {},
   disabled = false,
   className = '',
+  configLabels = {},
 }) => {
   const methods = availableMethods.length > 0 
     ? availableMethods 
@@ -154,7 +171,7 @@ export const MethodSelectorWithDescriptions = ({
           `}
         >
           <div className={`font-medium ${value === method ? 'text-blue-700' : 'text-gray-700'}`}>
-            {getMethodLabel(method)}
+            {getMethodLabel(method, false, configLabels)}
           </div>
           <div className="text-sm text-gray-500 mt-1">
             {descriptions[method] || ''}

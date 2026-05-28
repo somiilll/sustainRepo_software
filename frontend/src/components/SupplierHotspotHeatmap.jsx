@@ -79,6 +79,11 @@ function TreemapChart({ data, width, height, onSupplierClick, viewMode, onCatego
   const innerWidth = width - margin.left - margin.right;
   const innerHeight = height - margin.top - margin.bottom;
 
+  // Guard against zero or negative dimensions (prevents canvas getImageData errors)
+  if (!width || !height || width <= 0 || height <= 0 || innerWidth <= 0 || innerHeight <= 0) {
+    return null;
+  }
+
   // Build hierarchy data based on view mode
   const hierarchyData = useMemo(() => {
     if (viewMode === 'categories') {
@@ -429,8 +434,6 @@ export default function SupplierHotspotHeatmap({ getAuthHeader, filters = {} }) 
       if (filters.facility_id?.length) {
         filters.facility_id.forEach(id => params.append('facility_id', id));
       }
-
-      console.log('Fetching supplier hotspots with params:', params.toString());
       
       const response = await axios.get(
         `${API}/dashboard/supplier-hotspots?${params.toString()}`,

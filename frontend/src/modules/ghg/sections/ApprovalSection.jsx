@@ -22,6 +22,7 @@ import useApprovalActions from '../hooks/useApprovalActions';
 import ApprovalTable from '../components/ApprovalTable';
 import ApprovalActions from '../components/ApprovalActions';
 import ViewApprovalDialog from '../components/ViewApprovalDialog';
+import { getRequestType, getScope } from '../utils/approvalSchema';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -108,19 +109,37 @@ export default function ApprovalSection() {
   };
 
   // Per-row actions render.
-  const renderRowActions = (r) => (
+  const renderRowActions = (r) => {
+    const requestType = getRequestType(r);
+    const isDeleteRequest = requestType === 'delete';
+    const scope = getScope(r);
+    return (
     <>
       {activeTab === 'pending' && (
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-7 w-7 p-0"
-          title="Edit & approve"
-          onClick={() => navigate(`${scopeToRoute(r?.metadata?.scope)}?edit=${r.entity_id}`)}
-          data-testid={`approval-edit-${r.id}`}
-        >
-          <EditIcon className="w-3.5 h-3.5 text-stone-600" />
-        </Button>
+        isDeleteRequest ? (
+          // For delete requests, show View button instead of Edit
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2 text-blue-600 hover:text-blue-700"
+            title="View details"
+            onClick={() => setViewing(r)}
+            data-testid={`approval-view-${r.id}`}
+          >
+            View
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 w-7 p-0"
+            title="Edit & approve"
+            onClick={() => navigate(`${scopeToRoute(scope)}?edit=${r.id}`)}
+            data-testid={`approval-edit-${r.id}`}
+          >
+            <EditIcon className="w-3.5 h-3.5 text-stone-600" />
+          </Button>
+        )
       )}
       {activeTab === 'pending' && (
         <>
@@ -150,6 +169,7 @@ export default function ApprovalSection() {
       )}
     </>
   );
+  };
 
   return (
     <div className="space-y-6" data-testid="approvals-page">
@@ -178,6 +198,7 @@ export default function ApprovalSection() {
 
         <TabsContent value={activeTab} className="mt-4">
           <ApprovalTable
+            activeTab={activeTab}
             rows={tabRows}
             facilities={facilities}
             selectable={activeTab === 'pending'}

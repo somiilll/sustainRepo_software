@@ -138,6 +138,24 @@ async def get_dashboard_stats(
     all_emissions = await db.emission_records.find(emissions_query, {"_id": 0}).to_list(10000)
     
     # ===========================================
+    # Filter out biogenic scope3 records for orgs without scope1_2_3 access
+    # ===========================================
+    # Super admins see all; for other users check org's enabled_access
+    if current_user["role"] != "super_admin" and organization:
+        enabled_access = organization.get("enabled_access")
+        # Default to scope1_2 if enabled_access is None
+        if enabled_access is None:
+            enabled_access = ["scope1_2"]
+        
+        # If org does NOT have scope1_2_3 access, filter out biogenic records with scope3 selection
+        has_scope3_access = "scope1_2_3" in enabled_access
+        if not has_scope3_access:
+            all_emissions = [
+                e for e in all_emissions
+                if not (e.get("scope") == "biogenic" and e.get("biogenic_scope_selection") == "scope3")
+            ]
+    
+    # ===========================================
     # PHASE 5: Prevent Double Counting for Mixed Frequency Datasets
     # ===========================================
     # When both yearly and monthly records exist for the same facility/category/year,

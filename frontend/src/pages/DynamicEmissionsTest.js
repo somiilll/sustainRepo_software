@@ -53,7 +53,6 @@ export default function DynamicEmissionsTest() {
   }, [getAuthHeader]);
   
   const handleSubmit = (emissionData) => {
-    console.log('Emission data submitted:', emissionData);
     setSubmittedData(emissionData);
     toast.success('Emission calculated successfully!');
   };

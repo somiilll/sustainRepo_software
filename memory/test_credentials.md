@@ -19,12 +19,14 @@
 - **Role:** admin
 - **Organization:** test-org-2
 
-## OILES INDIA — Regular User (for Approval Workflow testing)
+## ORG1 — Regular User (for Approval Workflow V2 testing)
 - **Email:** ruthvikanchuri3123@gmail.com
 - **Password:** Test123!
 - **Role:** user
-- **Organization:** OILES INDIA PVT. LTD.
-- **Notes:** Has pending_create records. Use to verify "Pending for approval" badges in GHG ledger.
+- **Organization:** ORG1 (approval_workflow_enabled=True)
+- **Assigned Facilities:** 0f882e69-1be4-44d2-a1ec-cc7af296ab8b, 39ecd9be-9417-4df6-93c4-e583abf49260, 8735e369-70f9-4c12-a0b2-d8fbf194cd4d
+- **Admin counterpart:** goyalsomil@hotmail.com (admin of ORG1, same org)
+- **Notes:** Use this pair to test V2 approval workflow E2E. All 13 V2 flow tests pass with these creds.
 
 ## Notes
 - All passwords follow the pattern: minimum 8 characters with uppercase, lowercase, and numbers

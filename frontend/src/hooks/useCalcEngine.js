@@ -205,14 +205,6 @@ export function useCalcEngine(getAuthHeader) {
         ef_quantity_provided: 'false'
       };
 
-      console.log('Calling calc engine with:', {
-        category_id: resolvedCategoryId,
-        decision_inputs: decisionInputs,
-        inputs,
-        context,
-        user_overrides: userOverrides
-      });
-
       // Call the backend calc engine execute-by-category endpoint
       // Uses the user-accessible endpoint (not super-admin restricted)
       const response = await axios.post(

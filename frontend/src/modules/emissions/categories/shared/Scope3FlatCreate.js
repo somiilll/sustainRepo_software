@@ -258,6 +258,7 @@ export function buildCreatePayload(monthData, ctx) {
     scope3ActivityId,
     scope3ActivityType,
     scope3Subcategory,
+    typeOfProduct,
     scope3CustomActivity,
     useCustomActivity,
     filteredScope3Activities,
@@ -325,6 +326,7 @@ export function buildCreatePayload(monthData, ctx) {
           : filteredScope3Activities.find((a) => a.id === scope3ActivityId)?.activity || '',
       scope3_activity_type: scope3ActivityType || '',
       scope3_subcategory: scope3Subcategory || '',
+      type_of_product: typeOfProduct || '',
     }),
 
     dynamic_field_values: {
@@ -344,6 +346,9 @@ export function buildCreatePayload(monthData, ctx) {
         },
         scope3_activity_type: { value: scope3ActivityType || '', unit: '' },
         scope3_subcategory: { value: scope3Subcategory || '', unit: '' },
+        ...(typeOfProduct && {
+          type_of_product: { value: typeOfProduct, unit: '' },
+        }),
       }),
       ...(scope === 'biogenic' && {
         biogenic_scope_selection: { value: biogenicScopeSelection, unit: '' },

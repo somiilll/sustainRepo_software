@@ -48,9 +48,13 @@ export default function Reports() {
     reporting_period_end: '',
     include_previous_years: false,
     output_format: 'docx',
-    report_type: 'scope_1_2'  // 'scope_1_2' or 'scope_1_2_3'
+    report_type: 'scope_1_2',  // 'scope_1_2' or 'scope_1_2_3'
+    is_complete_organization: true  // Whether all org facilities are included
   });
   const [generatingGhg, setGeneratingGhg] = useState(false);
+  
+  // Confirmation dialog for all facilities selected
+  const [showAllFacilitiesConfirm, setShowAllFacilitiesConfirm] = useState(false);
 
   // AI Report State
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
@@ -292,6 +296,19 @@ export default function Reports() {
       }
     }
 
+    // If all facilities are selected, show confirmation dialog
+    const allFacilitiesSelected = ghgReportConfig.facility_ids.length === facilities.length && facilities.length > 0;
+    if (allFacilitiesSelected) {
+      setShowAllFacilitiesConfirm(true);
+      return;
+    }
+
+    // Not all facilities selected - proceed with is_complete_organization = false
+    await proceedWithReportGeneration(false);
+  };
+
+  const proceedWithReportGeneration = async (isCompleteOrg) => {
+    setShowAllFacilitiesConfirm(false);
     setGeneratingGhg(true);
     
     // Close dialog first
@@ -301,7 +318,10 @@ export default function Reports() {
     try {
       const response = await axios.post(
         `${API}/reports/ghg-inventory`,
-        ghgReportConfig,
+        {
+          ...ghgReportConfig,
+          is_complete_organization: isCompleteOrg
+        },
         {
           headers: {
             ...getAuthHeader(),
@@ -765,6 +785,36 @@ export default function Reports() {
         </div>
       </Card>
       )}
+
+      {/* All Facilities Confirmation Dialog */}
+      <Dialog open={showAllFacilitiesConfirm} onOpenChange={setShowAllFacilitiesConfirm}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-heading">Confirm Report Scope</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-text-secondary mb-4">
+              Does this include all the facilities/plants in the organization?
+            </p>
+          </div>
+          <div className="flex gap-3 justify-end">
+            <Button
+              variant="outline"
+              onClick={() => proceedWithReportGeneration(false)}
+              disabled={generatingGhg}
+            >
+              No
+            </Button>
+            <Button
+              onClick={() => proceedWithReportGeneration(true)}
+              disabled={generatingGhg}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              Yes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* AI Report Card */}
       {hasScope12Access && (

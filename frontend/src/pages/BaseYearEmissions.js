@@ -110,6 +110,9 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
   const [biogenicIndirectCategories] = useState(['C3', 'C8', 'C10', 'C11', 'C13', 'C14']); // Fixed categories for Biogenic (Indirect)
   const [biogenicIndirectSubcategories, setBiogenicIndirectSubcategories] = useState([]); // Subcategories for Biogenic (Indirect)
 
+  // Check if organization has Scope 3 access
+  const hasScope3Access = organization?.enabled_access?.includes('scope1_2_3') || false;
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -175,7 +178,6 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
         const sinksResponse = await axios.get(`${API}/sinks`, {
           headers: getAuthHeader()
         });
-        console.log('[BaseYear] Loaded sinks:', sinksResponse.data?.length);
         setBaseYearSinks(sinksResponse.data);
       } catch (err) {
         console.error('Error fetching sinks:', err);
@@ -443,7 +445,6 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
       
       // Combine: saved data + new combinations + sinks
       const mergedData = [...savedData, ...newCombinations, ...sinksToAdd];
-      console.log('[EditEmissions] Merged data:', savedData.length, 'saved +', newCombinations.length, 'new +', sinksToAdd.length, 'sinks');
       
       setEmissionsData(mergedData);
     } catch (error) {
@@ -549,14 +550,11 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
         url += `?${params.toString()}`;
       }
       
-      console.log('[BaseYear] Fetching combinations:', url, 'scopeGroup:', selectedScopeGroup);
       const response = await axios.get(url, { headers: getAuthHeader() });
       
       let combinations = response.data.combinations || [];
       // Use the has_values flag from the backend to determine if data exists
       let dataExistsForYear = response.data.has_values === true;
-      
-      console.log('[BaseYear] Initial response - combinations:', combinations.length, 'hasValues:', dataExistsForYear);
       
       // If we requested with year filter and got no results, fetch ALL combinations
       if (year && combinations.length === 0 && !forceAllCombinations) {
@@ -566,11 +564,9 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
           fallbackParams.append('scope_group', selectedScopeGroup);
         }
         const allCombosUrl = `${API}/base-year-emissions/emission-combinations/${selectedEntity.type}/${selectedEntity.id}${fallbackParams.toString() ? '?' + fallbackParams.toString() : ''}`;
-        console.log('[BaseYear] Fallback fetch (no data for year):', allCombosUrl);
         const allCombosResponse = await axios.get(allCombosUrl, { headers: getAuthHeader() });
         combinations = allCombosResponse.data.combinations || [];
         dataExistsForYear = false; // No data for this specific year
-        console.log('[BaseYear] Fallback combinations:', combinations.length);
       }
       
       // CRITICAL FIX: Filter combinations to ensure only valid scopes for the scope_group
@@ -589,8 +585,6 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
         });
       }
       
-      console.log('[BaseYear] After scope filter:', combinations.length);
-      
       // SINKS FETCHING - Always fetch sinks for Scope 1&2 when year is selected
       // Sinks should show even if no emissions data exists for that year
       let sinksToAdd = [];
@@ -606,14 +600,10 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
             : String(year);
         }
         
-        console.log('[BaseYear] Constructing yearStr:', yearStr, 'from selectedYear:', selectedYear, 'orgType:', organization?.reporting_year_type);
-        
         // For facilities: get sinks for that specific facility
         // For organizations: get sinks from ALL facilities (pass null to get all)
         const facilityIdFilter = selectedEntity.type === 'facility' ? selectedEntity.id : null;
         const matchedSinks = getSinksForBaseYear(yearStr, facilityIdFilter);
-        
-        console.log('[BaseYear] Sinks for year', yearStr, ':', matchedSinks.length, 'facilityFilter:', facilityIdFilter);
         
         // Aggregate sinks by description/type to avoid duplicates
         const sinkAggregates = {};
@@ -1540,7 +1530,10 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
           <p className="font-medium">What is Base Year Emissions?</p>
           <p className="mt-1">
             Base year emissions serve as a reference point for tracking your organization's GHG reduction progress over time. 
-            Configure base years for <strong>Scope 1 & 2</strong> (direct and energy emissions) and <strong>Scope 3</strong> (value chain emissions).
+            {hasScope3Access 
+              ? <>Configure base years for <strong>Scope 1 & 2</strong> (direct and energy emissions) and <strong>Scope 3</strong> (value chain emissions).</>
+              : <>Configure base years for <strong>Scope 1 & 2</strong> (direct and energy emissions).</>
+            }
           </p>
         </div>
       </div>
@@ -1554,9 +1547,9 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
           </h2>
           <Card>
             <CardContent className="pt-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className={`grid gap-4 ${hasScope3Access ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 {renderScopeGroupCard('organization', organization.id, organization.name, 'scope12')}
-                {renderScopeGroupCard('organization', organization.id, organization.name, 'scope3')}
+                {hasScope3Access && renderScopeGroupCard('organization', organization.id, organization.name, 'scope3')}
               </div>
             </CardContent>
           </Card>
@@ -1589,9 +1582,9 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className={`grid gap-3 ${hasScope3Access ? 'grid-cols-2' : 'grid-cols-1'}`}>
                     {renderScopeGroupCard('facility', facility.id, facility.name, 'scope12', true)}
-                    {renderScopeGroupCard('facility', facility.id, facility.name, 'scope3', true)}
+                    {hasScope3Access && renderScopeGroupCard('facility', facility.id, facility.name, 'scope3', true)}
                   </div>
                 </CardContent>
               </Card>

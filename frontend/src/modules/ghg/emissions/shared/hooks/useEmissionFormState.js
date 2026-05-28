@@ -44,6 +44,10 @@ export function useEmissionFormState({ organization = null, editingEmission = nu
   const [scope3ActivityId, setScope3ActivityId] = useState('');
   const [scope3ActivityType, setScope3ActivityType] = useState('');
   const [scope3Subcategory, setScope3Subcategory] = useState('');
+  // C11 only — picks between "continuous_usage" / "one_time_use" so the
+  // decision tree can route to the right formula. Persisted top-level
+  // AND in dynamic_field_values.type_of_product.
+  const [typeOfProduct, setTypeOfProduct] = useState('');
   const [scope3CustomActivity, setScope3CustomActivity] = useState('');
   const [useCustomActivity, setUseCustomActivity] = useState(false);
   const [fugitiveEmissionsData, setFugitiveEmissionsData] = useState([]);
@@ -137,7 +141,9 @@ export function useEmissionFormState({ organization = null, editingEmission = nu
     }
   }, [hasOrgYearTypePreference, defaultYearType]);
 
-  // Sync decision field values with scope3Method, scope3ActivityType, and scope3Subcategory
+  // Sync decision field values with scope3Method, scope3ActivityType,
+  // scope3Subcategory and typeOfProduct (the keys must match decision-tree
+  // field_name values).
   useEffect(() => {
     setDecisionFieldValues(prev => {
       const updated = { ...prev };
@@ -150,9 +156,12 @@ export function useEmissionFormState({ organization = null, editingEmission = nu
       if (scope3Subcategory) {
         updated['subcategory_selection'] = scope3Subcategory;
       }
+      if (typeOfProduct) {
+        updated['type_of_product'] = typeOfProduct;
+      }
       return updated;
     });
-  }, [scope3Method, scope3ActivityType, scope3Subcategory]);
+  }, [scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct]);
 
   // Auto-enable custom activity when "others" activity type is selected with supplier_basis
   useEffect(() => {
@@ -221,6 +230,7 @@ export function useEmissionFormState({ organization = null, editingEmission = nu
     scope3ActivityId, setScope3ActivityId,
     scope3ActivityType, setScope3ActivityType,
     scope3Subcategory, setScope3Subcategory,
+    typeOfProduct, setTypeOfProduct,
     scope3CustomActivity, setScope3CustomActivity,
     useCustomActivity, setUseCustomActivity,
     fugitiveEmissionsData, setFugitiveEmissionsData,

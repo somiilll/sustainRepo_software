@@ -1,7 +1,7 @@
 import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../components/ui/dialog';
 import { Card } from '../../../components/ui/card';
-import { History, Calendar as CalendarIcon, User } from 'lucide-react';
+import { History, Calendar as CalendarIcon, User, CheckCircle2 } from 'lucide-react';
 
 /**
  * EmissionHistoryDialog
@@ -9,11 +9,14 @@ import { History, Calendar as CalendarIcon, User } from 'lucide-react';
  * Displays the version history of an emission record. Pure presentational component
  * extracted from Emissions.js (Phase E6) — behavior is byte-identical to the original
  * inline JSX. No business logic changes.
+ * 
+ * @param {Object} fieldLabels - Optional field labels from input_field_mappings (fetched from backend)
  */
 export default function EmissionHistoryDialog({
   open,
   onOpenChange,
   history: selectedEmissionHistory = [],
+  fieldLabels: externalFieldLabels = {},
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -24,15 +27,17 @@ export default function EmissionHistoryDialog({
         <div className="space-y-4">
           {selectedEmissionHistory.length > 0 ? (
             selectedEmissionHistory.map((history, idx) => {
-              // Determine if this is a creation or update based on old_values
+              // Determine if this is a creation, update, or deletion based on old_values
               const hasOldValues = history.changes?.old_values && Object.keys(history.changes.old_values).length > 0;
               const action = history.changes?.action || (hasOldValues ? 'updated' : 'created');
-              const isCreation = action === 'created' || !hasOldValues;
+              const isCreation = action === 'created';
+              const isDeletion = action === 'deleted';
               const oldValues = history.changes?.old_values || {};
               const newValues = history.changes?.new_values || {};
 
               // Field label mapping for better display
-              const fieldLabelMap = {
+              // External labels from input_field_mappings take priority over defaults
+              const defaultFieldLabelMap = {
                 'quantity': 'Quantity',
                 'quantity_unit': 'Unit',
                 'category': 'Category',
@@ -98,7 +103,7 @@ export default function EmissionHistoryDialog({
                 'employee_rooms_taken': 'Employee Rooms Taken',
                 'employee_no_of_employees': 'Employee Count',
                 'employee_emissions': 'Employee Emissions',
-                // Dynamic input fields (will use display_name from backend)
+                // Dynamic input fields (will be overridden by externalFieldLabels from backend)
                 'employee_input_km_travelled': 'Distance Travelled (km)',
                 'employee_input_qty_days_travelled': 'No. of Days Travelled',
                 'employee_input_distance': 'Distance Travelled',
@@ -113,6 +118,10 @@ export default function EmissionHistoryDialog({
                 'nights_stayed': 'Nights Stayed',
                 'rooms_taken': 'Rooms Taken',
               };
+              
+              // Merge external labels (from input_field_mappings) with defaults
+              // External labels take priority
+              const fieldLabelMap = { ...defaultFieldLabelMap, ...externalFieldLabels };
 
               // Helper to format value for display - with proper nested object expansion
               const formatValue = (val, depth = 0) => {
@@ -402,13 +411,19 @@ export default function EmissionHistoryDialog({
               return (
                 <Card key={history.id} className="p-4 border border-stone-200 rounded-lg">
                   <div className="flex items-start gap-3">
-                    <div className={`p-2 rounded-lg ${isCreation ? 'bg-green-100' : 'bg-primary/10'}`}>
-                      <History className={`w-4 h-4 ${isCreation ? 'text-green-600' : 'text-primary'}`} />
+                    <div className={`p-2 rounded-lg ${
+                      isDeletion ? 'bg-red-100' :
+                      isCreation ? 'bg-green-100' : 'bg-primary/10'
+                    }`}>
+                      <History className={`w-4 h-4 ${
+                        isDeletion ? 'text-red-600' :
+                        isCreation ? 'text-green-600' : 'text-primary'
+                      }`} />
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-2">
                         <p className="text-sm font-medium text-text-primary">
-                          {isCreation ? 'Created' : 'Updated'}
+                          {isDeletion ? 'Deleted' : isCreation ? 'Created' : 'Updated'}
                         </p>
                         <span className={`text-xs px-2 py-1 rounded ${
                           idx === 0 ? 'bg-blue-100 text-blue-700' :
@@ -426,6 +441,34 @@ export default function EmissionHistoryDialog({
                           <User className="w-4 h-4 text-text-muted" />
                           {history.changed_by_name || history.changed_by_email || 'Unknown User'}
                         </p>
+                        
+                        {/* Show approval / requester info */}
+                        {history.approved_by && (
+                          <div className="mt-2 pt-2 border-t border-stone-100">
+                            <p className="text-sm text-green-600 flex items-center gap-2">
+                              <CheckCircle2 className="w-4 h-4" />
+                              <span>
+                                {isDeletion ? 'Deleted' : 'Approved'} by{' '}
+                                <strong>{history.approved_by_name || history.approved_by_email || 'Admin'}</strong>
+                                {history.approved_at && (
+                                  <span className="text-text-muted ml-1">
+                                    on {new Date(history.approved_at).toLocaleString()}
+                                  </span>
+                                )}
+                              </span>
+                            </p>
+                            {isDeletion && history.requested_by && (
+                              <p className="text-xs text-text-muted mt-1 ml-6">
+                                (requested by{' '}
+                                <strong>{history.requested_by_name || history.requested_by_email || 'User'}</strong>
+                                {history.requested_at && (
+                                  <> at {new Date(history.requested_at).toLocaleString()}</>
+                                )}
+                                )
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {/* Show changed fields for updates only */}

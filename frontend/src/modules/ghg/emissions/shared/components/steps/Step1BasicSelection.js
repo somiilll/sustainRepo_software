@@ -57,6 +57,10 @@ export const Step1BasicSelection = ({
   requiresSubcategory,
   availableSubcategories,
   scope3Subcategory,
+
+  // C11: Type of Product (decision-tree branch)
+  typeOfProduct,
+  setTypeOfProduct,
   
   // Activity props
   scope3ActivityId,
@@ -238,6 +242,7 @@ export const Step1BasicSelection = ({
             setScope3Method('');
             setScope3ActivityType('');
             setScope3Subcategory('');
+            setTypeOfProduct?.('');
             setScope3ActivityId('');
             setSelectedSubIndustry('');
             setSelectedTemplate(null);
@@ -416,6 +421,7 @@ export const Step1BasicSelection = ({
                 setScope3Method(e.target.value);
                 setScope3ActivityType('');
                 setScope3Subcategory('');
+                setTypeOfProduct?.('');
                 setScope3ActivityId('');
               }}
               className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
@@ -468,6 +474,9 @@ export const Step1BasicSelection = ({
                 onChange={(e) => {
                   setScope3Subcategory(e.target.value);
                   setScope3ActivityId('');
+                  // Resetting subcategory invalidates the type_of_product
+                  // path through the decision tree — clear it.
+                  setTypeOfProduct?.('');
                 }}
                 className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
                 data-testid="scope3-subcategory-select"
@@ -481,6 +490,37 @@ export const Step1BasicSelection = ({
               </select>
             </div>
           )}
+
+          {/* C11 Type of Product (decision-tree branch — activity_basis only).
+              Categories C11 needs this to pick between continuous_usage and
+              one_time_use formulas. Shown after subcategory selection. */}
+          {(() => {
+            const catLower = (category || '').toLowerCase();
+            const isC11 = catLower.includes('c11');
+            const showTypeOfProduct = isC11
+              && scope3Method === 'activity_basis'
+              && requiresSubcategory
+              && !!scope3Subcategory;
+            if (!showTypeOfProduct) return null;
+            return (
+              <div className="space-y-2">
+                <Label>Type of Product <span className="text-red-500">*</span></Label>
+                <select
+                  value={typeOfProduct || ''}
+                  onChange={(e) => {
+                    setTypeOfProduct?.(e.target.value);
+                    setScope3ActivityId('');
+                  }}
+                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                  data-testid="scope3-type-of-product-select"
+                >
+                  <option value="">Select type of product...</option>
+                  <option value="continuous_usage">Energy-consuming product over lifetime</option>
+                  <option value="one_time_use">One-time combustion</option>
+                </select>
+              </div>
+            );
+          })()}
 
           {/* Activity Selection (from Scope 3 EF) */}
           {scope3Method && (
@@ -555,15 +595,17 @@ export const Step1BasicSelection = ({
                       setScope3ActivityId(e.target.value);
                       setFuelSearchTerm('');
                     }}
-                    className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${((availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${((availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory) || ((category || '').toLowerCase().includes('c11') && scope3Method === 'activity_basis' && requiresSubcategory && scope3Subcategory && !typeOfProduct)) ? 'opacity-50 cursor-not-allowed' : ''}`}
                     data-testid="scope3-activity-select"
-                    disabled={(availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
+                    disabled={(availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory) || ((category || '').toLowerCase().includes('c11') && scope3Method === 'activity_basis' && requiresSubcategory && scope3Subcategory && !typeOfProduct)}
                   >
                     <option value="">
-                      {(availableScope3ActivityTypes.length > 0 && !scope3ActivityType) 
-                        ? 'Select activity type first' 
+                      {(availableScope3ActivityTypes.length > 0 && !scope3ActivityType)
+                        ? 'Select activity type first'
                         : (requiresSubcategory && !scope3Subcategory)
                         ? 'Select sub-category first'
+                        : ((category || '').toLowerCase().includes('c11') && scope3Method === 'activity_basis' && requiresSubcategory && scope3Subcategory && !typeOfProduct)
+                        ? 'Select type of product first'
                         : `Select Activity (${filteredScope3Activities.filter(a => 
                             !fuelSearchTerm || a.activity?.toLowerCase().includes(fuelSearchTerm.toLowerCase())
                           ).length} available)`}

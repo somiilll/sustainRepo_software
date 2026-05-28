@@ -32,6 +32,10 @@ class EmissionRecordCreate(BaseModel):
     calculation_method_scope3: Optional[str] = None
     scope3_ef_id: Optional[str] = None
     scope3_activity: Optional[str] = None
+    scope3_activity_type: Optional[str] = None
+    scope3_subcategory: Optional[str] = None
+    # C11 only — picks the decision-tree branch (continuous_usage / one_time_use)
+    type_of_product: Optional[str] = None
     formula_id: Optional[str] = None
 
     # Biogenic
@@ -98,6 +102,9 @@ class EmissionRecordResponse(BaseModel):
     calculation_method_scope3: Optional[str] = None
     scope3_ef_id: Optional[str] = None
     scope3_activity: Optional[str] = None
+    scope3_activity_type: Optional[str] = None
+    scope3_subcategory: Optional[str] = None
+    type_of_product: Optional[str] = None
     formula_id: Optional[str] = None
 
     biogenic_scope_selection: Optional[str] = None
@@ -167,6 +174,16 @@ class EmissionRecordResponse(BaseModel):
     proposed_by_name: Optional[str] = None
     proposed_at: Optional[str] = None
 
+    # V2 Approval workflow fields
+    original_record_id: Optional[str] = None
+    submitted_by: Optional[str] = None
+    submitted_by_email: Optional[str] = None
+    submitted_by_name: Optional[str] = None
+    submitted_at: Optional[str] = None
+    edit_history: Optional[List[Dict[str, Any]]] = None
+    version_history: Optional[List[Dict[str, Any]]] = None
+    version: Optional[int] = None
+
 
 class EmissionHistoryResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -182,3 +199,13 @@ class EmissionHistoryResponse(BaseModel):
     field_changes: Optional[List[Dict[str, Any]]] = None
     changes_summary: Optional[str] = None
     changes: Dict[str, Any]
+    # Approval info
+    approved_by: Optional[str] = None
+    approved_by_email: Optional[str] = None
+    approved_by_name: Optional[str] = None
+    approved_at: Optional[str] = None
+    # Deletion-request info (only on action="deleted" entries)
+    requested_by: Optional[str] = None
+    requested_by_email: Optional[str] = None
+    requested_by_name: Optional[str] = None
+    requested_at: Optional[str] = None

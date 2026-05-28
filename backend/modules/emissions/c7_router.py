@@ -31,7 +31,7 @@ from modules.emissions.c7_contracts import (
     C7YearlyEntryResponse,
 )
 from shared.database.mongo import db
-from shared.helpers.audit_helpers import compute_field_changes
+from shared.helpers.audit_helpers import compute_field_changes, get_input_label_map_from_db
 
 router = APIRouter()
 
@@ -161,7 +161,11 @@ async def create_or_update_c7_monthly_entry(
             "formula_id", "formula_name", "notes", "responsible_person", 
             "responsible_person_designation", "responsible_person_contact", "total_emissions"
         ]
-        field_changes = compute_field_changes(existing, new_values, fields_to_track=c7_monthly_fields)
+        
+        # Fetch input labels from DB for field change display
+        input_label_map = await get_input_label_map_from_db(db)
+        
+        field_changes = compute_field_changes(existing, new_values, fields_to_track=c7_monthly_fields, input_label_map=input_label_map)
         
         # Add employee input changes to field_changes
         field_changes.extend(employee_input_changes)

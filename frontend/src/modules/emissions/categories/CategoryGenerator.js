@@ -265,7 +265,6 @@ export function registerAllScope3Categories() {
     }
   });
   
-  console.log(`[CategoryGenerator] Registered ${Object.keys(modules).length} Scope 3 categories`);
   return modules;
 }
 

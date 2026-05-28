@@ -22,7 +22,7 @@ export async function editEmissionDispatch(emission, ctx) {
     setDynamicFieldValues, setExistingEvidences, setEditingEmissionId,
     setEmissionAuditLog, setIsEditLoading, setDialogOpen,
     setScope3Method, setScope3ActivityId, setScope3ActivityType,
-    setScope3Subcategory, setScope3CustomActivity, setUseCustomActivity,
+    setScope3Subcategory, setTypeOfProduct, setScope3CustomActivity, setUseCustomActivity,
     setBiogenicScopeSelection, setEditFrequencyType, setEditingEmission,
     setOverrideCalorificValue, setOverrideDensity, setOverrideEmissionFactorHeat,
     setOverrideJustification, setSelectedCategory, setFormData, setEditC7Month,
@@ -138,6 +138,7 @@ export async function editEmissionDispatch(emission, ctx) {
         setScope3Method(method);
         setScope3ActivityType(activityType);
         setScope3Subcategory(''); // Biogenic doesn't use subcategory
+        setTypeOfProduct?.('');
         setScope3ActivityId(activityId);
         setScope3CustomActivity(customActivity);
         setUseCustomActivity(isCustomActivity);
@@ -202,21 +203,7 @@ export async function editEmissionDispatch(emission, ctx) {
           ? dynamicValues.scope3_subcategory.value
           : dynamicValues.scope3_subcategory;
       }
-      
-      // DEBUG: Log extracted scope3 values from emission record
-      console.log('[FUGITIVE DEBUG - handleEdit] Extracted Scope3 values:', {
-        emission_id: emission.id,
-        emission_category: emission.category,
-        method,
-        activityId,
-        activityType,
-        subcategory,
-        dynamicValues_scope3_subcategory: dynamicValues.scope3_subcategory,
-        dynamicValues_scope3_ef_id: dynamicValues.scope3_ef_id,
-        emission_scope3_ef_id: emission.scope3_ef_id,
-        fugitiveEmissionsDataCount: fugitiveEmissionsData.length,
-      });
-      
+
       // Get custom activity for supplier_basis
       let customActivity = '';
       let isCustomActivity = false;
@@ -258,6 +245,16 @@ export async function editEmissionDispatch(emission, ctx) {
       setScope3Method(method);
       setScope3ActivityType(activityType);
       setScope3Subcategory(subcategory);
+      // C11 only — pull type_of_product from top-level or dynamic_field_values.
+      const topTypeOfProduct = emission.type_of_product;
+      const dynTypeOfProduct = dynamicValues.type_of_product;
+      const typeOfProductVal =
+        topTypeOfProduct ||
+        (typeof dynTypeOfProduct === 'object'
+          ? dynTypeOfProduct?.value
+          : dynTypeOfProduct) ||
+        '';
+      setTypeOfProduct?.(typeOfProductVal);
       setScope3ActivityId(activityId);
       setScope3CustomActivity(customActivity);
       setUseCustomActivity(isCustomActivity);

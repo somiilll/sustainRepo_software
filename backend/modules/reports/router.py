@@ -468,6 +468,7 @@ class GHGReportRequest(BaseModel):
     organization_id: Optional[str] = None  # For SuperAdmin to specify organization
     output_format: str = "docx"  # "docx" or "pdf"
     report_type: str = "scope_1_2"  # "scope_1_2" or "scope_1_2_3"
+    is_complete_organization: bool = True  # Whether all org facilities are included (for org-level sections)
 
 @router.post("/reports/ghg-inventory")
 async def generate_ghg_inventory_report(
@@ -526,27 +527,21 @@ async def generate_ghg_inventory_report(
     if not facilities_data:
         raise HTTPException(status_code=404, detail="No accessible facilities found")
     
-    # Check if base year emissions data exists for selected facilities
-    # First, check if all facilities are selected and org-level data exists
-    all_org_facilities = await db.facilities.find(
-        {"organization_id": org_id, "is_active": True},
-        {"_id": 0, "id": 1}
-    ).to_list(1000)
-    all_facility_ids = {f["id"] for f in all_org_facilities}
-    selected_facility_ids = {f["id"] for f in facilities_data}
+    # Base year validation based on is_complete_organization flag
+    # If is_complete_organization = true: Org-level base year for Scope 1,2 must exist
+    # If is_complete_organization = false: Each selected facility must have base year for Scope 1,2
     
-    # Check if all facilities are selected
-    all_facilities_selected = all_facility_ids and selected_facility_ids == all_facility_ids
-    
-    # Check for org-level base year data
-    org_base_year_record = await db.base_year_emissions.find_one(
-        {"organization_id": org_id, "facility_id": None},
-        {"_id": 0, "id": 1}
-    )
-    
-    # If all facilities selected and org-level data exists, skip facility-level check
-    if all_facilities_selected and org_base_year_record:
-        pass  # Org-level data suffices
+    if request.is_complete_organization:
+        # Check for org-level base year data
+        org_base_year_record = await db.base_year_emissions.find_one(
+            {"organization_id": org_id, "facility_id": None},
+            {"_id": 0, "id": 1}
+        )
+        if not org_base_year_record:
+            raise HTTPException(
+                status_code=400, 
+                detail="Organization-level Base Year Emissions data is required when including all facilities. Please configure base year emissions at the organization level first."
+            )
     else:
         # Check individual facility base year data
         missing_base_year = []
@@ -666,7 +661,8 @@ async def generate_ghg_inventory_report(
         sinks_total=total_sinks,
         sinks_data=sinks_data,
         facility_production=facility_production_data,
-        report_type=request.report_type
+        report_type=request.report_type,
+        is_complete_organization=request.is_complete_organization
     )
     
     # Generate filename based on format

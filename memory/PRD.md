@@ -234,6 +234,22 @@ Five phases executed end-to-end with **37/37 regression tests PASS** (iteration_
 
 ### May 2026 Session (Latest)
 
+**May 25, 2026 - Biogenic Scope3 Access Control Fix (P0)**
+
+1. **Biogenic Scope3 Filtering Based on Org Access**
+   - Fixed: Organizations with only `scope1_2` access (not `scope1_2_3`) now correctly have biogenic records with `biogenic_scope_selection='scope3'` filtered out from:
+     - GET /api/emissions endpoint
+     - GET /api/dashboard/stats endpoint (excluded from calculations)
+     - Frontend `Emissions.js` filtered list (client-side backup)
+   - Organizations WITH `scope1_2_3` access continue to see all biogenic records
+   - Backend: Added enabled_access check in `modules/emissions/router.py` and `modules/dashboards/router.py`
+   - Frontend: Added `hasScope3Access` memo and filter in `filteredEmissions` useMemo
+   - Test file created: `/app/backend/tests/test_biogenic_scope3_filter.py`
+   - **Verified**: 5/5 pytest cases PASS
+
+2. **Security Fix: Deleted /tmp/atlas_sync.py**
+   - Removed script containing plaintext MongoDB Atlas credentials
+
 **May 26, 2026 - Phase 5 Frontend Refactoring (Complete)**
 
 1. **Step 1 Component Extraction (NEW)**

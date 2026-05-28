@@ -4,9 +4,7 @@ Emissions read/list/write router.
 Phase B4 added: GET /emissions, GET /emissions/{id}/history, DELETE /emissions/{id}.
 Phase B5 added: POST /emissions, PUT /emissions/{id}.
 
-Phase B5 still keeps these routes thin: they integrate the calc-engine
-service inline (same as legacy server.py) — extracting that flow into a
-dedicated emissions service comes in Phase B5b. Behaviour is byte-identical.
+V2: Refactored to use emission_flow_v2 with simplified pending_records architecture.
 """
 import json
 import logging
@@ -17,15 +15,17 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 
 from audit_logger import AuditAction, AuditModule, get_audit_logger
-from modules.approvals.emission_flow import (
+from modules.approvals.emission_flow_v2 import (
     APPROVED_COLLECTION,
     PENDING_COLLECTION,
-    fetch_pending_for_user,
-    find_emission_anywhere,
+    find_record,
     intercept_create as approval_intercept_create,
     intercept_delete as approval_intercept_delete,
     intercept_update as approval_intercept_update,
-    merge_visible_emissions,
+    fetch_emissions_for_user,
+    STATUS_PENDING_UPDATE,
+    STATUS_PENDING_DELETE,
+    PENDING_STATUSES,
 )
 from modules.auth.dependencies import get_current_user
 from modules.emissions.contracts import (
@@ -34,7 +34,7 @@ from modules.emissions.contracts import (
     EmissionRecordResponse,
 )
 from shared.database.mongo import db
-from shared.helpers.audit_helpers import compute_field_changes
+from shared.helpers.audit_helpers import compute_field_changes, get_input_label_map_from_db
 
 router = APIRouter()
 
@@ -151,32 +151,33 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     record_dict["updated_by_email"] = None
     record_dict["updated_by_name"] = None
     
-    # Approval workflow gate (set approval_status + create approval_request if needed).
-    # When pending, the doc is written into pending_emission_records by the hook
-    # and we early-return — the rest of the normal create flow (history,
-    # event-bus, base-year sync) does NOT run for unapproved records.
-    approval_pending = await approval_intercept_create(record_dict, dict(record_dict), current_user)
-    if approval_pending:
-        # Audit the submission attempt, then return.
+    # V2 Approval workflow gate.
+    # Returns ("apply", None) → continue creating in emission_records (admin / workflow off).
+    # Returns ("queue", pending_record) → record was inserted into pending_records, we early-return.
+    approval_action, pending_record = await approval_intercept_create(
+        record_dict, record_dict["organization_id"], current_user
+    )
+    if approval_action == "queue" and pending_record:
+        # Audit the submission attempt, then return the pending record.
         await audit_logger.log(
             action=AuditAction.CREATE,
             module=AuditModule.EMISSION,
             user_id=current_user["id"],
             user_email=current_user["email"],
             user_role=current_user.get("role", "user"),
-            organization_id=record_dict["organization_id"],
-            resource_id=record_id,
+            organization_id=pending_record.get("organization_id"),
+            resource_id=pending_record.get("id"),
             resource_name=f"{record_data.scope} - {record_data.category} ({record_data.reporting_period})",
             description=f"Submitted emission record for approval ({record_data.category})",
-            new_values=record_dict,
+            new_values=pending_record,
             metadata={
                 "scope": record_data.scope,
                 "category": record_data.category,
                 "facility_id": record_data.facility_id,
-                "approval_status": record_dict.get("approval_status"),
+                "approval_status": pending_record.get("approval_status"),
             },
         )
-        return EmissionRecordResponse(**record_dict)
+        return EmissionRecordResponse(**pending_record)
     
     await db.emission_records.insert_one(record_dict)
     # Phase B11: emit emission.saved (best-effort; never break write path).
@@ -325,7 +326,7 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     history_new_values["co2e_emissions"] = record_dict["co2e_emissions"]
     history_new_values["total_emissions"] = record_dict["total_emissions"]
     
-    if not approval_pending:
+    if True:
         creation_history = {
             "id": str(uuid.uuid4()),
             "emission_id": record_id,
@@ -374,24 +375,36 @@ async def update_emission_record(
     record_data: EmissionRecordCreate,
     current_user: dict = Depends(get_current_user)
 ):
-    # Records can live in either emission_records (approved) or
-    # pending_emission_records (in-flight). Look in both.
-    existing, source_collection = await find_emission_anywhere(record_id)
+    # Find record - checks pending first
+    existing, source_collection = await find_record(record_id)
+    
+    # Also check if there's a pending record for this original_record_id
+    if not existing:
+        pending = await db[PENDING_COLLECTION].find_one(
+            {"original_record_id": record_id},
+            {"_id": 0}
+        )
+        if pending:
+            existing = pending
+            source_collection = PENDING_COLLECTION
+            record_id = pending["id"]  # Use the pending record's ID
+    
     if not existing:
         raise HTTPException(status_code=404, detail="Emission record not found")
     
-    # Approval-workflow gate (no-op when org doesn't have it enabled).
-    approval_action, approval_payload = await approval_intercept_update(
-        existing, source_collection, record_data, current_user
+    # Approval-workflow gate
+    payload_dict = record_data.model_dump()
+    approval_action, approval_result = await approval_intercept_update(
+        record_id, payload_dict, current_user
     )
-    if approval_action == "block":
-        raise HTTPException(status_code=403, detail=approval_payload.get("detail", "Not authorized"))
-    if approval_action == "queue":
-        # Approval request created; emission_records untouched. Return original.
-        return EmissionRecordResponse(**(approval_payload or existing))
-    skip_history = approval_action == "skip_history"
-    target_collection = (approval_payload or {}).get("target_collection", source_collection)
     
+    if approval_action == "block":
+        raise HTTPException(status_code=403, detail=approval_result or "Not authorized")
+    if approval_action == "queue":
+        # Return the pending record
+        return EmissionRecordResponse(**approval_result) if approval_result else EmissionRecordResponse(**existing)
+    
+    # Direct apply (admin or workflow disabled)
     # Prevent changing frequency_type once saved
     existing_frequency = existing.get("frequency_type", "monthly")
     new_frequency = record_data.frequency_type or "monthly"
@@ -449,9 +462,99 @@ async def update_emission_record(
             if new_ef:
                 history_new_values["activity_name"] = new_ef.get("activity") or new_ef.get("name") or new_scope3_ef_id
     
-    # Compute field-level changes for better tracking (#3 - Version History)
-    field_changes = compute_field_changes(existing, history_new_values)
+    # Fetch input labels from DB for field change display
+    input_label_map = await get_input_label_map_from_db(db)
     
+    # Compute field-level changes for better tracking (#3 - Version History)
+    field_changes = compute_field_changes(existing, history_new_values, input_label_map=input_label_map)
+
+    update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
+    update_dict["updated_by"] = current_user["id"]
+    update_dict["updated_by_email"] = current_user.get("email", "")
+    update_dict["updated_by_name"] = current_user.get("full_name", "")
+    update_dict["version"] = existing.get("version", 0) + 1
+
+    # ─── Admin auto-approve ──────────────────────────────────────────────
+    # When an admin / super_admin edits a record that currently lives in
+    # pending_records, treat the save as "edit + approve". The admin's
+    # changes are persisted to the pending doc first, then approve_request
+    # promotes it to emission_records and flushes history to
+    # emission_history (single source of truth).
+    if (
+        source_collection == PENDING_COLLECTION
+        and current_user.get("role") in ("admin", "super_admin")
+    ):
+        from modules.approvals.emission_flow_v2 import approve_request
+
+        # Snapshot the pending record BEFORE applying admin's edits so we
+        # can compute the admin's diff alone (vs the user's proposed values).
+        pre_admin_pending = await db[PENDING_COLLECTION].find_one(
+            {"id": record_id}, {"_id": 0}
+        )
+
+        await db[PENDING_COLLECTION].update_one(
+            {"id": record_id},
+            {"$set": update_dict},
+        )
+        pending_doc = await db[PENDING_COLLECTION].find_one({"id": record_id}, {"_id": 0})
+        original_id = (pending_doc or {}).get("original_record_id")
+
+        # admin_field_changes = ONLY what the admin changed during approval.
+        admin_diff: List[dict] = []
+        if pre_admin_pending and pending_doc:
+            admin_diff = compute_field_changes(pre_admin_pending, pending_doc, input_label_map=input_label_map) or []
+
+        ok, message = await approve_request(
+            record_id, current_user, admin_field_changes=admin_diff,
+        )
+        if not ok:
+            raise HTTPException(status_code=400, detail=message)
+        approved_id = original_id or record_id
+        approved = await db[APPROVED_COLLECTION].find_one({"id": approved_id}, {"_id": 0})
+        if not approved:
+            raise HTTPException(status_code=500, detail="Approved record not found after auto-approve")
+
+        await audit_logger.log(
+            action=AuditAction.UPDATE,
+            module=AuditModule.EMISSION,
+            user_id=current_user["id"],
+            user_email=current_user["email"],
+            user_role=current_user.get("role", "user"),
+            organization_id=approved.get("organization_id"),
+            resource_id=approved_id,
+            resource_name=f"{record_data.scope} - {record_data.category} ({record_data.reporting_period})",
+            description=(
+                f"Admin edited & auto-approved pending request for {record_data.category}"
+            ),
+            old_values=existing,
+            new_values=approved,
+            metadata={
+                "scope": record_data.scope,
+                "category": record_data.category,
+                "facility_id": record_data.facility_id,
+                "total_emissions": approved.get("total_emissions"),
+                "auto_approved": True,
+            },
+        )
+
+        try:
+            from events.event_bus import event_bus, Events
+            event_bus.emit_nowait(Events.EMISSION_UPDATED, {
+                "record_id": approved_id,
+                "scope": record_data.scope,
+                "category": record_data.category,
+                "facility_id": record_data.facility_id,
+                "organization_id": approved.get("organization_id"),
+                "user_id": current_user.get("id"),
+                "auto_approved": True,
+            })
+        except Exception:
+            pass
+
+        return EmissionRecordResponse(**approved)
+
+    # ─── Normal direct-apply path (approved record edit by admin, or
+    #     legacy admin direct update) ──────────────────────────────────
     # Save version history entry for this update with detailed field changes
     history_dict = {
         "id": str(uuid.uuid4()),
@@ -465,7 +568,7 @@ async def update_emission_record(
         "changed_by_name": current_user.get("full_name", ""),
         "changed_at": datetime.now(timezone.utc).isoformat(),
         "version": existing.get("version", 0) + 1,
-        "field_changes": field_changes,  # New: detailed field-level changes
+        "field_changes": field_changes,
         "changes_summary": f"{len(field_changes)} field(s) changed",
         "changes": {
             "action": "updated",
@@ -473,21 +576,10 @@ async def update_emission_record(
             "new_values": history_new_values
         }
     }
-    if not skip_history:
-        await db.emission_history.insert_one(history_dict)
-    
-    update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
-    update_dict["updated_by"] = current_user["id"]
-    update_dict["updated_by_email"] = current_user.get("email", "")
-    update_dict["updated_by_name"] = current_user.get("full_name", "")
-    if not skip_history:
-        update_dict["version"] = existing.get("version", 0) + 1  # Increment version
-    else:
-        # Editing a record that is still under review — preserve version.
-        update_dict["version"] = existing.get("version", 0)
-        # Preserve approval_status so it doesn't get overwritten by the form payload.
-        update_dict["approval_status"] = existing.get("approval_status")
-    
+    await db.emission_history.insert_one(history_dict)
+
+    # Determine target collection - if source was pending, update there; otherwise approved
+    target_collection = source_collection or APPROVED_COLLECTION
     await db[target_collection].update_one({"id": record_id}, {"$set": update_dict})
     updated = await db[target_collection].find_one({"id": record_id}, {"_id": 0})
 
@@ -539,22 +631,8 @@ async def get_emission_records(
     current_user: dict = Depends(get_current_user),
 ):
     query = {}
-    if current_user["role"] == "super_admin":
-        pass  # Can see all
-    elif current_user["role"] == "admin":
-        org_id = current_user.get("organization_id")
-        if not org_id:
-            return []  # Admin without org has no emissions
-        facilities = await db.facilities.find(
-            {"organization_id": org_id},
-            {"_id": 0},
-        ).to_list(1000)
-        facility_ids = [f["id"] for f in facilities]
-        query["facility_id"] = {"$in": facility_ids}
-    else:  # user
-        assigned = current_user.get("assigned_facilities", [])
-        query["facility_id"] = {"$in": assigned}
-
+    org_id = current_user.get("organization_id")
+    
     if facility_id:
         query["facility_id"] = facility_id
     if reporting_period:
@@ -562,10 +640,32 @@ async def get_emission_records(
     if scope:
         query["scope"] = scope
 
-    records = await db.emission_records.find(query, {"_id": 0}).to_list(10000)
-    # Pull in pending / rejected proposals so the FE can show them with badges.
-    pending_records = await fetch_pending_for_user(current_user, query)
-    records = merge_visible_emissions(records, pending_records)
+    # Use the new fetch_emissions_for_user which combines approved + pending
+    records = await fetch_emissions_for_user(current_user, query)
+    
+    # Filter out biogenic records from non-biogenic scope tabs
+    # Biogenic records should ONLY appear in the biogenic tab
+    if scope and scope != "biogenic":
+        records = [r for r in records if r.get("scope") != "biogenic"]
+    
+    # Filter out rejected records for regular users (admins can see them)
+    if current_user["role"] == "user":
+        from modules.approvals.emission_flow_v2 import REJECTED_STATUSES
+        records = [r for r in records if r.get("approval_status") not in REJECTED_STATUSES]
+    
+    # Filter out biogenic records with biogenic_scope_selection='scope3' for orgs without scope3 access
+    if current_user["role"] != "super_admin" and org_id:
+        organization = await db.organizations.find_one({"id": org_id}, {"_id": 0, "enabled_access": 1})
+        enabled_access = organization.get("enabled_access") if organization else None
+        if enabled_access is None:
+            enabled_access = ["scope1_2"]
+        
+        has_scope3_access = "scope1_2_3" in enabled_access
+        if not has_scope3_access:
+            records = [
+                r for r in records
+                if not (r.get("scope") == "biogenic" and r.get("biogenic_scope_selection") == "scope3")
+            ]
 
     # Batch-resolve display names for created_by / updated_by ids.
     user_ids = set()
@@ -602,27 +702,45 @@ async def get_emission_records(
 
 @router.get("/emissions/{record_id}", response_model=EmissionRecordResponse)
 async def get_emission_record(record_id: str, current_user: dict = Depends(get_current_user)):
-    """Fetch a single emission record from approved OR pending collection.
-
-    Used by the Approvals deep-link so admins can open the edit dialog for a
-    pending submission that the GHG ledger filters out.
+    """Fetch a single emission record from pending_records OR emission_records.
+    
+    Checks pending_records first so users see their latest submitted values.
+    Also checks for pending records by original_record_id for update/delete requests.
     """
-    record, _ = await find_emission_anywhere(record_id)
+    # First try to find by ID (checks pending first)
+    record, source = await find_record(record_id)
+    
+    # If not found, check if there's a pending record for this original_record_id
+    if not record:
+        pending = await db[PENDING_COLLECTION].find_one(
+            {"original_record_id": record_id},
+            {"_id": 0}
+        )
+        if pending:
+            record = pending
+    
     if not record:
         raise HTTPException(status_code=404, detail="Emission record not found")
 
-    # Role-based access check.
+    # Role-based access check
     role = current_user.get("role")
     if role == "super_admin":
         pass
     elif role == "admin":
-        if record.get("organization_id") != current_user.get("organization_id"):
+        # Admin can access their org's records
+        org_id = current_user.get("organization_id")
+        record_org = record.get("organization_id")
+        # Also check facility's org if record doesn't have org_id
+        if not record_org:
+            fac = await db.facilities.find_one({"id": record.get("facility_id")}, {"_id": 0, "organization_id": 1})
+            record_org = fac.get("organization_id") if fac else None
+        if record_org and record_org != org_id:
             raise HTTPException(status_code=403, detail="Not authorized")
     else:  # regular user
         assigned = current_user.get("assigned_facilities", []) or []
         is_own_pending = (
             record.get("approval_status", "approved") != "approved"
-            and record.get("created_by") == current_user.get("id")
+            and record.get("submitted_by") == current_user.get("id")
         )
         if record.get("facility_id") not in assigned and not is_own_pending:
             raise HTTPException(status_code=403, detail="Not authorized")
@@ -632,15 +750,28 @@ async def get_emission_record(record_id: str, current_user: dict = Depends(get_c
 
 @router.get("/emissions/{record_id}/history", response_model=List[EmissionHistoryResponse])
 async def get_emission_history(record_id: str, current_user: dict = Depends(get_current_user)):
-    # Sort by changed_at descending so newest entry appears first.
-    history = await db.emission_history.find(
+    """Get version history for an emission record.
+
+    History is the single source of truth in `db.emission_history`.
+    - Admin direct create/update writes one doc per change.
+    - Approved-from-pending flow flushes all `pending_records` lifecycle
+      entries (edit_history + version_history + approval entry) to this
+      collection on approval.
+
+    Embedded `version_history` on the record (if any) is treated as a
+    legacy fallback for records approved before this change.
+    """
+    history: List[dict] = []
+
+    # Primary source: emission_history collection.
+    rows = await db.emission_history.find(
         {"emission_id": record_id},
         {"_id": 0},
     ).sort("changed_at", -1).to_list(1000)
 
-    # Populate changed_by_email and changed_by_name for each history entry.
-    for entry in history:
-        if entry.get("changed_by"):
+    for entry in rows:
+        # Backfill display names if missing.
+        if entry.get("changed_by") and not entry.get("changed_by_email"):
             user = await db.users.find_one(
                 {"id": entry["changed_by"]},
                 {"_id": 0, "email": 1, "full_name": 1},
@@ -648,26 +779,59 @@ async def get_emission_history(record_id: str, current_user: dict = Depends(get_
             if user:
                 entry["changed_by_email"] = user.get("email", "Unknown User")
                 entry["changed_by_name"] = user.get("full_name", "")
-            else:
-                entry["changed_by_email"] = "Unknown User"
-                entry["changed_by_name"] = ""
-        else:
-            entry["changed_by_email"] = "Unknown User"
-            entry["changed_by_name"] = ""
+        history.append(entry)
+
+    # Legacy fallback — if collection is empty for this record, surface any
+    # embedded version_history that pre-dates the flush-on-approve change.
+    if not history:
+        record, _ = await find_record(record_id)
+        if not record:
+            pending = await db[PENDING_COLLECTION].find_one(
+                {"original_record_id": record_id},
+                {"_id": 0},
+            )
+            if pending:
+                record = pending
+
+        for entry in (record or {}).get("version_history", []) or []:
+            history.append({
+                "id": entry.get("id", str(uuid.uuid4())),
+                "emission_id": record_id,
+                "changed_by": entry.get("changed_by"),
+                "changed_by_email": entry.get("changed_by_email", ""),
+                "changed_by_name": entry.get("changed_by_name", ""),
+                "changed_at": entry.get("changed_at"),
+                "version": entry.get("version"),
+                "scope": record.get("scope"),
+                "category": record.get("category"),
+                "field_changes": entry.get("field_changes"),
+                "changes_summary": entry.get("changes_summary"),
+                "changes": {
+                    "action": entry.get("action", "updated"),
+                    "old_values": None,
+                    "new_values": None,
+                },
+                "approved_by": entry.get("approved_by"),
+                "approved_by_email": entry.get("approved_by_email"),
+                "approved_by_name": entry.get("approved_by_name"),
+                "approved_at": entry.get("approved_at"),
+            })
+
+    history.sort(key=lambda x: x.get("changed_at", ""), reverse=True)
 
     return [EmissionHistoryResponse(**h) for h in history]
 
 
 @router.delete("/emissions/{record_id}")
 async def delete_emission_record(record_id: str, current_user: dict = Depends(get_current_user)):
-    existing, source_collection = await find_emission_anywhere(record_id)
+    existing, source_collection = await find_record(record_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Emission record not found")
 
-    # Approval-workflow gate.
-    delete_action, delete_payload = await approval_intercept_delete(existing, source_collection, current_user)
+    # Approval-workflow gate
+    delete_action, delete_payload = await approval_intercept_delete(record_id, current_user)
     if delete_action == "block":
-        raise HTTPException(status_code=403, detail=(delete_payload or {}).get("detail", "Not authorized"))
+        raise HTTPException(status_code=403, detail=delete_payload or "Not authorized")
     if delete_action == "queue":
         return {"message": "Delete request submitted for approval"}
 
