@@ -261,8 +261,25 @@ class EmissionCalculator:
         Returns:
             Dict with calculated emissions or error info
         """
-        # Both supplier_basis and activity_basis go through calc_engine
-        # supplier_basis skips unit conversion but still uses decision tree + formula
+        # For supplier_basis, use direct calculation but resolve formula from decision tree
+        if method == CalculationMethod.SUPPLIER_BASIS:
+            result = await self._calculate_supplier_basis_with_conversion(row_data)
+            # Resolve formula_id from decision tree
+            if category_code:
+                cat_id = await self._get_category_id(category_code)
+                if cat_id:
+                    decision_inputs = {"calculation_method_scope3": "supplier_basis"}
+                    resolved_formula_id, tree_path = await self._resolve_formula(cat_id, decision_inputs)
+                    if resolved_formula_id:
+                        result["formula_id"] = resolved_formula_id
+                        result["decision_path"] = tree_path
+                        # Get formula name
+                        formula_doc = await self.db.ce_formulas.find_one(
+                            {"id": resolved_formula_id}, {"_id": 0, "name": 1}
+                        )
+                        if formula_doc:
+                            result["formula_name"] = formula_doc.get("name")
+            return result
         
         # For activity_basis and spend_basis, use calc_engine
         if activity_id:
