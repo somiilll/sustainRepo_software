@@ -1892,7 +1892,11 @@ async def create_base_year_emissions(
     data: BaseYearEmissionsCreate,
     current_user: dict = Depends(get_current_user)
 ):
-    """Create base year emissions record"""
+    """Create base year emissions record (admin only)"""
+    # Admin permission required
+    if current_user.get("role") not in ("admin", "super_admin"):
+        raise HTTPException(status_code=403, detail="Admin permission required to create base year emissions")
+    
     # Validate justification is provided
     if not data.justification or not data.justification.strip():
         raise HTTPException(status_code=400, detail="Justification for selecting this base year is required")
@@ -2083,7 +2087,11 @@ async def update_base_year_emissions(
     data: BaseYearEmissionsUpdate,
     current_user: dict = Depends(get_current_user)
 ):
-    """Update base year emissions record with detailed version history"""
+    """Update base year emissions record with detailed version history (admin only)"""
+    # Admin permission required
+    if current_user.get("role") not in ("admin", "super_admin"):
+        raise HTTPException(status_code=403, detail="Admin permission required to update base year emissions")
+    
     record = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
     if not record:
         raise HTTPException(status_code=404, detail="Base year emissions record not found")
@@ -2267,7 +2275,11 @@ async def delete_base_year_emissions(
     record_id: str,
     current_user: dict = Depends(get_current_user)
 ):
-    """Delete base year emissions record and store deletion in history"""
+    """Delete base year emissions record and store deletion in history (admin only)"""
+    # Admin permission required
+    if current_user.get("role") not in ("admin", "super_admin"):
+        raise HTTPException(status_code=403, detail="Admin permission required to delete base year emissions")
+    
     # Get the record first to store in deletion history
     record = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
     if not record:
@@ -2353,7 +2365,11 @@ async def change_base_year(
     change_reason: str = Query(..., min_length=20, description="Reason for changing the base year (minimum 20 characters)"),
     current_user: dict = Depends(get_current_user)
 ):
-    """Change the base year for an existing record and update emissions data"""
+    """Change the base year for an existing record and update emissions data (admin only)"""
+    # Admin permission required
+    if current_user.get("role") not in ("admin", "super_admin"):
+        raise HTTPException(status_code=403, detail="Admin permission required to change base year")
+    
     from calendar import month_name
     import re
     
