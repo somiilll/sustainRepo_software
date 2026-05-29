@@ -319,6 +319,7 @@ CATEGORY_COLUMNS = {
             {"name": "From Location", "key": "from_location", "mandatory": False, "type": "text"},
             {"name": "To Location", "key": "to_location", "mandatory": False, "type": "text"},
             {"name": "Passengers Travelled", "key": "passengers", "mandatory": False, "type": "number"},
+            {"name": "No. of Days Travelled", "key": "days_travelled", "mandatory": False, "type": "number"},
             {"name": "No. of Rooms Taken", "key": "rooms", "mandatory": False, "type": "number"},
             {"name": "No. of Nights Stayed", "key": "nights", "mandatory": False, "type": "number"},
             {"name": "Quantity (Supplier Based)", "key": "supplier_quantity", "mandatory": False, "type": "number"},
@@ -512,7 +513,7 @@ CATEGORY_COLUMNS = {
             # C11 decision-tree fork. Display labels are mapped to internal codes
             # (`continuous_usage` / `one_time_use`) by FieldValidator.validate_type_of_product.
             {"name": "Type Of Product", "key": "type_of_product", "mandatory": False, "type": "dropdown",
-             "allowed_values": ["Energy-consuming product over lifetime", "One-time use"]},
+             "allowed_values": ["Energy-consuming product over lifetime", "One-time combustion"]},
             {"name": "Quantity Used", "key": "quantity_used", "mandatory": False, "type": "number"},
             {"name": "Unit of Quantity", "key": "unit_quantity", "mandatory": False, "type": "dropdown"},
             # Continuous-usage extras — mirrors manual `dynamic_field_values`

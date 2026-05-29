@@ -261,6 +261,7 @@ class RowProcessor:
             ("supplier_quantity", "Supplier Quantity"),
             ("supplier_ef", "Supplier Emission Factor"),
             ("passengers", "Passengers"),
+            ("days_travelled", "No. of Days Travelled"),  # C6 Business Travel
             ("rooms", "Rooms"),
             ("nights", "Nights"),
             ("working_days", "Working Days"),
@@ -398,6 +399,7 @@ class RowProcessor:
             variable_labels = {
                 "qty_passenger": "Passengers Travelled",
                 "km_travelled": "Distance Travelled",
+                "qty_days_travelled": "No. of Days Travelled",
                 "qty_travelled": "Quantity of Goods",
                 "qty": "Quantity Used",
                 "qty_room": "Number of Rooms",

@@ -14,7 +14,7 @@ VALID_SUBCATEGORIES = [
     'stationary_combustion',
     'mobile_combustion', 
     'fugitive_emissions',
-    'electricity',
+    'energy',
     'process_emissions'  # Only for supplier_basis
 ]
 
@@ -151,7 +151,7 @@ class FieldValidator(BaseValidator):
         sub_clean = str(sub_category).strip().lower().replace(" ", "_")
         
         # Valid subcategories (matching frontend)
-        valid_subcats = ['stationary_combustion', 'mobile_combustion', 'fugitive_emissions', 'electricity']
+        valid_subcats = ['stationary_combustion', 'mobile_combustion', 'fugitive_emissions', 'energy']
         
         # For supplier_basis, also allow process_emissions
         if method == CalculationMethod.SUPPLIER_BASIS:
@@ -186,10 +186,10 @@ class FieldValidator(BaseValidator):
     # `db.ce_decision_trees` (field_name: "type_of_product").
     # ─────────────────────────────────────────────────────────────────────
     TYPE_OF_PRODUCT_LABEL_TO_CODE = {
+        "Energy-consuming product over lifetime": "continuous_usage",
         "energy-consuming product over lifetime": "continuous_usage",
-        "energy consuming product over lifetime": "continuous_usage",
-        "one-time use": "one_time_use",
-        "one time use": "one_time_use",
+        "One-time combustion": "one_time_use",
+        "one-time combustion": "one_time_use",
     }
 
     def validate_type_of_product(self, type_of_product: str, category_code: str,
@@ -218,7 +218,7 @@ class FieldValidator(BaseValidator):
                 column="Type Of Product",
                 error_type="MISSING_TYPE_OF_PRODUCT",
                 message="Type Of Product is required for C11 activity-basis rows",
-                suggestion="Enter one of: 'Energy-consuming product over lifetime', 'One-time use'",
+                suggestion="Enter one of: 'Energy-consuming product over lifetime', 'One-time combustion'",
                 severity=ErrorSeverity.ERROR
             )
 
@@ -233,7 +233,7 @@ class FieldValidator(BaseValidator):
             column="Type Of Product",
             error_type="INVALID_TYPE_OF_PRODUCT",
             message=f"Invalid Type Of Product: '{type_of_product}'",
-            suggestion="Allowed: 'Energy-consuming product over lifetime', 'One-time use'",
+            suggestion="Allowed: 'Energy-consuming product over lifetime', 'One-time combustion'",
             severity=ErrorSeverity.ERROR
         )
 
