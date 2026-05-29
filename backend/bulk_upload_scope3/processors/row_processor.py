@@ -214,6 +214,23 @@ class RowProcessor:
             row_data, category_code, method, row_num
         )
         errors.extend(mandatory_errors)
+
+        # 8b. C11 Type Of Product (decision-tree fork). Display label is mapped
+        # to internal code (`continuous_usage` / `one_time_use`) and written
+        # back into `row_data` so the calc engine and record builder both
+        # consume the canonical value.
+        if category_code == "C11":
+            top_normalized, top_error = self.field_validator.validate_type_of_product(
+                row_data.get("type_of_product"), category_code, method, row_num, sheet_name
+            )
+            if top_error:
+                errors.append(top_error)
+            elif top_normalized:
+                row_data["type_of_product"] = top_normalized
+                # Continuous-usage requires three more columns to be populated.
+                errors.extend(self.field_validator.validate_c11_continuous_usage_fields(
+                    row_data, row_num, sheet_name
+                ))
         
         # 9. Check for supplier fields warning
         supplier_warnings = self.field_validator.check_supplier_fields_warning(
@@ -248,6 +265,9 @@ class RowProcessor:
             ("nights", "Nights"),
             ("working_days", "Working Days"),
             ("working_hours", "Working Hours"),
+            # C11 continuous_usage extras
+            ("units_produced", "No. of products Manufactured"),
+            ("products_expected_usage", "Lifetime Expected Usage of the product"),
         ]
         
         for field_key, field_name in numeric_fields:

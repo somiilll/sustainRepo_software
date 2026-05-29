@@ -422,6 +422,13 @@ class EmissionCalculator:
             subcat_normalized = subcat_map.get(subcat_normalized, subcat_normalized)
             # Use 'subcategory_selection' to match the decision tree field name for C8/C10/C11/C13/C14
             decision_inputs["subcategory_selection"] = subcat_normalized
+
+        # C11 decision tree forks on `type_of_product` (continuous_usage /
+        # one_time_use) after subcategory_selection on activity_basis. The
+        # value is already normalized to the internal code by
+        # FieldValidator.validate_type_of_product before reaching here.
+        if row_data.get("type_of_product"):
+            decision_inputs["type_of_product"] = row_data.get("type_of_product")
         
         logger.info(f"[BULK_CALC] decision_inputs={decision_inputs}")
         
@@ -834,8 +841,59 @@ class EmissionCalculator:
             # Activity basis - check what variables the formula expects
             # Don't use default values - let calc-engine fail if required inputs are missing
             
+            # C11 continuous_usage - formulas expect `units_produced`,
+            # `products_expected_usage`, and `fuel_consumed_per_usage` (normal
+            # subcategories) OR `gas_consumed_per_usage` (fugitive_emissions).
+            # The per-usage variable carries a compound unit
+            # `<unit_quantity>/<products_expected_usage_unit>` (e.g. "kl/year")
+            # that mirrors the manual entry shape exactly. Compound-unit
+            # normalization against the EF default unit is handled inside the
+            # calc engine, identical to the manual path.
+            if "units_produced" in expected_variables and "products_expected_usage" in expected_variables:
+                units_produced_raw = row_data.get("units_produced")
+                pe_usage_raw = row_data.get("products_expected_usage")
+                pe_usage_unit = row_data.get("products_expected_usage_unit") or ""
+
+                if units_produced_raw is not None and units_produced_raw != "":
+                    calc_inputs["units_produced"] = {
+                        "value": float(units_produced_raw),
+                        "unit": ""
+                    }
+
+                if pe_usage_raw is not None and pe_usage_raw != "":
+                    calc_inputs["products_expected_usage"] = {
+                        "value": float(pe_usage_raw),
+                        "unit": pe_usage_unit
+                    }
+
+                # `quantity_used` is reinterpreted as the per-usage fuel/gas
+                # consumption when continuous_usage is selected. The variable
+                # name is decided by the formula (`fuel_consumed_per_usage` vs
+                # `gas_consumed_per_usage`).
+                per_usage_variable = None
+                if "fuel_consumed_per_usage" in expected_variables:
+                    per_usage_variable = "fuel_consumed_per_usage"
+                elif "gas_consumed_per_usage" in expected_variables:
+                    per_usage_variable = "gas_consumed_per_usage"
+
+                if per_usage_variable:
+                    quantity_raw = row_data.get("quantity_used")
+                    if quantity_raw is not None and quantity_raw != "":
+                        base_unit = row_data.get("unit_quantity") or ""
+                        # Compose compound unit `<base>/<lifetime>` to match
+                        # manual entry (e.g. "L/year", "kl/years", "kg/hour").
+                        compound_unit = (
+                            f"{base_unit}/{pe_usage_unit}".strip("/")
+                            if (base_unit or pe_usage_unit)
+                            else ""
+                        )
+                        calc_inputs[per_usage_variable] = {
+                            "value": float(quantity_raw),
+                            "unit": compound_unit
+                        }
+
             # C8-C14 Fugitive emissions - uses 'qty' variable
-            if "qty" in expected_variables:
+            elif "qty" in expected_variables:
                 quantity_raw = row_data.get("quantity_used")
                 if quantity_raw is not None and quantity_raw != "":
                     quantity = float(quantity_raw)
@@ -984,9 +1042,51 @@ class EmissionCalculator:
         
         if method == CalculationMethod.ACTIVITY_BASIS:
             # Check for different activity_basis input patterns
-            
+
+            # C11 continuous_usage (decision-tree branch `type_of_product = continuous_usage`).
+            # Stored in dynamic_field_values exactly like the manual entry path:
+            #   - units_produced:           {value, unit: ""}
+            #   - products_expected_usage:  {value, unit: <lifetime unit>}
+            #   - fuel_consumed_per_usage   OR   gas_consumed_per_usage (for
+            #     fugitive_emissions subcategory) — compound unit
+            #     "<unit_quantity>/<products_expected_usage_unit>" (e.g. "kl/year").
+            if row_data.get("type_of_product") == "continuous_usage":
+                pe_usage_unit = row_data.get("products_expected_usage_unit") or ""
+                base_unit = row_data.get("unit_quantity") or ""
+                compound_unit = (
+                    f"{base_unit}/{pe_usage_unit}".strip("/")
+                    if (base_unit or pe_usage_unit)
+                    else ""
+                )
+
+                if row_data.get("units_produced") is not None and row_data.get("units_produced") != "":
+                    dynamic_field_values["units_produced"] = {
+                        "value": float(row_data.get("units_produced")),
+                        "unit": ""
+                    }
+                if row_data.get("products_expected_usage") is not None and row_data.get("products_expected_usage") != "":
+                    dynamic_field_values["products_expected_usage"] = {
+                        "value": float(row_data.get("products_expected_usage")),
+                        "unit": pe_usage_unit
+                    }
+
+                # Per-usage variable name depends on the subcategory — matches
+                # the C11 decision tree formulas (fugitive_emissions branch
+                # uses `gas_consumed_per_usage`; all others use
+                # `fuel_consumed_per_usage`).
+                per_usage_key = (
+                    "gas_consumed_per_usage"
+                    if subcategory_normalized == "fugitive_emissions"
+                    else "fuel_consumed_per_usage"
+                )
+                if row_data.get("quantity_used") is not None and row_data.get("quantity_used") != "":
+                    dynamic_field_values[per_usage_key] = {
+                        "value": float(row_data.get("quantity_used")),
+                        "unit": compound_unit
+                    }
+
             # C4/C9 Transport: qty_travelled + km_travelled
-            if row_data.get("quantity_goods") and row_data.get("distance_travelled"):
+            elif row_data.get("quantity_goods") and row_data.get("distance_travelled"):
                 dynamic_field_values["qty_travelled"] = {
                     "value": float(row_data.get("quantity_goods")),
                     "unit": row_data.get("unit_goods", "t")
@@ -1096,6 +1196,28 @@ class EmissionCalculator:
         dynamic_field_values["scope3_ef_id"] = {"value": activity_match.get("activity_id") or "", "unit": ""}
         dynamic_field_values["scope3_activity"] = {"value": activity_match.get("activity_name") or row_data.get("activity") or "", "unit": ""}
         dynamic_field_values["scope3_activity_type"] = {"value": activity_type_normalized, "unit": ""}
+
+        # C11 only — record the decision-tree fork so the edit dialog can
+        # restore it. Mirrors manual entry which writes both
+        # `dynamic_field_values.type_of_product` and the top-level field.
+        if row_data.get("type_of_product"):
+            dynamic_field_values["type_of_product"] = {
+                "value": row_data.get("type_of_product"),
+                "unit": ""
+            }
+
+        # Mirror manual entry: `use_custom_activity` is True for supplier_basis
+        # rows where the user typed a free-text activity (no matched EF id).
+        # Manual entry writes this key into `dynamic_field_values` regardless
+        # of the method, so bulk does the same for shape parity.
+        is_custom = (
+            method == CalculationMethod.SUPPLIER_BASIS
+            and not activity_match.get("activity_id")
+        )
+        dynamic_field_values["use_custom_activity"] = {
+            "value": bool(is_custom),
+            "unit": ""
+        }
         
         # For C8, C10, C11, C13, C14: store original sub_category in dynamic_field_values.scope3_subcategory
         # and use activity_name as sub_category for fuel type analysis

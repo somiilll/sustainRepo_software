@@ -509,8 +509,18 @@ CATEGORY_COLUMNS = {
             {"name": "Calculation Method", "key": "calculation_method", "mandatory": True, "type": "dropdown"},
             {"name": "Sub Category", "key": "sub_category", "mandatory": True, "type": "dropdown"},
             {"name": "Activity", "key": "activity", "mandatory": True, "type": "dropdown"},
+            # C11 decision-tree fork. Display labels are mapped to internal codes
+            # (`continuous_usage` / `one_time_use`) by FieldValidator.validate_type_of_product.
+            {"name": "Type Of Product", "key": "type_of_product", "mandatory": False, "type": "dropdown",
+             "allowed_values": ["Energy-consuming product over lifetime", "One-time use"]},
             {"name": "Quantity Used", "key": "quantity_used", "mandatory": False, "type": "number"},
             {"name": "Unit of Quantity", "key": "unit_quantity", "mandatory": False, "type": "dropdown"},
+            # Continuous-usage extras — mirrors manual `dynamic_field_values`
+            # keys `units_produced`, `products_expected_usage` (compound EF unit is
+            # `<unit_quantity>/<products_expected_usage_unit>`).
+            {"name": "No. of products Manufactured", "key": "units_produced", "mandatory": False, "type": "number"},
+            {"name": "Lifetime Expected Usage of the product", "key": "products_expected_usage", "mandatory": False, "type": "number"},
+            {"name": "Unit of expected lifetime usage", "key": "products_expected_usage_unit", "mandatory": False, "type": "text"},
             {"name": "Quantity (Supplier Based)", "key": "supplier_quantity", "mandatory": False, "type": "number"},
             {"name": "Unit of Quantity (Supplier Based)", "key": "supplier_unit", "mandatory": False, "type": "text"},
             {"name": "Emission Factor (Supplier Based)", "key": "supplier_ef", "mandatory": False, "type": "number"},
@@ -525,7 +535,11 @@ CATEGORY_COLUMNS = {
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
-            "activity_basis": ["facility_name", "calculation_method", "sub_category", "activity", "quantity_used", "unit_quantity"],
+            # `type_of_product` is mandatory for activity_basis (C11 decision tree
+            # requires it to resolve to a formula). Continuous-usage subfields
+            # (`units_produced`, `products_expected_usage`, `..._unit`) are
+            # conditionally mandatory and validated in RowProcessor.
+            "activity_basis": ["facility_name", "calculation_method", "sub_category", "activity", "type_of_product", "quantity_used", "unit_quantity"],
             "supplier_basis": ["facility_name", "calculation_method", "sub_category", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
         }
     },
