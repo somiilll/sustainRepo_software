@@ -1384,26 +1384,13 @@ class EmissionCalculator:
             # Version tracking - embedded in record like manual upload
             "version": 1,
             "version_history": [{
-                "id": str(uuid.uuid4()),
-                "emission_id": record_id,
+                "version": 1,
+                "changed_at": now.isoformat(),
                 "changed_by": user_id,
                 "changed_by_email": user_email,
                 "changed_by_name": user_name,
-                "changed_at": now.isoformat(),
-                "version": 1,
-                "scope": "scope3",
-                "category": category_name,
-                "field_changes": [],
+                "action": "created",
                 "changes_summary": "Initial creation via bulk upload",
-                "changes": {"action": "created"},
-                "approved_by": None,
-                "approved_by_email": None,
-                "approved_by_name": None,
-                "approved_at": None,
-                "requested_by": None,
-                "requested_by_email": None,
-                "requested_by_name": None,
-                "requested_at": None
             }],
         }
         
@@ -1687,26 +1674,13 @@ class EmissionCalculator:
             # Version tracking - embedded in record like manual upload
             "version": 1,
             "version_history": [{
-                "id": str(uuid.uuid4()),
-                "emission_id": record_id,
+                "version": 1,
+                "changed_at": now.isoformat(),
                 "changed_by": user_id,
                 "changed_by_email": user_email,
                 "changed_by_name": user_name,
-                "changed_at": now.isoformat(),
-                "version": 1,
-                "scope": "scope3",
-                "category": category_name,
-                "field_changes": [],
+                "action": "created",
                 "changes_summary": "Initial creation via bulk upload",
-                "changes": {"action": "created"},
-                "approved_by": None,
-                "approved_by_email": None,
-                "approved_by_name": None,
-                "approved_at": None,
-                "requested_by": None,
-                "requested_by_email": None,
-                "requested_by_name": None,
-                "requested_at": None
             }],
         }
 
