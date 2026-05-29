@@ -273,11 +273,50 @@ class BaseValidator:
         
         return calc_method, None
     
+    # ─────────────────────────────────────────────────────────────────────
+    # Universal mandatory fields (apply to every category, every method):
+    #   - Person Responsible Name        (responsible_person)
+    #   - Process Name                   (process_name)
+    #   - Process Description            (process_description)
+    # Per-category extras enforced on top of `mandatory_fields` config:
+    #   - C7  → Employee Name            (employee_name)
+    #   - C8, C13, C14, C15 → Asset Name (asset_name)
+    # ─────────────────────────────────────────────────────────────────────
+    UNIVERSAL_MANDATORY_FIELDS = [
+        "responsible_person",
+        "process_name",
+        "process_description",
+    ]
+    CATEGORY_EXTRA_MANDATORY_FIELDS = {
+        "C7":  ["employee_name"],
+        "C8":  ["asset_name"],
+        "C13": ["asset_name"],
+        "C14": ["asset_name"],
+        "C15": ["asset_name"],
+    }
+
     def get_mandatory_fields(self, category_code: str, method: CalculationMethod) -> List[str]:
-        """Get list of mandatory field keys for a category and method"""
+        """Get list of mandatory field keys for a category and method.
+
+        Merges the category-specific `mandatory_fields` defined in
+        `CATEGORY_COLUMNS` with the universal mandatories and any
+        category-specific extras (employee_name, asset_name) while preserving
+        order and avoiding duplicates.
+        """
         config = CATEGORY_COLUMNS.get(category_code, {})
         mandatory_map = config.get("mandatory_fields", {})
-        return mandatory_map.get(method.value, [])
+        base = list(mandatory_map.get(method.value, []))
+
+        extras = list(self.UNIVERSAL_MANDATORY_FIELDS)
+        extras += list(self.CATEGORY_EXTRA_MANDATORY_FIELDS.get(category_code, []))
+
+        # De-dup while preserving order: base first, then extras not already in base.
+        seen = set(base)
+        for key in extras:
+            if key not in seen:
+                base.append(key)
+                seen.add(key)
+        return base
     
     def validate_mandatory_fields(self, row_data: Dict, category_code: str, 
                                    method: CalculationMethod, row_num: int) -> List[ValidationError]:
