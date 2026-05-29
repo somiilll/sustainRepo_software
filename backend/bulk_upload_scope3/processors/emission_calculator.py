@@ -1310,8 +1310,9 @@ class EmissionCalculator:
         
         # sub_category is already set above based on category type
         
+        record_id = str(uuid.uuid4())
         record = {
-            "id": str(uuid.uuid4()),
+            "id": record_id,
             "organization_id": organization_id,
             "facility_id": facility.get("id"),
             "scope": "scope3",
