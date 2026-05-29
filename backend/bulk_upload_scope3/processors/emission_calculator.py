@@ -1483,14 +1483,22 @@ class EmissionCalculator:
                         }
                     },
                     "audit_log": emissions.get("audit_log", []),
-                    "applied_factors": applied_factors
+                    "applied_factors": applied_factors,
+                    "formula_id": emissions.get("formula_id"),
+                    "formula_name": emissions.get("formula_name"),
+                    "outputs": emissions.get("outputs", {})
                 }
             
-            # Build emissions data
+            # Build emissions data - extract from outputs, handling both formats
+            outputs = emissions.get("outputs", {})
+            def extract_val(key):
+                v = outputs.get(key, 0)
+                return v.get("value", 0) if isinstance(v, dict) else v
+            
             emissions_data = {
-                "co2": emissions.get("co2", 0),
-                "ch4": emissions.get("ch4", 0),
-                "n2o": emissions.get("n2o", 0),
+                "co2": extract_val("co2"),
+                "ch4": extract_val("ch4"),
+                "n2o": extract_val("n2o"),
                 "co2e": self._extract_co2e(emissions)
             }
             
@@ -1643,8 +1651,10 @@ class EmissionCalculator:
         else:
             # Manual monthly C7 stores `monthly_total` (singular) AND
             # `reporting_month` (lowercase 3-letter abbr, e.g. "jan").
+            # Also store monthly_totals dict for per-month breakdown
             record["reporting_month"] = self._period_to_month_name(reporting_period)
             record["monthly_total"] = {"co2e": total_co2e, "employee_count": len(employees)}
+            record["monthly_totals"] = monthly_totals if monthly_totals else None
         
         return record
     

@@ -553,8 +553,8 @@ class RowProcessor:
                     
                     grouped[group_key]["employees"].append({
                         "row_data": row_data,
-                        "emissions": emission_record.get("outputs", {}),
-                        "method": emission_record.get("calculation_method_scope3"),  # Use validated method from emission_record
+                        "emissions": emission_record,  # Pass full emission_record, not just outputs
+                        "method": emission_record.get("calculation_method_scope3"),
                         "activity_match": {
                             "activity_id": emission_record.get("scope3_ef_id"),
                             "activity_name": emission_record.get("scope3_activity")
