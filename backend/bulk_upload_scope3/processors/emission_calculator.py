@@ -1450,7 +1450,6 @@ class EmissionCalculator:
                 if reporting_period and "-" in reporting_period
                 else (int(reporting_period) if (reporting_period and reporting_period.isdigit()) else None)
             ),
-            "reporting_month": self._period_to_month_name(reporting_period) if not is_yearly else None,
             "reporting_period": reporting_period,
             "c7_data_model_version": 2,
             "calculation_method_scope3": method.value if isinstance(method, CalculationMethod) else method,
@@ -1492,7 +1491,9 @@ class EmissionCalculator:
             record["updated_at"] = None
             record["updated_by"] = None
         else:
-            # Manual monthly C7 stores `monthly_total` (singular).
+            # Manual monthly C7 stores `monthly_total` (singular) AND
+            # `reporting_month` (lowercase 3-letter abbr, e.g. "jan").
+            record["reporting_month"] = self._period_to_month_name(reporting_period)
             record["monthly_total"] = {"co2e": total_co2e, "employee_count": len(employees)}
         
         return record
