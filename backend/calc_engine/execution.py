@@ -285,7 +285,7 @@ class CalcEngine:
                     raise CalculationError(f"Missing required '{var_label}'")
                 continue
             raw_value = float(payload["value"])
-            raw_unit = payload.get("unit") or target_unit
+            raw_unit = payload.get("unit") if payload.get("unit") is not None else target_unit
 
             # ─── Compound unit normalization ─────────────────────────────
             # A compound unit like "kl/min" means: the user entered a value
