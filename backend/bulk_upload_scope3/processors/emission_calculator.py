@@ -1592,11 +1592,7 @@ class EmissionCalculator:
             "organization_id": organization_id,
             "scope": "scope3",
             "category": category_name,
-            "reporting_year": (
-                int(reporting_period.split("-")[0])
-                if reporting_period and "-" in reporting_period
-                else (int(reporting_period) if (reporting_period and reporting_period.isdigit()) else None)
-            ),
+            "reporting_year": extract_year_from_reporting_period(reporting_period),
             "reporting_period": reporting_period,
             "c7_data_model_version": 2,
             "calculation_method_scope3": method.value if isinstance(method, CalculationMethod) else method,
