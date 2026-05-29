@@ -1423,11 +1423,14 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
     const badgeColor = scopeGroup === 'scope3' ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-blue-100 text-blue-700 border-blue-200';
     const cardBorderColor = record ? (scopeGroup === 'scope3' ? 'border-purple-300 bg-purple-50/30' : 'border-green-300 bg-green-50/30') : '';
     
+    // Users can only view org-level records, not edit
+    const isOrgReadOnly = entityType === 'organization' && user?.role === 'user';
+    
     return (
       <div 
         key={`${entityType}-${entityId}-${scopeGroup}`}
-        className={`p-4 border rounded-lg cursor-pointer hover:shadow-md transition-all ${cardBorderColor}`}
-        onClick={() => handleEntityClick(entityType, entityId, entityName, scopeGroup)}
+        className={`p-4 border rounded-lg ${isOrgReadOnly ? '' : 'cursor-pointer hover:shadow-md'} transition-all ${cardBorderColor}`}
+        onClick={() => !isOrgReadOnly && handleEntityClick(entityType, entityId, entityName, scopeGroup)}
       >
         <div className="flex items-center justify-between mb-2">
           <span className={`text-xs font-medium px-2 py-1 rounded border ${badgeColor}`}>
@@ -1460,7 +1463,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                 <History className="w-3 h-3 mr-1" />
                 History
               </Button>
-              {canEditRecordSync(record) && (
+              {!isOrgReadOnly && canEditRecordSync(record) && (
                 <Button 
                   variant="ghost" 
                   size="sm"
@@ -1475,38 +1478,48 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                   Edit
                 </Button>
               )}
-              <Button 
-                variant="ghost" 
-                size="sm"
-                className="h-7 px-2 text-xs"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSelectedScopeGroup(scopeGroup);
-                  handleChangeYear(record);
-                }}
-              >
-                <CalendarClock className="w-3 h-3 mr-1" />
-                Change
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="sm"
-                className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDeleteRecord(record.id);
-                }}
-              >
-                <Trash2 className="w-3 h-3 mr-1" />
-                Delete
-              </Button>
+              {!isOrgReadOnly && (
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedScopeGroup(scopeGroup);
+                    handleChangeYear(record);
+                  }}
+                >
+                  <CalendarClock className="w-3 h-3 mr-1" />
+                  Change
+                </Button>
+              )}
+              {!isOrgReadOnly && (
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteRecord(record.id);
+                  }}
+                >
+                  <Trash2 className="w-3 h-3 mr-1" />
+                  Delete
+                </Button>
+              )}
             </div>
           </div>
         ) : (
-          <p className="text-xs text-text-muted flex items-center gap-1 mt-2">
-            <Plus className="w-3 h-3" />
-            Click to set up
-          </p>
+          !isOrgReadOnly ? (
+            <p className="text-xs text-text-muted flex items-center gap-1 mt-2">
+              <Plus className="w-3 h-3" />
+              Click to set up
+            </p>
+          ) : (
+            <p className="text-xs text-text-muted mt-2">
+              Not configured
+            </p>
+          )
         )}
       </div>
     );
@@ -1538,12 +1551,15 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
         </div>
       </div>
 
-      {/* Organization Section - Only for Admins */}
-      {user?.role === 'admin' && organization && (
+      {/* Organization Section - Visible to all users (read-only for non-admins) */}
+      {(user?.role === 'admin' || user?.role === 'user') && organization && (
         <div className="space-y-3">
           <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
             <Building className="w-5 h-5" />
             Organization - {organization.name}
+            {user?.role === 'user' && (
+              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">(View Only)</span>
+            )}
           </h2>
           <Card>
             <CardContent className="pt-4">
