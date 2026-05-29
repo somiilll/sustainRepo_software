@@ -1372,6 +1372,11 @@ class EmissionCalculator:
             # traceable to the originating job.
             "upload_source": "bulk_upload",
             "bulk_upload_job_id": bulk_job_id,
+            # Calc engine details for edit dialog display
+            "audit_log": calculated_emissions.get("audit_log", []),
+            "applied_factors": calculated_emissions.get("applied_factors", {}),
+            "outputs": calculated_emissions.get("outputs", {}),
+            "formula_name": calculated_emissions.get("formula_name"),
         }
         
         return record
