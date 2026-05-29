@@ -97,6 +97,16 @@ class EmissionCalculator:
     
     def _extract_co2e(self, emissions: Dict) -> float:
         """Extract co2e value from emissions dict that may have nested structure"""
+        # First check outputs.co2e (full emission record structure)
+        outputs = emissions.get("outputs", {})
+        if outputs:
+            co2e = outputs.get("co2e", 0)
+            if isinstance(co2e, dict):
+                return float(co2e.get("value", 0))
+            if co2e:
+                return float(co2e)
+        
+        # Fallback to direct co2e (older structure)
         co2e = emissions.get("co2e", 0)
         if isinstance(co2e, dict):
             return float(co2e.get("value", 0))
@@ -629,6 +639,7 @@ class EmissionCalculator:
                 "unit": output_unit,
                 "calculation_method": method.value,
                 "formula_id": formula_id,
+                "formula_name": formula_doc.get("name"),
                 "decision_path": tree_path,
                 "inputs": {
                     "original_quantity": input_quantity,
@@ -638,7 +649,9 @@ class EmissionCalculator:
                     "activity_id": activity_id,
                     "emission_factor": ef_data.get("emission_factor")
                 },
-                "audit_trail": result.get("audit_trail", [])
+                "audit_log": result.get("audit_log", []),
+                "applied_factors": result.get("applied_factors", {}),
+                "outputs": result.get("outputs", {})
             }
             
         except (CalculationError, Exception) as e:
