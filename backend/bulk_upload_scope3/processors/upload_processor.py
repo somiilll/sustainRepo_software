@@ -26,11 +26,14 @@ IGNORED_SHEET_PATTERNS = [
 class UploadProcessor:
     """Main processor for bulk upload files"""
     
-    def __init__(self, db, organization_id: str, user_id: str):
+    def __init__(self, db, organization_id: str, user_id: str,
+                 user_email: str = "", user_name: str = ""):
         self.db = db
         self.organization_id = organization_id
         self.user_id = user_id
-        self.row_processor = RowProcessor(db, organization_id, user_id)
+        self.user_email = user_email
+        self.user_name = user_name
+        self.row_processor = RowProcessor(db, organization_id, user_id, user_email, user_name)
     
     def _should_skip_sheet(self, sheet_name: str) -> bool:
         """Check if a sheet should be skipped (instruction/reference sheets)"""

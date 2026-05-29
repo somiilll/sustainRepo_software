@@ -16,10 +16,13 @@ from .emission_calculator import EmissionCalculator
 class RowProcessor:
     """Processes individual rows from bulk upload"""
     
-    def __init__(self, db, organization_id: str, user_id: str):
+    def __init__(self, db, organization_id: str, user_id: str,
+                 user_email: str = "", user_name: str = ""):
         self.db = db
         self.organization_id = organization_id
         self.user_id = user_id
+        self.user_email = user_email
+        self.user_name = user_name
         self.field_validator = FieldValidator(db, organization_id)
         self.formula_validator = FormulaValidator(db)
         self.emission_calculator = EmissionCalculator(db)
@@ -430,6 +433,8 @@ class RowProcessor:
             facility=facility,
             organization_id=self.organization_id,
             user_id=self.user_id,
+            user_email=self.user_email,
+            user_name=self.user_name,
             method=method,
             activity_match={
                 "activity_id": activity_match.activity_id,
@@ -548,6 +553,8 @@ class RowProcessor:
                     facility=group_data["facility"],
                     organization_id=self.organization_id,
                     user_id=self.user_id,
+                    user_email=self.user_email,
+                    user_name=self.user_name,
                     bulk_job_id=bulk_job_id
                 )
                 if aggregated_record:

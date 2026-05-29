@@ -929,7 +929,9 @@ class EmissionCalculator:
                                activity_match: Dict,
                                calculated_emissions: Dict,
                                formula_id: Optional[str] = None,
-                               bulk_job_id: Optional[str] = None) -> Dict:
+                               bulk_job_id: Optional[str] = None,
+                               user_email: str = "",
+                               user_name: str = "") -> Dict:
         """
         Build emission record in the format expected by the database
         
@@ -940,7 +942,6 @@ class EmissionCalculator:
         # Get reporting period and frequency from row_data (already parsed)
         reporting_period = row_data.get("reporting_period", "")
         frequency_type = row_data.get("frequency_type", "monthly")
-        reporting_year_type = row_data.get("reporting_year_type")  # financial_year or calendar_year
         
         # If reporting_period not set, try to parse from reporting_month (legacy)
         if not reporting_period and row_data.get("reporting_month"):
@@ -1150,21 +1151,23 @@ class EmissionCalculator:
             "id": str(uuid.uuid4()),
             "organization_id": organization_id,
             "facility_id": facility.get("id"),
-            "facility_name": facility.get("name"),
             "scope": "scope3",
-            "sub_scope": None,
             "category": category_name,
             "sub_category": sub_category,
+            # `fuel_type` matches manual entry (Scope3FlatCreate sets it to the
+            # activity name for scope3 records).
+            "fuel_type": activity_match.get("activity_name") or row_data.get("activity"),
+            # Scope 3 records have no fuel_database row; manual sends None.
+            "fuel_database_id": None,
             "calculation_method_scope3": method.value,
             "scope3_ef_id": activity_match.get("activity_id"),
             "scope3_activity": activity_match.get("activity_name") or row_data.get("activity"),
-            "scope3_activity_type": activity_type_normalized,  # Use normalized value
-            "scope3_subcategory": dynamic_field_values["scope3_subcategory"]["value"],  # Use value from dynamic_field_values
-            "scope3_custom_activity": row_data.get("activity") if method == CalculationMethod.SUPPLIER_BASIS and not activity_match.get("activity_id") else None,
-            "use_custom_activity": method == CalculationMethod.SUPPLIER_BASIS and not activity_match.get("activity_id"),
+            "scope3_activity_type": activity_type_normalized,
+            "scope3_subcategory": dynamic_field_values["scope3_subcategory"]["value"],
+            # C11 only — picks the decision-tree branch (continuous_usage / one_time_use)
+            "type_of_product": row_data.get("type_of_product") or None,
             "reporting_period": reporting_period,
             "frequency_type": frequency_type,
-            "reporting_year_type": reporting_year_type,
             "dynamic_field_values": dynamic_field_values,
             "outputs": outputs,
             "co2_emissions": co2_val,
@@ -1180,18 +1183,35 @@ class EmissionCalculator:
             "to_location": str(row_data.get("to_location") or "") if row_data.get("to_location") else None,
             "customer_name": str(row_data.get("customer_name") or "") if row_data.get("customer_name") else None,
             "customer_code": str(row_data.get("customer_code") or "") if row_data.get("customer_code") else None,
+            # `source_of_information` is provenance — kept distinct from manual,
+            # which sets it from `selectedFuel.source`. Bulk uploads stamp
+            # "Bulk Upload" so the origin is always traceable.
             "source_of_information": "Bulk Upload",
+            # Optional fields from manual schema — populated to None / '' so the
+            # document shape matches what `EmissionRecordCreate.model_dump()`
+            # produces on the manual path.
+            "evidence_url": "",
+            "justification": None,
+            "notes": str(row_data.get("notes") or "") if row_data.get("notes") else None,
             "responsible_person": str(row_data.get("responsible_person") or "") if row_data.get("responsible_person") else None,
             "responsible_person_designation": str(row_data.get("responsible_designation") or "") if row_data.get("responsible_designation") else None,
             "responsible_person_contact": str(row_data.get("responsible_contact") or "") if row_data.get("responsible_contact") else None,
             # Process Name and Description - stored in same format as manual upload
             "process_names": [str(row_data.get("process_name"))] if row_data.get("process_name") else [],
             "process_descriptions": [{"name": str(row_data.get("process_name") or ""), "description": str(row_data.get("process_description") or "")}] if row_data.get("process_name") else [],
+            # User audit fields — match manual entry shape exactly.
             "created_by": user_id,
+            "created_by_email": user_email,
+            "created_by_name": user_name,
             "created_at": now.isoformat(),
-            "updated_at": now.isoformat(),
+            "updated_at": None,
+            "updated_by": None,
+            "updated_by_email": None,
+            "updated_by_name": None,
+            # Provenance — retained per spec so bulk-uploaded records remain
+            # traceable to the originating job.
             "upload_source": "bulk_upload",
-            "bulk_upload_job_id": bulk_job_id
+            "bulk_upload_job_id": bulk_job_id,
         }
         
         return record
@@ -1199,7 +1219,9 @@ class EmissionCalculator:
     def build_c7_aggregated_record(self, employee_rows: List[Dict], 
                                     category_name: str, facility: Dict,
                                     organization_id: str, user_id: str,
-                                    bulk_job_id: Optional[str] = None) -> Dict:
+                                    bulk_job_id: Optional[str] = None,
+                                    user_email: str = "",
+                                    user_name: str = "") -> Dict:
         """
         Build aggregated C7 emission record with multiple employees
         
@@ -1411,54 +1433,67 @@ class EmissionCalculator:
             }
             record_activity_type = activity_type_map.get(record_activity_type, record_activity_type)
         
+        # Build C7 aggregated record — shape kept byte-identical to manual
+        # C7 entries created via `modules/emissions/c7_router.py`.
+        #   Monthly  → matches `create_or_update_c7_monthly_entry`
+        #   Yearly   → matches `create_or_update_c7_yearly_entry`
+        # Provenance fields (`upload_source`, `bulk_upload_job_id`) are
+        # retained per product decision so bulk uploads stay traceable.
         record = {
             "id": str(uuid.uuid4()),
-            "organization_id": organization_id,
             "facility_id": facility.get("id"),
-            "facility_name": facility.get("name"),
+            "organization_id": organization_id,
             "scope": "scope3",
-            "sub_scope": None,
             "category": category_name,
-            "sub_category": first_row.get("activity_match", {}).get("activity_name"),  # Use activity name as sub_category
+            "reporting_year": (
+                int(reporting_period.split("-")[0])
+                if reporting_period and "-" in reporting_period
+                else (int(reporting_period) if (reporting_period and reporting_period.isdigit()) else None)
+            ),
+            "reporting_month": self._period_to_month_name(reporting_period) if not is_yearly else None,
+            "reporting_period": reporting_period,
+            "c7_data_model_version": 2,
             "calculation_method_scope3": method.value if isinstance(method, CalculationMethod) else method,
+            "scope3_activity_type": record_activity_type,
+            "activity_type": record_activity_type,
             "scope3_ef_id": first_row.get("activity_match", {}).get("activity_id"),
             "scope3_activity": first_row.get("activity_match", {}).get("activity_name"),
-            "scope3_activity_type": record_activity_type,
-            "activity_type": record_activity_type,  # Also store at top level for consistency with manual entry
             "formula_id": formula_id,
-            "reporting_period": reporting_period,
-            "frequency_type": frequency_type,
-            "reporting_year": int(reporting_period.split("-")[0]) if reporting_period and "-" in reporting_period else None,
-            "reporting_month": self._period_to_month_name(reporting_period) if not is_yearly else None,
+            # `formula_name` is set by manual C7 routes; bulk does not currently
+            # surface a resolved name from the calc-engine response, so default
+            # to None to keep the field present (parity over content).
+            "formula_name": None,
             "employees": employees,
-            "monthly_total": {"co2e": total_co2e, "employee_count": len(employees)} if not is_yearly else None,  # Single month total (matches manual)
-            "monthly_totals": monthly_totals if not is_yearly else None,  # Dict of month -> totals
-            "yearly_total": {"co2e": total_co2e, "employee_count": len(employees)},
             "co2e_emissions": total_co2e,
             "total_emissions": total_co2e,
-            "co2_emissions": 0,
-            "ch4_emissions": 0,
-            "n2o_emissions": 0,
-            "outputs": {
-                "co2e": {"value": total_co2e, "unit": "tCO2e"}
-            },
-            "dynamic_field_values": {},  # Match manual entry format
             "notes": first_row.get("row_data", {}).get("notes") or "",
-            "source_of_information": f"Multi-employee commuting data for {len(employees)} employee(s)",
             "responsible_person": first_row.get("row_data", {}).get("responsible_person"),
             "responsible_person_designation": first_row.get("row_data", {}).get("responsible_designation") or "",
             "responsible_person_contact": str(first_row.get("row_data", {}).get("responsible_contact") or "") if first_row.get("row_data", {}).get("responsible_contact") else "",
             "process_names": [first_row.get("row_data", {}).get("process_name")] if first_row.get("row_data", {}).get("process_name") else [],
             "process_descriptions": [{"name": first_row.get("row_data", {}).get("process_name") or "", "description": first_row.get("row_data", {}).get("process_description") or ""}] if first_row.get("row_data", {}).get("process_name") else [],
-            "c7_data_model_version": 2,  # Mark as new C7 data model
             "version": 1,
-            "created_by": user_id,
             "created_at": now.isoformat(),
-            "updated_at": None,
-            "updated_by": None,
+            "created_by": user_id,
+            "created_by_email": user_email,
+            "created_by_name": user_name,
+            # Provenance (bulk-only fields retained for traceability).
             "upload_source": "bulk_upload",
-            "bulk_upload_job_id": bulk_job_id
+            "bulk_upload_job_id": bulk_job_id,
         }
+
+        # Frequency-specific aggregate totals — mirrors manual C7 routes.
+        if is_yearly:
+            # Manual yearly C7 adds `frequency_type`, `sub_category`,
+            # `yearly_total`, and writes explicit None for updated_at/by.
+            record["frequency_type"] = "yearly"
+            record["sub_category"] = "Employee Commuting"
+            record["yearly_total"] = {"co2e": total_co2e, "employee_count": len(employees)}
+            record["updated_at"] = None
+            record["updated_by"] = None
+        else:
+            # Manual monthly C7 stores `monthly_total` (singular).
+            record["monthly_total"] = {"co2e": total_co2e, "employee_count": len(employees)}
         
         return record
     

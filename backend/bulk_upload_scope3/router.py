@@ -93,9 +93,11 @@ async def upload_file(
         raise HTTPException(status_code=400, detail="User must belong to an organization")
     
     user_id = current_user.get("id") or current_user.get("user_id")
+    user_email = current_user.get("email", "")
+    user_name = current_user.get("full_name", "")
     
     try:
-        processor = UploadProcessor(db, organization_id, user_id)
+        processor = UploadProcessor(db, organization_id, user_id, user_email, user_name)
         summary = await processor.process_upload(
             file_content, 
             file.filename,
