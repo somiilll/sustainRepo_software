@@ -1300,9 +1300,14 @@ export default function EmissionEntryForm({
             baseUnit = monthData[`${field.variable}_unit`];
           }
           
+          // Count-based fields should not have units
+          const isUnitlessCountField = ['qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms', 
+            'number_of_passengers', 'number_of_nights', 'number_of_rooms', 'qty_days_travelled', 'working_days',
+            'units_produced', 'products_expected_usage', 'no_of_employees'].includes(field.variable);
+          
           // Apply compound suffix if field has compoundWithVariable
-          let finalUnit = baseUnit || 'kg';
-          if (field.compoundWithVariable) {
+          let finalUnit = isUnitlessCountField ? '' : (baseUnit || 'kg');
+          if (!isUnitlessCountField && field.compoundWithVariable) {
             const linkedUnit = monthData[`${field.compoundWithVariable}_unit`];
             if (linkedUnit && typeof linkedUnit === 'string' && linkedUnit.trim()) {
               // Only add suffix if baseUnit doesn't already contain it
@@ -1451,9 +1456,14 @@ export default function EmissionEntryForm({
             baseUnit = yearlyData[`${field.variable}_unit`] || field.expectedUnit || '';
           }
           
+          // Count-based fields should not have units
+          const isUnitlessCountField = ['qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms', 
+            'number_of_passengers', 'number_of_nights', 'number_of_rooms', 'qty_days_travelled', 'working_days',
+            'units_produced', 'products_expected_usage', 'no_of_employees'].includes(field.variable);
+          
           // Apply compound suffix if field has compoundWithVariable
-          let finalUnit = baseUnit || 'kg';
-          if (field.compoundWithVariable) {
+          let finalUnit = isUnitlessCountField ? '' : (baseUnit || 'kg');
+          if (!isUnitlessCountField && field.compoundWithVariable) {
             const linkedUnit = yearlyData[`${field.compoundWithVariable}_unit`];
             if (linkedUnit && typeof linkedUnit === 'string' && linkedUnit.trim()) {
               // Only add suffix if baseUnit doesn't already contain it
