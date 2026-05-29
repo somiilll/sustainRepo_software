@@ -2041,15 +2041,23 @@ async def get_base_year_emissions(
         if facility_id:
             query["facility_id"] = facility_id
     else:  # user
+        org_id = current_user.get("organization_id")
         assigned = current_user.get("assigned_facilities", [])
-        if not assigned:
+        if not org_id:
             return []
         if facility_id:
+            # User requesting specific facility - must be assigned
             if facility_id not in assigned:
                 raise HTTPException(status_code=403, detail="Not authorized to access this facility")
             query["facility_id"] = facility_id
+            query["organization_id"] = org_id
         else:
-            query["facility_id"] = {"$in": assigned}
+            # User can see: org-level records + their assigned facility records
+            query["organization_id"] = org_id
+            query["$or"] = [
+                {"facility_id": None},  # Org-level base year
+                {"facility_id": {"$in": assigned}} if assigned else {"facility_id": None}
+            ]
     
     # Filter by scope_group if provided
     if scope_group:
