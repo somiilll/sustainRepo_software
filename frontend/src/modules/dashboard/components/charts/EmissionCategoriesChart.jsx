@@ -35,7 +35,18 @@ export default function EmissionCategoriesChart({ data = [], height = 370 }) {
         <BarChart data={chartData} layout="vertical" barSize={45} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#E7E5E4" horizontal={false} />
           <XAxis type="number" stroke="#A8A29E" fontSize={10} tickLine={false} axisLine={false} padding={{ right: 0 }}/>
-          <YAxis dataKey="name" type="category" stroke="#A8A29E" fontSize={10} width={60} tickLine={false} axisLine={false}  />
+          <YAxis
+            dataKey="name"
+            type="category"
+            width={70}
+            tickLine={false}
+            axisLine={false}
+            stroke="#A8A29E"
+            fontSize={10}
+            tickFormatter={(v) =>
+              v.length > 38 ? v.slice(0, 38) + '…' : v
+            }
+          />
           <Tooltip
             contentStyle={{ borderRadius: 10, border: '1px solid #E7E5E4', boxShadow: '0 6px 14px rgba(0,0,0,0.08)', fontSize: 12 }}
             formatter={(v) => `${Number(v).toFixed(2)} tCO₂e`}

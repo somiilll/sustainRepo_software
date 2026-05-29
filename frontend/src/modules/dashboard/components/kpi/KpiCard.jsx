@@ -61,13 +61,18 @@ export default function KpiCard({
           </div>
           <div className="text-[11px] text-stone-500 mt-0.5">{unit}</div>
         </div>
-        {/* {sparkData.length > 1 && (
-          <GlowSparkline data={sparkData} stroke={sparkColor} width={90} height={36} trend={trend} showArrow />
-        )} */}
         {trend !== 'flat' && (
           <TrendArrow
             trend={trend}
-            color={trend === 'up' ? '#EF4444' : '#10B981'}
+            color={
+              invertedColor
+                ? trend === 'up'
+                  ? '#10B981'
+                  : '#EF4444'
+                : trend === 'up'
+                  ? '#EF4444'
+                  : '#10B981'
+            }
           />
         )}
       </div>
