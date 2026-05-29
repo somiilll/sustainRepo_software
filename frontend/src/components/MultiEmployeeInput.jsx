@@ -1053,7 +1053,8 @@ const MultiEmployeeInput = ({
                                       const field = getFieldsForActivityType().find(f => f.variable === k);
                                       const label = field?.label || k;
                                       const unitKey = `${k}_unit`;
-                                      const unit = employee.yearly_data?.inputs?.[unitKey] || field?.unit || '';
+                                      const isUnitlessCountField = ['qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms', 'number_of_passengers', 'number_of_nights', 'number_of_rooms', 'qty_days_travelled', 'working_days', 'units_produced', 'products_expected_usage'].includes(k);
+                                      const unit = isUnitlessCountField ? '' : (employee.yearly_data?.inputs?.[unitKey] || field?.unit || '');
                                       return (
                                         <div key={k} className="px-2 py-1 bg-blue-50 border-l-2 border-blue-300 rounded-r">
                                           <span className="text-gray-600 text-sm">Input: </span>
@@ -1290,7 +1291,8 @@ const MultiEmployeeInput = ({
                                   const field = currentFields.find(f => f.variable === k);
                                   const label = field?.label || k;
                                   const unitKey = `${k}_unit`;
-                                  const unit = monthData.inputs?.[unitKey] || field?.unit || '';
+                                  const isUnitlessCountField = ['qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms', 'number_of_passengers', 'number_of_nights', 'number_of_rooms', 'qty_days_travelled', 'working_days', 'units_produced', 'products_expected_usage'].includes(k);
+                                  const unit = isUnitlessCountField ? '' : (monthData.inputs?.[unitKey] || field?.unit || '');
                                   return (
                                     <div key={k} className="px-2 py-1 bg-blue-50 border-l-2 border-blue-300 rounded-r">
                                       <span className="text-gray-600 text-sm">Input: </span>
