@@ -1394,6 +1394,12 @@ class EmissionCalculator:
             }],
         }
         
+        # Ensure version_history uses the same user info as created_by fields
+        if record.get("created_by_name") and not record["version_history"][0]["changed_by_name"]:
+            record["version_history"][0]["changed_by_name"] = record["created_by_name"]
+        if record.get("created_by_email") and not record["version_history"][0]["changed_by_email"]:
+            record["version_history"][0]["changed_by_email"] = record["created_by_email"]
+        
         return record
     
     def build_c7_aggregated_record(self, employee_rows: List[Dict], 
