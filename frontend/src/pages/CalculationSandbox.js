@@ -843,13 +843,18 @@ function AuditRow({ entry }) {
   
   // Format entry for display using labels where available
   const getDisplayContent = () => {
+    const isUnitlessCountField = ['qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms', 
+      'number_of_passengers', 'number_of_nights', 'number_of_rooms', 'qty_days_travelled', 'working_days',
+      'units_produced', 'products_expected_usage', 'no_of_employees'].includes(entry.variable);
+    
     switch (entry.step) {
       case 'input':
+        const inputDisplayUnit = isUnitlessCountField ? '' : (entry.unit || '');
         return (
           <div className="text-[11px] leading-snug">
             <span className="font-medium">{entry.variable_label || entry.variable}</span>
-            {' = '}<span className="text-blue-700">{entry.value}</span> {entry.unit}
-            {entry.unit !== entry.expected_unit && (
+            {' = '}<span className="text-blue-700">{entry.value}</span>{inputDisplayUnit ? ` ${inputDisplayUnit}` : ''}
+            {!isUnitlessCountField && entry.unit !== entry.expected_unit && (
               <span className="text-stone-400"> (expected: {entry.expected_unit})</span>
             )}
           </div>

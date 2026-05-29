@@ -1642,7 +1642,13 @@ export default function EmissionEditForm(props) {
                                   <div key={i} className="p-2 bg-stone-50 rounded border border-stone-200">
                                     <span className="font-medium text-stone-700">Input:</span>{' '}
                                     <span className="text-blue-700">{entry.variable_label || entry.variable}</span>
-                                    {' = '}{entry.value} {entry.unit}
+                                    {' = '}{entry.value}{(() => {
+                                      const isUnitlessCountField = ['qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms', 
+                                        'number_of_passengers', 'number_of_nights', 'number_of_rooms', 'qty_days_travelled', 'working_days',
+                                        'units_produced', 'products_expected_usage', 'no_of_employees'].includes(entry.variable);
+                                      const displayUnit = isUnitlessCountField ? '' : (entry.unit || '');
+                                      return displayUnit ? ` ${displayUnit}` : '';
+                                    })()}
                                     {hasTransformation && finalConvert && (
                                       <span className="text-emerald-600 ml-2">
                                         → {finalConvert.output.value.toFixed(2)} {finalConvert.output.unit}
