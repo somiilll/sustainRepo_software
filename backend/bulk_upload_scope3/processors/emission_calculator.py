@@ -1646,8 +1646,9 @@ class EmissionCalculator:
         #   Yearly   → matches `create_or_update_c7_yearly_entry`
         # Provenance fields (`upload_source`, `bulk_upload_job_id`) are
         # retained per product decision so bulk uploads stay traceable.
+        record_id = str(uuid.uuid4())
         record = {
-            "id": str(uuid.uuid4()),
+            "id": record_id,
             "facility_id": facility.get("id"),
             "organization_id": organization_id,
             "scope": "scope3",
