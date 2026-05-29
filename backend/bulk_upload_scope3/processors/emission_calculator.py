@@ -1380,8 +1380,30 @@ class EmissionCalculator:
             "applied_factors": calculated_emissions.get("applied_factors", {}),
             "outputs": calculated_emissions.get("outputs", {}),
             "formula_name": calculated_emissions.get("formula_name"),
-            # Version tracking
+            # Version tracking - embedded in record like manual upload
             "version": 1,
+            "version_history": [{
+                "id": str(uuid.uuid4()),
+                "emission_id": record_id,
+                "changed_by": user_id,
+                "changed_by_email": user_email,
+                "changed_by_name": user_name,
+                "changed_at": now.isoformat(),
+                "version": 1,
+                "scope": "scope3",
+                "category": category_name,
+                "field_changes": [],
+                "changes_summary": "Initial creation via bulk upload",
+                "changes": {"action": "created"},
+                "approved_by": None,
+                "approved_by_email": None,
+                "approved_by_name": None,
+                "approved_at": None,
+                "requested_by": None,
+                "requested_by_email": None,
+                "requested_by_name": None,
+                "requested_at": None
+            }],
         }
         
         return record
@@ -1660,8 +1682,30 @@ class EmissionCalculator:
             # Provenance (bulk-only fields retained for traceability).
             "upload_source": "bulk_upload",
             "bulk_upload_job_id": bulk_job_id,
-            # Version tracking
+            # Version tracking - embedded in record like manual upload
             "version": 1,
+            "version_history": [{
+                "id": str(uuid.uuid4()),
+                "emission_id": record_id,
+                "changed_by": user_id,
+                "changed_by_email": user_email,
+                "changed_by_name": user_name,
+                "changed_at": now.isoformat(),
+                "version": 1,
+                "scope": "scope3",
+                "category": category_name,
+                "field_changes": [],
+                "changes_summary": "Initial creation via bulk upload",
+                "changes": {"action": "created"},
+                "approved_by": None,
+                "approved_by_email": None,
+                "approved_by_name": None,
+                "approved_at": None,
+                "requested_by": None,
+                "requested_by_email": None,
+                "requested_by_name": None,
+                "requested_at": None
+            }],
         }
 
         # Frequency-specific aggregate totals — mirrors manual C7 routes.
