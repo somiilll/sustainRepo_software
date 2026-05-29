@@ -360,6 +360,7 @@ CATEGORY_COLUMNS = {
             {"name": "From Location", "key": "from_location", "mandatory": False, "type": "text"},
             {"name": "To Location", "key": "to_location", "mandatory": False, "type": "text"},
             {"name": "Passengers Travelled", "key": "passengers", "mandatory": False, "type": "number"},
+            {"name": "No. of Days Travelled", "key": "days_travelled", "mandatory": False, "type": "number"},
             {"name": "No. of Working Days", "key": "working_days", "mandatory": False, "type": "number"},
             {"name": "Working Hours per Day", "key": "working_hours", "mandatory": False, "type": "number"},
             {"name": "Quantity (Supplier Based)", "key": "supplier_quantity", "mandatory": False, "type": "number"},
