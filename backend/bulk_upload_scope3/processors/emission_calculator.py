@@ -1380,6 +1380,8 @@ class EmissionCalculator:
             "applied_factors": calculated_emissions.get("applied_factors", {}),
             "outputs": calculated_emissions.get("outputs", {}),
             "formula_name": calculated_emissions.get("formula_name"),
+            # Version tracking
+            "version": 1,
         }
         
         return record
@@ -1658,6 +1660,8 @@ class EmissionCalculator:
             # Provenance (bulk-only fields retained for traceability).
             "upload_source": "bulk_upload",
             "bulk_upload_job_id": bulk_job_id,
+            # Version tracking
+            "version": 1,
         }
 
         # Frequency-specific aggregate totals — mirrors manual C7 routes.

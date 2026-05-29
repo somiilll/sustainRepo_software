@@ -166,6 +166,35 @@ class UploadProcessor:
                 # Save immediately to emission_records collection
                 await self.db.emission_records.insert_many(valid_records)
                 created_ids = [r["id"] for r in valid_records]
+                
+                # Create emission_history entries for version tracking
+                now = datetime.now(timezone.utc)
+                history_entries = []
+                for record in valid_records:
+                    history_entries.append({
+                        "id": str(uuid.uuid4()),
+                        "emission_id": record["id"],
+                        "scope": record.get("scope", "scope3"),
+                        "category": record.get("category", ""),
+                        "reporting_month": record.get("reporting_period"),
+                        "changed_by": self.user_id,
+                        "changed_by_email": self.user_email,
+                        "changed_by_name": self.user_name,
+                        "changed_at": now,
+                        "version": 1,
+                        "field_changes": [],
+                        "changes_summary": "Initial creation via bulk upload",
+                        "changes": {"action": "created"},
+                        "new_values": {
+                            "facility_id": record.get("facility_id"),
+                            "reporting_period": record.get("reporting_period"),
+                            "category": record.get("category"),
+                            "co2e_emissions": record.get("co2e_emissions"),
+                            "total_emissions": record.get("total_emissions"),
+                        }
+                    })
+                if history_entries:
+                    await self.db.emission_history.insert_many(history_entries)
             
             # Update job record
             await self.db.bulk_upload_jobs.update_one(

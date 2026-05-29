@@ -4,7 +4,9 @@ API Router for Scope 3 Bulk Upload
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from fastapi.responses import StreamingResponse
 from typing import Optional
+from datetime import datetime, timezone
 import io
+import uuid
 
 from .template_generator import generate_scope3_template
 from .processors import UploadProcessor
@@ -190,6 +192,35 @@ async def save_valid_rows(
     if records_to_save:
         await db.emission_records.insert_many(records_to_save)
         created_ids = [r["id"] for r in records_to_save]
+        
+        # Create emission_history entries for version tracking
+        now = datetime.now(timezone.utc)
+        history_entries = []
+        for record in records_to_save:
+            history_entries.append({
+                "id": str(uuid.uuid4()),
+                "emission_id": record["id"],
+                "scope": record.get("scope", "scope3"),
+                "category": record.get("category", ""),
+                "reporting_month": record.get("reporting_period"),
+                "changed_by": current_user["id"],
+                "changed_by_email": current_user.get("email", ""),
+                "changed_by_name": current_user.get("full_name", ""),
+                "changed_at": now,
+                "version": 1,
+                "field_changes": [],
+                "changes_summary": "Initial creation via bulk upload",
+                "changes": {"action": "created"},
+                "new_values": {
+                    "facility_id": record.get("facility_id"),
+                    "reporting_period": record.get("reporting_period"),
+                    "category": record.get("category"),
+                    "co2e_emissions": record.get("co2e_emissions"),
+                    "total_emissions": record.get("total_emissions"),
+                }
+            })
+        if history_entries:
+            await db.emission_history.insert_many(history_entries)
         
         # Update job with saved record IDs
         await db.bulk_upload_jobs.update_one(
