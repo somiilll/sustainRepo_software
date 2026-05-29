@@ -1465,8 +1465,21 @@ class EmissionCalculator:
                 inputs["working_hour_per_day"] = float(row_data.get("working_hours"))
             
             # Build calculation_details if available from emissions
+            # Structure must match what frontend expects (MultiEmployeeInput.jsx):
+            # - applied_factors: {key: {label, value, unit}} - emission factors
+            # - audit_log: [{step, expression, expression_readable, output}] - formula steps
             calculation_details = None
             if emissions.get("audit_trail") or emissions.get("formula_id"):
+                # Build applied_factors from emission factor info
+                applied_factors = {}
+                emission_inputs = emissions.get("inputs", {})
+                if emission_inputs.get("emission_factor"):
+                    applied_factors["emission_factor"] = {
+                        "label": "Emission Factor",
+                        "value": emission_inputs.get("emission_factor"),
+                        "unit": "kgCO2e/Working Hour"  # C7 WFH uses this unit
+                    }
+                
                 calculation_details = {
                     "formula_id": emissions.get("formula_id"),
                     "outputs": {
@@ -1476,7 +1489,7 @@ class EmissionCalculator:
                         }
                     },
                     "audit_log": emissions.get("audit_trail", []),
-                    "applied_factors": emissions.get("inputs", {})
+                    "applied_factors": applied_factors
                 }
             
             # Build emissions data
