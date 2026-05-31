@@ -131,12 +131,11 @@ class CalcEngine:
             return
 
         # Compound unit support (e.g. "kl/min"). When the mapping declares a
-        # `compound_with_variable`, OR when the unit simply has a "/" in it,
-        # validate ONLY the base part against allowed_units. The suffix
-        # (variable_unit) is freeform text from another field and is trusted
+        # `compound_with_variable`, validate ONLY the base part against allowed_units.
+        # The suffix (variable_unit) is freeform text from another field and is trusted
         # as-is — its conversion is handled outside the calc engine.
         unit_to_check = unit
-        if "/" in unit and (mapping.get("compound_with_variable") or "/" in unit):
+        if "/" in unit and mapping.get("compound_with_variable"):
             base_part = unit.split("/", 1)[0].strip()
             if base_part:
                 unit_to_check = base_part
