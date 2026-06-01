@@ -1611,7 +1611,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
 
       {/* Setup Dialog */}
       <Dialog open={showSetupDialog} onOpenChange={(open) => { if (!open) { setShowSetupDialog(false); resetState(); } }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CalendarClock className="w-5 h-5" />
