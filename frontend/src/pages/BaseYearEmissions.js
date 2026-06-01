@@ -2051,7 +2051,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
 
       {/* Emissions Edit Dialog (for existing records) */}
       <Dialog open={showEmissionsDialog} onOpenChange={(open) => { if (!open) { setShowEmissionsDialog(false); resetState(); } }}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Edit2 className="w-5 h-5" />
@@ -2062,7 +2062,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="space-y-4 flex-1 overflow-y-auto pr-1">
             <div className="p-3 bg-primary/10 rounded-lg flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <CalendarClock className="w-4 h-4 text-primary" />
@@ -2341,24 +2341,27 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
               />
             </div>
             
-            <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => { setShowEmissionsDialog(false); resetState(); }}>
-                Cancel
-              </Button>
-              <Button 
-                onClick={handleSaveBaseYear}
-                disabled={savingEmissions || baseYearJustification.trim().length < 10}
-              >
-                {savingEmissions ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  'Save Changes'
-                )}
-              </Button>
-            </div>
+          </div>
+
+          {/* Pinned action footer — keeps Save/Cancel visible when content
+              scrolls (facility view often has many categories). */}
+          <div className="flex justify-end gap-3 pt-3 border-t">
+            <Button variant="outline" onClick={() => { setShowEmissionsDialog(false); resetState(); }}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSaveBaseYear}
+              disabled={savingEmissions || baseYearJustification.trim().length < 10}
+            >
+              {savingEmissions ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Changes'
+              )}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
