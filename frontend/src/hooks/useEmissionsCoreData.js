@@ -25,6 +25,8 @@ export function useEmissionsCoreData(getAuthHeader) {
     processTemplates: [],
     dynamicScopes: [],
     dynamicCategories: [],
+    scope3EFData: [],
+    fugitiveEmissionsData: [],
     configLabels: {
       calculation_methods: {},
       calculation_methods_short: {},
@@ -42,7 +44,8 @@ export function useEmissionsCoreData(getAuthHeader) {
       const [
         emissionsRes, facilitiesRes, fuelDbRes, formulasRes, 
         paramsRes, unitsRes, configsRes, gwpRes, 
-        templatesRes, orgRes, scopesRes, catsRes, labelsRes
+        templatesRes, orgRes, scopesRes, catsRes, labelsRes,
+        scope3EfRes
       ] = await Promise.all([
         axios.get(`${API}/emissions`, headers),
         axios.get(`${API}/facilities`, headers),
@@ -56,13 +59,35 @@ export function useEmissionsCoreData(getAuthHeader) {
         axios.get(`${API}/organizations/my`, headers).catch(() => ({ data: null })),
         axios.get(`${API}/scopes`, headers).catch(() => ({ data: [] })),
         axios.get(`${API}/categories`, headers).catch(() => ({ data: [] })),
-        axios.get(`${API}/config/labels`, headers).catch(() => ({ data: null }))
+        axios.get(`${API}/config/labels`, headers).catch(() => ({ data: null })),
+        axios.get(`${API}/scope3-ef?limit=10000`, headers).catch(() => ({ data: { data: [] } }))
       ]);
+
+      // Derive fugitive emissions from fuel_database (needed for Scope 3 C8/C10/C11/C13/C14)
+      const fuelData = fuelDbRes.data || [];
+      const fugitiveEmissionsData = fuelData
+        .filter(f => f.category === 'Fugitive Emissions' && f.gwp_fugitives)
+        .map(f => ({
+          id: f.id,
+          activity: f.fuel_name,
+          fuel_name: f.fuel_name,
+          emission_factor: f.gwp_fugitives,
+          unit: 'kgCO2e/kg',
+          source: f.source || 'Fugitive Emissions',
+          allowed_units: f.allowed_units || ['kg', 'g', 't'],
+          default_unit: f.default_unit || 'kg',
+          gwp_fugitives: f.gwp_fugitives
+        }));
+
+      const scope3EfPayload = scope3EfRes.data;
+      const scope3EFData = Array.isArray(scope3EfPayload?.data)
+        ? scope3EfPayload.data
+        : (Array.isArray(scope3EfPayload) ? scope3EfPayload : []);
 
       setData({
         emissions: emissionsRes.data,
         facilities: facilitiesRes.data,
-        fuelDatabase: fuelDbRes.data || [],
+        fuelDatabase: fuelData,
         formulaDefinitions: formulasRes.data || [],
         formulaParameters: paramsRes.data || [],
         centralizedUnits: [...(unitsRes.data?.simple || []), ...(unitsRes.data?.compound || [])],
@@ -72,6 +97,8 @@ export function useEmissionsCoreData(getAuthHeader) {
         organization: orgRes.data,
         dynamicScopes: scopesRes.data || [],
         dynamicCategories: catsRes.data || [],
+        scope3EFData,
+        fugitiveEmissionsData,
         configLabels: labelsRes.data || data.configLabels,
       });
     } catch (error) {

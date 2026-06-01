@@ -44,6 +44,8 @@ export default function Emissions() {
     formulaDefinitions, formulaParameters, emissionConfigurations,
     loading, centralizedUnits, gwpConfig, processTemplates,
     dynamicScopes, dynamicCategories, configLabels,
+    scope3EFData: initialScope3EFData,
+    fugitiveEmissionsData: initialFugitiveData,
     refresh: fetchData
   } = useEmissionsCoreData(getAuthHeader);
   
@@ -88,6 +90,8 @@ export default function Emissions() {
   const [selectedCategory, setSelectedCategory] = useState(''); // Category selection before fuel
   
   // Scope 3 specific state for inline edit form
+  // Initial data hydrated from useEmissionsCoreData (so dropdowns work for Edit
+  // dialog regardless of whether user has touched the Add form / scope tab).
   const [scope3EFData, setScope3EFData] = useState([]);
   const [scope3Method, setScope3Method] = useState('');
   const [scope3ActivityId, setScope3ActivityId] = useState('');
@@ -236,56 +240,21 @@ export default function Emissions() {
     }
   }, [loading, formulaDefinitions]);
 
-  // Fetch Scope 3 EF data when scope changes to scope3
+  // Hydrate Scope 3 EF + fugitive emissions data from useEmissionsCoreData on
+  // mount. Previously this fetch was gated by `formData.scope === 'scope3'`,
+  // which left the Edit dialog with an empty dataset (only `supplier_basis`
+  // visible) when the user opened it before touching the Add form.
   useEffect(() => {
-    const fetchScope3EF = async () => {
-      if (formData.scope !== 'scope3') {
-        setScope3EFData([]);
-        setFugitiveEmissionsData([]);
-        return;
-      }
-      
-      setLoadingScope3EF(true);
-      try {
-        // Fetch all scope3 EF data (bypass pagination for emission entry)
-        const response = await axios.get(`${API}/scope3-ef?limit=10000`, {
-          headers: getAuthHeader()
-        });
-        // Handle both paginated response (response.data.data) and direct array response
-        const efData = response.data?.data || response.data || [];
-        setScope3EFData(Array.isArray(efData) ? efData : []);
-        
-        // Also fetch fugitive emissions from fuel_database for C8/C10/C11/C13/C14
-        const fuelResponse = await axios.get(`${API}/fuel-database`, {
-          headers: getAuthHeader()
-        });
-        const fuelData = fuelResponse.data || [];
-        // Filter for fugitive emissions only
-        const fugitives = fuelData.filter(f => 
-          f.category === 'Fugitive Emissions' && f.gwp_fugitives
-        ).map(f => ({
-          id: f.id,
-          activity: f.fuel_name,
-          fuel_name: f.fuel_name,
-          emission_factor: f.gwp_fugitives,
-          unit: 'kgCO2e/kg',
-          source: f.source || 'Fugitive Emissions',
-          allowed_units: f.allowed_units || ['kg', 'g', 't'],
-          default_unit: f.default_unit || 'kg',
-          gwp_fugitives: f.gwp_fugitives
-        }));
-        setFugitiveEmissionsData(fugitives);
-      } catch (error) {
-        console.error('[Scope3 EF] Error fetching:', error);
-        setScope3EFData([]);
-        setFugitiveEmissionsData([]);
-      } finally {
-        setLoadingScope3EF(false);
-      }
-    };
-    
-    fetchScope3EF();
-  }, [formData.scope, getAuthHeader]);
+    if (Array.isArray(initialScope3EFData) && initialScope3EFData.length) {
+      setScope3EFData(initialScope3EFData);
+    }
+  }, [initialScope3EFData]);
+
+  useEffect(() => {
+    if (Array.isArray(initialFugitiveData) && initialFugitiveData.length) {
+      setFugitiveEmissionsData(initialFugitiveData);
+    }
+  }, [initialFugitiveData]);
 
   // Fetch biogenic categories when biogenic tab is active and scope3 is selected
   useEffect(() => {
@@ -1365,7 +1334,6 @@ export default function Emissions() {
     
     // For biogenic, filter by sub_scope='biogenic' first
     let relevantData = scope3EFData;
-    console.log("relevantData", relevantData)
     if (isBiogenicScope3) {
       relevantData = scope3EFData.filter(ef => ef.sub_scope === 'biogenic');
     }
