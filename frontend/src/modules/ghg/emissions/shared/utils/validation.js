@@ -262,18 +262,14 @@ export const validateStep3 = ({
     const requiredFields = dynamicInputFields.filter(f => f.required && !f.isOverride);
 
     for (const [monthKey, data] of Object.entries(monthlyData)) {
-      // A month is "in use" if ANY of its dynamic fields (required, override
-      // or optional) has been touched. Previously only required fields
-      // triggered validation, which let users skip * fields by entering only
-      // override values.
-      const isMonthInUse = dynamicInputFields.some(field => {
-        const value = data?.[field.variable] ?? data?.[field.fieldKey];
+      const hasAnyRequiredData = requiredFields.some(field => {
+        const value = data[field.variable] || data[field.fieldKey];
         return value !== '' && value !== null && value !== undefined;
       });
 
-      if (isMonthInUse) {
+      if (hasAnyRequiredData) {
         for (const field of requiredFields) {
-          const value = data[field.variable] ?? data[field.fieldKey];
+          const value = data[field.variable] || data[field.fieldKey];
           if (value === '' || value === null || value === undefined) {
             const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
             const fieldLabel = typeof field.label === 'object' ? field.label.value : (field.label || field.variable);
