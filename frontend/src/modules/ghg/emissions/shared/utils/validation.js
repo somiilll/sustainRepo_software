@@ -209,6 +209,19 @@ export const validateStep3 = ({
       return { valid: false, message: 'Please enter annual data values' };
     }
 
+    // Enforce every required (*) field — must mirror the asterisks shown in
+    // the UI. Previously only "any value present" was checked, which let
+    // partially-filled yearly entries through.
+    const requiredFields = dynamicInputFields.filter(f => f.required && !f.isOverride);
+    for (const field of requiredFields) {
+      const value = yearlyData?.[field.variable] ?? yearlyData?.[field.fieldKey];
+      const hasValue = value !== '' && value !== null && value !== undefined;
+      if (!hasValue) {
+        const fieldLabel = typeof field.label === 'object' ? field.label.value : (field.label || field.variable);
+        return { valid: false, message: `Please fill in "${fieldLabel}"` };
+      }
+    }
+
     // For supplier_basis: Validate units
     if (scope3Method === 'supplier_basis') {
       const qtyValue = yearlyData?.activity_value_supplier_based;
@@ -249,14 +262,18 @@ export const validateStep3 = ({
     const requiredFields = dynamicInputFields.filter(f => f.required && !f.isOverride);
 
     for (const [monthKey, data] of Object.entries(monthlyData)) {
-      const hasAnyRequiredData = requiredFields.some(field => {
-        const value = data[field.variable] || data[field.fieldKey];
+      // A month is "in use" if ANY of its dynamic fields (required, override
+      // or optional) has been touched. Previously only required fields
+      // triggered validation, which let users skip * fields by entering only
+      // override values.
+      const isMonthInUse = dynamicInputFields.some(field => {
+        const value = data?.[field.variable] ?? data?.[field.fieldKey];
         return value !== '' && value !== null && value !== undefined;
       });
 
-      if (hasAnyRequiredData) {
+      if (isMonthInUse) {
         for (const field of requiredFields) {
-          const value = data[field.variable] || data[field.fieldKey];
+          const value = data[field.variable] ?? data[field.fieldKey];
           if (value === '' || value === null || value === undefined) {
             const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
             const fieldLabel = typeof field.label === 'object' ? field.label.value : (field.label || field.variable);
