@@ -1365,13 +1365,14 @@ export default function Emissions() {
     
     // For biogenic, filter by sub_scope='biogenic' first
     let relevantData = scope3EFData;
+    console.log("relevantData", relevantData)
     if (isBiogenicScope3) {
       relevantData = scope3EFData.filter(ef => ef.sub_scope === 'biogenic');
     }
     
     // Add methods from EF data
     relevantData.forEach(ef => {
-      if (ef.category?.toLowerCase() === selectedCategory.toLowerCase() && ef.method) {
+    if (ef.category?.toLowerCase() === selectedCategory.toLowerCase() && ef.method) {
         methods.add(ef.method);
       }
     });
