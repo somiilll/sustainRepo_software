@@ -3600,7 +3600,7 @@ class GHGReportGenerator:
             data.append(['Scope 1', 'Fugitive Emissions', '-', 'Emissions = Quantity of Gas Consumed × GWP'])
             
             # Scope 2 methodology
-            data.append(['Scope 2', 'Purchased Electricity', '-', 'Emissions = Quantity of Energy Consumed × Emission Factor (Quantity Basis)'])
+            data.append(['Scope 2', 'Purchased Electricity/ Heat or Steam', '-', 'Emissions = Quantity of Energy Consumed × Emission Factor (Quantity Basis)'])
             
             # Scope 3 methodologies - Each subcategory/methodology on separate row with × instead of *
             scope3_data = [
@@ -3632,18 +3632,26 @@ class GHGReportGenerator:
                 ['Scope 3', 'C7 - Employee Commuting', 'Average Data Based – Car Travel, Bike Travel', 'Emissions = Distance Travelled × Emission Factor'],
                 ['Scope 3', 'C7 - Employee Commuting', 'Average Data Based – Work From Home', 'Emissions = Emission Factor × Working Days × Working Hours per day'],
                 ['Scope 3', 'C7 - Employee Commuting', 'Supplier Based', 'Emissions = Quantity Used × Emission Factor'],
-                # C8, C10, C11, C13, C14
-                ['Scope 3', 'C8 - Upstream Leased Assets, C10 - Processing of Sold Products, C11 - Use of Sold Products, C13 - Downstream Leased Assets, C14 - Franchises', 'Average Data Based – Stationary Combustion', 'Emissions = Quantity of Fuel Consumed × Emission Factor'],
-                ['Scope 3', 'C8 - Upstream Leased Assets, C10 - Processing of Sold Products, C11 - Use of Sold Products, C13 - Downstream Leased Assets, C14 - Franchises', 'Average Data Based – Mobile Combustion', 'Emissions = Quantity of Fuel Consumed × Emission Factor'],
-                ['Scope 3', 'C8 - Upstream Leased Assets, C10 - Processing of Sold Products, C11 - Use of Sold Products, C13 - Downstream Leased Assets, C14 - Franchises', 'Average Data Based – Fugitive Emissions', 'Emissions = Quantity of Gas Consumed × GWP'],
-                ['Scope 3', 'C8 - Upstream Leased Assets, C10 - Processing of Sold Products, C11 - Use of Sold Products, C13 - Downstream Leased Assets, C14 - Franchises', 'Supplier Based', 'Emissions = Quantity Used × Emission Factor'],
+                # C8, C10, C13, C14 (without C11)
+                ['Scope 3', 'C8 - Upstream Leased Assets, C10 - Processing of Sold Products, C13 - Downstream Leased Assets, C14 - Franchises', 'Average Data Based – Stationary Combustion', 'Emissions = Quantity of Fuel Consumed × Emission Factor'],
+                ['Scope 3', 'C8 - Upstream Leased Assets, C10 - Processing of Sold Products, C13 - Downstream Leased Assets, C14 - Franchises', 'Average Data Based – Mobile Combustion', 'Emissions = Quantity of Fuel Consumed × Emission Factor'],
+                ['Scope 3', 'C8 - Upstream Leased Assets, C10 - Processing of Sold Products, C13 - Downstream Leased Assets, C14 - Franchises', 'Average Data Based – Fugitive Emissions', 'Emissions = Quantity of Gas Consumed × GWP'],
+                ['Scope 3', 'C8 - Upstream Leased Assets, C10 - Processing of Sold Products, C13 - Downstream Leased Assets, C14 - Franchises', 'Average Data Based – Energy', 'Emissions = Quantity Consumed × Emission Factor'],
+                ['Scope 3', 'C8 - Upstream Leased Assets, C10 - Processing of Sold Products, C13 - Downstream Leased Assets, C14 - Franchises', 'Supplier Based', 'Emissions = Quantity Used × Emission Factor'],
                 # C9
                 ['Scope 3', 'C9 - Downstream Transportation and Distribution', 'Spend Based', 'Emissions = Amount Spent × Emission Factor / (Inflation Rate × Purchase Power Value)'],
                 ['Scope 3', 'C9 - Downstream Transportation and Distribution', 'Average Data Based', 'Emissions = Emission Factor × Distance travelled × Quantity of Goods travelled'],
                 ['Scope 3', 'C9 - Downstream Transportation and Distribution', 'Supplier Based', 'Emissions = Quantity Used × Emission Factor'],
+                # C11 - Use of Sold Products (separate section)
+                ['Scope 3', 'C11 - Use of Sold Products', 'Average Data Based – Energy Consuming Product Over Lifetime', 'Emissions = No. of units of products produced in reporting period × Lifetime Expected Usage of the product × Emission Factor/GWP × Quantity Used per usage'],
+                ['Scope 3', 'C11 - Use of Sold Products', 'Average Data Based – Stationary Combustion – One Time Combustion', 'Emissions = Quantity of Fuel Consumed × Emission Factor'],
+                ['Scope 3', 'C11 - Use of Sold Products', 'Average Data Based – Mobile Combustion – One Time Combustion', 'Emissions = Quantity of Fuel Consumed × Emission Factor'],
+                ['Scope 3', 'C11 - Use of Sold Products', 'Average Data Based – Fugitive Emissions – One Time Combustion', 'Emissions = Quantity of Gas Consumed × GWP'],
+                ['Scope 3', 'C11 - Use of Sold Products', 'Average Data Based – Energy – One Time Combustion', 'Emissions = Quantity of Fuel Consumed × Emission Factor'],
+                ['Scope 3', 'C11 - Use of Sold Products', 'Supplier Based', 'Emissions = Quantity Used × Emission Factor'],
                 # C12
                 ['Scope 3', 'C12 - End-of-Life Treatment of Sold Products', 'Average Data Based', 'Emissions = Quantity Used × Emission Factor'],
-                ['Scope 3', 'C12 - End-of-Life Treatment of Sold Products', 'Average Data Based - Electricity', 'Emissions = Energy Used × (Emission Factor + WTT Emission Factor + T&D Loss Emission Factor)'],
+                ['Scope 3', 'C12 - End-of-Life Treatment of Sold Products', 'Average Data Based - Energy', 'Emissions = Energy Used × (Emission Factor + WTT Emission Factor + T&D Loss Emission Factor)'],
                 ['Scope 3', 'C12 - End-of-Life Treatment of Sold Products', 'Supplier Based', 'Emissions = Quantity Used × Emission Factor'],
                 # C15
                 ['Scope 3', 'C15 - Investments', 'Supplier Based', 'Emissions = Quantity Used × Emission Factor'],
