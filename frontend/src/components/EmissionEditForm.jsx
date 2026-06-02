@@ -1385,7 +1385,11 @@ export default function EmissionEditForm(props) {
                 </div>
                 ) : null}
 
-                {/* Record Source (Optional, legacy edit branch) */}
+                {/* Record Source (Optional) — legacy edit branch only.
+                    Dynamic branch (above) already renders its own field, so
+                    we gate this on the absence of dynamic input fields to
+                    avoid showing the input twice. */}
+                {!editFormConfigLoading && dynamicInputFields.length === 0 && !isEditC7EmployeeCommuting && (
                 <div className="space-y-2">
                   <Label htmlFor="record_source_legacy">
                     Record Source <span className="text-xs text-stone-500">(Optional)</span>
@@ -1399,6 +1403,7 @@ export default function EmissionEditForm(props) {
                     data-testid="edit-record-source-input-legacy"
                   />
                 </div>
+                )}
 
                 {/* Override Options for Calorific Value and Density - Scope 1 and Biogenic, not for Fugitive Emissions */}
                 {/* HIDDEN when using dynamic input fields (overrides are handled there) or loading */}
