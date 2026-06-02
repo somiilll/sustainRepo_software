@@ -3558,16 +3558,16 @@ class GHGReportGenerator:
         p = doc.add_paragraph()
         p.add_run("The information generated through GHG reporting can be used to improve business processes, strengthen strategies, and guide actionable initiatives for emission reduction, while enhancing overall environmental performance.")
         
-        # NEW SECTION 7: Introduction to ISO 14064
+        # NEW SECTION 7: Introduction to the GHG Protocol
         p = doc.add_paragraph()
-        run = p.add_run("7. Introduction to ISO 14064:")
+        run = p.add_run("7. Introduction to the GHG Protocol:")
         run.bold = True
         
         p = doc.add_paragraph()
-        p.add_run("ISO 14064 provides a globally recognized framework for quantifying, monitoring, reporting, and verifying GHG emissions and removals. It benefits organizations, governments, project proponents, and stakeholders by ensuring clarity, consistency, and transparency in GHG management.")
+        p.add_run("The Greenhouse Gas (GHG) Protocol is the world's most widely used framework for measuring, managing, and reporting greenhouse gas emissions. Developed through a partnership between the World Resources Institute (WRI) and the World Business Council for Sustainable Development (WBCSD), it provides standardized methodologies that enable organizations to prepare comprehensive and consistent GHG inventories.")
         
         p = doc.add_paragraph()
-        p.add_run("The use of ISO 14064 helps enhance the environmental integrity and credibility of GHG data, while supporting the development and implementation of organizational GHG management strategies and projects. It also enables organizations to track performance, monitor progress in emission reductions or removals, and participate in carbon crediting and trading mechanisms.")
+        p.add_run("The GHG Protocol helps organizations identify emission sources across their operations and value chains, categorize emissions into Scope 1, Scope 2, and Scope 3, and report emissions in a transparent and comparable manner. By following the GHG Protocol, organizations can better understand their carbon footprint, establish emission reduction targets, track progress over time, support sustainability initiatives, and meet stakeholder, customer, investor, and regulatory reporting requirements. The framework also serves as the foundation for many corporate climate disclosure programs, carbon management strategies, and net-zero commitments worldwide.")
         
         # NEW SECTION 8: Importance of GHG Management Systems
         p = doc.add_paragraph()
