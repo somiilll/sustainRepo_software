@@ -61,10 +61,10 @@ export const Step2ProcessResponsibility = ({
   setFromLocation,
   toLocation,
   setToLocation,
-  // Optional Source of Information (all scopes/categories — tracked in
-  // version history when present)
-  sourceOfInformation = '',
-  setSourceOfInformation = () => {},
+  // Optional Record Source (all scopes/categories — separate from
+  // auto-derived `source_of_information`; tracked in version history)
+  recordSource = '',
+  setRecordSource = () => {},
 }) => {
   return (
     <div className="space-y-4">
@@ -344,11 +344,13 @@ export const Step2ProcessResponsibility = ({
         </>
       )}
 
-      {/* Source of Information (Optional) — common to all scopes / categories.
-          Captured per emission record; tracked in version history. */}
+      {/* Record Source (Optional) — common to all scopes / categories.
+          Independent of auto-derived `source_of_information` (which carries
+          fuel / template metadata). Persisted as `record_source`; tracked
+          in version history. */}
       <div className="space-y-2 pt-2 border-t border-stone-100">
         <div className="flex items-center gap-2">
-          <Label>Source of Information <span className="text-xs text-stone-500">(Optional)</span></Label>
+          <Label>Record Source <span className="text-xs text-stone-500">(Optional)</span></Label>
           <TooltipProvider delayDuration={200}>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -363,11 +365,11 @@ export const Step2ProcessResponsibility = ({
           </TooltipProvider>
         </div>
         <Input
-          value={sourceOfInformation}
-          onChange={(e) => setSourceOfInformation(e.target.value)}
+          value={recordSource}
+          onChange={(e) => setRecordSource(e.target.value)}
           placeholder="e.g., Invoice #4521, meter reading from supplier portal"
           className="bg-stone-50"
-          data-testid="source-of-information-input"
+          data-testid="record-source-input"
         />
       </div>
     </div>

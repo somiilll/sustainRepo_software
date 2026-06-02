@@ -50,7 +50,7 @@ export default function EmissionHistoryDialog({
                 'reporting_period': 'Reporting Period',
                 'reporting_year': 'Reporting Year',
                 'responsible_person': 'Person Responsible',
-                'source_of_information': 'Source of Information',
+                'record_source': 'Record Source',
                 'process_names': 'Process Names',
                 'notes': 'Notes',
                 'total_emissions': 'Total Emissions (tCO₂e)',

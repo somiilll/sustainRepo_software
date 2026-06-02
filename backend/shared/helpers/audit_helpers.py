@@ -115,8 +115,8 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
             "process_names", "process_descriptions",
             # Notes
             "notes", "justification",
-            # Source of Information (free-text, Step 2, all scopes)
-            "source_of_information",
+            # Record Source (free-text, Step 2, all scopes)
+            "record_source",
             # Override justification (#17)
             "override_justification",
             "override_calorific_value", "override_density", "override_emission_factor_heat",

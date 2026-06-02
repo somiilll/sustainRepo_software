@@ -18,7 +18,7 @@ class C7MonthlyEntryCreate(BaseModel):
     formula_name: Optional[str] = None
     employees: List[Dict[str, Any]]
     notes: Optional[str] = None
-    source_of_information: Optional[str] = None
+    record_source: Optional[str] = None
     responsible_person: Optional[str] = None
     responsible_person_designation: Optional[str] = None
     responsible_person_contact: Optional[str] = None
@@ -44,7 +44,7 @@ class C7MonthlyEntryResponse(BaseModel):
     employees: List[Dict[str, Any]]
     monthly_total: Dict[str, Any]
     notes: Optional[str] = None
-    source_of_information: Optional[str] = None
+    record_source: Optional[str] = None
     responsible_person: Optional[str] = None
     version: int = 1
     created_at: str
@@ -66,7 +66,7 @@ class C7YearlyEntryCreate(BaseModel):
     formula_name: Optional[str] = None
     employees: List[Dict[str, Any]]
     notes: Optional[str] = None
-    source_of_information: Optional[str] = None
+    record_source: Optional[str] = None
     responsible_person: Optional[str] = None
     responsible_person_designation: Optional[str] = None
     responsible_person_contact: Optional[str] = None
@@ -92,7 +92,7 @@ class C7YearlyEntryResponse(BaseModel):
     employees: List[Dict[str, Any]]
     yearly_total: Dict[str, Any]
     notes: Optional[str] = None
-    source_of_information: Optional[str] = None
+    record_source: Optional[str] = None
     responsible_person: Optional[str] = None
     version: int = 1
     created_at: str

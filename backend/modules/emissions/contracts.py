@@ -76,6 +76,7 @@ class EmissionRecordCreate(BaseModel):
     # Metadata
     fuel_database_id: Optional[str] = None
     source_of_information: Optional[str] = None
+    record_source: Optional[str] = None
     notes: Optional[str] = None
     justification: Optional[str] = None
     evidence_url: Optional[str] = None
@@ -141,6 +142,7 @@ class EmissionRecordResponse(BaseModel):
 
     fuel_database_id: Optional[str] = None
     source_of_information: Optional[str] = None
+    record_source: Optional[str] = None
     notes: Optional[str] = None
     justification: Optional[str] = None
     evidence_url: Optional[str] = None

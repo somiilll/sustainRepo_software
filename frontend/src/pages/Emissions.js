@@ -178,6 +178,7 @@ export default function Emissions() {
     emission_factor_heat_justification: '', // Justification when overriding EF heat basis
     conversion_factor: '1',
     source_of_information: '',
+    record_source: '',
     justification: '',
     notes: '',
     responsible_person: '',
@@ -2403,6 +2404,7 @@ export default function Emissions() {
       density_justification: '',
       conversion_factor: '1',
       source_of_information: '',
+      record_source: '',
       justification: '',
       notes: '',
       responsible_person: '',

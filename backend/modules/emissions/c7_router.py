@@ -149,7 +149,7 @@ async def create_or_update_c7_monthly_entry(
             "formula_id": entry_data.formula_id,
             "formula_name": entry_data.formula_name,
             "notes": entry_data.notes,
-            "source_of_information": entry_data.source_of_information,
+            "record_source": entry_data.record_source,
             "responsible_person": entry_data.responsible_person,
             "responsible_person_designation": entry_data.responsible_person_designation,
             "responsible_person_contact": entry_data.responsible_person_contact,
@@ -159,7 +159,7 @@ async def create_or_update_c7_monthly_entry(
         # Note: scope3_activity is handled by custom activity tracking logic, so exclude it here
         c7_monthly_fields = [
             "activity_type", "calculation_method_scope3", "scope3_ef_id",
-            "formula_id", "formula_name", "notes", "source_of_information",
+            "formula_id", "formula_name", "notes", "record_source",
             "responsible_person",
             "responsible_person_designation", "responsible_person_contact", "total_emissions"
         ]
@@ -186,7 +186,7 @@ async def create_or_update_c7_monthly_entry(
             "formula_id": entry_data.formula_id,
             "formula_name": entry_data.formula_name,
             "notes": entry_data.notes,
-            "source_of_information": entry_data.source_of_information,
+            "record_source": entry_data.record_source,
             "responsible_person": entry_data.responsible_person,
             "responsible_person_designation": entry_data.responsible_person_designation,
             "responsible_person_contact": entry_data.responsible_person_contact,
@@ -249,7 +249,7 @@ async def create_or_update_c7_monthly_entry(
             "co2e_emissions": total_co2e,
             "total_emissions": total_co2e,
             "notes": entry_data.notes,
-            "source_of_information": entry_data.source_of_information,
+            "record_source": entry_data.record_source,
             "responsible_person": entry_data.responsible_person,
             "responsible_person_designation": entry_data.responsible_person_designation,
             "responsible_person_contact": entry_data.responsible_person_contact,
@@ -560,7 +560,7 @@ async def create_or_update_c7_yearly_entry(
             "formula_id": entry_data.formula_id,
             "formula_name": entry_data.formula_name,
             "notes": entry_data.notes,
-            "source_of_information": entry_data.source_of_information,
+            "record_source": entry_data.record_source,
             "responsible_person": entry_data.responsible_person,
             "responsible_person_designation": entry_data.responsible_person_designation,
             "responsible_person_contact": entry_data.responsible_person_contact,
@@ -636,7 +636,7 @@ async def create_or_update_c7_yearly_entry(
             "co2e_emissions": total_co2e,
             "total_emissions": total_co2e,
             "notes": entry_data.notes,
-            "source_of_information": entry_data.source_of_information,
+            "record_source": entry_data.record_source,
             "responsible_person": entry_data.responsible_person,
             "responsible_person_designation": entry_data.responsible_person_designation,
             "responsible_person_contact": entry_data.responsible_person_contact,

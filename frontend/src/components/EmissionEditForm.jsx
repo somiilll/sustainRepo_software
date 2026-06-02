@@ -930,19 +930,19 @@ export default function EmissionEditForm(props) {
                       isEditMode={true}
                       frequencyType={editFrequencyType}
                     />
-                    {/* Source of Information (Optional) — tracked in version
+                    {/* Record Source (Optional) — tracked in version
                         history. Available for C7 edit flow too. */}
                     <div className="space-y-2">
-                      <Label htmlFor="source_of_information_c7">
-                        Source of Information <span className="text-xs text-stone-500">(Optional)</span>
+                      <Label htmlFor="record_source_c7">
+                        Record Source <span className="text-xs text-stone-500">(Optional)</span>
                       </Label>
                       <Input
-                        id="source_of_information_c7"
-                        value={formData.source_of_information || ''}
-                        onChange={(e) => setFormData({ ...formData, source_of_information: e.target.value })}
+                        id="record_source_c7"
+                        value={formData.record_source || ''}
+                        onChange={(e) => setFormData({ ...formData, record_source: e.target.value })}
                         className="bg-stone-50 h-10"
                         placeholder="e.g., Survey #2024-Q1, HR commute records"
-                        data-testid="edit-source-of-information-input-c7"
+                        data-testid="edit-record-source-input-c7"
                       />
                     </div>
                   </div>
@@ -1276,19 +1276,20 @@ export default function EmissionEditForm(props) {
                         />
                       </div>
                     </div>
-                    {/* Source of Information (Optional) — tracked in version
-                        history. Visible/editable for all scopes/categories. */}
+                    {/* Record Source (Optional) — tracked in version
+                        history. Visible/editable for all scopes/categories.
+                        Independent of auto-derived `source_of_information`. */}
                     <div className="space-y-2 pt-2">
-                      <Label htmlFor="source_of_information">
-                        Source of Information <span className="text-xs text-stone-500">(Optional)</span>
+                      <Label htmlFor="record_source">
+                        Record Source <span className="text-xs text-stone-500">(Optional)</span>
                       </Label>
                       <Input
-                        id="source_of_information"
-                        value={formData.source_of_information || ''}
-                        onChange={(e) => { setFormData({ ...formData, source_of_information: e.target.value }); markFormDirty(); }}
+                        id="record_source"
+                        value={formData.record_source || ''}
+                        onChange={(e) => { setFormData({ ...formData, record_source: e.target.value }); markFormDirty(); }}
                         className="bg-stone-50 h-10"
                         placeholder="e.g., Invoice #4521, meter reading from supplier portal"
-                        data-testid="edit-source-of-information-input"
+                        data-testid="edit-record-source-input"
                       />
                     </div>
                   </div>
@@ -1384,18 +1385,18 @@ export default function EmissionEditForm(props) {
                 </div>
                 ) : null}
 
-                {/* Source of Information (Optional, legacy edit branch) */}
+                {/* Record Source (Optional, legacy edit branch) */}
                 <div className="space-y-2">
-                  <Label htmlFor="source_of_information_legacy">
-                    Source of Information <span className="text-xs text-stone-500">(Optional)</span>
+                  <Label htmlFor="record_source_legacy">
+                    Record Source <span className="text-xs text-stone-500">(Optional)</span>
                   </Label>
                   <Input
-                    id="source_of_information_legacy"
-                    value={formData.source_of_information || ''}
-                    onChange={(e) => setFormData({ ...formData, source_of_information: e.target.value })}
+                    id="record_source_legacy"
+                    value={formData.record_source || ''}
+                    onChange={(e) => setFormData({ ...formData, record_source: e.target.value })}
                     className="bg-stone-50 h-10"
                     placeholder="e.g., Invoice #4521, meter reading from supplier portal"
-                    data-testid="edit-source-of-information-input-legacy"
+                    data-testid="edit-record-source-input-legacy"
                   />
                 </div>
 

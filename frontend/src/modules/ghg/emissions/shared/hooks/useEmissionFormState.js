@@ -120,13 +120,13 @@ export function useEmissionFormState({ organization = null, editingEmission = nu
   const [expandedMonths, setExpandedMonths] = useState([]);
 
   // ============================================================================
-  // STEP 2: Source of Information (optional, all scopes/categories)
+  // STEP 2: Record Source (optional, all scopes/categories)
   // ============================================================================
   // Free-text field captured per emission record. Persisted as
-  // `source_of_information` on the record (overrides any auto-derived
-  // value from selected fuel / custom-fuel source when non-empty). Tracked
-  // in version history.
-  const [sourceOfInformation, setSourceOfInformation] = useState('');
+  // `record_source` on the record. Independent of the auto-derived
+  // `source_of_information` (which still holds fuel-source / template
+  // metadata). Tracked in version history.
+  const [recordSource, setRecordSource] = useState('');
 
   // ============================================================================
   // STEP 4: Notes State
@@ -295,7 +295,7 @@ export function useEmissionFormState({ organization = null, editingEmission = nu
 
     // Step 4: Notes
     notes, setNotes,
-    sourceOfInformation, setSourceOfInformation,
+    recordSource, setRecordSource,
 
     // Scope 3 optional fields
     supplierName, setSupplierName,
