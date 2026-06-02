@@ -150,6 +150,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
@@ -187,6 +188,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
@@ -221,6 +223,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
@@ -260,6 +263,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
@@ -294,6 +298,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
@@ -335,6 +340,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
@@ -379,6 +385,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
@@ -414,6 +421,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
@@ -455,6 +463,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
@@ -490,6 +499,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
@@ -534,6 +544,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
@@ -571,6 +582,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
@@ -606,6 +618,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
@@ -641,6 +654,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
@@ -673,6 +687,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {

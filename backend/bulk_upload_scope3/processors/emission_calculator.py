@@ -1351,6 +1351,10 @@ class EmissionCalculator:
             # which sets it from `selectedFuel.source`. Bulk uploads stamp
             # "Bulk Upload" so the origin is always traceable.
             "source_of_information": "Bulk Upload",
+            # Free-text Record Source (Step 2 equivalent on manual flow).
+            # Mirrors the manual payload exactly — trimmed string or "".
+            "record_source": (str(row_data.get("record_source")).strip()
+                              if row_data.get("record_source") not in (None, "") else ""),
             # Optional fields from manual schema — populated to None / '' so the
             # document shape matches what `EmissionRecordCreate.model_dump()`
             # produces on the manual path.
@@ -1664,6 +1668,8 @@ class EmissionCalculator:
             "co2e_emissions": total_co2e,
             "total_emissions": total_co2e,
             "notes": first_row.get("row_data", {}).get("notes") or "",
+            "record_source": (str(first_row.get("row_data", {}).get("record_source")).strip()
+                              if first_row.get("row_data", {}).get("record_source") not in (None, "") else ""),
             "responsible_person": first_row.get("row_data", {}).get("responsible_person"),
             "responsible_person_designation": first_row.get("row_data", {}).get("responsible_designation") or "",
             "responsible_person_contact": str(first_row.get("row_data", {}).get("responsible_contact") or "") if first_row.get("row_data", {}).get("responsible_contact") else "",
