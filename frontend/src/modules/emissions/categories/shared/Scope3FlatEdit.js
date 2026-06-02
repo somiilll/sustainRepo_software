@@ -304,6 +304,7 @@ export function buildEditPayload(ctx) {
     outputs,
 
     source_of_information: formData.source_of_information,
+    record_source: formData.record_source ? String(formData.record_source).trim() : '',
     notes: formData.notes,
     justification: formData.justification,
     evidence_url: formData.evidence_url,
