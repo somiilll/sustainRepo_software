@@ -3596,8 +3596,21 @@ class GHGReportGenerator:
         self._add_paragraph_with_bold_label(doc, "9. Person Responsible", person_text)
         self._add_paragraph_with_bold_label(doc, "10. Purpose of Reporting", 
                                            self._get_value_or_na(organization, 'report_purpose'))
-        self._add_paragraph_with_bold_label(doc, "11. Reporting Frequency", 
-                                           self._get_value_or_na(organization, 'reporting_frequency', 'Yearly').capitalize())
+        # self._add_paragraph_with_bold_label(doc, "11. Reporting Frequency", 
+        #                                    self._get_value_or_na(organization, 'reporting_frequency', 'Yearly').capitalize())
+        reporting_frequency = self._get_value_or_na(
+            organization,
+            'reporting_frequency',
+            'Yearly'
+        ).capitalize()
+
+        self._add_paragraph_with_bold_label(
+            doc,
+            "11. Reporting Frequency",
+            f"The organization reports greenhouse gas emissions and removals on a "
+            f"{reporting_frequency.lower()} basis to support consistent monitoring, "
+            f"performance evaluation, and disclosure of climate-related information."
+        )
         self._add_paragraph_with_bold_label(doc, "12. Number of Facilities", str(len(facilities)))
         self._add_paragraph_with_bold_label(doc, "13. Other Information", 
                                            self._get_value_or_na(organization, 'other_information'))
@@ -3630,8 +3643,17 @@ class GHGReportGenerator:
             facility_name = self._get_value_or_na(facility, 'name')
             self._add_styled_heading(doc, f"1.2.{i} {facility_name}", level=3)
             
-            self._add_labeled_field(doc, "a) Sector/Industry", 
-                                   self._get_value_or_na(facility, 'sector'))
+            # self._add_labeled_field(doc, "a) Sector/Industry", 
+            #                        self._get_value_or_na(facility, 'sector'))
+
+            sector = self._get_value_or_na(facility, 'sector')
+            p = doc.add_paragraph()
+            p.add_run("a) Sector/Industry: ").bold = True
+            p.add_run(
+                f"This facility is classified under the {sector} sector. The greenhouse gas "
+                f"inventory covers emissions and removals associated with activities undertaken "
+                f"within this sector during the reporting period."
+            )
             
             # Facility address in structured format
             p = doc.add_paragraph()
@@ -3681,12 +3703,43 @@ class GHGReportGenerator:
             
             self._add_labeled_field(doc, "f) Person Responsible", facility_person_text)
             
-            self._add_labeled_field(doc, "g) Monitoring Frequency", 
-                                   self._get_value_or_na(facility, 'monitoring_frequency', 'Monthly').capitalize())
+            # self._add_labeled_field(doc, "g) Monitoring Frequency", 
+            #                        self._get_value_or_na(facility, 'monitoring_frequency', 'Monthly').capitalize())
             
-            self._add_labeled_field(doc, "h) Reporting Frequency", 
-                                   self._get_value_or_na(facility, 'reporting_frequency', 'Monthly').capitalize())
+
+            monitoring_frequency = self._get_value_or_na(
+                facility,
+                'monitoring_frequency',
+                'Monthly'
+            ).capitalize()
+
+            p = doc.add_paragraph()
+            p.add_run("g) Monitoring Frequency:").bold = True
+
+            p = doc.add_paragraph()
+            p.add_run(
+                f"The facility monitors greenhouse gas emission sources and associated activity "
+                f"data on a {monitoring_frequency.lower()} basis as part of its GHG inventory management process."
+            )
+
+            # self._add_labeled_field(doc, "h) Reporting Frequency", 
+            #                        self._get_value_or_na(facility, 'reporting_frequency', 'Monthly').capitalize())
             
+            reporting_frequency = self._get_value_or_na(
+                facility,
+                'reporting_frequency',
+                'Monthly'
+            ).capitalize()
+
+            p = doc.add_paragraph()
+            p.add_run("h) Reporting Frequency:").bold = True
+
+            p = doc.add_paragraph()
+            p.add_run(
+                f"The facility monitors and reports greenhouse gas emissions on a {reporting_frequency.lower()} basis "
+                f"in accordance with the organization's GHG accounting and reporting requirements."
+            )
+
             self._add_labeled_field(doc, "i) Other Information", 
                                    self._get_value_or_na(facility, 'other_information') or 
                                    self._get_value_or_na(facility, 'remarks'))
