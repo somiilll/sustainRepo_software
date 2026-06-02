@@ -350,7 +350,7 @@ export const Step2ProcessResponsibility = ({
           in version history. */}
       <div className="space-y-2 pt-2 border-t border-stone-100">
         <div className="flex items-center gap-2">
-          <Label>Record Source <span className="text-xs text-stone-500">(Optional)</span></Label>
+          <Label>Source of Information <span className="text-xs text-stone-500">(Optional)</span></Label>
           <TooltipProvider delayDuration={200}>
             <Tooltip>
               <TooltipTrigger asChild>

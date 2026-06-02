@@ -934,7 +934,7 @@ export default function EmissionEditForm(props) {
                         history. Available for C7 edit flow too. */}
                     <div className="space-y-2">
                       <Label htmlFor="record_source_c7">
-                        Record Source <span className="text-xs text-stone-500">(Optional)</span>
+                        Source of Information <span className="text-xs text-stone-500">(Optional)</span>
                       </Label>
                       <Input
                         id="record_source_c7"
@@ -1281,7 +1281,7 @@ export default function EmissionEditForm(props) {
                         Independent of auto-derived `source_of_information`. */}
                     <div className="space-y-2 pt-2">
                       <Label htmlFor="record_source">
-                        Record Source <span className="text-xs text-stone-500">(Optional)</span>
+                        Source of Information <span className="text-xs text-stone-500">(Optional)</span>
                       </Label>
                       <Input
                         id="record_source"
@@ -1392,7 +1392,7 @@ export default function EmissionEditForm(props) {
                 {!editFormConfigLoading && dynamicInputFields.length === 0 && !isEditC7EmployeeCommuting && (
                 <div className="space-y-2">
                   <Label htmlFor="record_source_legacy">
-                    Record Source <span className="text-xs text-stone-500">(Optional)</span>
+                    Source of Information <span className="text-xs text-stone-500">(Optional)</span>
                   </Label>
                   <Input
                     id="record_source_legacy"
