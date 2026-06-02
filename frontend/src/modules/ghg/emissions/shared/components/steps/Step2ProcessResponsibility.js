@@ -61,6 +61,10 @@ export const Step2ProcessResponsibility = ({
   setFromLocation,
   toLocation,
   setToLocation,
+  // Optional Source of Information (all scopes/categories — tracked in
+  // version history when present)
+  sourceOfInformation = '',
+  setSourceOfInformation = () => {},
 }) => {
   return (
     <div className="space-y-4">
@@ -339,6 +343,33 @@ export const Step2ProcessResponsibility = ({
           )}
         </>
       )}
+
+      {/* Source of Information (Optional) — common to all scopes / categories.
+          Captured per emission record; tracked in version history. */}
+      <div className="space-y-2 pt-2 border-t border-stone-100">
+        <div className="flex items-center gap-2">
+          <Label>Source of Information <span className="text-xs text-stone-500">(Optional)</span></Label>
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="cursor-help">
+                  <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                <p>Reference, document, or system this data was taken from (e.g. invoice, meter reading, supplier report). Changes are tracked in version history.</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+        <Input
+          value={sourceOfInformation}
+          onChange={(e) => setSourceOfInformation(e.target.value)}
+          placeholder="e.g., Invoice #4521, meter reading from supplier portal"
+          className="bg-stone-50"
+          data-testid="source-of-information-input"
+        />
+      </div>
     </div>
   );
 };

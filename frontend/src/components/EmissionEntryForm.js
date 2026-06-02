@@ -174,6 +174,8 @@ export default function EmissionEntryForm({
     expandedMonths, setExpandedMonths,
     // Step 4: Notes
     notes, setNotes,
+    // Step 2 (optional, common): Source of Information
+    sourceOfInformation, setSourceOfInformation,
     // Scope 3 optional fields
     supplierName, setSupplierName,
     supplierCode, setSupplierCode,
@@ -2506,7 +2508,7 @@ export default function EmissionEntryForm({
     scope3ActivityType, scope3Subcategory, typeOfProduct, scope3CustomActivity, useCustomActivity,
     biogenicScopeSelection, employees, frequencyType, reportingYearType, reportingYear,
     monthlyData, yearlyData, processNames, responsiblePerson,
-    responsiblePersonDesignation, responsiblePersonContact, notes, supplierName,
+    responsiblePersonDesignation, responsiblePersonContact, notes, sourceOfInformation, supplierName,
     supplierCode, employeeName, employeeId, assetName, fromLocation, toLocation,
     selectedSubIndustry, selectedTemplate, templateInputValues, dynamicCategories,
     // Setters
@@ -2655,6 +2657,8 @@ export default function EmissionEntryForm({
           setFromLocation={setFromLocation}
           toLocation={toLocation}
           setToLocation={setToLocation}
+          sourceOfInformation={sourceOfInformation}
+          setSourceOfInformation={setSourceOfInformation}
         />
       )}
 

@@ -930,6 +930,21 @@ export default function EmissionEditForm(props) {
                       isEditMode={true}
                       frequencyType={editFrequencyType}
                     />
+                    {/* Source of Information (Optional) — tracked in version
+                        history. Available for C7 edit flow too. */}
+                    <div className="space-y-2">
+                      <Label htmlFor="source_of_information_c7">
+                        Source of Information <span className="text-xs text-stone-500">(Optional)</span>
+                      </Label>
+                      <Input
+                        id="source_of_information_c7"
+                        value={formData.source_of_information || ''}
+                        onChange={(e) => setFormData({ ...formData, source_of_information: e.target.value })}
+                        className="bg-stone-50 h-10"
+                        placeholder="e.g., Survey #2024-Q1, HR commute records"
+                        data-testid="edit-source-of-information-input-c7"
+                      />
+                    </div>
                   </div>
                 )}
                 
@@ -1261,6 +1276,21 @@ export default function EmissionEditForm(props) {
                         />
                       </div>
                     </div>
+                    {/* Source of Information (Optional) — tracked in version
+                        history. Visible/editable for all scopes/categories. */}
+                    <div className="space-y-2 pt-2">
+                      <Label htmlFor="source_of_information">
+                        Source of Information <span className="text-xs text-stone-500">(Optional)</span>
+                      </Label>
+                      <Input
+                        id="source_of_information"
+                        value={formData.source_of_information || ''}
+                        onChange={(e) => { setFormData({ ...formData, source_of_information: e.target.value }); markFormDirty(); }}
+                        className="bg-stone-50 h-10"
+                        placeholder="e.g., Invoice #4521, meter reading from supplier portal"
+                        data-testid="edit-source-of-information-input"
+                      />
+                    </div>
                   </div>
                   )
                 ) : !isEditC7EmployeeCommuting ? (
@@ -1353,6 +1383,21 @@ export default function EmissionEditForm(props) {
                   </div>
                 </div>
                 ) : null}
+
+                {/* Source of Information (Optional, legacy edit branch) */}
+                <div className="space-y-2">
+                  <Label htmlFor="source_of_information_legacy">
+                    Source of Information <span className="text-xs text-stone-500">(Optional)</span>
+                  </Label>
+                  <Input
+                    id="source_of_information_legacy"
+                    value={formData.source_of_information || ''}
+                    onChange={(e) => setFormData({ ...formData, source_of_information: e.target.value })}
+                    className="bg-stone-50 h-10"
+                    placeholder="e.g., Invoice #4521, meter reading from supplier portal"
+                    data-testid="edit-source-of-information-input-legacy"
+                  />
+                </div>
 
                 {/* Override Options for Calorific Value and Density - Scope 1 and Biogenic, not for Fugitive Emissions */}
                 {/* HIDDEN when using dynamic input fields (overrides are handled there) or loading */}

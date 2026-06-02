@@ -267,6 +267,7 @@ export function buildCreatePayload(monthData, ctx) {
     useCustomFuel,
     customFuelName,
     customSource,
+    sourceOfInformation,
     notes,
     responsiblePerson,
     responsiblePersonDesignation,
@@ -357,7 +358,8 @@ export function buildCreatePayload(monthData, ctx) {
 
     outputs,
 
-    source_of_information: useCustomFuel ? customSource : selectedFuel?.source || '',
+    source_of_information: (sourceOfInformation && sourceOfInformation.trim())
+      || (useCustomFuel ? customSource : selectedFuel?.source || ''),
     notes,
     justification: useCustomFuel ? `Custom fuel type: ${customFuelName}` : null,
     evidence_url: monthData.evidences?.map((e) => e.url).join(',') || '',

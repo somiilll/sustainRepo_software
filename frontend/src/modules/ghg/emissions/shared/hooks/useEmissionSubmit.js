@@ -32,6 +32,7 @@ export function useEmissionSubmit(ctx) {
     const {
       facilityId, scope, category, fuelId,
       useCustomFuel, customFuelName, customEmissionFactor, customSource,
+      sourceOfInformation,
       isSaving, scope3Method, scope3ActivityId, scope3ActivityType,
       scope3Subcategory, typeOfProduct, scope3CustomActivity, useCustomActivity, biogenicScopeSelection,
       employees, frequencyType, reportingYearType, reportingYear,
@@ -315,6 +316,7 @@ export function useEmissionSubmit(ctx) {
 
             const yBaseCtx = {
               scope, category, facilityId, fuelId, selectedFuel, useCustomFuel, customFuelName, customSource,
+              sourceOfInformation,
               biogenicScopeSelection,
               scope3Method, scope3ActivityId, scope3ActivityType, scope3Subcategory,
               typeOfProduct,
@@ -477,7 +479,7 @@ export function useEmissionSubmit(ctx) {
             emission_factor_ch4: null,
             emission_factor_n2o: null,
             is_custom_factor: false,
-            source_of_information: `Template: ${selectedTemplate.name}`,
+            source_of_information: (sourceOfInformation && sourceOfInformation.trim()) || `Template: ${selectedTemplate.name}`,
             notes: notes,
             responsible_person: responsiblePerson,
             responsible_person_designation: responsiblePersonDesignation,
@@ -564,6 +566,7 @@ export function useEmissionSubmit(ctx) {
 
           const baseCtx = {
             scope, category, facilityId, fuelId, selectedFuel, useCustomFuel, customFuelName, customSource,
+            sourceOfInformation,
             biogenicScopeSelection,
             scope3Method, scope3ActivityId, scope3ActivityType, scope3Subcategory,
             typeOfProduct,
