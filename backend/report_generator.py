@@ -3648,7 +3648,9 @@ class GHGReportGenerator:
 
             sector = self._get_value_or_na(facility, 'sector')
             p = doc.add_paragraph()
-            p.add_run("a) Sector/Industry: ").bold = True
+            p.add_run("a) Sector/Industry:").bold = True
+
+            p = doc.add_paragraph()
             p.add_run(
                 f"This facility is classified under the {sector} sector. The greenhouse gas "
                 f"inventory covers emissions and removals associated with activities undertaken "
@@ -4237,7 +4239,7 @@ class GHGReportGenerator:
                 "Emission Factors: Derived from the IPCC Guidelines for National Greenhouse Gas Inventories and applicable national emission factor databases.",
                 "Global Warming Potentials (GWP): Adopted from the Intergovernmental Panel on Climate Change (IPCC) Sixth Assessment Report (AR6).",
                 "Reference Databases and Publications: DEFRA (Department for Environment, Food & Rural Affairs), USEEIO (United States Environmentally-Extended Input-Output Model), TERI (The Energy and Resources Institute), CEA (Central Electricity Authority, India), Indian Railways emission datasets and published conversion factors, USEPA (United States Environmental Protection Agency).",
-                "Methodological Framework: Calculations and reporting follow the principles outlined in ISO 14064-1:2018 – Greenhouse Gases: Specification with guidance at the organization level for quantification and reporting of greenhouse gas emissions and removals."
+                "Methodological Framework: Calculations and reporting follow the principles outlined in GHG Protocol – Greenhouse Gases: Specification with guidance at the organization level for quantification and reporting of greenhouse gas emissions and removals."
             ]
         else:
             # For Scope 1,2 report: Remove Reference Databases, and simplify Activity Data
@@ -4245,7 +4247,7 @@ class GHGReportGenerator:
                 "Emission Factors: Derived from the IPCC Guidelines for National Greenhouse Gas Inventories and applicable national emission factor databases.",
                 "Global Warming Potentials (GWP): Adopted from the Intergovernmental Panel on Climate Change (IPCC) Sixth Assessment Report (AR6).",
                 "Activity Data: For scope 1, scope 2 is collected from facility operational records, fuel purchase records, energy monitoring systems, and internal documentation.",
-                "Methodological Framework: Calculations and reporting follow the principles outlined in GHG Protocol – Greenhouse Gases: Specification with guidance at the organization level for quantification and reporting of greenhouse gas emissions and removals."
+                "Methodological Framework: Calculations and reporting follow the principles outlined in ISO 14064-1:2018 – Greenhouse Gases: Specification with guidance at the organization level for quantification and reporting of greenhouse gas emissions and removals."
             ]
         
         for point in sources_points:
