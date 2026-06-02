@@ -2014,8 +2014,8 @@ class GHGReportGenerator:
             for pf_lower, info in data.items():
                 result[cat_key].append({
                     'process_fuel': info['process_fuel'],
-                    'responsible_person': ', '.join(sorted(info['responsible_persons'])),
-                    'record_source': ', '.join(sorted(info['record_sources']))
+                    'responsible_person': ', '.join(sorted(info['responsible_persons'])) or 'NA',
+                    'record_source': ', '.join(sorted(info['record_sources'])) or 'NA'
                 })
         
         return result
@@ -2211,8 +2211,8 @@ class GHGReportGenerator:
                 for pf_lower, info in data.items():
                     result[cat_key].append({
                         'process_fuel': info['process_fuel'],
-                        'responsible_person': ', '.join(sorted(info['responsible_persons'])),
-                        'record_source': ', '.join(sorted(info['record_sources']))
+                        'responsible_person': ', '.join(sorted(info['responsible_persons'])) or 'NA',
+                        'record_source': ', '.join(sorted(info['record_sources'])) or 'NA'
                     })
         
         return result
@@ -2262,11 +2262,11 @@ class GHGReportGenerator:
         for pf_lower, info in processes_data.items():
             result.append({
                 'process_fuel': info['process_fuel'],
-                'responsible_person': ', '.join(sorted(info['responsible_persons'])),
-                'record_source': ', '.join(sorted(info['record_sources']))
+                'responsible_person': ', '.join(sorted(info['responsible_persons'])) or 'NA',
+                'record_source': ', '.join(sorted(info['record_sources'])) or 'NA'
             })
         
-        return result if result else [{'process_fuel': 'NA', 'responsible_person': '', 'record_source': ''}]
+        return result if result else [{'process_fuel': 'NA', 'responsible_person': 'NA', 'record_source': 'NA'}]
 
     def _get_unique_fuels(self, facility_emissions: List[Dict]) -> Tuple[List[str], List[str]]:
         """Get unique fuel names for Scope 1 and Scope 2"""
