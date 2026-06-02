@@ -19,6 +19,7 @@ from cascade_delete import cascade_delete_organization
 from r2_storage import get_r2_storage
 
 from app.config.env import RESEND_API_KEY, SENDER_EMAIL
+from shared.constants.units import DEFAULT_UNITS
 from modules.auth.contracts import UserResponse
 from modules.auth.dependencies import get_admin_user, get_current_user, get_super_admin_user
 from modules.emissions.contracts import EmissionRecordCreate
