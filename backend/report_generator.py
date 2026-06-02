@@ -423,6 +423,184 @@ class GHGReportGenerator:
         
         # Use 2-column format for BOTH report types
         self._add_emissions_list_table_2col_extended(doc, scope1_by_category, scope2_processes, scope3_by_category, has_scope1, has_scope3, is_scope3_report)
+
+    def _add_emissions_list_table_4col(self, doc: Document, scope1_by_category: Dict[str, List[Dict]], 
+                                        scope2_processes: List[Dict], scope3_by_category: Dict[str, List[Dict]],
+                                        has_scope1: bool, has_scope3: bool, is_scope3_report: bool):
+        """Create 4-column emissions list table with Person Responsible and Source of Information"""
+        from docx.enum.table import WD_TABLE_ALIGNMENT
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        
+        # Calculate total rows needed
+        total_rows = 1  # Header row
+        
+        # Scope 1 section
+        total_rows += 1  # Scope 1 header
+        if has_scope1:
+            for cat_key in ['stationary_combustion', 'mobile_combustion', 'fugitive_emissions', 'other']:
+                if scope1_by_category.get(cat_key):
+                    total_rows += len(scope1_by_category[cat_key])
+        else:
+            total_rows += 1
+        
+        # Scope 2 section
+        total_rows += 1  # Scope 2 header
+        if scope2_processes and not (len(scope2_processes) == 1 and scope2_processes[0].get('process_fuel') == 'NA'):
+            total_rows += len(scope2_processes)
+        else:
+            total_rows += 1
+        
+        # Scope 3 section
+        if has_scope3:
+            total_rows += 1  # Scope 3 header
+            for cat_key in scope3_by_category:
+                if scope3_by_category[cat_key]:
+                    total_rows += len(scope3_by_category[cat_key])
+        
+        # Create table with 4 columns
+        table = doc.add_table(rows=total_rows, cols=4)
+        table.style = 'Table Grid'
+        table.alignment = WD_TABLE_ALIGNMENT.CENTER
+        
+        # Set column widths
+        col_widths = [Inches(2.0), Inches(3.0), Inches(1.5), Inches(1.5)]
+        for col_idx, width in enumerate(col_widths):
+            for cell in table.columns[col_idx].cells:
+                cell.width = width
+        
+        current_row = 0
+        
+        # Header row
+        headers = ['Category', 'Process Name – Fuel/Activity/Energy', 'Person Responsible', 'Source of Information']
+        for col_idx, header in enumerate(headers):
+            cell = table.rows[current_row].cells[col_idx]
+            cell.text = header
+            for paragraph in cell.paragraphs:
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                for run in paragraph.runs:
+                    run.font.bold = True
+                    run.font.size = Pt(10)
+            shading = OxmlElement('w:shd')
+            shading.set(qn('w:fill'), '1E3A5F')
+            cell._tc.get_or_add_tcPr().append(shading)
+            for run in cell.paragraphs[0].runs:
+                run.font.color.rgb = RGBColor(255, 255, 255)
+        
+        current_row += 1
+        
+        # Helper to add scope header row (merged across all 4 columns)
+        def add_scope_header(row_idx, text):
+            row = table.rows[row_idx]
+            row.cells[0].merge(row.cells[3])
+            cell = row.cells[0]
+            cell.text = text
+            for paragraph in cell.paragraphs:
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                for run in paragraph.runs:
+                    run.font.bold = True
+                    run.font.size = Pt(10)
+            shading = OxmlElement('w:shd')
+            shading.set(qn('w:fill'), 'D4E6F1')
+            cell._tc.get_or_add_tcPr().append(shading)
+        
+        # Helper to add data rows for a category
+        def add_category_rows(start_row, cat_name, items):
+            nonlocal current_row
+            cat_start_row = start_row
+            for idx, item in enumerate(items):
+                row = table.rows[current_row]
+                if idx == 0:
+                    row.cells[0].text = cat_name
+                    for paragraph in row.cells[0].paragraphs:
+                        paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                        for run in paragraph.runs:
+                            run.font.bold = True
+                            run.font.size = Pt(10)
+                row.cells[1].text = item.get('process_fuel', '')
+                row.cells[2].text = item.get('responsible_person', '')
+                row.cells[3].text = item.get('record_source', '')
+                for col in range(1, 4):
+                    for paragraph in row.cells[col].paragraphs:
+                        for run in paragraph.runs:
+                            run.font.size = Pt(10)
+                current_row += 1
+            
+            # Merge category cells if more than one row
+            if len(items) > 1:
+                start_cell = table.rows[cat_start_row].cells[0]
+                end_cell = table.rows[cat_start_row + len(items) - 1].cells[0]
+                start_cell.merge(end_cell)
+                start_cell.text = cat_name
+                start_cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+                for paragraph in start_cell.paragraphs:
+                    paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                    for run in paragraph.runs:
+                        run.font.bold = True
+                        run.font.size = Pt(10)
+        
+        # Scope 1 Header
+        add_scope_header(current_row, "Scope 1 Emissions")
+        current_row += 1
+        
+        # Scope 1 Categories
+        if has_scope1:
+            for cat_key, cat_name in [('stationary_combustion', 'Stationary Combustion'), 
+                                       ('mobile_combustion', 'Mobile Combustion'),
+                                       ('fugitive_emissions', 'Fugitive Emissions'),
+                                       ('other', 'Other')]:
+                items = scope1_by_category.get(cat_key, [])
+                if items:
+                    add_category_rows(current_row, cat_name, items)
+        else:
+            row = table.rows[current_row]
+            row.cells[0].merge(row.cells[3])
+            row.cells[0].text = "No emission reported"
+            for paragraph in row.cells[0].paragraphs:
+                for run in paragraph.runs:
+                    run.font.italic = True
+                    run.font.size = Pt(10)
+            current_row += 1
+        
+        # Scope 2 Header
+        add_scope_header(current_row, "Scope 2 Emissions")
+        current_row += 1
+        
+        # Scope 2 Processes
+        has_scope2_data = scope2_processes and not (len(scope2_processes) == 1 and scope2_processes[0].get('process_fuel') == 'NA')
+        if has_scope2_data:
+            add_category_rows(current_row, "Purchased Energy", scope2_processes)
+        else:
+            row = table.rows[current_row]
+            row.cells[0].merge(row.cells[3])
+            row.cells[0].text = "No emission reported"
+            for paragraph in row.cells[0].paragraphs:
+                for run in paragraph.runs:
+                    run.font.italic = True
+                    run.font.size = Pt(10)
+            current_row += 1
+        
+        # Scope 3 Section
+        if has_scope3:
+            add_scope_header(current_row, "Scope 3 Emissions")
+            current_row += 1
+            
+            scope3_display_names = {
+                'c1': 'C1 - Purchased Goods and Services', 'c2': 'C2 - Capital Goods',
+                'c3': 'C3 - Fuel and Energy Related Activities', 'c4': 'C4 - Upstream Transportation and Distribution',
+                'c5': 'C5 - Waste Generated in Operations', 'c6': 'C6 - Business Travel',
+                'c7': 'C7 - Employee Commuting', 'c8': 'C8 - Upstream Leased Assets',
+                'c9': 'C9 - Downstream Transportation and Distribution', 'c10': 'C10 - Processing of Sold Products',
+                'c11': 'C11 - Use of Sold Products', 'c12': 'C12 - End-of-Life Treatment of Sold Products',
+                'c13': 'C13 - Downstream Leased Assets', 'c14': 'C14 - Franchises', 'c15': 'C15 - Investments',
+            }
+            
+            for cat_key in sorted(scope3_by_category.keys(), key=lambda x: int(x[1:]) if x.startswith('c') and x[1:].isdigit() else 99):
+                items = scope3_by_category[cat_key]
+                if items:
+                    cat_display = scope3_display_names.get(cat_key, cat_key)
+                    add_category_rows(current_row, cat_display, items)
+        
+        doc.add_paragraph()
     
     def _add_emissions_list_table_2col_extended(self, doc: Document, scope1_by_category: Dict[str, List[str]], 
                                                  scope2_processes: List[str], scope3_by_category: Dict[str, List[str]],
@@ -1763,6 +1941,85 @@ class GHGReportGenerator:
         
         return categories
 
+    def _get_emission_processes_by_category_extended(self, facility_emissions: List[Dict]) -> Dict[str, List[Dict]]:
+        """Get emission processes for Scope 1 with Person Responsible and Source of Information.
+        Returns Dict[str, List[Dict]] where each dict has keys: process_fuel, responsible_person, record_source
+        """
+        # Track unique process_fuel -> {responsible_persons: set, record_sources: set}
+        categories_data = {
+            'stationary_combustion': {},
+            'mobile_combustion': {},
+            'fugitive_emissions': {},
+            'other': {}
+        }
+        
+        category_mapping = {
+            'stationary combustion': 'stationary_combustion',
+            'stationary_combustion': 'stationary_combustion',
+            'stationarycombustion': 'stationary_combustion',
+            'mobile combustion': 'mobile_combustion',
+            'mobile_combustion': 'mobile_combustion',
+            'mobilecombustion': 'mobile_combustion',
+            'fugitive emissions': 'fugitive_emissions',
+            'fugitive_emissions': 'fugitive_emissions',
+            'fugitiveemissions': 'fugitive_emissions',
+            'fugitive': 'fugitive_emissions',
+        }
+        
+        for em in facility_emissions:
+            scope = (em.get('scope') or '').lower()
+            if not ('scope1' in scope or 'scope 1' in scope or scope == '1'):
+                continue
+                
+            process_names = self._get_process_names_from_emission(em)
+            fuel = self._get_fuel_from_emission(em)
+            category = self._get_category_from_emission(em)
+            responsible = em.get('responsible_person') or ''
+            record_source = em.get('record_source') or ''
+            
+            cat_lower = (category or '').lower().strip()
+            cat_key = category_mapping.get(cat_lower, 'other')
+            
+            process_fuels = []
+            for process in process_names:
+                if process and fuel:
+                    process_fuels.append(f"{process} - {fuel}")
+                elif fuel:
+                    process_fuels.append(fuel)
+                elif process:
+                    process_fuels.append(process)
+            
+            if not process_names and fuel:
+                process_fuels.append(fuel)
+            if not process_names and not fuel:
+                process_fuels.append("NA")
+            
+            for pf in process_fuels:
+                pf_lower = pf.lower()
+                if pf_lower not in categories_data[cat_key]:
+                    categories_data[cat_key][pf_lower] = {
+                        'process_fuel': pf,
+                        'responsible_persons': set(),
+                        'record_sources': set()
+                    }
+                if responsible:
+                    categories_data[cat_key][pf_lower]['responsible_persons'].add(responsible)
+                if record_source:
+                    categories_data[cat_key][pf_lower]['record_sources'].add(record_source)
+        
+        # Convert to final format
+        result = {}
+        for cat_key, data in categories_data.items():
+            result[cat_key] = []
+            for pf_lower, info in data.items():
+                result[cat_key].append({
+                    'process_fuel': info['process_fuel'],
+                    'responsible_person': ', '.join(sorted(info['responsible_persons'])),
+                    'record_source': ', '.join(sorted(info['record_sources']))
+                })
+        
+        return result
+
     def _get_scope3_processes_by_category(self, facility_emissions: List[Dict]) -> Dict[str, List[str]]:
         """Get emission processes for Scope 3 segregated by GHG Protocol category (C1-C15)"""
         # Initialize all 15 Scope 3 categories
@@ -1875,7 +2132,142 @@ class GHGReportGenerator:
         
         return result
 
-    
+    def _get_scope3_processes_by_category_extended(self, facility_emissions: List[Dict]) -> Dict[str, List[Dict]]:
+        """Get Scope 3 processes with Person Responsible and Source of Information.
+        Returns Dict[str, List[Dict]] where each dict has keys: process_fuel, responsible_person, record_source
+        """
+        # Initialize all 15 Scope 3 categories
+        categories_data = {f'c{i}': {} for i in range(1, 16)}
+        categories_data['other'] = {}
+        
+        def get_category_key(category_str: str) -> str:
+            if not category_str:
+                return 'other'
+            cat_lower = category_str.lower().strip()
+            for i in range(15, 0, -1):
+                prefix = f'c{i}'
+                if cat_lower.startswith(f'{prefix} ') or cat_lower.startswith(f'{prefix}-') or cat_lower == prefix:
+                    return prefix
+            category_name_mapping = {
+                'purchased goods and services': 'c1', 'capital goods': 'c2',
+                'fuel and energy related activities': 'c3', 'upstream transportation and distribution': 'c4',
+                'upstream transportation': 'c4', 'waste generated in operations': 'c5',
+                'business travel': 'c6', 'employee commuting': 'c7', 'upstream leased assets': 'c8',
+                'downstream transportation and distribution': 'c9', 'downstream transportation': 'c9',
+                'processing of sold products': 'c10', 'use of sold products': 'c11',
+                'end-of-life treatment of sold products': 'c12', 'end-of-life treatment': 'c12',
+                'downstream leased assets': 'c13', 'franchises': 'c14', 'investments': 'c15',
+            }
+            for name, key in category_name_mapping.items():
+                if name in cat_lower:
+                    return key
+            return 'other'
+        
+        for em in facility_emissions:
+            scope = (em.get('scope') or '').lower()
+            if not ('scope3' in scope or 'scope 3' in scope or scope == '3'):
+                continue
+            
+            category = self._get_category_from_emission(em)
+            fuel = self._get_fuel_from_emission(em)
+            process_names = self._get_process_names_from_emission(em)
+            responsible = em.get('responsible_person') or ''
+            record_source = em.get('record_source') or ''
+            
+            cat_key = get_category_key(category)
+            
+            process_infos = []
+            for process in process_names:
+                if process and fuel and fuel != 'Unknown':
+                    process_infos.append(f"{process} - {fuel}")
+                elif fuel and fuel != 'Unknown':
+                    process_infos.append(fuel)
+                elif process:
+                    process_infos.append(process)
+                else:
+                    process_infos.append("NA")
+            
+            if not process_names:
+                process_infos.append(fuel if fuel and fuel != 'Unknown' else "NA")
+            
+            for pf in process_infos:
+                pf_lower = pf.lower()
+                if pf_lower not in categories_data[cat_key]:
+                    categories_data[cat_key][pf_lower] = {
+                        'process_fuel': pf,
+                        'responsible_persons': set(),
+                        'record_sources': set()
+                    }
+                if responsible:
+                    categories_data[cat_key][pf_lower]['responsible_persons'].add(responsible)
+                if record_source:
+                    categories_data[cat_key][pf_lower]['record_sources'].add(record_source)
+        
+        # Convert to final format, removing empty categories
+        result = {}
+        for cat_key, data in categories_data.items():
+            if data:
+                result[cat_key] = []
+                for pf_lower, info in data.items():
+                    result[cat_key].append({
+                        'process_fuel': info['process_fuel'],
+                        'responsible_person': ', '.join(sorted(info['responsible_persons'])),
+                        'record_source': ', '.join(sorted(info['record_sources']))
+                    })
+        
+        return result
+
+    def _get_scope2_processes_extended(self, facility_emissions: List[Dict]) -> List[Dict]:
+        """Get Scope 2 processes with Person Responsible and Source of Information."""
+        processes_data = {}
+        
+        for em in facility_emissions:
+            scope = (em.get('scope') or '').lower()
+            if not ('scope2' in scope or 'scope 2' in scope or scope == '2'):
+                continue
+            
+            process_names = self._get_process_names_from_emission(em)
+            fuel = self._get_fuel_from_emission(em)
+            responsible = em.get('responsible_person') or ''
+            record_source = em.get('record_source') or ''
+            
+            process_fuels = []
+            for process in process_names:
+                if process and fuel:
+                    process_fuels.append(f"{process} - {fuel}")
+                elif fuel:
+                    process_fuels.append(fuel)
+                elif process:
+                    process_fuels.append(process)
+            
+            if not process_names and fuel:
+                process_fuels.append(fuel)
+            if not process_names and not fuel:
+                process_fuels.append("NA")
+            
+            for pf in process_fuels:
+                pf_lower = pf.lower()
+                if pf_lower not in processes_data:
+                    processes_data[pf_lower] = {
+                        'process_fuel': pf,
+                        'responsible_persons': set(),
+                        'record_sources': set()
+                    }
+                if responsible:
+                    processes_data[pf_lower]['responsible_persons'].add(responsible)
+                if record_source:
+                    processes_data[pf_lower]['record_sources'].add(record_source)
+        
+        result = []
+        for pf_lower, info in processes_data.items():
+            result.append({
+                'process_fuel': info['process_fuel'],
+                'responsible_person': ', '.join(sorted(info['responsible_persons'])),
+                'record_source': ', '.join(sorted(info['record_sources']))
+            })
+        
+        return result if result else [{'process_fuel': 'NA', 'responsible_person': '', 'record_source': ''}]
+
     def _get_unique_fuels(self, facility_emissions: List[Dict]) -> Tuple[List[str], List[str]]:
         """Get unique fuel names for Scope 1 and Scope 2"""
         scope1_fuels = []
@@ -3369,6 +3761,15 @@ class GHGReportGenerator:
             p = doc.add_paragraph()
             run = p.add_run(f"{org_name} has adopted the Equity Share Approach for this GHG inventory.")
             run.bold = True
+
+            p = doc.add_paragraph()
+            p.add_run(
+                "The organization accounts for greenhouse gas emissions from operations "
+                "according to its equity share in each operation. Emissions are attributed "
+                "based on the organization's percentage ownership or economic interest in "
+                "the operation, regardless of operational or financial control."
+            )
+
         elif approach in ['control', 'control_operational', 'control_financial', 'control_both']:
             if approach == 'control_operational':
                 approach_name = "Operational Control"
@@ -3442,18 +3843,18 @@ class GHGReportGenerator:
         p = doc.add_paragraph()
         p.add_run("Scope 1 emissions refer to direct greenhouse gas emissions from sources that are owned or controlled by the organization. These emissions occur as a direct result of the organization's operational activities.")
         
-        p = doc.add_paragraph()
-        p.add_run("Typical examples of Scope 1 emissions include:")
+        # p = doc.add_paragraph()
+        # p.add_run("Typical examples of Scope 1 emissions include:")
         
-        scope1_examples = [
-            "Fuel combustion in stationary sources, such as boilers, furnaces, generators, and industrial equipment.",
-            "Fuel combustion in mobile sources, including company-owned vehicles and fleet operations using fuels such as diesel or petrol.",
-            "Process emissions arising from industrial or chemical processes during manufacturing or production activities.",
-            "Fugitive emissions, such as leakage of refrigerants from air conditioning systems, refrigeration units, or other equipment."
-        ]
+        # scope1_examples = [
+        #     "Fuel combustion in stationary sources, such as boilers, furnaces, generators, and industrial equipment.",
+        #     "Fuel combustion in mobile sources, including company-owned vehicles and fleet operations using fuels such as diesel or petrol.",
+        #     "Process emissions arising from industrial or chemical processes during manufacturing or production activities.",
+        #     "Fugitive emissions, such as leakage of refrigerants from air conditioning systems, refrigeration units, or other equipment."
+        # ]
         
-        for example in scope1_examples:
-            doc.add_paragraph(example, style='List Bullet')
+        # for example in scope1_examples:
+        #     doc.add_paragraph(example, style='List Bullet')
         
         p = doc.add_paragraph()
         p.add_run("Since these emission sources are directly controlled by the organization, the organization is responsible for measuring, managing, and reporting these emissions as part of its GHG inventory.")
@@ -3500,21 +3901,21 @@ class GHGReportGenerator:
             p = doc.add_paragraph()
             p.add_run("Typical examples of Scope 3 emissions include:")
             
-            scope3_examples = [
-                "Purchased goods and services acquired by the organization from suppliers.",
-                "Capital goods such as machinery, equipment, and infrastructure purchased during the reporting period.",
-                "Fuel- and energy-related activities not already included in Scope 1 or Scope 2 emissions.",
-                "Transportation and distribution of goods through third-party logistics providers.",
-                "Waste generated in operations and its treatment or disposal by external contractors.",
-                "Business travel undertaken by employees through commercial transportation services.",
-                "Employee commuting between homes and workplaces.",
-                "Upstream and downstream leased assets not directly controlled by the organization.",
-                "Processing, use, and end-of-life treatment of sold products.",
-                "Investments and financed emissions, where applicable."
-            ]
+            # scope3_examples = [
+            #     "Purchased goods and services acquired by the organization from suppliers.",
+            #     "Capital goods such as machinery, equipment, and infrastructure purchased during the reporting period.",
+            #     "Fuel- and energy-related activities not already included in Scope 1 or Scope 2 emissions.",
+            #     "Transportation and distribution of goods through third-party logistics providers.",
+            #     "Waste generated in operations and its treatment or disposal by external contractors.",
+            #     "Business travel undertaken by employees through commercial transportation services.",
+            #     "Employee commuting between homes and workplaces.",
+            #     "Upstream and downstream leased assets not directly controlled by the organization.",
+            #     "Processing, use, and end-of-life treatment of sold products.",
+            #     "Investments and financed emissions, where applicable."
+            # ]
             
-            for example in scope3_examples:
-                doc.add_paragraph(example, style='List Bullet')
+            # for example in scope3_examples:
+            #     doc.add_paragraph(example, style='List Bullet')
             
             p = doc.add_paragraph()
             p.add_run("Since Scope 3 emissions originate outside the organization's direct operational control, their calculation often requires the use of supplier data, activity-based data, spend-based methodologies, industry-average emission factors, or hybrid calculation approaches.")
@@ -3543,17 +3944,21 @@ class GHGReportGenerator:
             # 3.x.1 List of Emissions
             self._add_styled_heading(doc, f"3.{i}.1 List of Emissions", level=3)
             
-            # Get categorized Scope 1 emissions
-            scope1_by_category = self._get_emission_processes_by_category(facility_emissions)
-            scope1_processes, scope2_processes = self._get_emission_processes(facility_emissions)
+            # Get categorized Scope 1 emissions with extended data
+            scope1_by_category_ext = self._get_emission_processes_by_category_extended(facility_emissions)
+            scope2_processes_ext = self._get_scope2_processes_extended(facility_emissions)
             
             # Get Scope 3 processes (only for scope_1_2_3 report type)
-            scope3_by_category = {}
+            scope3_by_category_ext = {}
             if getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3':
-                scope3_by_category = self._get_scope3_processes_by_category(facility_emissions)
+                scope3_by_category_ext = self._get_scope3_processes_by_category_extended(facility_emissions)
             
-            # Create table for emissions list
-            self._add_emissions_list_table(doc, scope1_by_category, scope2_processes, scope3_by_category)
+            # Check for data presence
+            has_scope1 = any(scope1_by_category_ext.get(cat) for cat in ['stationary_combustion', 'mobile_combustion', 'fugitive_emissions', 'other'])
+            has_scope3 = bool(scope3_by_category_ext) and getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3'
+            
+            # Create 4-column table for emissions list
+            self._add_emissions_list_table_4col(doc, scope1_by_category_ext, scope2_processes_ext, scope3_by_category_ext, has_scope1, has_scope3, getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3')
             
             # 3.x.2 Process Overview
             self._add_styled_heading(doc, f"3.{i}.2 Process Overview", level=3)
@@ -3741,7 +4146,7 @@ class GHGReportGenerator:
         run.bold = True
         
         p = doc.add_paragraph()
-        p.add_run("Greenhouse gas emissions are calculated individually for the major GHGs, including carbon dioxide (CO₂), methane (CH₄), and nitrous oxide (N₂O). These gases are then converted into a common unit of carbon dioxide equivalent (CO₂e) using their respective Global Warming Potentials (GWP).")
+        p.add_run("Greenhouse gas emissions are calculated individually for the major GHGs. These gases are then converted into a common unit of carbon dioxide equivalent (CO₂e) using their respective Global Warming Potentials (GWP).")
         
         p = doc.add_paragraph()
         p.add_run("The total emissions are calculated as follows:")
@@ -3779,7 +4184,6 @@ class GHGReportGenerator:
                 "Emission Factors: Derived from the IPCC Guidelines for National Greenhouse Gas Inventories and applicable national emission factor databases.",
                 "Global Warming Potentials (GWP): Adopted from the Intergovernmental Panel on Climate Change (IPCC) Sixth Assessment Report (AR6).",
                 "Reference Databases and Publications: DEFRA (Department for Environment, Food & Rural Affairs), USEEIO (United States Environmentally-Extended Input-Output Model), TERI (The Energy and Resources Institute), CEA (Central Electricity Authority, India), Indian Railways emission datasets and published conversion factors, USEPA (United States Environmental Protection Agency).",
-                "Activity Data: For scope 1, scope 2 is collected from facility operational records, fuel purchase records, energy monitoring systems, and internal documentation. For Scope 3 data has been collected either spend basis or activity data basis.",
                 "Methodological Framework: Calculations and reporting follow the principles outlined in ISO 14064-1:2018 – Greenhouse Gases: Specification with guidance at the organization level for quantification and reporting of greenhouse gas emissions and removals."
             ]
         else:
@@ -3788,7 +4192,7 @@ class GHGReportGenerator:
                 "Emission Factors: Derived from the IPCC Guidelines for National Greenhouse Gas Inventories and applicable national emission factor databases.",
                 "Global Warming Potentials (GWP): Adopted from the Intergovernmental Panel on Climate Change (IPCC) Sixth Assessment Report (AR6).",
                 "Activity Data: For scope 1, scope 2 is collected from facility operational records, fuel purchase records, energy monitoring systems, and internal documentation.",
-                "Methodological Framework: Calculations and reporting follow the principles outlined in ISO 14064-1:2018 – Greenhouse Gases: Specification with guidance at the organization level for quantification and reporting of greenhouse gas emissions and removals."
+                "Methodological Framework: Calculations and reporting follow the principles outlined in GHG Protocol – Greenhouse Gases: Specification with guidance at the organization level for quantification and reporting of greenhouse gas emissions and removals."
             ]
         
         for point in sources_points:
@@ -4036,17 +4440,21 @@ class GHGReportGenerator:
             # 4.x.1 List of Emissions
             self._add_styled_heading(doc, f"4.{i+2}.1 List of Emissions", level=3)
             
-            # Get categorized Scope 1 emissions
-            scope1_by_category = self._get_emission_processes_by_category(facility_emissions)
-            scope1_processes, scope2_processes = self._get_emission_processes(facility_emissions)
+            # Get categorized Scope 1 emissions with extended data (responsible person, record source)
+            scope1_by_category_ext = self._get_emission_processes_by_category_extended(facility_emissions)
+            scope2_processes_ext = self._get_scope2_processes_extended(facility_emissions)
             
             # Get Scope 3 processes (only for scope_1_2_3 report type)
-            scope3_by_category = {}
+            scope3_by_category_ext = {}
             if getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3':
-                scope3_by_category = self._get_scope3_processes_by_category(facility_emissions)
+                scope3_by_category_ext = self._get_scope3_processes_by_category_extended(facility_emissions)
             
-            # Create table for emissions list
-            self._add_emissions_list_table(doc, scope1_by_category, scope2_processes, scope3_by_category)
+            # Check for data presence
+            has_scope1 = any(scope1_by_category_ext.get(cat) for cat in ['stationary_combustion', 'mobile_combustion', 'fugitive_emissions', 'other'])
+            has_scope3 = bool(scope3_by_category_ext) and getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3'
+            
+            # Create 4-column table for emissions list with Person Responsible and Source of Information
+            self._add_emissions_list_table_4col(doc, scope1_by_category_ext, scope2_processes_ext, scope3_by_category_ext, has_scope1, has_scope3, getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3')
             
             # 4.x.2 Summary of GHG Emissions (renumbered since Source of Emissions is removed)
             self._add_styled_heading(doc, f"4.{i+2}.2 Summary of GHG Emissions - {period_display}", level=3)
