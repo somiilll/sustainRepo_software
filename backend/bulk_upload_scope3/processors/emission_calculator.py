@@ -299,40 +299,26 @@ class EmissionCalculator:
         }
     
     async def _calculate_supplier_basis_with_conversion(self, row_data: Dict) -> Dict[str, Any]:
-        """Calculate emissions using supplier-provided emission factor with unit conversion"""
+        """Calculate emissions using supplier-provided emission factor (no unit conversion)"""
         quantity = float(row_data.get("supplier_quantity") or 0)
         ef = float(row_data.get("supplier_ef") or 0)
-        input_unit = row_data.get("supplier_unit")
-        ef_unit = row_data.get("supplier_ef_unit")
-        
-        # Parse EF unit to get expected input unit (e.g., kgCO2e/L -> L)
-        expected_unit = None
-        if ef_unit and "/" in ef_unit:
-            expected_unit = ef_unit.split("/")[-1].strip()
-        
-        # Convert input quantity to expected unit if needed
-        converted_quantity = quantity
-        if input_unit and expected_unit and input_unit.lower() != expected_unit.lower():
-            converted_quantity, success = await self._convert_unit(quantity, input_unit, expected_unit)
-            if not success:
-                return {
-                    "co2": 0.0,
-                    "ch4": 0.0,
-                    "n2o": 0.0,
-                    "co2e": 0.0,
-                    "calculation_method": "error",
-                    "error": f"Cannot convert {input_unit} to {expected_unit}",
-                    "notes": f"Unit conversion failed: {input_unit} -> {expected_unit}"
-                }
+        input_unit = row_data.get("supplier_unit") or ""
+        ef_unit = row_data.get("supplier_ef_unit") or ""
         
         # Simple calculation: Emissions = Quantity × Emission Factor
-        co2e = converted_quantity * ef
+        # No unit conversion - user is responsible for providing matching units
+        co2e = quantity * ef
+        
+        # Derive output unit from EF unit (e.g., "tCO2e/L" -> "tCO2e", "kgCO2e/day" -> "kgCO2e")
+        output_unit = "tCO2e"  # Default
+        if ef_unit and "/" in ef_unit:
+            output_unit = ef_unit.split("/")[0].strip()
         
         # Build outputs in the same format as calc engine
         outputs = {
             "co2e": {
                 "value": co2e,
-                "unit": "kgCO2e"  # Supplier basis typically produces kgCO2e
+                "unit": output_unit
             }
         }
         
@@ -343,38 +329,27 @@ class EmissionCalculator:
                 "variable": "supplier_quantity",
                 "variable_label": "Supplier Quantity",
                 "value": quantity,
-                "unit": input_unit or "",
+                "unit": input_unit,
             },
             {
                 "step": "input",
                 "variable": "supplier_ef",
                 "variable_label": "Supplier Emission Factor",
                 "value": ef,
-                "unit": ef_unit or "",
+                "unit": ef_unit,
             },
+            {
+                "step": "formula_step",
+                "name": "co2e",
+                "expression": "supplier_quantity * supplier_ef",
+                "expression_readable": "Supplier Quantity × Supplier Emission Factor",
+                "output": co2e
+            },
+            {
+                "step": "outputs",
+                "outputs": outputs
+            }
         ]
-        
-        # Add conversion step if unit conversion happened
-        if input_unit and expected_unit and input_unit.lower() != expected_unit.lower():
-            audit_log.append({
-                "step": "convert",
-                "input": {"value": quantity, "unit": input_unit},
-                "output": {"value": converted_quantity, "unit": expected_unit},
-                "note": f"Converted {input_unit} to {expected_unit}"
-            })
-        
-        audit_log.append({
-            "step": "formula_step",
-            "name": "co2e",
-            "expression": "supplier_quantity * supplier_ef",
-            "expression_readable": "Supplier Quantity × Supplier Emission Factor",
-            "output": co2e
-        })
-        
-        audit_log.append({
-            "step": "outputs",
-            "outputs": outputs
-        })
         
         return {
             "co2": 0.0,
@@ -382,13 +357,13 @@ class EmissionCalculator:
             "n2o": 0.0,
             "co2e": co2e,
             "calculation_method": "supplier_basis",
-            "unit": "kgCO2e",  # Assuming supplier EF produces kgCO2e
+            "unit": output_unit,
             "outputs": outputs,
             "audit_log": audit_log,
             "applied_factors": {
                 "supplier_ef": {
                     "value": ef,
-                    "unit": ef_unit or "",
+                    "unit": ef_unit,
                     "label": "Supplier Emission Factor",
                     "source": "user_provided"
                 }
@@ -396,11 +371,9 @@ class EmissionCalculator:
             "formula_name": "Supplier Method",
             "inputs": {
                 "supplier_quantity": quantity,
-                "supplier_quantity_converted": converted_quantity,
                 "supplier_ef": ef,
                 "input_unit": input_unit,
-                "ef_unit": ef_unit,
-                "expected_unit": expected_unit
+                "ef_unit": ef_unit
             }
         }
     
