@@ -568,10 +568,15 @@ class Scope12RowProcessor:
             density_unit = row_data.get("density_unit", "")
             user_overrides["density"] = {"value": density_value, "unit": density_unit, "is_override": True}
         
-        # Emission factor override (also add to user_overrides for property resolution)
+        # Emission factor override OR from fuel_database
         if ef_quantity_provided:
             ef_value = float(row_data.get("ef_quantity"))
             user_overrides["ef_quantity"] = {"value": ef_value, "unit": "kgCO2/kg", "is_override": True}
+        elif fuel_data.get("emission_factor_co2") is not None:
+            # Use emission_factor_co2 from fuel_database
+            ef_value = float(fuel_data.get("emission_factor_co2"))
+            ef_unit = fuel_data.get("emission_factor_co2_unit", "kgCO2/TJ")
+            user_overrides["ef_quantity"] = {"value": ef_value, "unit": ef_unit, "source_name": fuel_data.get("source", "Fuel Database")}
         
         # GWP for fugitives - user override OR from fuel_database
         if row_data.get("co2_gwp_fugitives"):
