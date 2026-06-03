@@ -11,7 +11,16 @@ import {
 } from 'lucide-react';
 import { ROW_STATUS } from '../core/bulkUploadConstants';
 
+// Check if sheet is Scope 1 or Scope 2
+const isScope12Sheet = (sheet) => {
+  const s = (sheet || '').toLowerCase();
+  return s.includes('scope1') || s.includes('scope2') || s === 'scope 1' || s === 'scope 2';
+};
+
 export default function ValidationResultsTable({ rows, expandedRows, onToggleExpand }) {
+  // Determine if we're showing Scope 1/2 data based on first row
+  const hasScope12 = rows.some(r => isScope12Sheet(r.sheet));
+  
   return (
     <div className="border rounded-lg overflow-hidden" data-testid="validation-results-table">
       <div className="max-h-[500px] overflow-y-auto">
@@ -23,9 +32,19 @@ export default function ValidationResultsTable({ rows, expandedRows, onToggleExp
               <TableHead className="w-20">Status</TableHead>
               <TableHead>Facility</TableHead>
               <TableHead>Period</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>Method</TableHead>
-              <TableHead>Activity</TableHead>
+              {hasScope12 ? (
+                <>
+                  <TableHead>Scope</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Fuel/Gas/Energy</TableHead>
+                </>
+              ) : (
+                <>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Method</TableHead>
+                  <TableHead>Activity</TableHead>
+                </>
+              )}
               <TableHead className="w-12"></TableHead>
             </TableRow>
           </TableHeader>
@@ -34,6 +53,8 @@ export default function ValidationResultsTable({ rows, expandedRows, onToggleExp
               const expandKey = `${row.sheet}-${row.row_number}`;
               const isExpanded = !!expandedRows[expandKey];
               const isInvalid = row.status === ROW_STATUS.INVALID;
+              const isRowScope12 = isScope12Sheet(row.sheet);
+              
               return (
                 <React.Fragment key={`${row.sheet}-${row.row_number}-${idx}`}>
                   <TableRow
@@ -55,11 +76,29 @@ export default function ValidationResultsTable({ rows, expandedRows, onToggleExp
                     </TableCell>
                     <TableCell className="font-medium">{row.row_data?.facility_name || '-'}</TableCell>
                     <TableCell>{row.row_data?.reporting_period || '-'}</TableCell>
-                    <TableCell className="max-w-[150px] truncate" title={row.sheet}>{row.sheet || '-'}</TableCell>
-                    <TableCell>{row.row_data?.calculation_method || '-'}</TableCell>
-                    <TableCell className="max-w-[200px] truncate" title={row.row_data?.activity}>
-                      {row.row_data?.activity || '-'}
-                    </TableCell>
+                    {hasScope12 ? (
+                      <>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs">
+                            {isRowScope12 ? (row.sheet?.toLowerCase().includes('scope1') ? 'Scope 1' : 'Scope 2') : 'Scope 3'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="max-w-[150px] truncate" title={row.row_data?.category}>
+                          {row.row_data?.category || '-'}
+                        </TableCell>
+                        <TableCell className="max-w-[200px] truncate" title={row.row_data?.fuel_gas || row.row_data?.energy_used}>
+                          {row.row_data?.fuel_gas || row.row_data?.energy_used || '-'}
+                        </TableCell>
+                      </>
+                    ) : (
+                      <>
+                        <TableCell className="max-w-[150px] truncate" title={row.sheet}>{row.sheet || '-'}</TableCell>
+                        <TableCell>{row.row_data?.calculation_method || '-'}</TableCell>
+                        <TableCell className="max-w-[200px] truncate" title={row.row_data?.activity}>
+                          {row.row_data?.activity || '-'}
+                        </TableCell>
+                      </>
+                    )}
                     <TableCell>
                       {row.errors?.length > 0 && (isExpanded ? <ChevronUp className="w-4 h-4 text-text-muted" /> : <ChevronDown className="w-4 h-4 text-text-muted" />)}
                     </TableCell>
