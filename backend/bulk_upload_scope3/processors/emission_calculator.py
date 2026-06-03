@@ -1573,17 +1573,21 @@ class EmissionCalculator:
             # Supplier basis inputs - these are needed for supplier method
             calc_method = (row_data.get("calculation_method") or "").lower().replace(" ", "_")
             if calc_method in ["supplier_basis", "supplier_based", "supplier"]:
-                # Add supplier inputs
+                # Add supplier inputs with correct variable names matching frontend expectations
+                # Frontend expects: activity_value_supplier_based, activity_value_supplier_based_unit,
+                #                   emission_factor_supplier_based, emission_factor_supplier_based_unit
                 if row_data.get("supplier_quantity"):
                     inputs["supplier_quantity"] = float(row_data.get("supplier_quantity"))
                     inputs["activity_value_supplier_based"] = float(row_data.get("supplier_quantity"))
                 if row_data.get("supplier_unit"):
                     inputs["supplier_unit"] = str(row_data.get("supplier_unit"))
+                    inputs["activity_value_supplier_based_unit"] = str(row_data.get("supplier_unit"))
                 if row_data.get("supplier_ef"):
                     inputs["supplier_ef"] = float(row_data.get("supplier_ef"))
                     inputs["emission_factor_supplier_based"] = float(row_data.get("supplier_ef"))
                 if row_data.get("supplier_ef_unit"):
                     inputs["supplier_ef_unit"] = str(row_data.get("supplier_ef_unit"))
+                    inputs["emission_factor_supplier_based_unit"] = str(row_data.get("supplier_ef_unit"))
                 
                 # Also merge any inputs from the calculation result (unit conversion details, etc.)
                 calc_result_inputs = emissions.get("inputs", {})
