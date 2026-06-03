@@ -1491,6 +1491,10 @@ class EmissionCalculator:
             if row_data.get("passengers"):
                 inputs["qty_passenger"] = float(row_data.get("passengers"))
             
+            # qty_days_travelled (from days_travelled) - No. of Days Travelled
+            if row_data.get("days_travelled"):
+                inputs["qty_days_travelled"] = float(row_data.get("days_travelled"))
+            
             # qty_room (from rooms)
             if row_data.get("rooms"):
                 inputs["qty_room"] = float(row_data.get("rooms"))
@@ -1507,15 +1511,54 @@ class EmissionCalculator:
             if row_data.get("working_hours"):
                 inputs["working_hour_per_day"] = float(row_data.get("working_hours"))
             
+            # Supplier basis inputs - these are needed for supplier method
+            calc_method = (row_data.get("calculation_method") or "").lower().replace(" ", "_")
+            if calc_method in ["supplier_basis", "supplier_based", "supplier"]:
+                # Add supplier inputs
+                if row_data.get("supplier_quantity"):
+                    inputs["supplier_quantity"] = float(row_data.get("supplier_quantity"))
+                    inputs["activity_value_supplier_based"] = float(row_data.get("supplier_quantity"))
+                if row_data.get("supplier_unit"):
+                    inputs["supplier_unit"] = str(row_data.get("supplier_unit"))
+                if row_data.get("supplier_ef"):
+                    inputs["supplier_ef"] = float(row_data.get("supplier_ef"))
+                    inputs["emission_factor_supplier_based"] = float(row_data.get("supplier_ef"))
+                if row_data.get("supplier_ef_unit"):
+                    inputs["supplier_ef_unit"] = str(row_data.get("supplier_ef_unit"))
+                
+                # Also merge any inputs from the calculation result (unit conversion details, etc.)
+                calc_result_inputs = emissions.get("inputs", {})
+                if calc_result_inputs:
+                    for k, v in calc_result_inputs.items():
+                        if k not in inputs:  # Don't override user-provided values
+                            inputs[k] = v
+            
             # Build calculation_details if available from emissions
             # Structure must match what frontend expects (MultiEmployeeInput.jsx):
             # - applied_factors: {key: {label, value, unit}} - emission factors
             # - audit_log: [{step, expression, expression_readable, output}] - formula steps
             calculation_details = None
-            if emissions.get("audit_log") or emissions.get("formula_id"):
+            calc_method = (row_data.get("calculation_method") or "").lower().replace(" ", "_")
+            is_supplier_basis = calc_method in ["supplier_basis", "supplier_based", "supplier"]
+            
+            if emissions.get("audit_log") or emissions.get("formula_id") or is_supplier_basis:
                 # Get applied_factors directly from calc_engine response
                 # Calc engine returns resolved emission factors in "applied_factors" key
                 applied_factors = emissions.get("applied_factors", {})
+                
+                # For supplier basis, build applied_factors from inputs if not present
+                if is_supplier_basis and not applied_factors:
+                    supplier_ef = row_data.get("supplier_ef")
+                    supplier_ef_unit = row_data.get("supplier_ef_unit", "kgCO2e")
+                    if supplier_ef:
+                        applied_factors = {
+                            "emission_factor_supplier_based": {
+                                "label": "Supplier Emission Factor",
+                                "value": float(supplier_ef),
+                                "unit": supplier_ef_unit,
+                                "source": "user_provided"
+                            }
+                        }
                 
                 calculation_details = {
                     "formula_id": emissions.get("formula_id"),
@@ -1527,9 +1570,7 @@ class EmissionCalculator:
                     },
                     "audit_log": emissions.get("audit_log", []),
                     "applied_factors": applied_factors,
-                    "formula_id": emissions.get("formula_id"),
-                    "formula_name": emissions.get("formula_name"),
-                    "outputs": emissions.get("outputs", {})
+                    "formula_name": emissions.get("formula_name", "Supplier Method" if is_supplier_basis else None)
                 }
             
             # Build emissions data - extract from outputs, handling both formats
