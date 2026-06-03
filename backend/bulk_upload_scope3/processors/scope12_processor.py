@@ -104,8 +104,8 @@ class Scope12RowProcessor:
         return cat_lower.replace(' ', '_')
     
     async def process_scope1_row(self, row_data: Dict, row_num: int,
-                                  existing_keys: set, bulk_job_id: str) -> RowResult:
-        """Process a single Scope 1 row"""
+                                  existing_keys: set, bulk_job_id: str) -> tuple:
+        """Process a single Scope 1 row. Returns (RowResult, emission_record or None)"""
         sheet_name = "Scope1"
         config = CATEGORY_COLUMNS.get("Scope1", {})
         
@@ -122,7 +122,7 @@ class Scope12RowProcessor:
                     severity=ErrorSeverity.WARNING
                 )],
                 row_data=row_data
-            )
+            ), None
         
         # 2. Validate facility
         facility, facility_error = await self.field_validator.validate_facility(
@@ -208,7 +208,7 @@ class Scope12RowProcessor:
             return RowResult(
                 sheet=sheet_name, row=row_num, success=False,
                 errors=errors, warnings=warnings, row_data=row_data
-            )
+            ), None
         
         # 9. Calculate emissions using calc engine
         try:
@@ -222,7 +222,7 @@ class Scope12RowProcessor:
                 co2e=emission_record.get("co2e_emissions", 0),
                 errors=[], warnings=warnings,
                 row_data=row_data
-            )
+            ), emission_record
         except Exception as e:
             logger.error(f"[SCOPE1_BULK] Calculation error row {row_num}: {str(e)}")
             errors.append(ValidationError(
@@ -234,11 +234,11 @@ class Scope12RowProcessor:
             return RowResult(
                 sheet=sheet_name, row=row_num, success=False,
                 errors=errors, warnings=warnings, row_data=row_data
-            )
+            ), None
     
     async def process_scope2_row(self, row_data: Dict, row_num: int,
-                                  existing_keys: set, bulk_job_id: str) -> RowResult:
-        """Process a single Scope 2 row"""
+                                  existing_keys: set, bulk_job_id: str) -> tuple:
+        """Process a single Scope 2 row. Returns (RowResult, emission_record or None)"""
         sheet_name = "Scope2"
         config = CATEGORY_COLUMNS.get("Scope2", {})
         
@@ -255,7 +255,7 @@ class Scope12RowProcessor:
                     severity=ErrorSeverity.WARNING
                 )],
                 row_data=row_data
-            )
+            ), None
         
         # 2. Validate facility
         facility, facility_error = await self.field_validator.validate_facility(
@@ -341,7 +341,7 @@ class Scope12RowProcessor:
             return RowResult(
                 sheet=sheet_name, row=row_num, success=False,
                 errors=errors, warnings=warnings, row_data=row_data
-            )
+            ), None
         
         # 9. Calculate emissions
         try:
@@ -355,7 +355,7 @@ class Scope12RowProcessor:
                 co2e=emission_record.get("co2e_emissions", 0),
                 errors=[], warnings=warnings,
                 row_data=row_data
-            )
+            ), emission_record
         except Exception as e:
             logger.error(f"[SCOPE2_BULK] Calculation error row {row_num}: {str(e)}")
             errors.append(ValidationError(
@@ -367,7 +367,7 @@ class Scope12RowProcessor:
             return RowResult(
                 sheet=sheet_name, row=row_num, success=False,
                 errors=errors, warnings=warnings, row_data=row_data
-            )
+            ), None
     
     def _validate_reporting_period(self, row_data: Dict, row_num: int, sheet_name: str) -> List[ValidationError]:
         """Validate reporting period - month OR year, not both"""
@@ -592,7 +592,7 @@ class Scope12RowProcessor:
             "frequency_type": row_data.get("frequency_type", "monthly"),
             "scope": "scope1",
             "category": category_doc.get("name") if category_doc else category_key.replace("_", " ").title(),
-            "sub_category": category_key,
+            "sub_category": fuel_data.get("fuel_name"),
             "fuel_type": fuel_data.get("fuel_name"),
             "fuel_database_id": fuel_data.get("id"),
             "formula_id": formula_id,
@@ -723,7 +723,7 @@ class Scope12RowProcessor:
             "frequency_type": row_data.get("frequency_type", "monthly"),
             "scope": "scope2",
             "category": category_doc.get("name") if category_doc else category_key.replace("_", " ").title(),
-            "sub_category": category_key,
+            "sub_category": fuel_data.get("fuel_name"),
             "fuel_type": fuel_data.get("fuel_name"),
             "fuel_database_id": fuel_data.get("id"),
             "formula_id": formula_id,

@@ -413,34 +413,16 @@ class UploadProcessor:
             # Use appropriate processor based on sheet type
             if is_scope12:
                 if category_code == "Scope1":
-                    result = await self.scope12_processor.process_scope1_row(
+                    result, emission_record = await self.scope12_processor.process_scope1_row(
                         row_data, row_idx, existing_keys, job_id
                     )
                 else:  # Scope2
-                    result = await self.scope12_processor.process_scope2_row(
+                    result, emission_record = await self.scope12_processor.process_scope2_row(
                         row_data, row_idx, existing_keys, job_id
                     )
                 
-                # Scope12 processor returns RowResult directly
                 results.append(result)
-                if result.success and result.emission_id:
-                    # Get the emission record for saving
-                    if category_code == "Scope1":
-                        emission_record = await self.scope12_processor._calculate_scope1_emission(
-                            row_data, 
-                            await self._get_facility(row_data.get("facility_name")),
-                            await self.scope12_processor.get_fuel_by_name(row_data.get("fuel_gas", "")),
-                            self.scope12_processor._normalize_category(row_data.get("category", "")),
-                            job_id
-                        )
-                    else:
-                        emission_record = await self.scope12_processor._calculate_scope2_emission(
-                            row_data,
-                            await self._get_facility(row_data.get("facility_name")),
-                            await self.scope12_processor.get_fuel_by_name(row_data.get("energy_used", ""), row_data.get("category")),
-                            self.scope12_processor._normalize_category(row_data.get("category", "")),
-                            job_id
-                        )
+                if result.success and emission_record:
                     emission_records.append(emission_record)
             else:
                 result = await self.row_processor.process_row(
