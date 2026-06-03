@@ -28,16 +28,17 @@ class Scope12RowProcessor:
         self.field_validator = FieldValidator(db, organization_id)
         self._fuel_cache = {}  # Cache for fuel lookups
     
-    async def get_fuel_by_name(self, fuel_name: str, category: str = None) -> Optional[Dict]:
-        """Get fuel from fuel_database by name"""
+    async def get_fuel_by_name(self, fuel_name: str, category: str = None, sector: str = None) -> Optional[Dict]:
+        """Get fuel from fuel_database by name, optionally filtered by sector"""
         fuel_lower = fuel_name.lower().strip()
-        cache_key = f"{fuel_lower}_{category}" if category else fuel_lower
+        cache_key = f"{fuel_lower}_{category}_{sector}" if category or sector else fuel_lower
         
         if cache_key in self._fuel_cache:
             return self._fuel_cache[cache_key]
         
         # Build query based on category
-        query = {}
+        query = {"fuel_name": {"$regex": f"^{fuel_name}$", "$options": "i"}}
+        
         if category:
             cat_lower = category.lower().strip()
             if cat_lower in ['purchased electricity', 'purchased_electricity']:
@@ -45,11 +46,25 @@ class Scope12RowProcessor:
             elif cat_lower in ['purchased heat/steam', 'purchased_heat_steam']:
                 query["fuel_type"] = {"$regex": "heat|steam", "$options": "i"}
         
-        # Search by fuel_name (case-insensitive)
-        fuels = await self.db.fuel_database.find(
-            {"fuel_name": {"$regex": f"^{fuel_name}$", "$options": "i"}, **query},
-            {"_id": 0}
-        ).to_list(10)
+        # If sector provided, try to match sector first
+        if sector:
+            sector_query = {
+                **query,
+                "$or": [
+                    {"industry_sector": {"$regex": f"^{sector}$", "$options": "i"}},
+                    {"industry_sectors": {"$regex": sector, "$options": "i"}}
+                ]
+            }
+            fuels = await self.db.fuel_database.find(sector_query, {"_id": 0}).to_list(10)
+            if fuels:
+                logger.info(f"[FUEL_LOOKUP] Found fuel '{fuel_name}' with sector '{sector}'")
+                self._fuel_cache[cache_key] = fuels[0]
+                return fuels[0]
+            else:
+                logger.debug(f"[FUEL_LOOKUP] No sector match for '{fuel_name}' in sector '{sector}', falling back to name-only")
+        
+        # Search by fuel_name only (fallback)
+        fuels = await self.db.fuel_database.find(query, {"_id": 0}).to_list(10)
         
         if fuels:
             self._fuel_cache[cache_key] = fuels[0]
@@ -157,6 +172,8 @@ class Scope12RowProcessor:
         # 5. Validate fuel/gas
         fuel_name = row_data.get("fuel_gas", "").strip()
         fuel_data = None
+        facility_sector = facility.get("sector") if facility else None
+        
         if not fuel_name:
             errors.append(ValidationError(
                 sheet=sheet_name, row=row_num, column="Fuel/Gas Used",
@@ -165,7 +182,7 @@ class Scope12RowProcessor:
                 severity=ErrorSeverity.ERROR
             ))
         else:
-            fuel_data = await self.get_fuel_by_name(fuel_name)
+            fuel_data = await self.get_fuel_by_name(fuel_name, sector=facility_sector)
             if not fuel_data:
                 errors.append(ValidationError(
                     sheet=sheet_name, row=row_num, column="Fuel/Gas Used",
@@ -290,6 +307,8 @@ class Scope12RowProcessor:
         # 5. Validate energy used
         energy_name = row_data.get("energy_used", "").strip()
         fuel_data = None
+        facility_sector = facility.get("sector") if facility else None
+        
         if not energy_name:
             errors.append(ValidationError(
                 sheet=sheet_name, row=row_num, column="Energy Used",
@@ -298,7 +317,7 @@ class Scope12RowProcessor:
                 severity=ErrorSeverity.ERROR
             ))
         else:
-            fuel_data = await self.get_fuel_by_name(energy_name, category)
+            fuel_data = await self.get_fuel_by_name(energy_name, category=category, sector=facility_sector)
             if not fuel_data:
                 errors.append(ValidationError(
                     sheet=sheet_name, row=row_num, column="Energy Used",
