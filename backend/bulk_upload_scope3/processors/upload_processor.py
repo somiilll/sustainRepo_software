@@ -190,21 +190,25 @@ class UploadProcessor:
                         "changed_by": self.user_id,
                         "changed_by_email": self.user_email,
                         "changed_by_name": self.user_name,
-                        "changed_at": now,
+                        "changed_at": now.isoformat(),
                         "version": 1,
                         "field_changes": [],
                         "changes_summary": "Initial creation via bulk upload",
-                        "changes": {"action": "created"},
-                        "new_values": {
-                            "facility_id": record.get("facility_id"),
-                            "reporting_period": record.get("reporting_period"),
-                            "category": record.get("category"),
-                            "co2e_emissions": record.get("co2e_emissions"),
-                            "total_emissions": record.get("total_emissions"),
+                        "changes": {
+                            "action": "created",
+                            "old_values": None,
+                            "new_values": {
+                                "facility_id": record.get("facility_id"),
+                                "reporting_period": record.get("reporting_period"),
+                                "category": record.get("category"),
+                                "co2e_emissions": record.get("co2e_emissions"),
+                                "total_emissions": record.get("total_emissions"),
+                            }
                         }
                     })
                 if history_entries:
                     await self.db.emission_history.insert_many(history_entries)
+                    logger.info(f"[BULK_UPLOAD] Created {len(history_entries)} history entries")
             
             # Update job record
             await self.db.bulk_upload_jobs.update_one(

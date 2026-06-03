@@ -56,15 +56,25 @@ class R2Storage:
             raise ValueError(f"Invalid bucket type: {bucket_type}. Valid types: {list(self.buckets.keys())}")
         return bucket
     
-    def _generate_unique_key(self, filename: str, folder: str = None) -> str:
+    def _generate_unique_key(self, filename: str, folder: str = None, org_name: str = None) -> str:
         """Generate a unique key for the file"""
         file_ext = filename.split('.')[-1] if '.' in filename else ''
         unique_id = str(uuid.uuid4())
         timestamp = datetime.now().strftime('%Y%m%d')
         
+        # Build path: org_name/timestamp/file or folder/org_name/timestamp/file
+        base_name = f"{unique_id}.{file_ext}" if file_ext else unique_id
+        
+        if org_name:
+            # Sanitize org_name for use in path
+            safe_org = ''.join(c if c.isalnum() or c in '-_' else '_' for c in org_name)
+            if folder:
+                return f"{folder}/{safe_org}/{timestamp}/{base_name}"
+            return f"{safe_org}/{timestamp}/{base_name}"
+        
         if folder:
-            return f"{folder}/{timestamp}/{unique_id}.{file_ext}" if file_ext else f"{folder}/{timestamp}/{unique_id}"
-        return f"{timestamp}/{unique_id}.{file_ext}" if file_ext else f"{timestamp}/{unique_id}"
+            return f"{folder}/{timestamp}/{base_name}"
+        return f"{timestamp}/{base_name}"
     
     async def upload_file(
         self, 
@@ -73,7 +83,8 @@ class R2Storage:
         bucket_type: str, 
         content_type: str,
         folder: str = None,
-        metadata: dict = None
+        metadata: dict = None,
+        org_name: str = None
     ) -> dict:
         """
         Upload file to appropriate R2 bucket
@@ -85,13 +96,16 @@ class R2Storage:
             content_type: MIME type of the file
             folder: Optional folder/prefix for organizing files
             metadata: Optional metadata to store with the file
+            org_name: Optional organization name for path prefix
         
         Returns:
             dict with bucket, key, and file info
         """
         try:
             bucket = self._get_bucket(bucket_type)
-            key = self._generate_unique_key(filename, folder)
+            key = self._generate_unique_key(filename, folder, org_name)
+            
+            logger.info(f"[R2_UPLOAD] Starting: bucket={bucket}, key={key}, size={len(file_content)}, org={org_name}")
             
             # Prepare upload parameters
             upload_params = {
@@ -113,7 +127,7 @@ class R2Storage:
             # Upload to R2
             self.client.put_object(**upload_params)
             
-            logger.info(f"File uploaded successfully: {bucket}/{key}")
+            logger.info(f"[R2_UPLOAD] Success: {bucket}/{key}")
             
             return {
                 'success': True,

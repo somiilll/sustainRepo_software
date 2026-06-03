@@ -2733,6 +2733,16 @@ async def upload_evidence_file(
         raise HTTPException(status_code=400, detail="File size too large. Maximum size is 5MB")
     
     try:
+        # Get organization name for path prefix
+        org_name = None
+        org_id = current_user.get("organization_id")
+        if org_id:
+            org = await db.organizations.find_one({"id": org_id}, {"_id": 0, "name": 1})
+            if org:
+                org_name = org.get("name")
+        
+        logger.info(f"[EVIDENCE_UPLOAD] Starting upload: file={file.filename}, bucket={bucket_type}, org={org_name}, user={current_user.get('email')}")
+        
         # Upload to R2
         r2 = get_r2_storage()
         result = await r2.upload_file(
@@ -2743,8 +2753,11 @@ async def upload_evidence_file(
             metadata={
                 'uploaded_by': current_user["id"],
                 'original_filename': file.filename
-            }
+            },
+            org_name=org_name
         )
+        
+        logger.info(f"[EVIDENCE_UPLOAD] R2 upload success: key={result.get('key')}, size={len(file_content)}")
         
         # Store file metadata in database
         file_record = {
@@ -3271,7 +3284,10 @@ async def save_scope3_valid_rows(job_id: str, current_user: dict = Depends(get_c
         {"_id": 0}
     ).to_list(10000)
     
+    logger.info(f"[BULK_SAVE] Job {job_id}: Found {len(pending_records)} pending records")
+    
     if not pending_records:
+        logger.warning(f"[BULK_SAVE] Job {job_id}: No pending records found")
         raise HTTPException(
             status_code=400, 
             detail="No pending records found. Please re-upload the file with validate_only=false to save directly."
@@ -3289,6 +3305,69 @@ async def save_scope3_valid_rows(job_id: str, current_user: dict = Depends(get_c
     if records_to_save:
         await db.emission_records.insert_many(records_to_save)
         created_ids = [r["id"] for r in records_to_save]
+        logger.info(f"[BULK_SAVE] Job {job_id}: Inserted {len(created_ids)} emission records")
+        
+        # Create emission_history entries for version tracking
+        now = datetime.now(timezone.utc)
+        history_entries = []
+        for record in records_to_save:
+            history_entries.append({
+                "id": str(uuid.uuid4()),
+                "emission_id": record["id"],
+                "scope": record.get("scope", "scope3"),
+                "category": record.get("category", ""),
+                "reporting_month": record.get("reporting_period"),
+                "changed_by": current_user["id"],
+                "changed_by_email": current_user.get("email", ""),
+                "changed_by_name": current_user.get("full_name", ""),
+                "changed_at": now.isoformat(),
+                "version": 1,
+                "field_changes": [],
+                "changes_summary": "Initial creation via bulk upload",
+                "changes": {
+                    "action": "created",
+                    "old_values": None,
+                    "new_values": {
+                        "facility_id": record.get("facility_id"),
+                        "reporting_period": record.get("reporting_period"),
+                        "category": record.get("category"),
+                        "co2e_emissions": record.get("co2e_emissions"),
+                        "total_emissions": record.get("total_emissions"),
+                    }
+                }
+            })
+        if history_entries:
+            await db.emission_history.insert_many(history_entries)
+            logger.info(f"[BULK_SAVE] Job {job_id}: Created {len(history_entries)} history entries")
+        
+        # Create audit log entry for bulk upload
+        scope_counts = {}
+        for record in records_to_save:
+            scope = record.get("scope", "scope3")
+            scope_counts[scope] = scope_counts.get(scope, 0) + 1
+        
+        scope_summary = ", ".join([f"{s}: {c}" for s, c in scope_counts.items()])
+        logger.info(f"[BULK_SAVE] Job {job_id}: Scope breakdown - {scope_summary}")
+        
+        audit_logger = AuditLogger(db)
+        await audit_logger.log(
+            action=AuditAction.IMPORT,
+            module=AuditModule.EMISSION,
+            user_id=current_user["id"],
+            user_email=current_user.get("email", ""),
+            user_role=current_user.get("role", "user"),
+            organization_id=organization_id,
+            resource_id=job_id,
+            resource_name=f"Bulk Upload Job {job_id[:8]}",
+            description=f"Bulk uploaded {len(created_ids)} emission records ({scope_summary})",
+            metadata={
+                "job_id": job_id,
+                "total_records": len(created_ids),
+                "scope_breakdown": scope_counts,
+                "emission_ids": created_ids[:10] if len(created_ids) > 10 else created_ids
+            }
+        )
+        logger.info(f"[BULK_SAVE] Job {job_id}: Audit log created")
         
         # Update job with saved record IDs
         await db.bulk_upload_jobs.update_one(

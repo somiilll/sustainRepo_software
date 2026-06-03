@@ -28,16 +28,17 @@ class Scope12RowProcessor:
         self.field_validator = FieldValidator(db, organization_id)
         self._fuel_cache = {}  # Cache for fuel lookups
     
-    async def get_fuel_by_name(self, fuel_name: str, category: str = None) -> Optional[Dict]:
-        """Get fuel from fuel_database by name"""
+    async def get_fuel_by_name(self, fuel_name: str, category: str = None, sector: str = None) -> Optional[Dict]:
+        """Get fuel from fuel_database by name, optionally filtered by sector"""
         fuel_lower = fuel_name.lower().strip()
-        cache_key = f"{fuel_lower}_{category}" if category else fuel_lower
+        cache_key = f"{fuel_lower}_{category}_{sector}" if category or sector else fuel_lower
         
         if cache_key in self._fuel_cache:
             return self._fuel_cache[cache_key]
         
         # Build query based on category
-        query = {}
+        query = {"fuel_name": {"$regex": f"^{fuel_name}$", "$options": "i"}}
+        
         if category:
             cat_lower = category.lower().strip()
             if cat_lower in ['purchased electricity', 'purchased_electricity']:
@@ -45,11 +46,25 @@ class Scope12RowProcessor:
             elif cat_lower in ['purchased heat/steam', 'purchased_heat_steam']:
                 query["fuel_type"] = {"$regex": "heat|steam", "$options": "i"}
         
-        # Search by fuel_name (case-insensitive)
-        fuels = await self.db.fuel_database.find(
-            {"fuel_name": {"$regex": f"^{fuel_name}$", "$options": "i"}, **query},
-            {"_id": 0}
-        ).to_list(10)
+        # If sector provided, try to match sector first
+        if sector:
+            sector_query = {
+                **query,
+                "$or": [
+                    {"industry_sector": {"$regex": f"^{sector}$", "$options": "i"}},
+                    {"industry_sectors": {"$regex": sector, "$options": "i"}}
+                ]
+            }
+            fuels = await self.db.fuel_database.find(sector_query, {"_id": 0}).to_list(10)
+            if fuels:
+                logger.info(f"[FUEL_LOOKUP] Found fuel '{fuel_name}' with sector '{sector}'")
+                self._fuel_cache[cache_key] = fuels[0]
+                return fuels[0]
+            else:
+                logger.debug(f"[FUEL_LOOKUP] No sector match for '{fuel_name}' in sector '{sector}', falling back to name-only")
+        
+        # Search by fuel_name only (fallback)
+        fuels = await self.db.fuel_database.find(query, {"_id": 0}).to_list(10)
         
         if fuels:
             self._fuel_cache[cache_key] = fuels[0]
@@ -157,6 +172,8 @@ class Scope12RowProcessor:
         # 5. Validate fuel/gas
         fuel_name = row_data.get("fuel_gas", "").strip()
         fuel_data = None
+        facility_sector = facility.get("sector") if facility else None
+        
         if not fuel_name:
             errors.append(ValidationError(
                 sheet=sheet_name, row=row_num, column="Fuel/Gas Used",
@@ -165,7 +182,7 @@ class Scope12RowProcessor:
                 severity=ErrorSeverity.ERROR
             ))
         else:
-            fuel_data = await self.get_fuel_by_name(fuel_name)
+            fuel_data = await self.get_fuel_by_name(fuel_name, sector=facility_sector)
             if not fuel_data:
                 errors.append(ValidationError(
                     sheet=sheet_name, row=row_num, column="Fuel/Gas Used",
@@ -290,6 +307,8 @@ class Scope12RowProcessor:
         # 5. Validate energy used
         energy_name = row_data.get("energy_used", "").strip()
         fuel_data = None
+        facility_sector = facility.get("sector") if facility else None
+        
         if not energy_name:
             errors.append(ValidationError(
                 sheet=sheet_name, row=row_num, column="Energy Used",
@@ -298,7 +317,7 @@ class Scope12RowProcessor:
                 severity=ErrorSeverity.ERROR
             ))
         else:
-            fuel_data = await self.get_fuel_by_name(energy_name, category)
+            fuel_data = await self.get_fuel_by_name(energy_name, category=category, sector=facility_sector)
             if not fuel_data:
                 errors.append(ValidationError(
                     sheet=sheet_name, row=row_num, column="Energy Used",
@@ -476,42 +495,87 @@ class Scope12RowProcessor:
         now = datetime.now(timezone.utc)
         record_id = str(uuid.uuid4())
         
-        # Get category from ce_categories
-        category_doc = await self.db.ce_categories.find_one(
-            {"key": category_key, "scope_code": "scope1"},
-            {"_id": 0}
+        # Get category name from row data (original user input)
+        category_name = row_data.get("category", "").strip()
+        
+        # Map category name to code for emission_categories lookup
+        category_code_map = {
+            "stationary combustion": "stationary_combustion",
+            "mobile combustion": "mobile_combustion",
+            "fugitive emissions": "fugitive_emissions",
+        }
+        category_code = category_code_map.get(category_name.lower(), category_key)
+        
+        # Get category from emission_categories (same as Scope 3)
+        category_doc = await self.db.emission_categories.find_one(
+            {"code": category_code, "is_active": True},
+            {"_id": 0, "id": 1, "name": 1}
         )
         if not category_doc:
-            # Fallback to search by name pattern
-            category_doc = await self.db.ce_categories.find_one(
-                {"name": {"$regex": category_key.replace("_", " "), "$options": "i"}, "scope_code": "scope1"},
-                {"_id": 0}
+            # Try with name match
+            category_doc = await self.db.emission_categories.find_one(
+                {"name": {"$regex": f"^{category_name}$", "$options": "i"}, "is_active": True},
+                {"_id": 0, "id": 1, "name": 1}
             )
         
         category_id = category_doc.get("id") if category_doc else None
         
-        # Get decision tree and resolve formula
+        logger.info(f"[SCOPE1_BULK] Processing row: category={category_key}, fuel={fuel_data.get('fuel_name')}, category_id={category_id}")
+        
+        # Get decision tree and resolve formula (same logic as calc_engine/router.py)
         decision_tree = await get_decision_tree_for_category(self.db, category_id) if category_id else None
+        
+        # Check if user provided emission factor in bulk upload
+        ef_quantity_provided = bool(row_data.get("ef_quantity"))
         
         # Build decision inputs for formula resolution
         decision_inputs = {
-            "fuel_code": fuel_data.get("id") or fuel_data.get("fuel_code"),
+            "fuel_code": fuel_data.get("id"),
+            "fuel_database_id": fuel_data.get("id"),
+            "ef_quantity_provided": str(ef_quantity_provided).lower(),  # "true" or "false"
         }
+        
+        logger.debug(f"[SCOPE1_BULK] Decision inputs: {decision_inputs}")
         
         formula_id = None
         if decision_tree:
             try:
-                formula_id = resolve_formula_id(decision_tree, decision_inputs)
+                # decision_tree might have "tree" key or be the tree itself
+                tree_data = decision_tree.get("tree", decision_tree) if isinstance(decision_tree, dict) else decision_tree
+                result = resolve_formula_id(tree_data, decision_inputs)
+                # resolve_formula_id returns (formula_id, path) tuple or just formula_id
+                formula_id = result[0] if isinstance(result, tuple) else result
+                logger.info(f"[SCOPE1_BULK] Formula resolved via decision tree: {formula_id}")
             except Exception as e:
                 logger.warning(f"[SCOPE1_BULK] Decision tree resolution failed: {e}")
+        
+        # No decision tree - look up formula directly by category_id (same as calc_engine/router.py line 737)
+        if not formula_id and category_id:
+            formula_doc = await self.db.ce_formulas.find_one(
+                {
+                    "is_active": True,
+                    "$or": [
+                        {"category_id": category_id},
+                        {"category_ids": category_id},
+                    ],
+                },
+                {"_id": 0, "id": 1},
+            )
+            if formula_doc:
+                formula_id = formula_doc.get("id")
         
         # Build inputs for calc engine
         qty = float(row_data.get("qty", 0))
         unit_qty = row_data.get("unit_qty", "")
         
         inputs = {
-            "qty": {"value": qty, "unit": unit_qty}
+            "qty": {"value": qty, "unit": unit_qty},
         }
+        
+        # If user provided ef_quantity, add it to inputs
+        if ef_quantity_provided:
+            ef_value = float(row_data.get("ef_quantity"))
+            inputs["ef_quantity"] = {"value": ef_value, "unit": "kgCO2/kg"}
         
         # Build user overrides
         user_overrides = {}
@@ -528,15 +592,18 @@ class Scope12RowProcessor:
             density_unit = row_data.get("density_unit", "")
             user_overrides["density"] = {"value": density_value, "unit": density_unit, "is_override": True}
         
-        # Emission factor override
-        if row_data.get("ef_quantity"):
+        # Emission factor override - only if user provides it in bulk upload
+        if ef_quantity_provided:
             ef_value = float(row_data.get("ef_quantity"))
             user_overrides["ef_quantity"] = {"value": ef_value, "unit": "kgCO2/kg", "is_override": True}
         
-        # GWP for fugitives
+        # GWP for fugitives - user override OR from fuel_database
         if row_data.get("co2_gwp_fugitives"):
             gwp_value = float(row_data.get("co2_gwp_fugitives"))
             user_overrides["co2_gwp_fugitives"] = {"value": gwp_value, "unit": "", "is_override": True}
+        elif category_key == "fugitive_emissions" and fuel_data.get("gwp_fugitives"):
+            gwp_value = float(fuel_data.get("gwp_fugitives"))
+            user_overrides["co2_gwp_fugitives"] = {"value": gwp_value, "unit": "kgCO2e/kg", "source_name": fuel_data.get("source", "Fuel Database")}
         
         # Execute calculation
         calc_engine = CalcEngine(self.db)
@@ -554,7 +621,9 @@ class Scope12RowProcessor:
                 context = {
                     "fuel_code": fuel_data.get("id") or fuel_data.get("fuel_code"),
                     "fuel_database_id": fuel_data.get("id"),
+                    "ef_quantity_provided": ef_quantity_provided,
                 }
+                logger.info(f"[SCOPE1_BULK] Executing calc engine: formula={formula_id}, inputs={inputs}, context={context}")
                 result = await calc_engine.execute(
                     formula.get("definition", formula),
                     inputs,
@@ -566,9 +635,12 @@ class Scope12RowProcessor:
                 )
                 outputs = result.get("outputs", {})
                 co2e = outputs.get("co2e", {}).get("value", 0) or 0
+                logger.info(f"[SCOPE1_BULK] Calculation result: co2e={co2e}")
             except Exception as e:
                 logger.error(f"[SCOPE1_BULK] Calc engine error: {e}")
                 raise
+        else:
+            logger.warning(f"[SCOPE1_BULK] No formula found for category_id={category_id}, formula_id={formula_id}")
         
         # Build dynamic_field_values matching manual upload structure
         dynamic_field_values = {
@@ -632,49 +704,96 @@ class Scope12RowProcessor:
         now = datetime.now(timezone.utc)
         record_id = str(uuid.uuid4())
         
-        # Get category from ce_categories
-        category_doc = await self.db.ce_categories.find_one(
-            {"key": category_key, "scope_code": "scope2"},
-            {"_id": 0}
+        # Get category name from row data (original user input)
+        category_name = row_data.get("category", "").strip()
+        
+        # Map category name to code for emission_categories lookup
+        category_code_map = {
+            "purchased electricity": "purchased_electricity",
+            "purchased steam/heat": "purchased_steam_heat",
+            "purchased heat/steam": "purchased_steam_heat",
+        }
+        category_code = category_code_map.get(category_name.lower(), category_key)
+        
+        # Get category from emission_categories (same as Scope 3)
+        category_doc = await self.db.emission_categories.find_one(
+            {"code": category_code, "is_active": True},
+            {"_id": 0, "id": 1, "name": 1}
         )
         if not category_doc:
-            category_doc = await self.db.ce_categories.find_one(
-                {"name": {"$regex": category_key.replace("_", " "), "$options": "i"}, "scope_code": "scope2"},
-                {"_id": 0}
+            # Try with name match
+            category_doc = await self.db.emission_categories.find_one(
+                {"name": {"$regex": f"^{category_name}$", "$options": "i"}, "is_active": True},
+                {"_id": 0, "id": 1, "name": 1}
             )
         
         category_id = category_doc.get("id") if category_doc else None
         
-        # Get decision tree and resolve formula
+        # Get decision tree and resolve formula (same logic as calc_engine/router.py)
         decision_tree = await get_decision_tree_for_category(self.db, category_id) if category_id else None
         
         decision_inputs = {
-            "fuel_code": fuel_data.get("id") or fuel_data.get("fuel_code"),
+            "fuel_code": fuel_data.get("id"),
+            "fuel_database_id": fuel_data.get("id"),
         }
         
         formula_id = None
         if decision_tree:
             try:
-                formula_id = resolve_formula_id(decision_tree, decision_inputs)
+                # decision_tree might have "tree" key or be the tree itself
+                tree_data = decision_tree.get("tree", decision_tree) if isinstance(decision_tree, dict) else decision_tree
+                result = resolve_formula_id(tree_data, decision_inputs)
+                # resolve_formula_id returns (formula_id, path) tuple or just formula_id
+                formula_id = result[0] if isinstance(result, tuple) else result
             except Exception as e:
                 logger.warning(f"[SCOPE2_BULK] Decision tree resolution failed: {e}")
+        
+        # No decision tree - look up formula directly by category_id (same as calc_engine/router.py line 737)
+        if not formula_id and category_id:
+            formula_doc = await self.db.ce_formulas.find_one(
+                {
+                    "is_active": True,
+                    "$or": [
+                        {"category_id": category_id},
+                        {"category_ids": category_id},
+                    ],
+                },
+                {"_id": 0, "id": 1},
+            )
+            if formula_doc:
+                formula_id = formula_doc.get("id")
         
         # Build inputs
         qty = float(row_data.get("qty_energy", 0))
         unit_qty = row_data.get("unit_qty", "")
         
+        # Check if user provided emission factor in bulk upload
+        ef_quantity_provided = bool(row_data.get("ef_quantity_electricity_co2"))
+        
         inputs = {
-            "qty_energy": {"value": qty, "unit": unit_qty}
+            "qty_energy": {"value": qty, "unit": unit_qty},
+            "ef_quantity_provided": {"value": ef_quantity_provided, "unit": ""}
         }
+        
+        # If user provided ef_quantity, add it to inputs
+        if ef_quantity_provided:
+            ef_value = float(row_data.get("ef_quantity_electricity_co2"))
+            ef_unit = row_data.get("ef_unit", "kgCO2/kWh")
+            inputs["ef_quantity_electricity_co2"] = {"value": ef_value, "unit": ef_unit}
         
         # Build user overrides
         user_overrides = {}
         
-        # Emission factor override
-        if row_data.get("ef_quantity_electricity_co2"):
+        # Emission factor override OR from fuel_database
+        if ef_quantity_provided:
             ef_value = float(row_data.get("ef_quantity_electricity_co2"))
             ef_unit = row_data.get("ef_unit", "kgCO2/kWh")
             user_overrides["ef_quantity_electricity_co2"] = {"value": ef_value, "unit": ef_unit, "is_override": True}
+        elif fuel_data.get("emission_factor_basis_quantity") is not None:
+            # Use emission_factor_basis_quantity from fuel_database (e.g., 0.71 tCO2/MWh, or 0 for renewables)
+            ef_value = float(fuel_data.get("emission_factor_basis_quantity"))
+            ef_unit = fuel_data.get("emission_factor_basis_unit", "tCO2/MWh")
+            user_overrides["ef_quantity_electricity_co2"] = {"value": ef_value, "unit": ef_unit, "source_name": fuel_data.get("source", "Fuel Database")}
         
         # Execute calculation
         calc_engine = CalcEngine(self.db)
@@ -691,7 +810,9 @@ class Scope12RowProcessor:
                 context = {
                     "fuel_code": fuel_data.get("id") or fuel_data.get("fuel_code"),
                     "fuel_database_id": fuel_data.get("id"),
+                    "ef_quantity_provided": ef_quantity_provided,
                 }
+                logger.info(f"[SCOPE2_BULK] Executing calc engine: formula={formula_id}, qty={qty}, ef_provided={ef_quantity_provided}")
                 result = await calc_engine.execute(
                     formula.get("definition", formula),
                     inputs,
@@ -703,9 +824,12 @@ class Scope12RowProcessor:
                 )
                 outputs = result.get("outputs", {})
                 co2e = outputs.get("co2e", {}).get("value", 0) or 0
+                logger.info(f"[SCOPE2_BULK] Calculation result: co2e={co2e}")
             except Exception as e:
                 logger.error(f"[SCOPE2_BULK] Calc engine error: {e}")
                 raise
+        else:
+            logger.warning(f"[SCOPE2_BULK] No formula found for category_id={category_id}, formula_id={formula_id}")
         
         # Build dynamic_field_values
         dynamic_field_values = {

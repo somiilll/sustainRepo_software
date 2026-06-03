@@ -11,6 +11,7 @@ Auth router — 7 routes:
 Behaviour preserved exactly from server.py — same response shapes,
 status codes, validation messages, and side effects (email sending).
 """
+import logging
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -37,6 +38,8 @@ from modules.auth.contracts import (
 )
 from modules.auth.dependencies import get_current_user
 from modules.auth.email_templates import password_reset_email
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -92,14 +95,19 @@ async def signup(user_data: UserCreate):
 
 @router.post("/auth/login", response_model=TokenResponse)
 async def login(credentials: UserLogin):
+    logger.info(f"[AUTH_LOGIN] Attempt: email={credentials.email}")
+    
     user = await db.users.find_one({"email": credentials.email}, {"_id": 0})
     if not user or not verify_password(credentials.password, user["password_hash"]):
+        logger.warning(f"[AUTH_LOGIN] Failed: email={credentials.email}, reason=invalid_credentials")
         raise HTTPException(status_code=401, detail="Incorrect email or password")
 
     if user.get("is_deleted", False):
+        logger.warning(f"[AUTH_LOGIN] Failed: email={credentials.email}, reason=account_deleted")
         raise HTTPException(status_code=403, detail="Your account has been deleted. Please contact your administrator.")
 
     if not user.get("is_active", True):
+        logger.warning(f"[AUTH_LOGIN] Failed: email={credentials.email}, reason=account_inactive")
         raise HTTPException(status_code=403, detail="Your account has been deactivated. Please contact your administrator.")
 
     if user.get("role") != "super_admin" and user.get("organization_id"):
@@ -127,6 +135,7 @@ async def login(credentials: UserLogin):
     access_token = create_access_token(data={"sub": user["id"]})
     user_response = UserResponse(**{k: v for k, v in user.items() if k != "password_hash"})
 
+    logger.info(f"[AUTH_LOGIN] Success: email={credentials.email}, user_id={user['id']}, role={user.get('role')}")
     return TokenResponse(access_token=access_token, token_type="bearer", user=user_response)
 
 
