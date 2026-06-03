@@ -830,7 +830,7 @@ export default function Reports() {
               </div>
               <p className="text-sm text-text-secondary mb-4">
                 Generate an AI-powered executive summary of your emissions data. Perfect for board presentations, 
-                stakeholder reports, and quick insights using Claude AI.
+                stakeholder reports, and quick insights.
               </p>
               <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>
                 <DialogTrigger asChild>

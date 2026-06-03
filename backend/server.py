@@ -3322,6 +3322,32 @@ async def save_scope3_valid_rows(job_id: str, current_user: dict = Depends(get_c
         if history_entries:
             await db.emission_history.insert_many(history_entries)
         
+        # Create audit log entry for bulk upload
+        scope_counts = {}
+        for record in records_to_save:
+            scope = record.get("scope", "scope3")
+            scope_counts[scope] = scope_counts.get(scope, 0) + 1
+        
+        scope_summary = ", ".join([f"{s}: {c}" for s, c in scope_counts.items()])
+        audit_logger = AuditLogger(db)
+        await audit_logger.log(
+            action=AuditAction.IMPORT,
+            module=AuditModule.EMISSION,
+            user_id=current_user["id"],
+            user_email=current_user.get("email", ""),
+            user_role=current_user.get("role", "user"),
+            organization_id=organization_id,
+            resource_id=job_id,
+            resource_name=f"Bulk Upload Job {job_id[:8]}",
+            description=f"Bulk uploaded {len(created_ids)} emission records ({scope_summary})",
+            metadata={
+                "job_id": job_id,
+                "total_records": len(created_ids),
+                "scope_breakdown": scope_counts,
+                "emission_ids": created_ids[:10] if len(created_ids) > 10 else created_ids
+            }
+        )
+        
         # Update job with saved record IDs
         await db.bulk_upload_jobs.update_one(
             {"id": job_id},
