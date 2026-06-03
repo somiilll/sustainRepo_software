@@ -499,7 +499,7 @@ class Scope12RowProcessor:
         
         category_id = category_doc.get("id") if category_doc else None
         
-        # Get decision tree and resolve formula
+        # Get decision tree and resolve formula (same logic as calc_engine/router.py)
         decision_tree = await get_decision_tree_for_category(self.db, category_id) if category_id else None
         
         # Build decision inputs for formula resolution - use fuel_database_id
@@ -511,15 +511,15 @@ class Scope12RowProcessor:
         formula_id = None
         if decision_tree:
             try:
-                formula_id = resolve_formula_id(decision_tree, decision_inputs)
+                # decision_tree might have "tree" key or be the tree itself
+                tree_data = decision_tree.get("tree", decision_tree) if isinstance(decision_tree, dict) else decision_tree
+                result = resolve_formula_id(tree_data, decision_inputs)
+                # resolve_formula_id returns (formula_id, path) tuple or just formula_id
+                formula_id = result[0] if isinstance(result, tuple) else result
             except Exception as e:
                 logger.warning(f"[SCOPE1_BULK] Decision tree resolution failed: {e}")
         
-        # Fallback: get formula_id directly from fuel_database entry
-        if not formula_id:
-            formula_id = fuel_data.get("formula_id")
-        
-        # Fallback 2: Look up formula directly from ce_formulas by category_id
+        # No decision tree - look up formula directly by category_id (same as calc_engine/router.py line 737)
         if not formula_id and category_id:
             formula_doc = await self.db.ce_formulas.find_one(
                 {
@@ -684,7 +684,7 @@ class Scope12RowProcessor:
         
         category_id = category_doc.get("id") if category_doc else None
         
-        # Get decision tree and resolve formula
+        # Get decision tree and resolve formula (same logic as calc_engine/router.py)
         decision_tree = await get_decision_tree_for_category(self.db, category_id) if category_id else None
         
         decision_inputs = {
@@ -695,15 +695,15 @@ class Scope12RowProcessor:
         formula_id = None
         if decision_tree:
             try:
-                formula_id = resolve_formula_id(decision_tree, decision_inputs)
+                # decision_tree might have "tree" key or be the tree itself
+                tree_data = decision_tree.get("tree", decision_tree) if isinstance(decision_tree, dict) else decision_tree
+                result = resolve_formula_id(tree_data, decision_inputs)
+                # resolve_formula_id returns (formula_id, path) tuple or just formula_id
+                formula_id = result[0] if isinstance(result, tuple) else result
             except Exception as e:
                 logger.warning(f"[SCOPE2_BULK] Decision tree resolution failed: {e}")
         
-        # Fallback: get formula_id directly from fuel_database entry
-        if not formula_id:
-            formula_id = fuel_data.get("formula_id")
-        
-        # Fallback 2: Look up formula directly from ce_formulas by category_id
+        # No decision tree - look up formula directly by category_id (same as calc_engine/router.py line 737)
         if not formula_id and category_id:
             formula_doc = await self.db.ce_formulas.find_one(
                 {
