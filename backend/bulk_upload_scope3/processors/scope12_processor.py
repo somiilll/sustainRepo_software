@@ -519,6 +519,21 @@ class Scope12RowProcessor:
         if not formula_id:
             formula_id = fuel_data.get("formula_id")
         
+        # Fallback 2: Look up formula directly from ce_formulas by category_id
+        if not formula_id and category_id:
+            formula_doc = await self.db.ce_formulas.find_one(
+                {
+                    "is_active": True,
+                    "$or": [
+                        {"category_id": category_id},
+                        {"category_ids": category_id},
+                    ],
+                },
+                {"_id": 0, "id": 1},
+            )
+            if formula_doc:
+                formula_id = formula_doc.get("id")
+        
         # Build inputs for calc engine
         qty = float(row_data.get("qty", 0))
         unit_qty = row_data.get("unit_qty", "")
@@ -687,6 +702,21 @@ class Scope12RowProcessor:
         # Fallback: get formula_id directly from fuel_database entry
         if not formula_id:
             formula_id = fuel_data.get("formula_id")
+        
+        # Fallback 2: Look up formula directly from ce_formulas by category_id
+        if not formula_id and category_id:
+            formula_doc = await self.db.ce_formulas.find_one(
+                {
+                    "is_active": True,
+                    "$or": [
+                        {"category_id": category_id},
+                        {"category_ids": category_id},
+                    ],
+                },
+                {"_id": 0, "id": 1},
+            )
+            if formula_doc:
+                formula_id = formula_doc.get("id")
         
         # Build inputs
         qty = float(row_data.get("qty_energy", 0))
