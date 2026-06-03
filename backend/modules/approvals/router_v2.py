@@ -3,6 +3,7 @@
 Uses the new pending_records architecture where all approval metadata
 is embedded in the pending record itself.
 """
+import logging
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -19,6 +20,8 @@ from modules.approvals.emission_flow_v2 import (
 )
 from modules.auth.dependencies import get_current_user
 from shared.database.mongo import db
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -133,10 +136,13 @@ async def decide_approval(
     current_user: dict = Depends(get_current_user),
 ):
     """Approve or reject a pending request."""
+    logger.info(f"[APPROVAL_DECIDE] Starting: pending_id={pending_id}, action={payload.action}, admin={current_user.get('email')}")
+    
     if payload.action not in ("approve", "reject"):
         raise HTTPException(status_code=400, detail="action must be 'approve' or 'reject'")
     
     if current_user.get("role") not in ("admin", "super_admin"):
+        logger.warning(f"[APPROVAL_DECIDE] Unauthorized: user={current_user.get('email')}, role={current_user.get('role')}")
         raise HTTPException(status_code=403, detail="Only admins can decide approvals")
     
     # Get pending record
@@ -169,7 +175,10 @@ async def decide_approval(
         )
     
     if not success:
+        logger.error(f"[APPROVAL_DECIDE] Failed: pending_id={pending_id}, action={payload.action}, error={message}")
         raise HTTPException(status_code=400, detail=message)
+    
+    logger.info(f"[APPROVAL_DECIDE] Success: pending_id={pending_id}, action={payload.action}")
     
     # Return updated record (or confirmation for deletes)
     updated = await db[PENDING_COLLECTION].find_one({"id": pending_id}, {"_id": 0})

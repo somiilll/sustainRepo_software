@@ -36,6 +36,8 @@ from modules.emissions.contracts import (
 from shared.database.mongo import db
 from shared.helpers.audit_helpers import compute_field_changes, get_input_label_map_from_db
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 
@@ -57,8 +59,11 @@ audit_logger = _AuditLoggerProxy()
 
 @router.post("/emissions", response_model=EmissionRecordResponse)
 async def create_emission_record(record_data: EmissionRecordCreate, current_user: dict = Depends(get_current_user)):
+    logger.info(f"[EMISSION_CREATE] Starting: user={current_user.get('email')}, facility={record_data.facility_id}, scope={record_data.scope}, category={record_data.category}")
+    
     facility = await db.facilities.find_one({"id": record_data.facility_id}, {"_id": 0})
     if not facility:
+        logger.warning(f"[EMISSION_CREATE] Facility not found: {record_data.facility_id}")
         raise HTTPException(status_code=404, detail="Facility not found")
     
     # Check access
@@ -177,9 +182,12 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
                 "approval_status": pending_record.get("approval_status"),
             },
         )
+        logger.info(f"[EMISSION_CREATE] Submitted for approval: record_id={pending_record.get('id')}")
         return EmissionRecordResponse(**pending_record)
     
     await db.emission_records.insert_one(record_dict)
+    logger.info(f"[EMISSION_CREATE] Saved directly: record_id={record_dict.get('id')}, co2e={record_dict.get('total_emissions')}")
+    
     # Phase B11: emit emission.saved (best-effort; never break write path).
     try:
         from events.event_bus import event_bus, Events
@@ -375,6 +383,8 @@ async def update_emission_record(
     record_data: EmissionRecordCreate,
     current_user: dict = Depends(get_current_user)
 ):
+    logger.info(f"[EMISSION_UPDATE] Starting: record_id={record_id}, user={current_user.get('email')}")
+    
     # Find record - checks pending first
     existing, source_collection = await find_record(record_id)
     
