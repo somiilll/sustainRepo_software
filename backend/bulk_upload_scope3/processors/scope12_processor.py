@@ -540,9 +540,18 @@ class Scope12RowProcessor:
         qty = float(row_data.get("qty", 0))
         unit_qty = row_data.get("unit_qty", "")
         
+        # Check if user provided emission factor in bulk upload
+        ef_quantity_provided = bool(row_data.get("ef_quantity"))
+        
         inputs = {
-            "qty": {"value": qty, "unit": unit_qty}
+            "qty": {"value": qty, "unit": unit_qty},
+            "ef_quantity_provided": {"value": ef_quantity_provided, "unit": ""}
         }
+        
+        # If user provided ef_quantity, add it to inputs
+        if ef_quantity_provided:
+            ef_value = float(row_data.get("ef_quantity"))
+            inputs["ef_quantity"] = {"value": ef_value, "unit": "kgCO2/kg"}
         
         # Build user overrides
         user_overrides = {}
@@ -559,8 +568,8 @@ class Scope12RowProcessor:
             density_unit = row_data.get("density_unit", "")
             user_overrides["density"] = {"value": density_value, "unit": density_unit, "is_override": True}
         
-        # Emission factor override
-        if row_data.get("ef_quantity"):
+        # Emission factor override (also add to user_overrides for property resolution)
+        if ef_quantity_provided:
             ef_value = float(row_data.get("ef_quantity"))
             user_overrides["ef_quantity"] = {"value": ef_value, "unit": "kgCO2/kg", "is_override": True}
         
@@ -585,6 +594,7 @@ class Scope12RowProcessor:
                 context = {
                     "fuel_code": fuel_data.get("id") or fuel_data.get("fuel_code"),
                     "fuel_database_id": fuel_data.get("id"),
+                    "ef_quantity_provided": ef_quantity_provided,
                 }
                 result = await calc_engine.execute(
                     formula.get("definition", formula),
@@ -726,15 +736,25 @@ class Scope12RowProcessor:
         qty = float(row_data.get("qty_energy", 0))
         unit_qty = row_data.get("unit_qty", "")
         
+        # Check if user provided emission factor in bulk upload
+        ef_quantity_provided = bool(row_data.get("ef_quantity_electricity_co2"))
+        
         inputs = {
-            "qty_energy": {"value": qty, "unit": unit_qty}
+            "qty_energy": {"value": qty, "unit": unit_qty},
+            "ef_quantity_provided": {"value": ef_quantity_provided, "unit": ""}
         }
+        
+        # If user provided ef_quantity, add it to inputs
+        if ef_quantity_provided:
+            ef_value = float(row_data.get("ef_quantity_electricity_co2"))
+            ef_unit = row_data.get("ef_unit", "kgCO2/kWh")
+            inputs["ef_quantity_electricity_co2"] = {"value": ef_value, "unit": ef_unit}
         
         # Build user overrides
         user_overrides = {}
         
-        # Emission factor override
-        if row_data.get("ef_quantity_electricity_co2"):
+        # Emission factor override (also add to user_overrides for property resolution)
+        if ef_quantity_provided:
             ef_value = float(row_data.get("ef_quantity_electricity_co2"))
             ef_unit = row_data.get("ef_unit", "kgCO2/kWh")
             user_overrides["ef_quantity_electricity_co2"] = {"value": ef_value, "unit": ef_unit, "is_override": True}
@@ -754,6 +774,7 @@ class Scope12RowProcessor:
                 context = {
                     "fuel_code": fuel_data.get("id") or fuel_data.get("fuel_code"),
                     "fuel_database_id": fuel_data.get("id"),
+                    "ef_quantity_provided": ef_quantity_provided,
                 }
                 result = await calc_engine.execute(
                     formula.get("definition", formula),
