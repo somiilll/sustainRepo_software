@@ -718,7 +718,7 @@ CATEGORY_COLUMNS = {
             {"name": "Unit of Density", "key": "density_unit", "mandatory": False, "type": "text"},
             {"name": "Emission Factor (kgCO2/kg)", "key": "ef_quantity", "mandatory": False, "type": "number"},
             {"name": "Process Name", "key": "process_name", "mandatory": True, "type": "text"},
-            {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Process Description", "key": "process_description", "mandatory": True, "type": "text"},
             {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": True, "type": "text"},
             {"name": "Person Responsible Designation", "key": "responsible_designation", "mandatory": False, "type": "text"},
@@ -726,7 +726,7 @@ CATEGORY_COLUMNS = {
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
-            "default": ["facility_name", "category", "fuel_gas", "qty", "unit_qty", "process_name", "responsible_person"],
+            "default": ["facility_name", "category", "fuel_gas", "qty", "unit_qty", "process_name", "process_description", "responsible_person"],
         },
         "conditional_mandatory": {
             "cv": ["cv_unit"],  # If cv is provided, cv_unit is mandatory
@@ -750,7 +750,7 @@ CATEGORY_COLUMNS = {
             {"name": "Emission Factor", "key": "ef_quantity_electricity_co2", "mandatory": False, "type": "number"},
             {"name": "Unit of Emission Factor", "key": "ef_unit", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": True, "type": "text"},
-            {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Process Description", "key": "process_description", "mandatory": True, "type": "text"},
             {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": True, "type": "text"},
             {"name": "Person Responsible Designation", "key": "responsible_designation", "mandatory": False, "type": "text"},
@@ -758,7 +758,7 @@ CATEGORY_COLUMNS = {
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
-            "default": ["facility_name", "category", "energy_used", "qty_energy", "unit_qty", "process_name", "responsible_person"],
+            "default": ["facility_name", "category", "energy_used", "qty_energy", "unit_qty", "process_name", "process_description", "responsible_person"],
         },
         "conditional_mandatory": {
             "ef_quantity_electricity_co2": ["ef_unit"],  # If emission factor is provided, ef_unit is mandatory
