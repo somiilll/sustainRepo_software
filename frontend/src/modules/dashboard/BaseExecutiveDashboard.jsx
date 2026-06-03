@@ -33,6 +33,7 @@ import {
   buildHeatPoints,
   buildBaseYearChartData,
 } from './services/dataTransformers';
+import usePreviousYearData from './services/fetchPreviousYearData';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -48,6 +49,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
     isLive, lastLiveUpdateAt, getPreviousFinancialYear,
   } = data;
 
+
   const [heatmapView, setHeatmapView] = useState('india');
   // Targets — fetched once on mount. Errors swallowed (gauge has empty state).
   const [targets, setTargets] = useState([]);
@@ -62,9 +64,14 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
     return () => { cancelled = true; };
   }, [getAuthHeader]);
 
+  const previousYearTotals = usePreviousYearData({
+    dateRange,
+    selectedFacilities,
+    getAuthHeader,
+  });
   // --- derived chart data ---
   const totals = filteredData.totals;
-  const trendDeltas = useMemo(() => deriveTrendDeltas(filteredData.trend), [filteredData.trend]);
+  // const trendDeltas = useMemo(() => deriveTrendDeltas(filteredData.trend), [filteredData.trend]);
   const totalSparkData = useMemo(() => buildSparklineSeries(filteredData.trend, 'total'), [filteredData.trend]);
   const scope1Spark = useMemo(() => buildSparklineSeries(filteredData.trend, 'scope1'), [filteredData.trend]);
   const scope2Spark = useMemo(() => buildSparklineSeries(filteredData.trend, 'scope2'), [filteredData.trend]);
@@ -74,7 +81,39 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
   const categoryBreakdown = useMemo(() => buildCategoryBreakdown(stats?.emissions_by_category), [stats]);
   const baseYearChart = useMemo(() => buildBaseYearChartData(baseYearComparison, totals, hasScope3), [baseYearComparison, totals, hasScope3]);
   const heatPoints = useMemo(() => buildHeatPoints(facilities, filteredData.facilities), [facilities, filteredData.facilities]);
-  
+  const trendDeltas = useMemo(() => {
+      const computePct = (current = 0, previous = 0) => {
+        if (!previous || previous === 0) return null;
+
+        return ((current - previous) / previous) * 100;
+      };
+
+      // current year
+      const currentNetEmissions =
+        (totals.total || 0) - (filteredData.filteredSinks || 0);
+
+      // previous year
+      const previousNetEmissions =
+        (previousYearTotals?.totalEmissions || 0) -
+        (previousYearTotals?.totalSinks || 0);
+
+      return {
+        totalDelta: computePct(
+          totals.total,
+          previousYearTotals?.totalEmissions || 0
+        ),
+
+        sinksDelta: computePct(
+          filteredData.filteredSinks || 0,
+          previousYearTotals?.totalSinks || 0
+        ),
+
+        netDelta: computePct(
+          currentNetEmissions,
+          previousNetEmissions
+        ),
+      };
+  }, [totals, filteredData, previousYearTotals]);
 
   const sinksTotal = filteredData.filteredSinks || 0;
   const netEmissions = (totals.total || 0) - sinksTotal;
@@ -84,16 +123,17 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
   const selectedTarget =
     targets.find((t) => t.id === selectedTargetId) ||
     targets?.[0];
-  const baseYearTotal =
-    baseYearComparison?.baseTotal || 0;
+  
+  const hasBaseYear = baseYearComparison?.baseTotal != null && baseYearComparison?.baseTotal > 0;
+  const baseYearTotal = hasBaseYear ? baseYearComparison.baseTotal : null;
   const currentYearTotal =
     baseYearComparison?.currentTotal ||
     totals.total ||
     0;
-  const achievedReduction = Math.max(
-    baseYearTotal - currentYearTotal,
-    0
-  );
+
+  const achievedReduction = hasBaseYear
+  ? Math.max(baseYearTotal - currentYearTotal, 0)
+  : 0;
   const getAbsoluteReduction = (config) => {
     if (!config) return 0;
 
@@ -109,33 +149,26 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
   return config.value || 0;
 };
 
-  let targetReduction = 0;
+  // let targetReduction = 0;
+  let targetReduction = hasBaseYear ? 0 : null;
 
-  if (selectedTarget?.target_mode === 'total') {
-    targetReduction = getAbsoluteReduction(
-      selectedTarget.target_configuration
-    );
+  if (!hasBaseYear) {
+    targetReduction = null;
+  } else if (selectedTarget?.target_mode === 'total') {
+    targetReduction = getAbsoluteReduction(selectedTarget.target_configuration);
+  } else if (selectedTarget?.target_mode === 'scope') {
+    Object.values(selectedTarget.target_configuration || {}).forEach((config) => {
+      targetReduction += getAbsoluteReduction(config);
+    });
+  } else if (selectedTarget?.target_mode === 'category') {
+    Object.values(selectedTarget.target_configuration || {}).forEach((config) => {
+      targetReduction += getAbsoluteReduction(config);
+    });
   }
 
-  else if (selectedTarget?.target_mode === 'scope') {
-    Object.values(selectedTarget.target_configuration || {})
-      .forEach((config) => {
-        targetReduction += getAbsoluteReduction(config);
-      });
-  }
-
-  else if (selectedTarget?.target_mode === 'category') {
-    Object.values(selectedTarget.target_configuration || {})
-      .forEach((config) => {
-        targetReduction += getAbsoluteReduction(config);
-      });
-  }
-
-  //final target % achieved
-  const reductionAchievedPct =
-    targetReduction > 0
-      ? (achievedReduction / targetReduction) * 100
-      : 0;
+    const reductionAchievedPct = hasBaseYear && targetReduction > 0
+    ? (achievedReduction / targetReduction) * 100
+    : null;
 
   const dateRangeLabel = dateRange?.from && dateRange?.to
     ? `${format(dateRange.from, 'MMM yyyy')} – ${format(dateRange.to, 'MMM yyyy')}`
@@ -188,7 +221,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
             <KpiCard
               title="Total Sinks"
               value={sinksTotal}
-              deltaPct={null}
+              deltaPct={trendDeltas.sinksDelta}
               sparkData={[]}
               sparkColor="#0EA5E9"
               invertedColor
@@ -196,20 +229,26 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
             <KpiCard
               title="Net Emissions"
               value={netEmissions}
-              deltaPct={trendDeltas.totalDelta}
+              deltaPct={trendDeltas.netDelta}
               sparkData={totalSparkData}
               sparkColor="#F59E0B"
             />
-            <GaugeCard
-            targets={targets}
-            selectedTarget={selectedTarget}
-            selectedTargetId={selectedTargetId}
-            setSelectedTargetId={setSelectedTargetId}
-            baseYearTotal={baseYearTotal}
-            currentTotal={currentYearTotal}
-            targetReduction={targetReduction}
-            reductionAchievedPct={reductionAchievedPct}
-            />
+           {!hasBaseYear ? (
+              <div className="flex items-center justify-center h-full text-xs text-stone-500 border border-dashed border-stone-200 rounded-xl p-4">
+                Define Base Year for organization to enable target tracking
+              </div>
+            ) : (
+              <GaugeCard
+                targets={targets}
+                selectedTarget={selectedTarget}
+                selectedTargetId={selectedTargetId}
+                setSelectedTargetId={setSelectedTargetId}
+                baseYearTotal={baseYearTotal}
+                currentTotal={currentYearTotal}
+                targetReduction={targetReduction}
+                reductionAchievedPct={reductionAchievedPct}
+              />
+            )}
           </div>
 
           {/* ROW 2: Trend + Donut */}

@@ -48,7 +48,10 @@ export default function PendingApprovalBell() {
           )}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-72 p-4">
+        <PopoverContent
+          align="end"
+          className="w-72 p-4 bg-white border border-stone-200 shadow-xl backdrop-blur-none"
+        >
         <p className="text-sm font-medium text-text-primary mb-1">
           {hasPending
             ? 'You have GHG emission requests pending for your approval'

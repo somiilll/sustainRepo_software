@@ -23,7 +23,8 @@ export default function DashboardFilters({
 }) {
   return (
     <Card className="p-3 border border-stone-200 rounded-xl bg-white" data-testid="filter-panel">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-start">
+      {/* <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-start"> */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1.2fr_180px] gap-3 items-start">
         {/* Month/Year Range Picker */}
         <div className="space-y-1.5">
           <Label className="text-xs font-medium">Date Range</Label>
@@ -92,12 +93,13 @@ export default function DashboardFilters({
         <div className="space-y-1.5 relative" ref={facilityDropdownRef}>
           <Label className="text-xs font-medium">Facility</Label>
           <div
-            className="w-full min-h-9 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1.5 cursor-pointer flex flex-wrap gap-1 items-center"
+            className="w-full h-10 bg-stone-50 border border-stone-200 hover:border-stone-300 rounded-lg px-3 cursor-pointer flex flex-wrap gap-1 items-center transition-colors"
             onClick={() => setShowFacilityDropdown(!showFacilityDropdown)}
             data-testid="facility-filter"
           >
             {selectedFacilities.length === 0 ? (
-              <span className="text-stone-500 text-sm">All Facilities</span>
+              // <span className="text-stone-500 text-sm">All Facilities</span>
+              <span className="text-stone-700 text-sm font-medium">All Facilities</span>
             ) : (
               selectedFacilities.map(fid => {
                 const facility = facilities.find(f => f.id === fid);
@@ -119,7 +121,7 @@ export default function DashboardFilters({
             )}
           </div>
           {showFacilityDropdown && (
-            <div className="absolute z-50 w-full mt-1 bg-white border border-stone-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+            <div className="absolute z-30 w-full mt-1 bg-white border border-stone-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
               <div
                 className="px-3 py-1.5 hover:bg-stone-50 cursor-pointer flex items-center gap-2 text-sm"
                 onClick={() => {
@@ -161,7 +163,7 @@ export default function DashboardFilters({
             }}
             variant="outline"
             size="sm"
-            className="w-full h-9"
+            className="w-full h-10"
             data-testid="clear-filters-btn"
           >
             Reset to Default

@@ -207,6 +207,22 @@ class ActivityMatcher:
                 candidates = [c for c in candidates 
                              if (c.get("subcategory") or "").lower() == "electricity"]
             
+            # For energy (C11): ONLY show entries with 'subcategory' = 'energy' or 'electricity'
+            # (Same as frontend lines 276-282 in EmissionEntryForm.js)
+            elif sub_lower == 'energy':
+                filtered = []
+                for c in candidates:
+                    c_subcat = c.get("subcategory") or ""
+                    if isinstance(c_subcat, list):
+                        # Array format - check if includes 'energy' or 'electricity'
+                        subcat_lower = [s.lower() for s in c_subcat]
+                        if 'energy' in subcat_lower or 'electricity' in subcat_lower:
+                            filtered.append(c)
+                    elif c_subcat.lower() in ['energy', 'electricity']:
+                        # String format - exact match
+                        filtered.append(c)
+                candidates = filtered
+            
             # For stationary_combustion or mobile_combustion:
             # Show entries where 'subcategory' is null/empty (valid for both)
             # OR where 'subcategory' matches exactly

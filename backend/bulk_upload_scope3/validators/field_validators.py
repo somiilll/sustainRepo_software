@@ -14,7 +14,7 @@ VALID_SUBCATEGORIES = [
     'stationary_combustion',
     'mobile_combustion', 
     'fugitive_emissions',
-    'electricity',
+    'energy',
     'process_emissions'  # Only for supplier_basis
 ]
 
@@ -151,7 +151,7 @@ class FieldValidator(BaseValidator):
         sub_clean = str(sub_category).strip().lower().replace(" ", "_")
         
         # Valid subcategories (matching frontend)
-        valid_subcats = ['stationary_combustion', 'mobile_combustion', 'fugitive_emissions', 'electricity']
+        valid_subcats = ['stationary_combustion', 'mobile_combustion', 'fugitive_emissions', 'energy']
         
         # For supplier_basis, also allow process_emissions
         if method == CalculationMethod.SUPPLIER_BASIS:
@@ -177,6 +177,101 @@ class FieldValidator(BaseValidator):
             suggestion=f"Valid sub-categories: {', '.join(valid_display)}",
             severity=ErrorSeverity.ERROR
         )
+
+    # ─────────────────────────────────────────────────────────────────────
+    # C11 — Type Of Product (decision-tree fork)
+    # Display labels accepted in the bulk template are mapped to the
+    # internal codes the calculation engine's decision tree expects.
+    # Keep this map in sync with the C11 decision tree under
+    # `db.ce_decision_trees` (field_name: "type_of_product").
+    # ─────────────────────────────────────────────────────────────────────
+    TYPE_OF_PRODUCT_LABEL_TO_CODE = {
+        "Energy-consuming product over lifetime": "continuous_usage",
+        "energy-consuming product over lifetime": "continuous_usage",
+        "One-time combustion": "one_time_use",
+        "one-time combustion": "one_time_use",
+    }
+
+    def validate_type_of_product(self, type_of_product: str, category_code: str,
+                                  method: CalculationMethod,
+                                  row_num: int, sheet_name: str
+                                  ) -> Tuple[Optional[str], Optional[ValidationError]]:
+        """
+        Validate the C11 `Type Of Product` column. Accepts display labels only
+        (per product spec) and returns the internal code expected by the
+        decision tree (`continuous_usage` / `one_time_use`).
+
+        Only enforced for C11; other categories return (None, None).
+        """
+        if category_code != "C11":
+            return None, None
+
+        # The decision tree only branches on type_of_product when
+        # calculation_method is activity_basis (spend/supplier paths skip it).
+        if method != CalculationMethod.ACTIVITY_BASIS:
+            return None, None
+
+        if not type_of_product or str(type_of_product).strip() == "":
+            return None, ValidationError(
+                sheet=sheet_name,
+                row=row_num,
+                column="Type Of Product",
+                error_type="MISSING_TYPE_OF_PRODUCT",
+                message="Type Of Product is required for C11 activity-basis rows",
+                suggestion="Enter one of: 'Energy-consuming product over lifetime', 'One-time combustion'",
+                severity=ErrorSeverity.ERROR
+            )
+
+        key = str(type_of_product).strip().lower()
+        internal_code = self.TYPE_OF_PRODUCT_LABEL_TO_CODE.get(key)
+        if internal_code:
+            return internal_code, None
+
+        return None, ValidationError(
+            sheet=sheet_name,
+            row=row_num,
+            column="Type Of Product",
+            error_type="INVALID_TYPE_OF_PRODUCT",
+            message=f"Invalid Type Of Product: '{type_of_product}'",
+            suggestion="Allowed: 'Energy-consuming product over lifetime', 'One-time combustion'",
+            severity=ErrorSeverity.ERROR
+        )
+
+    def validate_c11_continuous_usage_fields(self, row_data: Dict, row_num: int,
+                                              sheet_name: str) -> List[ValidationError]:
+        """
+        When `type_of_product == continuous_usage`, three extra columns become
+        mandatory (matches the manual C11 form):
+          - units_produced
+          - products_expected_usage
+          - products_expected_usage_unit
+        Called only after `validate_type_of_product` has normalized the value
+        into `row_data["type_of_product"]`.
+        """
+        errors: List[ValidationError] = []
+        if row_data.get("type_of_product") != "continuous_usage":
+            return errors
+
+        required = [
+            ("units_produced", "No. of products Manufactured"),
+            ("products_expected_usage", "Lifetime Expected Usage of the product"),
+            ("products_expected_usage_unit", "Unit of expected lifetime usage"),
+        ]
+        for key, display in required:
+            value = row_data.get(key)
+            if value is None or value == "" or (isinstance(value, str) and value.strip() == ""):
+                errors.append(ValidationError(
+                    sheet=sheet_name,
+                    row=row_num,
+                    column=display,
+                    error_type="MISSING_MANDATORY_FIELD",
+                    message=f"'{display}' is required when Type Of Product is 'Energy-consuming product over lifetime'",
+                    suggestion=f"Please enter a value for {display}",
+                    severity=ErrorSeverity.ERROR
+                ))
+        return errors
+
+
     
     def validate_unit(self, unit: str, allowed_units: List[str], 
                       field_name: str, row_num: int, 

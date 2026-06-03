@@ -72,7 +72,11 @@ class TemplateGenerator:
         # Create helper sheets first (hidden)
         self._create_helper_sheets()
         
-        # Create category sheets
+        # Create Scope 1 and Scope 2 sheets first
+        self._create_scope12_sheet("Scope1")
+        self._create_scope12_sheet("Scope2")
+        
+        # Create category sheets (Scope 3)
         for category_code in ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12", "C13", "C14", "C15"]:
             self._create_category_sheet(category_code)
         
@@ -199,6 +203,216 @@ class TemplateGenerator:
                 col_offset += 1
         
         ws.sheet_state = 'hidden'
+    
+    def _create_scope12_sheet(self, scope_code: str):
+        """Create a Scope 1 or Scope 2 sheet with all formatting and validations"""
+        config = CATEGORY_COLUMNS.get(scope_code)
+        if not config:
+            return
+        
+        ws = self.workbook.create_sheet(config["sheet_name"])
+        columns = config["columns"]
+        
+        # Set column widths and create headers
+        for col_idx, col_config in enumerate(columns, start=1):
+            col_letter = get_column_letter(col_idx)
+            ws.column_dimensions[col_letter].width = max(20, len(col_config["name"]) + 5)
+            
+            # Header cell
+            header_cell = ws.cell(row=1, column=col_idx, value=col_config["name"])
+            header_cell.fill = HEADER_FILL
+            header_cell.font = HEADER_FONT
+            header_cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            header_cell.border = THIN_BORDER
+            
+            # Add comment with instructions
+            comment_text = self._get_scope12_column_comment(col_config, scope_code)
+            if comment_text:
+                header_cell.comment = Comment(comment_text, "SustainRepo")
+        
+        # Freeze header row
+        ws.freeze_panes = "A2"
+        
+        # Set row height for header
+        ws.row_dimensions[1].height = 30
+        
+        # Add data validations for Scope 1/2
+        self._add_scope12_data_validations(ws, columns, scope_code, config)
+        
+        # Format data rows (first 1000 rows)
+        for row in range(2, 1002):
+            for col_idx, col_config in enumerate(columns, start=1):
+                cell = ws.cell(row=row, column=col_idx)
+                cell.border = THIN_BORDER
+                cell.protection = Protection(locked=False)
+                
+                # Color code based on field type
+                if col_config["mandatory"]:
+                    cell.fill = MANDATORY_FILL
+                else:
+                    cell.fill = OPTIONAL_FILL
+        
+        # Protect sheet structure but allow cell editing
+        ws.protection = SheetProtection(
+            sheet=True,
+            objects=True,
+            scenarios=True,
+            formatCells=False,
+            formatColumns=False,
+            formatRows=False,
+            insertColumns=False,
+            insertRows=True,
+            insertHyperlinks=False,
+            deleteColumns=False,
+            deleteRows=True,
+            selectLockedCells=False,
+            selectUnlockedCells=False,
+            password=None
+        )
+    
+    def _get_scope12_column_comment(self, col_config: Dict, scope_code: str) -> str:
+        """Generate comment text for Scope 1/2 column headers"""
+        key = col_config["key"]
+        mandatory = "(Mandatory) " if col_config.get("mandatory") else "(Optional) "
+        
+        comments = {
+            "facility_name": f"{mandatory}Select from dropdown list of facilities",
+            "reporting_month": f"{mandatory}Format: MMM-YYYY (e.g., Jan-2025). Fill either this OR Reporting Year, not both.",
+            "reporting_year": "(Optional) Format: FY YYYY-YYYY or CY YYYY. Fill either this OR Reporting Month, not both.",
+            "category": f"{mandatory}Select from dropdown: {'Stationary Combustion, Mobile Combustion, Fugitive Emissions' if scope_code == 'Scope1' else 'Purchased Electricity, Purchased Heat/Steam'}",
+            "fuel_gas": f"{mandatory}Select fuel/gas from dropdown. Must match exact fuel name from database.",
+            "energy_used": f"{mandatory}Select energy type from dropdown. Must match exact name from database.",
+            "qty": f"{mandatory}Numeric value for quantity consumed",
+            "qty_energy": f"{mandatory}Numeric value for energy quantity consumed",
+            "unit_qty": f"{mandatory}Unit of measurement for quantity",
+            "co2_gwp_fugitives": "(Optional) Global Warming Potential for fugitive emissions. Only applicable for Fugitive Emissions category.",
+            "cv": "(Optional) Override calorific value. If provided, Unit of Calorific Value is required.",
+            "cv_unit": "(Conditional) Required if Calorific Value is provided",
+            "density": "(Optional) Override density value. If provided, Unit of Density is required.",
+            "density_unit": "(Conditional) Required if Density is provided",
+            "ef_quantity": "(Optional) Override emission factor in kgCO2/kg",
+            "ef_quantity_electricity_co2": "(Optional) Override emission factor for electricity/energy",
+            "ef_unit": "(Conditional) Required if Emission Factor is provided",
+            "process_name": f"{mandatory}Name of the process or activity",
+            "process_description": "(Optional) Description of the process",
+            "record_source": "(Optional) Source of information for this data entry",
+            "responsible_person": f"{mandatory}Name of person responsible for this data",
+            "responsible_designation": "(Optional) Designation of responsible person",
+            "responsible_contact": "(Optional) Contact details of responsible person",
+            "notes": "(Optional) Additional notes or comments",
+        }
+        
+        return comments.get(key, "")
+    
+    def _add_scope12_data_validations(self, ws, columns: List[Dict], scope_code: str, config: Dict):
+        """Add data validations for Scope 1/2 sheets"""
+        from .models import SCOPE1_CATEGORIES, SCOPE2_CATEGORIES
+        
+        for col_idx, col_config in enumerate(columns, start=1):
+            col_letter = get_column_letter(col_idx)
+            key = col_config["key"]
+            col_type = col_config.get("type", "text")
+            
+            # Facility dropdown
+            if key == "facility_name" and self.facilities:
+                facility_count = len(self.facilities)
+                dv = DataValidation(
+                    type="list",
+                    formula1=f"'_Facilities'!$A$2:$A${facility_count + 1}",
+                    allow_blank=not col_config["mandatory"]
+                )
+                dv.error = "Please select a valid facility"
+                dv.errorTitle = "Invalid Facility"
+                ws.add_data_validation(dv)
+                dv.add(f"{col_letter}2:{col_letter}1001")
+            
+            # Category dropdown
+            elif key == "category":
+                if scope_code == "Scope1":
+                    categories = [c["name"] for c in SCOPE1_CATEGORIES]
+                else:
+                    categories = [c["name"] for c in SCOPE2_CATEGORIES]
+                dv = DataValidation(
+                    type="list",
+                    formula1='"' + ','.join(categories) + '"',
+                    allow_blank=not col_config["mandatory"]
+                )
+                dv.error = "Please select a valid category"
+                dv.errorTitle = "Invalid Category"
+                ws.add_data_validation(dv)
+                dv.add(f"{col_letter}2:{col_letter}1001")
+            
+            # Fuel/Energy dropdown - use activities from fuel_database
+            elif key in ["fuel_gas", "energy_used"]:
+                # Get fuels/energy from activities_by_category (should be passed with scope12 fuels)
+                fuel_list_key = "Scope1_fuels" if scope_code == "Scope1" else "Scope2_fuels"
+                fuels = self.activities_by_category.get(fuel_list_key, [])
+                
+                if fuels:
+                    # Create a named range for fuels
+                    fuel_names = sorted(set([
+                        sanitize_for_excel(f.get("fuel_name", f.get("name", "")))
+                        for f in fuels if f.get("fuel_name") or f.get("name")
+                    ]))
+                    
+                    if fuel_names:
+                        # Add to helper sheet if not already there
+                        ws_ref = "_Scope12Fuels"
+                        if ws_ref not in self.workbook.sheetnames:
+                            ws_fuels = self.workbook.create_sheet(ws_ref)
+                            ws_fuels.sheet_state = 'hidden'
+                        else:
+                            ws_fuels = self.workbook[ws_ref]
+                        
+                        # Find the next available column
+                        col_offset = 1
+                        while ws_fuels.cell(row=1, column=col_offset).value:
+                            col_offset += 1
+                        
+                        # Write header and fuel names
+                        fuel_col_letter = get_column_letter(col_offset)
+                        ws_fuels.cell(row=1, column=col_offset, value=f"{scope_code}_{key}")
+                        for row_idx, fuel_name in enumerate(fuel_names, start=2):
+                            ws_fuels.cell(row=row_idx, column=col_offset, value=fuel_name)
+                        
+                        # Create data validation using the list
+                        end_row = len(fuel_names) + 1
+                        dv = DataValidation(
+                            type="list",
+                            formula1=f"'{ws_ref}'!${fuel_col_letter}$2:${fuel_col_letter}${end_row}",
+                            allow_blank=not col_config["mandatory"]
+                        )
+                        dv.error = f"Please select a valid {'fuel/gas' if key == 'fuel_gas' else 'energy type'}"
+                        dv.errorTitle = "Invalid Selection"
+                        ws.add_data_validation(dv)
+                        dv.add(f"{col_letter}2:{col_letter}1001")
+            
+            # Unit dropdown
+            elif key == "unit_qty":
+                units = self.units_by_category.get(scope_code, [])
+                if units:
+                    dv = DataValidation(
+                        type="list",
+                        formula1='"' + ','.join(units[:250]) + '"',  # Excel limit
+                        allow_blank=not col_config["mandatory"]
+                    )
+                    dv.error = "Please select a valid unit"
+                    dv.errorTitle = "Invalid Unit"
+                    ws.add_data_validation(dv)
+                    dv.add(f"{col_letter}2:{col_letter}1001")
+            
+            # Number validation
+            elif col_type == "number":
+                dv = DataValidation(
+                    type="decimal",
+                    operator="greaterThanOrEqual",
+                    formula1="0",
+                    allow_blank=True
+                )
+                dv.error = "Please enter a valid positive number"
+                dv.errorTitle = "Invalid Number"
+                ws.add_data_validation(dv)
+                dv.add(f"{col_letter}2:{col_letter}1001")
     
     def _create_category_sheet(self, category_code: str):
         """Create a single category sheet with all formatting and validations"""
@@ -612,6 +826,56 @@ async def generate_scope3_template(db, organization_id: str) -> io.BytesIO:
         if not units:
             units = {"t", "kg", "g", "L", "kWh"}
         units_by_category[cat_code] = sorted(list(units))
+    
+    # Fetch fuels for Scope 1 and Scope 2 from fuel_database
+    fuel_database_data = await db.fuel_database.find(
+        {},
+        {"_id": 0, "id": 1, "fuel_name": 1, "fuel_type": 1, "subcategory": 1, "allowed_units": 1, "default_unit": 1}
+    ).to_list(10000)
+    
+    # Separate fuels for Scope 1 and Scope 2
+    scope1_fuels = []
+    scope2_fuels = []
+    
+    for fuel in fuel_database_data:
+        fuel_type = (fuel.get("fuel_type") or "").lower()
+        subcategory = (fuel.get("subcategory") or "").lower()
+        
+        # Scope 2 fuels: electricity, heat, steam
+        if 'electricity' in fuel_type or 'heat' in fuel_type or 'steam' in fuel_type or \
+           'electricity' in subcategory or 'energy' in subcategory:
+            scope2_fuels.append(fuel)
+        else:
+            # Everything else is Scope 1 fuel
+            scope1_fuels.append(fuel)
+    
+    activities_by_category["Scope1_fuels"] = scope1_fuels
+    activities_by_category["Scope2_fuels"] = scope2_fuels
+    
+    # Add units for Scope 1/2
+    scope1_units = set()
+    scope2_units = set()
+    
+    for fuel in scope1_fuels:
+        if fuel.get("allowed_units"):
+            scope1_units.update(fuel["allowed_units"])
+        if fuel.get("default_unit"):
+            scope1_units.add(fuel["default_unit"])
+    
+    for fuel in scope2_fuels:
+        if fuel.get("allowed_units"):
+            scope2_units.update(fuel["allowed_units"])
+        if fuel.get("default_unit"):
+            scope2_units.add(fuel["default_unit"])
+    
+    # Add common units
+    if not scope1_units:
+        scope1_units = {"t", "kg", "g", "L", "kL", "m3"}
+    if not scope2_units:
+        scope2_units = {"kWh", "MWh", "GWh", "GJ", "MJ"}
+    
+    units_by_category["Scope1"] = sorted(list(scope1_units))
+    units_by_category["Scope2"] = sorted(list(scope2_units))
     
     # Generate template
     generator = TemplateGenerator(

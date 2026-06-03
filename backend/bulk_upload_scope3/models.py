@@ -144,12 +144,13 @@ CATEGORY_COLUMNS = {
             {"name": "Supplier Name", "key": "supplier_name", "mandatory": False, "type": "text"},
             {"name": "Supplier Code", "key": "supplier_code", "mandatory": False, "type": "text"},
             {"name": "Inflation Rate", "key": "inflation_rate", "mandatory": False, "type": "number"},
-            {"name": "Purchase Power Value", "key": "purchase_power_value", "mandatory": False, "type": "number"},
+            {"name": "Purchase Power Value", "key": "ppp", "mandatory": False, "type": "number"},
             {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Designation", "key": "responsible_designation", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
@@ -181,12 +182,13 @@ CATEGORY_COLUMNS = {
             {"name": "Supplier Name", "key": "supplier_name", "mandatory": False, "type": "text"},
             {"name": "Supplier Code", "key": "supplier_code", "mandatory": False, "type": "text"},
             {"name": "Inflation Rate", "key": "inflation_rate", "mandatory": False, "type": "number"},
-            {"name": "Purchase Power Value", "key": "purchase_power_value", "mandatory": False, "type": "number"},
+            {"name": "Purchase Power Value", "key": "ppp", "mandatory": False, "type": "number"},
             {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Designation", "key": "responsible_designation", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
@@ -221,6 +223,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
@@ -254,12 +257,13 @@ CATEGORY_COLUMNS = {
             {"name": "Supplier Name", "key": "supplier_name", "mandatory": False, "type": "text"},
             {"name": "Supplier Code", "key": "supplier_code", "mandatory": False, "type": "text"},
             {"name": "Inflation Rate", "key": "inflation_rate", "mandatory": False, "type": "number"},
-            {"name": "Purchase Power Value", "key": "purchase_power_value", "mandatory": False, "type": "number"},
+            {"name": "Purchase Power Value", "key": "ppp", "mandatory": False, "type": "number"},
             {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Designation", "key": "responsible_designation", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
@@ -294,6 +298,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
@@ -319,6 +324,7 @@ CATEGORY_COLUMNS = {
             {"name": "From Location", "key": "from_location", "mandatory": False, "type": "text"},
             {"name": "To Location", "key": "to_location", "mandatory": False, "type": "text"},
             {"name": "Passengers Travelled", "key": "passengers", "mandatory": False, "type": "number"},
+            {"name": "No. of Days Travelled", "key": "days_travelled", "mandatory": False, "type": "number", "aliases": ["No. of Days Travelled", "Days Travelled", "No of Days Travelled", "Number of Days Travelled", "No. of days Travelled"]},
             {"name": "No. of Rooms Taken", "key": "rooms", "mandatory": False, "type": "number"},
             {"name": "No. of Nights Stayed", "key": "nights", "mandatory": False, "type": "number"},
             {"name": "Quantity (Supplier Based)", "key": "supplier_quantity", "mandatory": False, "type": "number"},
@@ -334,6 +340,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
@@ -359,6 +366,7 @@ CATEGORY_COLUMNS = {
             {"name": "From Location", "key": "from_location", "mandatory": False, "type": "text"},
             {"name": "To Location", "key": "to_location", "mandatory": False, "type": "text"},
             {"name": "Passengers Travelled", "key": "passengers", "mandatory": False, "type": "number"},
+            {"name": "No. of Days Travelled", "key": "days_travelled", "mandatory": False, "type": "number", "aliases": ["No. of Days Travelled", "Days Travelled", "No of Days Travelled", "Number of Days Travelled", "No. of days Travelled"]},
             {"name": "No. of Working Days", "key": "working_days", "mandatory": False, "type": "number"},
             {"name": "Working Hours per Day", "key": "working_hours", "mandatory": False, "type": "number"},
             {"name": "Quantity (Supplier Based)", "key": "supplier_quantity", "mandatory": False, "type": "number"},
@@ -368,15 +376,16 @@ CATEGORY_COLUMNS = {
             {"name": "Supplier Name", "key": "supplier_name", "mandatory": False, "type": "text"},
             {"name": "Supplier Code", "key": "supplier_code", "mandatory": False, "type": "text"},
             {"name": "Inflation Rate", "key": "inflation_rate", "mandatory": False, "type": "number"},
-            {"name": "Purchase Power Value", "key": "purchase_power_value", "mandatory": False, "type": "number"},
+            {"name": "Purchase Power Value", "key": "ppp", "mandatory": False, "type": "number"},
             {"name": "Employee Name", "key": "employee_name", "mandatory": True, "type": "text"},
             {"name": "Employee Id", "key": "employee_id", "mandatory": False, "type": "text"},
-            {"name": "Department", "key": "department", "mandatory": False, "type": "text"},
+            {"name": "Department", "key": "department", "mandatory": False, "type": "text", "aliases": ["Employee Department", "Dept", "Dept."]},
             {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Designation", "key": "responsible_designation", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
@@ -412,6 +421,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
@@ -447,12 +457,13 @@ CATEGORY_COLUMNS = {
             {"name": "Supplier Name", "key": "supplier_name", "mandatory": False, "type": "text"},
             {"name": "Supplier Code", "key": "supplier_code", "mandatory": False, "type": "text"},
             {"name": "Inflation Rate", "key": "inflation_rate", "mandatory": False, "type": "number"},
-            {"name": "Purchase Power Value", "key": "purchase_power_value", "mandatory": False, "type": "number"},
+            {"name": "Purchase Power Value", "key": "ppp", "mandatory": False, "type": "number"},
             {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Designation", "key": "responsible_designation", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
@@ -488,6 +499,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
@@ -509,8 +521,18 @@ CATEGORY_COLUMNS = {
             {"name": "Calculation Method", "key": "calculation_method", "mandatory": True, "type": "dropdown"},
             {"name": "Sub Category", "key": "sub_category", "mandatory": True, "type": "dropdown"},
             {"name": "Activity", "key": "activity", "mandatory": True, "type": "dropdown"},
+            # C11 decision-tree fork. Display labels are mapped to internal codes
+            # (`continuous_usage` / `one_time_use`) by FieldValidator.validate_type_of_product.
+            {"name": "Type Of Product", "key": "type_of_product", "mandatory": False, "type": "dropdown",
+             "allowed_values": ["Energy-consuming product over lifetime", "One-time combustion"]},
             {"name": "Quantity Used", "key": "quantity_used", "mandatory": False, "type": "number"},
             {"name": "Unit of Quantity", "key": "unit_quantity", "mandatory": False, "type": "dropdown"},
+            # Continuous-usage extras — mirrors manual `dynamic_field_values`
+            # keys `units_produced`, `products_expected_usage` (compound EF unit is
+            # `<unit_quantity>/<products_expected_usage_unit>`).
+            {"name": "No. of products Manufactured", "key": "units_produced", "mandatory": False, "type": "number"},
+            {"name": "Lifetime Expected Usage of the product", "key": "products_expected_usage", "mandatory": False, "type": "number"},
+            {"name": "Unit of expected lifetime usage", "key": "products_expected_usage_unit", "mandatory": False, "type": "text"},
             {"name": "Quantity (Supplier Based)", "key": "supplier_quantity", "mandatory": False, "type": "number"},
             {"name": "Unit of Quantity (Supplier Based)", "key": "supplier_unit", "mandatory": False, "type": "text"},
             {"name": "Emission Factor (Supplier Based)", "key": "supplier_ef", "mandatory": False, "type": "number"},
@@ -522,10 +544,15 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
-            "activity_basis": ["facility_name", "calculation_method", "sub_category", "activity", "quantity_used", "unit_quantity"],
+            # `type_of_product` is mandatory for activity_basis (C11 decision tree
+            # requires it to resolve to a formula). Continuous-usage subfields
+            # (`units_produced`, `products_expected_usage`, `..._unit`) are
+            # conditionally mandatory and validated in RowProcessor.
+            "activity_basis": ["facility_name", "calculation_method", "sub_category", "activity", "type_of_product", "quantity_used", "unit_quantity"],
             "supplier_basis": ["facility_name", "calculation_method", "sub_category", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
         }
     },
@@ -555,6 +582,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
@@ -590,6 +618,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
@@ -625,6 +654,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
@@ -657,10 +687,81 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
             {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
             "supplier_basis": ["facility_name", "calculation_method", "asset_name", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
+        }
+    },
+    # ─────────────────────────────────────────────────────────────────────────────
+    # SCOPE 1 & SCOPE 2 BULK UPLOAD CONFIGURATIONS
+    # ─────────────────────────────────────────────────────────────────────────────
+    "Scope1": {
+        "code": "Scope1",
+        "name": "Scope 1 - Direct Emissions",
+        "sheet_name": "Scope1",
+        "sheet_name_aliases": ["Scope 1", "scope1", "SCOPE1", "Scope1-Direct"],
+        "scope": "scope1",
+        "columns": [
+            {"name": "Facility Name", "key": "facility_name", "mandatory": True, "type": "dropdown"},
+            {"name": "Reporting Month", "key": "reporting_month", "mandatory": False, "type": "text", "format": "MMM-YYYY", "aliases": ["Reporting Month (YYYY-MM)", "Reporting Month (MMM-YYYY)"]},
+            {"name": "Reporting Year", "key": "reporting_year", "mandatory": False, "type": "text", "format": "FY YYYY-YYYY or CY YYYY", "aliases": ["Reporting Year (FY YYYY-YYYY or CY YYYY)", "Reporting Year\n(FY YYYY- YYYY or CY YYYY)", "Reporting Year (FY YYYY- YYYY or CY YYYY)"]},
+            {"name": "Category", "key": "category", "mandatory": True, "type": "dropdown", "allowed_values": ["Stationary Combustion", "Mobile Combustion", "Fugitive Emissions"]},
+            {"name": "Fuel/Gas Used", "key": "fuel_gas", "mandatory": True, "type": "dropdown"},
+            {"name": "Quantity Used", "key": "qty", "mandatory": True, "type": "number"},
+            {"name": "Unit of Quantity Used", "key": "unit_qty", "mandatory": True, "type": "dropdown"},
+            {"name": "GWP (Fugitives)", "key": "co2_gwp_fugitives", "mandatory": False, "type": "number"},
+            {"name": "Calorific Value", "key": "cv", "mandatory": False, "type": "number"},
+            {"name": "Unit of Calorific Value", "key": "cv_unit", "mandatory": False, "type": "text"},
+            {"name": "Density", "key": "density", "mandatory": False, "type": "number"},
+            {"name": "Unit of Density", "key": "density_unit", "mandatory": False, "type": "text"},
+            {"name": "Emission Factor (kgCO2/kg)", "key": "ef_quantity", "mandatory": False, "type": "number"},
+            {"name": "Process Name", "key": "process_name", "mandatory": True, "type": "text"},
+            {"name": "Process Description", "key": "process_description", "mandatory": True, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
+            {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": True, "type": "text"},
+            {"name": "Person Responsible Designation", "key": "responsible_designation", "mandatory": False, "type": "text"},
+            {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
+            {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
+        ],
+        "mandatory_fields": {
+            "default": ["facility_name", "category", "fuel_gas", "qty", "unit_qty", "process_name", "process_description", "responsible_person"],
+        },
+        "conditional_mandatory": {
+            "cv": ["cv_unit"],  # If cv is provided, cv_unit is mandatory
+            "density": ["density_unit"],  # If density is provided, density_unit is mandatory
+        }
+    },
+    "Scope2": {
+        "code": "Scope2",
+        "name": "Scope 2 - Indirect Emissions",
+        "sheet_name": "Scope2",
+        "sheet_name_aliases": ["Scope 2", "scope2", "SCOPE2", "Scope2-Indirect"],
+        "scope": "scope2",
+        "columns": [
+            {"name": "Facility Name", "key": "facility_name", "mandatory": True, "type": "dropdown"},
+            {"name": "Reporting Month", "key": "reporting_month", "mandatory": False, "type": "text", "format": "MMM-YYYY", "aliases": ["Reporting Month (YYYY-MM)", "Reporting Month (MMM-YYYY)"]},
+            {"name": "Reporting Year", "key": "reporting_year", "mandatory": False, "type": "text", "format": "FY YYYY-YYYY or CY YYYY", "aliases": ["Reporting Year (FY YYYY-YYYY or CY YYYY)", "Reporting Year\n(FY YYYY- YYYY or CY YYYY)", "Reporting Year (FY YYYY- YYYY or CY YYYY)"]},
+            {"name": "Category", "key": "category", "mandatory": True, "type": "dropdown", "allowed_values": ["Purchased Electricity", "Purchased Steam/Heat"]},
+            {"name": "Energy Used", "key": "energy_used", "mandatory": True, "type": "dropdown"},
+            {"name": "Quantity Used", "key": "qty_energy", "mandatory": True, "type": "number"},
+            {"name": "Unit of Quantity Used", "key": "unit_qty", "mandatory": True, "type": "dropdown"},
+            {"name": "Emission Factor", "key": "ef_quantity_electricity_co2", "mandatory": False, "type": "number"},
+            {"name": "Unit of Emission Factor", "key": "ef_unit", "mandatory": False, "type": "text"},
+            {"name": "Process Name", "key": "process_name", "mandatory": True, "type": "text"},
+            {"name": "Process Description", "key": "process_description", "mandatory": True, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
+            {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": True, "type": "text"},
+            {"name": "Person Responsible Designation", "key": "responsible_designation", "mandatory": False, "type": "text"},
+            {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
+            {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
+        ],
+        "mandatory_fields": {
+            "default": ["facility_name", "category", "energy_used", "qty_energy", "unit_qty", "process_name", "process_description", "responsible_person"],
+        },
+        "conditional_mandatory": {
+            "ef_quantity_electricity_co2": ["ef_unit"],  # If emission factor is provided, ef_unit is mandatory
         }
     },
 }
@@ -684,6 +785,19 @@ ACTIVITY_TYPES = {
         {"key": "wfh", "name": "Work From Home"},
     ]
 }
+
+# Scope 1 categories
+SCOPE1_CATEGORIES = [
+    {"key": "stationary_combustion", "name": "Stationary Combustion"},
+    {"key": "mobile_combustion", "name": "Mobile Combustion"},
+    {"key": "fugitive_emissions", "name": "Fugitive Emissions"},
+]
+
+# Scope 2 categories
+SCOPE2_CATEGORIES = [
+    {"key": "purchased_electricity", "name": "Purchased Electricity"},
+    {"key": "purchased_steam_heat", "name": "Purchased Steam/Heat"},
+]
 
 
 # Common units for different categories

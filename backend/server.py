@@ -1892,7 +1892,11 @@ async def create_base_year_emissions(
     data: BaseYearEmissionsCreate,
     current_user: dict = Depends(get_current_user)
 ):
-    """Create base year emissions record"""
+    """Create base year emissions record (admin only)"""
+    # Admin permission required
+    if current_user.get("role") not in ("admin", "super_admin"):
+        raise HTTPException(status_code=403, detail="Admin permission required to create base year emissions")
+    
     # Validate justification is provided
     if not data.justification or not data.justification.strip():
         raise HTTPException(status_code=400, detail="Justification for selecting this base year is required")
@@ -2037,15 +2041,23 @@ async def get_base_year_emissions(
         if facility_id:
             query["facility_id"] = facility_id
     else:  # user
+        org_id = current_user.get("organization_id")
         assigned = current_user.get("assigned_facilities", [])
-        if not assigned:
+        if not org_id:
             return []
         if facility_id:
+            # User requesting specific facility - must be assigned
             if facility_id not in assigned:
                 raise HTTPException(status_code=403, detail="Not authorized to access this facility")
             query["facility_id"] = facility_id
+            query["organization_id"] = org_id
         else:
-            query["facility_id"] = {"$in": assigned}
+            # User can see: org-level records + their assigned facility records
+            query["organization_id"] = org_id
+            query["$or"] = [
+                {"facility_id": None},  # Org-level base year
+                {"facility_id": {"$in": assigned}} if assigned else {"facility_id": None}
+            ]
     
     # Filter by scope_group if provided
     if scope_group:
@@ -2083,7 +2095,11 @@ async def update_base_year_emissions(
     data: BaseYearEmissionsUpdate,
     current_user: dict = Depends(get_current_user)
 ):
-    """Update base year emissions record with detailed version history"""
+    """Update base year emissions record with detailed version history (admin only)"""
+    # Admin permission required
+    if current_user.get("role") not in ("admin", "super_admin"):
+        raise HTTPException(status_code=403, detail="Admin permission required to update base year emissions")
+    
     record = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
     if not record:
         raise HTTPException(status_code=404, detail="Base year emissions record not found")
@@ -2267,7 +2283,11 @@ async def delete_base_year_emissions(
     record_id: str,
     current_user: dict = Depends(get_current_user)
 ):
-    """Delete base year emissions record and store deletion in history"""
+    """Delete base year emissions record and store deletion in history (admin only)"""
+    # Admin permission required
+    if current_user.get("role") not in ("admin", "super_admin"):
+        raise HTTPException(status_code=403, detail="Admin permission required to delete base year emissions")
+    
     # Get the record first to store in deletion history
     record = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
     if not record:
@@ -2353,7 +2373,11 @@ async def change_base_year(
     change_reason: str = Query(..., min_length=20, description="Reason for changing the base year (minimum 20 characters)"),
     current_user: dict = Depends(get_current_user)
 ):
-    """Change the base year for an existing record and update emissions data"""
+    """Change the base year for an existing record and update emissions data (admin only)"""
+    # Admin permission required
+    if current_user.get("role") not in ("admin", "super_admin"):
+        raise HTTPException(status_code=403, detail="Admin permission required to change base year")
+    
     from calendar import month_name
     import re
     
@@ -3195,8 +3219,10 @@ async def upload_scope3_file(
         raise HTTPException(status_code=400, detail="User must belong to an organization")
     
     user_id = current_user.get("id") or current_user.get("user_id")
+    user_email = current_user.get("email", "")
+    user_name = current_user.get("full_name") or current_user.get("name") or ""
     
-    processor = UploadProcessor(db, organization_id, user_id)
+    processor = UploadProcessor(db, organization_id, user_id, user_email, user_name)
     summary = await processor.process_upload(file_content, file.filename, validate_only=validate_only)
     
     return summary

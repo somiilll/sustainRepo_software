@@ -1423,11 +1423,14 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
     const badgeColor = scopeGroup === 'scope3' ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-blue-100 text-blue-700 border-blue-200';
     const cardBorderColor = record ? (scopeGroup === 'scope3' ? 'border-purple-300 bg-purple-50/30' : 'border-green-300 bg-green-50/30') : '';
     
+    // Users can only view org-level records, not edit
+    const isOrgReadOnly = entityType === 'organization' && user?.role === 'user';
+    
     return (
       <div 
         key={`${entityType}-${entityId}-${scopeGroup}`}
-        className={`p-4 border rounded-lg cursor-pointer hover:shadow-md transition-all ${cardBorderColor}`}
-        onClick={() => handleEntityClick(entityType, entityId, entityName, scopeGroup)}
+        className={`p-4 border rounded-lg ${isOrgReadOnly ? '' : 'cursor-pointer hover:shadow-md'} transition-all ${cardBorderColor}`}
+        onClick={() => !isOrgReadOnly && handleEntityClick(entityType, entityId, entityName, scopeGroup)}
       >
         <div className="flex items-center justify-between mb-2">
           <span className={`text-xs font-medium px-2 py-1 rounded border ${badgeColor}`}>
@@ -1460,7 +1463,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                 <History className="w-3 h-3 mr-1" />
                 History
               </Button>
-              {canEditRecordSync(record) && (
+              {!isOrgReadOnly && canEditRecordSync(record) && (
                 <Button 
                   variant="ghost" 
                   size="sm"
@@ -1475,38 +1478,48 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                   Edit
                 </Button>
               )}
-              <Button 
-                variant="ghost" 
-                size="sm"
-                className="h-7 px-2 text-xs"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSelectedScopeGroup(scopeGroup);
-                  handleChangeYear(record);
-                }}
-              >
-                <CalendarClock className="w-3 h-3 mr-1" />
-                Change
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="sm"
-                className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDeleteRecord(record.id);
-                }}
-              >
-                <Trash2 className="w-3 h-3 mr-1" />
-                Delete
-              </Button>
+              {!isOrgReadOnly && (
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedScopeGroup(scopeGroup);
+                    handleChangeYear(record);
+                  }}
+                >
+                  <CalendarClock className="w-3 h-3 mr-1" />
+                  Change
+                </Button>
+              )}
+              {!isOrgReadOnly && (
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteRecord(record.id);
+                  }}
+                >
+                  <Trash2 className="w-3 h-3 mr-1" />
+                  Delete
+                </Button>
+              )}
             </div>
           </div>
         ) : (
-          <p className="text-xs text-text-muted flex items-center gap-1 mt-2">
-            <Plus className="w-3 h-3" />
-            Click to set up
-          </p>
+          !isOrgReadOnly ? (
+            <p className="text-xs text-text-muted flex items-center gap-1 mt-2">
+              <Plus className="w-3 h-3" />
+              Click to set up
+            </p>
+          ) : (
+            <p className="text-xs text-text-muted mt-2">
+              Not configured
+            </p>
+          )
         )}
       </div>
     );
@@ -1538,12 +1551,15 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
         </div>
       </div>
 
-      {/* Organization Section - Only for Admins */}
-      {user?.role === 'admin' && organization && (
+      {/* Organization Section - Visible to all users (read-only for non-admins) */}
+      {(user?.role === 'admin' || user?.role === 'user') && organization && (
         <div className="space-y-3">
           <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
             <Building className="w-5 h-5" />
             Organization - {organization.name}
+            {user?.role === 'user' && (
+              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">(View Only)</span>
+            )}
           </h2>
           <Card>
             <CardContent className="pt-4">
@@ -1595,7 +1611,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
 
       {/* Setup Dialog */}
       <Dialog open={showSetupDialog} onOpenChange={(open) => { if (!open) { setShowSetupDialog(false); resetState(); } }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CalendarClock className="w-5 h-5" />
@@ -2035,7 +2051,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
 
       {/* Emissions Edit Dialog (for existing records) */}
       <Dialog open={showEmissionsDialog} onOpenChange={(open) => { if (!open) { setShowEmissionsDialog(false); resetState(); } }}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Edit2 className="w-5 h-5" />
@@ -2046,7 +2062,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="space-y-4 flex-1 overflow-y-auto pr-1">
             <div className="p-3 bg-primary/10 rounded-lg flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <CalendarClock className="w-4 h-4 text-primary" />
@@ -2325,24 +2341,27 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
               />
             </div>
             
-            <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => { setShowEmissionsDialog(false); resetState(); }}>
-                Cancel
-              </Button>
-              <Button 
-                onClick={handleSaveBaseYear}
-                disabled={savingEmissions || baseYearJustification.trim().length < 10}
-              >
-                {savingEmissions ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  'Save Changes'
-                )}
-              </Button>
-            </div>
+          </div>
+
+          {/* Pinned action footer — keeps Save/Cancel visible when content
+              scrolls (facility view often has many categories). */}
+          <div className="flex justify-end gap-3 pt-3 border-t">
+            <Button variant="outline" onClick={() => { setShowEmissionsDialog(false); resetState(); }}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSaveBaseYear}
+              disabled={savingEmissions || baseYearJustification.trim().length < 10}
+            >
+              {savingEmissions ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Changes'
+              )}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

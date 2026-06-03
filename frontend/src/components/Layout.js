@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import Sidebar from './Sidebar';
 import { useAuth } from '../contexts/AuthContext';
 import { AlertTriangle, X } from 'lucide-react';
+
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -59,6 +60,10 @@ export default function Layout() {
     }
   };
 
+  const location = useLocation();
+  const isDashboardPage =
+  location.pathname.includes('/dashboard');
+
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
@@ -91,11 +96,18 @@ export default function Layout() {
             </button>
           </div>
         )}
-        <div className="flex-1 p-8 overflow-y-auto">
-          <div className="max-w-7xl mx-auto">
+        <div className="flex-1 overflow-y-auto">
+            <div
+              className={
+                isDashboardPage
+                  ? 'w-full px-4 pt-0 pb-4 lg:px-5'
+                  : 'w-full px-4 py-4 lg:px-5'
+              }
+            >
             <Outlet />
           </div>
         </div>
+
       </main>
     </div>
   );

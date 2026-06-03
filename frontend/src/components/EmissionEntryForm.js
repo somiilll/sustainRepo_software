@@ -174,6 +174,8 @@ export default function EmissionEntryForm({
     expandedMonths, setExpandedMonths,
     // Step 4: Notes
     notes, setNotes,
+    // Step 2 (optional, common): Record Source
+    recordSource, setRecordSource,
     // Scope 3 optional fields
     supplierName, setSupplierName,
     supplierCode, setSupplierCode,
@@ -1300,9 +1302,14 @@ export default function EmissionEntryForm({
             baseUnit = monthData[`${field.variable}_unit`];
           }
           
+          // Count-based fields should not have units
+          const isUnitlessCountField = ['qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms', 
+            'number_of_passengers', 'number_of_nights', 'number_of_rooms', 'qty_days_travelled', 'working_days',
+            'units_produced', 'products_expected_usage', 'no_of_employees'].includes(field.variable);
+          
           // Apply compound suffix if field has compoundWithVariable
-          let finalUnit = baseUnit || 'kg';
-          if (field.compoundWithVariable) {
+          let finalUnit = isUnitlessCountField ? '' : (baseUnit || 'kg');
+          if (!isUnitlessCountField && field.compoundWithVariable) {
             const linkedUnit = monthData[`${field.compoundWithVariable}_unit`];
             if (linkedUnit && typeof linkedUnit === 'string' && linkedUnit.trim()) {
               // Only add suffix if baseUnit doesn't already contain it
@@ -1451,9 +1458,14 @@ export default function EmissionEntryForm({
             baseUnit = yearlyData[`${field.variable}_unit`] || field.expectedUnit || '';
           }
           
+          // Count-based fields should not have units
+          const isUnitlessCountField = ['qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms', 
+            'number_of_passengers', 'number_of_nights', 'number_of_rooms', 'qty_days_travelled', 'working_days',
+            'units_produced', 'products_expected_usage', 'no_of_employees'].includes(field.variable);
+          
           // Apply compound suffix if field has compoundWithVariable
-          let finalUnit = baseUnit || 'kg';
-          if (field.compoundWithVariable) {
+          let finalUnit = isUnitlessCountField ? '' : (baseUnit || 'kg');
+          if (!isUnitlessCountField && field.compoundWithVariable) {
             const linkedUnit = yearlyData[`${field.compoundWithVariable}_unit`];
             if (linkedUnit && typeof linkedUnit === 'string' && linkedUnit.trim()) {
               // Only add suffix if baseUnit doesn't already contain it
@@ -2496,7 +2508,7 @@ export default function EmissionEntryForm({
     scope3ActivityType, scope3Subcategory, typeOfProduct, scope3CustomActivity, useCustomActivity,
     biogenicScopeSelection, employees, frequencyType, reportingYearType, reportingYear,
     monthlyData, yearlyData, processNames, responsiblePerson,
-    responsiblePersonDesignation, responsiblePersonContact, notes, supplierName,
+    responsiblePersonDesignation, responsiblePersonContact, notes, recordSource, supplierName,
     supplierCode, employeeName, employeeId, assetName, fromLocation, toLocation,
     selectedSubIndustry, selectedTemplate, templateInputValues, dynamicCategories,
     // Setters
@@ -2645,6 +2657,8 @@ export default function EmissionEntryForm({
           setFromLocation={setFromLocation}
           toLocation={toLocation}
           setToLocation={setToLocation}
+          recordSource={recordSource}
+          setRecordSource={setRecordSource}
         />
       )}
 

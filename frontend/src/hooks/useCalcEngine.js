@@ -354,9 +354,15 @@ function buildCalculationSteps(auditLog, outputs, resolvedFormula) {
   // Build step arrays for display
   const allSteps = [];
   
+  // Count-based variables that should not display units
+  const unitlessCountVariables = ['qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms', 
+    'number_of_passengers', 'number_of_nights', 'number_of_rooms', 'qty_days_travelled', 'working_days',
+    'units_produced', 'products_expected_usage', 'no_of_employees'];
+  
   inputSteps.forEach(s => {
     const convertInfo = s.conversion ? ` (converted from ${s.original_value} ${s.original_unit})` : '';
-    allSteps.push(`Input: ${s.variable} = ${s.value} ${s.unit || ''}${convertInfo}`);
+    const displayUnit = unitlessCountVariables.includes(s.variable) ? '' : (s.unit || '');
+    allSteps.push(`Input: ${s.variable} = ${s.value} ${displayUnit}${convertInfo}`);
   });
   
   conversionSteps.forEach(s => {

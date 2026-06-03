@@ -13,6 +13,7 @@ from ..models import (
     BulkUploadJob, CATEGORY_COLUMNS
 )
 from .row_processor import RowProcessor
+from .scope12_processor import Scope12RowProcessor
 
 
 # Sheets to ignore (instruction sheets, reference sheets, etc.)
@@ -26,11 +27,15 @@ IGNORED_SHEET_PATTERNS = [
 class UploadProcessor:
     """Main processor for bulk upload files"""
     
-    def __init__(self, db, organization_id: str, user_id: str):
+    def __init__(self, db, organization_id: str, user_id: str,
+                 user_email: str = "", user_name: str = ""):
         self.db = db
         self.organization_id = organization_id
         self.user_id = user_id
-        self.row_processor = RowProcessor(db, organization_id, user_id)
+        self.user_email = user_email
+        self.user_name = user_name
+        self.row_processor = RowProcessor(db, organization_id, user_id, user_email, user_name)
+        self.scope12_processor = Scope12RowProcessor(db, organization_id, user_id, user_email, user_name)
     
     def _should_skip_sheet(self, sheet_name: str) -> bool:
         """Check if a sheet should be skipped (instruction/reference sheets)"""
@@ -45,6 +50,10 @@ class UploadProcessor:
             if pattern in sheet_lower:
                 return True
         
+        # Check if it's a Scope 1 or Scope 2 sheet first
+        if sheet_lower in ['scope1', 'scope 1', 'scope2', 'scope 2']:
+            return False
+        
         # Skip sheets that don't start with C1-C15
         # This handles any sheets after C15 like "Instructions", etc.
         is_category_sheet = any(sheet_lower.startswith(f"c{i}") for i in range(1, 16))
@@ -53,6 +62,10 @@ class UploadProcessor:
             for code, config in CATEGORY_COLUMNS.items():
                 if config["sheet_name"].lower() == sheet_lower:
                     return False
+                # Check aliases
+                for alias in config.get("sheet_name_aliases", []):
+                    if alias.lower() == sheet_lower:
+                        return False
             # Not a recognized category sheet
             return True
         
@@ -114,8 +127,8 @@ class UploadProcessor:
                         row=0,
                         column=None,
                         error_type="UNKNOWN_SHEET",
-                        message=f"Sheet '{sheet_name}' does not match any Scope 3 category",
-                        suggestion="Use sheet names like 'C1-PurchasedGoods' or 'C1 - Purchased Goods'",
+                        message=f"Sheet '{sheet_name}' does not match any recognized category",
+                        suggestion="Use sheet names like 'Scope1', 'Scope2', 'C1-PurchasedGoods', etc.",
                         severity=ErrorSeverity.WARNING
                     ))
                     continue
@@ -163,6 +176,35 @@ class UploadProcessor:
                 # Save immediately to emission_records collection
                 await self.db.emission_records.insert_many(valid_records)
                 created_ids = [r["id"] for r in valid_records]
+                
+                # Create emission_history entries for version tracking
+                now = datetime.now(timezone.utc)
+                history_entries = []
+                for record in valid_records:
+                    history_entries.append({
+                        "id": str(uuid.uuid4()),
+                        "emission_id": record["id"],
+                        "scope": record.get("scope", "scope3"),
+                        "category": record.get("category", ""),
+                        "reporting_month": record.get("reporting_period"),
+                        "changed_by": self.user_id,
+                        "changed_by_email": self.user_email,
+                        "changed_by_name": self.user_name,
+                        "changed_at": now,
+                        "version": 1,
+                        "field_changes": [],
+                        "changes_summary": "Initial creation via bulk upload",
+                        "changes": {"action": "created"},
+                        "new_values": {
+                            "facility_id": record.get("facility_id"),
+                            "reporting_period": record.get("reporting_period"),
+                            "category": record.get("category"),
+                            "co2e_emissions": record.get("co2e_emissions"),
+                            "total_emissions": record.get("total_emissions"),
+                        }
+                    })
+                if history_entries:
+                    await self.db.emission_history.insert_many(history_entries)
             
             # Update job record
             await self.db.bulk_upload_jobs.update_one(
@@ -335,6 +377,9 @@ class UploadProcessor:
         emission_records: List[Dict] = []
         existing_keys = set()
         
+        # Check if this is a Scope 1 or Scope 2 sheet
+        is_scope12 = category_code in ["Scope1", "Scope2"]
+        
         # For C7, collect all rows first for aggregation
         if category_code == "C7":
             c7_rows = []
@@ -353,7 +398,7 @@ class UploadProcessor:
             
             return results, emission_records
         
-        # Regular processing for other categories
+        # Regular processing for other categories (including Scope 1 and Scope 2)
         for row_idx, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
             # Skip completely empty rows (e.g., blank spacing rows after header)
             if not any(cell is not None and cell != '' for cell in row):
@@ -365,19 +410,43 @@ class UploadProcessor:
             if not any(v for v in row_data.values() if v):
                 continue
             
-            result = await self.row_processor.process_row(
-                row_data, category_code, row_idx, existing_keys, job_id
-            )
-            
-            if isinstance(result, tuple):
-                row_result, emission_record = result
-                results.append(row_result)
-                if row_result.success:
+            # Use appropriate processor based on sheet type
+            if is_scope12:
+                if category_code == "Scope1":
+                    result, emission_record = await self.scope12_processor.process_scope1_row(
+                        row_data, row_idx, existing_keys, job_id
+                    )
+                else:  # Scope2
+                    result, emission_record = await self.scope12_processor.process_scope2_row(
+                        row_data, row_idx, existing_keys, job_id
+                    )
+                
+                results.append(result)
+                if result.success and emission_record:
                     emission_records.append(emission_record)
             else:
-                results.append(result)
+                result = await self.row_processor.process_row(
+                    row_data, category_code, row_idx, existing_keys, job_id
+                )
+                
+                if isinstance(result, tuple):
+                    row_result, emission_record = result
+                    results.append(row_result)
+                    if row_result.success:
+                        emission_records.append(emission_record)
+                else:
+                    results.append(result)
         
         return results, emission_records
+    
+    async def _get_facility(self, facility_name: str) -> Optional[Dict]:
+        """Get facility by name"""
+        if not facility_name:
+            return None
+        return await self.db.facilities.find_one(
+            {"name": facility_name, "organization_id": self.organization_id},
+            {"_id": 0}
+        )
     
     def _row_to_dict(self, row: tuple, col_mapping: Dict[int, str]) -> Dict[str, Any]:
         """Convert a row tuple to a dictionary using column mapping"""

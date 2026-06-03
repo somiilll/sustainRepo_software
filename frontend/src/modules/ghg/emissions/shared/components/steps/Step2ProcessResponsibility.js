@@ -61,6 +61,10 @@ export const Step2ProcessResponsibility = ({
   setFromLocation,
   toLocation,
   setToLocation,
+  // Optional Record Source (all scopes/categories — separate from
+  // auto-derived `source_of_information`; tracked in version history)
+  recordSource = '',
+  setRecordSource = () => {},
 }) => {
   return (
     <div className="space-y-4">
@@ -339,6 +343,35 @@ export const Step2ProcessResponsibility = ({
           )}
         </>
       )}
+
+      {/* Record Source (Optional) — common to all scopes / categories.
+          Independent of auto-derived `source_of_information` (which carries
+          fuel / template metadata). Persisted as `record_source`; tracked
+          in version history. */}
+      <div className="space-y-2 pt-2 border-t border-stone-100">
+        <div className="flex items-center gap-2">
+          <Label>Source of Information <span className="text-xs text-stone-500">(Optional)</span></Label>
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="cursor-help">
+                  <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                <p>Reference, document, or system this data was taken from (e.g. invoice, meter reading, supplier report). Changes are tracked in version history.</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+        <Input
+          value={recordSource}
+          onChange={(e) => setRecordSource(e.target.value)}
+          placeholder="e.g., Invoice #4521, meter reading from supplier portal"
+          className="bg-stone-50"
+          data-testid="record-source-input"
+        />
+      </div>
     </div>
   );
 };

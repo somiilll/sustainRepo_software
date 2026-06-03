@@ -387,6 +387,7 @@ export async function editEmissionDispatch(emission, ctx) {
       emission_factor_heat_justification: '',
       conversion_factor: '1',
       source_of_information: emission.source_of_information || '',
+      record_source: emission.record_source || '',
       justification: emission.justification || '',
       notes: emission.notes || '',
       responsible_person: emission.responsible_person || '',

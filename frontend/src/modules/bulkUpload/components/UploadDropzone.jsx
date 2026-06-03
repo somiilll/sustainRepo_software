@@ -18,7 +18,7 @@ export default function UploadDropzone({ activeModule, uploading, onUpload }) {
         </div>
         <div className="flex-1">
           <h2 className="text-lg font-semibold text-text-primary">
-            Upload {activeModule?.label} Template
+            Upload Template
           </h2>
           <p className="text-text-muted mt-1 mb-4">
             {activeModule?.notImplemented

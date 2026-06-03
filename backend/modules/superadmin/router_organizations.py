@@ -5,6 +5,7 @@ Behaviour byte-identical: route bodies preserved verbatim.
 """
 import json
 import logging
+import os
 import re
 import secrets
 import string
@@ -458,7 +459,7 @@ async def create_admin(
     await db.users.insert_one(admin_dict)
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://carbon-approval.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://carbon-workspace.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""

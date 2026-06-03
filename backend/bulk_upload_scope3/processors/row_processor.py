@@ -16,10 +16,13 @@ from .emission_calculator import EmissionCalculator
 class RowProcessor:
     """Processes individual rows from bulk upload"""
     
-    def __init__(self, db, organization_id: str, user_id: str):
+    def __init__(self, db, organization_id: str, user_id: str,
+                 user_email: str = "", user_name: str = ""):
         self.db = db
         self.organization_id = organization_id
         self.user_id = user_id
+        self.user_email = user_email
+        self.user_name = user_name
         self.field_validator = FieldValidator(db, organization_id)
         self.formula_validator = FormulaValidator(db)
         self.emission_calculator = EmissionCalculator(db)
@@ -211,6 +214,23 @@ class RowProcessor:
             row_data, category_code, method, row_num
         )
         errors.extend(mandatory_errors)
+
+        # 8b. C11 Type Of Product (decision-tree fork). Display label is mapped
+        # to internal code (`continuous_usage` / `one_time_use`) and written
+        # back into `row_data` so the calc engine and record builder both
+        # consume the canonical value.
+        if category_code == "C11":
+            top_normalized, top_error = self.field_validator.validate_type_of_product(
+                row_data.get("type_of_product"), category_code, method, row_num, sheet_name
+            )
+            if top_error:
+                errors.append(top_error)
+            elif top_normalized:
+                row_data["type_of_product"] = top_normalized
+                # Continuous-usage requires three more columns to be populated.
+                errors.extend(self.field_validator.validate_c11_continuous_usage_fields(
+                    row_data, row_num, sheet_name
+                ))
         
         # 9. Check for supplier fields warning
         supplier_warnings = self.field_validator.check_supplier_fields_warning(
@@ -241,10 +261,14 @@ class RowProcessor:
             ("supplier_quantity", "Supplier Quantity"),
             ("supplier_ef", "Supplier Emission Factor"),
             ("passengers", "Passengers"),
+            ("days_travelled", "No. of Days Travelled"),  # C6 Business Travel
             ("rooms", "Rooms"),
             ("nights", "Nights"),
             ("working_days", "Working Days"),
             ("working_hours", "Working Hours"),
+            # C11 continuous_usage extras
+            ("units_produced", "No. of products Manufactured"),
+            ("products_expected_usage", "Lifetime Expected Usage of the product"),
         ]
         
         for field_key, field_name in numeric_fields:
@@ -375,6 +399,7 @@ class RowProcessor:
             variable_labels = {
                 "qty_passenger": "Passengers Travelled",
                 "km_travelled": "Distance Travelled",
+                "qty_days_travelled": "No. of Days Travelled",
                 "qty_travelled": "Quantity of Goods",
                 "qty": "Quantity Used",
                 "qty_room": "Number of Rooms",
@@ -430,6 +455,8 @@ class RowProcessor:
             facility=facility,
             organization_id=self.organization_id,
             user_id=self.user_id,
+            user_email=self.user_email,
+            user_name=self.user_name,
             method=method,
             activity_match={
                 "activity_id": activity_match.activity_id,
@@ -526,8 +553,8 @@ class RowProcessor:
                     
                     grouped[group_key]["employees"].append({
                         "row_data": row_data,
-                        "emissions": emission_record.get("outputs", {}),
-                        "method": emission_record.get("calculation_method_scope3"),  # Use validated method from emission_record
+                        "emissions": emission_record,  # Pass full emission_record, not just outputs
+                        "method": emission_record.get("calculation_method_scope3"),
                         "activity_match": {
                             "activity_id": emission_record.get("scope3_ef_id"),
                             "activity_name": emission_record.get("scope3_activity")
@@ -548,6 +575,8 @@ class RowProcessor:
                     facility=group_data["facility"],
                     organization_id=self.organization_id,
                     user_id=self.user_id,
+                    user_email=self.user_email,
+                    user_name=self.user_name,
                     bulk_job_id=bulk_job_id
                 )
                 if aggregated_record:

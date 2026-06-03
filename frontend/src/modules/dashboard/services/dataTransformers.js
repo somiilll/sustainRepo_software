@@ -96,57 +96,27 @@ export function buildScope3Hotspots(categories = []) {
       id: c.category || c.name,
       name: c.category || c.name,
       value: c.total_emissions || c.value || 0,
-    }))
-    .sort((a, b) => b.value - a.value);
-    if (!s3.length) return [];
+    }));
 
-  // Total emissions
+  if (!s3.length) return [];
+
   const total = s3.reduce((sum, item) => sum + item.value, 0);
+  
+  // Sort by value DESC to identify top 3
+  const sorted = [...s3].sort((a, b) => b.value - a.value);
+  const top = sorted.slice(0, 3);
+  const remaining = sorted.slice(3);
 
-  // Separate small categories (<2%)
-  const main = [];
-  let othersValue = 0;
-
-  s3.forEach((item) => {
-    const pct = total > 0
-      ? (item.value / total) * 100
-      : 0;
-
-    if (pct < 2) {
-      othersValue += item.value;
-    } else {
-      main.push(item);
-    }
-  });
-
-   if (othersValue > 0) {
-    main.push({
+  if (remaining.length > 0) {
+    top.push({
       id: 'others',
       name: 'Others',
-      value: othersValue,
+      value: remaining.reduce((sum, item) => sum + item.value, 0),
     });
   }
 
-  // Keep only top 4 visually
-  const sorted = main.sort((a, b) => b.value - a.value);
-
-  if (sorted.length <= 3) return sorted;
-
-  const top = sorted.slice(0, 3);
-
-  const remainingOthers = sorted
-    .slice(3)
-    .reduce((acc, x) => acc + x.value, 0);
-
-  if (remainingOthers > 0) {
-    top.push({
-      id: 'others-extra',
-      name: 'Others',
-      value: remainingOthers,
-    });
-  }
-
-  return top;
+  // Sort ASC for rendering (Innermost to Outermost)
+  return top.sort((a, b) => a.value - b.value);
 }
 
 // ---- Emission categories breakdown (TOP 3 across scopes, stacked) ----
@@ -384,3 +354,4 @@ export function buildHeatPoints(facilities = [], facilityEmissions = []) {
   });
   return points;
 }
+

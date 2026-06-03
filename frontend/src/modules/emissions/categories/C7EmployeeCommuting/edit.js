@@ -289,6 +289,7 @@ export function buildEditPayload(ctx) {
     })),
     notes: formData.notes || '',
     source_of_information: `Multi-employee commuting data for ${editEmployees.length} employee(s)`,
+    record_source: formData.record_source ? String(formData.record_source).trim() : '',
     justification: null,
     responsible_person: formData.responsible_person,
     responsible_person_designation: formData.responsible_person_designation || '',

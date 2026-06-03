@@ -209,6 +209,19 @@ export const validateStep3 = ({
       return { valid: false, message: 'Please enter annual data values' };
     }
 
+    // Enforce every required (*) field — must mirror the asterisks shown in
+    // the UI. Previously only "any value present" was checked, which let
+    // partially-filled yearly entries through.
+    const requiredFields = dynamicInputFields.filter(f => f.required && !f.isOverride);
+    for (const field of requiredFields) {
+      const value = yearlyData?.[field.variable] ?? yearlyData?.[field.fieldKey];
+      const hasValue = value !== '' && value !== null && value !== undefined;
+      if (!hasValue) {
+        const fieldLabel = typeof field.label === 'object' ? field.label.value : (field.label || field.variable);
+        return { valid: false, message: `Please fill in "${fieldLabel}"` };
+      }
+    }
+
     // For supplier_basis: Validate units
     if (scope3Method === 'supplier_basis') {
       const qtyValue = yearlyData?.activity_value_supplier_based;

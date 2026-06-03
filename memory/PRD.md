@@ -17,8 +17,9 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 ## Key Files
 - `/app/backend/server.py` - Main API (~10,000+ lines, needs refactoring)
 - `/app/frontend/src/pages/Dashboard.js` - Dashboard with analytics
-- `/app/frontend/src/pages/Emissions.js` - Emissions management (~7000+ lines)
+- `/app/frontend/src/pages/Emissions.js` - Emissions management (3380 lines, post Phase 3A — Edit JSX extracted)
 - `/app/frontend/src/components/EmissionEntryForm.js` - Entry form (~4479 lines, Phase 5 complete)
+- `/app/frontend/src/components/EmissionEditForm.jsx` - Edit form (~1816 lines, Phase 3A complete — view-only, state lives in parent)
 - `/app/frontend/src/components/MultiEmployeeInput.jsx` - C6/C7 employee table input
 - `/app/frontend/src/pages/Sinks.js` - GHG Sinks module with Monthly/Yearly data entry
 

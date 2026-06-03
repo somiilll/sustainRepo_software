@@ -97,6 +97,16 @@ class EmissionCalculator:
     
     def _extract_co2e(self, emissions: Dict) -> float:
         """Extract co2e value from emissions dict that may have nested structure"""
+        # First check outputs.co2e (full emission record structure)
+        outputs = emissions.get("outputs", {})
+        if outputs:
+            co2e = outputs.get("co2e", 0)
+            if isinstance(co2e, dict):
+                return float(co2e.get("value", 0))
+            if co2e:
+                return float(co2e)
+        
+        # Fallback to direct co2e (older structure)
         co2e = emissions.get("co2e", 0)
         if isinstance(co2e, dict):
             return float(co2e.get("value", 0))
@@ -251,21 +261,24 @@ class EmissionCalculator:
         Returns:
             Dict with calculated emissions or error info
         """
-        # For supplier_basis, calculate directly but resolve formula_id from decision tree
+        # For supplier_basis, use direct calculation but resolve formula from decision tree
         if method == CalculationMethod.SUPPLIER_BASIS:
             result = await self._calculate_supplier_basis_with_conversion(row_data)
-            # Resolve formula_id from decision tree using calculation_method_scope3
+            # Resolve formula_id from decision tree
             if category_code:
-                category_doc = await self.db.emission_categories.find_one(
-                    {"code": category_code, "is_active": True},
-                    {"_id": 0, "id": 1}
-                )
-                if category_doc:
+                cat_id = await self._get_category_id(category_code)
+                if cat_id:
                     decision_inputs = {"calculation_method_scope3": "supplier_basis"}
-                    formula_id, tree_path = await self._resolve_formula(category_doc["id"], decision_inputs)
-                    if formula_id:
-                        result["formula_id"] = formula_id
+                    resolved_formula_id, tree_path = await self._resolve_formula(cat_id, decision_inputs)
+                    if resolved_formula_id:
+                        result["formula_id"] = resolved_formula_id
                         result["decision_path"] = tree_path
+                        # Get formula name
+                        formula_doc = await self.db.ce_formulas.find_one(
+                            {"id": resolved_formula_id}, {"_id": 0, "name": 1}
+                        )
+                        if formula_doc:
+                            result["formula_name"] = formula_doc.get("name")
             return result
         
         # For activity_basis and spend_basis, use calc_engine
@@ -286,34 +299,57 @@ class EmissionCalculator:
         }
     
     async def _calculate_supplier_basis_with_conversion(self, row_data: Dict) -> Dict[str, Any]:
-        """Calculate emissions using supplier-provided emission factor with unit conversion"""
+        """Calculate emissions using supplier-provided emission factor (no unit conversion)"""
         quantity = float(row_data.get("supplier_quantity") or 0)
         ef = float(row_data.get("supplier_ef") or 0)
-        input_unit = row_data.get("supplier_unit")
-        ef_unit = row_data.get("supplier_ef_unit")
-        
-        # Parse EF unit to get expected input unit (e.g., kgCO2e/L -> L)
-        expected_unit = None
-        if ef_unit and "/" in ef_unit:
-            expected_unit = ef_unit.split("/")[-1].strip()
-        
-        # Convert input quantity to expected unit if needed
-        converted_quantity = quantity
-        if input_unit and expected_unit and input_unit.lower() != expected_unit.lower():
-            converted_quantity, success = await self._convert_unit(quantity, input_unit, expected_unit)
-            if not success:
-                return {
-                    "co2": 0.0,
-                    "ch4": 0.0,
-                    "n2o": 0.0,
-                    "co2e": 0.0,
-                    "calculation_method": "error",
-                    "error": f"Cannot convert {input_unit} to {expected_unit}",
-                    "notes": f"Unit conversion failed: {input_unit} -> {expected_unit}"
-                }
+        input_unit = row_data.get("supplier_unit") or ""
+        ef_unit = row_data.get("supplier_ef_unit") or ""
         
         # Simple calculation: Emissions = Quantity × Emission Factor
-        co2e = converted_quantity * ef
+        # No unit conversion - user is responsible for providing matching units
+        co2e = quantity * ef
+        
+        # Derive output unit from EF unit (e.g., "tCO2e/L" -> "tCO2e", "kgCO2e/day" -> "kgCO2e")
+        output_unit = "tCO2e"  # Default
+        if ef_unit and "/" in ef_unit:
+            output_unit = ef_unit.split("/")[0].strip()
+        
+        # Build outputs in the same format as calc engine
+        outputs = {
+            "co2e": {
+                "value": co2e,
+                "unit": output_unit
+            }
+        }
+        
+        # Build audit log for supplier basis calculation
+        audit_log = [
+            {
+                "step": "input",
+                "variable": "supplier_quantity",
+                "variable_label": "Supplier Quantity",
+                "value": quantity,
+                "unit": input_unit,
+            },
+            {
+                "step": "input",
+                "variable": "supplier_ef",
+                "variable_label": "Supplier Emission Factor",
+                "value": ef,
+                "unit": ef_unit,
+            },
+            {
+                "step": "formula_step",
+                "name": "co2e",
+                "expression": "supplier_quantity * supplier_ef",
+                "expression_readable": "Supplier Quantity × Supplier Emission Factor",
+                "output": co2e
+            },
+            {
+                "step": "outputs",
+                "outputs": outputs
+            }
+        ]
         
         return {
             "co2": 0.0,
@@ -321,14 +357,23 @@ class EmissionCalculator:
             "n2o": 0.0,
             "co2e": co2e,
             "calculation_method": "supplier_basis",
-            "unit": "kgCO2e",  # Assuming supplier EF produces kgCO2e
+            "unit": output_unit,
+            "outputs": outputs,
+            "audit_log": audit_log,
+            "applied_factors": {
+                "supplier_ef": {
+                    "value": ef,
+                    "unit": ef_unit,
+                    "label": "Supplier Emission Factor",
+                    "source": "user_provided"
+                }
+            },
+            "formula_name": "Supplier Method",
             "inputs": {
                 "supplier_quantity": quantity,
-                "supplier_quantity_converted": converted_quantity,
                 "supplier_ef": ef,
                 "input_unit": input_unit,
-                "ef_unit": ef_unit,
-                "expected_unit": expected_unit
+                "ef_unit": ef_unit
             }
         }
     
@@ -422,6 +467,13 @@ class EmissionCalculator:
             subcat_normalized = subcat_map.get(subcat_normalized, subcat_normalized)
             # Use 'subcategory_selection' to match the decision tree field name for C8/C10/C11/C13/C14
             decision_inputs["subcategory_selection"] = subcat_normalized
+
+        # C11 decision tree forks on `type_of_product` (continuous_usage /
+        # one_time_use) after subcategory_selection on activity_basis. The
+        # value is already normalized to the internal code by
+        # FieldValidator.validate_type_of_product before reaching here.
+        if row_data.get("type_of_product"):
+            decision_inputs["type_of_product"] = row_data.get("type_of_product")
         
         logger.info(f"[BULK_CALC] decision_inputs={decision_inputs}")
         
@@ -622,6 +674,7 @@ class EmissionCalculator:
                 "unit": output_unit,
                 "calculation_method": method.value,
                 "formula_id": formula_id,
+                "formula_name": formula_doc.get("name"),
                 "decision_path": tree_path,
                 "inputs": {
                     "original_quantity": input_quantity,
@@ -631,7 +684,9 @@ class EmissionCalculator:
                     "activity_id": activity_id,
                     "emission_factor": ef_data.get("emission_factor")
                 },
-                "audit_trail": result.get("audit_trail", [])
+                "audit_log": result.get("audit_log", []),
+                "applied_factors": result.get("applied_factors", {}),
+                "outputs": result.get("outputs", {})
             }
             
         except (CalculationError, Exception) as e:
@@ -834,8 +889,59 @@ class EmissionCalculator:
             # Activity basis - check what variables the formula expects
             # Don't use default values - let calc-engine fail if required inputs are missing
             
+            # C11 continuous_usage - formulas expect `units_produced`,
+            # `products_expected_usage`, and `fuel_consumed_per_usage` (normal
+            # subcategories) OR `gas_consumed_per_usage` (fugitive_emissions).
+            # The per-usage variable carries a compound unit
+            # `<unit_quantity>/<products_expected_usage_unit>` (e.g. "kl/year")
+            # that mirrors the manual entry shape exactly. Compound-unit
+            # normalization against the EF default unit is handled inside the
+            # calc engine, identical to the manual path.
+            if "units_produced" in expected_variables and "products_expected_usage" in expected_variables:
+                units_produced_raw = row_data.get("units_produced")
+                pe_usage_raw = row_data.get("products_expected_usage")
+                pe_usage_unit = row_data.get("products_expected_usage_unit") or ""
+
+                if units_produced_raw is not None and units_produced_raw != "":
+                    calc_inputs["units_produced"] = {
+                        "value": float(units_produced_raw),
+                        "unit": ""
+                    }
+
+                if pe_usage_raw is not None and pe_usage_raw != "":
+                    calc_inputs["products_expected_usage"] = {
+                        "value": float(pe_usage_raw),
+                        "unit": pe_usage_unit
+                    }
+
+                # `quantity_used` is reinterpreted as the per-usage fuel/gas
+                # consumption when continuous_usage is selected. The variable
+                # name is decided by the formula (`fuel_consumed_per_usage` vs
+                # `gas_consumed_per_usage`).
+                per_usage_variable = None
+                if "fuel_consumed_per_usage" in expected_variables:
+                    per_usage_variable = "fuel_consumed_per_usage"
+                elif "gas_consumed_per_usage" in expected_variables:
+                    per_usage_variable = "gas_consumed_per_usage"
+
+                if per_usage_variable:
+                    quantity_raw = row_data.get("quantity_used")
+                    if quantity_raw is not None and quantity_raw != "":
+                        base_unit = row_data.get("unit_quantity") or ""
+                        # Compose compound unit `<base>/<lifetime>` to match
+                        # manual entry (e.g. "L/year", "kl/years", "kg/hour").
+                        compound_unit = (
+                            f"{base_unit}/{pe_usage_unit}".strip("/")
+                            if (base_unit or pe_usage_unit)
+                            else ""
+                        )
+                        calc_inputs[per_usage_variable] = {
+                            "value": float(quantity_raw),
+                            "unit": compound_unit
+                        }
+
             # C8-C14 Fugitive emissions - uses 'qty' variable
-            if "qty" in expected_variables:
+            elif "qty" in expected_variables:
                 quantity_raw = row_data.get("quantity_used")
                 if quantity_raw is not None and quantity_raw != "":
                     quantity = float(quantity_raw)
@@ -859,9 +965,10 @@ class EmissionCalculator:
             
             # C6/C7 Passengers and distance (air, water, taxi, bus, rail travel)
             elif "qty_passenger" in expected_variables and "km_travelled" in expected_variables:
-                # Template columns: passengers, distance_travelled
+                # Template columns: passengers, distance_travelled, days_travelled
                 passengers_raw = row_data.get("passengers") or row_data.get("qty_passenger")
                 distance_raw = row_data.get("distance_travelled")
+                days_raw = row_data.get("days_travelled") or row_data.get("qty_days_travelled")
                 
                 if passengers_raw is not None and passengers_raw != "":
                     calc_inputs["qty_passenger"] = {"value": float(passengers_raw), "unit": ""}
@@ -869,14 +976,26 @@ class EmissionCalculator:
                 if distance_raw is not None and distance_raw != "":
                     km_unit = row_data.get("distance_unit") or "km"
                     calc_inputs["km_travelled"] = {"value": float(distance_raw), "unit": km_unit}
+                
+                # C6 Business Travel formulas require qty_days_travelled
+                if "qty_days_travelled" in expected_variables:
+                    if days_raw is not None and days_raw != "":
+                        calc_inputs["qty_days_travelled"] = {"value": float(days_raw), "unit": ""}
             
-            # C6/C7 Car/Bike travel - km only
+            # C6/C7 Car/Bike travel - km only (+ days for C6)
             elif "km_travelled" in expected_variables and "qty_passenger" not in expected_variables and "qty_travelled" not in expected_variables:
-                # Template column: distance_travelled
+                # Template columns: distance_travelled, days_travelled
                 distance_raw = row_data.get("distance_travelled")
+                days_raw = row_data.get("days_travelled") or row_data.get("qty_days_travelled")
+                
                 if distance_raw is not None and distance_raw != "":
                     km_unit = row_data.get("distance_unit") or "km"
                     calc_inputs["km_travelled"] = {"value": float(distance_raw), "unit": km_unit}
+                
+                # C6 Business Travel formulas require qty_days_travelled
+                if "qty_days_travelled" in expected_variables:
+                    if days_raw is not None and days_raw != "":
+                        calc_inputs["qty_days_travelled"] = {"value": float(days_raw), "unit": ""}
             
             # C6/C7 Hotel stays
             elif "qty_room" in expected_variables and "qty_nights" in expected_variables:
@@ -929,7 +1048,9 @@ class EmissionCalculator:
                                activity_match: Dict,
                                calculated_emissions: Dict,
                                formula_id: Optional[str] = None,
-                               bulk_job_id: Optional[str] = None) -> Dict:
+                               bulk_job_id: Optional[str] = None,
+                               user_email: str = "",
+                               user_name: str = "") -> Dict:
         """
         Build emission record in the format expected by the database
         
@@ -940,7 +1061,6 @@ class EmissionCalculator:
         # Get reporting period and frequency from row_data (already parsed)
         reporting_period = row_data.get("reporting_period", "")
         frequency_type = row_data.get("frequency_type", "monthly")
-        reporting_year_type = row_data.get("reporting_year_type")  # financial_year or calendar_year
         
         # If reporting_period not set, try to parse from reporting_month (legacy)
         if not reporting_period and row_data.get("reporting_month"):
@@ -983,9 +1103,51 @@ class EmissionCalculator:
         
         if method == CalculationMethod.ACTIVITY_BASIS:
             # Check for different activity_basis input patterns
-            
+
+            # C11 continuous_usage (decision-tree branch `type_of_product = continuous_usage`).
+            # Stored in dynamic_field_values exactly like the manual entry path:
+            #   - units_produced:           {value, unit: ""}
+            #   - products_expected_usage:  {value, unit: <lifetime unit>}
+            #   - fuel_consumed_per_usage   OR   gas_consumed_per_usage (for
+            #     fugitive_emissions subcategory) — compound unit
+            #     "<unit_quantity>/<products_expected_usage_unit>" (e.g. "kl/year").
+            if row_data.get("type_of_product") == "continuous_usage":
+                pe_usage_unit = row_data.get("products_expected_usage_unit") or ""
+                base_unit = row_data.get("unit_quantity") or ""
+                compound_unit = (
+                    f"{base_unit}/{pe_usage_unit}".strip("/")
+                    if (base_unit or pe_usage_unit)
+                    else ""
+                )
+
+                if row_data.get("units_produced") is not None and row_data.get("units_produced") != "":
+                    dynamic_field_values["units_produced"] = {
+                        "value": float(row_data.get("units_produced")),
+                        "unit": ""
+                    }
+                if row_data.get("products_expected_usage") is not None and row_data.get("products_expected_usage") != "":
+                    dynamic_field_values["products_expected_usage"] = {
+                        "value": float(row_data.get("products_expected_usage")),
+                        "unit": pe_usage_unit
+                    }
+
+                # Per-usage variable name depends on the subcategory — matches
+                # the C11 decision tree formulas (fugitive_emissions branch
+                # uses `gas_consumed_per_usage`; all others use
+                # `fuel_consumed_per_usage`).
+                per_usage_key = (
+                    "gas_consumed_per_usage"
+                    if subcategory_normalized == "fugitive_emissions"
+                    else "fuel_consumed_per_usage"
+                )
+                if row_data.get("quantity_used") is not None and row_data.get("quantity_used") != "":
+                    dynamic_field_values[per_usage_key] = {
+                        "value": float(row_data.get("quantity_used")),
+                        "unit": compound_unit
+                    }
+
             # C4/C9 Transport: qty_travelled + km_travelled
-            if row_data.get("quantity_goods") and row_data.get("distance_travelled"):
+            elif row_data.get("quantity_goods") and row_data.get("distance_travelled"):
                 dynamic_field_values["qty_travelled"] = {
                     "value": float(row_data.get("quantity_goods")),
                     "unit": row_data.get("unit_goods", "t")
@@ -995,7 +1157,7 @@ class EmissionCalculator:
                     "unit": row_data.get("distance_unit", "km")
                 }
             
-            # C6/C7 with passengers: qty_passenger + km_travelled
+            # C6/C7 with passengers: qty_passenger + km_travelled + qty_days_travelled (C6)
             elif row_data.get("passengers") and row_data.get("distance_travelled"):
                 dynamic_field_values["qty_passenger"] = {
                     "value": float(row_data.get("passengers")),
@@ -1005,13 +1167,25 @@ class EmissionCalculator:
                     "value": float(row_data.get("distance_travelled")),
                     "unit": row_data.get("distance_unit", "km")
                 }
+                # C6 Business Travel requires qty_days_travelled
+                if row_data.get("days_travelled"):
+                    dynamic_field_values["qty_days_travelled"] = {
+                        "value": float(row_data.get("days_travelled")),
+                        "unit": ""
+                    }
             
-            # C6/C7 Car/Bike: km_travelled only
+            # C6/C7 Car/Bike: km_travelled + qty_days_travelled (C6)
             elif row_data.get("distance_travelled") and not row_data.get("passengers") and not row_data.get("quantity_goods"):
                 dynamic_field_values["km_travelled"] = {
                     "value": float(row_data.get("distance_travelled")),
                     "unit": row_data.get("distance_unit", "km")
                 }
+                # C6 Business Travel requires qty_days_travelled
+                if row_data.get("days_travelled"):
+                    dynamic_field_values["qty_days_travelled"] = {
+                        "value": float(row_data.get("days_travelled")),
+                        "unit": ""
+                    }
             
             # C6/C7 Hotel: qty_room + qty_nights
             elif row_data.get("rooms") or row_data.get("nights"):
@@ -1095,6 +1269,28 @@ class EmissionCalculator:
         dynamic_field_values["scope3_ef_id"] = {"value": activity_match.get("activity_id") or "", "unit": ""}
         dynamic_field_values["scope3_activity"] = {"value": activity_match.get("activity_name") or row_data.get("activity") or "", "unit": ""}
         dynamic_field_values["scope3_activity_type"] = {"value": activity_type_normalized, "unit": ""}
+
+        # C11 only — record the decision-tree fork so the edit dialog can
+        # restore it. Mirrors manual entry which writes both
+        # `dynamic_field_values.type_of_product` and the top-level field.
+        if row_data.get("type_of_product"):
+            dynamic_field_values["type_of_product"] = {
+                "value": row_data.get("type_of_product"),
+                "unit": ""
+            }
+
+        # Mirror manual entry: `use_custom_activity` is True for supplier_basis
+        # rows where the user typed a free-text activity (no matched EF id).
+        # Manual entry writes this key into `dynamic_field_values` regardless
+        # of the method, so bulk does the same for shape parity.
+        is_custom = (
+            method == CalculationMethod.SUPPLIER_BASIS
+            and not activity_match.get("activity_id")
+        )
+        dynamic_field_values["use_custom_activity"] = {
+            "value": bool(is_custom),
+            "unit": ""
+        }
         
         # For C8, C10, C11, C13, C14: store original sub_category in dynamic_field_values.scope3_subcategory
         # and use activity_name as sub_category for fuel type analysis
@@ -1146,25 +1342,28 @@ class EmissionCalculator:
         
         # sub_category is already set above based on category type
         
+        record_id = str(uuid.uuid4())
         record = {
-            "id": str(uuid.uuid4()),
+            "id": record_id,
             "organization_id": organization_id,
             "facility_id": facility.get("id"),
-            "facility_name": facility.get("name"),
             "scope": "scope3",
-            "sub_scope": None,
             "category": category_name,
             "sub_category": sub_category,
+            # `fuel_type` matches manual entry (Scope3FlatCreate sets it to the
+            # activity name for scope3 records).
+            "fuel_type": activity_match.get("activity_name") or row_data.get("activity"),
+            # Scope 3 records have no fuel_database row; manual sends None.
+            "fuel_database_id": None,
             "calculation_method_scope3": method.value,
             "scope3_ef_id": activity_match.get("activity_id"),
             "scope3_activity": activity_match.get("activity_name") or row_data.get("activity"),
-            "scope3_activity_type": activity_type_normalized,  # Use normalized value
-            "scope3_subcategory": dynamic_field_values["scope3_subcategory"]["value"],  # Use value from dynamic_field_values
-            "scope3_custom_activity": row_data.get("activity") if method == CalculationMethod.SUPPLIER_BASIS and not activity_match.get("activity_id") else None,
-            "use_custom_activity": method == CalculationMethod.SUPPLIER_BASIS and not activity_match.get("activity_id"),
+            "scope3_activity_type": activity_type_normalized,
+            "scope3_subcategory": dynamic_field_values["scope3_subcategory"]["value"],
+            # C11 only — picks the decision-tree branch (continuous_usage / one_time_use)
+            "type_of_product": row_data.get("type_of_product") or None,
             "reporting_period": reporting_period,
             "frequency_type": frequency_type,
-            "reporting_year_type": reporting_year_type,
             "dynamic_field_values": dynamic_field_values,
             "outputs": outputs,
             "co2_emissions": co2_val,
@@ -1180,26 +1379,71 @@ class EmissionCalculator:
             "to_location": str(row_data.get("to_location") or "") if row_data.get("to_location") else None,
             "customer_name": str(row_data.get("customer_name") or "") if row_data.get("customer_name") else None,
             "customer_code": str(row_data.get("customer_code") or "") if row_data.get("customer_code") else None,
+            # `source_of_information` is provenance — kept distinct from manual,
+            # which sets it from `selectedFuel.source`. Bulk uploads stamp
+            # "Bulk Upload" so the origin is always traceable.
             "source_of_information": "Bulk Upload",
+            # Free-text Record Source (Step 2 equivalent on manual flow).
+            # Mirrors the manual payload exactly — trimmed string or "".
+            "record_source": (str(row_data.get("record_source")).strip()
+                              if row_data.get("record_source") not in (None, "") else ""),
+            # Optional fields from manual schema — populated to None / '' so the
+            # document shape matches what `EmissionRecordCreate.model_dump()`
+            # produces on the manual path.
+            "evidence_url": "",
+            "justification": None,
+            "notes": str(row_data.get("notes") or "") if row_data.get("notes") else None,
             "responsible_person": str(row_data.get("responsible_person") or "") if row_data.get("responsible_person") else None,
             "responsible_person_designation": str(row_data.get("responsible_designation") or "") if row_data.get("responsible_designation") else None,
             "responsible_person_contact": str(row_data.get("responsible_contact") or "") if row_data.get("responsible_contact") else None,
             # Process Name and Description - stored in same format as manual upload
             "process_names": [str(row_data.get("process_name"))] if row_data.get("process_name") else [],
             "process_descriptions": [{"name": str(row_data.get("process_name") or ""), "description": str(row_data.get("process_description") or "")}] if row_data.get("process_name") else [],
+            # User audit fields — match manual entry shape exactly.
             "created_by": user_id,
+            "created_by_email": user_email,
+            "created_by_name": user_name,
             "created_at": now.isoformat(),
-            "updated_at": now.isoformat(),
+            "updated_at": None,
+            "updated_by": None,
+            "updated_by_email": None,
+            "updated_by_name": None,
+            # Provenance — retained per spec so bulk-uploaded records remain
+            # traceable to the originating job.
             "upload_source": "bulk_upload",
-            "bulk_upload_job_id": bulk_job_id
+            "bulk_upload_job_id": bulk_job_id,
+            # Calc engine details for edit dialog display
+            "audit_log": calculated_emissions.get("audit_log", []),
+            "applied_factors": calculated_emissions.get("applied_factors", {}),
+            "outputs": calculated_emissions.get("outputs", {}),
+            "formula_name": calculated_emissions.get("formula_name"),
+            # Version tracking - embedded in record like manual upload
+            "version": 1,
+            "version_history": [{
+                "version": 1,
+                "changed_at": now.isoformat(),
+                "changed_by": user_id,
+                "changed_by_email": user_email,
+                "changed_by_name": user_name,
+                "action": "created",
+                "changes_summary": "Initial creation via bulk upload",
+            }],
         }
+        
+        # Ensure version_history uses the same user info as created_by fields
+        if record.get("created_by_name") and not record["version_history"][0]["changed_by_name"]:
+            record["version_history"][0]["changed_by_name"] = record["created_by_name"]
+        if record.get("created_by_email") and not record["version_history"][0]["changed_by_email"]:
+            record["version_history"][0]["changed_by_email"] = record["created_by_email"]
         
         return record
     
     def build_c7_aggregated_record(self, employee_rows: List[Dict], 
                                     category_name: str, facility: Dict,
                                     organization_id: str, user_id: str,
-                                    bulk_job_id: Optional[str] = None) -> Dict:
+                                    bulk_job_id: Optional[str] = None,
+                                    user_email: str = "",
+                                    user_name: str = "") -> Dict:
         """
         Build aggregated C7 emission record with multiple employees
         
@@ -1279,6 +1523,10 @@ class EmissionCalculator:
             if row_data.get("passengers"):
                 inputs["qty_passenger"] = float(row_data.get("passengers"))
             
+            # qty_days_travelled (from days_travelled) - No. of Days Travelled
+            if row_data.get("days_travelled"):
+                inputs["qty_days_travelled"] = float(row_data.get("days_travelled"))
+            
             # qty_room (from rooms)
             if row_data.get("rooms"):
                 inputs["qty_room"] = float(row_data.get("rooms"))
@@ -1295,9 +1543,59 @@ class EmissionCalculator:
             if row_data.get("working_hours"):
                 inputs["working_hour_per_day"] = float(row_data.get("working_hours"))
             
+            # Supplier basis inputs - these are needed for supplier method
+            calc_method = (row_data.get("calculation_method") or "").lower().replace(" ", "_")
+            if calc_method in ["supplier_basis", "supplier_based", "supplier"]:
+                # Add supplier inputs with correct variable names matching frontend expectations
+                # Frontend expects: activity_value_supplier_based, activity_value_supplier_based_unit,
+                #                   emission_factor_supplier_based, emission_factor_supplier_based_unit
+                if row_data.get("supplier_quantity"):
+                    inputs["supplier_quantity"] = float(row_data.get("supplier_quantity"))
+                    inputs["activity_value_supplier_based"] = float(row_data.get("supplier_quantity"))
+                if row_data.get("supplier_unit"):
+                    inputs["supplier_unit"] = str(row_data.get("supplier_unit"))
+                    inputs["activity_value_supplier_based_unit"] = str(row_data.get("supplier_unit"))
+                if row_data.get("supplier_ef"):
+                    inputs["supplier_ef"] = float(row_data.get("supplier_ef"))
+                    inputs["emission_factor_supplier_based"] = float(row_data.get("supplier_ef"))
+                if row_data.get("supplier_ef_unit"):
+                    inputs["supplier_ef_unit"] = str(row_data.get("supplier_ef_unit"))
+                    inputs["emission_factor_supplier_based_unit"] = str(row_data.get("supplier_ef_unit"))
+                
+                # Also merge any inputs from the calculation result (unit conversion details, etc.)
+                calc_result_inputs = emissions.get("inputs", {})
+                if calc_result_inputs:
+                    for k, v in calc_result_inputs.items():
+                        if k not in inputs:  # Don't override user-provided values
+                            inputs[k] = v
+            
             # Build calculation_details if available from emissions
+            # Structure must match what frontend expects (MultiEmployeeInput.jsx):
+            # - applied_factors: {key: {label, value, unit}} - emission factors
+            # - audit_log: [{step, expression, expression_readable, output}] - formula steps
             calculation_details = None
-            if emissions.get("audit_trail") or emissions.get("formula_id"):
+            calc_method = (row_data.get("calculation_method") or "").lower().replace(" ", "_")
+            is_supplier_basis = calc_method in ["supplier_basis", "supplier_based", "supplier"]
+            
+            if emissions.get("audit_log") or emissions.get("formula_id") or is_supplier_basis:
+                # Get applied_factors directly from calc_engine response
+                # Calc engine returns resolved emission factors in "applied_factors" key
+                applied_factors = emissions.get("applied_factors", {})
+                
+                # For supplier basis, build applied_factors from inputs if not present
+                if is_supplier_basis and not applied_factors:
+                    supplier_ef = row_data.get("supplier_ef")
+                    supplier_ef_unit = row_data.get("supplier_ef_unit", "kgCO2e")
+                    if supplier_ef:
+                        applied_factors = {
+                            "emission_factor_supplier_based": {
+                                "label": "Supplier Emission Factor",
+                                "value": float(supplier_ef),
+                                "unit": supplier_ef_unit,
+                                "source": "user_provided"
+                            }
+                        }
+                
                 calculation_details = {
                     "formula_id": emissions.get("formula_id"),
                     "outputs": {
@@ -1306,15 +1604,21 @@ class EmissionCalculator:
                             "unit": emissions.get("unit", "tCO2e")
                         }
                     },
-                    "audit_log": emissions.get("audit_trail", []),
-                    "applied_factors": emissions.get("inputs", {})
+                    "audit_log": emissions.get("audit_log", []),
+                    "applied_factors": applied_factors,
+                    "formula_name": emissions.get("formula_name", "Supplier Method" if is_supplier_basis else None)
                 }
             
-            # Build emissions data
+            # Build emissions data - extract from outputs, handling both formats
+            outputs = emissions.get("outputs", {})
+            def extract_val(key):
+                v = outputs.get(key, 0)
+                return v.get("value", 0) if isinstance(v, dict) else v
+            
             emissions_data = {
-                "co2": emissions.get("co2", 0),
-                "ch4": emissions.get("ch4", 0),
-                "n2o": emissions.get("n2o", 0),
+                "co2": extract_val("co2"),
+                "ch4": extract_val("ch4"),
+                "n2o": extract_val("n2o"),
                 "co2e": self._extract_co2e(emissions)
             }
             
@@ -1411,54 +1715,80 @@ class EmissionCalculator:
             }
             record_activity_type = activity_type_map.get(record_activity_type, record_activity_type)
         
+        # Build C7 aggregated record — shape kept byte-identical to manual
+        # C7 entries created via `modules/emissions/c7_router.py`.
+        #   Monthly  → matches `create_or_update_c7_monthly_entry`
+        #   Yearly   → matches `create_or_update_c7_yearly_entry`
+        # Provenance fields (`upload_source`, `bulk_upload_job_id`) are
+        # retained per product decision so bulk uploads stay traceable.
+        record_id = str(uuid.uuid4())
         record = {
-            "id": str(uuid.uuid4()),
-            "organization_id": organization_id,
+            "id": record_id,
             "facility_id": facility.get("id"),
-            "facility_name": facility.get("name"),
+            "organization_id": organization_id,
             "scope": "scope3",
-            "sub_scope": None,
             "category": category_name,
-            "sub_category": first_row.get("activity_match", {}).get("activity_name"),  # Use activity name as sub_category
+            "reporting_year": extract_year_from_reporting_period(reporting_period),
+            "reporting_period": reporting_period,
+            "c7_data_model_version": 2,
             "calculation_method_scope3": method.value if isinstance(method, CalculationMethod) else method,
+            "scope3_activity_type": record_activity_type,
+            "activity_type": record_activity_type,
             "scope3_ef_id": first_row.get("activity_match", {}).get("activity_id"),
             "scope3_activity": first_row.get("activity_match", {}).get("activity_name"),
-            "scope3_activity_type": record_activity_type,
-            "activity_type": record_activity_type,  # Also store at top level for consistency with manual entry
             "formula_id": formula_id,
-            "reporting_period": reporting_period,
-            "frequency_type": frequency_type,
-            "reporting_year": int(reporting_period.split("-")[0]) if reporting_period and "-" in reporting_period else None,
-            "reporting_month": self._period_to_month_name(reporting_period) if not is_yearly else None,
+            # `formula_name` is set by manual C7 routes; bulk does not currently
+            # surface a resolved name from the calc-engine response, so default
+            # to None to keep the field present (parity over content).
+            "formula_name": None,
             "employees": employees,
-            "monthly_total": {"co2e": total_co2e, "employee_count": len(employees)} if not is_yearly else None,  # Single month total (matches manual)
-            "monthly_totals": monthly_totals if not is_yearly else None,  # Dict of month -> totals
-            "yearly_total": {"co2e": total_co2e, "employee_count": len(employees)},
             "co2e_emissions": total_co2e,
             "total_emissions": total_co2e,
-            "co2_emissions": 0,
-            "ch4_emissions": 0,
-            "n2o_emissions": 0,
-            "outputs": {
-                "co2e": {"value": total_co2e, "unit": "tCO2e"}
-            },
-            "dynamic_field_values": {},  # Match manual entry format
             "notes": first_row.get("row_data", {}).get("notes") or "",
-            "source_of_information": f"Multi-employee commuting data for {len(employees)} employee(s)",
+            "record_source": (str(first_row.get("row_data", {}).get("record_source")).strip()
+                              if first_row.get("row_data", {}).get("record_source") not in (None, "") else ""),
             "responsible_person": first_row.get("row_data", {}).get("responsible_person"),
             "responsible_person_designation": first_row.get("row_data", {}).get("responsible_designation") or "",
             "responsible_person_contact": str(first_row.get("row_data", {}).get("responsible_contact") or "") if first_row.get("row_data", {}).get("responsible_contact") else "",
             "process_names": [first_row.get("row_data", {}).get("process_name")] if first_row.get("row_data", {}).get("process_name") else [],
             "process_descriptions": [{"name": first_row.get("row_data", {}).get("process_name") or "", "description": first_row.get("row_data", {}).get("process_description") or ""}] if first_row.get("row_data", {}).get("process_name") else [],
-            "c7_data_model_version": 2,  # Mark as new C7 data model
             "version": 1,
-            "created_by": user_id,
             "created_at": now.isoformat(),
-            "updated_at": None,
-            "updated_by": None,
+            "created_by": user_id,
+            "created_by_email": user_email,
+            "created_by_name": user_name,
+            # Provenance (bulk-only fields retained for traceability).
             "upload_source": "bulk_upload",
-            "bulk_upload_job_id": bulk_job_id
+            "bulk_upload_job_id": bulk_job_id,
+            # Version tracking - embedded in record like manual upload
+            "version": 1,
+            "version_history": [{
+                "version": 1,
+                "changed_at": now.isoformat(),
+                "changed_by": user_id,
+                "changed_by_email": user_email,
+                "changed_by_name": user_name,
+                "action": "created",
+                "changes_summary": "Initial creation via bulk upload",
+            }],
         }
+
+        # Frequency-specific aggregate totals — mirrors manual C7 routes.
+        if is_yearly:
+            # Manual yearly C7 adds `frequency_type`, `sub_category`,
+            # `yearly_total`, and writes explicit None for updated_at/by.
+            record["frequency_type"] = "yearly"
+            record["sub_category"] = "Employee Commuting"
+            record["yearly_total"] = {"co2e": total_co2e, "employee_count": len(employees)}
+            record["updated_at"] = None
+            record["updated_by"] = None
+        else:
+            # Manual monthly C7 stores `monthly_total` (singular) AND
+            # `reporting_month` (lowercase 3-letter abbr, e.g. "jan").
+            # Also store monthly_totals dict for per-month breakdown
+            record["reporting_month"] = self._period_to_month_name(reporting_period)
+            record["monthly_total"] = {"co2e": total_co2e, "employee_count": len(employees)}
+            record["monthly_totals"] = monthly_totals if monthly_totals else None
         
         return record
     
