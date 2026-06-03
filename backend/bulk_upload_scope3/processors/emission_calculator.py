@@ -328,6 +328,54 @@ class EmissionCalculator:
         # Simple calculation: Emissions = Quantity × Emission Factor
         co2e = converted_quantity * ef
         
+        # Build outputs in the same format as calc engine
+        outputs = {
+            "co2e": {
+                "value": co2e,
+                "unit": "kgCO2e"  # Supplier basis typically produces kgCO2e
+            }
+        }
+        
+        # Build audit log for supplier basis calculation
+        audit_log = [
+            {
+                "step": "input",
+                "variable": "supplier_quantity",
+                "variable_label": "Supplier Quantity",
+                "value": quantity,
+                "unit": input_unit or "",
+            },
+            {
+                "step": "input",
+                "variable": "supplier_ef",
+                "variable_label": "Supplier Emission Factor",
+                "value": ef,
+                "unit": ef_unit or "",
+            },
+        ]
+        
+        # Add conversion step if unit conversion happened
+        if input_unit and expected_unit and input_unit.lower() != expected_unit.lower():
+            audit_log.append({
+                "step": "convert",
+                "input": {"value": quantity, "unit": input_unit},
+                "output": {"value": converted_quantity, "unit": expected_unit},
+                "note": f"Converted {input_unit} to {expected_unit}"
+            })
+        
+        audit_log.append({
+            "step": "formula_step",
+            "name": "co2e",
+            "expression": "supplier_quantity * supplier_ef",
+            "expression_readable": "Supplier Quantity × Supplier Emission Factor",
+            "output": co2e
+        })
+        
+        audit_log.append({
+            "step": "outputs",
+            "outputs": outputs
+        })
+        
         return {
             "co2": 0.0,
             "ch4": 0.0,
@@ -335,6 +383,17 @@ class EmissionCalculator:
             "co2e": co2e,
             "calculation_method": "supplier_basis",
             "unit": "kgCO2e",  # Assuming supplier EF produces kgCO2e
+            "outputs": outputs,
+            "audit_log": audit_log,
+            "applied_factors": {
+                "supplier_ef": {
+                    "value": ef,
+                    "unit": ef_unit or "",
+                    "label": "Supplier Emission Factor",
+                    "source": "user_provided"
+                }
+            },
+            "formula_name": "Supplier Method",
             "inputs": {
                 "supplier_quantity": quantity,
                 "supplier_quantity_converted": converted_quantity,
