@@ -2686,6 +2686,7 @@ from r2_storage import get_r2_storage, R2Storage
 async def upload_evidence_file(
     file: UploadFile = File(...),
     bucket_type: str = Query(default="emission_evidence", description="Bucket type: emission_evidence, sinks_evidence, org_facility, superadmin"),
+    organization_id: Optional[str] = Query(default=None, description="Organization ID for file path (used by super admin)"),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -2735,7 +2736,8 @@ async def upload_evidence_file(
     try:
         # Get organization name for path prefix
         org_name = None
-        org_id = current_user.get("organization_id")
+        # Use provided organization_id (for super admin) or fall back to user's org
+        org_id = organization_id or current_user.get("organization_id")
         if org_id:
             org = await db.organizations.find_one({"id": org_id}, {"_id": 0, "name": 1})
             if org:

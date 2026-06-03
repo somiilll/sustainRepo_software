@@ -305,7 +305,9 @@ export default function OrganizationDetails() {
     uploadFormData.append('file', file);
 
     try {
-      const response = await axios.post(`${API}/upload/evidence?bucket_type=org_facility`, uploadFormData, {
+      // Pass organization_id for proper file path structure
+      const orgId = organization?.id || '';
+      const response = await axios.post(`${API}/upload/evidence?bucket_type=org_facility&organization_id=${orgId}`, uploadFormData, {
         headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
       });
       
@@ -351,7 +353,9 @@ export default function OrganizationDetails() {
       uploadFormData.append('file', file);
 
       try {
-        const response = await axios.post(`${API}/upload/evidence?bucket_type=org_facility`, uploadFormData, {
+        // Pass organization_id for proper file path structure
+        const orgId = organization?.id || '';
+        const response = await axios.post(`${API}/upload/evidence?bucket_type=org_facility&organization_id=${orgId}`, uploadFormData, {
           headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
         });
         

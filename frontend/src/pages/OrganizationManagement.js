@@ -679,7 +679,9 @@ export default function OrganizationManagement() {
                             const uploadFormData = new FormData();
                             uploadFormData.append('file', file);
                             try {
-                              const response = await axios.post(`${API}/upload/evidence?bucket_type=org_facility`, uploadFormData, {
+                              // Pass organization_id for proper file path structure
+                              const orgId = editingOrg?.id || '';
+                              const response = await axios.post(`${API}/upload/evidence?bucket_type=org_facility&organization_id=${orgId}`, uploadFormData, {
                                 headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
                               });
                               // Use /view endpoint for public access (for img tags)
@@ -1022,7 +1024,9 @@ export default function OrganizationManagement() {
                                 const uploadFormData = new FormData();
                                 uploadFormData.append('file', file);
                                 try {
-                                  const response = await axios.post(`${API}/upload/evidence?bucket_type=superadmin`, uploadFormData, {
+                                  // Pass organization_id for proper file path structure
+                                  const orgId = editingOrg?.id || '';
+                                  const response = await axios.post(`${API}/upload/evidence?bucket_type=superadmin&organization_id=${orgId}`, uploadFormData, {
                                     headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
                                   });
                                   setFormData(prev => ({
