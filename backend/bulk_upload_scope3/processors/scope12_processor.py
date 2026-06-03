@@ -476,15 +476,24 @@ class Scope12RowProcessor:
         now = datetime.now(timezone.utc)
         record_id = str(uuid.uuid4())
         
-        # Get category from ce_categories
+        # Get category name from row data (original user input)
+        category_name = row_data.get("category", "").strip()
+        
+        # Get category from ce_categories by name first (most reliable)
         category_doc = await self.db.ce_categories.find_one(
-            {"key": category_key, "scope_code": "scope1"},
+            {"name": category_name, "scope_code": "scope1"},
             {"_id": 0}
         )
         if not category_doc:
+            # Try with different scope_code formats
+            category_doc = await self.db.ce_categories.find_one(
+                {"name": category_name},
+                {"_id": 0}
+            )
+        if not category_doc:
             # Fallback to search by name pattern
             category_doc = await self.db.ce_categories.find_one(
-                {"name": {"$regex": category_key.replace("_", " "), "$options": "i"}, "scope_code": "scope1"},
+                {"name": {"$regex": category_key.replace("_", " "), "$options": "i"}},
                 {"_id": 0}
             )
         
@@ -493,9 +502,10 @@ class Scope12RowProcessor:
         # Get decision tree and resolve formula
         decision_tree = await get_decision_tree_for_category(self.db, category_id) if category_id else None
         
-        # Build decision inputs for formula resolution
+        # Build decision inputs for formula resolution - use fuel_database_id
         decision_inputs = {
-            "fuel_code": fuel_data.get("id") or fuel_data.get("fuel_code"),
+            "fuel_code": fuel_data.get("id"),
+            "fuel_database_id": fuel_data.get("id"),
         }
         
         formula_id = None
@@ -632,14 +642,24 @@ class Scope12RowProcessor:
         now = datetime.now(timezone.utc)
         record_id = str(uuid.uuid4())
         
-        # Get category from ce_categories
+        # Get category name from row data (original user input)
+        category_name = row_data.get("category", "").strip()
+        
+        # Get category from ce_categories by name first (most reliable)
         category_doc = await self.db.ce_categories.find_one(
-            {"key": category_key, "scope_code": "scope2"},
+            {"name": category_name, "scope_code": "scope2"},
             {"_id": 0}
         )
         if not category_doc:
+            # Try without scope_code filter
             category_doc = await self.db.ce_categories.find_one(
-                {"name": {"$regex": category_key.replace("_", " "), "$options": "i"}, "scope_code": "scope2"},
+                {"name": category_name},
+                {"_id": 0}
+            )
+        if not category_doc:
+            # Fallback to search by name pattern
+            category_doc = await self.db.ce_categories.find_one(
+                {"name": {"$regex": category_key.replace("_", " "), "$options": "i"}},
                 {"_id": 0}
             )
         
@@ -649,7 +669,8 @@ class Scope12RowProcessor:
         decision_tree = await get_decision_tree_for_category(self.db, category_id) if category_id else None
         
         decision_inputs = {
-            "fuel_code": fuel_data.get("id") or fuel_data.get("fuel_code"),
+            "fuel_code": fuel_data.get("id"),
+            "fuel_database_id": fuel_data.get("id"),
         }
         
         formula_id = None
