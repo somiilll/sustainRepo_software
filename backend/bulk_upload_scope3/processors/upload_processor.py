@@ -13,6 +13,7 @@ from ..models import (
     BulkUploadJob, CATEGORY_COLUMNS
 )
 from .row_processor import RowProcessor
+from .scope12_processor import Scope12RowProcessor
 
 
 # Sheets to ignore (instruction sheets, reference sheets, etc.)
@@ -34,6 +35,7 @@ class UploadProcessor:
         self.user_email = user_email
         self.user_name = user_name
         self.row_processor = RowProcessor(db, organization_id, user_id, user_email, user_name)
+        self.scope12_processor = Scope12RowProcessor(db, organization_id, user_id, user_email, user_name)
     
     def _should_skip_sheet(self, sheet_name: str) -> bool:
         """Check if a sheet should be skipped (instruction/reference sheets)"""
@@ -48,6 +50,10 @@ class UploadProcessor:
             if pattern in sheet_lower:
                 return True
         
+        # Check if it's a Scope 1 or Scope 2 sheet first
+        if sheet_lower in ['scope1', 'scope 1', 'scope2', 'scope 2']:
+            return False
+        
         # Skip sheets that don't start with C1-C15
         # This handles any sheets after C15 like "Instructions", etc.
         is_category_sheet = any(sheet_lower.startswith(f"c{i}") for i in range(1, 16))
@@ -56,6 +62,10 @@ class UploadProcessor:
             for code, config in CATEGORY_COLUMNS.items():
                 if config["sheet_name"].lower() == sheet_lower:
                     return False
+                # Check aliases
+                for alias in config.get("sheet_name_aliases", []):
+                    if alias.lower() == sheet_lower:
+                        return False
             # Not a recognized category sheet
             return True
         
@@ -117,8 +127,8 @@ class UploadProcessor:
                         row=0,
                         column=None,
                         error_type="UNKNOWN_SHEET",
-                        message=f"Sheet '{sheet_name}' does not match any Scope 3 category",
-                        suggestion="Use sheet names like 'C1-PurchasedGoods' or 'C1 - Purchased Goods'",
+                        message=f"Sheet '{sheet_name}' does not match any recognized category",
+                        suggestion="Use sheet names like 'Scope1', 'Scope2', 'C1-PurchasedGoods', etc.",
                         severity=ErrorSeverity.WARNING
                     ))
                     continue
@@ -367,6 +377,9 @@ class UploadProcessor:
         emission_records: List[Dict] = []
         existing_keys = set()
         
+        # Check if this is a Scope 1 or Scope 2 sheet
+        is_scope12 = category_code in ["Scope1", "Scope2"]
+        
         # For C7, collect all rows first for aggregation
         if category_code == "C7":
             c7_rows = []
@@ -385,7 +398,7 @@ class UploadProcessor:
             
             return results, emission_records
         
-        # Regular processing for other categories
+        # Regular processing for other categories (including Scope 1 and Scope 2)
         for row_idx, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
             # Skip completely empty rows (e.g., blank spacing rows after header)
             if not any(cell is not None and cell != '' for cell in row):
@@ -397,19 +410,61 @@ class UploadProcessor:
             if not any(v for v in row_data.values() if v):
                 continue
             
-            result = await self.row_processor.process_row(
-                row_data, category_code, row_idx, existing_keys, job_id
-            )
-            
-            if isinstance(result, tuple):
-                row_result, emission_record = result
-                results.append(row_result)
-                if row_result.success:
+            # Use appropriate processor based on sheet type
+            if is_scope12:
+                if category_code == "Scope1":
+                    result = await self.scope12_processor.process_scope1_row(
+                        row_data, row_idx, existing_keys, job_id
+                    )
+                else:  # Scope2
+                    result = await self.scope12_processor.process_scope2_row(
+                        row_data, row_idx, existing_keys, job_id
+                    )
+                
+                # Scope12 processor returns RowResult directly
+                results.append(result)
+                if result.success and result.emission_id:
+                    # Get the emission record for saving
+                    if category_code == "Scope1":
+                        emission_record = await self.scope12_processor._calculate_scope1_emission(
+                            row_data, 
+                            await self._get_facility(row_data.get("facility_name")),
+                            await self.scope12_processor.get_fuel_by_name(row_data.get("fuel_gas", "")),
+                            self.scope12_processor._normalize_category(row_data.get("category", "")),
+                            job_id
+                        )
+                    else:
+                        emission_record = await self.scope12_processor._calculate_scope2_emission(
+                            row_data,
+                            await self._get_facility(row_data.get("facility_name")),
+                            await self.scope12_processor.get_fuel_by_name(row_data.get("energy_used", ""), row_data.get("category")),
+                            self.scope12_processor._normalize_category(row_data.get("category", "")),
+                            job_id
+                        )
                     emission_records.append(emission_record)
             else:
-                results.append(result)
+                result = await self.row_processor.process_row(
+                    row_data, category_code, row_idx, existing_keys, job_id
+                )
+                
+                if isinstance(result, tuple):
+                    row_result, emission_record = result
+                    results.append(row_result)
+                    if row_result.success:
+                        emission_records.append(emission_record)
+                else:
+                    results.append(result)
         
         return results, emission_records
+    
+    async def _get_facility(self, facility_name: str) -> Optional[Dict]:
+        """Get facility by name"""
+        if not facility_name:
+            return None
+        return await self.db.facilities.find_one(
+            {"name": facility_name, "organization_id": self.organization_id},
+            {"_id": 0}
+        )
     
     def _row_to_dict(self, row: tuple, col_mapping: Dict[int, str]) -> Dict[str, Any]:
         """Convert a row tuple to a dictionary using column mapping"""

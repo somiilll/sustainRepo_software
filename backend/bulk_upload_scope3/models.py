@@ -694,6 +694,76 @@ CATEGORY_COLUMNS = {
             "supplier_basis": ["facility_name", "calculation_method", "asset_name", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
         }
     },
+    # ─────────────────────────────────────────────────────────────────────────────
+    # SCOPE 1 & SCOPE 2 BULK UPLOAD CONFIGURATIONS
+    # ─────────────────────────────────────────────────────────────────────────────
+    "Scope1": {
+        "code": "Scope1",
+        "name": "Scope 1 - Direct Emissions",
+        "sheet_name": "Scope1",
+        "sheet_name_aliases": ["Scope 1", "scope1", "SCOPE1", "Scope1-Direct"],
+        "scope": "scope1",
+        "columns": [
+            {"name": "Facility Name", "key": "facility_name", "mandatory": True, "type": "dropdown"},
+            {"name": "Reporting Month", "key": "reporting_month", "mandatory": False, "type": "text", "format": "MMM-YYYY", "aliases": ["Reporting Month (YYYY-MM)", "Reporting Month (MMM-YYYY)"]},
+            {"name": "Reporting Year", "key": "reporting_year", "mandatory": False, "type": "text", "format": "FY YYYY-YYYY or CY YYYY", "aliases": ["Reporting Year (FY YYYY-YYYY or CY YYYY)", "Reporting Year\n(FY YYYY- YYYY or CY YYYY)", "Reporting Year (FY YYYY- YYYY or CY YYYY)"]},
+            {"name": "Category", "key": "category", "mandatory": True, "type": "dropdown", "allowed_values": ["Stationary Combustion", "Mobile Combustion", "Fugitive Emissions"]},
+            {"name": "Fuel/Gas Used", "key": "fuel_gas", "mandatory": True, "type": "dropdown"},
+            {"name": "Quantity Used", "key": "qty", "mandatory": True, "type": "number"},
+            {"name": "Unit of Quantity Used", "key": "unit_qty", "mandatory": True, "type": "dropdown"},
+            {"name": "GWP (Fugitives)", "key": "co2_gwp_fugitives", "mandatory": False, "type": "number"},
+            {"name": "Calorific Value", "key": "cv", "mandatory": False, "type": "number"},
+            {"name": "Unit of Calorific Value", "key": "cv_unit", "mandatory": False, "type": "text"},
+            {"name": "Density", "key": "density", "mandatory": False, "type": "number"},
+            {"name": "Unit of Density", "key": "density_unit", "mandatory": False, "type": "text"},
+            {"name": "Emission Factor (kgCO2/kg)", "key": "ef_quantity", "mandatory": False, "type": "number"},
+            {"name": "Process Name", "key": "process_name", "mandatory": True, "type": "text"},
+            {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
+            {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": True, "type": "text"},
+            {"name": "Person Responsible Designation", "key": "responsible_designation", "mandatory": False, "type": "text"},
+            {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
+            {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
+        ],
+        "mandatory_fields": {
+            "default": ["facility_name", "category", "fuel_gas", "qty", "unit_qty", "process_name", "responsible_person"],
+        },
+        "conditional_mandatory": {
+            "cv": ["cv_unit"],  # If cv is provided, cv_unit is mandatory
+            "density": ["density_unit"],  # If density is provided, density_unit is mandatory
+        }
+    },
+    "Scope2": {
+        "code": "Scope2",
+        "name": "Scope 2 - Indirect Emissions",
+        "sheet_name": "Scope2",
+        "sheet_name_aliases": ["Scope 2", "scope2", "SCOPE2", "Scope2-Indirect"],
+        "scope": "scope2",
+        "columns": [
+            {"name": "Facility Name", "key": "facility_name", "mandatory": True, "type": "dropdown"},
+            {"name": "Reporting Month", "key": "reporting_month", "mandatory": False, "type": "text", "format": "MMM-YYYY", "aliases": ["Reporting Month (YYYY-MM)", "Reporting Month (MMM-YYYY)"]},
+            {"name": "Reporting Year", "key": "reporting_year", "mandatory": False, "type": "text", "format": "FY YYYY-YYYY or CY YYYY", "aliases": ["Reporting Year (FY YYYY-YYYY or CY YYYY)", "Reporting Year\n(FY YYYY- YYYY or CY YYYY)", "Reporting Year (FY YYYY- YYYY or CY YYYY)"]},
+            {"name": "Category", "key": "category", "mandatory": True, "type": "dropdown", "allowed_values": ["Purchased Electricity", "Purchased Heat/Steam"]},
+            {"name": "Energy Used", "key": "energy_used", "mandatory": True, "type": "dropdown"},
+            {"name": "Quantity Used", "key": "qty_energy", "mandatory": True, "type": "number"},
+            {"name": "Unit of Quantity Used", "key": "unit_qty", "mandatory": True, "type": "dropdown"},
+            {"name": "Emission Factor", "key": "ef_quantity_electricity_co2", "mandatory": False, "type": "number"},
+            {"name": "Unit of Emission Factor", "key": "ef_unit", "mandatory": False, "type": "text"},
+            {"name": "Process Name", "key": "process_name", "mandatory": True, "type": "text"},
+            {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
+            {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
+            {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": True, "type": "text"},
+            {"name": "Person Responsible Designation", "key": "responsible_designation", "mandatory": False, "type": "text"},
+            {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
+            {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
+        ],
+        "mandatory_fields": {
+            "default": ["facility_name", "category", "energy_used", "qty_energy", "unit_qty", "process_name", "responsible_person"],
+        },
+        "conditional_mandatory": {
+            "ef_quantity_electricity_co2": ["ef_unit"],  # If emission factor is provided, ef_unit is mandatory
+        }
+    },
 }
 
 
@@ -715,6 +785,19 @@ ACTIVITY_TYPES = {
         {"key": "wfh", "name": "Work From Home"},
     ]
 }
+
+# Scope 1 categories
+SCOPE1_CATEGORIES = [
+    {"key": "stationary_combustion", "name": "Stationary Combustion"},
+    {"key": "mobile_combustion", "name": "Mobile Combustion"},
+    {"key": "fugitive_emissions", "name": "Fugitive Emissions"},
+]
+
+# Scope 2 categories
+SCOPE2_CATEGORIES = [
+    {"key": "purchased_electricity", "name": "Purchased Electricity"},
+    {"key": "purchased_heat_steam", "name": "Purchased Heat/Steam"},
+]
 
 
 # Common units for different categories
