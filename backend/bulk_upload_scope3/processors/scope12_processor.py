@@ -98,8 +98,8 @@ class Scope12RowProcessor:
         # Scope 2 categories
         elif cat_lower in ['purchased electricity', 'purchased_electricity', 'purchasedelectricity']:
             return 'purchased_electricity'
-        elif cat_lower in ['purchased heat/steam', 'purchased_heat_steam', 'purchased heat steam', 'purchasedheatsteam']:
-            return 'purchased_heat_steam'
+        elif cat_lower in ['purchased steam/heat', 'purchased_steam_heat', 'purchased steam heat', 'purchasedsteamheat', 'purchased heat/steam', 'purchased_heat_steam']:
+            return 'purchased_steam_heat'
         
         return cat_lower.replace(' ', '_')
     
@@ -278,12 +278,12 @@ class Scope12RowProcessor:
                 suggestion="Use: Purchased Electricity or Purchased Heat/Steam",
                 severity=ErrorSeverity.ERROR
             ))
-        elif category_key not in ['purchased_electricity', 'purchased_heat_steam']:
+        elif category_key not in ['purchased_electricity', 'purchased_steam_heat']:
             errors.append(ValidationError(
                 sheet=sheet_name, row=row_num, column="Category",
                 error_type="INVALID_CATEGORY",
                 message=f"Invalid category: '{category}'",
-                suggestion="Use: Purchased Electricity or Purchased Heat/Steam",
+                suggestion="Use: Purchased Electricity or Purchased Steam/Heat",
                 severity=ErrorSeverity.ERROR
             ))
         

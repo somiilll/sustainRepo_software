@@ -743,7 +743,7 @@ CATEGORY_COLUMNS = {
             {"name": "Facility Name", "key": "facility_name", "mandatory": True, "type": "dropdown"},
             {"name": "Reporting Month", "key": "reporting_month", "mandatory": False, "type": "text", "format": "MMM-YYYY", "aliases": ["Reporting Month (YYYY-MM)", "Reporting Month (MMM-YYYY)"]},
             {"name": "Reporting Year", "key": "reporting_year", "mandatory": False, "type": "text", "format": "FY YYYY-YYYY or CY YYYY", "aliases": ["Reporting Year (FY YYYY-YYYY or CY YYYY)", "Reporting Year\n(FY YYYY- YYYY or CY YYYY)", "Reporting Year (FY YYYY- YYYY or CY YYYY)"]},
-            {"name": "Category", "key": "category", "mandatory": True, "type": "dropdown", "allowed_values": ["Purchased Electricity", "Purchased Heat/Steam"]},
+            {"name": "Category", "key": "category", "mandatory": True, "type": "dropdown", "allowed_values": ["Purchased Electricity", "Purchased Steam/Heat"]},
             {"name": "Energy Used", "key": "energy_used", "mandatory": True, "type": "dropdown"},
             {"name": "Quantity Used", "key": "qty_energy", "mandatory": True, "type": "number"},
             {"name": "Unit of Quantity Used", "key": "unit_qty", "mandatory": True, "type": "dropdown"},
@@ -796,7 +796,7 @@ SCOPE1_CATEGORIES = [
 # Scope 2 categories
 SCOPE2_CATEGORIES = [
     {"key": "purchased_electricity", "name": "Purchased Electricity"},
-    {"key": "purchased_heat_steam", "name": "Purchased Heat/Steam"},
+    {"key": "purchased_steam_heat", "name": "Purchased Steam/Heat"},
 ]
 
 
