@@ -515,6 +515,10 @@ class Scope12RowProcessor:
             except Exception as e:
                 logger.warning(f"[SCOPE1_BULK] Decision tree resolution failed: {e}")
         
+        # Fallback: get formula_id directly from fuel_database entry
+        if not formula_id:
+            formula_id = fuel_data.get("formula_id")
+        
         # Build inputs for calc engine
         qty = float(row_data.get("qty", 0))
         unit_qty = row_data.get("unit_qty", "")
@@ -679,6 +683,10 @@ class Scope12RowProcessor:
                 formula_id = resolve_formula_id(decision_tree, decision_inputs)
             except Exception as e:
                 logger.warning(f"[SCOPE2_BULK] Decision tree resolution failed: {e}")
+        
+        # Fallback: get formula_id directly from fuel_database entry
+        if not formula_id:
+            formula_id = fuel_data.get("formula_id")
         
         # Build inputs
         qty = float(row_data.get("qty_energy", 0))
