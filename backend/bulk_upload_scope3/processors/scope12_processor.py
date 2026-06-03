@@ -479,22 +479,24 @@ class Scope12RowProcessor:
         # Get category name from row data (original user input)
         category_name = row_data.get("category", "").strip()
         
-        # Get category from ce_categories by name first (most reliable)
-        category_doc = await self.db.ce_categories.find_one(
-            {"name": category_name, "scope_code": "scope1"},
-            {"_id": 0}
+        # Map category name to code for emission_categories lookup
+        category_code_map = {
+            "stationary combustion": "stationary_combustion",
+            "mobile combustion": "mobile_combustion",
+            "fugitive emissions": "fugitive_emissions",
+        }
+        category_code = category_code_map.get(category_name.lower(), category_key)
+        
+        # Get category from emission_categories (same as Scope 3)
+        category_doc = await self.db.emission_categories.find_one(
+            {"code": category_code, "is_active": True},
+            {"_id": 0, "id": 1, "name": 1}
         )
         if not category_doc:
-            # Try with different scope_code formats
-            category_doc = await self.db.ce_categories.find_one(
-                {"name": category_name},
-                {"_id": 0}
-            )
-        if not category_doc:
-            # Fallback to search by name pattern
-            category_doc = await self.db.ce_categories.find_one(
-                {"name": {"$regex": category_key.replace("_", " "), "$options": "i"}},
-                {"_id": 0}
+            # Try with name match
+            category_doc = await self.db.emission_categories.find_one(
+                {"name": {"$regex": f"^{category_name}$", "$options": "i"}, "is_active": True},
+                {"_id": 0, "id": 1, "name": 1}
             )
         
         category_id = category_doc.get("id") if category_doc else None
@@ -664,22 +666,24 @@ class Scope12RowProcessor:
         # Get category name from row data (original user input)
         category_name = row_data.get("category", "").strip()
         
-        # Get category from ce_categories by name first (most reliable)
-        category_doc = await self.db.ce_categories.find_one(
-            {"name": category_name, "scope_code": "scope2"},
-            {"_id": 0}
+        # Map category name to code for emission_categories lookup
+        category_code_map = {
+            "purchased electricity": "purchased_electricity",
+            "purchased steam/heat": "purchased_steam_heat",
+            "purchased heat/steam": "purchased_steam_heat",
+        }
+        category_code = category_code_map.get(category_name.lower(), category_key)
+        
+        # Get category from emission_categories (same as Scope 3)
+        category_doc = await self.db.emission_categories.find_one(
+            {"code": category_code, "is_active": True},
+            {"_id": 0, "id": 1, "name": 1}
         )
         if not category_doc:
-            # Try without scope_code filter
-            category_doc = await self.db.ce_categories.find_one(
-                {"name": category_name},
-                {"_id": 0}
-            )
-        if not category_doc:
-            # Fallback to search by name pattern
-            category_doc = await self.db.ce_categories.find_one(
-                {"name": {"$regex": category_key.replace("_", " "), "$options": "i"}},
-                {"_id": 0}
+            # Try with name match
+            category_doc = await self.db.emission_categories.find_one(
+                {"name": {"$regex": f"^{category_name}$", "$options": "i"}, "is_active": True},
+                {"_id": 0, "id": 1, "name": 1}
             )
         
         category_id = category_doc.get("id") if category_doc else None
