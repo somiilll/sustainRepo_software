@@ -84,7 +84,7 @@ export default function ValidationResultsTable({ rows, expandedRows, onToggleExp
                           </Badge>
                         </TableCell>
                         <TableCell className="max-w-[150px] truncate" title={row.row_data?.category}>
-                          {row.row_data?.category || '-'}
+                          {(row.row_data?.category || '-').replace(/_/g, ' ')}
                         </TableCell>
                         <TableCell className="max-w-[200px] truncate" title={row.row_data?.fuel_gas || row.row_data?.energy_used}>
                           {row.row_data?.fuel_gas || row.row_data?.energy_used || '-'}
