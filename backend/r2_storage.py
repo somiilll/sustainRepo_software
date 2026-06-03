@@ -105,6 +105,8 @@ class R2Storage:
             bucket = self._get_bucket(bucket_type)
             key = self._generate_unique_key(filename, folder, org_name)
             
+            logger.info(f"[R2_UPLOAD] Starting: bucket={bucket}, key={key}, size={len(file_content)}, org={org_name}")
+            
             # Prepare upload parameters
             upload_params = {
                 'Bucket': bucket,
@@ -125,7 +127,7 @@ class R2Storage:
             # Upload to R2
             self.client.put_object(**upload_params)
             
-            logger.info(f"File uploaded successfully: {bucket}/{key}")
+            logger.info(f"[R2_UPLOAD] Success: {bucket}/{key}")
             
             return {
                 'success': True,

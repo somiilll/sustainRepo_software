@@ -501,6 +501,8 @@ class Scope12RowProcessor:
         
         category_id = category_doc.get("id") if category_doc else None
         
+        logger.info(f"[SCOPE1_BULK] Processing row: category={category_key}, fuel={fuel_data.get('fuel_name')}, category_id={category_id}")
+        
         # Get decision tree and resolve formula (same logic as calc_engine/router.py)
         decision_tree = await get_decision_tree_for_category(self.db, category_id) if category_id else None
         
@@ -514,6 +516,8 @@ class Scope12RowProcessor:
             "ef_quantity_provided": str(ef_quantity_provided).lower(),  # "true" or "false"
         }
         
+        logger.debug(f"[SCOPE1_BULK] Decision inputs: {decision_inputs}")
+        
         formula_id = None
         if decision_tree:
             try:
@@ -522,6 +526,7 @@ class Scope12RowProcessor:
                 result = resolve_formula_id(tree_data, decision_inputs)
                 # resolve_formula_id returns (formula_id, path) tuple or just formula_id
                 formula_id = result[0] if isinstance(result, tuple) else result
+                logger.info(f"[SCOPE1_BULK] Formula resolved via decision tree: {formula_id}")
             except Exception as e:
                 logger.warning(f"[SCOPE1_BULK] Decision tree resolution failed: {e}")
         
@@ -599,6 +604,7 @@ class Scope12RowProcessor:
                     "fuel_database_id": fuel_data.get("id"),
                     "ef_quantity_provided": ef_quantity_provided,
                 }
+                logger.info(f"[SCOPE1_BULK] Executing calc engine: formula={formula_id}, inputs={inputs}, context={context}")
                 result = await calc_engine.execute(
                     formula.get("definition", formula),
                     inputs,
@@ -610,9 +616,12 @@ class Scope12RowProcessor:
                 )
                 outputs = result.get("outputs", {})
                 co2e = outputs.get("co2e", {}).get("value", 0) or 0
+                logger.info(f"[SCOPE1_BULK] Calculation result: co2e={co2e}")
             except Exception as e:
                 logger.error(f"[SCOPE1_BULK] Calc engine error: {e}")
                 raise
+        else:
+            logger.warning(f"[SCOPE1_BULK] No formula found for category_id={category_id}, formula_id={formula_id}")
         
         # Build dynamic_field_values matching manual upload structure
         dynamic_field_values = {
@@ -784,6 +793,7 @@ class Scope12RowProcessor:
                     "fuel_database_id": fuel_data.get("id"),
                     "ef_quantity_provided": ef_quantity_provided,
                 }
+                logger.info(f"[SCOPE2_BULK] Executing calc engine: formula={formula_id}, qty={qty}, ef_provided={ef_quantity_provided}")
                 result = await calc_engine.execute(
                     formula.get("definition", formula),
                     inputs,
@@ -795,9 +805,12 @@ class Scope12RowProcessor:
                 )
                 outputs = result.get("outputs", {})
                 co2e = outputs.get("co2e", {}).get("value", 0) or 0
+                logger.info(f"[SCOPE2_BULK] Calculation result: co2e={co2e}")
             except Exception as e:
                 logger.error(f"[SCOPE2_BULK] Calc engine error: {e}")
                 raise
+        else:
+            logger.warning(f"[SCOPE2_BULK] No formula found for category_id={category_id}, formula_id={formula_id}")
         
         # Build dynamic_field_values
         dynamic_field_values = {

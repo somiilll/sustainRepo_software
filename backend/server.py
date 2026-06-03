@@ -2741,6 +2741,8 @@ async def upload_evidence_file(
             if org:
                 org_name = org.get("name")
         
+        logger.info(f"[EVIDENCE_UPLOAD] Starting upload: file={file.filename}, bucket={bucket_type}, org={org_name}, user={current_user.get('email')}")
+        
         # Upload to R2
         r2 = get_r2_storage()
         result = await r2.upload_file(
@@ -2754,6 +2756,8 @@ async def upload_evidence_file(
             },
             org_name=org_name
         )
+        
+        logger.info(f"[EVIDENCE_UPLOAD] R2 upload success: key={result.get('key')}, size={len(file_content)}")
         
         # Store file metadata in database
         file_record = {
@@ -3280,7 +3284,10 @@ async def save_scope3_valid_rows(job_id: str, current_user: dict = Depends(get_c
         {"_id": 0}
     ).to_list(10000)
     
+    logger.info(f"[BULK_SAVE] Job {job_id}: Found {len(pending_records)} pending records")
+    
     if not pending_records:
+        logger.warning(f"[BULK_SAVE] Job {job_id}: No pending records found")
         raise HTTPException(
             status_code=400, 
             detail="No pending records found. Please re-upload the file with validate_only=false to save directly."
@@ -3298,6 +3305,7 @@ async def save_scope3_valid_rows(job_id: str, current_user: dict = Depends(get_c
     if records_to_save:
         await db.emission_records.insert_many(records_to_save)
         created_ids = [r["id"] for r in records_to_save]
+        logger.info(f"[BULK_SAVE] Job {job_id}: Inserted {len(created_ids)} emission records")
         
         # Create emission_history entries for version tracking
         now = datetime.now(timezone.utc)
@@ -3330,6 +3338,7 @@ async def save_scope3_valid_rows(job_id: str, current_user: dict = Depends(get_c
             })
         if history_entries:
             await db.emission_history.insert_many(history_entries)
+            logger.info(f"[BULK_SAVE] Job {job_id}: Created {len(history_entries)} history entries")
         
         # Create audit log entry for bulk upload
         scope_counts = {}
@@ -3338,6 +3347,8 @@ async def save_scope3_valid_rows(job_id: str, current_user: dict = Depends(get_c
             scope_counts[scope] = scope_counts.get(scope, 0) + 1
         
         scope_summary = ", ".join([f"{s}: {c}" for s, c in scope_counts.items()])
+        logger.info(f"[BULK_SAVE] Job {job_id}: Scope breakdown - {scope_summary}")
+        
         audit_logger = AuditLogger(db)
         await audit_logger.log(
             action=AuditAction.IMPORT,
@@ -3356,6 +3367,7 @@ async def save_scope3_valid_rows(job_id: str, current_user: dict = Depends(get_c
                 "emission_ids": created_ids[:10] if len(created_ids) > 10 else created_ids
             }
         )
+        logger.info(f"[BULK_SAVE] Job {job_id}: Audit log created")
         
         # Update job with saved record IDs
         await db.bulk_upload_jobs.update_one(
