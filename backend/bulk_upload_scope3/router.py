@@ -210,7 +210,7 @@ async def save_valid_rows(
                 "changed_by": current_user["id"],
                 "changed_by_email": current_user.get("email", ""),
                 "changed_by_name": current_user.get("full_name", ""),
-                "changed_at": now,
+                "changed_at": now.isoformat(),
                 "version": 1,
                 "field_changes": [],
                 "changes_summary": "Initial creation via bulk upload",

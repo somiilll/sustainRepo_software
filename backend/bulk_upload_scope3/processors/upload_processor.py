@@ -190,7 +190,7 @@ class UploadProcessor:
                         "changed_by": self.user_id,
                         "changed_by_email": self.user_email,
                         "changed_by_name": self.user_name,
-                        "changed_at": now,
+                        "changed_at": now.isoformat(),
                         "version": 1,
                         "field_changes": [],
                         "changes_summary": "Initial creation via bulk upload",
