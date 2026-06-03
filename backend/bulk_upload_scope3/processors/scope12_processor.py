@@ -504,10 +504,14 @@ class Scope12RowProcessor:
         # Get decision tree and resolve formula (same logic as calc_engine/router.py)
         decision_tree = await get_decision_tree_for_category(self.db, category_id) if category_id else None
         
-        # Build decision inputs for formula resolution - use fuel_database_id
+        # Check if user provided emission factor in bulk upload
+        ef_quantity_provided = bool(row_data.get("ef_quantity"))
+        
+        # Build decision inputs for formula resolution
         decision_inputs = {
             "fuel_code": fuel_data.get("id"),
             "fuel_database_id": fuel_data.get("id"),
+            "ef_quantity_provided": str(ef_quantity_provided).lower(),  # "true" or "false"
         }
         
         formula_id = None
@@ -540,12 +544,8 @@ class Scope12RowProcessor:
         qty = float(row_data.get("qty", 0))
         unit_qty = row_data.get("unit_qty", "")
         
-        # Check if user provided emission factor in bulk upload
-        ef_quantity_provided = bool(row_data.get("ef_quantity"))
-        
         inputs = {
             "qty": {"value": qty, "unit": unit_qty},
-            "ef_quantity_provided": {"value": ef_quantity_provided, "unit": ""}
         }
         
         # If user provided ef_quantity, add it to inputs
