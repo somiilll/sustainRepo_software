@@ -2733,6 +2733,14 @@ async def upload_evidence_file(
         raise HTTPException(status_code=400, detail="File size too large. Maximum size is 5MB")
     
     try:
+        # Get organization name for path prefix
+        org_name = None
+        org_id = current_user.get("organization_id")
+        if org_id:
+            org = await db.organizations.find_one({"id": org_id}, {"_id": 0, "name": 1})
+            if org:
+                org_name = org.get("name")
+        
         # Upload to R2
         r2 = get_r2_storage()
         result = await r2.upload_file(
@@ -2743,7 +2751,8 @@ async def upload_evidence_file(
             metadata={
                 'uploaded_by': current_user["id"],
                 'original_filename': file.filename
-            }
+            },
+            org_name=org_name
         )
         
         # Store file metadata in database
