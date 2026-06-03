@@ -761,8 +761,8 @@ class Scope12RowProcessor:
             ef_value = float(row_data.get("ef_quantity_electricity_co2"))
             ef_unit = row_data.get("ef_unit", "kgCO2/kWh")
             user_overrides["ef_quantity_electricity_co2"] = {"value": ef_value, "unit": ef_unit, "is_override": True}
-        elif fuel_data.get("emission_factor_basis_quantity"):
-            # Use emission_factor_basis_quantity from fuel_database (e.g., 0.71 tCO2/MWh)
+        elif fuel_data.get("emission_factor_basis_quantity") is not None:
+            # Use emission_factor_basis_quantity from fuel_database (e.g., 0.71 tCO2/MWh, or 0 for renewables)
             ef_value = float(fuel_data.get("emission_factor_basis_quantity"))
             ef_unit = fuel_data.get("emission_factor_basis_unit", "tCO2/MWh")
             user_overrides["ef_quantity_electricity_co2"] = {"value": ef_value, "unit": ef_unit, "source_name": fuel_data.get("source", "Fuel Database")}
