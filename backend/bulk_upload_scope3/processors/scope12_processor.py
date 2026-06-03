@@ -573,10 +573,13 @@ class Scope12RowProcessor:
             ef_value = float(row_data.get("ef_quantity"))
             user_overrides["ef_quantity"] = {"value": ef_value, "unit": "kgCO2/kg", "is_override": True}
         
-        # GWP for fugitives
+        # GWP for fugitives - user override OR from fuel_database
         if row_data.get("co2_gwp_fugitives"):
             gwp_value = float(row_data.get("co2_gwp_fugitives"))
             user_overrides["co2_gwp_fugitives"] = {"value": gwp_value, "unit": "", "is_override": True}
+        elif category_key == "fugitive_emissions" and fuel_data.get("gwp_fugitives"):
+            gwp_value = float(fuel_data.get("gwp_fugitives"))
+            user_overrides["co2_gwp_fugitives"] = {"value": gwp_value, "unit": "kgCO2e/kg", "source_name": fuel_data.get("source", "Fuel Database")}
         
         # Execute calculation
         calc_engine = CalcEngine(self.db)
