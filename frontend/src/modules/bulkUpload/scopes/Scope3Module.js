@@ -11,10 +11,10 @@ import { validateFile } from '../shared/normalizers';
 
 const Scope3Module = {
   id: 'scope3',
-  label: 'Scope 3',
-  description: 'Value chain emissions (C1–C15) — supplier spend, employee commuting, capital goods, etc.',
-  templateFilenamePrefix: 'Scope3_BulkUpload_Template',
-  errorReportFilenamePrefix: 'Scope3_Error_Report',
+  label: 'Emissions',
+  description: 'Bulk upload emissions data for Scope 1, 2, and 3 categories',
+  templateFilenamePrefix: 'BulkUpload_Template',
+  errorReportFilenamePrefix: 'Error_Report',
   requiredAccess: ['scope1_2_3'],
 
   endpoints: {
