@@ -7,11 +7,14 @@ from typing import Optional
 from datetime import datetime, timezone
 import io
 import uuid
+import logging
 
 from .template_generator import generate_scope3_template
 from .processors import UploadProcessor
 from .report_generator import ReportGenerator
 from .models import UploadSummary, UploadStatus
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/bulk-upload/scope3", tags=["Bulk Upload - Scope 3"])
 
@@ -192,6 +195,7 @@ async def save_valid_rows(
     if records_to_save:
         await db.emission_records.insert_many(records_to_save)
         created_ids = [r["id"] for r in records_to_save]
+        logger.info(f"[BULK_UPLOAD_SAVE] Inserted {len(created_ids)} emission records for job {job_id}")
         
         # Create emission_history entries for version tracking
         now = datetime.now(timezone.utc)
@@ -222,9 +226,10 @@ async def save_valid_rows(
                     }
                 }
             })
+        logger.info(f"[BULK_UPLOAD_SAVE] Prepared {len(history_entries)} history entries")
         if history_entries:
-            await db.emission_history.insert_many(history_entries)
-            logger.info(f"[BULK_UPLOAD] Created {len(history_entries)} history entries for job {job_id}")
+            result = await db.emission_history.insert_many(history_entries)
+            logger.info(f"[BULK_UPLOAD_SAVE] Inserted {len(result.inserted_ids)} history entries for job {job_id}")
         
         # Update job with saved record IDs
         await db.bulk_upload_jobs.update_one(
