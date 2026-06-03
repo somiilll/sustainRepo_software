@@ -756,11 +756,16 @@ class Scope12RowProcessor:
         # Build user overrides
         user_overrides = {}
         
-        # Emission factor override (also add to user_overrides for property resolution)
+        # Emission factor override OR from fuel_database
         if ef_quantity_provided:
             ef_value = float(row_data.get("ef_quantity_electricity_co2"))
             ef_unit = row_data.get("ef_unit", "kgCO2/kWh")
             user_overrides["ef_quantity_electricity_co2"] = {"value": ef_value, "unit": ef_unit, "is_override": True}
+        elif fuel_data.get("emission_factor_basis_quantity"):
+            # Use emission_factor_basis_quantity from fuel_database (e.g., 0.71 tCO2/MWh)
+            ef_value = float(fuel_data.get("emission_factor_basis_quantity"))
+            ef_unit = fuel_data.get("emission_factor_basis_unit", "tCO2/MWh")
+            user_overrides["ef_quantity_electricity_co2"] = {"value": ef_value, "unit": ef_unit, "source_name": fuel_data.get("source", "Fuel Database")}
         
         # Execute calculation
         calc_engine = CalcEngine(self.db)
