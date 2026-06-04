@@ -410,41 +410,47 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
         tco2e: c.tco2e || 0
       }));
       
-      // Also fetch sinks for Scope 1&2
+      // Also fetch sinks for Scope 1&2 - ONLY if they were already saved in the record
       let sinksToAdd = [];
       if (recordScopeGroup === 'scope12' && yearNum) {
-        const yearStr = organization?.reporting_year_type === 'financial_year' 
-          ? `FY ${yearNum}-${yearNum + 1}` 
-          : String(yearNum);
-        const facilityIdFilter = entityType === 'facility' ? entityId : null;
-        const matchedSinks = getSinksForBaseYear(yearStr, facilityIdFilter);
-        
-        // Check if sinks are already in saved data
+        // Check if sinks are already in saved data - only add if they were previously saved
         const hasSavedSinks = savedData.some(e => e.scope?.toLowerCase() === 'sinks');
         
-        if (!hasSavedSinks && matchedSinks.length > 0) {
-          // Aggregate sinks
-          const sinkAggregates = {};
-          matchedSinks.forEach(sink => {
-            const key = `${sink.sink_type || 'other'}_${sink.description || 'Carbon Sink'}`;
-            if (!sinkAggregates[key]) {
-              sinkAggregates[key] = { sink_type: sink.sink_type || 'other', description: sink.description || '', total: 0 };
-            }
-            sinkAggregates[key].total += parseFloat(sink.total_emissions_reduced) || 0;
-          });
+        // Only fetch and add sinks if they were in the saved configuration
+        if (hasSavedSinks) {
+          const yearStr = organization?.reporting_year_type === 'financial_year' 
+            ? `FY ${yearNum}-${yearNum + 1}` 
+            : String(yearNum);
+          const facilityIdFilter = entityType === 'facility' ? entityId : null;
+          const matchedSinks = getSinksForBaseYear(yearStr, facilityIdFilter);
           
-          sinksToAdd = Object.values(sinkAggregates).map(agg => ({
-            scope: 'Sinks',
-            category: agg.sink_type || agg.description || 'Carbon Sink',
-            subcategory: agg.description || '',
-            tco2e: -(Math.abs(agg.total)),
-            isSink: true
-          }));
+          if (matchedSinks.length > 0) {
+            // Aggregate sinks
+            const sinkAggregates = {};
+            matchedSinks.forEach(sink => {
+              const key = `${sink.sink_type || 'other'}_${sink.description || 'Carbon Sink'}`;
+              if (!sinkAggregates[key]) {
+                sinkAggregates[key] = { sink_type: sink.sink_type || 'other', description: sink.description || '', total: 0 };
+              }
+              sinkAggregates[key].total += parseFloat(sink.total_emissions_reduced) || 0;
+            });
+            
+            sinksToAdd = Object.values(sinkAggregates).map(agg => ({
+              scope: 'Sinks',
+              category: agg.sink_type || agg.description || 'Carbon Sink',
+              subcategory: agg.description || '',
+              tco2e: -(Math.abs(agg.total)),
+              isSink: true
+            }));
+          }
         }
       }
       
-      // Combine: saved data + new combinations + sinks
-      const mergedData = [...savedData, ...newCombinations, ...sinksToAdd];
+      // Remove any existing sinks from savedData to avoid duplicates (will be replaced by sinksToAdd)
+      const savedDataWithoutSinks = savedData.filter(e => e.scope?.toLowerCase() !== 'sinks');
+      
+      // Combine: saved data (without sinks) + new combinations + fresh sinks (if any)
+      const mergedData = [...savedDataWithoutSinks, ...newCombinations, ...sinksToAdd];
       
       setEmissionsData(mergedData);
     } catch (error) {
