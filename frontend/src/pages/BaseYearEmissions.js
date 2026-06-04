@@ -2467,8 +2467,14 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                 </div>
               )}
               
-              {/* Sinks section - show total sinks value in a single row (only for Scope 1&2) */}
+              {/* Sinks section - show total sinks value in a single row (only for Scope 1&2 and only if sinks are in saved emissions_data) */}
               {(viewRecord.scope_group || 'scope12') === 'scope12' && (() => {
+                // Check if sinks are included in the saved base year configuration
+                const hasSinksInConfig = viewRecord.emissions_data?.some(e => 
+                  e.scope?.toLowerCase() === 'sinks'
+                );
+                if (!hasSinksInConfig) return null;
+                
                 const sinks = getSinksForBaseYear(viewRecord.base_year, viewRecord.facility_id);
                 if (sinks.length === 0) return null;
                 
