@@ -252,6 +252,16 @@ Five phases executed end-to-end with **37/37 regression tests PASS** (iteration_
      - Audit log shows `method: "property_based_user_override"` with `factor: 0.6`
      - Test file: `/app/backend/tests/test_compound_unit_user_density.py` (3/3 PASS)
 
+2. **Fixed Density Unit Normalization in Compound Conversions**
+   - **Bug**: When user provides density in a different unit (e.g., `0.6 kg/kl` instead of `kg/L`), the compound conversion used the raw value (0.6) instead of converting it to the expected unit (0.0006 kg/L).
+   - **Root Cause**: `_convert_component()` extracted the numeric value without checking/converting the unit.
+   - **Fix Applied**: 
+     - `/app/backend/calc_engine/units.py`: Added unit normalization logic in `_convert_component()` for both forward and reverse property-based conversions
+     - When density unit's volume component differs from the conversion's from_unit, looks up conversion factor and normalizes
+   - **Verification**:
+     - Test: density=0.6 kg/kl → correctly normalized to 0.0006 kg/L → output=0.622 tCO2e
+     - Test: density=0.6 kg/L → uses 0.6 directly → output=0.622 tCO2e
+
 ### May 2026 Session (Latest)
 
 **May 25, 2026 - Biogenic Scope3 Access Control Fix (P0)**
