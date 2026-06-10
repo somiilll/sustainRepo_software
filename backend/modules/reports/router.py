@@ -228,10 +228,26 @@ async def generate_facility_report(
     
     # Clean up old downloads (older than 5 minutes)
     current_time = datetime.now(timezone.utc)
-    expired_tokens = [
-        token for token, data in pending_downloads.items()
-        if (current_time - data["created_at"]).total_seconds() > 300
-    ]
+    # expired_tokens = [
+    #     token for token, data in pending_downloads.items()
+    #     if (current_time - data["created_at"]).total_seconds() > 300
+    # ]
+    # for token in expired_tokens:
+    #     del pending_downloads[token]
+    
+    # pending_downloads[download_token] = {
+    #     "buffer": doc_buffer.read(),
+    #     "filename": filename,
+    #     "created_at": current_time
+    # }
+    expired_tokens = []
+    
+    for token, data in pending_downloads.items():
+        created_at = data.get("created_at")
+        # If created_at is missing, or if it's older than 300 seconds, expire it
+        if not created_at or (current_time - created_at).total_seconds() > 300:
+            expired_tokens.append(token)
+
     for token in expired_tokens:
         del pending_downloads[token]
     
@@ -1467,9 +1483,12 @@ async def generate_ai_report_summary(
     org_name = aggregated_data['organization_name'].replace(' ', '_')
     filename = f"AI_Executive_Summary_{org_name}_{request.reporting_period_start}_to_{request.reporting_period_end}.pdf"
     
+    current_time = datetime.now(timezone.utc)
+
     pending_downloads[download_token] = {
         "buffer": pdf_buffer.getvalue(),
-        "filename": filename
+        "filename": filename,
+        "created_at": current_time
     }
     
     return {
