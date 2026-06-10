@@ -124,7 +124,7 @@ def dims_equal(a: Dict[str, int], b: Dict[str, int]) -> bool:
     return a == b
 
 
-async def convert(db, value: float, from_unit: str, to_unit: str) -> Tuple[float, dict]:
+async def convert(db, value: float, from_unit: str, to_unit: str, context: dict = None) -> Tuple[float, dict]:
     """
     Convert value between units of the same dimension.
     Returns (converted_value, audit_entry).
@@ -135,8 +135,12 @@ async def convert(db, value: float, from_unit: str, to_unit: str) -> Tuple[float
     3. Try chained conversion through intermediate units (e.g., kL → L → mL)
     4. Fallback to dimension-based conversion using to_base_factor (for backwards compat)
     
+    Args:
+        context: Optional dict with fuel_database_id for property-based conversions
+    
     Raises ValueError on dimension mismatch or missing conversion.
     """
+    context = context or {}
     # Handle empty or None units - assume no conversion needed
     if not from_unit or not to_unit:
         return value, {
@@ -204,7 +208,7 @@ async def convert(db, value: float, from_unit: str, to_unit: str) -> Tuple[float
         return chained_result
     
     # Priority 4: Try compound unit conversion (e.g., MJ/kg → TJ/kg)
-    compound_result = await _try_compound_conversion(db, from_unit, to_unit, value)
+    compound_result = await _try_compound_conversion(db, from_unit, to_unit, value, context)
     if compound_result:
         return compound_result
     
@@ -287,7 +291,7 @@ async def _find_chained_conversion(
 
 
 async def _try_compound_conversion(
-    db, from_unit: str, to_unit: str, value: float
+    db, from_unit: str, to_unit: str, value: float, context: dict = None
 ) -> Optional[Tuple[float, dict]]:
     """
     Try compound unit conversion by decomposing into components.
@@ -303,9 +307,12 @@ async def _try_compound_conversion(
     - Direct conversion
     - Reverse conversion  
     - Chained conversion (e.g., cm3 → m³ → L)
+    - Property-based conversion (e.g., L → kg using density from fuel_database)
     
     Returns (converted_value, audit_entry) or None if not applicable.
     """
+    context = context or {}
+    
     # Look up compound units
     from_compound = await db.ce_compound_units.find_one({"key": from_unit}, {"_id": 0})
     to_compound = await db.ce_compound_units.find_one({"key": to_unit}, {"_id": 0})
@@ -365,8 +372,9 @@ async def _try_compound_conversion(
             # - Direct conversion
             # - Reverse conversion
             # - Chained conversion (e.g., cm3 → m³ → L)
+            # - Property-based conversion (e.g., L → kg using density)
             try:
-                _, conv_audit = await _convert_component(db, from_unit_key, to_unit_key)
+                _, conv_audit = await _convert_component(db, from_unit_key, to_unit_key, context)
                 comp_factor = conv_audit.get("factor", 1.0)
                 conv_method = conv_audit.get("method", "unknown")
             except ValueError:
@@ -396,35 +404,67 @@ async def _try_compound_conversion(
     }
 
 
-async def _convert_component(db, from_unit: str, to_unit: str) -> Tuple[float, dict]:
+async def _convert_component(db, from_unit: str, to_unit: str, context: dict = None) -> Tuple[float, dict]:
     """
     Convert between simple units for compound unit decomposition.
-    Uses all available conversion methods: direct, reverse, chained.
+    Uses all available conversion methods: direct, reverse, chained, property-based.
     
     Returns (factor, audit_entry) where factor converts 1 unit of from_unit to to_unit.
     """
+    context = context or {}
+    
     # Priority 1: Direct DB conversion
     direct_conv = await db.ce_unit_conversions.find_one(
         {"from_unit": from_unit, "to_unit": to_unit, "is_active": True},
         {"_id": 0}
     )
-    if direct_conv and direct_conv.get("factor") is not None:
-        return direct_conv["factor"], {
-            "factor": direct_conv["factor"],
-            "method": "db_conversion"
-        }
+    if direct_conv:
+        if direct_conv.get("factor") is not None:
+            return direct_conv["factor"], {
+                "factor": direct_conv["factor"],
+                "method": "db_conversion"
+            }
+        # Handle property-based conversion (e.g., L → kg using density)
+        elif direct_conv.get("conversion_type") == "property_based" and direct_conv.get("property_key"):
+            property_key = direct_conv["property_key"]
+            fuel_db_id = context.get("fuel_database_id") or context.get("fuel_code")
+            if fuel_db_id:
+                fuel = await db.fuel_database.find_one({"id": fuel_db_id}, {"_id": 0, property_key: 1})
+                if fuel and fuel.get(property_key):
+                    factor = float(fuel[property_key])
+                    return factor, {
+                        "factor": factor,
+                        "method": "property_based",
+                        "property_key": property_key,
+                        "fuel_database_id": fuel_db_id
+                    }
     
     # Priority 2: Reverse DB conversion
     reverse_conv = await db.ce_unit_conversions.find_one(
         {"from_unit": to_unit, "to_unit": from_unit, "is_active": True},
         {"_id": 0}
     )
-    if reverse_conv and reverse_conv.get("factor") and reverse_conv.get("factor") != 0:
-        factor = 1.0 / reverse_conv["factor"]
-        return factor, {
-            "factor": factor,
-            "method": "db_conversion_reverse"
-        }
+    if reverse_conv:
+        if reverse_conv.get("factor") and reverse_conv.get("factor") != 0:
+            factor = 1.0 / reverse_conv["factor"]
+            return factor, {
+                "factor": factor,
+                "method": "db_conversion_reverse"
+            }
+        # Handle reverse property-based conversion (e.g., kg → L using 1/density)
+        elif reverse_conv.get("conversion_type") == "property_based" and reverse_conv.get("property_key"):
+            property_key = reverse_conv["property_key"]
+            fuel_db_id = context.get("fuel_database_id") or context.get("fuel_code")
+            if fuel_db_id:
+                fuel = await db.fuel_database.find_one({"id": fuel_db_id}, {"_id": 0, property_key: 1})
+                if fuel and fuel.get(property_key) and float(fuel[property_key]) != 0:
+                    factor = 1.0 / float(fuel[property_key])
+                    return factor, {
+                        "factor": factor,
+                        "method": "property_based_reverse",
+                        "property_key": property_key,
+                        "fuel_database_id": fuel_db_id
+                    }
     
     # Priority 3: Chained conversion
     chained_result = await _find_chained_conversion(db, from_unit, to_unit, 1.0)

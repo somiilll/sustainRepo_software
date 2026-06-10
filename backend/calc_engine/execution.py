@@ -406,7 +406,7 @@ class CalcEngine:
 
             # Try direct conversion if dimensions match
             try:
-                value, c_audit = await convert(self.db, raw_value, raw_unit, target_unit)
+                value, c_audit = await convert(self.db, raw_value, raw_unit, target_unit, context)
                 env[var] = value
                 audit.add(c_audit)
                 continue
@@ -464,7 +464,7 @@ class CalcEngine:
                         for a in t_audit:
                             audit.add(a)
                         # Now convert to target_unit (same dim post-transformation)
-                        final_val, final_audit = await convert(self.db, val, new_unit, target_unit)
+                        final_val, final_audit = await convert(self.db, val, new_unit, target_unit, context)
                         audit.add(final_audit)
                         env[var] = final_val
                         transformation_applied = True
@@ -505,7 +505,7 @@ class CalcEngine:
             
             # Only convert if we have both units and they differ
             if expected_unit and unit and unit != expected_unit:
-                value, c_audit = await convert(self.db, value, unit, expected_unit)
+                value, c_audit = await convert(self.db, value, unit, expected_unit, context)
                 audit.add(c_audit)
                 applied_factors[var]["converted_to"] = expected_unit
                 applied_factors[var]["converted_value"] = value
