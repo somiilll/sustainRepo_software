@@ -1,0 +1,33 @@
+{
+  "summary": "Backend-only verification of the compound unit conversion fix in Calc Engine. Confirmed that when a user provides a custom density (e.g., 0.6 kg/L), the L->kg component of compound conversions (kgCO2/L -> kgCO2/kg AND volume_to_mass for qty) now uses the user override instead of the fuel_database default. End-to-end POST /api/calc-engine/execute-by-category for category 8d62f52d-... with qty=6220 L, ef=0.1 kgCO2/L, density=0.6 kg/L returned co2e=0.622 tCO2e exactly as expected. Audit log contains method='property_based_user_override' with factor=0.6 for the L->kg component. 3/3 pytest cases passed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_compound_unit_user_density.py",
+    "/app/test_reports/pytest/pytest_compound_user_density.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "router.py line 774: property_keys list is hardcoded ['density','cv','calorific_value']. Consider deriving it from ce_unit_conversions where conversion_type='property_based' so new property-based conversions auto-merge without code change.",
+    "units.py _convert_component: user_overrides lookup uses truthy check `if user_overrides.get(property_key):` which would silently skip a value of 0 (legitimate edge case, e.g., zero NCV). Use `is not None` check instead.",
+    "units.py: user override dict format inconsistency - sometimes `{value, unit}` and sometimes raw float. Handled defensively, but adding a normalization helper would simplify the 4 occurrences in _convert_component.",
+    "Decision tree on this category rejects Python boolean True for 'ef_quantity_provided' - it must be passed as string 'true' (case-sensitive). This is a UX trap for API consumers; consider normalizing booleans to lowercase strings at the router layer."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_compound_unit_user_density.py (new)"
+  ],
+  "success_rate": {"backend": "100% (3/3)", "frontend": "not tested (backend-only request)"},
+  "test_credentials": "goyalsomil@hotmail.com / Test123! (OILES INDIA admin)",
+  "seed_data_creation": "None. Used existing category 8d62f52d-0ca6-4737-9b14-dd60878c1f27 and the live ce_unit_conversions / ce_compound_units tables. All requests run with dry_run=true so no records persisted.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "The fix correctly threads user_overrides through convert() -> _try_compound_conversion() -> _convert_component(). The L->kg property-based override is honored at BOTH stages: (1) ef_quantity compound conversion kgCO2/L -> kgCO2/kg, and (2) volume_to_mass transformation for qty. Because the same density value is used in both, the L cancels arithmetically and the result is density-independent: co2 = qty(L) * ef(kgCO2/L) = 622 kgCO2. Tests verify both the numerical result and the audit_log 'property_based_user_override' marker.",
+  "rca of the issue": "Original bug: _convert_component fell back to fuel_database density (e.g., 0.913 kg/L for diesel) ignoring user-provided 0.6 kg/L. Fix applied across 3 files: (1) units.py _convert_component accepts user_overrides arg and checks it BEFORE fuel_database fallback for property_based conversions (both forward & reverse). (2) execution.py passes user_overrides to convert(). (3) router.py copies inputs.density (and cv/calorific_value) into merged_user_overrides so the property resolver sees them. Verified end-to-end via execute-by-category endpoint - all paths pass."
+}

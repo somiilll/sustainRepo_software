@@ -767,6 +767,15 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         # Merge any fugitive emissions properties from enriched_context into user_overrides
         # so the property resolver can find them
         merged_user_overrides = dict(req.user_overrides)
+        
+        # Extract property-like inputs (density, cv, etc.) and merge into user_overrides
+        # This ensures both properties.py (resolve_property) and units.py (_convert_component)
+        # can access user-provided values for property-based conversions
+        property_keys = ["density", "cv", "calorific_value"]
+        for prop_key in property_keys:
+            if prop_key in req.inputs and prop_key not in merged_user_overrides:
+                merged_user_overrides[prop_key] = req.inputs[prop_key]
+        
         if enriched_context.get("co2_gwp_fugitives"):
             merged_user_overrides["co2_gwp_fugitives"] = {
                 "value": enriched_context["co2_gwp_fugitives"],

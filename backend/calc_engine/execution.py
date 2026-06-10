@@ -406,7 +406,7 @@ class CalcEngine:
 
             # Try direct conversion if dimensions match
             try:
-                value, c_audit = await convert(self.db, raw_value, raw_unit, target_unit, context)
+                value, c_audit = await convert(self.db, raw_value, raw_unit, target_unit, context, user_overrides)
                 env[var] = value
                 audit.add(c_audit)
                 continue

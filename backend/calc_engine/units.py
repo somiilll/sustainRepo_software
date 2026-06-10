@@ -124,7 +124,7 @@ def dims_equal(a: Dict[str, int], b: Dict[str, int]) -> bool:
     return a == b
 
 
-async def convert(db, value: float, from_unit: str, to_unit: str, context: dict = None) -> Tuple[float, dict]:
+async def convert(db, value: float, from_unit: str, to_unit: str, context: dict = None, user_overrides: dict = None) -> Tuple[float, dict]:
     """
     Convert value between units of the same dimension.
     Returns (converted_value, audit_entry).
@@ -137,10 +137,13 @@ async def convert(db, value: float, from_unit: str, to_unit: str, context: dict 
     
     Args:
         context: Optional dict with fuel_database_id for property-based conversions
+        user_overrides: Optional dict with user-provided property values (e.g., density)
     
     Raises ValueError on dimension mismatch or missing conversion.
     """
     context = context or {}
+    user_overrides = user_overrides or {}
+    
     # Handle empty or None units - assume no conversion needed
     if not from_unit or not to_unit:
         return value, {
@@ -208,7 +211,7 @@ async def convert(db, value: float, from_unit: str, to_unit: str, context: dict 
         return chained_result
     
     # Priority 4: Try compound unit conversion (e.g., MJ/kg → TJ/kg)
-    compound_result = await _try_compound_conversion(db, from_unit, to_unit, value, context)
+    compound_result = await _try_compound_conversion(db, from_unit, to_unit, value, context, user_overrides)
     if compound_result:
         return compound_result
     
@@ -291,7 +294,7 @@ async def _find_chained_conversion(
 
 
 async def _try_compound_conversion(
-    db, from_unit: str, to_unit: str, value: float, context: dict = None
+    db, from_unit: str, to_unit: str, value: float, context: dict = None, user_overrides: dict = None
 ) -> Optional[Tuple[float, dict]]:
     """
     Try compound unit conversion by decomposing into components.
@@ -307,11 +310,12 @@ async def _try_compound_conversion(
     - Direct conversion
     - Reverse conversion  
     - Chained conversion (e.g., cm3 → m³ → L)
-    - Property-based conversion (e.g., L → kg using density from fuel_database)
+    - Property-based conversion (e.g., L → kg using density from fuel_database or user_overrides)
     
     Returns (converted_value, audit_entry) or None if not applicable.
     """
     context = context or {}
+    user_overrides = user_overrides or {}
     
     # Look up compound units
     from_compound = await db.ce_compound_units.find_one({"key": from_unit}, {"_id": 0})
@@ -376,7 +380,7 @@ async def _try_compound_conversion(
             # - Chained conversion (e.g., cm3 → m³ → L)
             # - Property-based conversion (e.g., L → kg using density)
             try:
-                _, conv_audit = await _convert_component(db, from_unit_key, to_unit_key, context)
+                _, conv_audit = await _convert_component(db, from_unit_key, to_unit_key, context, user_overrides)
                 comp_factor = conv_audit.get("factor", 1.0)
                 conv_method = conv_audit.get("method", "unknown")
             except ValueError:
@@ -406,14 +410,19 @@ async def _try_compound_conversion(
     }
 
 
-async def _convert_component(db, from_unit: str, to_unit: str, context: dict = None) -> Tuple[float, dict]:
+async def _convert_component(db, from_unit: str, to_unit: str, context: dict = None, user_overrides: dict = None) -> Tuple[float, dict]:
     """
     Convert between simple units for compound unit decomposition.
     Uses all available conversion methods: direct, reverse, chained, property-based.
     
+    Args:
+        context: Optional dict with fuel_database_id for property-based conversions
+        user_overrides: Optional dict with user-provided property values (e.g., density)
+    
     Returns (factor, audit_entry) where factor converts 1 unit of from_unit to to_unit.
     """
     context = context or {}
+    user_overrides = user_overrides or {}
     
     # Priority 1: Direct DB conversion
     direct_conv = await db.ce_unit_conversions.find_one(
@@ -429,6 +438,25 @@ async def _convert_component(db, from_unit: str, to_unit: str, context: dict = N
         # Handle property-based conversion (e.g., L → kg using density)
         elif direct_conv.get("conversion_type") == "property_based" and direct_conv.get("property_key"):
             property_key = direct_conv["property_key"]
+            
+            # Priority: user_overrides > fuel_database
+            # Check if user provided a custom value for this property
+            if user_overrides.get(property_key):
+                override_val = user_overrides[property_key]
+                # Handle both dict format {"value": x, "unit": y} and raw value
+                if isinstance(override_val, dict):
+                    factor = float(override_val.get("value", 0))
+                else:
+                    factor = float(override_val)
+                if factor and factor != 0:
+                    return factor, {
+                        "factor": factor,
+                        "method": "property_based_user_override",
+                        "property_key": property_key,
+                        "source": "user_overrides"
+                    }
+            
+            # Fallback to fuel database
             fuel_db_id = context.get("fuel_database_id") or context.get("fuel_code") or context.get("fuel_id")
             if fuel_db_id:
                 fuel = await db.fuel_database.find_one({"id": fuel_db_id}, {"_id": 0, property_key: 1})
@@ -456,6 +484,24 @@ async def _convert_component(db, from_unit: str, to_unit: str, context: dict = N
         # Handle reverse property-based conversion (e.g., kg → L using 1/density)
         elif reverse_conv.get("conversion_type") == "property_based" and reverse_conv.get("property_key"):
             property_key = reverse_conv["property_key"]
+            
+            # Priority: user_overrides > fuel_database
+            if user_overrides.get(property_key):
+                override_val = user_overrides[property_key]
+                if isinstance(override_val, dict):
+                    base_factor = float(override_val.get("value", 0))
+                else:
+                    base_factor = float(override_val)
+                if base_factor and base_factor != 0:
+                    factor = 1.0 / base_factor
+                    return factor, {
+                        "factor": factor,
+                        "method": "property_based_reverse_user_override",
+                        "property_key": property_key,
+                        "source": "user_overrides"
+                    }
+            
+            # Fallback to fuel database
             fuel_db_id = context.get("fuel_database_id") or context.get("fuel_code") or context.get("fuel_id")
             if fuel_db_id:
                 fuel = await db.fuel_database.find_one({"id": fuel_db_id}, {"_id": 0, property_key: 1})
