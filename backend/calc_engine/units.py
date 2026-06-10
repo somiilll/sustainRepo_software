@@ -450,7 +450,7 @@ async def _convert_component(db, from_unit: str, to_unit: str, context: dict = N
                     
                     # For density-based conversions (L → kg), normalize the unit
                     # Expected density format: mass_unit/volume_unit where volume_unit matches from_unit
-                    # e.g., for L → kg, we expect kg/L. If user provides kg/kl, convert it.
+                    # e.g., for L → kg, we expect kg/L. If user provides kg/cm3, convert it.
                     if override_unit and "/" in override_unit and property_key == "density":
                         parts = override_unit.split("/")
                         if len(parts) == 2:
@@ -460,29 +460,19 @@ async def _convert_component(db, from_unit: str, to_unit: str, context: dict = N
                             # Check if volume part matches the from_unit
                             if volume_part.lower() != from_unit.lower():
                                 # Need to convert density to expected unit format (mass_part/from_unit)
-                                # e.g., 0.6 kg/kl → ? kg/L
-                                # Find conversion factor for volume: kl → L
+                                # Use full convert() which handles chained conversions
+                                # e.g., 0.6 kg/cm3 → ? kg/L requires cm3 → L (chained: cm3 → mL → L)
                                 try:
-                                    vol_conv = await db.ce_unit_conversions.find_one(
-                                        {"from_unit": volume_part, "to_unit": from_unit, "is_active": True},
-                                        {"_id": 0, "factor": 1}
-                                    )
-                                    if vol_conv and vol_conv.get("factor"):
-                                        # density in X/kl to X/L: multiply by (L per kl)^-1 = divide by factor
-                                        # e.g., 0.6 kg/kl, where 1kl = 1000L, means 0.6 kg per 1000L = 0.0006 kg/L
-                                        vol_factor = vol_conv["factor"]
-                                        factor = factor / vol_factor
-                                    else:
-                                        # Try reverse: L → kl
-                                        vol_conv_rev = await db.ce_unit_conversions.find_one(
-                                            {"from_unit": from_unit, "to_unit": volume_part, "is_active": True},
-                                            {"_id": 0, "factor": 1}
-                                        )
-                                        if vol_conv_rev and vol_conv_rev.get("factor") and vol_conv_rev["factor"] != 0:
-                                            # Reverse: 1 L = 0.001 kl, so kl → L = 1000
-                                            vol_factor = 1.0 / vol_conv_rev["factor"]
-                                            factor = factor / vol_factor
-                                except Exception:
+                                    # Convert 1 unit of volume_part to from_unit
+                                    # e.g., cm3 → L: factor = 0.001 (1 cm3 = 0.001 L)
+                                    vol_converted, _ = await convert(db, 1.0, volume_part, from_unit)
+                                    if vol_converted and vol_converted != 0:
+                                        # density in X/cm3 to X/L:
+                                        # 0.6 kg/cm3 means 0.6 kg per 1 cm3
+                                        # 1 cm3 = 0.001 L, so 0.6 kg per 0.001 L = 600 kg/L
+                                        # Formula: factor = original_factor / vol_converted
+                                        factor = factor / vol_converted
+                                except ValueError:
                                     pass  # If conversion fails, use raw factor
                 else:
                     factor = float(override_val)
@@ -532,35 +522,22 @@ async def _convert_component(db, from_unit: str, to_unit: str, context: dict = N
                     
                     # For density-based reverse conversions (kg → L), normalize the unit
                     # The reverse conversion record has from_unit=L, to_unit=kg (we're doing kg → L)
-                    # So the density should be in mass/volume where volume = to_unit (L in the record)
-                    # But we're converting FROM kg TO L, so we need density in kg/L
+                    # So the density should be in mass/volume where volume = from_unit of the record (L)
                     if override_unit and "/" in override_unit and property_key == "density":
                         parts = override_unit.split("/")
                         if len(parts) == 2:
                             mass_part = parts[0].strip()
                             volume_part = parts[1].strip()
                             
-                            # The reverse_conv record is L → kg, so volume_part should match 'to_unit' (from_unit of the record)
+                            # The reverse_conv record is L → kg, so volume_part should match from_unit of the record
                             target_volume = reverse_conv.get("from_unit", "L")
                             if volume_part.lower() != target_volume.lower():
-                                # Need to convert density to expected unit format
+                                # Use full convert() which handles chained conversions
                                 try:
-                                    vol_conv = await db.ce_unit_conversions.find_one(
-                                        {"from_unit": volume_part, "to_unit": target_volume, "is_active": True},
-                                        {"_id": 0, "factor": 1}
-                                    )
-                                    if vol_conv and vol_conv.get("factor"):
-                                        vol_factor = vol_conv["factor"]
-                                        base_factor = base_factor / vol_factor
-                                    else:
-                                        vol_conv_rev = await db.ce_unit_conversions.find_one(
-                                            {"from_unit": target_volume, "to_unit": volume_part, "is_active": True},
-                                            {"_id": 0, "factor": 1}
-                                        )
-                                        if vol_conv_rev and vol_conv_rev.get("factor") and vol_conv_rev["factor"] != 0:
-                                            vol_factor = 1.0 / vol_conv_rev["factor"]
-                                            base_factor = base_factor / vol_factor
-                                except Exception:
+                                    vol_converted, _ = await convert(db, 1.0, volume_part, target_volume)
+                                    if vol_converted and vol_converted != 0:
+                                        base_factor = base_factor / vol_converted
+                                except ValueError:
                                     pass
                 else:
                     base_factor = float(override_val)
