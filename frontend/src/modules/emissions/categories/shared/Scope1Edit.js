@@ -107,6 +107,8 @@ export function validateEditSubmission(ctx) {
     overrideJustification,
   } = ctx;
 
+  console.log("here", formData)
+  console.log("overrideEmissionFactorHeat", overrideEmissionFactorHeat)
   // 1. Override CV/density justifications (DOM-read)
   if (isOverrideCV && !formData.calorific_value_justification?.trim()) {
     return { valid: false, errorMessage: 'Justification is required when overriding Calorific Value' };
@@ -129,11 +131,12 @@ export function validateEditSubmission(ctx) {
   // 3. Required numeric input fields (isOverrideExplicitlyFalse)
   if (dynamicInputFields?.length > 0) {
     for (const field of dynamicInputFields) {
-      if (!field.isOverrideExplicitlyFalse) continue;
+      if (!field.isOverrideExplicitlyFalse || field.fieldKey == 'ef_quantity') continue;
       if (field.fieldType === 'number' || !field.fieldType) {
         const value = dynamicFieldValues[field.variable];
         const numValue = parseFloat(value);
         if (!value || isNaN(numValue) || numValue <= 0) {
+        console.log("here is the issue", field.label)
           return { valid: false, errorMessage: `${field.label || field.variable} must be greater than 0` };
         }
       }
