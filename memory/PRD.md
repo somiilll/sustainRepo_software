@@ -233,6 +233,25 @@ Five phases executed end-to-end with **37/37 regression tests PASS** (iteration_
   - `GET /api/reports/facility/{id}` returns 500 KeyError 'quantity' for legacy emission records — code path identical pre/post refactor.
   - `GET /api/emissions/c7/yearly/{facility_id}/{reporting_year}` returns 422 due to route-ordering shadow.
 
+### June 2026 Session
+
+**June 10, 2026 - Compound Unit Conversion Fix (P0)**
+
+1. **Fixed Compound Unit Conversion to Respect User-Provided Density**
+   - **Bug**: Compound unit conversions (e.g., `kgCO2/L` → `kgCO2/kg`) were ignoring user-provided custom density values and defaulting to fuel database density.
+   - **Root Cause**: Three-part issue:
+     1. `_convert_component()` in `units.py` was missing the `user_overrides` parameter
+     2. `execution.py` was not passing `user_overrides` to `convert()` during input normalization
+     3. `router.py` was not extracting property-like inputs (density, cv) from `inputs` into `user_overrides`
+   - **Fix Applied**:
+     - `/app/backend/calc_engine/units.py`: Added `user_overrides` parameter to `_convert_component()` and implemented priority check for user overrides before fuel database fallback
+     - `/app/backend/calc_engine/execution.py`: Line 409 now passes `user_overrides` to `convert()`
+     - `/app/backend/calc_engine/router.py`: Lines 769-777 extract density/cv/calorific_value from `inputs` and merge into `merged_user_overrides`
+   - **Verification**: 
+     - Test: qty=6220L, ef=0.1 kgCO2/L, density=0.6 kg/L → output=0.622 tCO2e (previously 0.408 with fuel db density 0.913)
+     - Audit log shows `method: "property_based_user_override"` with `factor: 0.6`
+     - Test file: `/app/backend/tests/test_compound_unit_user_density.py` (3/3 PASS)
+
 ### May 2026 Session (Latest)
 
 **May 25, 2026 - Biogenic Scope3 Access Control Fix (P0)**
