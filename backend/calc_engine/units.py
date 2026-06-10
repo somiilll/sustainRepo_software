@@ -320,11 +320,13 @@ async def _try_compound_conversion(
     if not from_compound or not to_compound:
         return None
     
-    # Check if same derived dimension
+    # Check if same derived dimension (skip if either is empty - legacy units)
     from_dim = from_compound.get("derived_dimension_vector", {})
     to_dim = to_compound.get("derived_dimension_vector", {})
     
-    if not dims_equal(from_dim, to_dim):
+    # Only check dimensions if BOTH have non-empty vectors
+    # Empty vector = legacy unit without dimension info, allow conversion attempt
+    if from_dim and to_dim and not dims_equal(from_dim, to_dim):
         return None
     
     from_components = from_compound.get("components", [])
