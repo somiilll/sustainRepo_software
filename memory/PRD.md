@@ -253,15 +253,15 @@ Five phases executed end-to-end with **37/37 regression tests PASS** (iteration_
      - Test file: `/app/backend/tests/test_compound_unit_user_density.py` (3/3 PASS)
 
 2. **Fixed Density Unit Normalization in Compound Conversions**
-   - **Bug**: When user provides density in a different unit (e.g., `0.6 kg/kl` or `0.6 kg/cm3`), the compound conversion used the raw value instead of converting it to the expected unit.
-   - **Root Cause**: `_convert_component()` only did simple DB lookups for direct conversions, missing chained conversions (e.g., `cm3 → mL → L`).
+   - **Bug**: When user provides density in a different unit (e.g., `kg/kl`, `kg/cm3`, `t/L`), the compound conversion used the raw value instead of converting it to the expected unit.
+   - **Root Cause**: Initial fix only normalized the volume component. Final fix normalizes the FULL compound unit.
    - **Fix Applied**: 
-     - `/app/backend/calc_engine/units.py`: Replaced simple DB lookup with call to full `convert()` function which handles chained conversions
-     - Applied to both forward (L→kg) and reverse (kg→L) property-based conversions
-   - **Verification**:
-     - `density: 0.6 kg/L` → uses 0.6 directly → output=0.622 tCO2e ✓
-     - `density: 0.6 kg/kl` → normalized to 0.0006 kg/L → output=0.622 tCO2e ✓
-     - `density: 0.6 kg/cm3` → normalized to 600.0 kg/L (via chained conversion) → output=0.622 tCO2e ✓
+     - `/app/backend/calc_engine/units.py`: Now converts full compound density unit to expected format (`to_unit/from_unit`, e.g., `kg/L` for L→kg) using `convert()` which handles all conversion types (direct, reverse, chained)
+   - **Verification** (all output 0.622 tCO2e):
+     - `density: 0.6 kg/L` → uses 0.6 directly ✓
+     - `density: 0.6 kg/kl` → normalized to 0.0006 kg/L ✓
+     - `density: 0.6 kg/cm3` → normalized to 600.0 kg/L (chained) ✓
+     - `density: 0.6 t/L` → normalized to 600.0 kg/L (mass conversion) ✓
 
 ### May 2026 Session (Latest)
 

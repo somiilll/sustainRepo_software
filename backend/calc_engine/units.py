@@ -449,31 +449,22 @@ async def _convert_component(db, from_unit: str, to_unit: str, context: dict = N
                     override_unit = override_val.get("unit", "")
                     
                     # For density-based conversions (L → kg), normalize the unit
-                    # Expected density format: mass_unit/volume_unit where volume_unit matches from_unit
-                    # e.g., for L → kg, we expect kg/L. If user provides kg/cm3, convert it.
+                    # Expected density format: to_unit/from_unit (e.g., kg/L for L → kg)
+                    # If user provides different units (t/L, kg/cm3, etc.), convert to expected
                     if override_unit and "/" in override_unit and property_key == "density":
-                        parts = override_unit.split("/")
-                        if len(parts) == 2:
-                            mass_part = parts[0].strip()
-                            volume_part = parts[1].strip()
-                            
-                            # Check if volume part matches the from_unit
-                            if volume_part.lower() != from_unit.lower():
-                                # Need to convert density to expected unit format (mass_part/from_unit)
-                                # Use full convert() which handles chained conversions
-                                # e.g., 0.6 kg/cm3 → ? kg/L requires cm3 → L (chained: cm3 → mL → L)
-                                try:
-                                    # Convert 1 unit of volume_part to from_unit
-                                    # e.g., cm3 → L: factor = 0.001 (1 cm3 = 0.001 L)
-                                    vol_converted, _ = await convert(db, 1.0, volume_part, from_unit)
-                                    if vol_converted and vol_converted != 0:
-                                        # density in X/cm3 to X/L:
-                                        # 0.6 kg/cm3 means 0.6 kg per 1 cm3
-                                        # 1 cm3 = 0.001 L, so 0.6 kg per 0.001 L = 600 kg/L
-                                        # Formula: factor = original_factor / vol_converted
-                                        factor = factor / vol_converted
-                                except ValueError:
-                                    pass  # If conversion fails, use raw factor
+                        # Expected unit for this conversion: to_unit/from_unit
+                        expected_density_unit = f"{to_unit}/{from_unit}"
+                        
+                        # If override unit differs from expected, convert it
+                        if override_unit.lower() != expected_density_unit.lower():
+                            try:
+                                # Use full convert() to handle any unit combination
+                                # e.g., t/L → kg/L, kg/cm3 → kg/L, kg/kl → kg/L
+                                converted_density, _ = await convert(db, factor, override_unit, expected_density_unit)
+                                if converted_density is not None:
+                                    factor = converted_density
+                            except ValueError:
+                                pass  # If conversion fails, use raw factor
                 else:
                     factor = float(override_val)
                 if factor and factor != 0:
@@ -521,24 +512,20 @@ async def _convert_component(db, from_unit: str, to_unit: str, context: dict = N
                     override_unit = override_val.get("unit", "")
                     
                     # For density-based reverse conversions (kg → L), normalize the unit
-                    # The reverse conversion record has from_unit=L, to_unit=kg (we're doing kg → L)
-                    # So the density should be in mass/volume where volume = from_unit of the record (L)
+                    # The reverse conversion record has from_unit=L, to_unit=kg
+                    # Expected density: to_unit/from_unit of the record (e.g., kg/L)
                     if override_unit and "/" in override_unit and property_key == "density":
-                        parts = override_unit.split("/")
-                        if len(parts) == 2:
-                            mass_part = parts[0].strip()
-                            volume_part = parts[1].strip()
-                            
-                            # The reverse_conv record is L → kg, so volume_part should match from_unit of the record
-                            target_volume = reverse_conv.get("from_unit", "L")
-                            if volume_part.lower() != target_volume.lower():
-                                # Use full convert() which handles chained conversions
-                                try:
-                                    vol_converted, _ = await convert(db, 1.0, volume_part, target_volume)
-                                    if vol_converted and vol_converted != 0:
-                                        base_factor = base_factor / vol_converted
-                                except ValueError:
-                                    pass
+                        record_from = reverse_conv.get("from_unit", "L")
+                        record_to = reverse_conv.get("to_unit", "kg")
+                        expected_density_unit = f"{record_to}/{record_from}"
+                        
+                        if override_unit.lower() != expected_density_unit.lower():
+                            try:
+                                converted_density, _ = await convert(db, base_factor, override_unit, expected_density_unit)
+                                if converted_density is not None:
+                                    base_factor = converted_density
+                            except ValueError:
+                                pass
                 else:
                     base_factor = float(override_val)
                 if base_factor and base_factor != 0:
