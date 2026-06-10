@@ -370,7 +370,7 @@ class CalcEngine:
                 try:
                     if base_in != target_base:
                         converted_value, base_audit = await convert(
-                            self.db, raw_value, base_in, target_base
+                            self.db, raw_value, base_in, target_base, context
                         )
                         raw_value = converted_value
                         audit.add({
