@@ -429,7 +429,7 @@ async def _convert_component(db, from_unit: str, to_unit: str, context: dict = N
         # Handle property-based conversion (e.g., L → kg using density)
         elif direct_conv.get("conversion_type") == "property_based" and direct_conv.get("property_key"):
             property_key = direct_conv["property_key"]
-            fuel_db_id = context.get("fuel_database_id") or context.get("fuel_code")
+            fuel_db_id = context.get("fuel_database_id") or context.get("fuel_code") or context.get("fuel_id")
             if fuel_db_id:
                 fuel = await db.fuel_database.find_one({"id": fuel_db_id}, {"_id": 0, property_key: 1})
                 if fuel and fuel.get(property_key):
@@ -456,7 +456,7 @@ async def _convert_component(db, from_unit: str, to_unit: str, context: dict = N
         # Handle reverse property-based conversion (e.g., kg → L using 1/density)
         elif reverse_conv.get("conversion_type") == "property_based" and reverse_conv.get("property_key"):
             property_key = reverse_conv["property_key"]
-            fuel_db_id = context.get("fuel_database_id") or context.get("fuel_code")
+            fuel_db_id = context.get("fuel_database_id") or context.get("fuel_code") or context.get("fuel_id")
             if fuel_db_id:
                 fuel = await db.fuel_database.find_one({"id": fuel_db_id}, {"_id": 0, property_key: 1})
                 if fuel and fuel.get(property_key) and float(fuel[property_key]) != 0:
