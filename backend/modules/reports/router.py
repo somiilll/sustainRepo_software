@@ -21,6 +21,7 @@ import secrets
 import string
 import uuid
 from datetime import datetime, timezone, timedelta
+import calendar
 from io import BytesIO
 from typing import Any, Dict, List, Optional
 
@@ -835,8 +836,199 @@ class AIReportRequest(BaseModel):
     reporting_period_start: str
     reporting_period_end: str
 
+# async def aggregate_emissions_for_ai(organization_id: str, facility_ids: List[str], start_period: str, end_period: str) -> dict:
+#     """Aggregate emission data for AI report generation - applies equity share if applicable"""
+    
+#     # Get organization info
+#     org = await db.organizations.find_one({"id": organization_id}, {"_id": 0})
+#     if not org:
+#         return None
+    
+#     # Check if equity share approach is used
+#     use_equity_share = org.get("org_boundaries_approach") == "equity_share"
+    
+#     # Get facilities that belong to the organization AND are in the requested list
+#     facilities = await db.facilities.find({
+#         "id": {"$in": facility_ids},
+#         "organization_id": organization_id
+#     }, {"_id": 0}).to_list(100)
+    
+#     if not facilities:
+#         return None
+    
+#     # Build facility equity map
+#     facility_equity_map = {}
+#     for f in facilities:
+#         if use_equity_share:
+#             equity_pct = f.get("equity_share_percentage", 100.0) or 100.0
+#             facility_equity_map[f['id']] = equity_pct / 100.0
+#         else:
+#             facility_equity_map[f['id']] = 1.0
+    
+#     # Use only the facility IDs that actually belong to this org
+#     valid_facility_ids = [f['id'] for f in facilities]
+    
+#     # Query emission_records (the main emissions collection used by the app)
+#     emissions = await db.emission_records.find({
+#         "facility_id": {"$in": valid_facility_ids}
+#     }, {"_id": 0}).to_list(10000)
+    
+#     # Filter by date range
+#     def is_in_range(reporting_period: str) -> bool:
+#         if not reporting_period:
+#             return False
+#         period = reporting_period.split(' to ')[0] if ' to ' in reporting_period else reporting_period
+#         return start_period <= period <= end_period
+    
+#     filtered_emissions = [e for e in emissions if is_in_range(e.get('reporting_period', ''))]
+    
+#     if not filtered_emissions:
+#         return None
+    
+#     # Helper to get CO2e value with equity share adjustment
+#     def get_co2e(e):
+#         raw_value = e.get('calculated_co2e') or e.get('co2e_emissions') or e.get('total_emissions') or 0
+#         facility_id = e.get('facility_id')
+#         equity_factor = facility_equity_map.get(facility_id, 1.0)
+#         return raw_value * equity_factor
+    
+#     # Aggregate by scope (with equity adjustment applied)
+#     scope1_total = sum(get_co2e(e) for e in filtered_emissions if e.get('scope') == 'scope1')
+#     scope2_total = sum(get_co2e(e) for e in filtered_emissions if e.get('scope') == 'scope2')
+#     scope3_total = sum(get_co2e(e) for e in filtered_emissions if e.get('scope') == 'scope3')
+#     biogenic_total = sum(get_co2e(e) for e in filtered_emissions if e.get('scope') == 'biogenic')
+    
+#     gross_emissions = scope1_total + scope2_total
+    
+#     # Get sinks data with equity adjustment
+#     sinks = await db.sinks.find({
+#         "facility_id": {"$in": valid_facility_ids}
+#     }, {"_id": 0}).to_list(1000)
+    
+#     # Filter sinks by date range - check multiple date formats
+#     def is_sink_in_range(s):
+#         # Try reporting_period first (YYYY-MM format)
+#         if s.get('reporting_period'):
+#             period = s['reporting_period']
+#             return start_period <= period <= end_period
+        
+#         # Try start_date (YYYY-MM-DD format)
+#         if s.get('start_date'):
+#             start_str = s['start_date']
+#             if isinstance(start_str, str) and len(start_str) >= 7:
+#                 period = start_str[:7]  # Get YYYY-MM
+#                 return start_period <= period <= end_period
+        
+#         # Try reporting_year and reporting_month
+#         if s.get('reporting_year'):
+#             year = s['reporting_year']
+#             month = s.get('reporting_month', 0) + 1  # 0-indexed to 1-indexed
+#             period = f"{year}-{month:02d}"
+#             return start_period <= period <= end_period
+        
+#         return False
+    
+#     filtered_sinks = [s for s in sinks if is_sink_in_range(s)]
+    
+#     # Calculate total sinks with equity adjustment
+#     total_sinks = 0
+#     sinks_breakdown = []
+#     facility_name_map = {f['id']: f['name'] for f in facilities}
+    
+#     for s in filtered_sinks:
+#         # Use total_emissions_reduced (the actual field name)
+#         sink_value = s.get('total_emissions_reduced', 0) or 0
+#         equity_factor = facility_equity_map.get(s.get('facility_id'), 1.0)
+#         adjusted_value = sink_value * equity_factor
+#         total_sinks += adjusted_value
+        
+#         if sink_value > 0:
+#             sinks_breakdown.append({
+#                 "sink_type": s.get('sink_type') or s.get('type') or 'Carbon Sink',
+#                 "description": s.get('description') or '',
+#                 "emissions_reduced_tco2e": round(adjusted_value, 4),
+#                 "facility": facility_name_map.get(s.get('facility_id'), 'Unknown'),
+#                 "period": s.get('reporting_period') or s.get('start_date', '')[:7] if s.get('start_date') else ''
+#             })
+    
+#     # Aggregate by category (with equity adjustment)
+#     category_breakdown = {}
+#     for e in filtered_emissions:
+#         cat = e.get('category', 'Unknown')
+#         if cat not in category_breakdown:
+#             category_breakdown[cat] = {'co2e': 0, 'count': 0}
+#         category_breakdown[cat]['co2e'] += get_co2e(e)
+#         category_breakdown[cat]['count'] += 1
+    
+#     # Sort categories by emissions
+#     sorted_categories = sorted(category_breakdown.items(), key=lambda x: x[1]['co2e'], reverse=True)
+    
+#     # Aggregate by facility (with equity adjustment)
+#     facility_breakdown = {}
+#     for e in filtered_emissions:
+#         fid = e.get('facility_id')
+#         if fid not in facility_breakdown:
+#             facility_breakdown[fid] = {'co2e': 0, 'count': 0, 'equity_pct': facility_equity_map.get(fid, 1.0) * 100}
+#         facility_breakdown[fid]['co2e'] += get_co2e(e)
+#         facility_breakdown[fid]['count'] += 1
+    
+#     # Map facility names with equity info
+#     facility_name_map = {f['id']: f['name'] for f in facilities}
+#     facility_data = [
+#         {
+#             'name': facility_name_map.get(fid, 'Unknown'), 
+#             'co2e': data['co2e'], 
+#             'count': data['count'],
+#             'equity_share_pct': data['equity_pct']
+#         }
+#         for fid, data in facility_breakdown.items()
+#     ]
+#     facility_data.sort(key=lambda x: x['co2e'], reverse=True)
+    
+#     # Check for custom factors usage
+#     custom_factor_count = sum(1 for e in filtered_emissions if e.get('is_custom_factor'))
+#     override_count = sum(1 for e in filtered_emissions if e.get('override_calorific_value') or e.get('override_density'))
+    
+#     # Build aggregated data (safe for AI - no PII)
+#     aggregated_data = {
+#         "organization_name": org.get('name', 'Organization'),
+#         "reporting_period": f"{start_period} to {end_period}",
+#         "consolidation_approach": "Equity Share" if use_equity_share else "Control (Operational/Financial)",
+#         "equity_share_applied": use_equity_share,
+#         "facilities_count": len(facilities),
+#         "facility_names": [f['name'] for f in facilities],
+#         "total_emission_records": len(filtered_emissions),
+#         "emissions_summary": {
+#             "gross_emissions_tco2e": round(gross_emissions, 4),
+#             "scope1_tco2e": round(scope1_total, 4),
+#             "scope2_tco2e": round(scope2_total, 4),
+#             "biogenic_tco2e": round(biogenic_total, 4),
+#             "carbon_sinks_tco2e": round(total_sinks, 4),
+#             "net_emissions_tco2e": round(gross_emissions - total_sinks, 4)
+#         },
+#         "scope1_percentage": round((scope1_total / gross_emissions * 100) if gross_emissions > 0 else 0, 1),
+#         "scope2_percentage": round((scope2_total / gross_emissions * 100) if gross_emissions > 0 else 0, 1),
+#         "breakdown_by_category": [
+#             {"category": cat, "co2e_tco2e": round(data['co2e'], 4), "record_count": data['count']}
+#             for cat, data in sorted_categories[:10]
+#         ],
+#         "breakdown_by_facility": facility_data[:10],
+#         "carbon_sinks_details": {
+#             "total_sinks_tco2e": round(total_sinks, 4),
+#             "sinks_count": len(filtered_sinks),
+#             "breakdown": sinks_breakdown[:10] if sinks_breakdown else []
+#         },
+#         "data_quality": {
+#             "custom_emission_factors_used": custom_factor_count,
+#             "parameter_overrides_used": override_count,
+#             "total_records": len(filtered_emissions)
+#         }
+#     }
+    
+#     return aggregated_data
+
 async def aggregate_emissions_for_ai(organization_id: str, facility_ids: List[str], start_period: str, end_period: str) -> dict:
-    """Aggregate emission data for AI report generation - applies equity share if applicable"""
+    """Aggregate emission data for AI report generation - applies equity share and temporal proportion if applicable"""
     
     # Get organization info
     org = await db.organizations.find_one({"id": organization_id}, {"_id": 0})
@@ -867,80 +1059,176 @@ async def aggregate_emissions_for_ai(organization_id: str, facility_ids: List[st
     # Use only the facility IDs that actually belong to this org
     valid_facility_ids = [f['id'] for f in facilities]
     
-    # Query emission_records (the main emissions collection used by the app)
+    # Query emission_records
     emissions = await db.emission_records.find({
         "facility_id": {"$in": valid_facility_ids}
     }, {"_id": 0}).to_list(10000)
+
+    # --- DATE PARSING & PROPORTION LOGIC ---
+    def parse_date_str(date_str, is_end=False):
+        """Helper to safely parse dates and handle CY/FY/Month-end logic"""
+        if not date_str:
+            return None
+        date_str = str(date_str).strip()
+        
+        upper_date = date_str.upper()
+
+        # Handle "CY 2024" format
+        if upper_date.startswith("CY"):
+            try:
+                year = int(upper_date.replace("CY", "").strip())
+                return datetime(year, 12, 31) if is_end else datetime(year, 1, 1)
+            except ValueError:
+                pass
+
+        # Handle "FY" formats (assuming standard April-March fiscal year)
+        # e.g., "FY 2024", "FY24", "FY 2024-25", "FY 24-25"
+        if upper_date.startswith("FY"):
+            try:
+                fy_str = upper_date.replace("FY", "").strip()
+                
+                # Format: "2024-25" or "24-25"
+                if "-" in fy_str:
+                    start_yr_str = fy_str.split("-")[0].strip()
+                    # Normalize to 4-digit year
+                    start_year = int(start_yr_str) if len(start_yr_str) == 4 else int("20" + start_yr_str[-2:])
+                    return datetime(start_year + 1, 3, 31) if is_end else datetime(start_year, 4, 1)
+                
+                # Format single year: "2024" or "24"
+                else:
+                    # Normalize to 4-digit year
+                    end_year = int(fy_str) if len(fy_str) == 4 else int("20" + fy_str[-2:])
+                    # FY2024 typically means the year ending March 31, 2024 (April 2023 - March 2024)
+                    return datetime(end_year, 3, 31) if is_end else datetime(end_year - 1, 4, 1)
+            except ValueError:
+                pass
+
+        # Standard formats to attempt
+        formats = [
+            ("%Y-%m-%d", False),
+            ("%Y-%m", True),
+            ("%Y", True),
+            ("%B %Y", True), # e.g. "April 2024"
+            ("%b %Y", True)  # e.g. "Apr 2024"
+        ]
+        
+        for fmt, requires_month_end in formats:
+            try:
+                dt = datetime.strptime(date_str, fmt)
+                if is_end and requires_month_end:
+                    if fmt in ["%Y-%m", "%B %Y", "%b %Y"]:
+                        last_day = calendar.monthrange(dt.year, dt.month)[1]
+                        return dt.replace(day=last_day)
+                    elif fmt == "%Y":
+                        return datetime(dt.year, 12, 31)
+                return dt
+            except ValueError:
+                continue
+        return None
+
     
-    # Filter by date range
-    def is_in_range(reporting_period: str) -> bool:
-        if not reporting_period:
-            return False
-        period = reporting_period.split(' to ')[0] if ' to ' in reporting_period else reporting_period
-        return start_period <= period <= end_period
+    req_start_dt = parse_date_str(start_period, is_end=False)
+    req_end_dt = parse_date_str(end_period, is_end=True)
+
+    def calculate_proportion(period_str):
+        """Calculates what fraction of the record's date range falls within the requested report range"""
+        if not req_start_dt or not req_end_dt or not period_str:
+            return 0.0
+        # Normalize separators
+        period_str = period_str.replace(' to ', ' - ')
+        if ' - ' in period_str:
+            parts = period_str.split(' - ')
+            rec_start_dt = parse_date_str(parts[0], is_end=False)
+            rec_end_dt = parse_date_str(parts[1], is_end=True)
+        else:
+            rec_start_dt = parse_date_str(period_str, is_end=False)
+            rec_end_dt = parse_date_str(period_str, is_end=True)
+
+        if not rec_start_dt or not rec_end_dt:
+            return 0.0
+
+        # Find the overlap window
+        overlap_start = max(req_start_dt, rec_start_dt)
+        overlap_end = min(req_end_dt, rec_end_dt)
+
+        if overlap_start > overlap_end:
+            return 0.0 # No overlap
+
+        overlap_days = (overlap_end - overlap_start).days + 1
+        total_record_days = (rec_end_dt - rec_start_dt).days + 1
+
+        if total_record_days <= 0:
+            return 0.0
+
+        return overlap_days / total_record_days
+    # ---------------------------------------
     
-    filtered_emissions = [e for e in emissions if is_in_range(e.get('reporting_period', ''))]
+    # Filter and inject proportion into emissions
+    filtered_emissions = []
+    for e in emissions:
+        prop = calculate_proportion(e.get('reporting_period', ''))
+        if prop > 0:
+            e['_proportion'] = prop
+            filtered_emissions.append(e)
     
     if not filtered_emissions:
         return None
     
-    # Helper to get CO2e value with equity share adjustment
+    # Helper to get CO2e value with BOTH equity share and time proportion applied
     def get_co2e(e):
         raw_value = e.get('calculated_co2e') or e.get('co2e_emissions') or e.get('total_emissions') or 0
         facility_id = e.get('facility_id')
         equity_factor = facility_equity_map.get(facility_id, 1.0)
-        return raw_value * equity_factor
+        proportion_factor = e.get('_proportion', 1.0)
+        return raw_value * equity_factor * proportion_factor
     
-    # Aggregate by scope (with equity adjustment applied)
+    # Aggregate by scope 
     scope1_total = sum(get_co2e(e) for e in filtered_emissions if e.get('scope') == 'scope1')
     scope2_total = sum(get_co2e(e) for e in filtered_emissions if e.get('scope') == 'scope2')
+    scope3_total = sum(get_co2e(e) for e in filtered_emissions if e.get('scope') == 'scope3')
     biogenic_total = sum(get_co2e(e) for e in filtered_emissions if e.get('scope') == 'biogenic')
     
-    gross_emissions = scope1_total + scope2_total
+    gross_emissions = scope1_total + scope2_total + scope3_total
     
-    # Get sinks data with equity adjustment
+    # Get sinks data 
     sinks = await db.sinks.find({
         "facility_id": {"$in": valid_facility_ids}
     }, {"_id": 0}).to_list(1000)
     
-    # Filter sinks by date range - check multiple date formats
-    def is_sink_in_range(s):
-        # Try reporting_period first (YYYY-MM format)
+    # Filter and inject proportion into sinks
+    filtered_sinks = []
+    for s in sinks:
+        sink_period = None
         if s.get('reporting_period'):
-            period = s['reporting_period']
-            return start_period <= period <= end_period
-        
-        # Try start_date (YYYY-MM-DD format)
-        if s.get('start_date'):
-            start_str = s['start_date']
-            if isinstance(start_str, str) and len(start_str) >= 7:
-                period = start_str[:7]  # Get YYYY-MM
-                return start_period <= period <= end_period
-        
-        # Try reporting_year and reporting_month
-        if s.get('reporting_year'):
+            sink_period = s['reporting_period']
+        elif s.get('start_date') and s.get('end_date'):
+            sink_period = f"{s['start_date']} to {s['end_date']}"
+        elif s.get('start_date'):
+            sink_period = s['start_date']
+        elif s.get('reporting_year'):
             year = s['reporting_year']
-            month = s.get('reporting_month', 0) + 1  # 0-indexed to 1-indexed
-            period = f"{year}-{month:02d}"
-            return start_period <= period <= end_period
-        
-        return False
+            month = s.get('reporting_month', 0) + 1
+            sink_period = f"{year}-{month:02d}"
+
+        prop = calculate_proportion(sink_period)
+        if prop > 0:
+            s['_proportion'] = prop
+            filtered_sinks.append(s)
     
-    filtered_sinks = [s for s in sinks if is_sink_in_range(s)]
-    
-    # Calculate total sinks with equity adjustment
+    # Calculate total sinks
     total_sinks = 0
     sinks_breakdown = []
     facility_name_map = {f['id']: f['name'] for f in facilities}
     
     for s in filtered_sinks:
-        # Use total_emissions_reduced (the actual field name)
         sink_value = s.get('total_emissions_reduced', 0) or 0
         equity_factor = facility_equity_map.get(s.get('facility_id'), 1.0)
-        adjusted_value = sink_value * equity_factor
+        proportion_factor = s.get('_proportion', 1.0)
+        
+        adjusted_value = sink_value * equity_factor * proportion_factor
         total_sinks += adjusted_value
         
-        if sink_value > 0:
+        if adjusted_value > 0:
             sinks_breakdown.append({
                 "sink_type": s.get('sink_type') or s.get('type') or 'Carbon Sink',
                 "description": s.get('description') or '',
@@ -949,7 +1237,7 @@ async def aggregate_emissions_for_ai(organization_id: str, facility_ids: List[st
                 "period": s.get('reporting_period') or s.get('start_date', '')[:7] if s.get('start_date') else ''
             })
     
-    # Aggregate by category (with equity adjustment)
+    # Aggregate by category 
     category_breakdown = {}
     for e in filtered_emissions:
         cat = e.get('category', 'Unknown')
@@ -958,10 +1246,9 @@ async def aggregate_emissions_for_ai(organization_id: str, facility_ids: List[st
         category_breakdown[cat]['co2e'] += get_co2e(e)
         category_breakdown[cat]['count'] += 1
     
-    # Sort categories by emissions
     sorted_categories = sorted(category_breakdown.items(), key=lambda x: x[1]['co2e'], reverse=True)
     
-    # Aggregate by facility (with equity adjustment)
+    # Aggregate by facility
     facility_breakdown = {}
     for e in filtered_emissions:
         fid = e.get('facility_id')
@@ -970,8 +1257,6 @@ async def aggregate_emissions_for_ai(organization_id: str, facility_ids: List[st
         facility_breakdown[fid]['co2e'] += get_co2e(e)
         facility_breakdown[fid]['count'] += 1
     
-    # Map facility names with equity info
-    facility_name_map = {f['id']: f['name'] for f in facilities}
     facility_data = [
         {
             'name': facility_name_map.get(fid, 'Unknown'), 
@@ -987,7 +1272,6 @@ async def aggregate_emissions_for_ai(organization_id: str, facility_ids: List[st
     custom_factor_count = sum(1 for e in filtered_emissions if e.get('is_custom_factor'))
     override_count = sum(1 for e in filtered_emissions if e.get('override_calorific_value') or e.get('override_density'))
     
-    # Build aggregated data (safe for AI - no PII)
     aggregated_data = {
         "organization_name": org.get('name', 'Organization'),
         "reporting_period": f"{start_period} to {end_period}",
@@ -1000,6 +1284,7 @@ async def aggregate_emissions_for_ai(organization_id: str, facility_ids: List[st
             "gross_emissions_tco2e": round(gross_emissions, 4),
             "scope1_tco2e": round(scope1_total, 4),
             "scope2_tco2e": round(scope2_total, 4),
+            "scope3_tco2e": round(scope3_total, 4),
             "biogenic_tco2e": round(biogenic_total, 4),
             "carbon_sinks_tco2e": round(total_sinks, 4),
             "net_emissions_tco2e": round(gross_emissions - total_sinks, 4)
@@ -1024,7 +1309,6 @@ async def aggregate_emissions_for_ai(organization_id: str, facility_ids: List[st
     }
     
     return aggregated_data
-
 
 async def generate_ai_summary(aggregated_data: dict, mask_org_name: bool = True) -> str:
     """Generate executive summary using Claude AI
@@ -1092,26 +1376,37 @@ proportionally based on the organization's equity stake in each facility.
 """
     
     system_prompt = f"""You are an expert Chief Sustainability Officer (CSO) assistant writing an executive summary and strategic action plan for a corporate GHG emissions report.
-You will be provided with pre-calculated, verified emissions data in JSON format.
+You will be provided with pre-calculated, emissions data in JSON format.
 {equity_context}
 CORE REPORTING RULES:
 1. STRICT DATA INTEGRITY: Do NOT calculate, invent, or estimate any metrics. Use ONLY the exact quantitative values provided in the JSON.
-2. Format the output using clear Markdown headings and bullet points for readability.
-3. Keep the tone objective, clinical for the data, and strategic for the recommendations.
-4. The output of the emissions should always be shown in units tCO2e (tonnes of CO2 equivalent) with exactly 2 decimal places.
-5. When referring to the organization, use "{masked_org_name}" exactly as provided - do not use any other name.
-6. When referring to facilities, use the facility names exactly as provided in the data (e.g., [FACILITY_1], [FACILITY_2]).
-7. All numerical values should be formatted to exactly 2 decimal places.
+2. NO VERIFICATION CLAIMS: Do NOT use the word "verified" to describe the emissions or the data. Do not claim or imply that the data has undergone third-party verification.
+3. Format the output using clear Markdown headings and bullet points for readability.
+4. ABSOLUTELY NO MARKDOWN TABLES: The PDF rendering engine does not support markdown tables. You must present all data breakdowns, scope summaries, and category rankings using standard bullet points ONLY. Do not use the '|' character to create columns. (Example: use "• Scope 1: 253.11 tCO2e (27.6%)" instead of putting it in a table).
+5. Keep the tone objective, clinical for the data, and strategic for the recommendations.
+6. The output of the emissions should always be shown in units tCO2e (tonnes of CO2 equivalent) with exactly 2 decimal places.
+7. When referring to the organization, use "{masked_org_name}" exactly as provided - do not use any other name.
+8. When referring to facilities, use the facility names exactly as provided in the data (e.g., [FACILITY_1], [FACILITY_2]).
+9. All numerical values should be formatted to exactly 2 decimal places.
+
 
 REQUIRED STRUCTURE:
 
 ### 1. Executive Emissions Overview
-Provide a detailed summary of total gross emissions, net emissions, and the Scope 1 & 2 breakdown. Mention the reporting period and number of facilities covered. Report Net GHG Emissions first, then mention Biogenic emissions separately if they exist. Note if custom emission factors or overrides were used (critical for audit transparency).
+Provide a detailed summary of total gross emissions, net emissions, and the Scope 1, 2 & 3 breakdown. Mention the reporting period and number of facilities covered. Report Net GHG Emissions first, then mention Biogenic emissions separately if they exist. Note if custom emission factors or overrides were used (critical for audit transparency).
 
 ### 2. Primary Emission Drivers
 Analyze the 'breakdown_by_category' data. Identify and explain the top sources driving the carbon footprint so stakeholders understand exactly where the emissions are coming from.
 
-### 3. Strategic Decarbonization & Reduction Pathways
+### 3. Outlier & Emission Anomaly Insights
+Review the provided emissions data and identify any significant outliers, unusual emission concentrations, or anomalies across facilities, scopes, categories, or reporting periods.
+- Highlight facilities or categories that contribute disproportionately to total emissions.
+- Identify unusually high emission sources that may warrant further operational investigation or targeted reduction efforts.
+- If no meaningful outliers are evident from the provided data, explicitly state that no significant emission anomalies were identified.
+- Do NOT invent, estimate, or statistically derive values that are not directly supported by the provided data.
+- Focus on management-relevant insights that may indicate operational inefficiencies, abnormal activity, data quality concerns, or concentrated emission hotspots.
+
+### 4. Strategic Decarbonization & Reduction Pathways
 Based strictly on the highest emitting categories identified above, provide 3 to 4 tailored, actionable recommendations to reduce emissions. 
 - Tailor the advice: If mobile combustion is a primary driver, suggest fleet electrification or logistics optimization. If stationary combustion/electricity is high, suggest renewable energy procurement (PPAs) or HVAC efficiency upgrades.
 - Where applicable for hard-to-abate emissions, include brief suggestions on carbon capture technology, transitioning to low-carbon alternative fuels, or investing in verified carbon sinks/offsets.
@@ -1121,8 +1416,8 @@ Based strictly on the highest emitting categories identified above, provide 3 to
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
         
         message = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=1500,
+            model="claude-haiku-4-5-20251001",
+            max_tokens=10000,
             temperature=0.3,
             system=system_prompt,
             messages=[
@@ -1259,9 +1554,10 @@ def generate_ai_report_pdf(aggregated_data: dict, ai_summary: str) -> io.BytesIO
     emissions = aggregated_data['emissions_summary']
     summary_data = [
         ["Metric", "Value (tCO2e)"],
-        ["Gross Emissions (Scope 1 + 2)", f"{emissions['gross_emissions_tco2e']:,.2f}"],
+        ["Gross Emissions (Scope 1 + 2 + 3)", f"{emissions['gross_emissions_tco2e']:,.2f}"],
         ["Scope 1 Emissions", f"{emissions['scope1_tco2e']:,.2f}"],
         ["Scope 2 Emissions", f"{emissions['scope2_tco2e']:,.2f}"],
+        ["Scope 3 Emissions", f"{emissions['scope3_tco2e']:,.2f}"],
         ["Carbon Sinks", f"{emissions['carbon_sinks_tco2e']:,.2f}"],
         ["Net Emissions", f"{emissions['net_emissions_tco2e']:,.2f}"],
         ["Biogenic Emissions", f"{emissions['biogenic_tco2e']:,.2f}"],
@@ -1310,14 +1606,17 @@ def generate_ai_report_pdf(aggregated_data: dict, ai_summary: str) -> io.BytesIO
     # Process AI summary with markdown support
     # Clean special characters that don't render in PDF
     def clean_for_pdf(text):
+        # CRITICAL XML ESCAPE: ReportLab Paragraphs will drop text or crash 
+        text = text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        
         # Replace subscript/superscript characters with ASCII equivalents
         replacements = {
             '₂': '2', '₃': '3', '₄': '4',
             '²': '2', '³': '3',
             'CO₂': 'CO2', 'tCO₂e': 'tCO2e',
             '–': '-', '—': '-',
-            ''': "'", ''': "'",
             '"': '"',  # Left double quote
+            
         }
         # Also replace right double quote (handled separately to avoid dict key collision)
         text = text.replace('"', '"')
@@ -1328,7 +1627,38 @@ def generate_ai_report_pdf(aggregated_data: dict, ai_summary: str) -> io.BytesIO
         # Remove markdown heading markers
         text = text.lstrip('#').strip()
         return text
+
+    # lines = ai_summary.strip().split('\n')
+    # for line in lines:
+    #     line = line.strip()
+    #     if not line:
+    #         elements.append(Spacer(1, 6))
+    #         continue
+        
+    #     # Check if it's a heading (starts with # or ##)
+    #     is_heading = line.startswith('#')
+        
+    #     # Clean the line
+    #     line = clean_for_pdf(line)
+        
+    #     if not line:
+    #         continue
+        
+    #     # Handle headings
+    #     if is_heading:
+    #         elements.append(Paragraph(line, heading_style))
+    #     # Handle bullet points
+    #     elif line.startswith('-') or line.startswith('•'):
+    #         bullet_text = line.lstrip('-•').strip()
+    #         elements.append(Paragraph(f"• {bullet_text}", bullet_style))
+    #     # Regular paragraph
+    #     else:
+    #         elements.append(Paragraph(line, body_style))
     
+    # elements.append(Spacer(1, 20))
+
+    # ... (keep your clean_for_pdf function exactly as it is) ...
+
     lines = ai_summary.strip().split('\n')
     for line in lines:
         line = line.strip()
@@ -1336,31 +1666,48 @@ def generate_ai_report_pdf(aggregated_data: dict, ai_summary: str) -> io.BytesIO
             elements.append(Spacer(1, 6))
             continue
         
-        # Check if it's a heading (starts with # or ##)
-        is_heading = line.startswith('#')
+        # 1. Strip markdown bolding to test the core text
+        test_line = line.replace('**', '').strip()
         
-        # Clean the line
-        line = clean_for_pdf(line)
+        # 2. Strip any accidental AI bullet markers to see the actual word
+        unbulleted_test_line = test_line.lstrip('-•* ')
         
-        if not line:
-            continue
+        # 3. Robust Heading Detection
+        is_heading = (
+            test_line.startswith('#') or 
+            unbulleted_test_line.startswith('1. ') or 
+            unbulleted_test_line.startswith('2. ') or 
+            unbulleted_test_line.startswith('3. ') or 
+            unbulleted_test_line.startswith('4. ') or 
+            unbulleted_test_line.startswith('Recommendation') or 
+            unbulleted_test_line.startswith('Conclusion') or
+            unbulleted_test_line.startswith('Summary of Recommended')
+        )
         
-        # Handle headings
         if is_heading:
-            elements.append(Paragraph(line, heading_style))
-        # Handle bullet points
-        elif line.startswith('-') or line.startswith('•'):
-            bullet_text = line.lstrip('-•').strip()
-            elements.append(Paragraph(f"• {bullet_text}", bullet_style))
-        # Regular paragraph
+            # Process as a HEADING (forces stripping of accidental bullets/dashes)
+            clean_text = clean_for_pdf(unbulleted_test_line)
+            if clean_text:
+                elements.append(Paragraph(clean_text, heading_style))
+                
+        elif line.startswith('-') or line.startswith('•') or line.startswith('*'):
+            # Process as a TRUE BULLET POINT
+            bullet_text = line.lstrip('-•* ').strip()
+            clean_text = clean_for_pdf(bullet_text)
+            if clean_text:
+                elements.append(Paragraph(f"&bull; {clean_text}", bullet_style))
+                
         else:
-            elements.append(Paragraph(line, body_style))
+            # Process as a NORMAL PARAGRAPH
+            clean_text = clean_for_pdf(line)
+            if clean_text:
+                elements.append(Paragraph(clean_text, body_style))
     
     elements.append(Spacer(1, 20))
     
     # Category Breakdown
     if aggregated_data.get('breakdown_by_category'):
-        elements.append(Paragraph("Emissions by Category", section_style))
+        elements.append(Paragraph("Top 5 Emissions by Category", section_style))
         
         cat_data = [["Category", "Emissions (tCO2e)", "Records"]]
         for cat in aggregated_data['breakdown_by_category'][:5]:
@@ -1387,7 +1734,7 @@ def generate_ai_report_pdf(aggregated_data: dict, ai_summary: str) -> io.BytesIO
     sinks_details = aggregated_data.get('carbon_sinks_details', {})
     if sinks_details.get('total_sinks_tco2e', 0) > 0 or sinks_details.get('breakdown'):
         elements.append(Spacer(1, 15))
-        elements.append(Paragraph("Carbon Sinks & Offsets", section_style))
+        elements.append(Paragraph("Top 5 Carbon Sinks & Offsets", section_style))
         
         if sinks_details.get('breakdown'):
             sinks_data = [["Sink Type", "Description", "CO2 Reduced (tCO2e)", "Facility"]]
@@ -1452,7 +1799,6 @@ async def generate_ai_report_summary(
         request.reporting_period_start,
         request.reporting_period_end
     )
-    
     if not aggregated_data:
         raise HTTPException(status_code=404, detail="No emission records found for the selected facilities and period")
     

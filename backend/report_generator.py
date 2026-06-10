@@ -3559,16 +3559,28 @@ class GHGReportGenerator:
         p.add_run("The information generated through GHG reporting can be used to improve business processes, strengthen strategies, and guide actionable initiatives for emission reduction, while enhancing overall environmental performance.")
         
         # NEW SECTION 7: Introduction to the GHG Protocol
-        p = doc.add_paragraph()
-        run = p.add_run("7. Introduction to the GHG Protocol:")
-        run.bold = True
-        
-        p = doc.add_paragraph()
-        p.add_run("The Greenhouse Gas (GHG) Protocol is the world's most widely used framework for measuring, managing, and reporting greenhouse gas emissions. Developed through a partnership between the World Resources Institute (WRI) and the World Business Council for Sustainable Development (WBCSD), it provides standardized methodologies that enable organizations to prepare comprehensive and consistent GHG inventories.")
-        
-        p = doc.add_paragraph()
-        p.add_run("The GHG Protocol helps organizations identify emission sources across their operations and value chains, categorize emissions into Scope 1, Scope 2, and Scope 3, and report emissions in a transparent and comparable manner. By following the GHG Protocol, organizations can better understand their carbon footprint, establish emission reduction targets, track progress over time, support sustainability initiatives, and meet stakeholder, customer, investor, and regulatory reporting requirements. The framework also serves as the foundation for many corporate climate disclosure programs, carbon management strategies, and net-zero commitments worldwide.")
-        
+        is_scope3_report = getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3'
+        if is_scope3_report:
+            p = doc.add_paragraph()
+            run = p.add_run("7. Introduction to the GHG Protocol:")
+            run.bold = True
+            
+            p = doc.add_paragraph()
+            p.add_run("The Greenhouse Gas (GHG) Protocol is the world's most widely used framework for measuring, managing, and reporting greenhouse gas emissions. Developed through a partnership between the World Resources Institute (WRI) and the World Business Council for Sustainable Development (WBCSD), it provides standardized methodologies that enable organizations to prepare comprehensive and consistent GHG inventories.")
+            
+            p = doc.add_paragraph()
+            p.add_run("The GHG Protocol helps organizations identify emission sources across their operations and value chains, categorize emissions into Scope 1, Scope 2, and Scope 3, and report emissions in a transparent and comparable manner. By following the GHG Protocol, organizations can better understand their carbon footprint, establish emission reduction targets, track progress over time, support sustainability initiatives, and meet stakeholder, customer, investor, and regulatory reporting requirements. The framework also serves as the foundation for many corporate climate disclosure programs, carbon management strategies, and net-zero commitments worldwide.")
+        else:
+             p = doc.add_paragraph()
+             run = p.add_run("7. Introduction to the ISO 14064:")
+             run.bold = True
+
+             p = doc.add_paragraph()
+             p.add_run("ISO 14064 provides a globally recognized framework for quantifying, monitoring, reporting, and verifying GHG emissions and removals. It benefits organizations, governments, project proponents, and stakeholders by ensuring clarity, consistency, and transparency in GHG management.")
+
+             p = doc.add_paragraph()
+             p.add_run("The use of ISO 14064 helps enhance the environmental integrity and credibility of GHG data, while supporting the development and implementation of organizational GHG management strategies and projects. It also enables organizations to track performance, monitor progress in emission reductions or removals, and participate in carbon crediting and trading mechanisms.")
+
         # NEW SECTION 8: Importance of GHG Management Systems
         p = doc.add_paragraph()
         run = p.add_run("8. Importance of GHG Management Systems:")
@@ -3897,19 +3909,6 @@ class GHGReportGenerator:
         
         p = doc.add_paragraph()
         p.add_run("Scope 1 emissions refer to direct greenhouse gas emissions from sources that are owned or controlled by the organization. These emissions occur as a direct result of the organization's operational activities.")
-        
-        # p = doc.add_paragraph()
-        # p.add_run("Typical examples of Scope 1 emissions include:")
-        
-        # scope1_examples = [
-        #     "Fuel combustion in stationary sources, such as boilers, furnaces, generators, and industrial equipment.",
-        #     "Fuel combustion in mobile sources, including company-owned vehicles and fleet operations using fuels such as diesel or petrol.",
-        #     "Process emissions arising from industrial or chemical processes during manufacturing or production activities.",
-        #     "Fugitive emissions, such as leakage of refrigerants from air conditioning systems, refrigeration units, or other equipment."
-        # ]
-        
-        # for example in scope1_examples:
-        #     doc.add_paragraph(example, style='List Bullet')
         
         p = doc.add_paragraph()
         p.add_run("Since these emission sources are directly controlled by the organization, the organization is responsible for measuring, managing, and reporting these emissions as part of its GHG inventory.")
@@ -5120,6 +5119,23 @@ class GHGReportGenerator:
         else:
             data.append(['No emission reported', '-', self._format_number(org_totals['scope2'])])
         
+
+        is_scope3_report = getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3'
+        if is_scope3_report:
+            scope3_data = scope_cat_fuel.get('scope3', {})
+            bold_rows.append(len(data))
+            data.append(['Scope 3 Emissions', '', ''])
+            if scope3_data:
+                for cat in sorted(scope3_data.keys()):
+                    fuels_in_cat = scope3_data[cat]
+                    fuels_str = ", ".join(self._deduplicate_list(sorted(fuels_in_cat.keys()), case_insensitive=True))
+                    cat_total = sum(fuels_in_cat.values())
+                    data.append([cat, fuels_str, self._format_number(cat_total)])
+            else:
+                data.append(['No emission reported', '-', self._format_number(org_totals['scope3'])])
+        
+
+
         # Biogenic Emissions (bold header row if there's data)
         biogenic_data = scope_cat_fuel.get('biogenic', {})
         biogenic = org_totals.get('biogenic', 0)
