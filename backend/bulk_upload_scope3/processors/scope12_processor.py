@@ -575,7 +575,8 @@ class Scope12RowProcessor:
         # If user provided ef_quantity, add it to inputs
         if ef_quantity_provided:
             ef_value = float(row_data.get("ef_quantity"))
-            inputs["ef_quantity"] = {"value": ef_value, "unit": "kgCO2/kg"}
+            ef_unit = row_data.get("ef_quantity_unit", "")
+            inputs["ef_quantity"] = {"value": ef_value, "unit": ef_unit}
         
         # Build user overrides
         user_overrides = {}
