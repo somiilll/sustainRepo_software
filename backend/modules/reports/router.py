@@ -672,8 +672,39 @@ async def generate_ghg_inventory_report(
         facility_sinks = await cursor.to_list(length=1000)
         sinks_data.extend(facility_sinks)
     
-    # Calculate total sinks for this period
-    total_sinks = sum(s.get("total_emissions_reduced", 0) for s in sinks_data)
+    # Calculate proportional sinks for this period
+    def calculate_sink_proportion(sink, report_start, report_end):
+        """Calculate the proportion of sink that falls within the report period."""
+        try:
+            from datetime import datetime
+            sink_start = datetime.strptime(sink.get('start_date', ''), '%Y-%m-%d')
+            sink_end = datetime.strptime(sink.get('end_date', ''), '%Y-%m-%d')
+            rep_start = datetime.strptime(report_start, '%Y-%m-%d')
+            rep_end = datetime.strptime(report_end, '%Y-%m-%d')
+            
+            # Calculate overlap
+            overlap_start = max(sink_start, rep_start)
+            overlap_end = min(sink_end, rep_end)
+            
+            if overlap_start > overlap_end:
+                return 0.0  # No overlap
+            
+            # Calculate proportion based on days
+            sink_total_days = (sink_end - sink_start).days + 1
+            overlap_days = (overlap_end - overlap_start).days + 1
+            
+            if sink_total_days <= 0:
+                return 1.0
+            
+            return overlap_days / sink_total_days
+        except (ValueError, TypeError):
+            return 1.0  # If parsing fails, include full value
+    
+    total_sinks = 0.0
+    for s in sinks_data:
+        proportion = calculate_sink_proportion(s, sinks_start_date, sinks_end_date) if sinks_start_date and sinks_end_date else 1.0
+        s['_proportion'] = proportion
+        total_sinks += s.get("total_emissions_reduced", 0) * proportion
     
     # Filter emissions based on report_type
     # For scope_1_2 report: exclude scope3 emissions, include only biogenic scope1
