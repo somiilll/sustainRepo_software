@@ -49,7 +49,6 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
     isLive, lastLiveUpdateAt, getPreviousFinancialYear,
   } = data;
 
-
   const [heatmapView, setHeatmapView] = useState('india');
   // Targets — fetched once on mount. Errors swallowed (gauge has empty state).
   const [targets, setTargets] = useState([]);

@@ -622,6 +622,7 @@ class Scope12RowProcessor:
                 context = {
                     "fuel_code": fuel_data.get("id") or fuel_data.get("fuel_code"),
                     "fuel_database_id": fuel_data.get("id"),
+                    "fuel_name": fuel_data.get("fuel_name"),
                     "ef_quantity_provided": ef_quantity_provided,
                 }
                 logger.info(f"[SCOPE1_BULK] Executing calc engine: formula={formula_id}, inputs={inputs}, context={context}")

@@ -36,7 +36,6 @@ async def get_dashboard_stats(
     use_equity_share = False
     facility_equity_map = {}  # facility_id -> equity percentage (as decimal)
     org_id = None  # Initialize org_id for all user types
-    
     if current_user["role"] == "super_admin":
         facilities = await db.facilities.find({}, {"_id": 0}).to_list(1000)
         facility_ids = [f["id"] for f in facilities]
@@ -134,9 +133,8 @@ async def get_dashboard_stats(
         emissions_query["facility_id"] = {"$in": facility_id}
         # Also filter the facilities list for the response
         facilities = [f for f in facilities if f["id"] in facility_id]
-    
     all_emissions = await db.emission_records.find(emissions_query, {"_id": 0}).to_list(10000)
-    
+
     # ===========================================
     # Filter out biogenic scope3 records for orgs without scope1_2_3 access
     # ===========================================
@@ -154,13 +152,6 @@ async def get_dashboard_stats(
                 e for e in all_emissions
                 if not (e.get("scope") == "biogenic" and e.get("biogenic_scope_selection") == "scope3")
             ]
-    
-    # ===========================================
-    # PHASE 5: Prevent Double Counting for Mixed Frequency Datasets
-    # ===========================================
-    # When both yearly and monthly records exist for the same facility/category/year,
-    # prefer the yearly record and exclude monthly records to prevent double counting.
-    # ===========================================
     
     def extract_year_from_period(period: str) -> str:
         """Extract year from reporting_period (handles CY2025, FY 2025-2026, 2025-01, etc.)"""
@@ -397,7 +388,7 @@ async def get_dashboard_stats(
             adjusted_value = adjusted_value * equity_factor
         
         return adjusted_value
-    
+
     # Calculate totals with equity share adjustment and proration (using deduplicated emissions)
     total_emissions = sum(get_adjusted_emission(e) for e in deduplicated_emissions)
     scope1_emissions = sum(get_adjusted_emission(e) for e in deduplicated_emissions if e["scope"] == "scope1")
@@ -801,8 +792,14 @@ async def get_dashboard_stats(
             date_filter["$gte"] = f"{start_period}-01"
         if end_period:
             date_filter["$lte"] = f"{end_period}-31"
-        if date_filter:
-            sinks_query["start_date"] = date_filter
+        # if date_filter:
+        #     sinks_query["start_date"] = date_filter
+        if start_period:
+            # The record must end AFTER the requested start period begins
+            sinks_query["end_date"] = {"$gte": f"{start_period}-01"}
+        if end_period:
+            # The record must start BEFORE the requested end period finishes
+            sinks_query["start_date"] = {"$lte": f"{end_period}-31"}
     
     all_sinks = await db.sinks.find(sinks_query, {"_id": 0}).to_list(10000)
     
@@ -833,6 +830,7 @@ async def get_dashboard_stats(
         sinks_by_facility_map[fac_id]["total_reduced"] += sink_value
     sinks_by_facility = list(sinks_by_facility_map.values())
     
+    print("here hsdc")
     return DashboardStats(
         total_facilities=len(facilities),
         total_emissions=round(total_emissions, 2),
