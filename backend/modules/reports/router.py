@@ -47,6 +47,53 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def parse_period_to_date(period_str: str, is_end: bool = False) -> Optional[str]:
+    """
+    Parse FY/CY/YYYY-MM period strings to YYYY-MM-DD date format.
+    For start dates, returns first day. For end dates, returns last day.
+    """
+    if not period_str:
+        return None
+    period_str = str(period_str).strip()
+    upper_period = period_str.upper()
+    
+    # Handle "CY 2024" format
+    if upper_period.startswith("CY"):
+        try:
+            year = int(upper_period.replace("CY", "").strip())
+            return f"{year}-12-31" if is_end else f"{year}-01-01"
+        except ValueError:
+            pass
+    
+    # Handle "FY" formats (April-March fiscal year)
+    if upper_period.startswith("FY"):
+        try:
+            fy_str = upper_period.replace("FY", "").strip()
+            if "-" in fy_str:
+                start_yr_str = fy_str.split("-")[0].strip()
+                start_year = int(start_yr_str) if len(start_yr_str) == 4 else int("20" + start_yr_str[-2:])
+                return f"{start_year + 1}-03-31" if is_end else f"{start_year}-04-01"
+            else:
+                end_year = int(fy_str) if len(fy_str) == 4 else int("20" + fy_str[-2:])
+                return f"{end_year}-03-31" if is_end else f"{end_year - 1}-04-01"
+        except ValueError:
+            pass
+    
+    # Handle "YYYY-MM" format
+    if re.match(r'^\d{4}-\d{2}$', period_str):
+        year, month = period_str.split('-')
+        if is_end:
+            last_day = calendar.monthrange(int(year), int(month))[1]
+            return f"{period_str}-{last_day:02d}"
+        return f"{period_str}-01"
+    
+    # Handle "YYYY" format
+    if re.match(r'^\d{4}$', period_str):
+        return f"{period_str}-12-31" if is_end else f"{period_str}-01-01"
+    
+    return None
+
+
 # Report generation endpoint with year-wise breakdown
 @router.get("/reports/facility/{facility_id}")
 async def generate_facility_report(
@@ -610,15 +657,18 @@ async def generate_ghg_inventory_report(
     
     # Get sinks data within reporting period
     sinks_data = []
+    # Parse period strings to actual dates for sinks query
+    sinks_start_date = parse_period_to_date(request.reporting_period_start, is_end=False)
+    sinks_end_date = parse_period_to_date(request.reporting_period_end, is_end=True)
+    
     for facility in facilities_data:
         # Filter sinks by start_date (YYYY-MM-DD format, present on all sinks)
-        sinks_query = {
-            "facility_id": facility["id"],
-            "start_date": {
-                "$gte": f"{request.reporting_period_start}-01",
-                "$lte": f"{request.reporting_period_end}-31"
+        sinks_query = {"facility_id": facility["id"]}
+        if sinks_start_date and sinks_end_date:
+            sinks_query["start_date"] = {
+                "$gte": sinks_start_date,
+                "$lte": sinks_end_date
             }
-        }
         cursor = db.sinks.find(sinks_query, {"_id": 0})
         facility_sinks = await cursor.to_list(length=1000)
         sinks_data.extend(facility_sinks)
