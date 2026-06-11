@@ -1830,10 +1830,10 @@ class GHGReportGenerator:
                 elif 'scope 3' in scope or 'scope3' in scope or scope == '3':
                     totals['by_month'][month_key]['scope3'] += tco2e
         
-        # Calculate sinks/removals for this facility
+        # Calculate sinks/removals for this facility (with temporal proportion)
         if hasattr(self, 'sinks_data') and self.sinks_data and facility_id:
             facility_sinks = [s for s in self.sinks_data if s.get('facility_id') == facility_id]
-            totals['removals'] = sum(s.get('total_emissions_reduced', 0) for s in facility_sinks)
+            totals['removals'] = sum(s.get('total_emissions_reduced', 0) * s.get('_proportion', 1.0) for s in facility_sinks)
         elif hasattr(self, 'sinks_total'):
             # If no facility_id provided, use total sinks distributed
             totals['removals'] = getattr(self, 'sinks_total', 0)
@@ -4411,10 +4411,10 @@ class GHGReportGenerator:
             # Get ALL emissions for THIS FACILITY for historical data (before checking has_emissions)
             all_facility_emissions = self._get_emissions_by_facility(emissions, facility_id)
             
-            # Check if facility has sinks in the reporting period
+            # Check if facility has sinks in the reporting period (with temporal proportion)
             facility_sinks = [s for s in (self.sinks_data or []) if s.get('facility_id') == facility_id]
             has_sinks = len(facility_sinks) > 0
-            raw_facility_sink_total = sum(s.get('total_emissions_reduced', 0) for s in facility_sinks)
+            raw_facility_sink_total = sum(s.get('total_emissions_reduced', 0) * s.get('_proportion', 1.0) for s in facility_sinks)
             # Apply equity share to sinks
             facility_sink_total = raw_facility_sink_total * equity_factor if use_equity_share else raw_facility_sink_total
             
@@ -4447,8 +4447,10 @@ class GHGReportGenerator:
                             period_str = s.get('start_date', '')[:7]
                         else:
                             period_str = year or '-'
-                        # Apply equity share to individual sink values
-                        sink_value = s.get('total_emissions_reduced', 0) * equity_factor if use_equity_share else s.get('total_emissions_reduced', 0)
+                        # Apply temporal proportion and equity share to individual sink values
+                        proportion = s.get('_proportion', 1.0)
+                        raw_sink_value = s.get('total_emissions_reduced', 0) * proportion
+                        sink_value = raw_sink_value * equity_factor if use_equity_share else raw_sink_value
                         sink_data.append([desc, period_str, self._format_number(sink_value)])
                     
                     if sink_data:
@@ -4562,8 +4564,10 @@ class GHGReportGenerator:
                             period_str = s.get('start_date', '')[:7]
                         else:
                             period_str = year or '-'
-                        # Apply equity share to individual sink values
-                        sink_value = s.get('total_emissions_reduced', 0) * equity_factor if use_equity_share else s.get('total_emissions_reduced', 0)
+                        # Apply temporal proportion and equity share to individual sink values
+                        proportion = s.get('_proportion', 1.0)
+                        raw_sink_value = s.get('total_emissions_reduced', 0) * proportion
+                        sink_value = raw_sink_value * equity_factor if use_equity_share else raw_sink_value
                         sink_data.append([desc, period_str, self._format_number(sink_value)])
                     self._create_styled_table(doc, sink_headers, sink_data)
                 
