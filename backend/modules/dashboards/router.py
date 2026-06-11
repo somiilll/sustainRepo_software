@@ -803,22 +803,80 @@ async def get_dashboard_stats(
     
     all_sinks = await db.sinks.find(sinks_query, {"_id": 0}).to_list(10000)
     
-    # Apply equity share adjustment to sinks as well
+    # Calculate sink proportion based on overlap with filter period
+    def calculate_sink_proportion(sink, filter_start: str, filter_end: str) -> float:
+        """
+        Calculate the proportion of sink that falls within the dashboard filter period.
+        sink has start_date/end_date in YYYY-MM-DD format
+        filter_start/filter_end are in YYYY-MM format
+        """
+        if not filter_start and not filter_end:
+            return 1.0
+        
+        try:
+            from datetime import datetime
+            sink_start_str = sink.get('start_date', '')
+            sink_end_str = sink.get('end_date', '')
+            
+            if not sink_start_str or not sink_end_str:
+                return 1.0
+            
+            sink_start = datetime.strptime(sink_start_str, '%Y-%m-%d')
+            sink_end = datetime.strptime(sink_end_str, '%Y-%m-%d')
+            
+            # Convert filter period (YYYY-MM) to dates
+            if filter_start:
+                filter_start_dt = datetime.strptime(f"{filter_start}-01", '%Y-%m-%d')
+            else:
+                filter_start_dt = sink_start
+            
+            if filter_end:
+                # Get last day of the filter end month
+                filter_end_year = int(filter_end[:4])
+                filter_end_month = int(filter_end[5:7])
+                import calendar
+                last_day = calendar.monthrange(filter_end_year, filter_end_month)[1]
+                filter_end_dt = datetime.strptime(f"{filter_end}-{last_day:02d}", '%Y-%m-%d')
+            else:
+                filter_end_dt = sink_end
+            
+            # Calculate overlap
+            overlap_start = max(sink_start, filter_start_dt)
+            overlap_end = min(sink_end, filter_end_dt)
+            
+            if overlap_start > overlap_end:
+                return 0.0  # No overlap
+            
+            # Calculate proportion based on days
+            sink_total_days = (sink_end - sink_start).days + 1
+            overlap_days = (overlap_end - overlap_start).days + 1
+            
+            if sink_total_days <= 0:
+                return 1.0
+            
+            return overlap_days / sink_total_days
+        except (ValueError, TypeError):
+            return 1.0  # If parsing fails, include full value
+    
+    # Apply equity share and proportion adjustment to sinks
     sinks_total = 0
     for s in all_sinks:
-        sink_value = s.get("total_emissions_reduced", 0)
+        proportion = calculate_sink_proportion(s, start_period, end_period)
+        sink_value = s.get("total_emissions_reduced", 0) * proportion
         if use_equity_share:
             fac_id = s.get("facility_id")
             equity_factor = facility_equity_map.get(fac_id, 1.0)
             sink_value = sink_value * equity_factor
+        s['_proportion'] = proportion  # Store for later use
         sinks_total += sink_value
     
-    # Sinks by facility
+    # Sinks by facility (with proportion)
     sinks_by_facility_map = {}
     for sink in all_sinks:
         fac_id = sink.get("facility_id", "")
         fac_name = facility_name_map.get(fac_id, "Unknown")
-        sink_value = sink.get("total_emissions_reduced", 0)
+        proportion = sink.get('_proportion', 1.0)
+        sink_value = sink.get("total_emissions_reduced", 0) * proportion
         
         # Apply equity share adjustment
         if use_equity_share:
