@@ -662,13 +662,12 @@ async def generate_ghg_inventory_report(
     sinks_end_date = parse_period_to_date(request.reporting_period_end, is_end=True)
     
     for facility in facilities_data:
-        # Filter sinks by start_date (YYYY-MM-DD format, present on all sinks)
+        # Filter sinks that OVERLAP with the reporting period
+        # Overlap condition: sink.start_date <= report_end AND sink.end_date >= report_start
         sinks_query = {"facility_id": facility["id"]}
         if sinks_start_date and sinks_end_date:
-            sinks_query["start_date"] = {
-                "$gte": sinks_start_date,
-                "$lte": sinks_end_date
-            }
+            sinks_query["start_date"] = {"$lte": sinks_end_date}
+            sinks_query["end_date"] = {"$gte": sinks_start_date}
         cursor = db.sinks.find(sinks_query, {"_id": 0})
         facility_sinks = await cursor.to_list(length=1000)
         sinks_data.extend(facility_sinks)
