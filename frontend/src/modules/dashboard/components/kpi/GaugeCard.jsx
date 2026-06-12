@@ -86,7 +86,7 @@ export default function GaugeCard({
             <select
               value={selectedTarget?.id}
               onChange={(e) => setSelectedTargetId(e.target.value)}
-              className="text-[10px] border border-stone-200 rounded-md px-1.5 py-0.5 bg-white max-w-[110px]"
+              className="text-[10px] border border-stone-200 rounded-md pr-1.5 pl-1 py-0.5 bg-white max-w-[110px]"
               data-testid="kpi-target-selector"
             >
               {targets.map((t) => (<option key={t.id} value={t.id}>{t.name}</option>))}
@@ -119,7 +119,7 @@ export default function GaugeCard({
           <select
             value={selectedTarget?.id}
             onChange={(e) => setSelectedTargetId(e.target.value)}
-            className="text-[10px] border border-stone-200 rounded-md px-1.5 py-0.5 bg-white max-w-[110px]"
+            className="text-[10px] border border-stone-200 rounded-md pr-1.5 pl-0 py-0.5 bg-white max-w-[110px]"
             title="Switch target"
             data-testid="kpi-target-selector"
           >

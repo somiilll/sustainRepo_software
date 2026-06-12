@@ -109,6 +109,7 @@ async def get_dashboard_stats(
     # to properly handle yearly records that fall within the date range
     date_filter_start = start_period  # e.g., "2025-04"
     date_filter_end = end_period      # e.g., "2026-03"
+    print("date_filter_end", date_filter_end)
     
     # For MongoDB query, only apply filter for monthly format records
     # Yearly records will be filtered after fetching
