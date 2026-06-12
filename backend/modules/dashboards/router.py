@@ -109,7 +109,6 @@ async def get_dashboard_stats(
     # to properly handle yearly records that fall within the date range
     date_filter_start = start_period  # e.g., "2025-04"
     date_filter_end = end_period      # e.g., "2026-03"
-    print("date_filter_end", date_filter_end)
     
     # For MongoDB query, only apply filter for monthly format records
     # Yearly records will be filtered after fetching
@@ -132,11 +131,9 @@ async def get_dashboard_stats(
     # Apply facility filter if provided (supports multiple facility IDs)
     if facility_id and len(facility_id) > 0:
         emissions_query["facility_id"] = {"$in": facility_id}
-        print("emissions_query", emissions_query)
         # Also filter the facilities list for the response
         facilities = [f for f in facilities if f["id"] in facility_id]
     all_emissions = await db.emission_records.find(emissions_query, {"_id": 0}).to_list(10000)
-    print("all_emissions", all_emissions)
 
     # ===========================================
     # Filter out biogenic scope3 records for orgs without scope1_2_3 access
@@ -161,14 +158,12 @@ async def get_dashboard_stats(
         if not period:
             return None
         period = period.strip()
-        print("period", period)
         # CY2025 format
         if period.startswith("CY"):
             return period[2:6]
         # FY 2025-2026 format
         if period.startswith("FY ") or period.startswith("FY"):
             parts = period.replace("FY ", "FY").replace("FY", "").split("-")
-            print("parts[0].strip()", parts[0].strip())
             return parts[0].strip() if parts else None
         # YYYY-MM format
         if "-" in period and len(period) >= 7:
@@ -182,23 +177,16 @@ async def get_dashboard_stats(
         
         # Extract start and end years from the filter range
         filter_start_year = int(start[:4]) if start else 0
-        print("filter_start_year", filter_start_year)
         filter_start_month = int(start[5:7]) if start and len(start) >= 7 else 1
-        print("filter_start_month", filter_start_month)
         filter_end_year = int(end[:4]) if end else 9999
-        print("filter_end_year", filter_end_year)
         filter_end_month = int(end[5:7]) if end and len(end) >= 7 else 12
-        print("filter_end_month", filter_end_month)
         
         period = period.strip()
-        print("period2", period)
         
         # Handle FY 2025-26 format (Financial Year April-March)
         if period.startswith("FY "):
-            print("starts with FY")
             # FY 2025-26 means April 2025 to March 2026
             fy_parts = period[3:].split("-")
-            print("fy_parts", fy_parts)
             if len(fy_parts) >= 1:
                 fy_start_year = int(fy_parts[0].strip())
                 # Handle both "FY 2025-2026" and "FY 2025-26" formats
@@ -257,16 +245,13 @@ async def get_dashboard_stats(
         
         # Helper to calculate months between two (year, month) tuples (inclusive)
         def months_between(start_ym, end_ym):
-            print("(end_ym[0] - start_ym[0]) * 12 + (end_ym[1] - start_ym[1]) + 1", (end_ym[0] - start_ym[0]) * 12 + (end_ym[1] - start_ym[1]) + 1)
             return (end_ym[0] - start_ym[0]) * 12 + (end_ym[1] - start_ym[1]) + 1
         
         # Helper to get overlap months count
         def get_overlap_months(period_start, period_end, filter_start, filter_end):
             # Find the overlap range
             overlap_start = max(period_start, filter_start, key=lambda x: x[0] * 12 + x[1])
-            print("overlap_start", overlap_start)
             overlap_end = min(period_end, filter_end, key=lambda x: x[0] * 12 + x[1])
-            print("overlap_end", overlap_end)
             
             # Check if there's actual overlap
             if overlap_start[0] * 12 + overlap_start[1] > overlap_end[0] * 12 + overlap_end[1]:
@@ -349,35 +334,36 @@ async def get_dashboard_stats(
             emission_id = e.get("id", id(e))
             proration_factors[emission_id] = 1.0
     
-    # Build a set of yearly record keys: (facility_id, category, scope, year)
-    yearly_keys = set()
-    for e in all_emissions:
-        if e.get("frequency_type") == "yearly":
-            year = extract_year_from_period(e.get("reporting_period"))
-            if year:
-                key = (e.get("facility_id"), e.get("category"), e.get("scope"), year)
-                yearly_keys.add(key)
+    # # Build a set of yearly record keys: (facility_id, category, scope, year)
+    # yearly_keys = set()
+    # for e in all_emissions:
+    #     if e.get("frequency_type") == "yearly":
+    #         year = extract_year_from_period(e.get("reporting_period"))
+    #         if year:
+    #             key = (e.get("facility_id"), e.get("category"), e.get("scope"), year)
+    #             yearly_keys.add(key)
     
-    # Filter out monthly records that conflict with yearly records
-    def should_include_emission(e):
-        """Returns True if emission should be included in aggregations"""
-        freq = e.get("frequency_type", "monthly")
-        # Always include yearly records
-        if freq == "yearly":
-            return True
-        # For monthly records, check if a yearly record exists for the same combination
-        year = extract_year_from_period(e.get("reporting_period"))
-        print("YEAR", year)
-        if year:
-            key = (e.get("facility_id"), e.get("category"), e.get("scope"), year)
-            print("key", key)
-            if key in yearly_keys:
-                # Monthly record conflicts with yearly - exclude to prevent double counting
-                return False
-        return True
+    # # Filter out monthly records that conflict with yearly records
+    # def should_include_emission(e):
+    #     """Returns True if emission should be included in aggregations"""
+    #     freq = e.get("frequency_type", "monthly")
+    #     # Always include yearly records
+    #     if freq == "yearly":
+    #         return True
+    #     # For monthly records, check if a yearly record exists for the same combination
+    #     year = extract_year_from_period(e.get("reporting_period"))
+    #     print("YEAR", year)
+    #     if year:
+    #         key = (e.get("facility_id"), e.get("category"), e.get("scope"), year)
+    #         print("key", key)
+    #         if key in yearly_keys:
+    #             # Monthly record conflicts with yearly - exclude to prevent double counting
+    #             return False
+    #     return True
     
     # Apply deduplication filter
-    deduplicated_emissions = [e for e in all_emissions if should_include_emission(e)]
+    # deduplicated_emissions = [e for e in all_emissions if should_include_emission(e)]
+    deduplicated_emissions = all_emissions
     
     # Helper function to get emission value with fallback to co2e_emissions
     def get_emission_value(emission):
@@ -406,7 +392,6 @@ async def get_dashboard_stats(
         
         return adjusted_value
 
-    print("deduplicated_emissions", deduplicated_emissions)
     # Calculate totals with equity share adjustment and proration (using deduplicated emissions)
     total_emissions = sum(get_adjusted_emission(e) for e in deduplicated_emissions)
     scope1_emissions = sum(get_adjusted_emission(e) for e in deduplicated_emissions if e["scope"] == "scope1")
@@ -906,7 +891,6 @@ async def get_dashboard_stats(
         sinks_by_facility_map[fac_id]["total_reduced"] += sink_value
     sinks_by_facility = list(sinks_by_facility_map.values())
     
-    print("here hsdc")
     return DashboardStats(
         total_facilities=len(facilities),
         total_emissions=round(total_emissions, 2),
