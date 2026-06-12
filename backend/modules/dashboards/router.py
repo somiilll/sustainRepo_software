@@ -168,7 +168,7 @@ async def get_dashboard_stats(
         # FY 2025-2026 format
         if period.startswith("FY ") or period.startswith("FY"):
             parts = period.replace("FY ", "FY").replace("FY", "").split("-")
-            console.log("parts[0].strip()", parts[0].strip())
+            print("parts[0].strip()", parts[0].strip())
             return parts[0].strip() if parts else None
         # YYYY-MM format
         if "-" in period and len(period) >= 7:
