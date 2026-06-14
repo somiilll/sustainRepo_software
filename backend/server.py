@@ -1327,8 +1327,20 @@ async def get_emission_combinations(
     emissions = await db.emission_records.find(
         query, 
         {"_id": 0, "scope": 1, "category": 1, "sub_category": 1, "reporting_period": 1, 
-         "co2e_emissions": 1, "calculated_co2e": 1, "frequency": 1, "total_emissions": 1}
+         "co2e_emissions": 1, "calculated_co2e": 1, "frequency": 1, "total_emissions": 1,
+         "biogenic_scope_selection": 1}
     ).to_list(10000)
+    
+    # Helper to transform biogenic scope to display value
+    def get_display_scope(em):
+        scope = em.get("scope", "")
+        if scope == "biogenic":
+            biogenic_sel = em.get("biogenic_scope_selection")
+            if biogenic_sel == "scope3":
+                return "Biogenic (Indirect)"
+            else:
+                return "Biogenic (Direct)"
+        return scope
     
     # Helper function to parse reporting period and get month/year
     def parse_period(period):
@@ -1447,7 +1459,7 @@ async def get_emission_combinations(
             
             if matches and proportion > 0:
                 key = (
-                    em.get("scope", ""),
+                    get_display_scope(em),
                     em.get("category", ""),
                     em.get("sub_category", "")
                 )
@@ -1485,7 +1497,7 @@ async def get_emission_combinations(
     combinations = set()
     for em in emissions:
         combo = (
-            em.get("scope", ""),
+            get_display_scope(em),
             em.get("category", ""),
             em.get("sub_category", "")
         )
