@@ -1204,6 +1204,16 @@ async def get_oldest_reporting_year(
         month = None
         year = None
         
+        fy_match = re.match(r'FY\s*(\d{4})-(\d{2,4})', period, re.IGNORECASE)
+        if fy_match:
+            return int(fy_match.group(1))  # Return start year directly
+        
+        # Try CY format: \"CY 2025\" or \"CY2025\"
+        cy_match = re.match(r'CY\s*(\d{4})', period, re.IGNORECASE)
+        if cy_match:
+            return int(cy_match.group(1))
+
+
         # Try format: "January 2024"
         for i, m in enumerate(month_name):
             if m and m.lower() in period.lower():
