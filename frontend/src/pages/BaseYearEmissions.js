@@ -1435,8 +1435,8 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
     return (
       <div 
         key={`${entityType}-${entityId}-${scopeGroup}`}
-        className={`p-4 border rounded-lg ${isOrgReadOnly ? '' : 'cursor-pointer hover:shadow-md'} transition-all ${cardBorderColor}`}
-        onClick={() => !isOrgReadOnly && handleEntityClick(entityType, entityId, entityName, scopeGroup)}
+        className={`p-4 border rounded-lg cursor-pointer hover:shadow-md transition-all ${cardBorderColor}`}
+        onClick={() => handleEntityClick(entityType, entityId, entityName, scopeGroup)}
       >
         <div className="flex items-center justify-between mb-2">
           <span className={`text-xs font-medium px-2 py-1 rounded border ${badgeColor}`}>
