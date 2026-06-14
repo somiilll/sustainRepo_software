@@ -541,7 +541,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
       // If not using oldest year, fetch ALL combinations without year filter
       // This ensures we show all Scope + Category + Subcategory options for user to fill in
       let url = `${API}/base-year-emissions/emission-combinations/${selectedEntity.type}/${selectedEntity.id}`;
-      
+      console.log("API", url)
       // Build query params
       const params = new URLSearchParams();
       if (year && !forceAllCombinations) {
@@ -557,6 +557,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
       }
       
       const response = await axios.get(url, { headers: getAuthHeader() });
+      console.log("response", response.data)
       
       let combinations = response.data.combinations || [];
       // Use the has_values flag from the backend to determine if data exists
