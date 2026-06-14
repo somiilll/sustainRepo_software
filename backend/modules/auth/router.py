@@ -174,7 +174,7 @@ async def forgot_password(reset_data: PasswordReset):
         "used": False,
     })
 
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://carbon-workspace.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://esg-dashboard-18.preview.emergentagent.com')
     reset_link = f"{frontend_url}/reset-password?token={reset_token}"
 
     email_body = password_reset_email(user.get('full_name', 'User'), reset_link)
