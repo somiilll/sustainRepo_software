@@ -91,6 +91,7 @@ from modules.approvals.router_v2 import router as approvals_router
 
 # Targets domain (multi-target reduction management).
 from modules.targets.router import router as targets_router
+from modules.production.router import router as production_router
 
 # Set Playwright browsers path BEFORE any playwright imports
 os.environ['PLAYWRIGHT_BROWSERS_PATH'] = '/app/.playwright'
@@ -126,6 +127,9 @@ api_router.include_router(approvals_router)
 
 # Targets module (org-level reduction targets)
 api_router.include_router(targets_router)
+
+# Production quantity module (for Carbon Intensity calculations)
+api_router.include_router(production_router)
 
 # Run module contract verifier at import time. Phase B1: log-only, will be
 # escalated to fail-fast in dev once all modules expose their contracts.
