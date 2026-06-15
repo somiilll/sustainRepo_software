@@ -4691,12 +4691,12 @@ class GHGReportGenerator:
             org_id = organization.get('id')
             org_base_year_data = self._get_base_year_emissions_for_entity('organization', org_id)
             if org_base_year_data:
-                self._add_styled_heading(doc, f"4.{len(facilities)+4} Organization Base Year Emissions", level=2)
+                self._add_styled_heading(doc, f"4.{len(facilities)+3}.2 Organization Base Year Emissions", level=2)
                 self._add_base_year_emissions_section(doc, org_base_year_data, org_totals, organization.get('name', 'Organization'), 1.0, False, reporting_period_start, reporting_period_end)
                 doc.add_paragraph()
             
             # Organization Analysis
-            analysis_section_num = len(facilities) + 5 if org_base_year_data else len(facilities) + 4
+            analysis_section_num = f"{len(facilities) + 3}.3" if org_base_year_data else len(facilities) + 4
             self._add_styled_heading(doc, f"4.{analysis_section_num} Organization Analysis", level=2)
             self._add_organization_analysis(doc, organization, org_totals, facilities)
         
