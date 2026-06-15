@@ -4646,6 +4646,45 @@ class GHGReportGenerator:
             if is_scope3_report and org_totals.get('scope3', 0) > 0:
                 self._add_scope3_method_breakdown(doc, emissions, organization.get('name', 'Organization'))
             
+            # Organization Carbon Intensity - Only show if org-level production data is available
+            org_production = getattr(self, 'org_production', None)
+            if org_production and org_production.get('quantity') and org_production.get('unit'):
+                doc.add_paragraph()
+                self._add_styled_heading(doc, f"4.{len(facilities)+3}.1 Organization Carbon Intensity", level=3)
+                
+                org_name = organization.get('name', 'Organization')
+                production_qty = float(org_production['quantity'])
+                production_unit = org_production['unit']
+                
+                # Calculate net emissions (total - removals)
+                total_emissions = org_totals['scope1'] + org_totals['scope2']
+                if is_scope3_report:
+                    total_emissions += org_totals.get('scope3', 0)
+                net_emissions = total_emissions - org_totals.get('removals', 0)
+                
+                # Calculate carbon intensity
+                carbon_intensity = net_emissions / production_qty if production_qty > 0 else 0
+                carbon_intensity_unit = f"tCO₂e/{production_unit}"
+                
+                # Add formula explanation
+                p = doc.add_paragraph()
+                run = p.add_run("Carbon Intensity Formula:")
+                run.bold = True
+                p = doc.add_paragraph()
+                p.add_run("Carbon Intensity = Net Emissions / Production Quantity")
+                p = doc.add_paragraph()
+                p.add_run(f"Carbon Intensity = {self._format_number(net_emissions)} tCO₂e / {self._format_number(production_qty)} {production_unit}")
+                p = doc.add_paragraph()
+                run = p.add_run(f"Carbon Intensity = {self._format_number(carbon_intensity)} {carbon_intensity_unit}")
+                run.bold = True
+                
+                # Add interpretation
+                doc.add_paragraph()
+                p = doc.add_paragraph()
+                p.add_run(f"The carbon intensity of {org_name} is {self._format_number(carbon_intensity)} {carbon_intensity_unit}. "
+                          f"This metric represents the greenhouse gas emissions per unit of production output. "
+                          f"Lower carbon intensity values indicate more efficient operations from an emissions perspective, and tracking this metric over time helps identify opportunities for improvement and benchmark against industry standards.")
+            
             doc.add_paragraph()
             
             # Organization Base Year Emissions - Only show if base year data is available for the organization
@@ -5561,6 +5600,7 @@ class GHGReportGenerator:
                        include_previous_years: bool = True,
                        sinks_total: float = 0.0, sinks_data: List[Dict] = None,
                        facility_production: Dict = None,
+                       org_production: Dict = None,
                        report_type: str = "scope_1_2",
                        is_complete_organization: bool = True) -> io.BytesIO:
         """Generate the complete GHG Inventory Report
@@ -5568,6 +5608,7 @@ class GHGReportGenerator:
         Args:
             report_type: "scope_1_2" for Scope 1,2 report or "scope_1_2_3" for Scope 1,2,3 report
             is_complete_organization: Whether all org facilities are included (for org-level sections)
+            org_production: Organization-level production data {quantity, unit} for org-level Carbon Intensity
         """
         
         # Store report type for use in chapter generation
@@ -5580,6 +5621,7 @@ class GHGReportGenerator:
         self.sinks_total = sinks_total
         self.sinks_data = sinks_data or []
         self.facility_production = facility_production or {}
+        self.org_production = org_production  # Organization-level production data
         
         # Create new document
         doc = Document()

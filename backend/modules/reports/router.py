@@ -827,6 +827,17 @@ async def generate_ghg_inventory_report(
         if qty and unit:
             facility_production_data[fid] = {'quantity': qty, 'unit': unit}
     
+    # Fetch organization-level production quantity (facility_id = None)
+    org_production_data = None
+    org_qty, org_unit = await get_production_for_period(
+        None,  # Organization level
+        request.reporting_period_start, 
+        request.reporting_period_end,
+        org_id
+    )
+    if org_qty and org_unit:
+        org_production_data = {'quantity': org_qty, 'unit': org_unit}
+    
     # Generate report - pass backend URL for internal file access
     generator = GHGReportGenerator(backend_base_url='http://localhost:8001')
     report_buffer = generator.generate_report(
@@ -839,6 +850,7 @@ async def generate_ghg_inventory_report(
         sinks_total=total_sinks,
         sinks_data=sinks_data,
         facility_production=facility_production_data,
+        org_production=org_production_data,
         report_type=request.report_type,
         is_complete_organization=request.is_complete_organization
     )
