@@ -509,13 +509,8 @@ async def generate_combined_report(
     return {"download_token": download_token, "filename": filename}
 
 # GHG Inventory Report Generation
-class FacilityProduction(BaseModel):
-    quantity: Optional[float] = None
-    unit: Optional[str] = None
-
 class GHGReportRequest(BaseModel):
     facility_ids: List[str]
-    facility_production: Optional[Dict[str, FacilityProduction]] = None  # {facility_id: {quantity, unit}}
     reporting_period_start: str  # Format: YYYY-MM
     reporting_period_end: str    # Format: YYYY-MM
     include_previous_years: bool = False
@@ -726,18 +721,7 @@ async def generate_ghg_inventory_report(
         emissions_data = filtered_emissions
     # For scope_1_2_3: include everything (no filtering needed)
     
-    # Prepare facility production data
-    # First check for manually provided values, then fall back to production_quantities collection
-    facility_production_data = {}
-    if request.facility_production:
-        for fid, prod in request.facility_production.items():
-            if prod.quantity and prod.unit:
-                facility_production_data[fid] = {
-                    'quantity': float(prod.quantity),
-                    'unit': prod.unit
-                }
-    
-    # For facilities without manual production data, fetch from production_quantities collection
+    # Fetch facility production data from production_quantities collection with proportional allocation
     import re
     
     async def get_production_for_period(facility_id_or_none, start_period, end_period, org_id):
@@ -790,12 +774,6 @@ async def generate_ghg_inventory_report(
             qty = record.get("quantity", 0)
             rec_unit = record.get("unit", "")
             
-            if unit is None:
-                unit = rec_unit
-            
-            if rec_unit != unit:
-                continue
-            
             overlap_months = 0
             total_period_months = 1
             
@@ -830,21 +808,24 @@ async def generate_ghg_inventory_report(
             if overlap_months > 0:
                 proportion = overlap_months / total_period_months
                 aggregated_qty += qty * proportion
+                # Capture unit from first overlapping record
+                if unit is None:
+                    unit = rec_unit
         
         return (round(aggregated_qty, 4) if aggregated_qty > 0 else None, unit)
     
-    # Fetch production data from collection for facilities without manual data
+    # Fetch production data from collection for each facility
+    facility_production_data = {}
     for facility in facilities_data:
         fid = facility["id"]
-        if fid not in facility_production_data:
-            qty, unit = await get_production_for_period(
-                fid, 
-                request.reporting_period_start, 
-                request.reporting_period_end,
-                org_id
-            )
-            if qty and unit:
-                facility_production_data[fid] = {'quantity': qty, 'unit': unit}
+        qty, unit = await get_production_for_period(
+            fid, 
+            request.reporting_period_start, 
+            request.reporting_period_end,
+            org_id
+        )
+        if qty and unit:
+            facility_production_data[fid] = {'quantity': qty, 'unit': unit}
     
     # Generate report - pass backend URL for internal file access
     generator = GHGReportGenerator(backend_base_url='http://localhost:8001')

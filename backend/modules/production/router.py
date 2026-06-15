@@ -178,14 +178,6 @@ async def get_production_for_report(
         qty = record.get("quantity", 0)
         rec_unit = record.get("unit", "")
         
-        if unit is None:
-            unit = rec_unit
-        
-        # Check if units match (warn if not)
-        if rec_unit != unit:
-            # Skip records with different units for now
-            continue
-        
         # Parse the production record period
         overlap_months = 0
         total_period_months = 1
@@ -224,6 +216,9 @@ async def get_production_for_report(
             proportion = overlap_months / total_period_months
             proportioned_qty = qty * proportion
             aggregated_qty += proportioned_qty
+            # Capture unit from the first overlapping record
+            if unit is None:
+                unit = rec_unit
             records_used.append({
                 "id": record.get("id"),
                 "period": period,
@@ -231,7 +226,8 @@ async def get_production_for_report(
                 "proportioned_qty": round(proportioned_qty, 4),
                 "overlap_months": overlap_months,
                 "total_months": total_period_months,
-                "proportion": round(proportion, 4)
+                "proportion": round(proportion, 4),
+                "unit": rec_unit
             })
     
     return {
