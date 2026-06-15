@@ -365,7 +365,7 @@ export default function ProductionQuantityModal({
 
               {/* Year */}
               <div className="space-y-2">
-                <Label>Year *</Label>
+                <Label>{periodType === 'fy' ? 'Financial Year *' : periodType === 'cy' ? 'Calendar Year *' : 'Year *'}</Label>
                 <Select
                   value={periodYear.toString()}
                   onValueChange={(val) => setPeriodYear(parseInt(val))}
@@ -376,7 +376,9 @@ export default function ProductionQuantityModal({
                   </SelectTrigger>
                   <SelectContent>
                     {years.map(y => (
-                      <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
+                      <SelectItem key={y} value={y.toString()}>
+                        {periodType === 'fy' ? `${y}-${y + 1}` : y}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
