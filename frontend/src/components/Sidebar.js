@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
-import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Building, UserCog, Flame, Globe, User, Calculator, Layers, Database, Ruler, Settings2, TreeDeciduous, Thermometer, FileCode2, CalendarClock, FolderTree, Beaker, Variable, Code2, GitFork, Scale, FormInput, Link2, ChevronDown, ChevronRight, FlaskConical, HardDrive, History, FileSpreadsheet, Upload, DollarSign, ClipboardCheck } from 'lucide-react';
+import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Building, UserCog, Flame, Globe, User, Calculator, Layers, Database, Ruler, Settings2, TreeDeciduous, Thermometer, FileCode2, CalendarClock, FolderTree, Beaker, Variable, Code2, GitFork, Scale, FormInput, Link2, ChevronDown, ChevronRight, FlaskConical, HardDrive, History, FileSpreadsheet, Upload, DollarSign, ClipboardCheck, Leaf } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -13,7 +13,12 @@ export default function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout, getAuthHeader } = useAuth();
-  const [expandedMenus, setExpandedMenus] = useState({ ghgCalc: true, ghgData: true, ghg: true });
+  const [expandedMenus, setExpandedMenus] = useState({ 
+    ghgCalc: false, 
+    ghgData: false, 
+    ghg: true,
+    superAdminGhg: true,  // Parent GHG menu for super admin
+  });
   const [enabledAccess, setEnabledAccess] = useState([]);
   const [approvalEnabled, setApprovalEnabled] = useState(false);
 
@@ -44,7 +49,7 @@ export default function Sidebar() {
     navigate('/login');
   };
 
-  // GHG Data sub-module items
+  // GHG Data sub-module items (for Super Admin)
   const ghgDataItems = [
     { path: '/super-admin/fuel-database', label: 'Fuel Database', icon: Database },
     { path: '/super-admin/scope3-ef', label: 'Scope 3 EF', icon: FileSpreadsheet },
@@ -54,7 +59,7 @@ export default function Sidebar() {
     { path: '/super-admin/currency-conversion', label: 'Currency Conversion', icon: DollarSign },
   ];
 
-  // GHG Emissions Calculations sub-module items
+  // GHG Emissions Calculations sub-module items (for Super Admin)
   const ghgCalcItems = [
     { path: '/super-admin/variable-registry', label: 'Variable Registry', icon: Variable },
     { path: '/super-admin/property-sources', label: 'Property Sources', icon: Link2 },
@@ -64,15 +69,17 @@ export default function Sidebar() {
     { path: '/super-admin/calc-sandbox', label: 'Calculation Sandbox', icon: Beaker },
   ];
 
-  // Check if any module item is active
+  // Check if any GHG module item is active (for Super Admin)
   const isGhgDataActive = ghgDataItems.some(item => location.pathname === item.path);
   const isGhgCalcActive = ghgCalcItems.some(item => location.pathname === item.path);
+  const isScopesCategoriesActive = location.pathname === '/super-admin/scopes-categories';
+  const isSuperAdminGhgActive = isGhgDataActive || isGhgCalcActive || isScopesCategoriesActive;
 
-  const superAdminItems = [
+  // Super Admin base items (without GHG-related items)
+  const superAdminBaseItems = [
     { path: '/super-admin', label: 'Super Dashboard', icon: Globe },
     { path: '/super-admin/organizations', label: 'Organizations', icon: Building },
     { path: '/super-admin/admins', label: 'Admins', icon: UserCog },
-    { path: '/super-admin/scopes-categories', label: 'Scopes & Categories', icon: FolderTree },
     { path: '/super-admin/sectors', label: 'Sectors', icon: Layers },
   ];
 
@@ -80,7 +87,7 @@ export default function Sidebar() {
   const hasScope12 = enabledAccess.includes('scope1_2') || enabledAccess.includes('scope1_2_3');
   const hasScope123 = enabledAccess.includes('scope1_2_3');
 
-  // GHG Emissions sub-menu items (per-org filtered).
+  // GHG Emissions sub-menu items (per-org filtered for Admin/User).
   const ghgEmissionsItems = [
     hasScope12 && { path: '/ghg/scope1', label: 'Scope 1', icon: Gauge },
     hasScope12 && { path: '/ghg/scope2', label: 'Scope 2', icon: Gauge },
@@ -118,8 +125,37 @@ export default function Sidebar() {
     { path: '/reports', label: 'Reports', icon: FileText },
   ];
 
-  const navItems = user?.role === 'super_admin' ? superAdminItems : 
+  const navItems = user?.role === 'super_admin' ? superAdminBaseItems : 
                    user?.role === 'admin' ? adminItems : userItems;
+
+  // Render nested sub-menu for GHG Data or GHG Calculation
+  const renderNestedSubMenu = (items, menuKey, borderColor) => {
+    const isExpanded = expandedMenus[menuKey];
+    return (
+      <div className="ml-4 mt-1 space-y-1">
+        {items.map((item) => {
+          const Icon = item.icon;
+          const isActive = location.pathname === item.path;
+          
+          return (
+            <Link
+              key={item.path}
+              to={item.path}
+              data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+              className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-sm ${
+                isActive
+                  ? 'bg-primary text-white'
+                  : 'text-text-secondary hover:bg-stone-50'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              <span className="font-medium">{item.label}</span>
+            </Link>
+          );
+        })}
+      </div>
+    );
+  };
 
   return (
     <aside className="w-64 bg-white border-r border-stone-200 flex flex-col h-screen sticky top-0">
@@ -128,7 +164,7 @@ export default function Sidebar() {
           <img src={LOGO_URL} alt="SustainRepo Logo" className="w-10 h-10 rounded-lg" />
           <div>
             <h1 className="text-xl font-heading font-bold text-text-primary">SustainRepo</h1>
-            <p className="text-xs text-text-muted">GHG Platform</p>
+            <p className="text-xs text-text-muted">ESG Platform</p>
           </div>
         </div>
       </div>
@@ -137,7 +173,7 @@ export default function Sidebar() {
         {user?.role === 'super_admin' && (
           <>
             {/* Regular super admin items */}
-            {superAdminItems.map((item) => {
+            {superAdminBaseItems.map((item) => {
               const Icon = item.icon;
               const isActive = location.pathname === item.path;
               
@@ -158,96 +194,91 @@ export default function Sidebar() {
               );
             })}
 
-            {/* GHG Data Module - Collapsible */}
+            {/* GHG Parent Module - Collapsible */}
             <div className="pt-2">
               <button
-                onClick={() => toggleMenu('ghgData')}
+                onClick={() => toggleMenu('superAdminGhg')}
+                data-testid="nav-ghg-module"
                 className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-all ${
-                  isGhgDataActive
-                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                    : 'text-text-secondary hover:bg-stone-50'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <HardDrive className="w-5 h-5" />
-                  <span className="font-medium">GHG Data</span>
-                </div>
-                {expandedMenus.ghgData ? (
-                  <ChevronDown className="w-4 h-4" />
-                ) : (
-                  <ChevronRight className="w-4 h-4" />
-                )}
-              </button>
-              
-              {expandedMenus.ghgData && (
-                <div className="ml-4 mt-1 space-y-1 border-l-2 border-blue-200 pl-2">
-                  {ghgDataItems.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = location.pathname === item.path;
-                    
-                    return (
-                      <Link
-                        key={item.path}
-                        to={item.path}
-                        data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-sm ${
-                          isActive
-                            ? 'bg-primary text-white'
-                            : 'text-text-secondary hover:bg-stone-50'
-                        }`}
-                      >
-                        <Icon className="w-4 h-4" />
-                        <span className="font-medium">{item.label}</span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* GHG Emissions Calculations Module - Collapsible */}
-            <div className="pt-2">
-              <button
-                onClick={() => toggleMenu('ghgCalc')}
-                className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-all ${
-                  isGhgCalcActive
+                  isSuperAdminGhgActive
                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                     : 'text-text-secondary hover:bg-stone-50'
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <FlaskConical className="w-5 h-5" />
-                  <span className="font-medium">GHG Calculations</span>
+                  <Leaf className="w-5 h-5" />
+                  <span className="font-medium">GHG</span>
                 </div>
-                {expandedMenus.ghgCalc ? (
+                {expandedMenus.superAdminGhg ? (
                   <ChevronDown className="w-4 h-4" />
                 ) : (
                   <ChevronRight className="w-4 h-4" />
                 )}
               </button>
               
-              {expandedMenus.ghgCalc && (
+              {expandedMenus.superAdminGhg && (
                 <div className="ml-4 mt-1 space-y-1 border-l-2 border-emerald-200 pl-2">
-                  {ghgCalcItems.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = location.pathname === item.path;
+                  {/* Scopes & Categories - Direct Link */}
+                  <Link
+                    to="/super-admin/scopes-categories"
+                    data-testid="nav-scopes-categories"
+                    className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-sm ${
+                      isScopesCategoriesActive
+                        ? 'bg-primary text-white'
+                        : 'text-text-secondary hover:bg-stone-50'
+                    }`}
+                  >
+                    <FolderTree className="w-4 h-4" />
+                    <span className="font-medium">Scopes & Categories</span>
+                  </Link>
+
+                  {/* GHG Data - Nested Collapsible */}
+                  <div>
+                    <button
+                      onClick={() => toggleMenu('ghgData')}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all text-sm ${
+                        isGhgDataActive
+                          ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                          : 'text-text-secondary hover:bg-stone-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <HardDrive className="w-4 h-4" />
+                        <span className="font-medium">GHG Data</span>
+                      </div>
+                      {expandedMenus.ghgData ? (
+                        <ChevronDown className="w-3 h-3" />
+                      ) : (
+                        <ChevronRight className="w-3 h-3" />
+                      )}
+                    </button>
                     
-                    return (
-                      <Link
-                        key={item.path}
-                        to={item.path}
-                        data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-sm ${
-                          isActive
-                            ? 'bg-primary text-white'
-                            : 'text-text-secondary hover:bg-stone-50'
-                        }`}
-                      >
-                        <Icon className="w-4 h-4" />
-                        <span className="font-medium">{item.label}</span>
-                      </Link>
-                    );
-                  })}
+                    {expandedMenus.ghgData && renderNestedSubMenu(ghgDataItems, 'ghgData', 'border-blue-200')}
+                  </div>
+
+                  {/* GHG Calculation - Nested Collapsible */}
+                  <div>
+                    <button
+                      onClick={() => toggleMenu('ghgCalc')}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all text-sm ${
+                        isGhgCalcActive
+                          ? 'bg-violet-50 text-violet-700 border border-violet-200'
+                          : 'text-text-secondary hover:bg-stone-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <FlaskConical className="w-4 h-4" />
+                        <span className="font-medium">GHG Calculation</span>
+                      </div>
+                      {expandedMenus.ghgCalc ? (
+                        <ChevronDown className="w-3 h-3" />
+                      ) : (
+                        <ChevronRight className="w-3 h-3" />
+                      )}
+                    </button>
+                    
+                    {expandedMenus.ghgCalc && renderNestedSubMenu(ghgCalcItems, 'ghgCalc', 'border-violet-200')}
+                  </div>
                 </div>
               )}
             </div>

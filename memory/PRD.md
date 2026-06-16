@@ -113,6 +113,29 @@ Multi-tenant ESG (Environmental, Social, Governance) management platform. Origin
 
 - **ESG Platform Evolution**: Forked the GHG platform to evolve into a comprehensive ESG management platform while preserving all existing GHG functionality.
 
+- **Frontend Navigation Update (Sidebar.js)**:
+  - Updated branding from "GHG Platform" to "ESG Platform"
+  - Consolidated Super Admin GHG sections under single "GHG" parent menu:
+    ```
+    GHG (parent, collapsible)
+    ├── Scopes & Categories (direct link)
+    ├── GHG Data (nested collapsible)
+    │   ├── Fuel Database
+    │   ├── Scope 3 EF
+    │   ├── Units
+    │   ├── Calc Engine Units
+    │   ├── GWP Config
+    │   └── Currency Conversion
+    └── GHG Calculation (nested collapsible)
+        ├── Variable Registry
+        ├── Property Sources
+        ├── Formula Builder
+        ├── Decision Trees
+        ├── Input Field Mapping
+        └── Calculation Sandbox
+    ```
+  - Admin/User navigation unchanged (GHG Emissions with Scope 1, 2, 3, Biogenic)
+
 - **Core Platform Layer** (`/app/backend/core_platform/`):
   - Created `core_platform/` directory with re-exports for cross-cutting services
   - `auth/` - Re-exports authentication infrastructure
