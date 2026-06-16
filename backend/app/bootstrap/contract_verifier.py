@@ -49,6 +49,20 @@ _REQUIRED_MODULES: List[str] = [
     "jobs",
     "events",
     "events.event_bus",
+    # ESG Platform Extension - Phase 1
+    "modules.esg",
+    "modules.esg_users",
+    "modules.frameworks",
+    "modules.environment",
+    "modules.environment.ghg",
+    "modules.social",
+    "modules.governance",
+    "modules.compliance",
+    "core_platform.auth",
+    "core_platform.users",
+    "core_platform.organizations",
+    "core_platform.approvals",
+    "core_platform.audit_logs",
 ]
 
 

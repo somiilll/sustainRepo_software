@@ -93,6 +93,16 @@ from modules.approvals.router_v2 import router as approvals_router
 from modules.targets.router import router as targets_router
 from modules.production.router import router as production_router
 
+# ============================================================================
+# ESG Platform Extension - Phase 1
+# ----------------------------------------------------------------------------
+# New modular ESG architecture supporting multiple frameworks (BRSR, GRI, SBTi)
+# and separate user management via users_esg collection.
+# ============================================================================
+from modules.esg.router import router as esg_config_router
+from modules.esg_users.router import router as esg_users_router
+from modules.frameworks.router import router as frameworks_router
+
 # Set Playwright browsers path BEFORE any playwright imports
 os.environ['PLAYWRIGHT_BROWSERS_PATH'] = '/app/.playwright'
 
@@ -130,6 +140,16 @@ api_router.include_router(targets_router)
 
 # Production quantity module (for Carbon Intensity calculations)
 api_router.include_router(production_router)
+
+# ============================================================================
+# ESG Platform Extension Routers
+# ----------------------------------------------------------------------------
+# ESG organization configuration (Super Admin only)
+api_router.include_router(esg_config_router)
+# ESG user management (uses users_esg collection)
+api_router.include_router(esg_users_router)
+# ESG frameworks (BRSR, GRI, SBTi)
+api_router.include_router(frameworks_router)
 
 # Run module contract verifier at import time. Phase B1: log-only, will be
 # escalated to fail-fast in dev once all modules expose their contracts.

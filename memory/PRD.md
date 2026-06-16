@@ -1,18 +1,100 @@
-# SustainRepo - GHG Calculation Platform PRD
+# SustainRepo - ESG Management Platform PRD
 
 ## Original Problem Statement
-Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-1:2018. Features include:
+Multi-tenant ESG (Environmental, Social, Governance) management platform. Originally built as a GHG calculation platform compliant with ISO 14064-1:2018, now evolving into a comprehensive ESG platform.
+
+**Current Capabilities (GHG Module):**
 - Dynamic GHG calculations with centralized CalcEngine
 - Premium ESG Analytics Dashboard
 - ISO-compliant DOCX report generation for Scope 1, 2, and 3
 - Robust Scope 3 Bulk Upload
 - Comprehensive Base Year tracking module
 
+**Platform Evolution (June 2026):**
+- Modular ESG architecture supporting multiple frameworks (BRSR, GRI, SBTi)
+- Pluggable framework registry for future ESG reporting standards
+- Separate user management (`users_esg` collection) for ESG platform
+- Organization-level ESG configuration
+
 ## Core Architecture
 - **Frontend**: React, Tailwind CSS, Shadcn/UI
 - **Backend**: FastAPI, Motor async driver, Pydantic
 - **Database**: MongoDB
 - **Key Pattern**: Centralized `CalcEngine` with dynamic property resolution
+- **ESG Pattern**: Pluggable framework registry with organization-level configuration
+
+## ESG Platform Architecture (NEW - June 2026)
+
+### Backend Structure
+```
+/app/backend/
+├── core_platform/              # Cross-cutting platform services
+│   ├── auth/                   # Re-exports from modules/auth
+│   ├── users/                  # Abstract user repository (configurable collection)
+│   ├── organizations/          # Re-exports from modules/organizations
+│   ├── approvals/              # Approval workflow engine
+│   ├── notifications/          # Future: notification system
+│   └── audit_logs/             # Audit logging infrastructure
+│
+├── modules/
+│   ├── esg/                    # ESG organization configuration
+│   │   ├── contracts.py        # ESGOrgConfig Pydantic models
+│   │   ├── service.py          # ESGConfigService
+│   │   └── router.py           # /api/esg/* endpoints
+│   │
+│   ├── esg_users/              # ESG user management (users_esg collection)
+│   │   ├── contracts.py        # ESGUser Pydantic models
+│   │   ├── service.py          # ESGUserService
+│   │   └── router.py           # /api/esg-users/* endpoints
+│   │
+│   ├── frameworks/             # ESG reporting frameworks
+│   │   ├── registry.py         # FrameworkRegistry (pluggable architecture)
+│   │   ├── router.py           # /api/frameworks/* endpoints
+│   │   └── implementations/
+│   │       ├── brsr/           # BRSR framework (Available)
+│   │       ├── gri/            # GRI framework (Coming Soon)
+│   │       └── sbti/           # SBTi framework (Coming Soon)
+│   │
+│   ├── environment/            # Environmental ESG domain
+│   │   └── ghg/                # GHG module (existing functionality)
+│   │       ├── scopes/         # Scope 1, 2, 3 emissions
+│   │       ├── calculations/   # CalcEngine
+│   │       ├── data/           # Fuel DB, EFs, Units, GWP
+│   │       └── reports/        # GHG reports
+│   │
+│   ├── social/                 # Social ESG domain (Future)
+│   ├── governance/             # Governance ESG domain (Future)
+│   └── compliance/             # Compliance ESG domain (Future)
+```
+
+### New API Endpoints
+- `GET /api/frameworks` - List all registered ESG frameworks
+- `GET /api/frameworks/available` - List available frameworks
+- `GET /api/frameworks/{id}` - Get framework details
+- `GET /api/esg/org-config/{org_id}` - Get ESG config for org (Super Admin)
+- `POST /api/esg/org-config` - Create ESG config (Super Admin)
+- `PUT /api/esg/org-config/{org_id}` - Update ESG config (Super Admin)
+- `GET /api/esg-users` - List all ESG users (Super Admin)
+- `POST /api/esg-users` - Create ESG user (Super Admin)
+- `PUT /api/esg-users/{id}` - Update ESG user (Super Admin)
+
+### New MongoDB Collections
+- `esg_org_configs` - Organization-level ESG settings
+- `users_esg` - ESG platform users (separate from legacy `users`)
+
+### ESG Configuration Schema
+```json
+{
+  "id": "uuid",
+  "org_id": "org_123",
+  "enabled_scopes": ["scope_1", "scope_2", "scope_3"],
+  "approval_workflow_enabled": true,
+  "enabled_frameworks": ["BRSR"],
+  "enabled_modules": ["ghg"],
+  "created_at": "ISO8601",
+  "updated_at": "ISO8601"
+}
+```
 
 ## Key Files
 - `/app/backend/server.py` - Main API (~10,000+ lines, needs refactoring)
@@ -24,6 +106,67 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 - `/app/frontend/src/pages/Sinks.js` - GHG Sinks module with Monthly/Yearly data entry
 
 ## What's Been Implemented
+
+### June 2026 Session — ESG Platform Architecture Phase 1 COMPLETE
+
+**June 16, 2026 — ESG Platform Backend Foundation**
+
+- **ESG Platform Evolution**: Forked the GHG platform to evolve into a comprehensive ESG management platform while preserving all existing GHG functionality.
+
+- **Core Platform Layer** (`/app/backend/core_platform/`):
+  - Created `core_platform/` directory with re-exports for cross-cutting services
+  - `auth/` - Re-exports authentication infrastructure
+  - `users/` - Abstract user repository supporting configurable collections
+  - `organizations/` - Organization management
+  - `approvals/` - Approval workflow engine
+  - `audit_logs/` - Audit logging infrastructure
+  - `notifications/` - Placeholder for future notification system
+
+- **ESG Configuration Module** (`/app/backend/modules/esg/`):
+  - `contracts.py` - ESGOrgConfig Pydantic models with validation
+  - `service.py` - ESGConfigService for CRUD operations on `esg_org_configs` collection
+  - `router.py` - Super Admin endpoints for managing org-level ESG settings
+  - Supports: enabled_scopes, approval_workflow, enabled_frameworks, enabled_modules
+
+- **ESG Users Module** (`/app/backend/modules/esg_users/`):
+  - Separate `users_esg` MongoDB collection (not migrating existing users)
+  - `contracts.py` - ESGUser Pydantic models
+  - `service.py` - ESGUserService using AbstractUserRepository
+  - `router.py` - Super Admin endpoints for ESG user management
+  - Full CRUD + facility assignment + authentication
+
+- **Pluggable Framework Registry** (`/app/backend/modules/frameworks/`):
+  - `registry.py` - FrameworkRegistry class with register/get/list methods
+  - Pre-registered frameworks:
+    - **BRSR** (Available) - SEBI mandated, India
+    - **GRI** (Coming Soon) - Global standards
+    - **SBTi** (Coming Soon) - Science-based targets
+  - `router.py` - Read-only endpoints to list/get framework info
+  - `implementations/brsr/config.py` - BRSR disclosure mappings (Principle 6 Environmental)
+
+- **Environment Module Structure** (`/app/backend/modules/environment/ghg/`):
+  - Created parent `environment/` module for Environmental ESG domain
+  - `ghg/` sub-module with placeholders for:
+    - `scopes/` - Scope 1, 2, 3 emissions
+    - `calculations/` - CalcEngine
+    - `data/` - Fuel DB, EFs, Units, GWP
+    - `reports/` - GHG reports
+
+- **Future Domain Placeholders**:
+  - `modules/social/` - Social ESG domain
+  - `modules/governance/` - Governance ESG domain
+  - `modules/compliance/` - Compliance ESG domain
+
+- **Contract Verifier Extended**: Now verifies 35 modules including all new ESG modules
+
+- **Backward Compatibility**: All existing GHG functionality preserved and verified working
+
+**Verified via API testing:**
+- `GET /api/frameworks` - Returns 3 frameworks (BRSR available, GRI/SBTi coming soon)
+- `POST /api/esg/org-config` - Creates org ESG config successfully
+- `POST /api/esg-users` - Creates ESG users in `users_esg` collection
+- `GET /api/dashboard/stats` - Existing GHG dashboard still returns correct data (110620.13 tCO₂e)
+- `GET /api/health/contracts` - 35/35 modules pass verification
 
 ### Feb 2026 Session — Emissions.js Modularization E1+E2+E3 COMPLETE
 
