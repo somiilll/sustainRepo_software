@@ -109,7 +109,7 @@ async def soft_delete_organization(org_id: str, current_user: dict = Depends(get
     )
     
     # Mark all users of this organization as inactive (prevents login)
-    await db.users.update_many(
+    await db.users_esg.update_many(
         {"organization_id": org_id},
         {"$set": {"is_active": False}}
     )
@@ -148,7 +148,7 @@ async def reactivate_organization(org_id: str, current_user: dict = Depends(get_
     )
     
     # Reactivate all users of this organization
-    await db.users.update_many(
+    await db.users_esg.update_many(
         {"organization_id": org_id},
         {"$set": {"is_active": True}}
     )
@@ -421,7 +421,7 @@ async def create_admin(
     organization_id: str,
     current_user: dict = Depends(get_super_admin_user)
 ):
-    existing = await db.users.find_one({"email": email, "is_deleted": {"$ne": True}}, {"_id": 0})
+    existing = await db.users_esg.find_one({"email": email, "is_deleted": {"$ne": True}}, {"_id": 0})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
     
@@ -431,7 +431,7 @@ async def create_admin(
     
     # Check max_admins limit
     max_admins = org.get("max_admins", 5)
-    current_admin_count = await db.users.count_documents({
+    current_admin_count = await db.users_esg.count_documents({
         "organization_id": organization_id,
         "role": "admin",
         "is_deleted": {"$ne": True}
@@ -456,7 +456,7 @@ async def create_admin(
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     
-    await db.users.insert_one(admin_dict)
+    await db.users_esg.insert_one(admin_dict)
     
     # Get frontend URL
     frontend_url = os.environ.get('FRONTEND_URL', 'https://carbon-intensity.preview.emergentagent.com')
@@ -550,7 +550,7 @@ async def create_admin(
 # Super Admin - Get all admins
 @router.get("/super-admin/admins")
 async def get_all_admins(current_user: dict = Depends(get_super_admin_user)):
-    admins = await db.users.find({"role": "admin"}, {"_id": 0, "password_hash": 0}).to_list(1000)
+    admins = await db.users_esg.find({"role": "admin"}, {"_id": 0, "password_hash": 0}).to_list(1000)
     return [UserResponse(**a) for a in admins]
 
 # Super Admin - Delete admin
@@ -558,12 +558,12 @@ async def get_all_admins(current_user: dict = Depends(get_super_admin_user)):
 # Super Admin - Delete admin
 @router.delete("/super-admin/admins/{admin_id}")
 async def delete_admin(admin_id: str, current_user: dict = Depends(get_super_admin_user)):
-    admin = await db.users.find_one({"id": admin_id, "role": "admin"}, {"_id": 0})
+    admin = await db.users_esg.find_one({"id": admin_id, "role": "admin"}, {"_id": 0})
     if not admin:
         raise HTTPException(status_code=404, detail="Admin not found")
     
     # Delete the admin user
-    result = await db.users.delete_one({"id": admin_id})
+    result = await db.users_esg.delete_one({"id": admin_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Admin not found")
     

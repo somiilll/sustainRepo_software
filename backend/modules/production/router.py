@@ -32,7 +32,7 @@ async def _get_user_name(user_id: str) -> Optional[str]:
     """Helper to get user's full name."""
     if not user_id:
         return None
-    user = await db.users.find_one({"id": user_id}, {"_id": 0, "full_name": 1})
+    user = await db.users_esg.find_one({"id": user_id}, {"_id": 0, "full_name": 1})
     return user.get("full_name") if user else None
 
 

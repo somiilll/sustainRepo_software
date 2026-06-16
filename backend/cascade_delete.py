@@ -144,7 +144,7 @@ async def cascade_delete_organization(db, r2, org_id: str) -> dict:
 
     sinks = await db.sinks.find(child_query, {"_id": 0}).to_list(100000)
 
-    users = await db.users.find({"organization_id": org_id}, {"_id": 0}).to_list(10000)
+    users = await db.users_esg.find({"organization_id": org_id}, {"_id": 0}).to_list(10000)
     user_ids = [u["id"] for u in users if u.get("id")]
 
     # 2. Harvest all file ids referenced by documents being deleted
@@ -197,7 +197,7 @@ async def cascade_delete_organization(db, r2, org_id: str) -> dict:
         ).deleted_count
 
     users_deleted = (
-        await db.users.delete_many({"organization_id": org_id})
+        await db.users_esg.delete_many({"organization_id": org_id})
     ).deleted_count
 
     # 5. Finally delete the organization itself

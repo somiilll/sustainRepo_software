@@ -687,7 +687,7 @@ async def get_emission_records(
 
     user_map = {}
     if user_ids:
-        users = await db.users.find(
+        users = await db.users_esg.find(
             {"id": {"$in": list(user_ids)}},
             {"_id": 0, "id": 1, "full_name": 1, "email": 1},
         ).to_list(1000)
@@ -782,7 +782,7 @@ async def get_emission_history(record_id: str, current_user: dict = Depends(get_
     for entry in rows:
         # Backfill display names if missing.
         if entry.get("changed_by") and not entry.get("changed_by_email"):
-            user = await db.users.find_one(
+            user = await db.users_esg.find_one(
                 {"id": entry["changed_by"]},
                 {"_id": 0, "email": 1, "full_name": 1},
             )

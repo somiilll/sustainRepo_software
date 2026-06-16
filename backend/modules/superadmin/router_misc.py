@@ -59,7 +59,7 @@ async def get_super_admin_dashboard(current_user: dict = Depends(get_super_admin
     # Include all orgs (active and inactive) for dashboard view
     orgs = await db.organizations.find({}, {"_id": 0}).to_list(1000)
     all_facilities = await db.facilities.find({}, {"_id": 0}).to_list(10000)
-    all_users = await db.users.find({"role": {"$in": ["admin", "user"]}}, {"_id": 0}).to_list(10000)
+    all_users = await db.users_esg.find({"role": {"$in": ["admin", "user"]}}, {"_id": 0}).to_list(10000)
     
     org_stats = []
     total_admins = 0

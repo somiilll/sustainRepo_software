@@ -74,13 +74,17 @@ Multi-tenant ESG (Environmental, Social, Governance) management platform. Origin
 - `GET /api/esg/org-config/{org_id}` - Get ESG config for org (Super Admin)
 - `POST /api/esg/org-config` - Create ESG config (Super Admin)
 - `PUT /api/esg/org-config/{org_id}` - Update ESG config (Super Admin)
-- `GET /api/esg-users` - List all ESG users (Super Admin)
-- `POST /api/esg-users` - Create ESG user (Super Admin)
-- `PUT /api/esg-users/{id}` - Update ESG user (Super Admin)
+- `GET /api/super-admin/organizations/{org_id}/esg-frameworks` - Get org frameworks
+- `PUT /api/super-admin/organizations/{org_id}/esg-frameworks` - Update org frameworks
 
 ### New MongoDB Collections
 - `esg_org_configs` - Organization-level ESG settings
-- `users_esg` - ESG platform users (separate from legacy `users`)
+
+### Authentication Change (ESG Fork)
+- **ALL authentication now uses `users_esg` collection**
+- Legacy `users` collection is NO LONGER used for login
+- ESG Super Admin: `esg-superadmin@sustainrepo.com` / `ESGAdmin123!`
+- Seed script: `/app/backend/seed_esg_superadmin.py`
 
 ### ESG Configuration Schema
 ```json
@@ -135,6 +139,14 @@ Multi-tenant ESG (Environmental, Social, Governance) management platform. Origin
         └── Calculation Sandbox
     ```
   - Admin/User navigation unchanged (GHG Emissions with Scope 1, 2, 3, Biogenic)
+
+- **ESG Authentication Migration**:
+  - Replaced ALL `db.users` references with `db.users_esg` across the entire backend
+  - Updated modules: auth, users, superadmin, emissions, dashboards, production, cascade_delete
+  - Updated repositories: users_repository.py
+  - Created ESG Super Admin seed script (`/app/backend/seed_esg_superadmin.py`)
+  - Legacy credentials from `users` collection NO LONGER work
+  - ESG Super Admin: `esg-superadmin@sustainrepo.com` / `ESGAdmin123!`
 
 - **ESG Frameworks Selection UI**:
   - Added `esg_frameworks_enabled` field to Organization model (supports multiple values)

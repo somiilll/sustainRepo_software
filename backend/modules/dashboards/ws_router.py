@@ -151,7 +151,7 @@ async def _authenticate(token: Optional[str]) -> Optional[Dict[str, Any]]:
     user_id = payload.get("sub")
     if not user_id:
         return None
-    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    user = await db.users_esg.find_one({"id": user_id}, {"_id": 0})
     if not user or user.get("deleted_at"):
         return None
     if user.get("status") and user.get("status") != "active":

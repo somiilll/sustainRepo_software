@@ -51,7 +51,6 @@ _REQUIRED_MODULES: List[str] = [
     "events.event_bus",
     # ESG Platform Extension - Phase 1
     "modules.esg",
-    "modules.esg_users",
     "modules.frameworks",
     "modules.environment",
     "modules.environment.ghg",
