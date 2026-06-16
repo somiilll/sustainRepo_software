@@ -4,6 +4,10 @@ from typing import List, Optional
 from pydantic import BaseModel, ConfigDict, field_validator
 
 
+# Valid ESG frameworks
+VALID_ESG_FRAMEWORKS = ["BRSR", "GRI", "SBTi"]
+
+
 class OrganizationCreate(BaseModel):
     name: str
     logo: Optional[str] = None
@@ -59,6 +63,9 @@ class OrganizationCreate(BaseModel):
     # Approval workflow (per-org opt-in extension).
     approval_workflow_enabled: Optional[bool] = False
 
+    # ESG Frameworks enabled for this organization (BRSR, GRI, SBTi)
+    esg_frameworks_enabled: Optional[List[str]] = None
+
     @field_validator('pincode')
     @classmethod
     def validate_pincode(cls, v):
@@ -66,6 +73,15 @@ class OrganizationCreate(BaseModel):
             v = v.strip()
             if not v.isdigit() or len(v) != 6:
                 raise ValueError('Pincode must be exactly 6 digits')
+        return v
+
+    @field_validator('esg_frameworks_enabled')
+    @classmethod
+    def validate_esg_frameworks(cls, v):
+        if v is not None:
+            invalid = [f for f in v if f not in VALID_ESG_FRAMEWORKS]
+            if invalid:
+                raise ValueError(f'Invalid ESG frameworks: {invalid}. Valid values: {VALID_ESG_FRAMEWORKS}')
         return v
 
 
@@ -129,4 +145,7 @@ class OrganizationResponse(BaseModel):
 
     # Approval workflow (per-org opt-in extension; super-admin controlled).
     approval_workflow_enabled: Optional[bool] = False
+
+    # ESG Frameworks enabled for this organization (BRSR, GRI, SBTi)
+    esg_frameworks_enabled: Optional[List[str]] = None
 

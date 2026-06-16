@@ -89,6 +89,7 @@ async def get_super_admin_dashboard(current_user: dict = Depends(get_super_admin
             "selected_plan": org.get("selected_plan"),
             "country": org.get("country"),
             "date_of_joining": org.get("date_of_joining"),
+            "esg_frameworks_enabled": org.get("esg_frameworks_enabled", []),
         })
     
     return {

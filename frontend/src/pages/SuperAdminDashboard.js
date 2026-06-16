@@ -34,7 +34,9 @@ import {
   ChevronDown,
   ChevronRight,
   Loader2,
+  FileText,
 } from 'lucide-react';
+import ESGFrameworksDialog from '../components/ESGFrameworksDialog';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -123,6 +125,15 @@ export default function SuperAdminDashboard() {
   const [loadingStats, setLoadingStats] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState({});
   
+  // ESG Frameworks Dialog
+  const [esgFrameworksDialogOpen, setEsgFrameworksDialogOpen] = useState(false);
+  const [selectedOrgForFrameworks, setSelectedOrgForFrameworks] = useState(null);
+  
+  const openFrameworksDialog = (org) => {
+    setSelectedOrgForFrameworks(org);
+    setEsgFrameworksDialogOpen(true);
+  };
+  
   const fetchScope3BiogenicStats = async (org) => {
     setSelectedOrgForStats(org);
     setStatsDialogOpen(true);
@@ -149,24 +160,26 @@ export default function SuperAdminDashboard() {
     }));
   };
 
+  const fetchDashboardData = async () => {
+    try {
+      const res = await axios.get(`${API}/super-admin/dashboard`, { headers: getAuthHeader() });
+      setStats(res.data);
+    } catch (e) {
+      if (e.response?.status !== 404) console.error('Dashboard fetch error:', e);
+      setStats({
+        total_organizations: 0,
+        total_facilities: 0,
+        total_admins: 0,
+        total_users: 0,
+        organization_stats: [],
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    (async () => {
-      try {
-        const res = await axios.get(`${API}/super-admin/dashboard`, { headers: getAuthHeader() });
-        setStats(res.data);
-      } catch (e) {
-        if (e.response?.status !== 404) console.error('Dashboard fetch error:', e);
-        setStats({
-          total_organizations: 0,
-          total_facilities: 0,
-          total_admins: 0,
-          total_users: 0,
-          organization_stats: [],
-        });
-      } finally {
-        setLoading(false);
-      }
-    })();
+    fetchDashboardData();
   }, [getAuthHeader]);
 
   // Only keep active (non-deactivated, non-deleted) orgs
@@ -379,6 +392,15 @@ export default function SuperAdminDashboard() {
                   {org.country && (
                     <Badge variant="outline" className="text-xs text-text-muted">{org.country}</Badge>
                   )}
+                  {/* ESG Frameworks Badges */}
+                  {org.esg_frameworks_enabled?.length > 0 && org.esg_frameworks_enabled.map(fw => (
+                    <Badge 
+                      key={fw} 
+                      className="text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-100"
+                    >
+                      {fw}
+                    </Badge>
+                  ))}
                 </div>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -430,7 +452,7 @@ export default function SuperAdminDashboard() {
               </div>
               
               {/* View Scope 3 & Biogenic Stats Button */}
-              <div className="mt-3 pt-3 border-t border-stone-200">
+              <div className="mt-3 pt-3 border-t border-stone-200 flex flex-wrap gap-2">
                 <Button
                   variant="outline"
                   size="sm"
@@ -439,6 +461,16 @@ export default function SuperAdminDashboard() {
                 >
                   <BarChart3 className="w-3.5 h-3.5 mr-1.5" />
                   View Scope 3 & Biogenic Stats
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => openFrameworksDialog(org)}
+                  className="text-xs"
+                  data-testid={`esg-frameworks-btn-${org.organization_id}`}
+                >
+                  <FileText className="w-3.5 h-3.5 mr-1.5" />
+                  ESG Frameworks
                 </Button>
               </div>
               
@@ -622,6 +654,17 @@ export default function SuperAdminDashboard() {
           )}
         </DialogContent>
       </Dialog>
+      
+      {/* ESG Frameworks Dialog */}
+      <ESGFrameworksDialog
+        open={esgFrameworksDialogOpen}
+        onOpenChange={setEsgFrameworksDialogOpen}
+        organization={selectedOrgForFrameworks}
+        onUpdate={() => {
+          // Refresh dashboard data after update
+          fetchDashboardData();
+        }}
+      />
     </div>
   );
 }

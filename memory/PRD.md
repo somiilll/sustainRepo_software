@@ -136,6 +136,21 @@ Multi-tenant ESG (Environmental, Social, Governance) management platform. Origin
     ```
   - Admin/User navigation unchanged (GHG Emissions with Scope 1, 2, 3, Biogenic)
 
+- **ESG Frameworks Selection UI**:
+  - Added `esg_frameworks_enabled` field to Organization model (supports multiple values)
+  - Created API endpoints:
+    - `GET /api/super-admin/organizations/{org_id}/esg-frameworks` - Get org's enabled frameworks
+    - `PUT /api/super-admin/organizations/{org_id}/esg-frameworks` - Update org's enabled frameworks
+  - Created `ESGFrameworksDialog.js` component with:
+    - Checkbox selection for each framework
+    - Framework status indicators (Available/Coming Soon)
+    - Framework descriptions and version info
+    - Save/Cancel functionality
+  - Updated `SuperAdminDashboard.js`:
+    - Added "ESG Frameworks" button on each organization card
+    - Shows green framework badges (e.g., "BRSR") for enabled frameworks
+    - Dashboard refreshes after framework selection updates
+
 - **Core Platform Layer** (`/app/backend/core_platform/`):
   - Created `core_platform/` directory with re-exports for cross-cutting services
   - `auth/` - Re-exports authentication infrastructure

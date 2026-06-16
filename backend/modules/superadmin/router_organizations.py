@@ -569,4 +569,75 @@ async def delete_admin(admin_id: str, current_user: dict = Depends(get_super_adm
     
     return {"message": "Admin deleted successfully"}
 
+
+# Super Admin - ESG Frameworks Management
+@router.put("/super-admin/organizations/{org_id}/esg-frameworks")
+async def update_org_esg_frameworks(
+    org_id: str,
+    frameworks: List[str],
+    current_user: dict = Depends(get_super_admin_user)
+):
+    """Update ESG frameworks enabled for an organization"""
+    from modules.organizations.contracts import VALID_ESG_FRAMEWORKS
+    
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    # Validate frameworks
+    invalid = [f for f in frameworks if f not in VALID_ESG_FRAMEWORKS]
+    if invalid:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid ESG frameworks: {invalid}. Valid values: {VALID_ESG_FRAMEWORKS}"
+        )
+    
+    await db.organizations.update_one(
+        {"id": org_id},
+        {"$set": {"esg_frameworks_enabled": frameworks}}
+    )
+    
+    updated = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+    return {
+        "message": "ESG frameworks updated successfully",
+        "organization_id": org_id,
+        "esg_frameworks_enabled": updated.get("esg_frameworks_enabled", [])
+    }
+
+
+@router.get("/super-admin/organizations/{org_id}/esg-frameworks")
+async def get_org_esg_frameworks(
+    org_id: str,
+    current_user: dict = Depends(get_super_admin_user)
+):
+    """Get ESG frameworks enabled for an organization"""
+    from modules.organizations.contracts import VALID_ESG_FRAMEWORKS
+    from modules.frameworks.registry import framework_registry
+    
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    enabled = org.get("esg_frameworks_enabled", [])
+    
+    # Get all framework details from registry
+    all_frameworks = []
+    for fw in framework_registry.list_all():
+        all_frameworks.append({
+            "id": fw.id,
+            "name": fw.name,
+            "version": fw.version,
+            "description": fw.description,
+            "status": fw.status.value,
+            "enabled": fw.id in enabled
+        })
+    
+    return {
+        "organization_id": org_id,
+        "organization_name": org.get("name"),
+        "esg_frameworks_enabled": enabled,
+        "available_frameworks": all_frameworks
+    }
+
+
 # Super Admin - Emission Factors Management
