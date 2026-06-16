@@ -3022,7 +3022,25 @@ async def get_file_info(file_id: str):
 # Health check
 @api_router.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    """Health check endpoint with MongoDB connectivity verification."""
+    health_status = {
+        "status": "healthy",
+        "services": {
+            "api": "healthy",
+            "mongodb": "unknown"
+        }
+    }
+    
+    try:
+        # Check MongoDB connectivity with ping command
+        await db.command("ping")
+        health_status["services"]["mongodb"] = "healthy"
+    except Exception as e:
+        health_status["status"] = "unhealthy"
+        health_status["services"]["mongodb"] = "unhealthy"
+        health_status["mongodb_error"] = str(e)
+    
+    return health_status
 
 # ----- Audit Trail Endpoints (Admin only) -----
 
