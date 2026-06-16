@@ -814,6 +814,32 @@ Five phases executed end-to-end with **37/37 regression tests PASS** (iteration_
 - P1 Bugs: Scope Change Recalculation, Dashboard "no data" on scope toggle
 - "Apply to all months" autofill for S3C7 Employee Commuting
 
+## Recent Implementation (Jun 2026)
+
+### Production Quantity Management Feature
+- **Backend**: New `production_quantities` and `production_quantity_history` collections
+- **API Endpoints**:
+  - `GET /api/production-quantities` - List all production quantities
+  - `POST /api/production-quantities` - Create new record
+  - `PUT /api/production-quantities/{id}` - Update record
+  - `DELETE /api/production-quantities/{id}` - Soft delete
+  - `GET /api/production-quantities/{id}/history` - Get edit history
+  - `GET /api/production-quantities/for-report` - Get proportional production for report period
+- **Frontend**: Production Quantity button in Reports page top-right, modal with:
+  - Add/Edit/Delete production quantity records
+  - Organization-level and Facility-level support
+  - Monthly (YYYY-MM), FY, and CY period types
+  - Edit history tracking
+  - Level and Facility filtering
+- **Integration**: GHG reports now auto-fetch production quantities from DB when not manually provided
+- **Proportional Allocation**: 
+  - FY/CY records proportionally allocated based on overlap with report period
+  - Monthly records summed when report spans multiple months
+
+### Bug Fixes (Jun 2026)
+- **FY/CY Period Parsing**: Fixed `get_fiscal_year_from_period()` in `server.py` to handle FY and CY formats
+- **Biogenic Scope Display**: `/emission-combinations` endpoint now returns `"Biogenic (Indirect)"` or `"Biogenic (Direct)"` instead of raw `"biogenic"`
+
 ## Future/Backlog (P2)
 - Add Monthly/Yearly frequency indicators
 - CBAM module and report template

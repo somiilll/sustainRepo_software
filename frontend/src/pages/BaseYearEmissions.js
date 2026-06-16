@@ -541,7 +541,6 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
       // If not using oldest year, fetch ALL combinations without year filter
       // This ensures we show all Scope + Category + Subcategory options for user to fill in
       let url = `${API}/base-year-emissions/emission-combinations/${selectedEntity.type}/${selectedEntity.id}`;
-      
       // Build query params
       const params = new URLSearchParams();
       if (year && !forceAllCombinations) {
@@ -1435,8 +1434,8 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
     return (
       <div 
         key={`${entityType}-${entityId}-${scopeGroup}`}
-        className={`p-4 border rounded-lg ${isOrgReadOnly ? '' : 'cursor-pointer hover:shadow-md'} transition-all ${cardBorderColor}`}
-        onClick={() => !isOrgReadOnly && handleEntityClick(entityType, entityId, entityName, scopeGroup)}
+        className={`p-4 border rounded-lg cursor-pointer hover:shadow-md transition-all ${cardBorderColor}`}
+        onClick={() => handleEntityClick(entityType, entityId, entityName, scopeGroup)}
       >
         <div className="flex items-center justify-between mb-2">
           <span className={`text-xs font-medium px-2 py-1 rounded border ${badgeColor}`}>
@@ -2403,8 +2402,12 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                     }`}>
                       {getScopeGroupLabel(viewRecord.scope_group || 'scope12')}
                     </span>
-                    <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
-                      Editable
+                    <span className={`text-xs px-2 py-1 rounded ${
+                      user?.role === 'user' && !viewRecord?.facility_id
+                        ? 'text-stone-600 bg-stone-100'
+                        : 'text-green-600 bg-green-50'
+                    }`}>
+                      {user?.role === 'user' && !viewRecord?.facility_id ? 'View Only' : 'Editable'}
                     </span>
                   </div>
                 </div>
@@ -2513,30 +2516,39 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                   </Button>
                 </div>
                 <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    className="text-red-500 hover:text-red-700 hover:bg-red-50 border-red-200"
-                    onClick={() => {
-                      setShowViewDialog(false);
-                      handleDeleteRecord(viewRecord.id);
-                    }}
-                  >
-                    <Trash2 className="w-4 h-4 mr-1" />
-                    Delete
-                  </Button>
-                  <Button variant="outline" onClick={() => { setShowViewDialog(false); setViewRecord(null); }}>
-                    Close
-                  </Button>
-                  {/* Phase 1: Always show Edit button - no restrictions */}
-                  <Button 
-                    onClick={() => {
-                      setShowViewDialog(false);
-                      handleEditEmissions(viewRecord);
-                    }}
-                  >
-                    <Edit2 className="w-4 h-4 mr-1" />
-                    Edit Emissions
-                  </Button>
+                  {/* Hide Delete/Edit for users viewing organization-level records */}
+                  {!(user?.role === 'user' && !viewRecord?.facility_id) && (
+                    <>
+                      <Button 
+                        variant="outline" 
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50 border-red-200"
+                        onClick={() => {
+                          setShowViewDialog(false);
+                          handleDeleteRecord(viewRecord.id);
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4 mr-1" />
+                        Delete
+                      </Button>
+                      <Button variant="outline" onClick={() => { setShowViewDialog(false); setViewRecord(null); }}>
+                        Close
+                      </Button>
+                      <Button 
+                        onClick={() => {
+                          setShowViewDialog(false);
+                          handleEditEmissions(viewRecord);
+                        }}
+                      >
+                        <Edit2 className="w-4 h-4 mr-1" />
+                        Edit Emissions
+                      </Button>
+                    </>
+                  )}
+                  {user?.role === 'user' && !viewRecord?.facility_id && (
+                    <Button variant="outline" onClick={() => { setShowViewDialog(false); setViewRecord(null); }}>
+                      Close
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>

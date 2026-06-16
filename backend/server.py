@@ -91,6 +91,7 @@ from modules.approvals.router_v2 import router as approvals_router
 
 # Targets domain (multi-target reduction management).
 from modules.targets.router import router as targets_router
+from modules.production.router import router as production_router
 
 # Set Playwright browsers path BEFORE any playwright imports
 os.environ['PLAYWRIGHT_BROWSERS_PATH'] = '/app/.playwright'
@@ -126,6 +127,9 @@ api_router.include_router(approvals_router)
 
 # Targets module (org-level reduction targets)
 api_router.include_router(targets_router)
+
+# Production quantity module (for Carbon Intensity calculations)
+api_router.include_router(production_router)
 
 # Run module contract verifier at import time. Phase B1: log-only, will be
 # escalated to fail-fast in dev once all modules expose their contracts.
@@ -1204,6 +1208,16 @@ async def get_oldest_reporting_year(
         month = None
         year = None
         
+        # Try FY format first: "FY 2025-26" or "FY 2025-2026"
+        fy_match = re.match(r'FY\s*(\d{4})-(\d{2,4})', period, re.IGNORECASE)
+        if fy_match:
+            return int(fy_match.group(1))  # Return start year directly
+        
+        # Try CY format: "CY 2025" or "CY2025"
+        cy_match = re.match(r'CY\s*(\d{4})', period, re.IGNORECASE)
+        if cy_match:
+            return int(cy_match.group(1))
+        
         # Try format: "January 2024"
         for i, m in enumerate(month_name):
             if m and m.lower() in period.lower():
@@ -1317,8 +1331,20 @@ async def get_emission_combinations(
     emissions = await db.emission_records.find(
         query, 
         {"_id": 0, "scope": 1, "category": 1, "sub_category": 1, "reporting_period": 1, 
-         "co2e_emissions": 1, "calculated_co2e": 1, "frequency": 1, "total_emissions": 1}
+         "co2e_emissions": 1, "calculated_co2e": 1, "frequency": 1, "total_emissions": 1,
+         "biogenic_scope_selection": 1}
     ).to_list(10000)
+    
+    # Helper to transform biogenic scope to display value
+    def get_display_scope(em):
+        scope = em.get("scope", "")
+        if scope == "biogenic":
+            biogenic_sel = em.get("biogenic_scope_selection")
+            if biogenic_sel == "scope3":
+                return "Biogenic (Indirect)"
+            else:
+                return "Biogenic (Direct)"
+        return scope
     
     # Helper function to parse reporting period and get month/year
     def parse_period(period):
@@ -1437,7 +1463,7 @@ async def get_emission_combinations(
             
             if matches and proportion > 0:
                 key = (
-                    em.get("scope", ""),
+                    get_display_scope(em),
                     em.get("category", ""),
                     em.get("sub_category", "")
                 )
@@ -1475,7 +1501,7 @@ async def get_emission_combinations(
     combinations = set()
     for em in emissions:
         combo = (
-            em.get("scope", ""),
+            get_display_scope(em),
             em.get("category", ""),
             em.get("sub_category", "")
         )
@@ -2996,7 +3022,25 @@ async def get_file_info(file_id: str):
 # Health check
 @api_router.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    """Health check endpoint with MongoDB connectivity verification."""
+    health_status = {
+        "status": "healthy",
+        "services": {
+            "api": "healthy",
+            "mongodb": "unknown"
+        }
+    }
+    
+    try:
+        # Check MongoDB connectivity with ping command
+        await db.command("ping")
+        health_status["services"]["mongodb"] = "healthy"
+    except Exception as e:
+        health_status["status"] = "unhealthy"
+        health_status["services"]["mongodb"] = "unhealthy"
+        health_status["mongodb_error"] = str(e)
+    
+    return health_status
 
 # ----- Audit Trail Endpoints (Admin only) -----
 

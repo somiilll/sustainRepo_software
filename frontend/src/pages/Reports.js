@@ -6,9 +6,10 @@ import { Card } from '../components/ui/card';
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
 import { MonthYearPicker } from '../components/ui/month-year-picker';
-import { FileText, Download, Building2, Calendar, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
+import { FileText, Download, Building2, Calendar, CheckCircle2, Loader2, Sparkles, Package } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { toast } from 'sonner';
+import ProductionQuantityModal from './ProductionQuantityModal';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -43,7 +44,6 @@ export default function Reports() {
   const [ghgDialogOpen, setGhgDialogOpen] = useState(false);
   const [ghgReportConfig, setGhgReportConfig] = useState({
     facility_ids: [],
-    facility_production: {}, // {facility_id: {quantity: number, unit: string}}
     reporting_period_start: '',
     reporting_period_end: '',
     include_previous_years: false,
@@ -64,6 +64,9 @@ export default function Reports() {
     reporting_period_end: ''
   });
   const [generatingAi, setGeneratingAi] = useState(false);
+
+  // Production Quantity Modal State
+  const [productionModalOpen, setProductionModalOpen] = useState(false);
 
   useEffect(() => {
     fetchFacilities();
@@ -214,31 +217,11 @@ export default function Reports() {
         ? prev.facility_ids.filter(id => id !== facilityId)
         : [...prev.facility_ids, facilityId];
       
-      // Remove production data if facility is deselected
-      const newFacilityProduction = { ...prev.facility_production };
-      if (isSelected) {
-        delete newFacilityProduction[facilityId];
-      }
-      
       return {
         ...prev,
-        facility_ids: newFacilityIds,
-        facility_production: newFacilityProduction
+        facility_ids: newFacilityIds
       };
     });
-  };
-
-  const handleProductionChange = (facilityId, field, value) => {
-    setGhgReportConfig(prev => ({
-      ...prev,
-      facility_production: {
-        ...prev.facility_production,
-        [facilityId]: {
-          ...prev.facility_production[facilityId],
-          [field]: value
-        }
-      }
-    }));
   };
 
   const handleGhgSelectAll = () => {
@@ -246,8 +229,7 @@ export default function Reports() {
       const allSelected = prev.facility_ids.length === facilities.length;
       return {
         ...prev,
-        facility_ids: allSelected ? [] : facilities.map(f => f.id),
-        facility_production: allSelected ? {} : prev.facility_production
+        facility_ids: allSelected ? [] : facilities.map(f => f.id)
       };
     });
   };
@@ -264,36 +246,6 @@ export default function Reports() {
     if (!ghgReportConfig.reporting_period_end) {
       toast.error('Please select an End Period for the reporting period');
       return;
-    }
-
-    // Validate production quantity and unit - both must be filled or both must be empty
-    // Also check for negative values
-    for (const facilityId of ghgReportConfig.facility_ids) {
-      const production = ghgReportConfig.facility_production[facilityId];
-      if (production) {
-        const quantityValue = production.quantity;
-        const hasQuantity = quantityValue !== undefined && quantityValue !== null && quantityValue.toString().trim() !== '';
-        const hasUnit = production.unit && production.unit.trim() !== '';
-        
-        // Check for negative quantity
-        if (hasQuantity && parseFloat(quantityValue) < 0) {
-          const facility = facilities.find(f => f.id === facilityId);
-          toast.error(`Production Quantity cannot be negative for "${facility?.name || 'facility'}". Please enter a positive value.`);
-          return;
-        }
-        
-        // Check quantity + unit pairing
-        if (hasQuantity && !hasUnit) {
-          const facility = facilities.find(f => f.id === facilityId);
-          toast.error(`Production Unit is required when Quantity is specified for "${facility?.name || 'facility'}". Please enter the unit (e.g., kg, tonnes).`);
-          return;
-        }
-        if (!hasQuantity && hasUnit) {
-          const facility = facilities.find(f => f.id === facilityId);
-          toast.error(`Production Quantity is required when Unit is specified for "${facility?.name || 'facility'}". Please enter the quantity value.`);
-          return;
-        }
-      }
     }
 
     // If all facilities are selected, show confirmation dialog
@@ -346,7 +298,6 @@ export default function Reports() {
   const resetGhgForm = () => {
     setGhgReportConfig({
       facility_ids: [],
-      facility_production: {},
       reporting_period_start: '',
       reporting_period_end: '',
       include_previous_years: false,
@@ -513,10 +464,29 @@ export default function Reports() {
 
   return (
     <div className="space-y-6" data-testid="reports-page">
-      <div>
-        <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Reports</h1>
-        <p className="text-text-secondary">Download comprehensive GHG emission reports</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Reports</h1>
+          <p className="text-text-secondary">Download comprehensive GHG emission reports</p>
+        </div>
+        <Button
+          variant="outline"
+          onClick={() => setProductionModalOpen(true)}
+          className="flex items-center gap-2"
+          data-testid="production-quantity-btn"
+        >
+          <Package className="w-4 h-4" />
+          Production Quantity
+        </Button>
       </div>
+
+      {/* Production Quantity Modal */}
+      <ProductionQuantityModal
+        open={productionModalOpen}
+        onOpenChange={setProductionModalOpen}
+        facilities={facilities}
+        getAuthHeader={getAuthHeader}
+      />
 
       {/* GHG Inventory Report Card */}
       {hasScope12Access && (
@@ -666,31 +636,6 @@ export default function Reports() {
                               <p className="text-xs text-text-muted">{facility.city}, {facility.state}</p>
                             </div>
                           </label>
-                          
-                          {/* Production Quantity Input - shown when facility is selected */}
-                          {ghgReportConfig.facility_ids.includes(facility.id) && (
-                            <div className="ml-8 p-3 bg-white rounded-lg border border-green-200 space-y-2">
-                              <p className="text-xs font-medium text-text-muted">Production Quantity (for Carbon Intensity calculation)</p>
-                              <div className="flex gap-2">
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  placeholder="Quantity"
-                                  value={ghgReportConfig.facility_production[facility.id]?.quantity || ''}
-                                  onChange={(e) => handleProductionChange(facility.id, 'quantity', e.target.value)}
-                                  className="flex-1 bg-stone-50 h-9 text-sm"
-                                />
-                                <Input
-                                  type="text"
-                                  placeholder="Unit (e.g., kg, tonnes, units)"
-                                  value={ghgReportConfig.facility_production[facility.id]?.unit || ''}
-                                  onChange={(e) => handleProductionChange(facility.id, 'unit', e.target.value)}
-                                  className="w-40 bg-stone-50 h-9 text-sm"
-                                />
-                              </div>
-                            </div>
-                          )}
                         </div>
                       ))}
                     </div>

@@ -509,13 +509,8 @@ async def generate_combined_report(
     return {"download_token": download_token, "filename": filename}
 
 # GHG Inventory Report Generation
-class FacilityProduction(BaseModel):
-    quantity: Optional[float] = None
-    unit: Optional[str] = None
-
 class GHGReportRequest(BaseModel):
     facility_ids: List[str]
-    facility_production: Optional[Dict[str, FacilityProduction]] = None  # {facility_id: {quantity, unit}}
     reporting_period_start: str  # Format: YYYY-MM
     reporting_period_end: str    # Format: YYYY-MM
     include_previous_years: bool = False
@@ -726,15 +721,122 @@ async def generate_ghg_inventory_report(
         emissions_data = filtered_emissions
     # For scope_1_2_3: include everything (no filtering needed)
     
-    # Prepare facility production data
+    # Fetch facility production data from production_quantities collection with proportional allocation
+    import re
+    
+    async def get_production_for_period(facility_id_or_none, start_period, end_period, org_id):
+        """
+        Get production quantity for a report period with proportional allocation.
+        Returns (quantity, unit) or (None, None) if not found.
+        """
+        query = {
+            "organization_id": org_id,
+            "is_deleted": {"$ne": True}
+        }
+        if facility_id_or_none:
+            query["facility_id"] = facility_id_or_none
+        else:
+            query["facility_id"] = None  # Organization-level
+        
+        records = await db.production_quantities.find(query, {"_id": 0}).to_list(10000)
+        if not records:
+            return None, None
+        
+        # Parse report period range
+        def parse_ym(period_str):
+            match = re.match(r'(\d{4})-(\d{2})', period_str)
+            if match:
+                return int(match.group(1)), int(match.group(2))
+            return None, None
+        
+        start_y, start_m = parse_ym(start_period)
+        end_y, end_m = parse_ym(end_period)
+        
+        if not start_y or not end_y:
+            return None, None
+        
+        # Generate list of months in report range
+        report_months = []
+        y, m = start_y, start_m
+        while (y, m) <= (end_y, end_m):
+            report_months.append((y, m))
+            m += 1
+            if m > 12:
+                m = 1
+                y += 1
+        
+        # Process each production record
+        aggregated_qty = 0.0
+        unit = None
+        
+        for record in records:
+            period = record.get("reporting_period", "")
+            qty = record.get("quantity", 0)
+            rec_unit = record.get("unit", "")
+            
+            overlap_months = 0
+            total_period_months = 1
+            
+            # Monthly format: YYYY-MM
+            monthly_match = re.match(r'^(\d{4})-(\d{2})$', period)
+            if monthly_match:
+                rec_y, rec_m = int(monthly_match.group(1)), int(monthly_match.group(2))
+                if (rec_y, rec_m) in report_months:
+                    overlap_months = 1
+                    total_period_months = 1
+            
+            # FY format
+            fy_match = re.match(r'^FY\s*(\d{4})-(\d{2,4})$', period, re.IGNORECASE)
+            if fy_match:
+                fy_start_year = int(fy_match.group(1))
+                fy_months = []
+                for mo in range(4, 13):
+                    fy_months.append((fy_start_year, mo))
+                for mo in range(1, 4):
+                    fy_months.append((fy_start_year + 1, mo))
+                total_period_months = 12
+                overlap_months = len(set(fy_months) & set(report_months))
+            
+            # CY format
+            cy_match = re.match(r'^CY\s*(\d{4})$', period, re.IGNORECASE)
+            if cy_match:
+                cy_year = int(cy_match.group(1))
+                cy_months = [(cy_year, mo) for mo in range(1, 13)]
+                total_period_months = 12
+                overlap_months = len(set(cy_months) & set(report_months))
+            
+            if overlap_months > 0:
+                proportion = overlap_months / total_period_months
+                aggregated_qty += qty * proportion
+                # Capture unit from first overlapping record
+                if unit is None:
+                    unit = rec_unit
+        
+        return (round(aggregated_qty, 4) if aggregated_qty > 0 else None, unit)
+    
+    # Fetch production data from collection for each facility
     facility_production_data = {}
-    if request.facility_production:
-        for fid, prod in request.facility_production.items():
-            if prod.quantity and prod.unit:
-                facility_production_data[fid] = {
-                    'quantity': float(prod.quantity),
-                    'unit': prod.unit
-                }
+    for facility in facilities_data:
+        fid = facility["id"]
+        qty, unit = await get_production_for_period(
+            fid, 
+            request.reporting_period_start, 
+            request.reporting_period_end,
+            org_id
+        )
+        if qty and unit:
+            facility_production_data[fid] = {'quantity': qty, 'unit': unit}
+    
+    # Fetch organization-level production quantity (facility_id = None)
+    org_production_data = None
+    org_qty, org_unit = await get_production_for_period(
+        None,  # Organization level
+        request.reporting_period_start, 
+        request.reporting_period_end,
+        org_id
+    )
+    if org_qty and org_unit:
+        org_production_data = {'quantity': org_qty, 'unit': org_unit}
     
     # Generate report - pass backend URL for internal file access
     generator = GHGReportGenerator(backend_base_url='http://localhost:8001')
@@ -748,6 +850,7 @@ async def generate_ghg_inventory_report(
         sinks_total=total_sinks,
         sinks_data=sinks_data,
         facility_production=facility_production_data,
+        org_production=org_production_data,
         report_type=request.report_type,
         is_complete_organization=request.is_complete_organization
     )
