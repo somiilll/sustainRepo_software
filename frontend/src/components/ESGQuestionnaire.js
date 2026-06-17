@@ -213,6 +213,9 @@ function QuestionRenderer({ config, value, onChange, isEditing }) {
       case 'principle_text':
         return <PrincipleTextRenderer value={value} onChange={onChange} isEditing={isEditing} config={config} />;
 
+      case 'conditional_yes_no_table':
+        return <ConditionalYesNoTableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+
       case 'table':
         return <TableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
 
@@ -434,6 +437,142 @@ function PrincipleTextRenderer({ value, onChange, isEditing, config }) {
               />
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Conditional Yes/No Table Renderer (reusable pattern)
+function ConditionalYesNoTableRenderer({ config, value, onChange, isEditing }) {
+  const data = value || { has_value: false, members: [{}] };
+  const tableConfig = config.table_config || {};
+  const columns = tableConfig.columns || ['name', 'din', 'designation', 'role'];
+  
+  // Column labels (can be customized via table_config.column_labels)
+  const columnLabels = tableConfig.column_labels || {
+    name: 'Name',
+    din: 'DIN',
+    designation: 'Designation',
+    role: 'Role'
+  };
+
+  const handleToggle = (val) => {
+    onChange({ ...data, has_value: val, members: val ? (data.members?.length ? data.members : [{}]) : [] });
+  };
+
+  const handleCellChange = (rowIndex, colKey, cellValue) => {
+    const newMembers = [...(data.members || [{}])];
+    if (!newMembers[rowIndex]) newMembers[rowIndex] = {};
+    newMembers[rowIndex][colKey] = cellValue;
+    onChange({ ...data, members: newMembers });
+  };
+
+  const addRow = () => {
+    onChange({ ...data, members: [...(data.members || []), {}] });
+  };
+
+  const removeRow = (index) => {
+    const newMembers = (data.members || []).filter((_, i) => i !== index);
+    onChange({ ...data, members: newMembers.length ? newMembers : [{}] });
+  };
+
+  if (!isEditing) {
+    return (
+      <div className="mt-2 space-y-3">
+        <Badge variant="outline" className={data.has_value ? 'bg-green-50 text-green-700' : 'bg-stone-50'}>
+          {data.has_value ? 'Yes' : 'No'}
+        </Badge>
+        {data.has_value && data.members?.length > 0 && (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-stone-50">
+                  {columns.map((col) => (
+                    <TableHead key={col} className="text-xs font-medium">{columnLabels[col] || col}</TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.members.map((row, idx) => (
+                  <TableRow key={idx}>
+                    {columns.map((col) => (
+                      <TableCell key={col} className="text-sm">{row[col] || '-'}</TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 space-y-4">
+      {/* Yes/No Toggle */}
+      <div className="flex items-center gap-4">
+        <RadioGroup 
+          value={data.has_value ? 'yes' : 'no'} 
+          onValueChange={(v) => handleToggle(v === 'yes')} 
+          className="flex gap-4"
+        >
+          <div className="flex items-center gap-2">
+            <RadioGroupItem value="yes" id={`${config.question_key}-yes`} />
+            <Label htmlFor={`${config.question_key}-yes`} className="text-sm">Yes</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <RadioGroupItem value="no" id={`${config.question_key}-no`} />
+            <Label htmlFor={`${config.question_key}-no`} className="text-sm">No</Label>
+          </div>
+        </RadioGroup>
+      </div>
+
+      {/* Conditional Table */}
+      {data.has_value && (
+        <div className="space-y-3 bg-stone-50 p-4 rounded-lg">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  {columns.map((col) => (
+                    <TableHead key={col} className="text-xs font-medium">{columnLabels[col] || col}</TableHead>
+                  ))}
+                  <TableHead className="w-12"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(data.members || [{}]).map((row, rowIdx) => (
+                  <TableRow key={rowIdx}>
+                    {columns.map((col) => (
+                      <TableCell key={col} className="p-1">
+                        <Input
+                          value={row[col] || ''}
+                          onChange={(e) => handleCellChange(rowIdx, col, e.target.value)}
+                          placeholder={columnLabels[col] || col}
+                          className="h-9 text-sm"
+                        />
+                      </TableCell>
+                    ))}
+                    <TableCell className="p-1">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => removeRow(rowIdx)} 
+                        className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <Button variant="outline" size="sm" onClick={addRow}>
+            <Plus className="w-4 h-4 mr-1" /> Add Row
+          </Button>
         </div>
       )}
     </div>
