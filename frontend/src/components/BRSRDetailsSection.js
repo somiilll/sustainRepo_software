@@ -69,7 +69,7 @@ export default function BRSRDetailsSection({
     cin: '',
     listed_entity_name: '',
     year_of_incorporation: new Date().getFullYear(),
-    corporate_address: '',
+    registered_address: '',
     city: '',
     state: '',
     country: 'India',
@@ -306,19 +306,18 @@ export default function BRSRDetailsSection({
               
               {/* Address Section - Grouped Box */}
               <div className="md:col-span-2 lg:col-span-3 border rounded-lg p-4 bg-stone-50">
-                <h4 className="text-sm font-semibold text-text-primary mb-4">Registered / Corporate Address</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div className="space-y-2 md:col-span-2 lg:col-span-3">
-                    <Label>Corporate Address *</Label>
+                    <Label>Registered Address *</Label>
                     {isEditing ? (
                       <Input
-                        value={formData.corporate_address}
-                        onChange={(e) => handleInputChange('corporate_address', e.target.value)}
+                        value={formData.registered_address}
+                        onChange={(e) => handleInputChange('registered_address', e.target.value)}
                         placeholder="Enter street address, building, area"
-                        data-testid="brsr-corporate-address"
+                        data-testid="brsr-registered-address"
                       />
                     ) : (
-                      <p className="text-sm text-text-secondary py-2">{formData.corporate_address || '-'}</p>
+                      <p className="text-sm text-text-secondary py-2">{formData.registered_address || '-'}</p>
                     )}
                   </div>
                   

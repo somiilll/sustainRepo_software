@@ -612,7 +612,7 @@ export default function OrganizationDetails() {
             <div className="p-4 border border-stone-200 rounded-lg space-y-4">
               <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
                 <MapPin className="w-4 h-4" />
-                Address Details <span className="text-red-500">*</span>
+                Corporate Address Details <span className="text-red-500">*</span>
               </div>
               <div className="space-y-2">
                 <Label>Street Address <span className="text-red-500">*</span></Label>

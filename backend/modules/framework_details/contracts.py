@@ -149,7 +149,7 @@ class BRSRStaticDetailsBase(BaseModel):
     year_of_incorporation: int = Field(default=2024, ge=1800, le=2100, description="Year of Incorporation")
     
     # Address fields
-    corporate_address: str = Field(default="", description="Corporate Address")
+    registered_address: str = Field(default="", description="Registered Address")
     city: str = Field(default="", description="City")
     state: str = Field(default="", description="State")
     country: str = Field(default="India", description="Country")
@@ -272,7 +272,7 @@ class BRSRDetailsUpdate(BaseModel):
     cin: Optional[str] = None
     listed_entity_name: Optional[str] = None
     year_of_incorporation: Optional[int] = None
-    corporate_address: Optional[str] = None
+    registered_address: Optional[str] = None
     city: Optional[str] = None
     state: Optional[str] = None
     country: Optional[str] = None

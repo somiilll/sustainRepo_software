@@ -486,7 +486,7 @@ export default function OrganizationManagement() {
               <div className="p-4 border border-stone-200 rounded-lg space-y-4">
                 <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
                   <MapPin className="w-4 h-4" />
-                  Address Details
+                  Corporate Address Details
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="corporate_address">Street Address *</Label>
