@@ -1,0 +1,686 @@
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { useAuth } from '../contexts/AuthContext';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Badge } from './ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from './ui/table';
+import { Switch } from './ui/switch';
+import { toast } from 'sonner';
+import { 
+  Users, 
+  UserCheck,
+  Building,
+  Building2,
+  TrendingDown,
+  Plus, 
+  Trash2, 
+  History,
+  Loader2,
+  Save,
+  ChevronDown,
+  ChevronRight,
+  IndianRupee
+} from 'lucide-react';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from './ui/collapsible';
+
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const API = `${BACKEND_URL}/api`;
+
+// Generate reporting year options
+const generateReportingYears = () => {
+  const currentYear = new Date().getFullYear();
+  const years = [];
+  for (let i = 0; i < 5; i++) {
+    const startYear = currentYear - i;
+    years.push(`${startYear}-${(startYear + 1).toString().slice(-2)}`);
+  }
+  return years;
+};
+
+// Calculate previous FY from current
+const getPreviousFY = (currentFY) => {
+  const [start] = currentFY.split('-');
+  const prevStart = parseInt(start) - 1;
+  return `${prevStart}-${start.slice(-2)}`;
+};
+
+// Default structures
+const DEFAULT_EMPLOYEE_DETAILS = {
+  permanent_male_employees: 0, permanent_female_employees: 0,
+  other_than_permanent_male_employees: 0, other_than_permanent_female_employees: 0,
+  diff_abled_permanent_male_employees: 0, diff_abled_permanent_female_employees: 0,
+  diff_abled_other_permanent_male_employees: 0, diff_abled_other_permanent_female_employees: 0,
+  permanent_male_workers: 0, permanent_female_workers: 0,
+  other_than_permanent_male_workers: 0, other_than_permanent_female_workers: 0,
+  diff_abled_permanent_male_workers: 0, diff_abled_permanent_female_workers: 0,
+  diff_abled_other_permanent_male_workers: 0, diff_abled_other_permanent_female_workers: 0,
+};
+
+const DEFAULT_CSR = { is_applicable: false, turnover_inr: 0, net_worth_inr: 0 };
+
+const DEFAULT_TURNOVER_RATE = {
+  permanent_employees_male: 0, permanent_employees_female: 0,
+  permanent_workers_male: 0, permanent_workers_female: 0,
+};
+
+const CATEGORIES_WOMEN = ["Board of Directors", "Key Management Personnel"];
+const ENTITY_TYPES = ["Holding Company", "Subsidiary", "Associate Company", "Joint Venture"];
+
+const formatINR = (num) => num ? '₹' + num.toLocaleString('en-IN') : '₹0';
+
+export default function BRSRYearlySections({ isEditing = false }) {
+  const { getAuthHeader } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [reportingYear, setReportingYear] = useState(generateReportingYears()[0]);
+  const [availableYears, setAvailableYears] = useState([]);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historicalData, setHistoricalData] = useState([]);
+  
+  // Section open states
+  const [openSections, setOpenSections] = useState({
+    employees: false, women: false, csr: false, holding: false, turnover: false
+  });
+
+  // Form data
+  const [employeeDetails, setEmployeeDetails] = useState({ ...DEFAULT_EMPLOYEE_DETAILS });
+  const [womenRepresentation, setWomenRepresentation] = useState([
+    { category: "Board of Directors", total: 0, number_of_females: 0 }
+  ]);
+  const [csrApplicability, setCSRApplicability] = useState({ ...DEFAULT_CSR });
+  const [holdingEntities, setHoldingEntities] = useState([
+    { name_of_entity: "", type_of_entity: "Subsidiary", shares_held_percentage: 0, participates_in_br_initiatives: false }
+  ]);
+  const [turnoverRate, setTurnoverRate] = useState({
+    current: { ...DEFAULT_TURNOVER_RATE },
+    previous: { ...DEFAULT_TURNOVER_RATE },
+    prior: { ...DEFAULT_TURNOVER_RATE }
+  });
+
+  useEffect(() => {
+    fetchYearlyData();
+  }, [reportingYear]);
+
+  const fetchYearlyData = async () => {
+    setLoading(true);
+    try {
+      const res = await axios.get(
+        `${API}/organizations/my/framework-details/brsr/yearly/${reportingYear}`,
+        { headers: getAuthHeader() }
+      );
+      const data = res.data.data;
+      if (data) {
+        setEmployeeDetails({ ...DEFAULT_EMPLOYEE_DETAILS, ...data.employee_worker_details });
+        setWomenRepresentation(data.women_representation?.length > 0 ? data.women_representation : 
+          [{ category: "Board of Directors", total: 0, number_of_females: 0 }]);
+        setCSRApplicability({ ...DEFAULT_CSR, ...data.csr_applicability });
+        setHoldingEntities(data.holding_subsidiary_entities?.length > 0 ? data.holding_subsidiary_entities :
+          [{ name_of_entity: "", type_of_entity: "Subsidiary", shares_held_percentage: 0, participates_in_br_initiatives: false }]);
+        setTurnoverRate({
+          current: { ...DEFAULT_TURNOVER_RATE, ...data.turnover_rate?.current },
+          previous: { ...DEFAULT_TURNOVER_RATE, ...data.turnover_rate?.previous },
+          prior: { ...DEFAULT_TURNOVER_RATE, ...data.turnover_rate?.prior }
+        });
+      } else {
+        resetToDefaults();
+      }
+      
+      // Fetch available years
+      const yearsRes = await axios.get(`${API}/organizations/my/framework-details/brsr/yearly`, { headers: getAuthHeader() });
+      setAvailableYears(yearsRes.data.available_years || []);
+      
+      // Auto-fill previous years if they exist
+      await autoFillPreviousYears();
+    } catch (error) {
+      if (error.response?.status !== 404) console.error('Fetch error:', error);
+      resetToDefaults();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetToDefaults = () => {
+    setEmployeeDetails({ ...DEFAULT_EMPLOYEE_DETAILS });
+    setWomenRepresentation([{ category: "Board of Directors", total: 0, number_of_females: 0 }]);
+    setCSRApplicability({ ...DEFAULT_CSR });
+    setHoldingEntities([{ name_of_entity: "", type_of_entity: "Subsidiary", shares_held_percentage: 0, participates_in_br_initiatives: false }]);
+    setTurnoverRate({ current: { ...DEFAULT_TURNOVER_RATE }, previous: { ...DEFAULT_TURNOVER_RATE }, prior: { ...DEFAULT_TURNOVER_RATE } });
+  };
+
+  const autoFillPreviousYears = async () => {
+    const prevFY = getPreviousFY(reportingYear);
+    const priorFY = getPreviousFY(prevFY);
+    
+    try {
+      // Fetch previous FY data
+      const prevRes = await axios.get(
+        `${API}/organizations/my/framework-details/brsr/yearly/${prevFY}`,
+        { headers: getAuthHeader() }
+      ).catch(() => null);
+      
+      const priorRes = await axios.get(
+        `${API}/organizations/my/framework-details/brsr/yearly/${priorFY}`,
+        { headers: getAuthHeader() }
+      ).catch(() => null);
+
+      setTurnoverRate(prev => ({
+        ...prev,
+        previous: prevRes?.data?.data?.turnover_rate?.current || prev.previous,
+        prior: priorRes?.data?.data?.turnover_rate?.current || prev.prior
+      }));
+    } catch (e) {
+      // Silent fail - previous data not available
+    }
+  };
+
+  const saveAllYearlyData = async () => {
+    setSaving(true);
+    try {
+      const payload = {
+        employee_worker_details: employeeDetails,
+        women_representation: womenRepresentation,
+        csr_applicability: csrApplicability,
+        holding_subsidiary_entities: holdingEntities,
+        turnover_rate: turnoverRate
+      };
+
+      await axios.put(
+        `${API}/organizations/my/framework-details/brsr/yearly/${reportingYear}`,
+        payload,
+        { headers: getAuthHeader() }
+      );
+      toast.success(`All yearly data for ${reportingYear} saved successfully`);
+      fetchYearlyData();
+    } catch (error) {
+      console.error('Save error:', error);
+      toast.error('Failed to save yearly data');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const fetchHistoricalData = async () => {
+    try {
+      const res = await axios.get(`${API}/organizations/my/framework-details/brsr/yearly`, { headers: getAuthHeader() });
+      setHistoricalData(res.data.yearly_data || []);
+    } catch (error) {
+      console.error('History fetch error:', error);
+    }
+  };
+
+  const toggleSection = (section) => setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
+
+  if (loading) {
+    return <div className="flex items-center justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>;
+  }
+
+  const prevFY = getPreviousFY(reportingYear);
+  const priorFY = getPreviousFY(prevFY);
+
+  return (
+    <div className="space-y-4">
+      {/* Header with Year Selector */}
+      <div className="flex items-center justify-between p-4 bg-stone-50 rounded-lg border">
+        <div className="flex items-center gap-3">
+          <Label className="text-sm font-medium">Reporting Year:</Label>
+          {isEditing ? (
+            <Select value={reportingYear} onValueChange={setReportingYear}>
+              <SelectTrigger className="w-36 h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {generateReportingYears().map(year => (
+                  <SelectItem key={year} value={year}>{year}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Badge variant="outline" className="text-sm">{reportingYear}</Badge>
+          )}
+        </div>
+        <Button variant="outline" size="sm" onClick={() => { fetchHistoricalData(); setShowHistoryModal(true); }}>
+          <History className="w-4 h-4 mr-1" /> View All History
+        </Button>
+      </div>
+
+      {/* 1. Employee & Worker Details */}
+      <Collapsible open={openSections.employees} onOpenChange={() => toggleSection('employees')} className="border rounded-lg bg-white">
+        <CollapsibleTrigger className="w-full">
+          <div className="flex items-center justify-between p-3 hover:bg-stone-50">
+            <div className="flex items-center gap-2">
+              {openSections.employees ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+              <Users className="w-4 h-4 text-primary" />
+              <span className="font-medium text-sm">Employees & Workers Details</span>
+            </div>
+          </div>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="p-4 pt-0 border-t">
+          <div className="grid grid-cols-2 gap-4">
+            {/* Employees */}
+            <div className="border rounded p-3">
+              <h5 className="text-xs font-semibold mb-2 text-stone-600">Employees</h5>
+              <div className="space-y-2">
+                {[
+                  ['Permanent Male', 'permanent_male_employees'],
+                  ['Permanent Female', 'permanent_female_employees'],
+                  ['Other Male', 'other_than_permanent_male_employees'],
+                  ['Other Female', 'other_than_permanent_female_employees'],
+                ].map(([label, field]) => (
+                  <div key={field} className="flex items-center justify-between">
+                    <span className="text-xs">{label}</span>
+                    {isEditing ? (
+                      <Input type="number" min="0" value={employeeDetails[field]} 
+                        onChange={(e) => setEmployeeDetails(p => ({ ...p, [field]: parseInt(e.target.value) || 0 }))}
+                        className="w-20 h-7 text-xs text-center" />
+                    ) : <span className="text-xs font-medium">{employeeDetails[field]}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Workers */}
+            <div className="border rounded p-3">
+              <h5 className="text-xs font-semibold mb-2 text-stone-600">Workers</h5>
+              <div className="space-y-2">
+                {[
+                  ['Permanent Male', 'permanent_male_workers'],
+                  ['Permanent Female', 'permanent_female_workers'],
+                  ['Other Male', 'other_than_permanent_male_workers'],
+                  ['Other Female', 'other_than_permanent_female_workers'],
+                ].map(([label, field]) => (
+                  <div key={field} className="flex items-center justify-between">
+                    <span className="text-xs">{label}</span>
+                    {isEditing ? (
+                      <Input type="number" min="0" value={employeeDetails[field]}
+                        onChange={(e) => setEmployeeDetails(p => ({ ...p, [field]: parseInt(e.target.value) || 0 }))}
+                        className="w-20 h-7 text-xs text-center" />
+                    ) : <span className="text-xs font-medium">{employeeDetails[field]}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+
+      {/* 2. Women Representation */}
+      <Collapsible open={openSections.women} onOpenChange={() => toggleSection('women')} className="border rounded-lg bg-white">
+        <CollapsibleTrigger className="w-full">
+          <div className="flex items-center justify-between p-3 hover:bg-stone-50">
+            <div className="flex items-center gap-2">
+              {openSections.women ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+              <UserCheck className="w-4 h-4 text-primary" />
+              <span className="font-medium text-sm">Women Representation on Board & KMP</span>
+            </div>
+          </div>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="p-4 pt-0 border-t">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-stone-50">
+                <TableHead className="text-xs">Category</TableHead>
+                <TableHead className="text-xs text-center">Total</TableHead>
+                <TableHead className="text-xs text-center">No. of Females</TableHead>
+                {isEditing && <TableHead className="text-xs w-12"></TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {womenRepresentation.map((row, idx) => (
+                <TableRow key={idx}>
+                  <TableCell>
+                    {isEditing ? (
+                      <Select value={row.category} onValueChange={(v) => {
+                        const updated = [...womenRepresentation]; updated[idx].category = v; setWomenRepresentation(updated);
+                      }}>
+                        <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>{CATEGORIES_WOMEN.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                      </Select>
+                    ) : <span className="text-xs">{row.category}</span>}
+                  </TableCell>
+                  <TableCell>
+                    {isEditing ? (
+                      <Input type="number" min="0" value={row.total} onChange={(e) => {
+                        const updated = [...womenRepresentation]; updated[idx].total = parseInt(e.target.value) || 0; setWomenRepresentation(updated);
+                      }} className="h-7 text-xs text-center" />
+                    ) : <span className="text-xs">{row.total}</span>}
+                  </TableCell>
+                  <TableCell>
+                    {isEditing ? (
+                      <Input type="number" min="0" value={row.number_of_females} onChange={(e) => {
+                        const updated = [...womenRepresentation]; updated[idx].number_of_females = parseInt(e.target.value) || 0; setWomenRepresentation(updated);
+                      }} className="h-7 text-xs text-center" />
+                    ) : <span className="text-xs">{row.number_of_females}</span>}
+                  </TableCell>
+                  {isEditing && (
+                    <TableCell>
+                      <Button variant="ghost" size="sm" onClick={() => {
+                        if (womenRepresentation.length > 1) setWomenRepresentation(womenRepresentation.filter((_, i) => i !== idx));
+                      }} className="h-6 w-6 p-0 text-red-500"><Trash2 className="w-3 h-3" /></Button>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          {isEditing && (
+            <Button variant="outline" size="sm" className="mt-2" onClick={() => setWomenRepresentation([...womenRepresentation, { category: "Board of Directors", total: 0, number_of_females: 0 }])}>
+              <Plus className="w-3 h-3 mr-1" /> Add Row
+            </Button>
+          )}
+        </CollapsibleContent>
+      </Collapsible>
+
+      {/* 3. CSR Applicability */}
+      <Collapsible open={openSections.csr} onOpenChange={() => toggleSection('csr')} className="border rounded-lg bg-white">
+        <CollapsibleTrigger className="w-full">
+          <div className="flex items-center justify-between p-3 hover:bg-stone-50">
+            <div className="flex items-center gap-2">
+              {openSections.csr ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+              <Building2 className="w-4 h-4 text-primary" />
+              <span className="font-medium text-sm">CSR Applicability</span>
+            </div>
+            <Badge variant="outline" className={`text-xs ${csrApplicability.is_applicable ? 'bg-green-50 text-green-700' : ''}`}>
+              {csrApplicability.is_applicable ? 'Applicable' : 'Not Applicable'}
+            </Badge>
+          </div>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="p-4 pt-0 border-t">
+          <div className="grid grid-cols-3 gap-4">
+            <div className="p-3 border rounded bg-stone-50">
+              <Label className="text-xs">CSR under Section 135?</Label>
+              {isEditing ? (
+                <div className="flex items-center gap-2 mt-2">
+                  <Switch checked={csrApplicability.is_applicable} onCheckedChange={(v) => setCSRApplicability(p => ({ ...p, is_applicable: v }))} />
+                  <span className="text-xs">{csrApplicability.is_applicable ? 'Yes' : 'No'}</span>
+                </div>
+              ) : <p className="text-sm font-medium mt-1">{csrApplicability.is_applicable ? 'Yes' : 'No'}</p>}
+            </div>
+            <div className="p-3 border rounded">
+              <Label className="text-xs flex items-center gap-1"><IndianRupee className="w-3 h-3" /> Turnover</Label>
+              {isEditing ? (
+                <Input type="number" min="0" value={csrApplicability.turnover_inr} onChange={(e) => setCSRApplicability(p => ({ ...p, turnover_inr: parseFloat(e.target.value) || 0 }))} className="h-8 mt-1" />
+              ) : <p className="text-sm font-medium mt-1">{formatINR(csrApplicability.turnover_inr)}</p>}
+            </div>
+            <div className="p-3 border rounded">
+              <Label className="text-xs flex items-center gap-1"><IndianRupee className="w-3 h-3" /> Net Worth</Label>
+              {isEditing ? (
+                <Input type="number" min="0" value={csrApplicability.net_worth_inr} onChange={(e) => setCSRApplicability(p => ({ ...p, net_worth_inr: parseFloat(e.target.value) || 0 }))} className="h-8 mt-1" />
+              ) : <p className="text-sm font-medium mt-1">{formatINR(csrApplicability.net_worth_inr)}</p>}
+            </div>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+
+      {/* 4. Holding/Subsidiary Companies */}
+      <Collapsible open={openSections.holding} onOpenChange={() => toggleSection('holding')} className="border rounded-lg bg-white">
+        <CollapsibleTrigger className="w-full">
+          <div className="flex items-center justify-between p-3 hover:bg-stone-50">
+            <div className="flex items-center gap-2">
+              {openSections.holding ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+              <Building className="w-4 h-4 text-primary" />
+              <span className="font-medium text-sm">Holding, Subsidiary & Associate Companies</span>
+            </div>
+          </div>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="p-4 pt-0 border-t">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-stone-50">
+                  <TableHead className="text-xs min-w-[150px]">Entity Name</TableHead>
+                  <TableHead className="text-xs min-w-[120px]">Type</TableHead>
+                  <TableHead className="text-xs text-center">% Shares</TableHead>
+                  <TableHead className="text-xs text-center">BR Participation</TableHead>
+                  {isEditing && <TableHead className="text-xs w-12"></TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {holdingEntities.map((row, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell>
+                      {isEditing ? (
+                        <Input value={row.name_of_entity} onChange={(e) => {
+                          const updated = [...holdingEntities]; updated[idx].name_of_entity = e.target.value; setHoldingEntities(updated);
+                        }} className="h-7 text-xs" placeholder="Entity name" />
+                      ) : <span className="text-xs">{row.name_of_entity || '-'}</span>}
+                    </TableCell>
+                    <TableCell>
+                      {isEditing ? (
+                        <Select value={row.type_of_entity} onValueChange={(v) => {
+                          const updated = [...holdingEntities]; updated[idx].type_of_entity = v; setHoldingEntities(updated);
+                        }}>
+                          <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>{ENTITY_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                        </Select>
+                      ) : <span className="text-xs">{row.type_of_entity}</span>}
+                    </TableCell>
+                    <TableCell>
+                      {isEditing ? (
+                        <Input type="number" min="0" max="100" value={row.shares_held_percentage} onChange={(e) => {
+                          const updated = [...holdingEntities]; updated[idx].shares_held_percentage = parseFloat(e.target.value) || 0; setHoldingEntities(updated);
+                        }} className="h-7 text-xs text-center" />
+                      ) : <span className="text-xs">{row.shares_held_percentage}%</span>}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {isEditing ? (
+                        <Switch checked={row.participates_in_br_initiatives} onCheckedChange={(v) => {
+                          const updated = [...holdingEntities]; updated[idx].participates_in_br_initiatives = v; setHoldingEntities(updated);
+                        }} />
+                      ) : <Badge variant="outline" className={`text-xs ${row.participates_in_br_initiatives ? 'bg-green-50 text-green-700' : ''}`}>{row.participates_in_br_initiatives ? 'Yes' : 'No'}</Badge>}
+                    </TableCell>
+                    {isEditing && (
+                      <TableCell>
+                        <Button variant="ghost" size="sm" onClick={() => {
+                          if (holdingEntities.length > 1) setHoldingEntities(holdingEntities.filter((_, i) => i !== idx));
+                        }} className="h-6 w-6 p-0 text-red-500"><Trash2 className="w-3 h-3" /></Button>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          {isEditing && (
+            <Button variant="outline" size="sm" className="mt-2" onClick={() => setHoldingEntities([...holdingEntities, { name_of_entity: "", type_of_entity: "Subsidiary", shares_held_percentage: 0, participates_in_br_initiatives: false }])}>
+              <Plus className="w-3 h-3 mr-1" /> Add Entity
+            </Button>
+          )}
+        </CollapsibleContent>
+      </Collapsible>
+
+      {/* 5. Turnover Rate Matrix */}
+      <Collapsible open={openSections.turnover} onOpenChange={() => toggleSection('turnover')} className="border rounded-lg bg-white">
+        <CollapsibleTrigger className="w-full">
+          <div className="flex items-center justify-between p-3 hover:bg-stone-50">
+            <div className="flex items-center gap-2">
+              {openSections.turnover ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+              <TrendingDown className="w-4 h-4 text-primary" />
+              <span className="font-medium text-sm">Turnover Rate (%) - Last 3 Financial Years</span>
+            </div>
+          </div>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="p-4 pt-0 border-t">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-stone-100">
+                  <TableHead className="text-xs font-semibold" rowSpan={2}>Category</TableHead>
+                  <TableHead className="text-xs text-center font-semibold border-l" colSpan={2}>Current FY ({reportingYear})</TableHead>
+                  <TableHead className="text-xs text-center font-semibold border-l" colSpan={2}>Previous FY ({prevFY})</TableHead>
+                  <TableHead className="text-xs text-center font-semibold border-l" colSpan={2}>Prior FY ({priorFY})</TableHead>
+                </TableRow>
+                <TableRow className="bg-stone-50">
+                  <TableHead className="text-xs text-center border-l">Male</TableHead>
+                  <TableHead className="text-xs text-center">Female</TableHead>
+                  <TableHead className="text-xs text-center border-l">Male</TableHead>
+                  <TableHead className="text-xs text-center">Female</TableHead>
+                  <TableHead className="text-xs text-center border-l">Male</TableHead>
+                  <TableHead className="text-xs text-center">Female</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {/* Permanent Employees Row */}
+                <TableRow>
+                  <TableCell className="text-xs font-medium">Permanent Employees</TableCell>
+                  {/* Current */}
+                  <TableCell className="border-l">
+                    {isEditing ? (
+                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.current.permanent_employees_male}
+                        onChange={(e) => setTurnoverRate(p => ({ ...p, current: { ...p.current, permanent_employees_male: parseFloat(e.target.value) || 0 }}))}
+                        className="h-7 text-xs text-center w-16" />
+                    ) : <span className="text-xs">{turnoverRate.current.permanent_employees_male}%</span>}
+                  </TableCell>
+                  <TableCell>
+                    {isEditing ? (
+                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.current.permanent_employees_female}
+                        onChange={(e) => setTurnoverRate(p => ({ ...p, current: { ...p.current, permanent_employees_female: parseFloat(e.target.value) || 0 }}))}
+                        className="h-7 text-xs text-center w-16" />
+                    ) : <span className="text-xs">{turnoverRate.current.permanent_employees_female}%</span>}
+                  </TableCell>
+                  {/* Previous */}
+                  <TableCell className="border-l bg-stone-50">
+                    {isEditing ? (
+                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.previous.permanent_employees_male}
+                        onChange={(e) => setTurnoverRate(p => ({ ...p, previous: { ...p.previous, permanent_employees_male: parseFloat(e.target.value) || 0 }}))}
+                        className="h-7 text-xs text-center w-16" />
+                    ) : <span className="text-xs">{turnoverRate.previous.permanent_employees_male}%</span>}
+                  </TableCell>
+                  <TableCell className="bg-stone-50">
+                    {isEditing ? (
+                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.previous.permanent_employees_female}
+                        onChange={(e) => setTurnoverRate(p => ({ ...p, previous: { ...p.previous, permanent_employees_female: parseFloat(e.target.value) || 0 }}))}
+                        className="h-7 text-xs text-center w-16" />
+                    ) : <span className="text-xs">{turnoverRate.previous.permanent_employees_female}%</span>}
+                  </TableCell>
+                  {/* Prior */}
+                  <TableCell className="border-l bg-stone-100">
+                    {isEditing ? (
+                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.prior.permanent_employees_male}
+                        onChange={(e) => setTurnoverRate(p => ({ ...p, prior: { ...p.prior, permanent_employees_male: parseFloat(e.target.value) || 0 }}))}
+                        className="h-7 text-xs text-center w-16" />
+                    ) : <span className="text-xs">{turnoverRate.prior.permanent_employees_male}%</span>}
+                  </TableCell>
+                  <TableCell className="bg-stone-100">
+                    {isEditing ? (
+                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.prior.permanent_employees_female}
+                        onChange={(e) => setTurnoverRate(p => ({ ...p, prior: { ...p.prior, permanent_employees_female: parseFloat(e.target.value) || 0 }}))}
+                        className="h-7 text-xs text-center w-16" />
+                    ) : <span className="text-xs">{turnoverRate.prior.permanent_employees_female}%</span>}
+                  </TableCell>
+                </TableRow>
+                {/* Permanent Workers Row */}
+                <TableRow>
+                  <TableCell className="text-xs font-medium">Permanent Workers</TableCell>
+                  <TableCell className="border-l">
+                    {isEditing ? (
+                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.current.permanent_workers_male}
+                        onChange={(e) => setTurnoverRate(p => ({ ...p, current: { ...p.current, permanent_workers_male: parseFloat(e.target.value) || 0 }}))}
+                        className="h-7 text-xs text-center w-16" />
+                    ) : <span className="text-xs">{turnoverRate.current.permanent_workers_male}%</span>}
+                  </TableCell>
+                  <TableCell>
+                    {isEditing ? (
+                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.current.permanent_workers_female}
+                        onChange={(e) => setTurnoverRate(p => ({ ...p, current: { ...p.current, permanent_workers_female: parseFloat(e.target.value) || 0 }}))}
+                        className="h-7 text-xs text-center w-16" />
+                    ) : <span className="text-xs">{turnoverRate.current.permanent_workers_female}%</span>}
+                  </TableCell>
+                  <TableCell className="border-l bg-stone-50">
+                    {isEditing ? (
+                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.previous.permanent_workers_male}
+                        onChange={(e) => setTurnoverRate(p => ({ ...p, previous: { ...p.previous, permanent_workers_male: parseFloat(e.target.value) || 0 }}))}
+                        className="h-7 text-xs text-center w-16" />
+                    ) : <span className="text-xs">{turnoverRate.previous.permanent_workers_male}%</span>}
+                  </TableCell>
+                  <TableCell className="bg-stone-50">
+                    {isEditing ? (
+                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.previous.permanent_workers_female}
+                        onChange={(e) => setTurnoverRate(p => ({ ...p, previous: { ...p.previous, permanent_workers_female: parseFloat(e.target.value) || 0 }}))}
+                        className="h-7 text-xs text-center w-16" />
+                    ) : <span className="text-xs">{turnoverRate.previous.permanent_workers_female}%</span>}
+                  </TableCell>
+                  <TableCell className="border-l bg-stone-100">
+                    {isEditing ? (
+                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.prior.permanent_workers_male}
+                        onChange={(e) => setTurnoverRate(p => ({ ...p, prior: { ...p.prior, permanent_workers_male: parseFloat(e.target.value) || 0 }}))}
+                        className="h-7 text-xs text-center w-16" />
+                    ) : <span className="text-xs">{turnoverRate.prior.permanent_workers_male}%</span>}
+                  </TableCell>
+                  <TableCell className="bg-stone-100">
+                    {isEditing ? (
+                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.prior.permanent_workers_female}
+                        onChange={(e) => setTurnoverRate(p => ({ ...p, prior: { ...p.prior, permanent_workers_female: parseFloat(e.target.value) || 0 }}))}
+                        className="h-7 text-xs text-center w-16" />
+                    ) : <span className="text-xs">{turnoverRate.prior.permanent_workers_female}%</span>}
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+          <p className="text-xs text-text-muted mt-2">* Previous FY data is auto-filled from existing records if available</p>
+        </CollapsibleContent>
+      </Collapsible>
+
+      {/* Single Save Button for All Sections */}
+      {isEditing && (
+        <div className="flex justify-end pt-4 border-t">
+          <Button onClick={saveAllYearlyData} disabled={saving} className="bg-primary hover:bg-primary/90 text-white" data-testid="save-all-yearly-btn">
+            {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</> : <><Save className="w-4 h-4 mr-2" /> Save All Yearly Data</>}
+          </Button>
+        </div>
+      )}
+
+      {/* History Modal */}
+      <Dialog open={showHistoryModal} onOpenChange={setShowHistoryModal}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Historical Yearly Data</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            {historicalData.length === 0 ? (
+              <p className="text-sm text-text-muted text-center py-8">No historical data available</p>
+            ) : (
+              historicalData.map((yearData) => (
+                <div key={yearData.reporting_year} className="border rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-medium">{yearData.reporting_year}</h4>
+                    <Button variant="outline" size="sm" onClick={() => { setReportingYear(yearData.reporting_year); setShowHistoryModal(false); }}>
+                      Load & Edit
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2 text-xs">
+                    <div className="bg-stone-50 p-2 rounded">Employees: {(yearData.employee_worker_details?.permanent_male_employees || 0) + (yearData.employee_worker_details?.permanent_female_employees || 0)}</div>
+                    <div className="bg-stone-50 p-2 rounded">CSR: {yearData.csr_applicability?.is_applicable ? 'Yes' : 'No'}</div>
+                    <div className="bg-stone-50 p-2 rounded">Entities: {yearData.holding_subsidiary_entities?.length || 0}</div>
+                    <div className="bg-stone-50 p-2 rounded">Women on Board: {yearData.women_representation?.reduce((s, r) => s + (r.number_of_females || 0), 0) || 0}</div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

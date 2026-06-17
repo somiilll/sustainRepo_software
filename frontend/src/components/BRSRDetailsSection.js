@@ -39,11 +39,8 @@ import {
   Loader2 
 } from 'lucide-react';
 
-// Import new BRSR yearly sections
-import BRSREmployeeDetailsSection from './BRSREmployeeDetailsSection';
-import BRSRWomenRepresentationSection from './BRSRWomenRepresentationSection';
-import BRSRCSRApplicabilitySection from './BRSRCSRApplicabilitySection';
-import BRSRHoldingSubsidiarySection from './BRSRHoldingSubsidiarySection';
+// Import unified yearly sections component
+import BRSRYearlySections from './BRSRYearlySections';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -968,26 +965,14 @@ export default function BRSRDetailsSection({
           )}
 
           {/* Year-Specific BRSR Sections */}
-          <div className="space-y-4 pt-6 border-t border-stone-200">
-            <h4 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+          <div className="pt-6 border-t border-stone-200">
+            <h4 className="text-sm font-semibold text-text-primary flex items-center gap-2 mb-4">
               <FileText className="w-4 h-4 text-primary" />
               Year-Specific Reporting Data
             </h4>
-            <p className="text-xs text-text-muted mb-4">
-              The following sections capture year-specific data. Each section has its own reporting year selector and historical data management.
-            </p>
             
-            {/* Employee & Worker Details */}
-            <BRSREmployeeDetailsSection isEditing={isEditing} />
-            
-            {/* Women Representation */}
-            <BRSRWomenRepresentationSection isEditing={isEditing} />
-            
-            {/* CSR Applicability */}
-            <BRSRCSRApplicabilitySection isEditing={isEditing} />
-            
-            {/* Holding, Subsidiary & Associate Companies */}
-            <BRSRHoldingSubsidiarySection isEditing={isEditing} />
+            {/* Unified Yearly Sections Component */}
+            <BRSRYearlySections isEditing={isEditing} />
           </div>
         </div>
       </CollapsibleContent>

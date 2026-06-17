@@ -97,6 +97,21 @@ class CSRApplicabilityData(BaseModel):
     net_worth_inr: float = Field(default=0, ge=0, description="Net Worth in INR")
 
 
+class TurnoverRateYear(BaseModel):
+    """Turnover rate data for one financial year."""
+    permanent_employees_male: float = Field(default=0, ge=0, le=100)
+    permanent_employees_female: float = Field(default=0, ge=0, le=100)
+    permanent_workers_male: float = Field(default=0, ge=0, le=100)
+    permanent_workers_female: float = Field(default=0, ge=0, le=100)
+
+
+class TurnoverRateData(BaseModel):
+    """Turnover rate across 3 financial years."""
+    current: TurnoverRateYear = Field(default_factory=TurnoverRateYear)
+    previous: TurnoverRateYear = Field(default_factory=TurnoverRateYear)
+    prior: TurnoverRateYear = Field(default_factory=TurnoverRateYear)
+
+
 # =============================================================================
 # BRSR Static Details Model (organization_framework_details)
 # =============================================================================
@@ -190,6 +205,10 @@ class BRSRYearlyDetailsBase(BaseModel):
         default_factory=CSRApplicabilityData,
         description="CSR Applicability under Section 135"
     )
+    turnover_rate: TurnoverRateData = Field(
+        default_factory=TurnoverRateData,
+        description="Turnover Rate (%) for Permanent Employees and Workers"
+    )
 
 
 # =============================================================================
@@ -273,6 +292,7 @@ class BRSRYearlyDataUpdate(BaseModel):
     women_representation: Optional[List[WomenRepresentationRow]] = None
     holding_subsidiary_entities: Optional[List[HoldingSubsidiaryRow]] = None
     csr_applicability: Optional[CSRApplicabilityData] = None
+    turnover_rate: Optional[TurnoverRateData] = None
 
 
 class BRSRYearlyDataResponse(BRSRYearlyDetailsBase):
