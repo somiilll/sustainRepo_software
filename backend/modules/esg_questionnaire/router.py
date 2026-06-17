@@ -227,6 +227,41 @@ async def list_available_years(
     return {"years": years}
 
 
+@router.get("/responses/{framework}/{section}/{reporting_year}/historical")
+async def get_historical_data(
+    framework: str,
+    section: str,
+    reporting_year: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get historical (previous FY) data for autofill.
+    
+    This endpoint fetches the previous reporting year's responses 
+    to enable dynamic historical autofill in the frontend without 
+    storing historical snapshots in the current year's document.
+    
+    Example: If reporting_year is "2025-26", returns data from "2024-25".
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    historical_data = await esg_questionnaire_service.get_historical_data(
+        org_id=org_id,
+        framework=framework,
+        section=section,
+        current_reporting_year=reporting_year
+    )
+    
+    return {
+        "org_id": org_id,
+        "framework": framework,
+        "section": section,
+        **historical_data
+    }
+
+
 # =============================================================================
 # Helper Endpoints
 # =============================================================================

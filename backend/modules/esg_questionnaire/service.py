@@ -232,6 +232,85 @@ class ESGQuestionnaireService:
         docs = await cursor.to_list(100)
         return [doc["reporting_year"] for doc in docs]
 
+    async def get_historical_data(
+        self,
+        org_id: str,
+        framework: str,
+        section: str,
+        current_reporting_year: str,
+    ) -> Dict[str, Any]:
+        """
+        Get previous FY data for historical autofill.
+        
+        This method fetches the previous reporting year's responses and returns
+        the data that should be auto-filled into "Previous FY" columns.
+        
+        Example: If current_reporting_year is "2025-26", it fetches "2024-25" data.
+        
+        Returns:
+            Dict with:
+            - previous_year: The calculated previous reporting year
+            - previous_responses: The responses from the previous year (or empty)
+            - autofill_mappings: Question-to-field mappings for autofill
+        """
+        # Parse reporting year format (e.g., "2025-26" -> previous is "2024-25")
+        previous_year = self._calculate_previous_fy(current_reporting_year)
+        
+        # Fetch previous year's responses
+        previous_responses = await self.get_responses(
+            org_id=org_id,
+            framework=framework,
+            reporting_year=previous_year,
+            section=section
+        )
+        
+        # Get question configs to identify which have historical autofill
+        configs = await self.list_question_configs(framework=framework, section=section)
+        
+        # Build autofill mappings
+        autofill_mappings = {}
+        for config in configs:
+            table_config = config.get("table_config", {})
+            autofill_config = table_config.get("historical_autofill_config", {})
+            
+            if autofill_config.get("enabled"):
+                question_key = config["question_key"]
+                autofill_mappings[question_key] = {
+                    "source_column": autofill_config.get("source_column"),
+                    "target_column": autofill_config.get("target_column"),
+                    "mappings": autofill_config.get("mappings", [])
+                }
+        
+        return {
+            "current_year": current_reporting_year,
+            "previous_year": previous_year,
+            "previous_responses": previous_responses.get("responses", {}) if previous_responses else {},
+            "autofill_mappings": autofill_mappings,
+            "has_previous_data": previous_responses is not None
+        }
+
+    def _calculate_previous_fy(self, reporting_year: str) -> str:
+        """
+        Calculate the previous financial year from a reporting year string.
+        
+        Examples:
+            "2025-26" -> "2024-25"
+            "2024-25" -> "2023-24"
+            "CY 2025" -> "CY 2024"
+        """
+        if reporting_year.startswith("CY "):
+            # Calendar year format: "CY 2025"
+            year = int(reporting_year.replace("CY ", ""))
+            return f"CY {year - 1}"
+        elif "-" in reporting_year:
+            # Financial year format: "2025-26"
+            parts = reporting_year.split("-")
+            start_year = int(parts[0])
+            return f"{start_year - 1}-{str(start_year)[-2:]}"
+        else:
+            # Default: assume numeric year
+            return str(int(reporting_year) - 1)
+
     # =========================================================================
     # Helper Methods
     # =========================================================================

@@ -37,7 +37,12 @@ QUESTION_TYPES = Literal[
     "structured_group",
     "comparison_table",
     "yes_no_detail_matrix",
-    "dual_conditional_yes_no"
+    "dual_conditional_yes_no",
+    # Environment Q70-74 Renderer Types
+    "yes_no_with_dynamic_table",
+    "historical_material_percentage_table",
+    "historical_reclaim_percentage_table",
+    "historical_waste_management_matrix"
 ]
 
 ESG_SECTIONS = Literal["environment", "social", "governance"]
