@@ -113,6 +113,47 @@ Multi-tenant ESG (Environmental, Social, Governance) management platform. Origin
 
 ### June 2026 Session — ESG Platform Architecture Phase 1 COMPLETE
 
+**June 17, 2026 — BRSR Extended Sections (Batch 1) COMPLETE**
+
+- **Hybrid Data Structure Implementation**:
+  - Static data stored in `organization_framework_details` (company identity, address, etc.)
+  - Year-specific data stored in new `organization_framework_yearly_data` collection
+  - Each section has independent reporting year selector
+  - "View History" modals for managing historical data per section
+
+- **New BRSR Year-Specific Sections (Batch 1)**:
+  1. **Employee & Worker Details** (`BRSREmployeeDetailsSection.js`):
+     - Permanent/Non-permanent Male/Female Employees
+     - Permanent/Non-permanent Male/Female Workers  
+     - Differently Abled categories for both
+     - Compact table layout with year selector
+  
+  2. **Women Representation** (`BRSRWomenRepresentationSection.js`):
+     - Board of Directors / Key Management Personnel categories
+     - Total count and Number of Females
+     - Dynamic add/edit/delete rows
+  
+  3. **CSR Applicability** (`BRSRCSRApplicabilitySection.js`):
+     - CSR applicable under Section 135 (Yes/No switch)
+     - Turnover (INR) with Indian number formatting
+     - Net Worth (INR)
+  
+  4. **Holding, Subsidiary & Associate Companies** (`BRSRHoldingSubsidiarySection.js`):
+     - Name of Entity, Type (Holding/Subsidiary/Associate/JV)
+     - % Shares Held, BR Participation (Yes/No)
+     - Dynamic table with add/edit/delete
+
+- **New Backend Endpoints (Yearly Data)**:
+  - `GET /api/organizations/my/framework-details/brsr/yearly` - List all yearly data
+  - `GET /api/organizations/my/framework-details/brsr/yearly/{year}` - Get specific year
+  - `PUT /api/organizations/my/framework-details/brsr/yearly/{year}` - Create/Update
+  - `PATCH /api/organizations/my/framework-details/brsr/yearly/{year}` - Partial update
+  - `DELETE /api/organizations/my/framework-details/brsr/yearly/{year}` - Delete year data
+
+- **New MongoDB Collection**:
+  - `organization_framework_yearly_data` - Year-specific reporting data
+  - Schema: `{ org_id, framework, reporting_year, employee_worker_details, women_representation, holding_subsidiary_entities, csr_applicability, ... }`
+
 **June 17, 2026 — BRSR Organization Details Feature COMPLETE**
 
 - **BRSR Organization Details UI** (`/app/frontend/src/components/BRSRDetailsSection.js`):

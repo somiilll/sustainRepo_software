@@ -2,6 +2,10 @@
 Framework Details Contracts
 
 Pydantic models for framework-specific organization details.
+Uses hybrid structure:
+- Static data: organization_framework_details (company identity, address, etc.)
+- Yearly data: organization_framework_yearly_data (employee counts, turnover rates, etc.)
+
 Currently implements BRSR. Future frameworks (GRI, SBTi) can be added modularly.
 """
 
@@ -11,7 +15,7 @@ from pydantic import BaseModel, Field, field_validator
 
 
 # =============================================================================
-# BRSR Dynamic Table Row Models
+# BRSR Static Table Row Models (Non-year-specific)
 # =============================================================================
 
 class BusinessActivityRow(BaseModel):
@@ -42,18 +46,70 @@ class MarketServedRow(BaseModel):
 
 
 # =============================================================================
-# BRSR Details Models
+# BRSR Yearly Table Row Models (Year-specific data)
 # =============================================================================
 
-class BRSRDetailsBase(BaseModel):
-    """Base BRSR organization details fields."""
+class EmployeeWorkerDetailsRow(BaseModel):
+    """Row for Employees and Workers Details including differently abled."""
+    # Permanent Employees
+    permanent_male_employees: int = Field(default=0, ge=0)
+    permanent_female_employees: int = Field(default=0, ge=0)
+    other_than_permanent_male_employees: int = Field(default=0, ge=0)
+    other_than_permanent_female_employees: int = Field(default=0, ge=0)
+    # Differently Abled Employees
+    diff_abled_permanent_male_employees: int = Field(default=0, ge=0)
+    diff_abled_permanent_female_employees: int = Field(default=0, ge=0)
+    diff_abled_other_permanent_male_employees: int = Field(default=0, ge=0)
+    diff_abled_other_permanent_female_employees: int = Field(default=0, ge=0)
+    # Permanent Workers
+    permanent_male_workers: int = Field(default=0, ge=0)
+    permanent_female_workers: int = Field(default=0, ge=0)
+    other_than_permanent_male_workers: int = Field(default=0, ge=0)
+    other_than_permanent_female_workers: int = Field(default=0, ge=0)
+    # Differently Abled Workers
+    diff_abled_permanent_male_workers: int = Field(default=0, ge=0)
+    diff_abled_permanent_female_workers: int = Field(default=0, ge=0)
+    diff_abled_other_permanent_male_workers: int = Field(default=0, ge=0)
+    diff_abled_other_permanent_female_workers: int = Field(default=0, ge=0)
+
+
+class WomenRepresentationRow(BaseModel):
+    """Row for Representation of Women on Board and Key Management Personnel."""
+    category: Literal["Board of Directors", "Key Management Personnel"] = Field(...)
+    total: int = Field(default=0, ge=0, description="Total count")
+    number_of_females: int = Field(default=0, ge=0, description="Number of females")
+
+
+class HoldingSubsidiaryRow(BaseModel):
+    """Row for Holding, Subsidiary, Associate Companies and Joint Ventures."""
+    name_of_entity: str = Field(default="", description="Name of Entity")
+    type_of_entity: Literal["Holding Company", "Subsidiary", "Associate Company", "Joint Venture"] = Field(
+        default="Subsidiary", description="Type of Entity"
+    )
+    shares_held_percentage: float = Field(default=0, ge=0, le=100, description="% Shares Held")
+    participates_in_br_initiatives: bool = Field(default=False, description="Participates in BR Initiatives")
+
+
+class CSRApplicabilityData(BaseModel):
+    """CSR Applicability data for a reporting year."""
+    is_applicable: bool = Field(default=False, description="CSR applicable under Section 135")
+    turnover_inr: float = Field(default=0, ge=0, description="Turnover in INR")
+    net_worth_inr: float = Field(default=0, ge=0, description="Net Worth in INR")
+
+
+# =============================================================================
+# BRSR Static Details Model (organization_framework_details)
+# =============================================================================
+
+class BRSRStaticDetailsBase(BaseModel):
+    """Static BRSR organization details - non-year-specific data."""
     
-    # Basic Information Fields (all optional for partial saves)
+    # Basic Information Fields
     cin: str = Field(default="", description="Corporate Identity Number")
     listed_entity_name: str = Field(default="", description="Name of the Listed Entity")
     year_of_incorporation: int = Field(default=2024, ge=1800, le=2100, description="Year of Incorporation")
     
-    # Address fields (reusing org structure)
+    # Address fields
     corporate_address: str = Field(default="", description="Corporate Address")
     city: str = Field(default="", description="City")
     state: str = Field(default="", description="State")
@@ -64,33 +120,13 @@ class BRSRDetailsBase(BaseModel):
     telephone: str = Field(default="", description="Telephone")
     website: str = Field(default="", description="Website URL")
     
-    paid_up_capital: float = Field(default=0, ge=0, description="Paid-up Capital (INR)")
+    # Static financial/assurance info
     assurance_provider: str = Field(default="", description="Name of Assurance Provider")
     assurance_type: str = Field(default="", description="Type of Assurance Obtained")
-    export_contribution_percentage: float = Field(default=0, ge=0, le=100, description="Contribution of exports as % of total turnover")
-    customer_types_brief: str = Field(default="", description="Brief on types of customers")
     
     # Radio Button Fields
-    stock_exchange: Literal["BSE", "NSE", "Both NSE & BSE"] = Field(default="BSE", description="Stock Exchange where shares are listed")
-    reporting_boundary: Literal["Standalone", "Consolidated"] = Field(default="Standalone", description="Reporting Boundary")
-    
-    # Dynamic Table Fields
-    business_activities: List[BusinessActivityRow] = Field(
-        default_factory=list,
-        description="Business Activities accounting for 90% of turnover"
-    )
-    products_services: List[ProductServiceRow] = Field(
-        default_factory=list,
-        description="Products/Services accounting for 90% of turnover"
-    )
-    plants_offices: List[PlantOfficeRow] = Field(
-        default_factory=list,
-        description="Plants and Offices operated"
-    )
-    markets_served: List[MarketServedRow] = Field(
-        default_factory=list,
-        description="Markets served by entity"
-    )
+    stock_exchange: Literal["BSE", "NSE", "Both NSE & BSE"] = Field(default="BSE")
+    reporting_boundary: Literal["Standalone", "Consolidated"] = Field(default="Standalone")
 
     @field_validator('pincode')
     @classmethod
@@ -105,21 +141,74 @@ class BRSRDetailsBase(BaseModel):
     @classmethod
     def validate_website(cls, v):
         if v and not (v.startswith('http://') or v.startswith('https://')):
-            # Auto-add https if missing
             return f'https://{v}'
         return v
     
     @field_validator('email')
     @classmethod
     def validate_email(cls, v):
-        # Allow empty string
         if not v or v == "":
             return v
-        # Basic email validation
         import re
         if not re.match(r'^[^@]+@[^@]+\.[^@]+$', v):
             raise ValueError('Invalid email format')
         return v
+
+
+# =============================================================================
+# BRSR Yearly Details Model (organization_framework_yearly_data)
+# =============================================================================
+
+class BRSRYearlyDetailsBase(BaseModel):
+    """Year-specific BRSR reporting data."""
+    
+    # Financial data (year-specific)
+    paid_up_capital: float = Field(default=0, ge=0, description="Paid-up Capital (INR)")
+    export_contribution_percentage: float = Field(default=0, ge=0, le=100)
+    customer_types_brief: str = Field(default="", description="Brief on types of customers")
+    
+    # Dynamic Tables (year-specific)
+    business_activities: List[BusinessActivityRow] = Field(default_factory=list)
+    products_services: List[ProductServiceRow] = Field(default_factory=list)
+    plants_offices: List[PlantOfficeRow] = Field(default_factory=list)
+    markets_served: List[MarketServedRow] = Field(default_factory=list)
+    
+    # NEW SECTIONS - Batch 1
+    employee_worker_details: EmployeeWorkerDetailsRow = Field(
+        default_factory=EmployeeWorkerDetailsRow,
+        description="Details of Employees and Workers"
+    )
+    women_representation: List[WomenRepresentationRow] = Field(
+        default_factory=list,
+        description="Representation of Women on Board and KMP"
+    )
+    holding_subsidiary_entities: List[HoldingSubsidiaryRow] = Field(
+        default_factory=list,
+        description="Holding, Subsidiary, Associate Companies and JVs"
+    )
+    csr_applicability: CSRApplicabilityData = Field(
+        default_factory=CSRApplicabilityData,
+        description="CSR Applicability under Section 135"
+    )
+
+
+# =============================================================================
+# Combined BRSR Details for backward compatibility
+# =============================================================================
+
+class BRSRDetailsBase(BRSRStaticDetailsBase):
+    """Combined BRSR details (static + yearly) for backward compatibility."""
+    
+    # Include yearly fields for backward compatibility
+    paid_up_capital: float = Field(default=0, ge=0, description="Paid-up Capital (INR)")
+    export_contribution_percentage: float = Field(default=0, ge=0, le=100)
+    customer_types_brief: str = Field(default="", description="Brief on types of customers")
+    
+    # Dynamic Table Fields
+    business_activities: List[BusinessActivityRow] = Field(default_factory=list)
+    products_services: List[ProductServiceRow] = Field(default_factory=list)
+    plants_offices: List[PlantOfficeRow] = Field(default_factory=list)
+    markets_served: List[MarketServedRow] = Field(default_factory=list)
 
 
 class BRSRDetailsCreate(BRSRDetailsBase):
@@ -158,6 +247,40 @@ class BRSRDetails(BRSRDetailsBase):
     id: str
     org_id: str
     framework: str = "BRSR"
+    created_at: str
+    updated_at: Optional[str] = None
+
+
+# =============================================================================
+# Yearly Data Request/Response Models
+# =============================================================================
+
+class BRSRYearlyDataCreate(BRSRYearlyDetailsBase):
+    """Create request for BRSR yearly data."""
+    pass
+
+
+class BRSRYearlyDataUpdate(BaseModel):
+    """Partial update for BRSR yearly data."""
+    paid_up_capital: Optional[float] = None
+    export_contribution_percentage: Optional[float] = None
+    customer_types_brief: Optional[str] = None
+    business_activities: Optional[List[BusinessActivityRow]] = None
+    products_services: Optional[List[ProductServiceRow]] = None
+    plants_offices: Optional[List[PlantOfficeRow]] = None
+    markets_served: Optional[List[MarketServedRow]] = None
+    employee_worker_details: Optional[EmployeeWorkerDetailsRow] = None
+    women_representation: Optional[List[WomenRepresentationRow]] = None
+    holding_subsidiary_entities: Optional[List[HoldingSubsidiaryRow]] = None
+    csr_applicability: Optional[CSRApplicabilityData] = None
+
+
+class BRSRYearlyDataResponse(BRSRYearlyDetailsBase):
+    """Full BRSR yearly data document."""
+    id: str
+    org_id: str
+    framework: str = "BRSR"
+    reporting_year: str
     created_at: str
     updated_at: Optional[str] = None
 
