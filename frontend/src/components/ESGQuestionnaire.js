@@ -221,7 +221,7 @@ function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {
         );
 
       case 'principle_toggle_with_description':
-        return <PrincipleToggleRenderer value={value} onChange={onChange} isEditing={isEditing} />;
+        return <PrincipleToggleRenderer value={value} onChange={onChange} isEditing={isEditing} config={config} />;
 
       case 'principle_text':
         return <PrincipleTextRenderer value={value} onChange={onChange} isEditing={isEditing} config={config} />;
@@ -260,9 +260,11 @@ function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {
   );
 }
 
-// P1-P9 Principle Toggle Renderer
-function PrincipleToggleRenderer({ value, onChange, isEditing }) {
+// P1-P9 Principle Toggle Renderer (with optional inline reasons when No)
+function PrincipleToggleRenderer({ value, onChange, isEditing, config = {} }) {
   const data = value || { mode: 'all_together', all_enabled: null, all_description: '', principles: {} };
+  const inlineReasons = config.inline_reasons_config?.items || [];
+  const hasInlineReasons = inlineReasons.length > 0;
 
   const handleModeChange = (newMode) => {
     onChange({ ...data, mode: newMode });
@@ -274,10 +276,65 @@ function PrincipleToggleRenderer({ value, onChange, isEditing }) {
 
   const handlePrincipleChange = (key, field, val) => {
     const principles = { ...data.principles };
-    if (!principles[key]) principles[key] = { enabled: false, description: '' };
+    if (!principles[key]) principles[key] = { enabled: false, description: '', reasons: {}, other_reason: '' };
     principles[key][field] = val;
     onChange({ ...data, principles });
   };
+
+  const handlePrincipleReasonChange = (pKey, reasonKey, val) => {
+    const principles = { ...data.principles };
+    if (!principles[pKey]) principles[pKey] = { enabled: false, description: '', reasons: {}, other_reason: '' };
+    if (!principles[pKey].reasons) principles[pKey].reasons = {};
+    principles[pKey].reasons[reasonKey] = val;
+    onChange({ ...data, principles });
+  };
+
+  const handlePrincipleOtherReason = (pKey, val) => {
+    const principles = { ...data.principles };
+    if (!principles[pKey]) principles[pKey] = { enabled: false, description: '', reasons: {}, other_reason: '' };
+    principles[pKey].other_reason = val;
+    onChange({ ...data, principles });
+  };
+
+  // Inline reasons sub-component
+  const InlineReasonsForm = ({ pKey, pData }) => (
+    <div className="mt-3 ml-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+      <p className="text-xs font-medium text-amber-800 mb-2">If No, please provide reasons:</p>
+      <div className="space-y-2">
+        {inlineReasons.map(r => (
+          <div key={r.key} className="flex items-center justify-between py-1">
+            <Label className="text-xs flex-1 pr-2">{r.label}</Label>
+            <RadioGroup 
+              value={pData.reasons?.[r.key] || ''} 
+              onValueChange={(v) => handlePrincipleReasonChange(pKey, r.key, v)}
+              className="flex gap-2"
+            >
+              <div className="flex items-center gap-1">
+                <RadioGroupItem value="Yes" id={`${pKey}-${r.key}-yes`} className="h-3 w-3" />
+                <Label htmlFor={`${pKey}-${r.key}-yes`} className="text-xs">Yes</Label>
+              </div>
+              <div className="flex items-center gap-1">
+                <RadioGroupItem value="No" id={`${pKey}-${r.key}-no`} className="h-3 w-3" />
+                <Label htmlFor={`${pKey}-${r.key}-no`} className="text-xs">No</Label>
+              </div>
+            </RadioGroup>
+          </div>
+        ))}
+        {config.inline_reasons_config?.has_other !== false && (
+          <div className="pt-1">
+            <Label className="text-xs block mb-1">Any other reason (please specify)</Label>
+            <Textarea
+              value={pData.other_reason || ''}
+              onChange={(e) => handlePrincipleOtherReason(pKey, e.target.value)}
+              placeholder="Please specify..."
+              rows={1}
+              className="text-xs"
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
 
   if (!isEditing) {
     return (
@@ -292,12 +349,24 @@ function PrincipleToggleRenderer({ value, onChange, isEditing }) {
           </div>
         ) : (
           <div className="space-y-2">
-            {NGRBC_PRINCIPLES.map((p) => (
-              <div key={p.key} className="bg-stone-50 p-2 rounded text-sm">
-                <strong>{p.key}:</strong> {data.principles?.[p.key]?.enabled ? 'Yes' : 'No'} 
-                {data.principles?.[p.key]?.description && ` - ${data.principles[p.key].description}`}
-              </div>
-            ))}
+            {NGRBC_PRINCIPLES.map((p) => {
+              const pData = data.principles?.[p.key] || {};
+              const selectedReasons = hasInlineReasons && pData.enabled === false 
+                ? inlineReasons.filter(r => pData.reasons?.[r.key] === 'Yes') 
+                : [];
+              return (
+                <div key={p.key} className="bg-stone-50 p-2 rounded text-sm">
+                  <strong>{p.key}:</strong> {pData.enabled ? 'Yes' : 'No'} 
+                  {pData.description && ` - ${pData.description}`}
+                  {selectedReasons.length > 0 && (
+                    <div className="ml-4 mt-1 text-xs text-amber-700">
+                      Reasons: {selectedReasons.map(r => r.label).join('; ')}
+                      {pData.other_reason && `; Other: ${pData.other_reason}`}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -343,30 +412,37 @@ function PrincipleToggleRenderer({ value, onChange, isEditing }) {
         </div>
       ) : (
         <div className="space-y-3">
-          {NGRBC_PRINCIPLES.map((p) => (
-            <div key={p.key} className="bg-stone-50 p-3 rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <div>
-                  <span className="font-medium text-sm">{p.key}</span>
-                  <span className="text-xs text-text-muted ml-2">{p.name}</span>
+          {NGRBC_PRINCIPLES.map((p) => {
+            const pData = data.principles?.[p.key] || { enabled: false, description: '', reasons: {}, other_reason: '' };
+            return (
+              <div key={p.key} className="bg-stone-50 p-3 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <span className="font-medium text-sm">{p.key}</span>
+                    <span className="text-xs text-text-muted ml-2">{p.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={pData.enabled || false}
+                      onCheckedChange={(v) => handlePrincipleChange(p.key, 'enabled', v)}
+                    />
+                    <span className="text-xs">{pData.enabled ? 'Yes' : 'No'}</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Switch
-                    checked={data.principles?.[p.key]?.enabled || false}
-                    onCheckedChange={(v) => handlePrincipleChange(p.key, 'enabled', v)}
-                  />
-                  <span className="text-xs">{data.principles?.[p.key]?.enabled ? 'Yes' : 'No'}</span>
-                </div>
+                <Textarea
+                  value={pData.description || ''}
+                  onChange={(e) => handlePrincipleChange(p.key, 'description', e.target.value)}
+                  placeholder={`Description for ${p.key}...`}
+                  rows={2}
+                  className="text-sm"
+                />
+                {/* Inline reasons when No is selected */}
+                {hasInlineReasons && pData.enabled === false && (
+                  <InlineReasonsForm pKey={p.key} pData={pData} />
+                )}
               </div>
-              <Textarea
-                value={data.principles?.[p.key]?.description || ''}
-                onChange={(e) => handlePrincipleChange(p.key, 'description', e.target.value)}
-                placeholder={`Description for ${p.key}...`}
-                rows={2}
-                className="text-sm"
-              />
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
