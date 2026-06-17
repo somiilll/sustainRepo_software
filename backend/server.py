@@ -101,6 +101,7 @@ from modules.production.router import router as production_router
 # ============================================================================
 from modules.esg.router import router as esg_config_router
 from modules.frameworks.router import router as frameworks_router
+from modules.framework_details.router import router as framework_details_router
 
 # Set Playwright browsers path BEFORE any playwright imports
 os.environ['PLAYWRIGHT_BROWSERS_PATH'] = '/app/.playwright'
@@ -147,6 +148,8 @@ api_router.include_router(production_router)
 api_router.include_router(esg_config_router)
 # ESG frameworks (BRSR, GRI, SBTi)
 api_router.include_router(frameworks_router)
+# Framework-specific organization details (BRSR, etc.)
+api_router.include_router(framework_details_router)
 
 # Run module contract verifier at import time. Phase B1: log-only, will be
 # escalated to fail-fast in dev once all modules expose their contracts.

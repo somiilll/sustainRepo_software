@@ -52,6 +52,7 @@ _REQUIRED_MODULES: List[str] = [
     # ESG Platform Extension - Phase 1
     "modules.esg",
     "modules.frameworks",
+    "modules.framework_details",
     "modules.environment",
     "modules.environment.ghg",
     "modules.social",

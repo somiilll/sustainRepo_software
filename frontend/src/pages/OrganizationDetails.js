@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
@@ -10,6 +10,7 @@ import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload,
 import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
+import BRSRDetailsSection from '../components/BRSRDetailsSection';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -54,6 +55,8 @@ export default function OrganizationDetails() {
   const [logoError, setLogoError] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [pincodeError, setPincodeError] = useState('');
+  const [isBRSREnabled, setIsBRSREnabled] = useState(false);
+  const [brsrData, setBRSRData] = useState(null);
   const { getAuthHeader, user, subscriptionExpired } = useAuth();
 
   // Check if user is Admin (can edit) or User (read-only)
@@ -205,6 +208,14 @@ export default function OrganizationDetails() {
   useEffect(() => {
     fetchOrganization();
   }, []);
+
+  // Fetch BRSR enabled status when organization is loaded
+  useEffect(() => {
+    if (organization) {
+      const enabled = organization.esg_frameworks_enabled?.includes('BRSR') || false;
+      setIsBRSREnabled(enabled);
+    }
+  }, [organization]);
 
   const fetchOrganization = async () => {
     try {
@@ -1366,6 +1377,14 @@ export default function OrganizationDetails() {
             )}
           </div>
         </Card>
+      )}
+
+      {/* BRSR Organization Details Section - Only shown if BRSR is enabled */}
+      {isBRSREnabled && (
+        <BRSRDetailsSection 
+          isEditing={editing}
+          onDataChange={setBRSRData}
+        />
       )}
     </div>
   );

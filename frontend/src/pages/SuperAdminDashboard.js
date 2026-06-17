@@ -34,9 +34,7 @@ import {
   ChevronDown,
   ChevronRight,
   Loader2,
-  FileText,
 } from 'lucide-react';
-import ESGFrameworksDialog from '../components/ESGFrameworksDialog';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -124,15 +122,6 @@ export default function SuperAdminDashboard() {
   const [scope3BiogenicStats, setScope3BiogenicStats] = useState(null);
   const [loadingStats, setLoadingStats] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState({});
-  
-  // ESG Frameworks Dialog
-  const [esgFrameworksDialogOpen, setEsgFrameworksDialogOpen] = useState(false);
-  const [selectedOrgForFrameworks, setSelectedOrgForFrameworks] = useState(null);
-  
-  const openFrameworksDialog = (org) => {
-    setSelectedOrgForFrameworks(org);
-    setEsgFrameworksDialogOpen(true);
-  };
   
   const fetchScope3BiogenicStats = async (org) => {
     setSelectedOrgForStats(org);
@@ -452,7 +441,7 @@ export default function SuperAdminDashboard() {
               </div>
               
               {/* View Scope 3 & Biogenic Stats Button */}
-              <div className="mt-3 pt-3 border-t border-stone-200 flex flex-wrap gap-2">
+              <div className="mt-3 pt-3 border-t border-stone-200">
                 <Button
                   variant="outline"
                   size="sm"
@@ -461,16 +450,6 @@ export default function SuperAdminDashboard() {
                 >
                   <BarChart3 className="w-3.5 h-3.5 mr-1.5" />
                   View Scope 3 & Biogenic Stats
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => openFrameworksDialog(org)}
-                  className="text-xs"
-                  data-testid={`esg-frameworks-btn-${org.organization_id}`}
-                >
-                  <FileText className="w-3.5 h-3.5 mr-1.5" />
-                  ESG Frameworks
                 </Button>
               </div>
               
@@ -654,17 +633,6 @@ export default function SuperAdminDashboard() {
           )}
         </DialogContent>
       </Dialog>
-      
-      {/* ESG Frameworks Dialog */}
-      <ESGFrameworksDialog
-        open={esgFrameworksDialogOpen}
-        onOpenChange={setEsgFrameworksDialogOpen}
-        organization={selectedOrgForFrameworks}
-        onUpdate={() => {
-          // Refresh dashboard data after update
-          fetchDashboardData();
-        }}
-      />
     </div>
   );
 }
