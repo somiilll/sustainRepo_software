@@ -253,6 +253,15 @@ function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {
       case 'structured_group':
         return <StructuredGroupRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
 
+      case 'comparison_table':
+        return <ComparisonTableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+
+      case 'yes_no_detail_matrix':
+        return <YesNoDetailMatrixRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+
+      case 'dual_conditional_yes_no':
+        return <DualConditionalYesNoRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+
       case 'table':
         return <TableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
 
@@ -1431,6 +1440,231 @@ function StructuredGroupRenderer({ config, value, onChange, isEditing }) {
               onChange={(e) => handleFieldChange(f.key, e.target.value)}
               placeholder={f.label}
               className="h-9 text-sm"
+            />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Comparison Table Renderer (FY comparison with fixed rows and multiple column groups)
+function ComparisonTableRenderer({ config, value, onChange, isEditing }) {
+  const tableConfig = config.table_config || {};
+  const fixedRows = tableConfig.fixed_rows || [];
+  const columnGroups = tableConfig.column_groups || [];
+  const data = value || {};
+
+  const handleCellChange = (rowKey, colKey, val) => {
+    const newData = { ...data };
+    if (!newData[rowKey]) newData[rowKey] = {};
+    newData[rowKey][colKey] = val;
+    onChange(newData);
+  };
+
+  const renderCell = (col, rowKey) => {
+    const cellValue = data[rowKey]?.[col.key];
+    if (!isEditing) return <span className="text-sm">{cellValue ?? '-'}</span>;
+    
+    if (col.type === 'select') {
+      return (
+        <Select value={cellValue || ''} onValueChange={(v) => handleCellChange(rowKey, col.key, v)}>
+          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="-" /></SelectTrigger>
+          <SelectContent>
+            {(col.options || []).map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      );
+    }
+    return (
+      <Input
+        type={col.type === 'number' || col.type === 'percentage' ? 'number' : 'text'}
+        value={cellValue ?? ''}
+        onChange={(e) => handleCellChange(rowKey, col.key, e.target.value)}
+        className="h-8 text-xs"
+        placeholder={col.type === 'percentage' ? '%' : ''}
+      />
+    );
+  };
+
+  return (
+    <div className="mt-2 overflow-x-auto">
+      <Table>
+        <TableHeader>
+          {columnGroups.length > 0 && (
+            <TableRow className="bg-stone-100">
+              <TableHead rowSpan={2} className="text-xs font-medium w-32 border-r">Benefits</TableHead>
+              {columnGroups.map(group => (
+                <TableHead key={group.key} colSpan={group.columns.length} className="text-xs font-medium text-center border-r last:border-r-0">
+                  {group.label}
+                </TableHead>
+              ))}
+            </TableRow>
+          )}
+          <TableRow className="bg-stone-50">
+            {columnGroups.map(group => 
+              group.columns.map(col => (
+                <TableHead key={col.key} className="text-xs font-medium">{col.label}</TableHead>
+              ))
+            )}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {fixedRows.map(row => (
+            <TableRow key={row.key}>
+              <TableCell className="font-medium text-sm border-r">{row.label}</TableCell>
+              {columnGroups.map(group => 
+                group.columns.map(col => (
+                  <TableCell key={col.key} className="p-1">{renderCell(col, row.key)}</TableCell>
+                ))
+              )}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+// Yes/No Detail Matrix Renderer (fixed rows with Yes/No and conditional details)
+function YesNoDetailMatrixRenderer({ config, value, onChange, isEditing }) {
+  const tableConfig = config.table_config || {};
+  const fixedRows = tableConfig.fixed_rows || [];
+  const data = value || {};
+
+  const handleChange = (rowKey, field, val) => {
+    const newData = { ...data };
+    if (!newData[rowKey]) newData[rowKey] = { available: '', details: '' };
+    newData[rowKey][field] = val;
+    onChange(newData);
+  };
+
+  if (!isEditing) {
+    return (
+      <div className="mt-2 overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-stone-50">
+              <TableHead className="text-xs font-medium w-48">Category</TableHead>
+              <TableHead className="text-xs font-medium w-24">Mechanism Available</TableHead>
+              <TableHead className="text-xs font-medium">Brief Details</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {fixedRows.map(row => (
+              <TableRow key={row.key}>
+                <TableCell className="font-medium text-sm">{row.label}</TableCell>
+                <TableCell className="text-sm">{data[row.key]?.available || '-'}</TableCell>
+                <TableCell className="text-sm">{data[row.key]?.details || '-'}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2 overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-stone-50">
+            <TableHead className="text-xs font-medium w-48">Category</TableHead>
+            <TableHead className="text-xs font-medium w-28">Mechanism Available</TableHead>
+            <TableHead className="text-xs font-medium">Brief Details</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {fixedRows.map(row => (
+            <TableRow key={row.key}>
+              <TableCell className="font-medium text-sm">{row.label}</TableCell>
+              <TableCell className="p-1">
+                <Select value={data[row.key]?.available || ''} onValueChange={(v) => handleChange(row.key, 'available', v)}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="-" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Yes">Yes</SelectItem>
+                    <SelectItem value="No">No</SelectItem>
+                  </SelectContent>
+                </Select>
+              </TableCell>
+              <TableCell className="p-1">
+                <Textarea
+                  value={data[row.key]?.details || ''}
+                  onChange={(e) => handleChange(row.key, 'details', e.target.value)}
+                  placeholder={data[row.key]?.available === 'Yes' ? 'Required when Yes' : 'Details...'}
+                  rows={1}
+                  className="text-xs"
+                  disabled={data[row.key]?.available !== 'Yes'}
+                />
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+// Dual Conditional Yes/No Renderer (two categories with Yes/No + details)
+function DualConditionalYesNoRenderer({ config, value, onChange, isEditing }) {
+  const categories = config.categories || [{ key: 'employees', label: 'Employees' }, { key: 'workers', label: 'Workers' }];
+  const data = value || {};
+
+  const handleChange = (catKey, field, val) => {
+    const newData = { ...data };
+    if (!newData[catKey]) newData[catKey] = { has_value: false, details: '' };
+    newData[catKey][field] = val;
+    onChange(newData);
+  };
+
+  if (!isEditing) {
+    return (
+      <div className="mt-2 space-y-2">
+        {categories.map(cat => (
+          <div key={cat.key} className="bg-stone-50 p-3 rounded">
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-sm">{cat.label}:</span>
+              <Badge variant="outline" className={data[cat.key]?.has_value ? 'bg-green-50 text-green-700' : ''}>
+                {data[cat.key]?.has_value ? 'Yes' : 'No'}
+              </Badge>
+            </div>
+            {data[cat.key]?.has_value && data[cat.key]?.details && (
+              <p className="text-sm mt-1 ml-4">{data[cat.key].details}</p>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 space-y-4">
+      {categories.map(cat => (
+        <div key={cat.key} className="bg-stone-50 p-4 rounded-lg">
+          <div className="flex items-center justify-between mb-2">
+            <Label className="text-sm font-medium">{cat.label}</Label>
+            <RadioGroup 
+              value={data[cat.key]?.has_value ? 'yes' : 'no'} 
+              onValueChange={(v) => handleChange(cat.key, 'has_value', v === 'yes')}
+              className="flex gap-3"
+            >
+              <div className="flex items-center gap-1">
+                <RadioGroupItem value="yes" id={`${config.question_key}-${cat.key}-yes`} />
+                <Label htmlFor={`${config.question_key}-${cat.key}-yes`} className="text-sm">Yes</Label>
+              </div>
+              <div className="flex items-center gap-1">
+                <RadioGroupItem value="no" id={`${config.question_key}-${cat.key}-no`} />
+                <Label htmlFor={`${config.question_key}-${cat.key}-no`} className="text-sm">No</Label>
+              </div>
+            </RadioGroup>
+          </div>
+          {data[cat.key]?.has_value && (
+            <Textarea
+              value={data[cat.key]?.details || ''}
+              onChange={(e) => handleChange(cat.key, 'details', e.target.value)}
+              placeholder="Provide details..."
+              rows={2}
+              className="text-sm"
             />
           )}
         </div>
