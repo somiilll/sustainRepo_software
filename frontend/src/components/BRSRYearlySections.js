@@ -341,21 +341,39 @@ export default function BRSRYearlySections({ isEditing = false }) {
             <div className="flex items-center gap-2">
               {openSections.employees ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
               <Users className="w-4 h-4 text-primary" />
-              <span className="font-medium text-sm">Employees & Workers Details</span>
+              <span className="font-medium text-sm">Details of Employees and Workers (including differently abled)</span>
             </div>
           </div>
         </CollapsibleTrigger>
         <CollapsibleContent className="p-4 pt-0 border-t">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Employees */}
             <div className="border rounded p-3">
-              <h5 className="text-xs font-semibold mb-2 text-stone-600">Employees</h5>
+              <h5 className="text-xs font-semibold mb-3 text-stone-600 border-b pb-2">Employees</h5>
               <div className="space-y-2">
                 {[
-                  ['Permanent Male', 'permanent_male_employees'],
-                  ['Permanent Female', 'permanent_female_employees'],
-                  ['Other Male', 'other_than_permanent_male_employees'],
-                  ['Other Female', 'other_than_permanent_female_employees'],
+                  ['Permanent Male Employees', 'permanent_male_employees'],
+                  ['Permanent Female Employees', 'permanent_female_employees'],
+                  ['Other than Permanent Male Employees', 'other_than_permanent_male_employees'],
+                  ['Other than Permanent Female Employees', 'other_than_permanent_female_employees'],
+                ].map(([label, field]) => (
+                  <div key={field} className="flex items-center justify-between">
+                    <span className="text-xs">{label}</span>
+                    {isEditing ? (
+                      <Input type="number" min="0" value={employeeDetails[field]} 
+                        onChange={(e) => setEmployeeDetails(p => ({ ...p, [field]: parseInt(e.target.value) || 0 }))}
+                        className="w-20 h-7 text-xs text-center" />
+                    ) : <span className="text-xs font-medium">{employeeDetails[field]}</span>}
+                  </div>
+                ))}
+              </div>
+              <h6 className="text-xs font-semibold mt-3 mb-2 text-blue-600">Differently Abled Employees</h6>
+              <div className="space-y-2 bg-blue-50 p-2 rounded">
+                {[
+                  ['Differently Abled Permanent Male Employees', 'diff_abled_permanent_male_employees'],
+                  ['Differently Abled Permanent Female Employees', 'diff_abled_permanent_female_employees'],
+                  ['Differently Abled Other than Permanent Male Employees', 'diff_abled_other_permanent_male_employees'],
+                  ['Differently Abled Other than Permanent Female Employees', 'diff_abled_other_permanent_female_employees'],
                 ].map(([label, field]) => (
                   <div key={field} className="flex items-center justify-between">
                     <span className="text-xs">{label}</span>
@@ -370,13 +388,31 @@ export default function BRSRYearlySections({ isEditing = false }) {
             </div>
             {/* Workers */}
             <div className="border rounded p-3">
-              <h5 className="text-xs font-semibold mb-2 text-stone-600">Workers</h5>
+              <h5 className="text-xs font-semibold mb-3 text-stone-600 border-b pb-2">Workers</h5>
               <div className="space-y-2">
                 {[
-                  ['Permanent Male', 'permanent_male_workers'],
-                  ['Permanent Female', 'permanent_female_workers'],
-                  ['Other Male', 'other_than_permanent_male_workers'],
-                  ['Other Female', 'other_than_permanent_female_workers'],
+                  ['Permanent Male Workers', 'permanent_male_workers'],
+                  ['Permanent Female Workers', 'permanent_female_workers'],
+                  ['Other than Permanent Male Workers', 'other_than_permanent_male_workers'],
+                  ['Other than Permanent Female Workers', 'other_than_permanent_female_workers'],
+                ].map(([label, field]) => (
+                  <div key={field} className="flex items-center justify-between">
+                    <span className="text-xs">{label}</span>
+                    {isEditing ? (
+                      <Input type="number" min="0" value={employeeDetails[field]}
+                        onChange={(e) => setEmployeeDetails(p => ({ ...p, [field]: parseInt(e.target.value) || 0 }))}
+                        className="w-20 h-7 text-xs text-center" />
+                    ) : <span className="text-xs font-medium">{employeeDetails[field]}</span>}
+                  </div>
+                ))}
+              </div>
+              <h6 className="text-xs font-semibold mt-3 mb-2 text-blue-600">Differently Abled Workers</h6>
+              <div className="space-y-2 bg-blue-50 p-2 rounded">
+                {[
+                  ['Differently Abled Permanent Male Workers', 'diff_abled_permanent_male_workers'],
+                  ['Differently Abled Permanent Female Workers', 'diff_abled_permanent_female_workers'],
+                  ['Differently Abled Other than Permanent Male Workers', 'diff_abled_other_permanent_male_workers'],
+                  ['Differently Abled Other than Permanent Female Workers', 'diff_abled_other_permanent_female_workers'],
                 ].map(([label, field]) => (
                   <div key={field} className="flex items-center justify-between">
                     <span className="text-xs">{label}</span>
