@@ -216,6 +216,9 @@ function QuestionRenderer({ config, value, onChange, isEditing }) {
       case 'conditional_yes_no_table':
         return <ConditionalYesNoTableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
 
+      case 'principle_mode_table':
+        return <PrincipleModeTableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+
       case 'table':
         return <TableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
 
@@ -573,6 +576,188 @@ function ConditionalYesNoTableRenderer({ config, value, onChange, isEditing }) {
           <Button variant="outline" size="sm" onClick={addRow}>
             <Plus className="w-4 h-4 mr-1" /> Add Row
           </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Principle Mode Table Renderer (Combined or Principle-wise reporting)
+function PrincipleModeTableRenderer({ config, value, onChange, isEditing }) {
+  const data = value || { mode: 'combined', combined: {}, principles: {} };
+  const fieldConfig = config.field_config || {};
+  const fields = fieldConfig.fields || [];
+
+  const handleModeChange = (newMode) => {
+    onChange({ ...data, mode: newMode });
+  };
+
+  const handleCombinedChange = (fieldKey, val) => {
+    onChange({ ...data, combined: { ...data.combined, [fieldKey]: val } });
+  };
+
+  const handlePrincipleChange = (principle, fieldKey, val) => {
+    const principles = { ...data.principles };
+    if (!principles[principle]) principles[principle] = {};
+    principles[principle][fieldKey] = val;
+    onChange({ ...data, principles });
+  };
+
+  // Render a single field based on its type
+  const renderField = (field, value, onChangeField, prefix = '') => {
+    const { key, label, type, options, conditional_on } = field;
+    const fieldValue = value || '';
+
+    if (type === 'select') {
+      return (
+        <Select value={fieldValue} onValueChange={onChangeField}>
+          <SelectTrigger className="h-9 text-sm">
+            <SelectValue placeholder={`Select ${label}`} />
+          </SelectTrigger>
+          <SelectContent>
+            {(options || []).map(opt => (
+              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    }
+    if (type === 'textarea') {
+      return (
+        <Textarea
+          value={fieldValue}
+          onChange={(e) => onChangeField(e.target.value)}
+          placeholder={label}
+          rows={2}
+          className="text-sm"
+        />
+      );
+    }
+    return (
+      <Input
+        value={fieldValue}
+        onChange={(e) => onChangeField(e.target.value)}
+        placeholder={label}
+        className="h-9 text-sm"
+      />
+    );
+  };
+
+  // Check if conditional field should show
+  const shouldShowField = (field, rowData) => {
+    if (!field.conditional_on) return true;
+    const { field: depField, value: depValue } = field.conditional_on;
+    return rowData[depField] === depValue;
+  };
+
+  if (!isEditing) {
+    return (
+      <div className="mt-2 space-y-3">
+        <Badge variant="outline" className="mb-2">
+          {data.mode === 'combined' ? 'All Principles Together' : 'Principle-wise'}
+        </Badge>
+        {data.mode === 'combined' ? (
+          <div className="bg-stone-50 p-3 rounded space-y-2">
+            {fields.filter(f => !f.conditional_on || shouldShowField(f, data.combined)).map(f => (
+              <div key={f.key}>
+                <span className="text-xs text-text-muted">{f.label}:</span>
+                <p className="text-sm">{data.combined?.[f.key] || '-'}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-stone-50">
+                  <TableHead className="text-xs w-16">Principle</TableHead>
+                  {fields.filter(f => !f.conditional_on).map(f => (
+                    <TableHead key={f.key} className="text-xs">{f.label}</TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {NGRBC_PRINCIPLES.map(p => (
+                  <TableRow key={p.key}>
+                    <TableCell className="font-medium text-sm">{p.key}</TableCell>
+                    {fields.filter(f => !f.conditional_on).map(f => (
+                      <TableCell key={f.key} className="text-sm">
+                        {data.principles?.[p.key]?.[f.key] || '-'}
+                        {f.key === 'frequency' && data.principles?.[p.key]?.frequency === 'Any Other' && 
+                          data.principles?.[p.key]?.frequency_other && 
+                          ` (${data.principles[p.key].frequency_other})`}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 space-y-4">
+      {/* Mode Selection */}
+      <div className="flex items-center gap-4">
+        <Label className="text-sm">Mode:</Label>
+        <RadioGroup value={data.mode} onValueChange={handleModeChange} className="flex gap-4">
+          <div className="flex items-center gap-2">
+            <RadioGroupItem value="combined" id={`${config.question_key}-combined`} />
+            <Label htmlFor={`${config.question_key}-combined`} className="text-sm">Report All Principles Together</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <RadioGroupItem value="principle_wise" id={`${config.question_key}-wise`} />
+            <Label htmlFor={`${config.question_key}-wise`} className="text-sm">Report Principle-wise Separately</Label>
+          </div>
+        </RadioGroup>
+      </div>
+
+      {/* Combined Mode */}
+      {data.mode === 'combined' && (
+        <div className="bg-stone-50 p-4 rounded-lg space-y-4">
+          {fields.map(f => (
+            shouldShowField(f, data.combined) && (
+              <div key={f.key}>
+                <Label className="text-sm mb-1 block">{f.label}</Label>
+                {renderField(f, data.combined?.[f.key], (val) => handleCombinedChange(f.key, val))}
+              </div>
+            )
+          ))}
+        </div>
+      )}
+
+      {/* Principle-wise Mode */}
+      {data.mode === 'principle_wise' && (
+        <div className="overflow-x-auto bg-stone-50 p-4 rounded-lg">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-xs w-20 sticky left-0 bg-stone-100">Principle</TableHead>
+                {fields.map(f => (
+                  <TableHead key={f.key} className="text-xs min-w-[140px]">{f.label}</TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {NGRBC_PRINCIPLES.map(p => (
+                <TableRow key={p.key}>
+                  <TableCell className="font-medium text-sm sticky left-0 bg-stone-50">
+                    <div>{p.key}</div>
+                    <div className="text-xs text-text-muted font-normal">{p.name.slice(0, 20)}...</div>
+                  </TableCell>
+                  {fields.map(f => (
+                    <TableCell key={f.key} className="p-1">
+                      {shouldShowField(f, data.principles?.[p.key] || {}) && 
+                        renderField(f, data.principles?.[p.key]?.[f.key], (val) => handlePrincipleChange(p.key, f.key, val))}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       )}
     </div>
