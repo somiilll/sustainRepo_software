@@ -304,75 +304,98 @@ export default function BRSRDetailsSection({
                 )}
               </div>
               
-              <div className="space-y-2 md:col-span-2">
-                <Label>Corporate Address *</Label>
-                {isEditing ? (
-                  <Input
-                    value={formData.corporate_address}
-                    onChange={(e) => handleInputChange('corporate_address', e.target.value)}
-                    placeholder="Enter corporate address"
-                    data-testid="brsr-corporate-address"
-                  />
-                ) : (
-                  <p className="text-sm text-text-secondary py-2">{formData.corporate_address || '-'}</p>
-                )}
-              </div>
-              
-              <div className="space-y-2">
-                <Label>City *</Label>
-                {isEditing ? (
-                  <Input
-                    value={formData.city}
-                    onChange={(e) => handleInputChange('city', e.target.value)}
-                    placeholder="Enter city"
-                    data-testid="brsr-city"
-                  />
-                ) : (
-                  <p className="text-sm text-text-secondary py-2">{formData.city || '-'}</p>
-                )}
-              </div>
-              
-              <div className="space-y-2">
-                <Label>State *</Label>
-                {isEditing ? (
-                  <Input
-                    value={formData.state}
-                    onChange={(e) => handleInputChange('state', e.target.value)}
-                    placeholder="Enter state"
-                    data-testid="brsr-state"
-                  />
-                ) : (
-                  <p className="text-sm text-text-secondary py-2">{formData.state || '-'}</p>
-                )}
-              </div>
-              
-              <div className="space-y-2">
-                <Label>Country *</Label>
-                {isEditing ? (
-                  <Input
-                    value={formData.country}
-                    onChange={(e) => handleInputChange('country', e.target.value)}
-                    placeholder="Enter country"
-                    data-testid="brsr-country"
-                  />
-                ) : (
-                  <p className="text-sm text-text-secondary py-2">{formData.country || '-'}</p>
-                )}
-              </div>
-              
-              <div className="space-y-2">
-                <Label>PIN Code *</Label>
-                {isEditing ? (
-                  <Input
-                    value={formData.pincode}
-                    onChange={(e) => handleInputChange('pincode', e.target.value)}
-                    placeholder="6-digit PIN"
-                    maxLength={6}
-                    data-testid="brsr-pincode"
-                  />
-                ) : (
-                  <p className="text-sm text-text-secondary py-2">{formData.pincode || '-'}</p>
-                )}
+              {/* Address Section - Grouped Box */}
+              <div className="md:col-span-2 lg:col-span-3 border rounded-lg p-4 bg-stone-50">
+                <h4 className="text-sm font-semibold text-text-primary mb-4">Registered / Corporate Address</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="space-y-2 md:col-span-2 lg:col-span-3">
+                    <Label>Corporate Address *</Label>
+                    {isEditing ? (
+                      <Input
+                        value={formData.corporate_address}
+                        onChange={(e) => handleInputChange('corporate_address', e.target.value)}
+                        placeholder="Enter street address, building, area"
+                        data-testid="brsr-corporate-address"
+                      />
+                    ) : (
+                      <p className="text-sm text-text-secondary py-2">{formData.corporate_address || '-'}</p>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>City *</Label>
+                    {isEditing ? (
+                      <Input
+                        value={formData.city}
+                        onChange={(e) => handleInputChange('city', e.target.value)}
+                        placeholder="Enter city"
+                        data-testid="brsr-city"
+                      />
+                    ) : (
+                      <p className="text-sm text-text-secondary py-2">{formData.city || '-'}</p>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>State *</Label>
+                    {isEditing ? (
+                      <Input
+                        value={formData.state}
+                        onChange={(e) => handleInputChange('state', e.target.value)}
+                        placeholder="Enter state"
+                        data-testid="brsr-state"
+                      />
+                    ) : (
+                      <p className="text-sm text-text-secondary py-2">{formData.state || '-'}</p>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Country *</Label>
+                    {isEditing ? (
+                      <Select value={formData.country} onValueChange={(v) => handleInputChange('country', v)}>
+                        <SelectTrigger data-testid="brsr-country">
+                          <SelectValue placeholder="Select country" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="India">India</SelectItem>
+                          <SelectItem value="United States">United States</SelectItem>
+                          <SelectItem value="United Kingdom">United Kingdom</SelectItem>
+                          <SelectItem value="Singapore">Singapore</SelectItem>
+                          <SelectItem value="UAE">UAE</SelectItem>
+                          <SelectItem value="Germany">Germany</SelectItem>
+                          <SelectItem value="Japan">Japan</SelectItem>
+                          <SelectItem value="Australia">Australia</SelectItem>
+                          <SelectItem value="Canada">Canada</SelectItem>
+                          <SelectItem value="France">France</SelectItem>
+                          <SelectItem value="Netherlands">Netherlands</SelectItem>
+                          <SelectItem value="Switzerland">Switzerland</SelectItem>
+                          <SelectItem value="China">China</SelectItem>
+                          <SelectItem value="South Korea">South Korea</SelectItem>
+                          <SelectItem value="Brazil">Brazil</SelectItem>
+                          <SelectItem value="Other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <p className="text-sm text-text-secondary py-2">{formData.country || '-'}</p>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>PIN Code *</Label>
+                    {isEditing ? (
+                      <Input
+                        value={formData.pincode}
+                        onChange={(e) => handleInputChange('pincode', e.target.value)}
+                        placeholder="6-digit PIN"
+                        maxLength={6}
+                        data-testid="brsr-pincode"
+                      />
+                    ) : (
+                      <p className="text-sm text-text-secondary py-2">{formData.pincode || '-'}</p>
+                    )}
+                  </div>
+                </div>
               </div>
               
               <div className="space-y-2">
