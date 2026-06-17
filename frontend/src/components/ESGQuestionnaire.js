@@ -210,6 +210,9 @@ function QuestionRenderer({ config, value, onChange, isEditing }) {
       case 'principle_toggle_with_description':
         return <PrincipleToggleRenderer value={value} onChange={onChange} isEditing={isEditing} />;
 
+      case 'principle_text':
+        return <PrincipleTextRenderer value={value} onChange={onChange} isEditing={isEditing} config={config} />;
+
       case 'table':
         return <TableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
 
@@ -337,6 +340,95 @@ function PrincipleToggleRenderer({ value, onChange, isEditing }) {
                 value={data.principles?.[p.key]?.description || ''}
                 onChange={(e) => handlePrincipleChange(p.key, 'description', e.target.value)}
                 placeholder={`Description for ${p.key}...`}
+                rows={2}
+                className="text-sm"
+              />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// P1-P9 Principle Text Renderer (text input per principle, no toggle)
+function PrincipleTextRenderer({ value, onChange, isEditing, config }) {
+  const data = value || { mode: 'all_together', all_text: '', principles: {} };
+
+  const handleModeChange = (newMode) => {
+    onChange({ ...data, mode: newMode });
+  };
+
+  const handleAllTextChange = (val) => {
+    onChange({ ...data, all_text: val });
+  };
+
+  const handlePrincipleTextChange = (key, val) => {
+    const principles = { ...data.principles };
+    principles[key] = val;
+    onChange({ ...data, principles });
+  };
+
+  if (!isEditing) {
+    return (
+      <div className="mt-2 space-y-2">
+        <Badge variant="outline" className="mb-2">
+          Mode: {data.mode === 'all_together' ? 'All Principles Together' : 'Principle-wise'}
+        </Badge>
+        {data.mode === 'all_together' ? (
+          <div className="bg-stone-50 p-3 rounded">
+            <p className="text-sm whitespace-pre-wrap">{data.all_text || '-'}</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {NGRBC_PRINCIPLES.map((p) => (
+              <div key={p.key} className="bg-stone-50 p-2 rounded text-sm">
+                <strong>{p.key}:</strong> {data.principles?.[p.key] || '-'}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 space-y-4">
+      <div className="flex items-center gap-4">
+        <Label className="text-sm">Mode:</Label>
+        <RadioGroup value={data.mode} onValueChange={handleModeChange} className="flex gap-4">
+          <div className="flex items-center gap-2">
+            <RadioGroupItem value="all_together" id={`${config.question_key}-mode-all`} />
+            <Label htmlFor={`${config.question_key}-mode-all`} className="text-sm">Fill All Principles Together</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <RadioGroupItem value="principle_wise" id={`${config.question_key}-mode-wise`} />
+            <Label htmlFor={`${config.question_key}-mode-wise`} className="text-sm">Fill Principle-wise Separately</Label>
+          </div>
+        </RadioGroup>
+      </div>
+
+      {data.mode === 'all_together' ? (
+        <div className="bg-stone-50 p-4 rounded-lg">
+          <Textarea
+            value={data.all_text || ''}
+            onChange={(e) => handleAllTextChange(e.target.value)}
+            placeholder={config.placeholder || "Enter response applicable to all principles..."}
+            rows={3}
+          />
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {NGRBC_PRINCIPLES.map((p) => (
+            <div key={p.key} className="bg-stone-50 p-3 rounded-lg">
+              <div className="mb-2">
+                <span className="font-medium text-sm">{p.key}</span>
+                <span className="text-xs text-text-muted ml-2">{p.name}</span>
+              </div>
+              <Textarea
+                value={data.principles?.[p.key] || ''}
+                onChange={(e) => handlePrincipleTextChange(p.key, e.target.value)}
+                placeholder={`Enter response for ${p.key}...`}
                 rows={2}
                 className="text-sm"
               />
