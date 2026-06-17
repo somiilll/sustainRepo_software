@@ -70,7 +70,7 @@ const NGRBC_PRINCIPLES = [
 
 // Individual Question Renderer
 function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {} }) {
-  const { type, question, description, placeholder, options, table_columns, required, conditional } = config;
+  const { type, question, description, placeholder, options, table_columns, required, conditional, visible_if } = config;
 
   // Check if question should be hidden based on conditional logic
   if (conditional?.depends_on && conditional?.show_when === 'has_no_answer') {
@@ -83,6 +83,19 @@ function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {
       : Object.values(dependsOnValue.principles || {}).some(p => p.enabled === false);
     
     if (!hasNo) return null;
+  }
+
+  // Check visible_if conditions (e.g., has_rows)
+  if (visible_if) {
+    const depResponse = allResponses[visible_if.question_key];
+    if (visible_if.condition === 'has_rows') {
+      // Check if dependent question has at least 1 row
+      const hasRows = Array.isArray(depResponse) && depResponse.length > 0 && 
+        depResponse.some(row => Object.values(row || {}).some(v => v !== '' && v !== null && v !== undefined));
+      if (!hasRows) return null;
+    }
+    if (visible_if.condition === 'equals' && depResponse !== visible_if.value) return null;
+    if (visible_if.condition === 'not_equals' && depResponse === visible_if.value) return null;
   }
 
   const renderInput = () => {
