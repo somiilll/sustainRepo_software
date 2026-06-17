@@ -33,7 +33,8 @@ QUESTION_TYPES = Literal[
     "multi_table",
     "conditional_yes_no_text",
     "fy_comparison_table",
-    "grouped_matrix_table"
+    "grouped_matrix_table",
+    "structured_group"
 ]
 
 ESG_SECTIONS = Literal["environment", "social", "governance"]

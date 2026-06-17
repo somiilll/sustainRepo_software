@@ -250,6 +250,9 @@ function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {
       case 'grouped_matrix_table':
         return <GroupedMatrixTableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} allResponses={allResponses} />;
 
+      case 'structured_group':
+        return <StructuredGroupRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+
       case 'table':
         return <TableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
 
@@ -1372,6 +1375,66 @@ function GroupedMatrixTableRenderer({ config, value, onChange, isEditing }) {
           ))}
         </TableBody>
       </Table>
+    </div>
+  );
+}
+
+// Structured Group Renderer (multiple fields in a single question)
+function StructuredGroupRenderer({ config, value, onChange, isEditing }) {
+  const fields = config.fields_config || [];
+  const data = value || {};
+
+  const handleFieldChange = (key, val) => {
+    onChange({ ...data, [key]: val });
+  };
+
+  if (!isEditing) {
+    return (
+      <div className="mt-2 space-y-2">
+        {fields.map(f => (
+          <div key={f.key} className="flex gap-2">
+            <span className="text-sm text-text-muted">{f.label}:</span>
+            <span className="text-sm">{data[f.key] ?? '-'}{f.type === 'percentage' && data[f.key] ? '%' : ''}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 space-y-4 bg-stone-50 p-4 rounded-lg">
+      {fields.map(f => (
+        <div key={f.key}>
+          <Label className="text-sm mb-1 block">{f.label}</Label>
+          {f.type === 'textarea' ? (
+            <Textarea
+              value={data[f.key] ?? ''}
+              onChange={(e) => handleFieldChange(f.key, e.target.value)}
+              placeholder={f.label}
+              rows={2}
+              className="text-sm"
+            />
+          ) : f.type === 'number' || f.type === 'percentage' ? (
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                value={data[f.key] ?? ''}
+                onChange={(e) => handleFieldChange(f.key, e.target.value)}
+                placeholder="0"
+                className="h-9 text-sm w-32"
+              />
+              {f.type === 'percentage' && <span className="text-sm text-text-muted">%</span>}
+            </div>
+          ) : (
+            <Input
+              value={data[f.key] ?? ''}
+              onChange={(e) => handleFieldChange(f.key, e.target.value)}
+              placeholder={f.label}
+              className="h-9 text-sm"
+            />
+          )}
+        </div>
+      ))}
     </div>
   );
 }
