@@ -42,15 +42,6 @@ export default function Governance() {
         </div>
       </div>
 
-      {/* Info Card */}
-      <Card className="p-4 bg-violet-50/50 border-violet-100">
-        <p className="text-sm text-violet-800">
-          <strong>Section C:</strong> This section covers policy and management disclosures for the NGRBC Principles (P1-P9). 
-          Each question applies across all nine principles relating to Ethics, Product Safety, Employee Wellbeing, 
-          Stakeholder Engagement, Human Rights, Environment, Policy Advocacy, Inclusive Growth, and Customer Value.
-        </p>
-      </Card>
-
       {/* ESG Questionnaire */}
       <Card className="p-6">
         <ESGQuestionnaire 
