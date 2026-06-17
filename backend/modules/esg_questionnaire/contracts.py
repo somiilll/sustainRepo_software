@@ -24,11 +24,16 @@ QUESTION_TYPES = Literal[
     "select",
     "multi_select",
     "date",
-    "principle_toggle_with_description",  # Special type for P1-P9 NGRBC principles (Yes/No + Description)
-    "principle_text",  # Text input per P1-P9 principle (no toggle, just text)
-    "conditional_yes_no_table",  # Yes/No toggle, if Yes shows configurable table
-    "principle_mode_table",  # Combined or Principle-wise reporting with configurable fields
-    "reasons_checklist"  # List of Yes/No reasons with optional "other" text field
+    "principle_toggle_with_description",
+    "principle_text",
+    "conditional_yes_no_table",
+    "principle_mode_table",
+    "reasons_checklist",
+    "fixed_row_table",
+    "multi_table",
+    "conditional_yes_no_text",
+    "fy_comparison_table",
+    "grouped_matrix_table"
 ]
 
 ESG_SECTIONS = Literal["environment", "social", "governance"]

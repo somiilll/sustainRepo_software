@@ -235,6 +235,21 @@ function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {
       case 'reasons_checklist':
         return <ReasonsChecklistRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} allResponses={allResponses} />;
 
+      case 'fixed_row_table':
+        return <FixedRowTableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+
+      case 'multi_table':
+        return <MultiTableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+
+      case 'conditional_yes_no_text':
+        return <ConditionalYesNoTextRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+
+      case 'fy_comparison_table':
+        return <FYComparisonTableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} allResponses={allResponses} />;
+
+      case 'grouped_matrix_table':
+        return <GroupedMatrixTableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} allResponses={allResponses} />;
+
       case 'table':
         return <TableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
 
@@ -981,6 +996,382 @@ function ReasonsChecklistRenderer({ config, value, onChange, isEditing, allRespo
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// Fixed Row Table Renderer (predefined rows like BoD, KMP, Employees, Workers)
+function FixedRowTableRenderer({ config, value, onChange, isEditing }) {
+  const tableConfig = config.table_config || {};
+  const columns = tableConfig.columns || [];
+  const fixedRows = tableConfig.fixed_rows || [];
+  const data = value || {};
+
+  const handleCellChange = (rowKey, colKey, val) => {
+    const newData = { ...data };
+    if (!newData[rowKey]) newData[rowKey] = {};
+    newData[rowKey][colKey] = val;
+    onChange(newData);
+  };
+
+  const renderCell = (col, rowKey, cellValue) => {
+    if (!isEditing) return <span className="text-sm">{cellValue ?? '-'}</span>;
+    
+    if (col.type === 'number' || col.type === 'percentage') {
+      return (
+        <Input
+          type="number"
+          value={cellValue ?? ''}
+          onChange={(e) => handleCellChange(rowKey, col.key, e.target.value)}
+          placeholder={col.type === 'percentage' ? '%' : '0'}
+          className="h-8 text-sm"
+        />
+      );
+    }
+    if (col.type === 'textarea') {
+      return (
+        <Textarea
+          value={cellValue ?? ''}
+          onChange={(e) => handleCellChange(rowKey, col.key, e.target.value)}
+          placeholder={col.label}
+          rows={2}
+          className="text-sm"
+        />
+      );
+    }
+    return (
+      <Input
+        value={cellValue ?? ''}
+        onChange={(e) => handleCellChange(rowKey, col.key, e.target.value)}
+        placeholder={col.label}
+        className="h-8 text-sm"
+      />
+    );
+  };
+
+  return (
+    <div className="mt-2 overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-stone-50">
+            <TableHead className="text-xs font-medium w-40">Segment</TableHead>
+            {columns.map(col => (
+              <TableHead key={col.key} className="text-xs font-medium">{col.label}</TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {fixedRows.map(row => (
+            <TableRow key={row.key}>
+              <TableCell className="font-medium text-sm">{row.label}</TableCell>
+              {columns.map(col => (
+                <TableCell key={col.key} className="p-1">
+                  {renderCell(col, row.key, data[row.key]?.[col.key])}
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+// Multi Table Renderer (multiple tables in one question)
+function MultiTableRenderer({ config, value, onChange, isEditing }) {
+  const tables = config.tables_config || [];
+  const data = value || {};
+
+  const handleTableChange = (tableKey, newTableData) => {
+    onChange({ ...data, [tableKey]: newTableData });
+  };
+
+  const renderTable = (tableConfig) => {
+    const { key, label, columns, has_add_row = true } = tableConfig;
+    const rows = data[key] || [{}];
+
+    const handleCellChange = (rowIdx, colKey, val) => {
+      const newRows = [...rows];
+      if (!newRows[rowIdx]) newRows[rowIdx] = {};
+      newRows[rowIdx][colKey] = val;
+      handleTableChange(key, newRows);
+    };
+
+    const addRow = () => handleTableChange(key, [...rows, {}]);
+    const removeRow = (idx) => handleTableChange(key, rows.filter((_, i) => i !== idx));
+
+    return (
+      <div key={key} className="mb-4">
+        <h4 className="text-sm font-medium mb-2">{label}</h4>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-stone-50">
+                {columns.map(col => (
+                  <TableHead key={col.key} className="text-xs">{col.label}</TableHead>
+                ))}
+                {isEditing && has_add_row && <TableHead className="w-10"></TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row, rowIdx) => (
+                <TableRow key={rowIdx}>
+                  {columns.map(col => (
+                    <TableCell key={col.key} className="p-1">
+                      {!isEditing ? (
+                        <span className="text-sm">{row[col.key] ?? '-'}</span>
+                      ) : col.type === 'select' ? (
+                        <Select value={row[col.key] || ''} onValueChange={(v) => handleCellChange(rowIdx, col.key, v)}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select" /></SelectTrigger>
+                          <SelectContent>
+                            {(col.options || []).map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      ) : col.type === 'yes_no' ? (
+                        <Select value={row[col.key] || ''} onValueChange={(v) => handleCellChange(rowIdx, col.key, v)}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="-" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Yes">Yes</SelectItem>
+                            <SelectItem value="No">No</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : col.type === 'number' ? (
+                        <Input type="number" value={row[col.key] ?? ''} onChange={(e) => handleCellChange(rowIdx, col.key, e.target.value)} className="h-8 text-xs" />
+                      ) : (
+                        <Input value={row[col.key] ?? ''} onChange={(e) => handleCellChange(rowIdx, col.key, e.target.value)} className="h-8 text-xs" placeholder={col.label} />
+                      )}
+                    </TableCell>
+                  ))}
+                  {isEditing && has_add_row && (
+                    <TableCell className="p-1">
+                      <Button variant="ghost" size="sm" onClick={() => removeRow(rowIdx)} className="h-6 w-6 p-0 text-red-500">
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+        {isEditing && has_add_row && (
+          <Button variant="outline" size="sm" onClick={addRow} className="mt-2">
+            <Plus className="w-3 h-3 mr-1" /> Add Row
+          </Button>
+        )}
+      </div>
+    );
+  };
+
+  return <div className="mt-2 space-y-4">{tables.map(renderTable)}</div>;
+}
+
+// Conditional Yes/No Text Renderer
+function ConditionalYesNoTextRenderer({ config, value, onChange, isEditing }) {
+  const data = value || { has_value: false, fields: {} };
+  const fields = config.conditional_fields || [{ key: 'details', label: 'Details', type: 'textarea' }];
+
+  const handleToggle = (val) => {
+    onChange({ ...data, has_value: val });
+  };
+
+  const handleFieldChange = (key, val) => {
+    onChange({ ...data, fields: { ...data.fields, [key]: val } });
+  };
+
+  if (!isEditing) {
+    return (
+      <div className="mt-2 space-y-2">
+        <Badge variant="outline" className={data.has_value ? 'bg-green-50 text-green-700' : ''}>{data.has_value ? 'Yes' : 'No'}</Badge>
+        {data.has_value && fields.map(f => (
+          <div key={f.key} className="text-sm">
+            <span className="text-text-muted">{f.label}:</span> {data.fields?.[f.key] || '-'}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 space-y-3">
+      <RadioGroup value={data.has_value ? 'yes' : 'no'} onValueChange={(v) => handleToggle(v === 'yes')} className="flex gap-4">
+        <div className="flex items-center gap-2">
+          <RadioGroupItem value="yes" id={`${config.question_key}-yes`} />
+          <Label htmlFor={`${config.question_key}-yes`} className="text-sm">Yes</Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <RadioGroupItem value="no" id={`${config.question_key}-no`} />
+          <Label htmlFor={`${config.question_key}-no`} className="text-sm">No</Label>
+        </div>
+      </RadioGroup>
+      {data.has_value && (
+        <div className="bg-stone-50 p-4 rounded-lg space-y-3">
+          {fields.map(f => (
+            <div key={f.key}>
+              <Label className="text-sm mb-1 block">{f.label}</Label>
+              {f.type === 'url' ? (
+                <Input type="url" value={data.fields?.[f.key] || ''} onChange={(e) => handleFieldChange(f.key, e.target.value)} placeholder="https://..." className="text-sm" />
+              ) : (
+                <Textarea value={data.fields?.[f.key] || ''} onChange={(e) => handleFieldChange(f.key, e.target.value)} placeholder={f.label} rows={2} className="text-sm" />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// FY Comparison Table Renderer (Current/Previous FY with fixed rows)
+function FYComparisonTableRenderer({ config, value, onChange, isEditing }) {
+  const tableConfig = config.table_config || {};
+  const fixedRows = tableConfig.fixed_rows || [];
+  const columns = tableConfig.columns || [
+    { key: 'current_fy', label: 'Current FY', type: 'number' },
+    { key: 'previous_fy', label: 'Previous FY', type: 'number' }
+  ];
+  const data = value || {};
+
+  const handleCellChange = (rowKey, colKey, val) => {
+    const newData = { ...data };
+    if (!newData[rowKey]) newData[rowKey] = {};
+    newData[rowKey][colKey] = val;
+    onChange(newData);
+  };
+
+  // Simple single-row mode (no fixed rows)
+  if (fixedRows.length === 0) {
+    return (
+      <div className="mt-2 overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-stone-50">
+              {columns.map(col => (
+                <TableHead key={col.key} className="text-xs font-medium">{col.label}</TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow>
+              {columns.map(col => (
+                <TableCell key={col.key} className="p-1">
+                  {!isEditing ? (
+                    <span className="text-sm">{data[col.key] ?? '-'}</span>
+                  ) : (
+                    <Input
+                      type="number"
+                      value={data[col.key] ?? ''}
+                      onChange={(e) => onChange({ ...data, [col.key]: e.target.value })}
+                      className="h-8 text-sm"
+                    />
+                  )}
+                </TableCell>
+              ))}
+            </TableRow>
+          </TableBody>
+        </Table>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2 overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-stone-50">
+            <TableHead className="text-xs font-medium w-48">Category</TableHead>
+            {columns.map(col => (
+              <TableHead key={col.key} className="text-xs font-medium">{col.label}</TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {fixedRows.map(row => (
+            <TableRow key={row.key}>
+              <TableCell className="font-medium text-sm">{row.label}</TableCell>
+              {columns.map(col => (
+                <TableCell key={col.key} className="p-1">
+                  {!isEditing ? (
+                    <span className="text-sm">{data[row.key]?.[col.key] ?? '-'}</span>
+                  ) : col.type === 'textarea' ? (
+                    <Textarea value={data[row.key]?.[col.key] ?? ''} onChange={(e) => handleCellChange(row.key, col.key, e.target.value)} rows={1} className="text-sm" />
+                  ) : (
+                    <Input
+                      type={col.type === 'number' ? 'number' : 'text'}
+                      value={data[row.key]?.[col.key] ?? ''}
+                      onChange={(e) => handleCellChange(row.key, col.key, e.target.value)}
+                      className="h-8 text-sm"
+                    />
+                  )}
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+// Grouped Matrix Table Renderer (grouped rows with FY columns)
+function GroupedMatrixTableRenderer({ config, value, onChange, isEditing }) {
+  const tableConfig = config.table_config || {};
+  const groups = tableConfig.groups || [];
+  const columns = tableConfig.columns || [
+    { key: 'current_fy', label: 'Current FY' },
+    { key: 'previous_fy', label: 'Previous FY' }
+  ];
+  const data = value || {};
+
+  const handleCellChange = (groupKey, rowKey, colKey, val) => {
+    const newData = { ...data };
+    if (!newData[groupKey]) newData[groupKey] = {};
+    if (!newData[groupKey][rowKey]) newData[groupKey][rowKey] = {};
+    newData[groupKey][rowKey][colKey] = val;
+    onChange(newData);
+  };
+
+  return (
+    <div className="mt-2 overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-stone-50">
+            <TableHead className="text-xs font-medium w-64">Parameter</TableHead>
+            <TableHead className="text-xs font-medium w-80">Metrics</TableHead>
+            {columns.map(col => (
+              <TableHead key={col.key} className="text-xs font-medium">{col.label}</TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {groups.map(group => (
+            group.rows.map((row, rowIdx) => (
+              <TableRow key={`${group.key}-${row.key}`} className={rowIdx === 0 ? 'border-t-2' : ''}>
+                {rowIdx === 0 && (
+                  <TableCell rowSpan={group.rows.length} className="font-medium text-sm align-top bg-stone-50/50">
+                    {group.label}
+                  </TableCell>
+                )}
+                <TableCell className="text-sm">{row.label}</TableCell>
+                {columns.map(col => (
+                  <TableCell key={col.key} className="p-1">
+                    {!isEditing ? (
+                      <span className="text-sm">{data[group.key]?.[row.key]?.[col.key] ?? '-'}</span>
+                    ) : (
+                      <Input
+                        type="text"
+                        value={data[group.key]?.[row.key]?.[col.key] ?? ''}
+                        onChange={(e) => handleCellChange(group.key, row.key, col.key, e.target.value)}
+                        className="h-8 text-sm"
+                      />
+                    )}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }
