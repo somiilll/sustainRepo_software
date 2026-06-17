@@ -105,6 +105,37 @@ class TurnoverRateData(BaseModel):
     permanent_workers_female: float = Field(default=0, ge=0, le=100)
 
 
+class ComplaintGrievanceRow(BaseModel):
+    """Row for Complaints/Grievances by category."""
+    category: Literal[
+        "Communities",
+        "Investors (other than shareholders)",
+        "Shareholders",
+        "Employees and workers",
+        "Customers",
+        "Value Chain Partners",
+        "Other"
+    ] = Field(...)
+    has_grievance_mechanism: bool = Field(default=False, description="Grievance Redressal Mechanism in Place")
+    policy_weblink: str = Field(default="", description="Web-link for Policy (required if mechanism exists)")
+    current_fy_filed: int = Field(default=0, ge=0, description="Current FY Complaints Filed")
+    current_fy_pending: int = Field(default=0, ge=0, description="Current FY Pending")
+    current_fy_remarks: str = Field(default="", description="Current FY Remarks")
+    previous_fy_filed: int = Field(default=0, ge=0, description="Previous FY Complaints Filed")
+    previous_fy_pending: int = Field(default=0, ge=0, description="Previous FY Pending")
+    previous_fy_remarks: str = Field(default="", description="Previous FY Remarks")
+
+
+class MaterialIssueRow(BaseModel):
+    """Row for Material Responsible Business Conduct Issues."""
+    issue_identified: str = Field(default="", description="Material Issue Identified")
+    risk_or_opportunity: Literal["Risk", "Opportunity"] = Field(default="Risk")
+    rationale: str = Field(default="", description="Rationale for Identification")
+    mitigation_approach: str = Field(default="", description="Mitigation Approach (if Risk)")
+    financial_implication: Literal["Positive", "Negative", "Neutral"] = Field(default="Neutral")
+    financial_details: str = Field(default="", description="Financial Implications Details")
+
+
 # =============================================================================
 # BRSR Static Details Model (organization_framework_details)
 # =============================================================================
@@ -202,6 +233,14 @@ class BRSRYearlyDetailsBase(BaseModel):
         default_factory=TurnoverRateData,
         description="Turnover Rate (%) for Permanent Employees and Workers"
     )
+    complaints_grievances: List[ComplaintGrievanceRow] = Field(
+        default_factory=list,
+        description="Complaints and Grievances Related to Responsible Business Conduct"
+    )
+    material_issues: List[MaterialIssueRow] = Field(
+        default_factory=list,
+        description="Material Responsible Business Conduct and Sustainability Issues"
+    )
 
 
 # =============================================================================
@@ -286,6 +325,8 @@ class BRSRYearlyDataUpdate(BaseModel):
     holding_subsidiary_entities: Optional[List[HoldingSubsidiaryRow]] = None
     csr_applicability: Optional[CSRApplicabilityData] = None
     turnover_rate: Optional[TurnoverRateData] = None
+    complaints_grievances: Optional[List[ComplaintGrievanceRow]] = None
+    material_issues: Optional[List[MaterialIssueRow]] = None
 
 
 class BRSRYearlyDataResponse(BRSRYearlyDetailsBase):

@@ -41,13 +41,16 @@ import {
   Save,
   ChevronDown,
   ChevronRight,
-  IndianRupee
+  IndianRupee,
+  MessageSquareWarning,
+  AlertTriangle
 } from 'lucide-react';
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from './ui/collapsible';
+import { Textarea } from './ui/textarea';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -92,6 +95,38 @@ const DEFAULT_TURNOVER_RATE = {
 const CATEGORIES_WOMEN = ["Board of Directors", "Key Management Personnel"];
 const ENTITY_TYPES = ["Holding Company", "Subsidiary", "Associate Company", "Joint Venture"];
 
+// Complaints/Grievances fixed categories
+const GRIEVANCE_CATEGORIES = [
+  "Communities",
+  "Investors (other than shareholders)",
+  "Shareholders",
+  "Employees and workers",
+  "Customers",
+  "Value Chain Partners",
+  "Other"
+];
+
+const DEFAULT_GRIEVANCE_ROW = {
+  category: "Communities",
+  has_grievance_mechanism: false,
+  policy_weblink: "",
+  current_fy_filed: 0,
+  current_fy_pending: 0,
+  current_fy_remarks: "",
+  previous_fy_filed: 0,
+  previous_fy_pending: 0,
+  previous_fy_remarks: ""
+};
+
+const DEFAULT_MATERIAL_ISSUE_ROW = {
+  issue_identified: "",
+  risk_or_opportunity: "Risk",
+  rationale: "",
+  mitigation_approach: "",
+  financial_implication: "Neutral",
+  financial_details: ""
+};
+
 const formatINR = (num) => num ? '₹' + num.toLocaleString('en-IN') : '₹0';
 
 export default function BRSRYearlySections({ isEditing = false }) {
@@ -105,7 +140,7 @@ export default function BRSRYearlySections({ isEditing = false }) {
   
   // Section open states
   const [openSections, setOpenSections] = useState({
-    employees: false, women: false, csr: false, holding: false, turnover: false
+    employees: false, women: false, csr: false, holding: false, turnover: false, complaints: false, materialIssues: false
   });
 
   // Form data
@@ -122,6 +157,12 @@ export default function BRSRYearlySections({ isEditing = false }) {
   // Editable data for previous years (fetched from their own documents, saved back to them)
   const [prevYearTurnover, setPrevYearTurnover] = useState({ ...DEFAULT_TURNOVER_RATE });
   const [priorYearTurnover, setPriorYearTurnover] = useState({ ...DEFAULT_TURNOVER_RATE });
+  // Complaints/Grievances - initialize with all fixed categories
+  const [complaintsGrievances, setComplaintsGrievances] = useState(
+    GRIEVANCE_CATEGORIES.map(cat => ({ ...DEFAULT_GRIEVANCE_ROW, category: cat }))
+  );
+  // Material Issues
+  const [materialIssues, setMaterialIssues] = useState([{ ...DEFAULT_MATERIAL_ISSUE_ROW }]);
 
   useEffect(() => {
     fetchYearlyData();
@@ -145,6 +186,18 @@ export default function BRSRYearlySections({ isEditing = false }) {
           [{ name_of_entity: "", type_of_entity: "Subsidiary", shares_held_percentage: 0, participates_in_br_initiatives: false }]);
         // Turnover rate is flat - just this year's data
         setTurnoverRate({ ...DEFAULT_TURNOVER_RATE, ...data.turnover_rate });
+        // Complaints/Grievances - merge with defaults to ensure all categories present
+        if (data.complaints_grievances?.length > 0) {
+          const merged = GRIEVANCE_CATEGORIES.map(cat => {
+            const existing = data.complaints_grievances.find(c => c.category === cat);
+            return existing || { ...DEFAULT_GRIEVANCE_ROW, category: cat };
+          });
+          setComplaintsGrievances(merged);
+        } else {
+          setComplaintsGrievances(GRIEVANCE_CATEGORIES.map(cat => ({ ...DEFAULT_GRIEVANCE_ROW, category: cat })));
+        }
+        // Material Issues
+        setMaterialIssues(data.material_issues?.length > 0 ? data.material_issues : [{ ...DEFAULT_MATERIAL_ISSUE_ROW }]);
       } else {
         resetToDefaults();
       }
@@ -171,6 +224,8 @@ export default function BRSRYearlySections({ isEditing = false }) {
     setTurnoverRate({ ...DEFAULT_TURNOVER_RATE });
     setPrevYearTurnover({ ...DEFAULT_TURNOVER_RATE });
     setPriorYearTurnover({ ...DEFAULT_TURNOVER_RATE });
+    setComplaintsGrievances(GRIEVANCE_CATEGORIES.map(cat => ({ ...DEFAULT_GRIEVANCE_ROW, category: cat })));
+    setMaterialIssues([{ ...DEFAULT_MATERIAL_ISSUE_ROW }]);
   };
 
   // Fetch previous years' documents for display-only in turnover matrix
@@ -197,13 +252,15 @@ export default function BRSRYearlySections({ isEditing = false }) {
     const priorFY = getPreviousFY(prevFY);
     
     try {
-      // Save current year data
+      // Save current year data (includes all sections)
       const currentPayload = {
         employee_worker_details: employeeDetails,
         women_representation: womenRepresentation,
         csr_applicability: csrApplicability,
         holding_subsidiary_entities: holdingEntities,
-        turnover_rate: turnoverRate
+        turnover_rate: turnoverRate,
+        complaints_grievances: complaintsGrievances,
+        material_issues: materialIssues
       };
 
       // Save all 3 years' turnover data simultaneously
@@ -654,6 +711,218 @@ export default function BRSRYearlySections({ isEditing = false }) {
             </Table>
           </div>
           <p className="text-xs text-text-muted mt-2">* All 3 years are editable. Saving will update each year's document separately.</p>
+        </CollapsibleContent>
+      </Collapsible>
+
+      {/* 6. Complaints & Grievances */}
+      <Collapsible open={openSections.complaints} onOpenChange={() => toggleSection('complaints')} className="border rounded-lg bg-white">
+        <CollapsibleTrigger className="w-full">
+          <div className="flex items-center justify-between p-3 hover:bg-stone-50">
+            <div className="flex items-center gap-2">
+              {openSections.complaints ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+              <MessageSquareWarning className="w-4 h-4 text-primary" />
+              <span className="font-medium text-sm">Complaints & Grievances</span>
+            </div>
+            <Badge variant="outline" className="text-xs">
+              {complaintsGrievances.reduce((sum, c) => sum + (c.current_fy_filed || 0), 0)} Filed
+            </Badge>
+          </div>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="p-4 pt-0 border-t">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-stone-50">
+                  <TableHead className="text-xs min-w-[150px]">Category</TableHead>
+                  <TableHead className="text-xs text-center min-w-[80px]">Mechanism</TableHead>
+                  <TableHead className="text-xs min-w-[150px]">Policy Web-link</TableHead>
+                  <TableHead className="text-xs text-center">Filed</TableHead>
+                  <TableHead className="text-xs text-center">Pending</TableHead>
+                  <TableHead className="text-xs min-w-[120px]">Remarks</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {complaintsGrievances.map((row, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell className="text-xs font-medium">{row.category}</TableCell>
+                    <TableCell className="text-center">
+                      {isEditing ? (
+                        <Switch
+                          checked={row.has_grievance_mechanism}
+                          onCheckedChange={(v) => {
+                            const updated = [...complaintsGrievances];
+                            updated[idx].has_grievance_mechanism = v;
+                            if (!v) updated[idx].policy_weblink = "";
+                            setComplaintsGrievances(updated);
+                          }}
+                        />
+                      ) : (
+                        <Badge variant="outline" className={`text-xs ${row.has_grievance_mechanism ? 'bg-green-50 text-green-700' : ''}`}>
+                          {row.has_grievance_mechanism ? 'Yes' : 'No'}
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {isEditing ? (
+                        <Input
+                          value={row.policy_weblink}
+                          onChange={(e) => {
+                            const updated = [...complaintsGrievances];
+                            updated[idx].policy_weblink = e.target.value;
+                            setComplaintsGrievances(updated);
+                          }}
+                          placeholder={row.has_grievance_mechanism ? "Required" : "N/A"}
+                          disabled={!row.has_grievance_mechanism}
+                          className={`h-7 text-xs ${row.has_grievance_mechanism && !row.policy_weblink ? 'border-red-300' : ''}`}
+                        />
+                      ) : (
+                        <span className="text-xs text-blue-600 underline">{row.policy_weblink || '-'}</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {isEditing ? (
+                        <Input type="number" min="0" value={row.current_fy_filed}
+                          onChange={(e) => {
+                            const updated = [...complaintsGrievances];
+                            updated[idx].current_fy_filed = parseInt(e.target.value) || 0;
+                            setComplaintsGrievances(updated);
+                          }}
+                          className="h-7 text-xs text-center w-16" />
+                      ) : <span className="text-xs">{row.current_fy_filed}</span>}
+                    </TableCell>
+                    <TableCell>
+                      {isEditing ? (
+                        <Input type="number" min="0" value={row.current_fy_pending}
+                          onChange={(e) => {
+                            const updated = [...complaintsGrievances];
+                            updated[idx].current_fy_pending = parseInt(e.target.value) || 0;
+                            setComplaintsGrievances(updated);
+                          }}
+                          className="h-7 text-xs text-center w-16" />
+                      ) : <span className="text-xs">{row.current_fy_pending}</span>}
+                    </TableCell>
+                    <TableCell>
+                      {isEditing ? (
+                        <Input value={row.current_fy_remarks}
+                          onChange={(e) => {
+                            const updated = [...complaintsGrievances];
+                            updated[idx].current_fy_remarks = e.target.value;
+                            setComplaintsGrievances(updated);
+                          }}
+                          className="h-7 text-xs" placeholder="Remarks" />
+                      ) : <span className="text-xs">{row.current_fy_remarks || '-'}</span>}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <p className="text-xs text-text-muted mt-2">* Web-link is mandatory when Grievance Mechanism is enabled</p>
+        </CollapsibleContent>
+      </Collapsible>
+
+      {/* 7. Material Responsible Business Conduct Issues */}
+      <Collapsible open={openSections.materialIssues} onOpenChange={() => toggleSection('materialIssues')} className="border rounded-lg bg-white">
+        <CollapsibleTrigger className="w-full">
+          <div className="flex items-center justify-between p-3 hover:bg-stone-50">
+            <div className="flex items-center gap-2">
+              {openSections.materialIssues ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+              <AlertTriangle className="w-4 h-4 text-primary" />
+              <span className="font-medium text-sm">Material Business Conduct Issues</span>
+            </div>
+            <Badge variant="outline" className="text-xs">{materialIssues.filter(i => i.issue_identified).length} Issues</Badge>
+          </div>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="p-4 pt-0 border-t">
+          <div className="space-y-3">
+            {materialIssues.map((issue, idx) => (
+              <div key={idx} className="border rounded-lg p-3 bg-stone-50">
+                <div className="flex justify-between items-start mb-2">
+                  <span className="text-xs font-medium text-stone-500">Issue #{idx + 1}</span>
+                  {isEditing && materialIssues.length > 1 && (
+                    <Button variant="ghost" size="sm" onClick={() => setMaterialIssues(materialIssues.filter((_, i) => i !== idx))}
+                      className="h-6 w-6 p-0 text-red-500"><Trash2 className="w-3 h-3" /></Button>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Material Issue Identified</Label>
+                    {isEditing ? (
+                      <Textarea value={issue.issue_identified} onChange={(e) => {
+                        const updated = [...materialIssues]; updated[idx].issue_identified = e.target.value; setMaterialIssues(updated);
+                      }} className="text-xs mt-1" rows={2} placeholder="Describe the material issue" />
+                    ) : <p className="text-xs mt-1">{issue.issue_identified || '-'}</p>}
+                  </div>
+                  <div>
+                    <Label className="text-xs">Risk or Opportunity</Label>
+                    {isEditing ? (
+                      <Select value={issue.risk_or_opportunity} onValueChange={(v) => {
+                        const updated = [...materialIssues]; updated[idx].risk_or_opportunity = v; setMaterialIssues(updated);
+                      }}>
+                        <SelectTrigger className="h-8 text-xs mt-1"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Risk">Risk</SelectItem>
+                          <SelectItem value="Opportunity">Opportunity</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Badge variant="outline" className={`text-xs mt-1 ${issue.risk_or_opportunity === 'Risk' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
+                        {issue.risk_or_opportunity}
+                      </Badge>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-xs">Rationale for Identification</Label>
+                    {isEditing ? (
+                      <Textarea value={issue.rationale} onChange={(e) => {
+                        const updated = [...materialIssues]; updated[idx].rationale = e.target.value; setMaterialIssues(updated);
+                      }} className="text-xs mt-1" rows={2} placeholder="Why was this identified?" />
+                    ) : <p className="text-xs mt-1">{issue.rationale || '-'}</p>}
+                  </div>
+                  <div>
+                    <Label className="text-xs">Mitigation Approach {issue.risk_or_opportunity === 'Risk' && <span className="text-red-500">*</span>}</Label>
+                    {isEditing ? (
+                      <Textarea value={issue.mitigation_approach} onChange={(e) => {
+                        const updated = [...materialIssues]; updated[idx].mitigation_approach = e.target.value; setMaterialIssues(updated);
+                      }} className="text-xs mt-1" rows={2} placeholder={issue.risk_or_opportunity === 'Risk' ? 'Required for risks' : 'Optional'} />
+                    ) : <p className="text-xs mt-1">{issue.mitigation_approach || '-'}</p>}
+                  </div>
+                  <div>
+                    <Label className="text-xs">Financial Implication</Label>
+                    {isEditing ? (
+                      <Select value={issue.financial_implication} onValueChange={(v) => {
+                        const updated = [...materialIssues]; updated[idx].financial_implication = v; setMaterialIssues(updated);
+                      }}>
+                        <SelectTrigger className="h-8 text-xs mt-1"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Positive">Positive</SelectItem>
+                          <SelectItem value="Negative">Negative</SelectItem>
+                          <SelectItem value="Neutral">Neutral</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Badge variant="outline" className={`text-xs mt-1 ${issue.financial_implication === 'Positive' ? 'bg-green-50 text-green-700' : issue.financial_implication === 'Negative' ? 'bg-red-50 text-red-700' : ''}`}>
+                        {issue.financial_implication}
+                      </Badge>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-xs">Financial Details</Label>
+                    {isEditing ? (
+                      <Textarea value={issue.financial_details} onChange={(e) => {
+                        const updated = [...materialIssues]; updated[idx].financial_details = e.target.value; setMaterialIssues(updated);
+                      }} className="text-xs mt-1" rows={2} placeholder="Describe financial implications" />
+                    ) : <p className="text-xs mt-1">{issue.financial_details || '-'}</p>}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {isEditing && (
+              <Button variant="outline" size="sm" onClick={() => setMaterialIssues([...materialIssues, { ...DEFAULT_MATERIAL_ISSUE_ROW }])}>
+                <Plus className="w-3 h-3 mr-1" /> Add Issue
+              </Button>
+            )}
+          </div>
         </CollapsibleContent>
       </Collapsible>
 
