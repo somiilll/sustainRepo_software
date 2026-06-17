@@ -153,31 +153,22 @@ export default function BRSRDetailsSection({
   };
 
   const handleInputChange = (field, value) => {
-    setFormData(prev => {
-      const updated = { ...prev, [field]: value };
-      if (onDataChange) onDataChange(updated);
-      return updated;
-    });
+    const updated = { ...formData, [field]: value };
+    setFormData(updated);
   };
 
   // Dynamic table handlers
   const handleTableRowChange = (tableName, index, field, value) => {
-    setFormData(prev => {
-      const updated = { ...prev };
-      updated[tableName] = [...prev[tableName]];
-      updated[tableName][index] = { ...updated[tableName][index], [field]: value };
-      if (onDataChange) onDataChange(updated);
-      return updated;
-    });
+    const updated = { ...formData };
+    updated[tableName] = [...formData[tableName]];
+    updated[tableName][index] = { ...updated[tableName][index], [field]: value };
+    setFormData(updated);
   };
 
   const addTableRow = (tableName, emptyTemplate) => {
-    setFormData(prev => {
-      const updated = { ...prev };
-      updated[tableName] = [...prev[tableName], { ...emptyTemplate }];
-      if (onDataChange) onDataChange(updated);
-      return updated;
-    });
+    const updated = { ...formData };
+    updated[tableName] = [...formData[tableName], { ...emptyTemplate }];
+    setFormData(updated);
   };
 
   const removeTableRow = (tableName, index) => {
@@ -185,13 +176,17 @@ export default function BRSRDetailsSection({
       toast.error('At least one row is required');
       return;
     }
-    setFormData(prev => {
-      const updated = { ...prev };
-      updated[tableName] = prev[tableName].filter((_, i) => i !== index);
-      if (onDataChange) onDataChange(updated);
-      return updated;
-    });
+    const updated = { ...formData };
+    updated[tableName] = formData[tableName].filter((_, i) => i !== index);
+    setFormData(updated);
   };
+
+  // Notify parent of data changes via useEffect (avoids setState-in-render)
+  useEffect(() => {
+    if (onDataChange && !loading) {
+      onDataChange(formData);
+    }
+  }, [formData, loading]);
 
   const saveBRSRDetails = async () => {
     setSaving(true);
@@ -214,13 +209,6 @@ export default function BRSRDetailsSection({
 
   // Get the data for parent component
   const getBRSRData = () => formData;
-
-  // Expose method to parent
-  useEffect(() => {
-    if (onDataChange) {
-      onDataChange(formData);
-    }
-  }, []);
 
   if (loading) {
     return (

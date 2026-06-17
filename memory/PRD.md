@@ -113,6 +113,54 @@ Multi-tenant ESG (Environmental, Social, Governance) management platform. Origin
 
 ### June 2026 Session — ESG Platform Architecture Phase 1 COMPLETE
 
+**June 17, 2026 — BRSR Organization Details Feature COMPLETE**
+
+- **BRSR Organization Details UI** (`/app/frontend/src/components/BRSRDetailsSection.js`):
+  - New collapsible section in Organization Details page (only visible when BRSR framework is enabled)
+  - All BRSR-specific text fields:
+    - CIN (Corporate Identity Number)
+    - Listed Entity Name
+    - Year of Incorporation
+    - Corporate Address, City, State, Country, Pincode
+    - Email, Telephone, Website
+    - Paid-up Capital (INR)
+    - Assurance Provider & Type
+    - Export Contribution (% of Turnover)
+    - Customer Types Brief
+  - Radio button selections:
+    - Stock Exchange (BSE / NSE / Both NSE & BSE)
+    - Reporting Boundary (Standalone / Consolidated)
+  - 4 Dynamic Tables (editable, addable, removable):
+    1. Business Activities (description, main_activity, turnover_percentage)
+    2. Products/Services (product_service, nic_code, turnover_percentage)
+    3. Plants/Offices (location_type, num_plants, num_offices)
+    4. Markets Served (location_type, number)
+  - Validation with "Complete" / "Incomplete" badge
+  - Missing fields display when incomplete
+  - "Save BRSR Details" button with loading state
+
+- **Framework Details Backend Module** (`/app/backend/modules/framework_details/`):
+  - `contracts.py` - Pydantic models for BRSR data (BRSRDetailsBase, BRSRDetailsCreate, BRSRDetailsUpdate)
+  - `service.py` - FrameworkDetailsService with CRUD operations on `organization_framework_details` collection
+  - `router.py` - API endpoints:
+    - `GET /api/organizations/my/framework-details/brsr` - Get BRSR details
+    - `PUT /api/organizations/my/framework-details/brsr` - Create/Update BRSR details
+    - `PATCH /api/organizations/my/framework-details/brsr` - Partial update
+    - `GET /api/organizations/my/framework-details/brsr/validate` - Validate completeness
+    - `GET /api/organizations/my/framework-details` - List all framework details
+
+- **Integration with OrganizationDetails.js**:
+  - Added `isBRSREnabled` state to detect BRSR framework enablement
+  - Conditionally renders `BRSRDetailsSection` based on org's `esg_frameworks_enabled`
+  - BRSR section follows edit/view mode from parent
+
+- **New MongoDB Collection**:
+  - `organization_framework_details` - Stores framework-specific org data
+  - Schema: `{ org_id, framework, ...framework_specific_fields, created_at, updated_at }`
+
+- **Testing**: Backend 9/9 pytest tests pass, Frontend e2e flow verified
+  - Test file: `/app/backend/tests/test_brsr_framework_details.py`
+
 **June 16, 2026 — ESG Platform Backend Foundation**
 
 - **ESG Platform Evolution**: Forked the GHG platform to evolve into a comprehensive ESG management platform while preserving all existing GHG functionality.
