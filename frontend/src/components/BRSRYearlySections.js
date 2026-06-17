@@ -119,7 +119,7 @@ export default function BRSRYearlySections({ isEditing = false }) {
   ]);
   // Turnover rate - current year only (we fetch previous years separately for display)
   const [turnoverRate, setTurnoverRate] = useState({ ...DEFAULT_TURNOVER_RATE });
-  // Display-only data for previous years (fetched from their own documents)
+  // Editable data for previous years (fetched from their own documents, saved back to them)
   const [prevYearTurnover, setPrevYearTurnover] = useState({ ...DEFAULT_TURNOVER_RATE });
   const [priorYearTurnover, setPriorYearTurnover] = useState({ ...DEFAULT_TURNOVER_RATE });
 
@@ -193,8 +193,12 @@ export default function BRSRYearlySections({ isEditing = false }) {
 
   const saveAllYearlyData = async () => {
     setSaving(true);
+    const prevFY = getPreviousFY(reportingYear);
+    const priorFY = getPreviousFY(prevFY);
+    
     try {
-      const payload = {
+      // Save current year data
+      const currentPayload = {
         employee_worker_details: employeeDetails,
         women_representation: womenRepresentation,
         csr_applicability: csrApplicability,
@@ -202,12 +206,26 @@ export default function BRSRYearlySections({ isEditing = false }) {
         turnover_rate: turnoverRate
       };
 
-      await axios.put(
-        `${API}/organizations/my/framework-details/brsr/yearly/${reportingYear}`,
-        payload,
-        { headers: getAuthHeader() }
-      );
-      toast.success(`All yearly data for ${reportingYear} saved successfully`);
+      // Save all 3 years' turnover data simultaneously
+      await Promise.all([
+        axios.put(
+          `${API}/organizations/my/framework-details/brsr/yearly/${reportingYear}`,
+          currentPayload,
+          { headers: getAuthHeader() }
+        ),
+        axios.put(
+          `${API}/organizations/my/framework-details/brsr/yearly/${prevFY}`,
+          { turnover_rate: prevYearTurnover },
+          { headers: getAuthHeader() }
+        ),
+        axios.put(
+          `${API}/organizations/my/framework-details/brsr/yearly/${priorFY}`,
+          { turnover_rate: priorYearTurnover },
+          { headers: getAuthHeader() }
+        )
+      ]);
+
+      toast.success(`Data saved for ${reportingYear}, ${prevFY}, and ${priorFY}`);
       fetchYearlyData();
     } catch (error) {
       console.error('Save error:', error);
@@ -552,19 +570,35 @@ export default function BRSRYearlySections({ isEditing = false }) {
                         className="h-7 text-xs text-center w-16" />
                     ) : <span className="text-xs">{turnoverRate.permanent_employees_female}%</span>}
                   </TableCell>
-                  {/* Previous - Read-only (from separate document) */}
+                  {/* Previous - Editable */}
                   <TableCell className="border-l bg-stone-50">
-                    <span className="text-xs">{prevYearTurnover.permanent_employees_male}%</span>
+                    {isEditing ? (
+                      <Input type="number" min="0" max="100" step="0.1" value={prevYearTurnover.permanent_employees_male}
+                        onChange={(e) => setPrevYearTurnover(p => ({ ...p, permanent_employees_male: parseFloat(e.target.value) || 0 }))}
+                        className="h-7 text-xs text-center w-16" />
+                    ) : <span className="text-xs">{prevYearTurnover.permanent_employees_male}%</span>}
                   </TableCell>
                   <TableCell className="bg-stone-50">
-                    <span className="text-xs">{prevYearTurnover.permanent_employees_female}%</span>
+                    {isEditing ? (
+                      <Input type="number" min="0" max="100" step="0.1" value={prevYearTurnover.permanent_employees_female}
+                        onChange={(e) => setPrevYearTurnover(p => ({ ...p, permanent_employees_female: parseFloat(e.target.value) || 0 }))}
+                        className="h-7 text-xs text-center w-16" />
+                    ) : <span className="text-xs">{prevYearTurnover.permanent_employees_female}%</span>}
                   </TableCell>
-                  {/* Prior - Read-only (from separate document) */}
+                  {/* Prior - Editable */}
                   <TableCell className="border-l bg-stone-100">
-                    <span className="text-xs">{priorYearTurnover.permanent_employees_male}%</span>
+                    {isEditing ? (
+                      <Input type="number" min="0" max="100" step="0.1" value={priorYearTurnover.permanent_employees_male}
+                        onChange={(e) => setPriorYearTurnover(p => ({ ...p, permanent_employees_male: parseFloat(e.target.value) || 0 }))}
+                        className="h-7 text-xs text-center w-16" />
+                    ) : <span className="text-xs">{priorYearTurnover.permanent_employees_male}%</span>}
                   </TableCell>
                   <TableCell className="bg-stone-100">
-                    <span className="text-xs">{priorYearTurnover.permanent_employees_female}%</span>
+                    {isEditing ? (
+                      <Input type="number" min="0" max="100" step="0.1" value={priorYearTurnover.permanent_employees_female}
+                        onChange={(e) => setPriorYearTurnover(p => ({ ...p, permanent_employees_female: parseFloat(e.target.value) || 0 }))}
+                        className="h-7 text-xs text-center w-16" />
+                    ) : <span className="text-xs">{priorYearTurnover.permanent_employees_female}%</span>}
                   </TableCell>
                 </TableRow>
                 {/* Permanent Workers Row */}
@@ -585,25 +619,41 @@ export default function BRSRYearlySections({ isEditing = false }) {
                         className="h-7 text-xs text-center w-16" />
                     ) : <span className="text-xs">{turnoverRate.permanent_workers_female}%</span>}
                   </TableCell>
-                  {/* Previous - Read-only */}
+                  {/* Previous - Editable */}
                   <TableCell className="border-l bg-stone-50">
-                    <span className="text-xs">{prevYearTurnover.permanent_workers_male}%</span>
+                    {isEditing ? (
+                      <Input type="number" min="0" max="100" step="0.1" value={prevYearTurnover.permanent_workers_male}
+                        onChange={(e) => setPrevYearTurnover(p => ({ ...p, permanent_workers_male: parseFloat(e.target.value) || 0 }))}
+                        className="h-7 text-xs text-center w-16" />
+                    ) : <span className="text-xs">{prevYearTurnover.permanent_workers_male}%</span>}
                   </TableCell>
                   <TableCell className="bg-stone-50">
-                    <span className="text-xs">{prevYearTurnover.permanent_workers_female}%</span>
+                    {isEditing ? (
+                      <Input type="number" min="0" max="100" step="0.1" value={prevYearTurnover.permanent_workers_female}
+                        onChange={(e) => setPrevYearTurnover(p => ({ ...p, permanent_workers_female: parseFloat(e.target.value) || 0 }))}
+                        className="h-7 text-xs text-center w-16" />
+                    ) : <span className="text-xs">{prevYearTurnover.permanent_workers_female}%</span>}
                   </TableCell>
-                  {/* Prior - Read-only */}
+                  {/* Prior - Editable */}
                   <TableCell className="border-l bg-stone-100">
-                    <span className="text-xs">{priorYearTurnover.permanent_workers_male}%</span>
+                    {isEditing ? (
+                      <Input type="number" min="0" max="100" step="0.1" value={priorYearTurnover.permanent_workers_male}
+                        onChange={(e) => setPriorYearTurnover(p => ({ ...p, permanent_workers_male: parseFloat(e.target.value) || 0 }))}
+                        className="h-7 text-xs text-center w-16" />
+                    ) : <span className="text-xs">{priorYearTurnover.permanent_workers_male}%</span>}
                   </TableCell>
                   <TableCell className="bg-stone-100">
-                    <span className="text-xs">{priorYearTurnover.permanent_workers_female}%</span>
+                    {isEditing ? (
+                      <Input type="number" min="0" max="100" step="0.1" value={priorYearTurnover.permanent_workers_female}
+                        onChange={(e) => setPriorYearTurnover(p => ({ ...p, permanent_workers_female: parseFloat(e.target.value) || 0 }))}
+                        className="h-7 text-xs text-center w-16" />
+                    ) : <span className="text-xs">{priorYearTurnover.permanent_workers_female}%</span>}
                   </TableCell>
                 </TableRow>
               </TableBody>
             </Table>
           </div>
-          <p className="text-xs text-text-muted mt-2">* Previous/Prior FY data is read-only (loaded from their own documents)</p>
+          <p className="text-xs text-text-muted mt-2">* All 3 years are editable. Saving will update each year's document separately.</p>
         </CollapsibleContent>
       </Collapsible>
 
