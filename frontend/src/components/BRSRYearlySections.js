@@ -117,11 +117,11 @@ export default function BRSRYearlySections({ isEditing = false }) {
   const [holdingEntities, setHoldingEntities] = useState([
     { name_of_entity: "", type_of_entity: "Subsidiary", shares_held_percentage: 0, participates_in_br_initiatives: false }
   ]);
-  const [turnoverRate, setTurnoverRate] = useState({
-    current: { ...DEFAULT_TURNOVER_RATE },
-    previous: { ...DEFAULT_TURNOVER_RATE },
-    prior: { ...DEFAULT_TURNOVER_RATE }
-  });
+  // Turnover rate - current year only (we fetch previous years separately for display)
+  const [turnoverRate, setTurnoverRate] = useState({ ...DEFAULT_TURNOVER_RATE });
+  // Display-only data for previous years (fetched from their own documents)
+  const [prevYearTurnover, setPrevYearTurnover] = useState({ ...DEFAULT_TURNOVER_RATE });
+  const [priorYearTurnover, setPriorYearTurnover] = useState({ ...DEFAULT_TURNOVER_RATE });
 
   useEffect(() => {
     fetchYearlyData();
@@ -130,6 +130,7 @@ export default function BRSRYearlySections({ isEditing = false }) {
   const fetchYearlyData = async () => {
     setLoading(true);
     try {
+      // Fetch current year data
       const res = await axios.get(
         `${API}/organizations/my/framework-details/brsr/yearly/${reportingYear}`,
         { headers: getAuthHeader() }
@@ -142,11 +143,8 @@ export default function BRSRYearlySections({ isEditing = false }) {
         setCSRApplicability({ ...DEFAULT_CSR, ...data.csr_applicability });
         setHoldingEntities(data.holding_subsidiary_entities?.length > 0 ? data.holding_subsidiary_entities :
           [{ name_of_entity: "", type_of_entity: "Subsidiary", shares_held_percentage: 0, participates_in_br_initiatives: false }]);
-        setTurnoverRate({
-          current: { ...DEFAULT_TURNOVER_RATE, ...data.turnover_rate?.current },
-          previous: { ...DEFAULT_TURNOVER_RATE, ...data.turnover_rate?.previous },
-          prior: { ...DEFAULT_TURNOVER_RATE, ...data.turnover_rate?.prior }
-        });
+        // Turnover rate is flat - just this year's data
+        setTurnoverRate({ ...DEFAULT_TURNOVER_RATE, ...data.turnover_rate });
       } else {
         resetToDefaults();
       }
@@ -155,8 +153,8 @@ export default function BRSRYearlySections({ isEditing = false }) {
       const yearsRes = await axios.get(`${API}/organizations/my/framework-details/brsr/yearly`, { headers: getAuthHeader() });
       setAvailableYears(yearsRes.data.available_years || []);
       
-      // Auto-fill previous years if they exist
-      await autoFillPreviousYears();
+      // Fetch previous years' turnover data for display (read-only)
+      await fetchPreviousYearsTurnover();
     } catch (error) {
       if (error.response?.status !== 404) console.error('Fetch error:', error);
       resetToDefaults();
@@ -170,32 +168,26 @@ export default function BRSRYearlySections({ isEditing = false }) {
     setWomenRepresentation([{ category: "Board of Directors", total: 0, number_of_females: 0 }]);
     setCSRApplicability({ ...DEFAULT_CSR });
     setHoldingEntities([{ name_of_entity: "", type_of_entity: "Subsidiary", shares_held_percentage: 0, participates_in_br_initiatives: false }]);
-    setTurnoverRate({ current: { ...DEFAULT_TURNOVER_RATE }, previous: { ...DEFAULT_TURNOVER_RATE }, prior: { ...DEFAULT_TURNOVER_RATE } });
+    setTurnoverRate({ ...DEFAULT_TURNOVER_RATE });
+    setPrevYearTurnover({ ...DEFAULT_TURNOVER_RATE });
+    setPriorYearTurnover({ ...DEFAULT_TURNOVER_RATE });
   };
 
-  const autoFillPreviousYears = async () => {
+  // Fetch previous years' documents for display-only in turnover matrix
+  const fetchPreviousYearsTurnover = async () => {
     const prevFY = getPreviousFY(reportingYear);
     const priorFY = getPreviousFY(prevFY);
     
     try {
-      // Fetch previous FY data
-      const prevRes = await axios.get(
-        `${API}/organizations/my/framework-details/brsr/yearly/${prevFY}`,
-        { headers: getAuthHeader() }
-      ).catch(() => null);
-      
-      const priorRes = await axios.get(
-        `${API}/organizations/my/framework-details/brsr/yearly/${priorFY}`,
-        { headers: getAuthHeader() }
-      ).catch(() => null);
+      const [prevRes, priorRes] = await Promise.all([
+        axios.get(`${API}/organizations/my/framework-details/brsr/yearly/${prevFY}`, { headers: getAuthHeader() }).catch(() => null),
+        axios.get(`${API}/organizations/my/framework-details/brsr/yearly/${priorFY}`, { headers: getAuthHeader() }).catch(() => null)
+      ]);
 
-      setTurnoverRate(prev => ({
-        ...prev,
-        previous: prevRes?.data?.data?.turnover_rate?.current || prev.previous,
-        prior: priorRes?.data?.data?.turnover_rate?.current || prev.prior
-      }));
+      setPrevYearTurnover(prevRes?.data?.data?.turnover_rate || { ...DEFAULT_TURNOVER_RATE });
+      setPriorYearTurnover(priorRes?.data?.data?.turnover_rate || { ...DEFAULT_TURNOVER_RATE });
     } catch (e) {
-      // Silent fail - previous data not available
+      // Silent fail
     }
   };
 
@@ -545,102 +537,73 @@ export default function BRSRYearlySections({ isEditing = false }) {
                 {/* Permanent Employees Row */}
                 <TableRow>
                   <TableCell className="text-xs font-medium">Permanent Employees</TableCell>
-                  {/* Current */}
+                  {/* Current - Editable */}
                   <TableCell className="border-l">
                     {isEditing ? (
-                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.current.permanent_employees_male}
-                        onChange={(e) => setTurnoverRate(p => ({ ...p, current: { ...p.current, permanent_employees_male: parseFloat(e.target.value) || 0 }}))}
+                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.permanent_employees_male}
+                        onChange={(e) => setTurnoverRate(p => ({ ...p, permanent_employees_male: parseFloat(e.target.value) || 0 }))}
                         className="h-7 text-xs text-center w-16" />
-                    ) : <span className="text-xs">{turnoverRate.current.permanent_employees_male}%</span>}
+                    ) : <span className="text-xs">{turnoverRate.permanent_employees_male}%</span>}
                   </TableCell>
                   <TableCell>
                     {isEditing ? (
-                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.current.permanent_employees_female}
-                        onChange={(e) => setTurnoverRate(p => ({ ...p, current: { ...p.current, permanent_employees_female: parseFloat(e.target.value) || 0 }}))}
+                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.permanent_employees_female}
+                        onChange={(e) => setTurnoverRate(p => ({ ...p, permanent_employees_female: parseFloat(e.target.value) || 0 }))}
                         className="h-7 text-xs text-center w-16" />
-                    ) : <span className="text-xs">{turnoverRate.current.permanent_employees_female}%</span>}
+                    ) : <span className="text-xs">{turnoverRate.permanent_employees_female}%</span>}
                   </TableCell>
-                  {/* Previous */}
+                  {/* Previous - Read-only (from separate document) */}
                   <TableCell className="border-l bg-stone-50">
-                    {isEditing ? (
-                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.previous.permanent_employees_male}
-                        onChange={(e) => setTurnoverRate(p => ({ ...p, previous: { ...p.previous, permanent_employees_male: parseFloat(e.target.value) || 0 }}))}
-                        className="h-7 text-xs text-center w-16" />
-                    ) : <span className="text-xs">{turnoverRate.previous.permanent_employees_male}%</span>}
+                    <span className="text-xs">{prevYearTurnover.permanent_employees_male}%</span>
                   </TableCell>
                   <TableCell className="bg-stone-50">
-                    {isEditing ? (
-                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.previous.permanent_employees_female}
-                        onChange={(e) => setTurnoverRate(p => ({ ...p, previous: { ...p.previous, permanent_employees_female: parseFloat(e.target.value) || 0 }}))}
-                        className="h-7 text-xs text-center w-16" />
-                    ) : <span className="text-xs">{turnoverRate.previous.permanent_employees_female}%</span>}
+                    <span className="text-xs">{prevYearTurnover.permanent_employees_female}%</span>
                   </TableCell>
-                  {/* Prior */}
+                  {/* Prior - Read-only (from separate document) */}
                   <TableCell className="border-l bg-stone-100">
-                    {isEditing ? (
-                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.prior.permanent_employees_male}
-                        onChange={(e) => setTurnoverRate(p => ({ ...p, prior: { ...p.prior, permanent_employees_male: parseFloat(e.target.value) || 0 }}))}
-                        className="h-7 text-xs text-center w-16" />
-                    ) : <span className="text-xs">{turnoverRate.prior.permanent_employees_male}%</span>}
+                    <span className="text-xs">{priorYearTurnover.permanent_employees_male}%</span>
                   </TableCell>
                   <TableCell className="bg-stone-100">
-                    {isEditing ? (
-                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.prior.permanent_employees_female}
-                        onChange={(e) => setTurnoverRate(p => ({ ...p, prior: { ...p.prior, permanent_employees_female: parseFloat(e.target.value) || 0 }}))}
-                        className="h-7 text-xs text-center w-16" />
-                    ) : <span className="text-xs">{turnoverRate.prior.permanent_employees_female}%</span>}
+                    <span className="text-xs">{priorYearTurnover.permanent_employees_female}%</span>
                   </TableCell>
                 </TableRow>
                 {/* Permanent Workers Row */}
                 <TableRow>
                   <TableCell className="text-xs font-medium">Permanent Workers</TableCell>
+                  {/* Current - Editable */}
                   <TableCell className="border-l">
                     {isEditing ? (
-                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.current.permanent_workers_male}
-                        onChange={(e) => setTurnoverRate(p => ({ ...p, current: { ...p.current, permanent_workers_male: parseFloat(e.target.value) || 0 }}))}
+                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.permanent_workers_male}
+                        onChange={(e) => setTurnoverRate(p => ({ ...p, permanent_workers_male: parseFloat(e.target.value) || 0 }))}
                         className="h-7 text-xs text-center w-16" />
-                    ) : <span className="text-xs">{turnoverRate.current.permanent_workers_male}%</span>}
+                    ) : <span className="text-xs">{turnoverRate.permanent_workers_male}%</span>}
                   </TableCell>
                   <TableCell>
                     {isEditing ? (
-                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.current.permanent_workers_female}
-                        onChange={(e) => setTurnoverRate(p => ({ ...p, current: { ...p.current, permanent_workers_female: parseFloat(e.target.value) || 0 }}))}
+                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.permanent_workers_female}
+                        onChange={(e) => setTurnoverRate(p => ({ ...p, permanent_workers_female: parseFloat(e.target.value) || 0 }))}
                         className="h-7 text-xs text-center w-16" />
-                    ) : <span className="text-xs">{turnoverRate.current.permanent_workers_female}%</span>}
+                    ) : <span className="text-xs">{turnoverRate.permanent_workers_female}%</span>}
                   </TableCell>
+                  {/* Previous - Read-only */}
                   <TableCell className="border-l bg-stone-50">
-                    {isEditing ? (
-                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.previous.permanent_workers_male}
-                        onChange={(e) => setTurnoverRate(p => ({ ...p, previous: { ...p.previous, permanent_workers_male: parseFloat(e.target.value) || 0 }}))}
-                        className="h-7 text-xs text-center w-16" />
-                    ) : <span className="text-xs">{turnoverRate.previous.permanent_workers_male}%</span>}
+                    <span className="text-xs">{prevYearTurnover.permanent_workers_male}%</span>
                   </TableCell>
                   <TableCell className="bg-stone-50">
-                    {isEditing ? (
-                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.previous.permanent_workers_female}
-                        onChange={(e) => setTurnoverRate(p => ({ ...p, previous: { ...p.previous, permanent_workers_female: parseFloat(e.target.value) || 0 }}))}
-                        className="h-7 text-xs text-center w-16" />
-                    ) : <span className="text-xs">{turnoverRate.previous.permanent_workers_female}%</span>}
+                    <span className="text-xs">{prevYearTurnover.permanent_workers_female}%</span>
                   </TableCell>
+                  {/* Prior - Read-only */}
                   <TableCell className="border-l bg-stone-100">
-                    {isEditing ? (
-                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.prior.permanent_workers_male}
-                        onChange={(e) => setTurnoverRate(p => ({ ...p, prior: { ...p.prior, permanent_workers_male: parseFloat(e.target.value) || 0 }}))}
-                        className="h-7 text-xs text-center w-16" />
-                    ) : <span className="text-xs">{turnoverRate.prior.permanent_workers_male}%</span>}
+                    <span className="text-xs">{priorYearTurnover.permanent_workers_male}%</span>
                   </TableCell>
                   <TableCell className="bg-stone-100">
-                    {isEditing ? (
-                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.prior.permanent_workers_female}
-                        onChange={(e) => setTurnoverRate(p => ({ ...p, prior: { ...p.prior, permanent_workers_female: parseFloat(e.target.value) || 0 }}))}
-                        className="h-7 text-xs text-center w-16" />
-                    ) : <span className="text-xs">{turnoverRate.prior.permanent_workers_female}%</span>}
+                    <span className="text-xs">{priorYearTurnover.permanent_workers_female}%</span>
                   </TableCell>
                 </TableRow>
               </TableBody>
             </Table>
           </div>
-          <p className="text-xs text-text-muted mt-2">* Previous FY data is auto-filled from existing records if available</p>
+          <p className="text-xs text-text-muted mt-2">* Previous/Prior FY data is read-only (loaded from their own documents)</p>
         </CollapsibleContent>
       </Collapsible>
 

@@ -97,19 +97,12 @@ class CSRApplicabilityData(BaseModel):
     net_worth_inr: float = Field(default=0, ge=0, description="Net Worth in INR")
 
 
-class TurnoverRateYear(BaseModel):
-    """Turnover rate data for one financial year."""
+class TurnoverRateData(BaseModel):
+    """Turnover rate for a single reporting year (not nested)."""
     permanent_employees_male: float = Field(default=0, ge=0, le=100)
     permanent_employees_female: float = Field(default=0, ge=0, le=100)
     permanent_workers_male: float = Field(default=0, ge=0, le=100)
     permanent_workers_female: float = Field(default=0, ge=0, le=100)
-
-
-class TurnoverRateData(BaseModel):
-    """Turnover rate across 3 financial years."""
-    current: TurnoverRateYear = Field(default_factory=TurnoverRateYear)
-    previous: TurnoverRateYear = Field(default_factory=TurnoverRateYear)
-    prior: TurnoverRateYear = Field(default_factory=TurnoverRateYear)
 
 
 # =============================================================================
