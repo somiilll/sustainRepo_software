@@ -113,6 +113,58 @@ Multi-tenant ESG (Environmental, Social, Governance) management platform. Origin
 
 ### June 2026 Session — ESG Platform Architecture Phase 1 COMPLETE
 
+**June 17, 2026 — Config-Driven ESG Questionnaire System COMPLETE**
+
+- **ESG Questionnaire Architecture** (`/app/backend/modules/esg_questionnaire/`):
+  - Lightweight, config-driven question engine for dynamic ESG forms
+  - Questions stored in `esg_question_configs` collection with metadata tags
+  - Responses stored per Org + Framework + Section + Reporting Year
+  - NO drag/drop builder — strictly JSON-config driven per user preference
+
+- **Backend Module** (`/app/backend/modules/esg_questionnaire/`):
+  - `contracts.py` - Pydantic models for question configs and responses
+  - `service.py` - ESGQuestionnaireService with CRUD operations
+  - `router.py` - API endpoints:
+    - `GET /api/esg-questionnaire/configs` - List questions (filter by framework/section)
+    - `POST /api/esg-questionnaire/configs` - Create question config (Admin)
+    - `POST /api/esg-questionnaire/configs/bulk` - Bulk create configs (Admin)
+    - `GET /api/esg-questionnaire/responses/{framework}/{section}/{year}` - Get responses
+    - `PUT /api/esg-questionnaire/responses/{framework}/{section}/{year}` - Save responses
+    - `GET /api/esg-questionnaire/responses/{framework}/{section}/{year}/summary` - Completion stats
+    - `GET /api/esg-questionnaire/ngrbc-principles` - List P1-P9 principles
+
+- **Supported Question Types**:
+  - `text`, `textarea`, `number`, `date`, `url`
+  - `yes_no`, `select`, `multi_select`
+  - `table` (dynamic columns with add/remove rows)
+  - `principle_toggle_with_description` (special NGRBC P1-P9 type)
+
+- **Frontend Component** (`/app/frontend/src/components/ESGQuestionnaire.js`):
+  - Generic questionnaire renderer (628 lines)
+  - Supports all question types with edit/view modes
+  - Reporting year selector with completion progress badge
+  - Groups questions by `group` field for organized display
+  - PrincipleToggleRenderer for NGRBC principles (all-together or principle-wise modes)
+  - TableRenderer for dynamic table questions
+
+- **ESG Module Pages Updated**:
+  - `Environment.js` - Hooked up to ESGQuestionnaire (BRSR section="environment")
+  - `Social.js` - Hooked up to ESGQuestionnaire (BRSR section="social")
+  - `Governance.js` - Hooked up to ESGQuestionnaire (BRSR section="governance")
+  - Each page has Edit/View toggle and framework info card
+
+- **Initial BRSR Governance Questions Seeded** (3 questions):
+  1. `policy_cover_principles` - Whether policies cover each NGRBC principle
+  2. `policy_board_approved` - Has policy been approved by Board?
+  3. `policy_translated_to_procedures` - Whether policy translated to procedures
+  - Seed script: `/app/backend/scripts/seed_brsr_governance_questions.py`
+
+- **New MongoDB Collections**:
+  - `esg_question_configs` - Question configuration metadata
+  - `organization_esg_responses` - Org responses per framework/section/year
+
+- **Verified** via curl API testing: Questions load correctly, responses save/retrieve properly, completion summary calculates accurately (66.7% with 2/3 answered)
+
 **June 17, 2026 — BRSR Extended Sections (Batch 1) COMPLETE**
 
 - **Hybrid Data Structure Implementation**:

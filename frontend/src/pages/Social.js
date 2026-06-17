@@ -1,32 +1,66 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card } from '../components/ui/card';
-import { Users2, Construction } from 'lucide-react';
+import { Button } from '../components/ui/button';
+import { Badge } from '../components/ui/badge';
+import { Users2, Edit2, Eye, Info } from 'lucide-react';
+import ESGQuestionnaire from '../components/ESGQuestionnaire';
 
 export default function Social() {
+  const [isEditing, setIsEditing] = useState(false);
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-heading font-bold text-text-primary">Social</h1>
-          <p className="text-text-muted mt-1">Social responsibility and stakeholder engagement</p>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+              <Users2 className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-heading font-bold text-text-primary">Social</h1>
+              <p className="text-text-muted text-sm">BRSR Section B - Social Disclosures (Principles 3, 5, 8)</p>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+            BRSR Framework
+          </Badge>
+          <Button
+            variant={isEditing ? "default" : "outline"}
+            onClick={() => setIsEditing(!isEditing)}
+            className={isEditing ? "bg-blue-600 hover:bg-blue-700" : ""}
+            data-testid="social-edit-toggle"
+          >
+            {isEditing ? (
+              <><Eye className="w-4 h-4 mr-2" /> View Mode</>
+            ) : (
+              <><Edit2 className="w-4 h-4 mr-2" /> Edit Mode</>
+            )}
+          </Button>
         </div>
       </div>
 
-      <Card className="p-12 text-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center">
-            <Users2 className="w-8 h-8 text-blue-600" />
-          </div>
-          <h2 className="text-xl font-semibold text-text-primary">Social Module</h2>
-          <div className="flex items-center gap-2 text-amber-600">
-            <Construction className="w-5 h-5" />
-            <span className="text-sm font-medium">Coming Soon</span>
-          </div>
-          <p className="text-text-muted max-w-md">
-            This module will include labor practices, human rights, community engagement, 
-            diversity & inclusion metrics, health & safety, and other social sustainability features.
+      {/* Info Card */}
+      <Card className="p-4 bg-blue-50/50 border-blue-100">
+        <div className="flex items-start gap-2">
+          <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+          <p className="text-sm text-blue-800">
+            <strong>Social Principles:</strong> Covers P3 (Employee Wellbeing), P5 (Human Rights), and P8 (Inclusive Growth). 
+            This section includes workforce diversity, employee health & safety, human rights due diligence, 
+            community engagement, and inclusive business practices.
           </p>
         </div>
+      </Card>
+
+      {/* ESG Questionnaire */}
+      <Card className="p-6">
+        <ESGQuestionnaire 
+          framework="BRSR" 
+          section="social" 
+          isEditing={isEditing} 
+        />
       </Card>
     </div>
   );
