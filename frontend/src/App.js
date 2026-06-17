@@ -39,6 +39,9 @@ import Profile from './pages/Profile';
 import Scope3EF from './pages/Scope3EF';
 import AuditTrails from './pages/AuditTrails';
 import BulkUpload from './pages/BulkUpload';
+import Environment from './pages/Environment';
+import Social from './pages/Social';
+import Governance from './pages/Governance';
 import Layout from './components/Layout';
 import PasswordChangeModal from './components/PasswordChangeModal';
 import { initializeCategoryModules } from './modules/emissions';
@@ -233,6 +236,9 @@ const AppRoutes = () => {
           <Route path="bulk-upload" element={<BulkUpload />} />
           <Route path="sinks" element={<Sinks />} />
           <Route path="base-year-emissions" element={<BaseYearAndTargets />} />
+          <Route path="environment" element={<Environment />} />
+          <Route path="social" element={<Social />} />
+          <Route path="governance" element={<Governance />} />
           <Route path="reports" element={<Reports />} />
           <Route path="users" element={
             <AdminRoute>

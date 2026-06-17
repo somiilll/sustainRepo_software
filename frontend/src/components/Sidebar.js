@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
-import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Building, UserCog, Flame, Globe, User, Calculator, Layers, Database, Ruler, Settings2, TreeDeciduous, Thermometer, FileCode2, CalendarClock, FolderTree, Beaker, Variable, Code2, GitFork, Scale, FormInput, Link2, ChevronDown, ChevronRight, FlaskConical, HardDrive, History, FileSpreadsheet, Upload, DollarSign, ClipboardCheck, Leaf } from 'lucide-react';
+import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Building, UserCog, Flame, Globe, User, Calculator, Layers, Database, Ruler, Settings2, TreeDeciduous, Thermometer, FileCode2, CalendarClock, FolderTree, Beaker, Variable, Code2, GitFork, Scale, FormInput, Link2, ChevronDown, ChevronRight, FlaskConical, HardDrive, History, FileSpreadsheet, Upload, DollarSign, ClipboardCheck, Leaf, Sprout, Users2, Shield } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -17,6 +17,8 @@ export default function Sidebar() {
     ghgCalc: false, 
     ghgData: false, 
     ghg: true,
+    ghgEmissions: true,  // GHG Emissions sub-group under GHG parent
+    adminGhg: true,  // Parent GHG menu for admin/user
     superAdminGhg: true,  // Parent GHG menu for super admin
   });
   const [enabledAccess, setEnabledAccess] = useState([]);
@@ -101,14 +103,43 @@ export default function Sidebar() {
   const isGhgActive = ghgEmissionsItems.some((i) => location.pathname.startsWith(i.path)) ||
     location.pathname.startsWith('/ghg') || location.pathname === '/emissions';
 
+  // GHG sub-items for Admin (under GHG parent module)
+  const adminGhgSubItems = [
+    { 
+      type: 'subgroup', 
+      key: 'ghgEmissions', 
+      label: 'GHG Emissions', 
+      icon: Gauge, 
+      items: ghgEmissionsItems 
+    },
+    { path: '/sinks', label: 'GHG Sinks', icon: TreeDeciduous },
+    { path: '/bulk-upload', label: 'Bulk Upload', icon: Upload },
+    { path: '/base-year-emissions', label: 'Base Year and Target Settings', icon: CalendarClock },
+  ];
+
+  // Check if any admin GHG item is active
+  const isAdminGhgActive = 
+    ghgEmissionsItems.some((i) => location.pathname.startsWith(i.path)) ||
+    location.pathname === '/sinks' ||
+    location.pathname === '/bulk-upload' ||
+    location.pathname.startsWith('/base-year-emissions') ||
+    location.pathname.startsWith('/ghg');
+
   const adminItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/organization', label: 'Organization', icon: Building },
     { path: '/facilities', label: 'Facilities', icon: Building2 },
-    { type: 'group', key: 'ghg', label: 'GHG Emissions', icon: Gauge, items: ghgEmissionsItems },
-    { path: '/bulk-upload', label: 'Bulk Upload', icon: Upload },
-    { path: '/sinks', label: 'GHG Sinks', icon: TreeDeciduous },
-    { path: '/base-year-emissions', label: 'Base Year Emissions and Target Setting', icon: CalendarClock },
+    { 
+      type: 'parent', 
+      key: 'adminGhg', 
+      label: 'GHG', 
+      icon: Leaf, 
+      items: adminGhgSubItems,
+      isActive: isAdminGhgActive
+    },
+    { path: '/environment', label: 'Environment', icon: Sprout },
+    { path: '/social', label: 'Social', icon: Users2 },
+    { path: '/governance', label: 'Governance', icon: Shield },
     { path: '/reports', label: 'Reports', icon: FileText },
     { path: '/users', label: 'Users', icon: Users },
     { path: '/audit-trails', label: 'Audit Trails', icon: History },
@@ -118,10 +149,17 @@ export default function Sidebar() {
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/organization', label: 'Organization', icon: Building },
     { path: '/facilities', label: 'Facilities', icon: Building2 },
-    { type: 'group', key: 'ghg', label: 'GHG Emissions', icon: Gauge, items: ghgEmissionsItems },
-    { path: '/bulk-upload', label: 'Bulk Upload', icon: Upload },
-    { path: '/sinks', label: 'GHG Sinks', icon: TreeDeciduous },
-    { path: '/base-year-emissions', label: 'Base Year Emissions and Target Setting', icon: CalendarClock },
+    { 
+      type: 'parent', 
+      key: 'adminGhg', 
+      label: 'GHG', 
+      icon: Leaf, 
+      items: adminGhgSubItems,
+      isActive: isAdminGhgActive
+    },
+    { path: '/environment', label: 'Environment', icon: Sprout },
+    { path: '/social', label: 'Social', icon: Users2 },
+    { path: '/governance', label: 'Governance', icon: Shield },
     { path: '/reports', label: 'Reports', icon: FileText },
   ];
 
@@ -287,7 +325,97 @@ export default function Sidebar() {
 
         {/* Admin and User navigation */}
         {user?.role !== 'super_admin' && navItems.map((item) => {
-          // Render expandable group (e.g. GHG Emissions sub-links).
+          // Render parent module with collapsible sub-items (e.g. GHG)
+          if (item.type === 'parent') {
+            const Icon = item.icon;
+            const expanded = expandedMenus[item.key];
+            return (
+              <div key={item.key}>
+                <button
+                  onClick={() => toggleMenu(item.key)}
+                  data-testid={`nav-parent-${item.key}`}
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-all ${
+                    item.isActive ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'text-text-secondary hover:bg-stone-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon className="w-5 h-5 flex-shrink-0" />
+                    <span className="font-medium">{item.label}</span>
+                  </div>
+                  {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                </button>
+                {expanded && item.items?.length > 0 && (
+                  <div className="ml-4 mt-1 space-y-1 border-l-2 border-emerald-200 pl-2">
+                    {item.items.map((sub) => {
+                      // Handle nested subgroup (e.g., GHG Emissions with Scope 1, 2, 3)
+                      if (sub.type === 'subgroup') {
+                        const SubIcon = sub.icon;
+                        const subExpanded = expandedMenus[sub.key];
+                        const subGroupActive = sub.items?.some((s) => location.pathname.startsWith(s.path));
+                        return (
+                          <div key={sub.key}>
+                            <button
+                              onClick={() => toggleMenu(sub.key)}
+                              data-testid={`nav-subgroup-${sub.key}`}
+                              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all text-sm ${
+                                subGroupActive ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'text-text-secondary hover:bg-stone-50'
+                              }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <SubIcon className="w-4 h-4" />
+                                <span className="font-medium">{sub.label}</span>
+                              </div>
+                              {subExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                            </button>
+                            {subExpanded && sub.items?.length > 0 && (
+                              <div className="ml-4 mt-1 space-y-1 border-l-2 border-blue-200 pl-2">
+                                {sub.items.map((nested) => {
+                                  const NestedIcon = nested.icon;
+                                  const isNestedActive = location.pathname === nested.path || location.pathname.startsWith(nested.path + '/');
+                                  return (
+                                    <Link
+                                      key={nested.path}
+                                      to={nested.path}
+                                      data-testid={`nav-${nested.label.toLowerCase().replace(/\s+/g, '-')}`}
+                                      className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-sm ${
+                                        isNestedActive ? 'bg-primary text-white' : 'text-text-secondary hover:bg-stone-50'
+                                      }`}
+                                    >
+                                      <NestedIcon className="w-4 h-4" />
+                                      <span className="font-medium">{nested.label}</span>
+                                    </Link>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                      
+                      // Regular sub-item link
+                      const SubIcon = sub.icon;
+                      const isActive = location.pathname === sub.path || location.pathname.startsWith(sub.path + '/');
+                      return (
+                        <Link
+                          key={sub.path}
+                          to={sub.path}
+                          data-testid={`nav-${sub.label.toLowerCase().replace(/\s+/g, '-')}`}
+                          className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-sm ${
+                            isActive ? 'bg-primary text-white' : 'text-text-secondary hover:bg-stone-50'
+                          }`}
+                        >
+                          <SubIcon className="w-4 h-4" />
+                          <span className="font-medium">{sub.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          // Render expandable group (legacy - kept for backwards compatibility)
           if (item.type === 'group') {
             const Icon = item.icon;
             const expanded = expandedMenus[item.key];
