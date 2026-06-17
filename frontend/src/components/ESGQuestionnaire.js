@@ -69,8 +69,21 @@ const NGRBC_PRINCIPLES = [
 ];
 
 // Individual Question Renderer
-function QuestionRenderer({ config, value, onChange, isEditing }) {
-  const { type, question, description, placeholder, options, table_columns, required } = config;
+function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {} }) {
+  const { type, question, description, placeholder, options, table_columns, required, conditional } = config;
+
+  // Check if question should be hidden based on conditional logic
+  if (conditional?.depends_on && conditional?.show_when === 'has_no_answer') {
+    const dependsOnValue = allResponses[conditional.depends_on];
+    if (!dependsOnValue) return null;
+    
+    // Check if any principle has "No" or all_enabled is false
+    const hasNo = dependsOnValue.mode === 'all_together' 
+      ? dependsOnValue.all_enabled === false
+      : Object.values(dependsOnValue.principles || {}).some(p => p.enabled === false);
+    
+    if (!hasNo) return null;
+  }
 
   const renderInput = () => {
     switch (type) {
@@ -220,7 +233,7 @@ function QuestionRenderer({ config, value, onChange, isEditing }) {
         return <PrincipleModeTableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
 
       case 'reasons_checklist':
-        return <ReasonsChecklistRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+        return <ReasonsChecklistRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} allResponses={allResponses} />;
 
       case 'table':
         return <TableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
@@ -767,79 +780,131 @@ function PrincipleModeTableRenderer({ config, value, onChange, isEditing }) {
   );
 }
 
-// Reasons Checklist Renderer (Yes/No items with optional "other" text)
-function ReasonsChecklistRenderer({ config, value, onChange, isEditing }) {
-  const data = value || { reasons: {}, other_reason: '' };
+// Reasons Checklist Renderer (Yes/No items with optional "other" text, principle-aware)
+function ReasonsChecklistRenderer({ config, value, onChange, isEditing, allResponses = {} }) {
+  const data = value || { principles: {} };
   const reasonsConfig = config.reasons_config || {};
   const reasons = reasonsConfig.items || [];
   const hasOther = reasonsConfig.has_other !== false;
+  const conditional = config.conditional || {};
 
-  const handleReasonChange = (key, val) => {
-    onChange({ ...data, reasons: { ...data.reasons, [key]: val } });
+  // Get principles that need reasons (where dependent question answered "No")
+  const getPrinciplesNeedingReasons = () => {
+    if (!conditional.depends_on) return [];
+    const dependsOnValue = allResponses[conditional.depends_on];
+    if (!dependsOnValue) return [];
+
+    if (dependsOnValue.mode === 'all_together') {
+      // If combined mode and all_enabled is false, show for all principles
+      return dependsOnValue.all_enabled === false ? NGRBC_PRINCIPLES.map(p => p.key) : [];
+    } else {
+      // Principle-wise: return only principles where enabled === false
+      return NGRBC_PRINCIPLES
+        .filter(p => dependsOnValue.principles?.[p.key]?.enabled === false)
+        .map(p => p.key);
+    }
   };
 
-  const handleOtherChange = (val) => {
-    onChange({ ...data, other_reason: val });
+  const principlesNeedingReasons = getPrinciplesNeedingReasons();
+
+  const handlePrincipleReasonChange = (principle, reasonKey, val) => {
+    const principles = { ...data.principles };
+    if (!principles[principle]) principles[principle] = { reasons: {}, other_reason: '' };
+    principles[principle].reasons = { ...principles[principle].reasons, [reasonKey]: val };
+    onChange({ ...data, principles });
   };
+
+  const handlePrincipleOtherChange = (principle, val) => {
+    const principles = { ...data.principles };
+    if (!principles[principle]) principles[principle] = { reasons: {}, other_reason: '' };
+    principles[principle].other_reason = val;
+    onChange({ ...data, principles });
+  };
+
+  if (principlesNeedingReasons.length === 0) {
+    return null; // Don't render if no principles need reasons
+  }
 
   if (!isEditing) {
-    const selectedReasons = reasons.filter(r => data.reasons?.[r.key] === 'Yes');
     return (
-      <div className="mt-2 space-y-2">
-        {selectedReasons.length > 0 ? (
-          <div className="space-y-1">
-            {selectedReasons.map(r => (
-              <div key={r.key} className="flex items-start gap-2 text-sm">
-                <span className="text-green-600">✓</span>
-                <span>{r.label}</span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-text-muted">No reasons selected</p>
-        )}
-        {hasOther && data.other_reason && (
-          <div className="text-sm mt-2">
-            <span className="text-text-muted">Other reason:</span> {data.other_reason}
-          </div>
-        )}
+      <div className="mt-2 space-y-4">
+        {principlesNeedingReasons.map(pKey => {
+          const pData = data.principles?.[pKey] || {};
+          const selectedReasons = reasons.filter(r => pData.reasons?.[r.key] === 'Yes');
+          const pInfo = NGRBC_PRINCIPLES.find(p => p.key === pKey);
+          return (
+            <div key={pKey} className="bg-stone-50 p-3 rounded">
+              <div className="font-medium text-sm mb-2">{pKey} - {pInfo?.name}</div>
+              {selectedReasons.length > 0 ? (
+                <div className="space-y-1 ml-4">
+                  {selectedReasons.map(r => (
+                    <div key={r.key} className="flex items-start gap-2 text-sm">
+                      <span className="text-green-600">✓</span>
+                      <span>{r.label}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-text-muted ml-4">No reasons selected</p>
+              )}
+              {hasOther && pData.other_reason && (
+                <div className="text-sm mt-2 ml-4">
+                  <span className="text-text-muted">Other:</span> {pData.other_reason}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     );
   }
 
   return (
-    <div className="mt-3 space-y-3 bg-stone-50 p-4 rounded-lg">
-      {reasons.map(r => (
-        <div key={r.key} className="flex items-center justify-between py-2 border-b border-stone-200 last:border-0">
-          <Label className="text-sm flex-1 pr-4">{r.label}</Label>
-          <RadioGroup 
-            value={data.reasons?.[r.key] || ''} 
-            onValueChange={(v) => handleReasonChange(r.key, v)}
-            className="flex gap-3"
-          >
-            <div className="flex items-center gap-1">
-              <RadioGroupItem value="Yes" id={`${config.question_key}-${r.key}-yes`} />
-              <Label htmlFor={`${config.question_key}-${r.key}-yes`} className="text-sm">Yes</Label>
+    <div className="mt-3 space-y-4">
+      {principlesNeedingReasons.map(pKey => {
+        const pData = data.principles?.[pKey] || { reasons: {}, other_reason: '' };
+        const pInfo = NGRBC_PRINCIPLES.find(p => p.key === pKey);
+        return (
+          <div key={pKey} className="bg-stone-50 p-4 rounded-lg">
+            <div className="font-medium text-sm mb-3 pb-2 border-b border-stone-200">
+              {pKey} - {pInfo?.name}
             </div>
-            <div className="flex items-center gap-1">
-              <RadioGroupItem value="No" id={`${config.question_key}-${r.key}-no`} />
-              <Label htmlFor={`${config.question_key}-${r.key}-no`} className="text-sm">No</Label>
+            <div className="space-y-2">
+              {reasons.map(r => (
+                <div key={r.key} className="flex items-center justify-between py-2 border-b border-stone-100 last:border-0">
+                  <Label className="text-sm flex-1 pr-4">{r.label}</Label>
+                  <RadioGroup 
+                    value={pData.reasons?.[r.key] || ''} 
+                    onValueChange={(v) => handlePrincipleReasonChange(pKey, r.key, v)}
+                    className="flex gap-3"
+                  >
+                    <div className="flex items-center gap-1">
+                      <RadioGroupItem value="Yes" id={`${config.question_key}-${pKey}-${r.key}-yes`} />
+                      <Label htmlFor={`${config.question_key}-${pKey}-${r.key}-yes`} className="text-sm">Yes</Label>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <RadioGroupItem value="No" id={`${config.question_key}-${pKey}-${r.key}-no`} />
+                      <Label htmlFor={`${config.question_key}-${pKey}-${r.key}-no`} className="text-sm">No</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+              ))}
+              {hasOther && (
+                <div className="pt-2">
+                  <Label className="text-sm block mb-2">Any other reason (please specify)</Label>
+                  <Textarea
+                    value={pData.other_reason || ''}
+                    onChange={(e) => handlePrincipleOtherChange(pKey, e.target.value)}
+                    placeholder="Please specify other reasons..."
+                    rows={2}
+                    className="text-sm"
+                  />
+                </div>
+              )}
             </div>
-          </RadioGroup>
-        </div>
-      ))}
-      {hasOther && (
-        <div className="pt-2">
-          <Label className="text-sm block mb-2">Any other reason (please specify)</Label>
-          <Textarea
-            value={data.other_reason || ''}
-            onChange={(e) => handleOtherChange(e.target.value)}
-            placeholder="Please specify other reasons..."
-            rows={2}
-            className="text-sm"
-          />
-        </div>
-      )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1104,6 +1169,7 @@ export default function ESGQuestionnaire({
                     value={responses[config.question_key]}
                     onChange={(val) => handleResponseChange(config.question_key, val)}
                     isEditing={isEditing}
+                    allResponses={responses}
                   />
                 ))}
               </div>
