@@ -42,7 +42,22 @@ QUESTION_TYPES = Literal[
     "yes_no_with_dynamic_table",
     "historical_material_percentage_table",
     "historical_reclaim_percentage_table",
-    "historical_waste_management_matrix"
+    "historical_waste_management_matrix",
+    # Environment Q75-94 Renderer Types (Resource Management, Emissions & Compliance)
+    "historical_environmental_metrics_matrix",  # Q75 Energy
+    "yes_no_with_nested_details",               # Q76 PAT Scheme
+    "historical_water_metrics_matrix",          # Q77 Water Withdrawal
+    "historical_water_discharge_matrix",        # Q78 Water Discharge
+    "yes_no_with_description",                  # Q79, Q82 ZLD, GHG Reduction
+    "historical_emissions_table",               # Q80 Air Emissions
+    "linked_ghg_metrics_matrix",                # Q81 Scope 1&2 (linked)
+    "historical_waste_management_master_matrix", # Q83 Waste
+    "long_text_response",                       # Q84, Q90, Q93
+    "dynamic_table",                            # Q85, Q86, Q91
+    "historical_water_stress_matrix",           # Q88 Water Stress
+    "linked_scope3_metrics_matrix",             # Q89 Scope 3 (linked)
+    "text_with_optional_weblink",               # Q92 Business Continuity
+    "percentage_with_description"               # Q94 Value Chain Assessment
 ]
 
 ESG_SECTIONS = Literal["environment", "social", "governance"]

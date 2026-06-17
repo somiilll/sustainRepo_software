@@ -2,6 +2,51 @@
 
 ## June 17, 2026 (Latest)
 
+### Environment Questions Q75-Q94 (Resource Management, Emissions & Compliance)
+- Added 20 new BRSR Environment questions via `/app/backend/scripts/seed_brsr_environment_q75_94.py`:
+  - Q75: `env_energy_consumption_intensity` - Energy metrics matrix with assurance field
+  - Q76: `env_pat_scheme_compliance` - PAT scheme Yes/No with nested details
+  - Q77: `env_water_withdrawal_consumption` - Water withdrawal metrics matrix
+  - Q78: `env_water_discharge_treatment` - Water discharge by destination with treatment levels
+  - Q79: `env_zero_liquid_discharge` - ZLD Yes/No with description
+  - Q80: `env_air_emissions_non_ghg` - Air emissions table (NOx, SOx, PM, etc.)
+  - Q81: `env_scope12_ghg_emissions` - **Linked to GHG module** (read-only)
+  - Q82: `env_ghg_reduction_initiatives` - GHG reduction projects
+  - Q83: `env_waste_generation_management` - Master waste matrix (generated, recovered, disposed)
+  - Q84: `env_waste_management_practices_desc` - Long text for practices description
+  - Q85: `env_ecologically_sensitive_areas` - Dynamic table for sensitive areas
+  - Q86: `env_eia_details` - Environmental Impact Assessment table
+  - Q87: `env_environmental_compliance` - Compliance Yes/No with non-compliance table
+  - Q88: `env_water_stress_areas` - Water metrics for stress areas
+  - Q89: `env_scope3_emissions` - **Linked to GHG module** (read-only)
+  - Q90: `env_biodiversity_impact` - Long text for biodiversity impacts
+  - Q91: `env_resource_efficiency_initiatives` - Dynamic table for initiatives
+  - Q92: `env_business_continuity_disaster` - Text with optional weblink
+  - Q93: `env_value_chain_impacts` - Long text for value chain impacts
+  - Q94: `env_value_chain_assessment` - Percentage with description
+
+### New Frontend Renderers (Q75-Q94)
+- `HistoricalEnvironmentalMetricsMatrixRenderer` - Energy/sectioned metrics with assurance
+- `YesNoWithNestedDetailsRenderer` - Nested sub-questions with conditional visibility
+- `HistoricalWaterMetricsMatrixRenderer` - Water withdrawal/consumption matrix
+- `HistoricalWaterDischargeMatrixRenderer` - Destination x Treatment nested matrix
+- `YesNoWithDescriptionRenderer` - Yes/No with conditional textarea
+- `HistoricalEmissionsTableRenderer` - Air emissions with unit column
+- `LinkedGHGMetricsMatrixRenderer` - Read-only GHG module integration
+- `HistoricalWasteManagementMasterMatrixRenderer` - 3-section waste matrix
+- `LongTextResponseRenderer` - Simple textarea for long responses
+- `DynamicTableRenderer` - Generic add/remove row table
+- `HistoricalWaterStressMatrixRenderer` - Reuses water metrics for stress areas
+- `LinkedScope3MetricsMatrixRenderer` - Read-only Scope 3 integration
+- `TextWithOptionalWeblinkRenderer` - Text with optional URL field
+- `PercentageWithDescriptionRenderer` - Percentage input with description
+
+### Backend Updates (Q75-Q94)
+- Added 14 new question types to `contracts.py`
+- Total BRSR Environment questions: **29** (4 original + 5 Q70-74 + 20 Q75-94)
+
+---
+
 ### Environment Questions Q70-Q74 (Life Cycle Assessment & Circular Economy)
 - Added 5 new BRSR Environment questions via `/app/backend/scripts/seed_brsr_environment_q70_74.py`:
   - Q70: `env_life_cycle_assessment` - Yes/No with conditional dynamic table for LCA details

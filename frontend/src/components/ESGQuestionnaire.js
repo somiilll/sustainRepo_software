@@ -291,6 +291,49 @@ function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {
       case 'historical_waste_management_matrix':
         return <HistoricalWasteManagementMatrixRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} historicalData={historicalData} />;
 
+      // Environment Q75-94 Renderer Types (Resource Management, Emissions & Compliance)
+      case 'historical_environmental_metrics_matrix':
+        return <HistoricalEnvironmentalMetricsMatrixRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} historicalData={historicalData} />;
+
+      case 'yes_no_with_nested_details':
+        return <YesNoWithNestedDetailsRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+
+      case 'historical_water_metrics_matrix':
+        return <HistoricalWaterMetricsMatrixRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} historicalData={historicalData} />;
+
+      case 'historical_water_discharge_matrix':
+        return <HistoricalWaterDischargeMatrixRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} historicalData={historicalData} />;
+
+      case 'yes_no_with_description':
+        return <YesNoWithDescriptionRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+
+      case 'historical_emissions_table':
+        return <HistoricalEmissionsTableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} historicalData={historicalData} />;
+
+      case 'linked_ghg_metrics_matrix':
+        return <LinkedGHGMetricsMatrixRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+
+      case 'historical_waste_management_master_matrix':
+        return <HistoricalWasteManagementMasterMatrixRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} historicalData={historicalData} />;
+
+      case 'long_text_response':
+        return <LongTextResponseRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+
+      case 'dynamic_table':
+        return <DynamicTableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+
+      case 'historical_water_stress_matrix':
+        return <HistoricalWaterStressMatrixRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} historicalData={historicalData} />;
+
+      case 'linked_scope3_metrics_matrix':
+        return <LinkedScope3MetricsMatrixRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+
+      case 'text_with_optional_weblink':
+        return <TextWithOptionalWeblinkRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+
+      case 'percentage_with_description':
+        return <PercentageWithDescriptionRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+
       default:
         return <p className="text-sm text-red-500 mt-2">Unknown question type: {type}</p>;
     }
@@ -2417,6 +2460,984 @@ function HistoricalWasteManagementMatrixRenderer({ config, value, onChange, isEd
         <Button variant="outline" size="sm" onClick={addRow}>
           <Plus className="w-3 h-3 mr-1" /> Add Product Category
         </Button>
+      )}
+    </div>
+  );
+}
+
+// =============================================================================
+// Environment Q75-94 Renderers (Resource Management, Emissions & Compliance)
+// =============================================================================
+
+// Q75 - Historical Environmental Metrics Matrix (Energy)
+function HistoricalEnvironmentalMetricsMatrixRenderer({ config, value, onChange, isEditing, historicalData = null }) {
+  const tableConfig = config.table_config || {};
+  const sections = tableConfig.sections || [];
+  const columns = tableConfig.columns || [];
+  const hasAssurance = tableConfig.has_assurance_field;
+  const assuranceConfig = tableConfig.assurance_config || {};
+  
+  const data = value || { metrics: {}, assurance: { conducted: '', details: '', weblink: '' } };
+  
+  const handleMetricChange = (rowKey, colKey, val) => {
+    const newMetrics = { ...data.metrics };
+    if (!newMetrics[rowKey]) newMetrics[rowKey] = {};
+    newMetrics[rowKey][colKey] = val;
+    onChange({ ...data, metrics: newMetrics });
+  };
+  
+  const handleAssuranceChange = (field, val) => {
+    onChange({ ...data, assurance: { ...data.assurance, [field]: val } });
+  };
+  
+  if (!isEditing) {
+    return (
+      <div className="mt-2 space-y-4">
+        {sections.map((section) => (
+          <div key={section.title} className="overflow-x-auto">
+            <h4 className="text-xs font-semibold text-stone-600 mb-2">{section.title}</h4>
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-stone-50">
+                  <TableHead className="text-xs font-medium">Parameter</TableHead>
+                  {columns.map((col) => (
+                    <TableHead key={col.key} className="text-xs font-medium text-center">{col.label}</TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {section.rows.map((row) => (
+                  <TableRow key={row.key} className={row.is_total ? 'bg-stone-100 font-semibold' : ''}>
+                    <TableCell className="text-xs">{row.label}</TableCell>
+                    {columns.map((col) => (
+                      <TableCell key={col.key} className="text-xs text-center">
+                        {data.metrics?.[row.key]?.[col.key] ?? '-'}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        ))}
+        {hasAssurance && (
+          <div className="mt-4 p-3 bg-stone-50 rounded">
+            <p className="text-xs"><strong>Independent assurance conducted:</strong> {data.assurance?.conducted === 'yes' ? 'Yes' : data.assurance?.conducted === 'no' ? 'No' : '-'}</p>
+            {data.assurance?.conducted === 'yes' && (
+              <>
+                <p className="text-xs mt-1"><strong>Details:</strong> {data.assurance?.details || '-'}</p>
+                {data.assurance?.weblink && <p className="text-xs mt-1"><strong>Web Link:</strong> <a href={data.assurance.weblink} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">{data.assurance.weblink}</a></p>}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+  
+  return (
+    <div className="mt-2 space-y-4">
+      {sections.map((section) => (
+        <div key={section.title} className="overflow-x-auto">
+          <h4 className="text-xs font-semibold text-emerald-700 mb-2 bg-emerald-50 p-2 rounded">{section.title}</h4>
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-emerald-50">
+                <TableHead className="text-xs font-medium">Parameter</TableHead>
+                {columns.map((col) => (
+                  <TableHead key={col.key} className={`text-xs font-medium text-center ${col.historical_autofill ? 'bg-amber-50' : ''}`}>
+                    {col.label}
+                    {col.historical_autofill && <Badge variant="outline" className="ml-1 text-[9px] bg-amber-100 text-amber-700">Prev FY</Badge>}
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {section.rows.map((row) => (
+                <TableRow key={row.key} className={row.is_total ? 'bg-emerald-100' : ''}>
+                  <TableCell className="text-xs font-medium">{row.label}</TableCell>
+                  {columns.map((col) => (
+                    <TableCell key={col.key} className="p-1">
+                      <Input
+                        type="number"
+                        value={data.metrics?.[row.key]?.[col.key] ?? ''}
+                        onChange={(e) => handleMetricChange(row.key, col.key, parseFloat(e.target.value) || 0)}
+                        className={`h-8 text-xs text-center ${col.historical_autofill ? 'bg-amber-50' : ''}`}
+                        step="0.01"
+                        min="0"
+                        disabled={col.historical_autofill}
+                        placeholder={col.historical_autofill ? 'Auto' : '0'}
+                      />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      ))}
+      
+      {hasAssurance && (
+        <div className="mt-4 p-4 border border-stone-200 rounded-lg">
+          <Label className="text-sm font-medium">{assuranceConfig.question}</Label>
+          <RadioGroup 
+            value={data.assurance?.conducted || ''} 
+            onValueChange={(v) => handleAssuranceChange('conducted', v)} 
+            className="flex gap-4 mt-2"
+          >
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="yes" id="assurance-yes" />
+              <Label htmlFor="assurance-yes">Yes</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="no" id="assurance-no" />
+              <Label htmlFor="assurance-no">No</Label>
+            </div>
+          </RadioGroup>
+          {data.assurance?.conducted === 'yes' && (
+            <div className="mt-3 space-y-3 border-l-2 border-emerald-200 pl-4">
+              <div>
+                <Label className="text-xs">Assurance Details</Label>
+                <Textarea
+                  value={data.assurance?.details || ''}
+                  onChange={(e) => handleAssuranceChange('details', e.target.value)}
+                  placeholder="Provide assurance details..."
+                  rows={2}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Web Link (optional)</Label>
+                <Input
+                  type="url"
+                  value={data.assurance?.weblink || ''}
+                  onChange={(e) => handleAssuranceChange('weblink', e.target.value)}
+                  placeholder="https://..."
+                  className="mt-1"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Q76 - Yes/No with Nested Details (PAT Scheme)
+function YesNoWithNestedDetailsRenderer({ config, value, onChange, isEditing }) {
+  const nestedConfig = config.nested_config || {};
+  const subQuestions = nestedConfig.sub_questions || [];
+  const showWhen = nestedConfig.show_when || 'yes';
+  
+  const data = value || { main_answer: '', sub_answers: {} };
+  
+  const handleMainChange = (val) => {
+    onChange({ ...data, main_answer: val });
+  };
+  
+  const handleSubChange = (key, val) => {
+    onChange({ ...data, sub_answers: { ...data.sub_answers, [key]: val } });
+  };
+  
+  const shouldShowSubQuestion = (sq) => {
+    if (!sq.visible_when) return true;
+    return data.sub_answers?.[sq.visible_when.field] === sq.visible_when.value;
+  };
+  
+  if (!isEditing) {
+    return (
+      <div className="mt-2 space-y-2">
+        <Badge variant="outline" className={data.main_answer === 'yes' ? 'bg-green-50 text-green-700' : data.main_answer === 'no' ? 'bg-red-50 text-red-700' : ''}>
+          {data.main_answer === 'yes' ? 'Yes' : data.main_answer === 'no' ? 'No' : 'Not answered'}
+        </Badge>
+        {data.main_answer === showWhen && (
+          <div className="ml-4 space-y-2 border-l-2 border-stone-200 pl-4">
+            {subQuestions.filter(shouldShowSubQuestion).map((sq) => (
+              <div key={sq.key}>
+                <p className="text-xs font-medium">{sq.question}</p>
+                <p className="text-xs text-text-muted">{data.sub_answers?.[sq.key] || '-'}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+  
+  return (
+    <div className="mt-2 space-y-3">
+      <RadioGroup value={data.main_answer || ''} onValueChange={handleMainChange} className="flex gap-4">
+        <div className="flex items-center gap-2">
+          <RadioGroupItem value="yes" id={`${config.question_key}-main-yes`} />
+          <Label htmlFor={`${config.question_key}-main-yes`}>Yes</Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <RadioGroupItem value="no" id={`${config.question_key}-main-no`} />
+          <Label htmlFor={`${config.question_key}-main-no`}>No</Label>
+        </div>
+      </RadioGroup>
+      
+      {data.main_answer === showWhen && (
+        <div className="ml-4 space-y-3 border-l-2 border-emerald-200 pl-4">
+          {subQuestions.filter(shouldShowSubQuestion).map((sq) => (
+            <div key={sq.key}>
+              <Label className="text-xs font-medium">{sq.question}{sq.required && <span className="text-red-500 ml-1">*</span>}</Label>
+              {sq.type === 'yes_no' ? (
+                <RadioGroup 
+                  value={data.sub_answers?.[sq.key] || ''} 
+                  onValueChange={(v) => handleSubChange(sq.key, v)} 
+                  className="flex gap-4 mt-1"
+                >
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="yes" id={`${sq.key}-yes`} />
+                    <Label htmlFor={`${sq.key}-yes`}>Yes</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="no" id={`${sq.key}-no`} />
+                    <Label htmlFor={`${sq.key}-no`}>No</Label>
+                  </div>
+                </RadioGroup>
+              ) : (
+                <Textarea
+                  value={data.sub_answers?.[sq.key] || ''}
+                  onChange={(e) => handleSubChange(sq.key, e.target.value)}
+                  placeholder={sq.question}
+                  rows={2}
+                  className="mt-1"
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Q77 - Historical Water Metrics Matrix
+function HistoricalWaterMetricsMatrixRenderer({ config, value, onChange, isEditing, historicalData = null }) {
+  const tableConfig = config.table_config || {};
+  const sections = tableConfig.sections || [];
+  const columns = tableConfig.columns || [];
+  
+  const data = value || {};
+  
+  const handleChange = (rowKey, colKey, val) => {
+    const newData = { ...data };
+    if (!newData[rowKey]) newData[rowKey] = {};
+    newData[rowKey][colKey] = val;
+    onChange(newData);
+  };
+  
+  const renderTable = (section, bgClass = 'bg-blue-50') => (
+    <div key={section.title} className="overflow-x-auto">
+      <h4 className={`text-xs font-semibold text-blue-700 mb-2 ${bgClass} p-2 rounded`}>{section.title}</h4>
+      <Table>
+        <TableHeader>
+          <TableRow className={bgClass}>
+            <TableHead className="text-xs font-medium">Parameter</TableHead>
+            {columns.map((col) => (
+              <TableHead key={col.key} className={`text-xs font-medium text-center ${col.historical_autofill ? 'bg-amber-50' : ''}`}>
+                {col.label}
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {section.rows.map((row) => (
+            <TableRow key={row.key} className={row.is_total ? 'bg-blue-100 font-semibold' : ''}>
+              <TableCell className="text-xs">{row.label}</TableCell>
+              {columns.map((col) => (
+                <TableCell key={col.key} className="p-1">
+                  {isEditing ? (
+                    <Input
+                      type="number"
+                      value={data[row.key]?.[col.key] ?? ''}
+                      onChange={(e) => handleChange(row.key, col.key, parseFloat(e.target.value) || 0)}
+                      className={`h-8 text-xs text-center ${col.historical_autofill ? 'bg-amber-50' : ''}`}
+                      step="0.01"
+                      min="0"
+                      disabled={col.historical_autofill}
+                    />
+                  ) : (
+                    <span className="text-xs">{data[row.key]?.[col.key] ?? '-'}</span>
+                  )}
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+  
+  return <div className="mt-2 space-y-4">{sections.map((s) => renderTable(s))}</div>;
+}
+
+// Q78 - Historical Water Discharge Matrix
+function HistoricalWaterDischargeMatrixRenderer({ config, value, onChange, isEditing, historicalData = null }) {
+  const tableConfig = config.table_config || {};
+  const destinations = tableConfig.destinations || [];
+  const treatmentTypes = tableConfig.treatment_types || [];
+  const totalRow = tableConfig.total_row || {};
+  const columns = tableConfig.columns || [];
+  
+  const data = value || {};
+  
+  const handleChange = (destKey, treatmentKey, colKey, val) => {
+    const key = `${destKey}_${treatmentKey}`;
+    const newData = { ...data };
+    if (!newData[key]) newData[key] = {};
+    newData[key][colKey] = val;
+    onChange(newData);
+  };
+  
+  const handleTreatmentLevelChange = (destKey, val) => {
+    const key = `${destKey}_treatment_level`;
+    onChange({ ...data, [key]: val });
+  };
+  
+  if (!isEditing) {
+    return (
+      <div className="mt-2 overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-blue-50">
+              <TableHead className="text-xs font-medium">Destination</TableHead>
+              <TableHead className="text-xs font-medium">Treatment</TableHead>
+              {columns.map((col) => (
+                <TableHead key={col.key} className="text-xs font-medium text-center">{col.label}</TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {destinations.map((dest) => (
+              treatmentTypes.map((tt, idx) => (
+                <TableRow key={`${dest.key}_${tt.key}`}>
+                  {idx === 0 && <TableCell rowSpan={treatmentTypes.length} className="text-xs font-medium border-r">{dest.label}</TableCell>}
+                  <TableCell className="text-xs">
+                    {tt.label}
+                    {tt.has_text_input && data[`${dest.key}_treatment_level`] && ` (${data[`${dest.key}_treatment_level`]})`}
+                  </TableCell>
+                  {columns.map((col) => (
+                    <TableCell key={col.key} className="text-xs text-center">
+                      {data[`${dest.key}_${tt.key}`]?.[col.key] ?? '-'}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ))}
+            <TableRow className="bg-blue-100 font-semibold">
+              <TableCell colSpan={2} className="text-xs">{totalRow.label}</TableCell>
+              {columns.map((col) => (
+                <TableCell key={col.key} className="text-xs text-center">
+                  {data[totalRow.key]?.[col.key] ?? '-'}
+                </TableCell>
+              ))}
+            </TableRow>
+          </TableBody>
+        </Table>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="mt-2 overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-blue-50">
+            <TableHead className="text-xs font-medium">Destination</TableHead>
+            <TableHead className="text-xs font-medium">Treatment</TableHead>
+            {columns.map((col) => (
+              <TableHead key={col.key} className={`text-xs font-medium text-center ${col.historical_autofill ? 'bg-amber-50' : ''}`}>{col.label}</TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {destinations.map((dest) => (
+            treatmentTypes.map((tt, idx) => (
+              <TableRow key={`${dest.key}_${tt.key}`}>
+                {idx === 0 && <TableCell rowSpan={treatmentTypes.length} className="text-xs font-medium border-r bg-stone-50">{dest.label}</TableCell>}
+                <TableCell className="text-xs">
+                  {tt.label}
+                  {tt.has_text_input && (
+                    <Input
+                      value={data[`${dest.key}_treatment_level`] || ''}
+                      onChange={(e) => handleTreatmentLevelChange(dest.key, e.target.value)}
+                      placeholder="Specify level"
+                      className="h-6 text-xs mt-1"
+                    />
+                  )}
+                </TableCell>
+                {columns.map((col) => (
+                  <TableCell key={col.key} className="p-1">
+                    <Input
+                      type="number"
+                      value={data[`${dest.key}_${tt.key}`]?.[col.key] ?? ''}
+                      onChange={(e) => handleChange(dest.key, tt.key, col.key, parseFloat(e.target.value) || 0)}
+                      className={`h-8 text-xs text-center ${col.historical_autofill ? 'bg-amber-50' : ''}`}
+                      min="0"
+                      disabled={col.historical_autofill}
+                    />
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))
+          ))}
+          <TableRow className="bg-blue-100">
+            <TableCell colSpan={2} className="text-xs font-semibold">{totalRow.label}</TableCell>
+            {columns.map((col) => (
+              <TableCell key={col.key} className="p-1">
+                <Input
+                  type="number"
+                  value={data[totalRow.key]?.[col.key] ?? ''}
+                  onChange={(e) => {
+                    const newData = { ...data };
+                    if (!newData[totalRow.key]) newData[totalRow.key] = {};
+                    newData[totalRow.key][col.key] = parseFloat(e.target.value) || 0;
+                    onChange(newData);
+                  }}
+                  className={`h-8 text-xs text-center font-semibold ${col.historical_autofill ? 'bg-amber-50' : ''}`}
+                  min="0"
+                  disabled={col.historical_autofill}
+                />
+              </TableCell>
+            ))}
+          </TableRow>
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+// Q79, Q82 - Yes/No with Description
+function YesNoWithDescriptionRenderer({ config, value, onChange, isEditing }) {
+  const conditionalConfig = config.conditional_config || {};
+  const showWhen = conditionalConfig.show_when || 'yes';
+  const fields = conditionalConfig.fields || [];
+  
+  const data = value || { answer: '', details: {} };
+  
+  if (!isEditing) {
+    return (
+      <div className="mt-2 space-y-2">
+        <Badge variant="outline" className={data.answer === 'yes' ? 'bg-green-50 text-green-700' : data.answer === 'no' ? 'bg-red-50 text-red-700' : ''}>
+          {data.answer === 'yes' ? 'Yes' : data.answer === 'no' ? 'No' : 'Not answered'}
+        </Badge>
+        {data.answer === showWhen && fields.map((f) => (
+          <div key={f.key} className="ml-4 border-l-2 border-stone-200 pl-4">
+            <p className="text-xs font-medium">{f.label}</p>
+            <p className="text-xs text-text-muted whitespace-pre-wrap">{data.details?.[f.key] || '-'}</p>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  
+  return (
+    <div className="mt-2 space-y-3">
+      <RadioGroup value={data.answer || ''} onValueChange={(v) => onChange({ ...data, answer: v })} className="flex gap-4">
+        <div className="flex items-center gap-2">
+          <RadioGroupItem value="yes" id={`${config.question_key}-yes`} />
+          <Label htmlFor={`${config.question_key}-yes`}>Yes</Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <RadioGroupItem value="no" id={`${config.question_key}-no`} />
+          <Label htmlFor={`${config.question_key}-no`}>No</Label>
+        </div>
+      </RadioGroup>
+      {data.answer === showWhen && fields.map((f) => (
+        <div key={f.key} className="ml-4 border-l-2 border-emerald-200 pl-4">
+          <Label className="text-xs">{f.label}{f.required && <span className="text-red-500 ml-1">*</span>}</Label>
+          <Textarea
+            value={data.details?.[f.key] || ''}
+            onChange={(e) => onChange({ ...data, details: { ...data.details, [f.key]: e.target.value } })}
+            placeholder={f.label}
+            rows={3}
+            className="mt-1"
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Q80 - Historical Emissions Table (Air Emissions)
+function HistoricalEmissionsTableRenderer({ config, value, onChange, isEditing, historicalData = null }) {
+  const tableConfig = config.table_config || {};
+  const rows = tableConfig.rows || [];
+  const columns = tableConfig.columns || [];
+  
+  const data = value || {};
+  
+  const handleChange = (rowKey, colKey, val) => {
+    const newData = { ...data };
+    if (!newData[rowKey]) newData[rowKey] = {};
+    newData[rowKey][colKey] = val;
+    onChange(newData);
+  };
+  
+  const handleSpecifyChange = (rowKey, val) => {
+    onChange({ ...data, [`${rowKey}_specify`]: val });
+  };
+  
+  if (!isEditing) {
+    return (
+      <div className="mt-2 overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-stone-50">
+              <TableHead className="text-xs font-medium">Parameter</TableHead>
+              {columns.map((col) => (
+                <TableHead key={col.key} className="text-xs font-medium text-center">{col.label}</TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((row) => (
+              <TableRow key={row.key}>
+                <TableCell className="text-xs">
+                  {row.label}
+                  {row.has_specify_field && data[`${row.key}_specify`] && ` (${data[`${row.key}_specify`]})`}
+                </TableCell>
+                {columns.map((col) => (
+                  <TableCell key={col.key} className="text-xs text-center">
+                    {data[row.key]?.[col.key] ?? '-'}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="mt-2 overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-violet-50">
+            <TableHead className="text-xs font-medium">Parameter</TableHead>
+            {columns.map((col) => (
+              <TableHead key={col.key} className={`text-xs font-medium text-center ${col.historical_autofill ? 'bg-amber-50' : ''}`}>{col.label}</TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((row) => (
+            <TableRow key={row.key}>
+              <TableCell className="text-xs">
+                {row.label}
+                {row.has_specify_field && (
+                  <Input
+                    value={data[`${row.key}_specify`] || ''}
+                    onChange={(e) => handleSpecifyChange(row.key, e.target.value)}
+                    placeholder="Specify parameter"
+                    className="h-6 text-xs mt-1"
+                  />
+                )}
+              </TableCell>
+              {columns.map((col) => (
+                <TableCell key={col.key} className="p-1">
+                  {col.type === 'text' ? (
+                    <Input
+                      value={data[row.key]?.[col.key] || ''}
+                      onChange={(e) => handleChange(row.key, col.key, e.target.value)}
+                      className="h-8 text-xs"
+                      placeholder="Unit"
+                    />
+                  ) : (
+                    <Input
+                      type="number"
+                      value={data[row.key]?.[col.key] ?? ''}
+                      onChange={(e) => handleChange(row.key, col.key, parseFloat(e.target.value) || 0)}
+                      className={`h-8 text-xs text-center ${col.historical_autofill ? 'bg-amber-50' : ''}`}
+                      min="0"
+                      disabled={col.historical_autofill}
+                    />
+                  )}
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+// Q81 - Linked GHG Metrics Matrix (Read-only, synced with GHG module)
+function LinkedGHGMetricsMatrixRenderer({ config, value, onChange, isEditing }) {
+  const linkedConfig = config.linked_config || {};
+  const rows = linkedConfig.rows || [];
+  const columns = linkedConfig.columns || [];
+  const isReadOnly = linkedConfig.read_only;
+  
+  const data = value || {};
+  
+  return (
+    <div className="mt-2">
+      <div className="flex items-center gap-2 mb-2 p-2 bg-blue-50 rounded text-xs text-blue-700">
+        <AlertCircle className="w-4 h-4" />
+        <span>Data linked from GHG Emissions module. {isReadOnly ? 'Values are read-only.' : ''}</span>
+      </div>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-blue-50">
+              <TableHead className="text-xs font-medium">Parameter</TableHead>
+              {columns.map((col) => (
+                <TableHead key={col.key} className="text-xs font-medium text-center">{col.label}</TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((row) => (
+              <TableRow key={row.key} className={row.source === 'manual' ? '' : 'bg-blue-50/50'}>
+                <TableCell className="text-xs font-medium">{row.label}</TableCell>
+                {columns.map((col) => (
+                  <TableCell key={col.key} className="p-1">
+                    {isEditing && row.source === 'manual' ? (
+                      <Input
+                        type={col.type === 'text' ? 'text' : 'number'}
+                        value={data[row.key]?.[col.key] ?? ''}
+                        onChange={(e) => {
+                          const newData = { ...data };
+                          if (!newData[row.key]) newData[row.key] = {};
+                          newData[row.key][col.key] = col.type === 'text' ? e.target.value : parseFloat(e.target.value) || 0;
+                          onChange(newData);
+                        }}
+                        className="h-8 text-xs text-center"
+                      />
+                    ) : (
+                      <span className="text-xs text-center block">{data[row.key]?.[col.key] ?? (row.source !== 'manual' ? 'Linked' : '-')}</span>
+                    )}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+// Q83 - Historical Waste Management Master Matrix
+function HistoricalWasteManagementMasterMatrixRenderer({ config, value, onChange, isEditing, historicalData = null }) {
+  const tableConfig = config.table_config || {};
+  const sections = tableConfig.sections || [];
+  const columns = tableConfig.columns || [];
+  
+  const data = value || {};
+  
+  const handleChange = (sectionKey, rowKey, colKey, val) => {
+    const key = `${sectionKey}_${rowKey}`;
+    const newData = { ...data };
+    if (!newData[key]) newData[key] = {};
+    newData[key][colKey] = val;
+    onChange(newData);
+  };
+  
+  const handleCategoryChange = (sectionKey, rowKey, val) => {
+    onChange({ ...data, [`${sectionKey}_${rowKey}_category`]: val });
+  };
+  
+  const renderSection = (section) => (
+    <div key={section.key} className="mb-4">
+      <h4 className="text-xs font-semibold text-orange-700 mb-2 bg-orange-50 p-2 rounded">{section.title}</h4>
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-orange-50">
+            <TableHead className="text-xs font-medium">Parameter</TableHead>
+            {section.rows.some(r => r.has_category) && <TableHead className="text-xs font-medium">Category</TableHead>}
+            {columns.map((col) => (
+              <TableHead key={col.key} className={`text-xs font-medium text-center ${col.historical_autofill ? 'bg-amber-50' : ''}`}>{col.label}</TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {section.rows.map((row) => (
+            <TableRow key={row.key} className={row.is_total ? 'bg-orange-100 font-semibold' : ''}>
+              <TableCell className="text-xs">{row.label}</TableCell>
+              {section.rows.some(r => r.has_category) && (
+                <TableCell className="p-1">
+                  {row.has_category && isEditing ? (
+                    <Input
+                      value={data[`${section.key}_${row.key}_category`] || ''}
+                      onChange={(e) => handleCategoryChange(section.key, row.key, e.target.value)}
+                      placeholder="Category"
+                      className="h-8 text-xs"
+                    />
+                  ) : row.has_category ? (
+                    <span className="text-xs">{data[`${section.key}_${row.key}_category`] || '-'}</span>
+                  ) : null}
+                </TableCell>
+              )}
+              {columns.map((col) => (
+                <TableCell key={col.key} className="p-1">
+                  {isEditing ? (
+                    <Input
+                      type="number"
+                      value={data[`${section.key}_${row.key}`]?.[col.key] ?? ''}
+                      onChange={(e) => handleChange(section.key, row.key, col.key, parseFloat(e.target.value) || 0)}
+                      className={`h-8 text-xs text-center ${col.historical_autofill ? 'bg-amber-50' : ''}`}
+                      min="0"
+                      disabled={col.historical_autofill}
+                    />
+                  ) : (
+                    <span className="text-xs text-center block">{data[`${section.key}_${row.key}`]?.[col.key] ?? '-'}</span>
+                  )}
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+  
+  return <div className="mt-2 space-y-4">{sections.map(renderSection)}</div>;
+}
+
+// Q84, Q90, Q93 - Long Text Response
+function LongTextResponseRenderer({ config, value, onChange, isEditing }) {
+  const textConfig = config.text_config || {};
+  
+  if (!isEditing) {
+    return <p className="mt-2 text-sm text-text-secondary whitespace-pre-wrap">{value || '-'}</p>;
+  }
+  
+  return (
+    <Textarea
+      value={value || ''}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={textConfig.placeholder || 'Enter your response...'}
+      rows={5}
+      className="mt-2"
+    />
+  );
+}
+
+// Q85, Q86, Q91 - Dynamic Table
+function DynamicTableRenderer({ config, value, onChange, isEditing }) {
+  const tableConfig = config.table_config || {};
+  const columns = tableConfig.columns || [];
+  const rows = Array.isArray(value) ? value : [];
+  
+  const handleCellChange = (rowIdx, colKey, val) => {
+    const newRows = [...rows];
+    if (!newRows[rowIdx]) newRows[rowIdx] = {};
+    newRows[rowIdx][colKey] = val;
+    onChange(newRows);
+  };
+  
+  const addRow = () => {
+    const newRow = {};
+    columns.forEach(col => {
+      if (col.type === 'auto_increment') newRow[col.key] = rows.length + 1;
+    });
+    onChange([...rows, newRow]);
+  };
+  
+  const removeRow = (idx) => {
+    const newRows = rows.filter((_, i) => i !== idx);
+    newRows.forEach((row, i) => {
+      columns.forEach(col => {
+        if (col.type === 'auto_increment') row[col.key] = i + 1;
+      });
+    });
+    onChange(newRows);
+  };
+  
+  if (!isEditing) {
+    if (rows.length === 0) return <p className="mt-2 text-xs text-text-muted">No entries</p>;
+    return (
+      <div className="mt-2 overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-stone-50">
+              {columns.map(col => <TableHead key={col.key} className="text-xs font-medium">{col.label}</TableHead>)}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((row, idx) => (
+              <TableRow key={idx}>
+                {columns.map(col => (
+                  <TableCell key={col.key} className="text-xs">
+                    {col.type === 'yes_no' ? (row[col.key] === 'yes' ? 'Y' : row[col.key] === 'no' ? 'N' : '-') : 
+                     col.type === 'url' && row[col.key] ? <a href={row[col.key]} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">{row[col.key]}</a> :
+                     row[col.key] ?? '-'}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="mt-2 space-y-2">
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-emerald-50">
+              {columns.map(col => (
+                <TableHead key={col.key} className="text-xs font-medium" style={{ width: col.width }}>{col.label}</TableHead>
+              ))}
+              <TableHead className="w-12"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((row, rowIdx) => (
+              <TableRow key={rowIdx}>
+                {columns.map(col => (
+                  <TableCell key={col.key} className="p-1">
+                    {col.type === 'auto_increment' ? (
+                      <span className="text-xs font-medium">{rowIdx + 1}</span>
+                    ) : col.type === 'yes_no' ? (
+                      <Select value={row[col.key] || ''} onValueChange={(v) => handleCellChange(rowIdx, col.key, v)}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="-" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="yes">Y</SelectItem>
+                          <SelectItem value="no">N</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : col.type === 'date' ? (
+                      <Input type="date" value={row[col.key] || ''} onChange={(e) => handleCellChange(rowIdx, col.key, e.target.value)} className="h-8 text-xs" />
+                    ) : col.type === 'url' ? (
+                      <Input type="url" value={row[col.key] || ''} onChange={(e) => handleCellChange(rowIdx, col.key, e.target.value)} className="h-8 text-xs" placeholder="https://..." />
+                    ) : col.type === 'expandable_text' ? (
+                      <Textarea value={row[col.key] || ''} onChange={(e) => handleCellChange(rowIdx, col.key, e.target.value)} className="text-xs min-h-[32px]" rows={1} />
+                    ) : (
+                      <Input value={row[col.key] || ''} onChange={(e) => handleCellChange(rowIdx, col.key, e.target.value)} className="h-8 text-xs" />
+                    )}
+                  </TableCell>
+                ))}
+                <TableCell className="p-1">
+                  <Button variant="ghost" size="sm" onClick={() => removeRow(rowIdx)} className="h-6 w-6 p-0 text-red-500">
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+      {tableConfig.allow_add_row !== false && (
+        <Button variant="outline" size="sm" onClick={addRow}>
+          <Plus className="w-3 h-3 mr-1" /> Add Row
+        </Button>
+      )}
+    </div>
+  );
+}
+
+// Q88 - Historical Water Stress Matrix (reuses water metrics)
+function HistoricalWaterStressMatrixRenderer({ config, value, onChange, isEditing, historicalData = null }) {
+  return <HistoricalWaterMetricsMatrixRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} historicalData={historicalData} />;
+}
+
+// Q89 - Linked Scope 3 Metrics Matrix (reuses GHG matrix)
+function LinkedScope3MetricsMatrixRenderer({ config, value, onChange, isEditing }) {
+  return <LinkedGHGMetricsMatrixRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+}
+
+// Q92 - Text with Optional Weblink
+function TextWithOptionalWeblinkRenderer({ config, value, onChange, isEditing }) {
+  const textConfig = config.text_config || {};
+  const data = value || { text: '', weblink: '' };
+  
+  if (!isEditing) {
+    return (
+      <div className="mt-2 space-y-2">
+        <p className="text-sm text-text-secondary whitespace-pre-wrap">{data.text || '-'}</p>
+        {data.weblink && (
+          <a href={data.weblink} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline block">
+            {data.weblink}
+          </a>
+        )}
+      </div>
+    );
+  }
+  
+  return (
+    <div className="mt-2 space-y-3">
+      <div>
+        <Textarea
+          value={data.text || ''}
+          onChange={(e) => onChange({ ...data, text: e.target.value })}
+          placeholder={textConfig.placeholder || 'Enter response...'}
+          rows={3}
+        />
+        {textConfig.max_words && <p className="text-xs text-text-muted mt-1">Max {textConfig.max_words} words</p>}
+      </div>
+      {textConfig.weblink_optional && (
+        <div>
+          <Label className="text-xs">{textConfig.weblink_label || 'Web Link (optional)'}</Label>
+          <Input
+            type="url"
+            value={data.weblink || ''}
+            onChange={(e) => onChange({ ...data, weblink: e.target.value })}
+            placeholder="https://..."
+            className="mt-1"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Q94 - Percentage with Description
+function PercentageWithDescriptionRenderer({ config, value, onChange, isEditing }) {
+  const percentageConfig = config.percentage_config || {};
+  const descField = percentageConfig.description_field || {};
+  const data = value || { percentage: '', description: '' };
+  
+  if (!isEditing) {
+    return (
+      <div className="mt-2 space-y-2">
+        <p className="text-sm font-medium">{data.percentage !== '' ? `${data.percentage}%` : '-'}</p>
+        {descField.key && (
+          <div>
+            <p className="text-xs font-medium text-text-muted">{descField.label}</p>
+            <p className="text-xs text-text-secondary">{data.description || '-'}</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+  
+  return (
+    <div className="mt-2 space-y-3">
+      <div className="flex items-center gap-2">
+        <Input
+          type="number"
+          value={data.percentage ?? ''}
+          onChange={(e) => onChange({ ...data, percentage: parseFloat(e.target.value) || 0 })}
+          min={percentageConfig.min || 0}
+          max={percentageConfig.max || 100}
+          step="0.1"
+          className="w-24"
+          placeholder="0"
+        />
+        <span className="text-sm">{percentageConfig.suffix || '%'}</span>
+      </div>
+      {descField.key && (
+        <div>
+          <Label className="text-xs">{descField.label}{descField.required && <span className="text-red-500 ml-1">*</span>}</Label>
+          <Textarea
+            value={data.description || ''}
+            onChange={(e) => onChange({ ...data, description: e.target.value })}
+            placeholder={descField.label}
+            rows={2}
+            className="mt-1"
+          />
+        </div>
       )}
     </div>
   );
