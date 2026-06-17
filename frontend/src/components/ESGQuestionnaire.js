@@ -1089,7 +1089,7 @@ function FixedRowTableRenderer({ config, value, onChange, isEditing }) {
   );
 }
 
-// Multi Table Renderer (multiple tables in one question)
+// Multi Table Renderer (multiple tables in one question - supports both dynamic and fixed rows)
 function MultiTableRenderer({ config, value, onChange, isEditing }) {
   const tables = config.tables_config || [];
   const data = value || {};
@@ -1099,74 +1099,112 @@ function MultiTableRenderer({ config, value, onChange, isEditing }) {
   };
 
   const renderTable = (tableConfig) => {
-    const { key, label, columns, has_add_row = true } = tableConfig;
-    const rows = data[key] || [{}];
+    const { key, label, columns, has_add_row = true, fixed_rows } = tableConfig;
+    const isFixedRows = fixed_rows && fixed_rows.length > 0;
+    const tableData = data[key] || (isFixedRows ? {} : [{}]);
 
-    const handleCellChange = (rowIdx, colKey, val) => {
-      const newRows = [...rows];
+    // For fixed rows
+    const handleFixedCellChange = (rowKey, colKey, val) => {
+      const newData = { ...tableData };
+      if (!newData[rowKey]) newData[rowKey] = {};
+      newData[rowKey][colKey] = val;
+      handleTableChange(key, newData);
+    };
+
+    // For dynamic rows
+    const handleDynamicCellChange = (rowIdx, colKey, val) => {
+      const newRows = [...(Array.isArray(tableData) ? tableData : [{}])];
       if (!newRows[rowIdx]) newRows[rowIdx] = {};
       newRows[rowIdx][colKey] = val;
       handleTableChange(key, newRows);
     };
 
-    const addRow = () => handleTableChange(key, [...rows, {}]);
-    const removeRow = (idx) => handleTableChange(key, rows.filter((_, i) => i !== idx));
+    const addRow = () => handleTableChange(key, [...(Array.isArray(tableData) ? tableData : []), {}]);
+    const removeRow = (idx) => handleTableChange(key, (Array.isArray(tableData) ? tableData : []).filter((_, i) => i !== idx));
+
+    const renderCellInput = (col, cellValue, onCellChange) => {
+      if (!isEditing) return <span className="text-sm">{cellValue ?? '-'}</span>;
+      
+      if (col.type === 'select') {
+        return (
+          <Select value={cellValue || ''} onValueChange={onCellChange}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select" /></SelectTrigger>
+            <SelectContent>
+              {(col.options || []).map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        );
+      }
+      if (col.type === 'yes_no') {
+        return (
+          <Select value={cellValue || ''} onValueChange={onCellChange}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="-" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Yes">Yes</SelectItem>
+              <SelectItem value="No">No</SelectItem>
+            </SelectContent>
+          </Select>
+        );
+      }
+      return (
+        <Input 
+          type={col.type === 'number' ? 'number' : 'text'} 
+          value={cellValue ?? ''} 
+          onChange={(e) => onCellChange(e.target.value)} 
+          className="h-8 text-xs" 
+          placeholder={col.type === 'number' ? '0' : col.label}
+        />
+      );
+    };
 
     return (
-      <div key={key} className="mb-4">
-        <h4 className="text-sm font-medium mb-2">{label}</h4>
+      <div key={key} className="mb-6">
+        <h4 className="text-sm font-semibold mb-2 text-text-primary">{label}</h4>
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow className="bg-stone-50">
+                {isFixedRows && <TableHead className="text-xs font-medium w-48 sticky left-0 bg-stone-50">Category</TableHead>}
                 {columns.map(col => (
-                  <TableHead key={col.key} className="text-xs">{col.label}</TableHead>
+                  <TableHead key={col.key} className="text-xs font-medium min-w-[80px]">{col.label}</TableHead>
                 ))}
-                {isEditing && has_add_row && <TableHead className="w-10"></TableHead>}
+                {isEditing && !isFixedRows && has_add_row && <TableHead className="w-10"></TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row, rowIdx) => (
-                <TableRow key={rowIdx}>
-                  {columns.map(col => (
-                    <TableCell key={col.key} className="p-1">
-                      {!isEditing ? (
-                        <span className="text-sm">{row[col.key] ?? '-'}</span>
-                      ) : col.type === 'select' ? (
-                        <Select value={row[col.key] || ''} onValueChange={(v) => handleCellChange(rowIdx, col.key, v)}>
-                          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select" /></SelectTrigger>
-                          <SelectContent>
-                            {(col.options || []).map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      ) : col.type === 'yes_no' ? (
-                        <Select value={row[col.key] || ''} onValueChange={(v) => handleCellChange(rowIdx, col.key, v)}>
-                          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="-" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Yes">Yes</SelectItem>
-                            <SelectItem value="No">No</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      ) : col.type === 'number' ? (
-                        <Input type="number" value={row[col.key] ?? ''} onChange={(e) => handleCellChange(rowIdx, col.key, e.target.value)} className="h-8 text-xs" />
-                      ) : (
-                        <Input value={row[col.key] ?? ''} onChange={(e) => handleCellChange(rowIdx, col.key, e.target.value)} className="h-8 text-xs" placeholder={col.label} />
-                      )}
-                    </TableCell>
-                  ))}
-                  {isEditing && has_add_row && (
-                    <TableCell className="p-1">
-                      <Button variant="ghost" size="sm" onClick={() => removeRow(rowIdx)} className="h-6 w-6 p-0 text-red-500">
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))}
+              {isFixedRows ? (
+                fixed_rows.map(row => (
+                  <TableRow key={row.key}>
+                    <TableCell className="font-medium text-sm sticky left-0 bg-white">{row.label}</TableCell>
+                    {columns.map(col => (
+                      <TableCell key={col.key} className="p-1">
+                        {renderCellInput(col, tableData[row.key]?.[col.key], (val) => handleFixedCellChange(row.key, col.key, val))}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : (
+                (Array.isArray(tableData) ? tableData : [{}]).map((row, rowIdx) => (
+                  <TableRow key={rowIdx}>
+                    {columns.map(col => (
+                      <TableCell key={col.key} className="p-1">
+                        {renderCellInput(col, row[col.key], (val) => handleDynamicCellChange(rowIdx, col.key, val))}
+                      </TableCell>
+                    ))}
+                    {isEditing && has_add_row && (
+                      <TableCell className="p-1">
+                        <Button variant="ghost" size="sm" onClick={() => removeRow(rowIdx)} className="h-6 w-6 p-0 text-red-500">
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </div>
-        {isEditing && has_add_row && (
+        {isEditing && !isFixedRows && has_add_row && (
           <Button variant="outline" size="sm" onClick={addRow} className="mt-2">
             <Plus className="w-3 h-3 mr-1" /> Add Row
           </Button>
