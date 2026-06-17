@@ -219,6 +219,9 @@ function QuestionRenderer({ config, value, onChange, isEditing }) {
       case 'principle_mode_table':
         return <PrincipleModeTableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
 
+      case 'reasons_checklist':
+        return <ReasonsChecklistRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+
       case 'table':
         return <TableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
 
@@ -758,6 +761,83 @@ function PrincipleModeTableRenderer({ config, value, onChange, isEditing }) {
               ))}
             </TableBody>
           </Table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Reasons Checklist Renderer (Yes/No items with optional "other" text)
+function ReasonsChecklistRenderer({ config, value, onChange, isEditing }) {
+  const data = value || { reasons: {}, other_reason: '' };
+  const reasonsConfig = config.reasons_config || {};
+  const reasons = reasonsConfig.items || [];
+  const hasOther = reasonsConfig.has_other !== false;
+
+  const handleReasonChange = (key, val) => {
+    onChange({ ...data, reasons: { ...data.reasons, [key]: val } });
+  };
+
+  const handleOtherChange = (val) => {
+    onChange({ ...data, other_reason: val });
+  };
+
+  if (!isEditing) {
+    const selectedReasons = reasons.filter(r => data.reasons?.[r.key] === 'Yes');
+    return (
+      <div className="mt-2 space-y-2">
+        {selectedReasons.length > 0 ? (
+          <div className="space-y-1">
+            {selectedReasons.map(r => (
+              <div key={r.key} className="flex items-start gap-2 text-sm">
+                <span className="text-green-600">✓</span>
+                <span>{r.label}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-text-muted">No reasons selected</p>
+        )}
+        {hasOther && data.other_reason && (
+          <div className="text-sm mt-2">
+            <span className="text-text-muted">Other reason:</span> {data.other_reason}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 space-y-3 bg-stone-50 p-4 rounded-lg">
+      {reasons.map(r => (
+        <div key={r.key} className="flex items-center justify-between py-2 border-b border-stone-200 last:border-0">
+          <Label className="text-sm flex-1 pr-4">{r.label}</Label>
+          <RadioGroup 
+            value={data.reasons?.[r.key] || ''} 
+            onValueChange={(v) => handleReasonChange(r.key, v)}
+            className="flex gap-3"
+          >
+            <div className="flex items-center gap-1">
+              <RadioGroupItem value="Yes" id={`${config.question_key}-${r.key}-yes`} />
+              <Label htmlFor={`${config.question_key}-${r.key}-yes`} className="text-sm">Yes</Label>
+            </div>
+            <div className="flex items-center gap-1">
+              <RadioGroupItem value="No" id={`${config.question_key}-${r.key}-no`} />
+              <Label htmlFor={`${config.question_key}-${r.key}-no`} className="text-sm">No</Label>
+            </div>
+          </RadioGroup>
+        </div>
+      ))}
+      {hasOther && (
+        <div className="pt-2">
+          <Label className="text-sm block mb-2">Any other reason (please specify)</Label>
+          <Textarea
+            value={data.other_reason || ''}
+            onChange={(e) => handleOtherChange(e.target.value)}
+            placeholder="Please specify other reasons..."
+            rows={2}
+            className="text-sm"
+          />
         </div>
       )}
     </div>

@@ -27,7 +27,8 @@ QUESTION_TYPES = Literal[
     "principle_toggle_with_description",  # Special type for P1-P9 NGRBC principles (Yes/No + Description)
     "principle_text",  # Text input per P1-P9 principle (no toggle, just text)
     "conditional_yes_no_table",  # Yes/No toggle, if Yes shows configurable table
-    "principle_mode_table"  # Combined or Principle-wise reporting with configurable fields
+    "principle_mode_table",  # Combined or Principle-wise reporting with configurable fields
+    "reasons_checklist"  # List of Yes/No reasons with optional "other" text field
 ]
 
 ESG_SECTIONS = Literal["environment", "social", "governance"]
