@@ -29,13 +29,20 @@ RECORD_LEVEL = Literal["organization", "facility"]
 class ESGRecordFieldConfig(BaseModel):
     """Configuration for a dynamic field in a category."""
     field_key: str
-    type: Literal["text", "textarea", "number", "dropdown", "yes_no", "date", "file_upload", "unit_selector"]
+    type: Literal[
+        "text", "textarea", "number", "dropdown", "yes_no", "date", 
+        "file_upload", "unit_selector", "table", "radio", "checkbox_group"
+    ]
     label: str
     required: bool = False
     placeholder: Optional[str] = None
-    options: Optional[List[str]] = None  # For dropdown/unit_selector
+    options: Optional[List[str]] = None  # For dropdown/unit_selector/radio/checkbox_group
     default_value: Optional[Any] = None
     validation: Optional[Dict[str, Any]] = None  # e.g., {"min": 0, "max": 100}
+    # Table-specific config
+    table_columns: Optional[List[Dict[str, Any]]] = None  # For table type: [{"key": "col1", "label": "Column 1", "type": "text"}]
+    table_min_rows: Optional[int] = None
+    table_max_rows: Optional[int] = None
 
 
 class ESGRecordCategoryConfig(BaseModel):

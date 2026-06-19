@@ -367,6 +367,89 @@ class ESGRecordsService:
             "by_category": by_category,
             "by_reporting_type": by_reporting_type
         }
+    
+    # =========================================================================
+    # Admin Methods (Super Admin Only)
+    # =========================================================================
+    
+    async def admin_list_categories(
+        self,
+        section: Optional[ESG_SECTION] = None,
+        framework: Optional[str] = None,
+        include_inactive: bool = False
+    ) -> List[Dict[str, Any]]:
+        """List all categories across sections (Super Admin)."""
+        query = {}
+        if section:
+            query["section"] = section
+        if not include_inactive:
+            query["is_active"] = True
+        if framework:
+            query["frameworks"] = framework
+        
+        cursor = self._categories.find(query, {"_id": 0}).sort([("section", 1), ("order", 1)])
+        return await cursor.to_list(None)
+    
+    async def create_category(self, category_doc: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a new category (Super Admin)."""
+        await self._categories.insert_one(category_doc)
+        category_doc.pop("_id", None)
+        return category_doc
+    
+    async def update_category(
+        self, 
+        category_id: str, 
+        update_data: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """Update a category (Super Admin)."""
+        await self._categories.update_one(
+            {"id": category_id},
+            {"$set": update_data}
+        )
+        return await self.get_category(category_id)
+    
+    async def delete_category(self, category_id: str) -> bool:
+        """Delete a category (Super Admin)."""
+        result = await self._categories.delete_one({"id": category_id})
+        return result.deleted_count > 0
+    
+    async def count_records_by_category(self, category_id: str) -> int:
+        """Count records using a specific category."""
+        total = 0
+        for section in ["environment", "social", "governance"]:
+            collection = self._get_records_collection(section)
+            count = await collection.count_documents({"category_id": category_id, "is_current": True})
+            total += count
+        return total
+    
+    async def get_admin_stats(self) -> Dict[str, Any]:
+        """Get ESG configuration statistics (Super Admin)."""
+        # Category counts by section
+        pipeline = [
+            {"$group": {"_id": "$section", "count": {"$sum": 1}, "active": {"$sum": {"$cond": ["$is_active", 1, 0]}}}}
+        ]
+        by_section = {}
+        async for doc in self._categories.aggregate(pipeline):
+            by_section[doc["_id"]] = {"total": doc["count"], "active": doc["active"]}
+        
+        # Total categories
+        total_categories = await self._categories.count_documents({})
+        active_categories = await self._categories.count_documents({"is_active": True})
+        
+        # Record counts per section
+        record_counts = {}
+        for section in ["environment", "social", "governance"]:
+            collection = self._get_records_collection(section)
+            record_counts[section] = await collection.count_documents({"is_current": True})
+        
+        return {
+            "categories": {
+                "total": total_categories,
+                "active": active_categories,
+                "by_section": by_section
+            },
+            "records": record_counts
+        }
 
 
 # Singleton instance

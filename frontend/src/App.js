@@ -42,6 +42,7 @@ import BulkUpload from './pages/BulkUpload';
 import Environment from './pages/Environment';
 import Social from './pages/Social';
 import Governance from './pages/Governance';
+import ESGConfig from './pages/ESGConfig';
 import Layout from './components/Layout';
 import PasswordChangeModal from './components/PasswordChangeModal';
 import { initializeCategoryModules } from './modules/emissions';
@@ -218,6 +219,11 @@ const AppRoutes = () => {
             <Route path="input-field-mapping" element={
               <SuperAdminRoute>
                 <InputFieldMapping />
+              </SuperAdminRoute>
+            } />
+            <Route path="esg-config" element={
+              <SuperAdminRoute>
+                <ESGConfig />
               </SuperAdminRoute>
             } />
           </Route>

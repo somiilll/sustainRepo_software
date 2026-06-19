@@ -1150,6 +1150,33 @@ Five phases executed end-to-end with **37/37 regression tests PASS** (iteration_
 
 ## Recent Implementation (Jun 2026)
 
+### ESG Config Super Admin Module (Jun 19, 2026) - Phase 4 Complete
+- **New Super Admin Page**: `/super-admin/esg-config` for managing ESG record categories
+- **Backend API Endpoints**:
+  - `GET /api/super-admin/esg-config/categories` - List all categories with filtering
+  - `GET /api/super-admin/esg-config/categories/{id}` - Get category details
+  - `POST /api/super-admin/esg-config/categories` - Create new category
+  - `PUT /api/super-admin/esg-config/categories/{id}` - Update category
+  - `DELETE /api/super-admin/esg-config/categories/{id}` - Delete category (blocked if has records)
+  - `POST /api/super-admin/esg-config/categories/{id}/toggle-active` - Toggle active status
+  - `POST /api/super-admin/esg-config/categories/reorder` - Reorder categories
+  - `GET /api/super-admin/esg-config/field-types` - Get available field type reference
+  - `GET /api/super-admin/esg-config/stats` - Get configuration statistics
+- **Frontend Features**:
+  - Stats cards (Total, Environment, Social, Governance categories)
+  - Section tabs with filtering and search
+  - Grouped category display with subcategories
+  - Add/Edit Category modal with:
+    - Basic Info tab (section, name, subcategory, frameworks, reporting types)
+    - Fields tab with dynamic field configuration
+  - Field types supported: text, textarea, number, dropdown, radio, checkbox_group, yes_no, date, file_upload, unit_selector, table
+  - Table field type supports configurable columns
+  - Active/Inactive toggle and delete protection
+- **Files Created**:
+  - `/app/backend/modules/esg_records/admin_router.py`
+  - `/app/frontend/src/pages/ESGConfig.js`
+- **Sidebar**: "ESG Config" added to Super Admin navigation
+
 ### ESG Records Evidence Upload (Jun 19, 2026)
 - **New R2 Bucket**: `esg-evidences-dev` added for ESG records evidence
 - **File Path Format**: `{OrgName}/{section}/{date}/{filename}` (e.g., `TestOrg/environment/20260619/abc123.pdf`)
