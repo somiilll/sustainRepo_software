@@ -1,6 +1,32 @@
 # ESG Platform Changelog
 
-## June 17, 2026 (Latest)
+## June 19, 2026 (Latest)
+
+### ESG Records Module - Phase 1 Implementation
+- **Reusable Architecture**: Built modular records system supporting Environment, Social, and Governance
+- **Backend Components**:
+  - `/app/backend/modules/esg_records/` (contracts, service, router)
+  - Collections: `esg_record_categories`, `{section}_records`, `{section}_record_versions`
+  - Full CRUD APIs with pagination, filtering, search
+  - Version history with snapshot preservation
+- **Frontend Components**:
+  - `ESGRecords.js` - Reusable records table with filters, pagination
+  - Multi-step "Add Record" modal with dynamic field rendering
+  - Version history modal
+- **Initial Categories Seeded** (11 total):
+  - Environment: Water (3), Energy (2), Emissions (1), Waste (2)
+  - Social: Workforce (1), Training (1)
+  - Governance: Compliance (1)
+- **Features**:
+  - Record levels: Organization / Facility
+  - Reporting types: Daily, Monthly, Quarterly, Yearly (FY & CY)
+  - Config-driven dynamic fields per category
+  - Framework mapping support (BRSR, GRI future-ready)
+  - Version tracking with audit trail
+
+---
+
+## June 17, 2026
 
 ### Environment Questions Q75-Q94 (Resource Management, Emissions & Compliance)
 - Added 20 new BRSR Environment questions via `/app/backend/scripts/seed_brsr_environment_q75_94.py`:

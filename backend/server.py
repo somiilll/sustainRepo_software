@@ -103,6 +103,7 @@ from modules.esg.router import router as esg_config_router
 from modules.frameworks.router import router as frameworks_router
 from modules.framework_details.router import router as framework_details_router
 from modules.esg_questionnaire.router import router as esg_questionnaire_router
+from modules.esg_records.router import router as esg_records_router
 
 # Set Playwright browsers path BEFORE any playwright imports
 os.environ['PLAYWRIGHT_BROWSERS_PATH'] = '/app/.playwright'
@@ -153,6 +154,8 @@ api_router.include_router(frameworks_router)
 api_router.include_router(framework_details_router)
 # ESG Questionnaire system (config-driven questions)
 api_router.include_router(esg_questionnaire_router)
+# ESG Records system (Environment/Social/Governance records)
+api_router.include_router(esg_records_router)
 
 # Run module contract verifier at import time. Phase B1: log-only, will be
 # escalated to fail-fast in dev once all modules expose their contracts.
