@@ -2737,8 +2737,9 @@ from r2_storage import get_r2_storage, R2Storage
 @api_router.post("/upload/evidence")
 async def upload_evidence_file(
     file: UploadFile = File(...),
-    bucket_type: str = Query(default="emission_evidence", description="Bucket type: emission_evidence, sinks_evidence, org_facility, superadmin"),
+    bucket_type: str = Query(default="emission_evidence", description="Bucket type: emission_evidence, sinks_evidence, org_facility, superadmin, esg_records_evidence"),
     organization_id: Optional[str] = Query(default=None, description="Organization ID for file path (used by super admin)"),
+    folder: Optional[str] = Query(default=None, description="Folder path prefix (e.g., environment, social, governance)"),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -2751,7 +2752,7 @@ async def upload_evidence_file(
     - superadmin: For superadmin uploads (invoice history, etc.)
     """
     # Validate bucket type
-    valid_bucket_types = ['emission_evidence', 'sinks_evidence', 'org_facility', 'superadmin']
+    valid_bucket_types = ['emission_evidence', 'sinks_evidence', 'org_facility', 'superadmin', 'esg_records_evidence']
     if bucket_type not in valid_bucket_types:
         raise HTTPException(
             status_code=400,
@@ -2804,6 +2805,7 @@ async def upload_evidence_file(
             filename=file.filename,
             bucket_type=bucket_type,
             content_type=file.content_type,
+            folder=folder,
             metadata={
                 'uploaded_by': current_user["id"],
                 'original_filename': file.filename

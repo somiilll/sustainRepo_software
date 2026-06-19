@@ -225,12 +225,12 @@ export default function ESGRecords({ section, framework = 'BRSR' }) {
           </div>
           
           {/* Category Filter */}
-          <Select value={filters.category} onValueChange={(v) => setFilters(prev => ({ ...prev, category: v }))}>
+          <Select value={filters.category || 'all'} onValueChange={(v) => setFilters(prev => ({ ...prev, category: v === 'all' ? '' : v }))}>
             <SelectTrigger className="w-36" data-testid="filter-category">
               <SelectValue placeholder="Category" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Categories</SelectItem>
+              <SelectItem value="all">All Categories</SelectItem>
               {uniqueCategories.map(cat => (
                 <SelectItem key={cat} value={cat}>{cat}</SelectItem>
               ))}
@@ -238,12 +238,12 @@ export default function ESGRecords({ section, framework = 'BRSR' }) {
           </Select>
           
           {/* Reporting Type Filter */}
-          <Select value={filters.reporting_type} onValueChange={(v) => setFilters(prev => ({ ...prev, reporting_type: v }))}>
+          <Select value={filters.reporting_type || 'all'} onValueChange={(v) => setFilters(prev => ({ ...prev, reporting_type: v === 'all' ? '' : v }))}>
             <SelectTrigger className="w-32" data-testid="filter-reporting-type">
               <SelectValue placeholder="Type" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Types</SelectItem>
+              <SelectItem value="all">All Types</SelectItem>
               <SelectItem value="daily">Daily</SelectItem>
               <SelectItem value="monthly">Monthly</SelectItem>
               <SelectItem value="quarterly">Quarterly</SelectItem>
@@ -252,12 +252,12 @@ export default function ESGRecords({ section, framework = 'BRSR' }) {
           </Select>
           
           {/* Facility Filter */}
-          <Select value={filters.facility_id} onValueChange={(v) => setFilters(prev => ({ ...prev, facility_id: v }))}>
+          <Select value={filters.facility_id || 'all'} onValueChange={(v) => setFilters(prev => ({ ...prev, facility_id: v === 'all' ? '' : v }))}>
             <SelectTrigger className="w-40" data-testid="filter-facility">
               <SelectValue placeholder="Facility" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Facilities</SelectItem>
+              <SelectItem value="all">All Facilities</SelectItem>
               {facilities.map(f => (
                 <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
               ))}
@@ -387,6 +387,7 @@ function AddRecordModal({ open, onClose, onSuccess, section, framework, categori
   const { token } = useAuth();
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   
   const [formData, setFormData] = useState({
     record_level: '',
@@ -409,7 +410,9 @@ function AddRecordModal({ open, onClose, onSuccess, section, framework, categori
     field_values: {},
     // Common fields
     source_of_information: '',
-    notes: ''
+    notes: '',
+    // Evidence
+    evidence_files: []
   });
 
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -424,6 +427,55 @@ function AddRecordModal({ open, onClose, onSuccess, section, framework, categori
     setFormData(prev => ({
       ...prev,
       field_values: { ...prev.field_values, [fieldKey]: value }
+    }));
+  };
+
+  // Evidence upload handler
+  const handleEvidenceUpload = async (e) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploading(true);
+    const newFiles = [];
+
+    for (const file of files) {
+      try {
+        const formDataUpload = new FormData();
+        formDataUpload.append('file', file);
+
+        const res = await axios.post(
+          `${BACKEND_URL}/api/upload/evidence?bucket_type=esg_records_evidence&folder=${section}`,
+          formDataUpload,
+          { headers: { ...headers, 'Content-Type': 'multipart/form-data' } }
+        );
+
+        if (res.data.url) {
+          newFiles.push({
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            filename: file.name,
+            file_type: file.type.split('/')[1] || 'unknown',
+            file_size: file.size,
+            upload_url: res.data.url,
+            uploaded_at: new Date().toISOString(),
+            uploaded_by: 'current_user'
+          });
+        }
+      } catch (error) {
+        console.error('Failed to upload file:', error);
+      }
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      evidence_files: [...prev.evidence_files, ...newFiles]
+    }));
+    setUploading(false);
+  };
+
+  const removeEvidence = (fileId) => {
+    setFormData(prev => ({
+      ...prev,
+      evidence_files: prev.evidence_files.filter(f => f.id !== fileId)
     }));
   };
 
@@ -482,7 +534,7 @@ function AddRecordModal({ open, onClose, onSuccess, section, framework, categori
         field_values: formData.field_values,
         source_of_information: formData.source_of_information || null,
         notes: formData.notes || null,
-        evidence_files: []
+        evidence_files: formData.evidence_files
       };
 
       await axios.post(`${BACKEND_URL}/api/esg-records/records/${section}`, payload, { headers });
@@ -493,7 +545,8 @@ function AddRecordModal({ open, onClose, onSuccess, section, framework, categori
         record_level: '', facility_id: '', reporting_type: '', year_type: '',
         date: '', time: '', year: new Date().getFullYear(), month: '', quarter: '',
         financial_year: '', calendar_year: '', category_id: '', category: '',
-        subcategory: '', field_values: {}, source_of_information: '', notes: ''
+        subcategory: '', field_values: {}, source_of_information: '', notes: '',
+        evidence_files: []
       });
       setSelectedCategory(null);
       
@@ -781,9 +834,40 @@ function AddRecordModal({ open, onClose, onSuccess, section, framework, categori
             </div>
             <div>
               <Label>Evidence Upload</Label>
-              <div className="mt-1 p-4 border-2 border-dashed rounded-lg text-center">
-                <Upload className="w-6 h-6 mx-auto text-stone-400" />
-                <p className="text-xs text-text-muted mt-2">Evidence upload coming soon</p>
+              <div className="mt-1">
+                {formData.evidence_files.length > 0 && (
+                  <div className="space-y-2 mb-3">
+                    {formData.evidence_files.map(file => (
+                      <div key={file.id} className="flex items-center justify-between p-2 bg-stone-50 rounded text-xs">
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-blue-600" />
+                          <span className="truncate max-w-[200px]">{file.filename}</span>
+                          <Badge variant="outline" className="text-[10px]">{Math.round(file.file_size / 1024)} KB</Badge>
+                        </div>
+                        <Button variant="ghost" size="sm" onClick={() => removeEvidence(file.id)} className="h-6 w-6 p-0 text-red-500">
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <label className="block p-4 border-2 border-dashed rounded-lg text-center cursor-pointer hover:bg-stone-50 transition-colors">
+                  <input
+                    type="file"
+                    multiple
+                    onChange={handleEvidenceUpload}
+                    className="hidden"
+                    accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.csv,.doc,.docx"
+                  />
+                  {uploading ? (
+                    <Loader2 className="w-6 h-6 mx-auto text-emerald-600 animate-spin" />
+                  ) : (
+                    <Upload className="w-6 h-6 mx-auto text-stone-400" />
+                  )}
+                  <p className="text-xs text-text-muted mt-2">
+                    {uploading ? 'Uploading...' : 'Click to upload PDF, Images, Excel, CSV'}
+                  </p>
+                </label>
               </div>
             </div>
           </div>

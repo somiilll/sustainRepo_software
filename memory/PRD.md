@@ -1150,6 +1150,17 @@ Five phases executed end-to-end with **37/37 regression tests PASS** (iteration_
 
 ## Recent Implementation (Jun 2026)
 
+### ESG Records Evidence Upload (Jun 19, 2026)
+- **New R2 Bucket**: `esg-evidences-dev` added for ESG records evidence
+- **File Path Format**: `{OrgName}/{section}/{date}/{filename}` (e.g., `TestOrg/environment/20260619/abc123.pdf`)
+- **Backend Changes**:
+  - Added `esg_records_evidence` bucket type to R2 storage
+  - Added `folder` query parameter to `/api/upload/evidence` endpoint
+- **Frontend Changes**:
+  - `ESGRecords.js` now uploads to `esg_records_evidence` bucket with section folder
+  - Fixed `<Select.Item value="">` warning by using `value="all"` pattern
+  - Fixed `evidence_files` being hardcoded to empty array in submit payload
+
 ### Production Quantity Management Feature
 - **Backend**: New `production_quantities` and `production_quantity_history` collections
 - **API Endpoints**:
