@@ -68,9 +68,11 @@ export default function ESGRecords({ section, framework = 'BRSR' }) {
   
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [showVersionsModal, setShowVersionsModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [versions, setVersions] = useState([]);
+  const [deleting, setDeleting] = useState(null);
 
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -158,6 +160,35 @@ export default function ESGRecords({ section, framework = 'BRSR' }) {
     setShowAddModal(false);
     fetchRecords();
     fetchStats();
+  };
+
+  const handleEditRecord = (record) => {
+    setSelectedRecord(record);
+    setShowEditModal(true);
+  };
+
+  const handleRecordUpdated = () => {
+    setShowEditModal(false);
+    setSelectedRecord(null);
+    fetchRecords();
+    fetchStats();
+  };
+
+  const handleDeleteRecord = async (record) => {
+    if (!window.confirm(`Are you sure you want to delete this ${record.category} record?`)) {
+      return;
+    }
+    setDeleting(record.id);
+    try {
+      await axios.delete(`${BACKEND_URL}/api/esg-records/records/${section}/${record.id}`, { headers });
+      fetchRecords();
+      fetchStats();
+    } catch (error) {
+      console.error('Failed to delete record:', error);
+      alert('Failed to delete record. Please try again.');
+    } finally {
+      setDeleting(null);
+    }
   };
 
   const handleViewVersions = async (record) => {
@@ -319,9 +350,24 @@ export default function ESGRecords({ section, framework = 'BRSR' }) {
                 </TableCell>
                 <TableCell className="text-sm">v{record.version}</TableCell>
                 <TableCell className="text-right">
-                  <Button variant="ghost" size="sm" onClick={() => handleViewVersions(record)} className="h-7 px-2">
-                    <History className="w-3 h-3" />
-                  </Button>
+                  <div className="flex items-center justify-end gap-1">
+                    <Button variant="ghost" size="sm" onClick={() => handleEditRecord(record)} className="h-7 px-2" title="Edit">
+                      <Edit2 className="w-3 h-3" />
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleViewVersions(record)} className="h-7 px-2" title="Version History">
+                      <History className="w-3 h-3" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => handleDeleteRecord(record)} 
+                      className="h-7 px-2 text-red-500 hover:text-red-700"
+                      disabled={deleting === record.id}
+                      title="Delete"
+                    >
+                      {deleting === record.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -367,6 +413,18 @@ export default function ESGRecords({ section, framework = 'BRSR' }) {
         categories={categories}
         facilities={facilities}
       />
+
+      {/* Edit Record Modal */}
+      {selectedRecord && showEditModal && (
+        <EditRecordModal
+          open={showEditModal}
+          onClose={() => { setShowEditModal(false); setSelectedRecord(null); }}
+          onSuccess={handleRecordUpdated}
+          section={section}
+          record={selectedRecord}
+          categories={categories}
+        />
+      )}
 
       {/* Version History Modal */}
       <VersionHistoryModal
@@ -894,6 +952,248 @@ function AddRecordModal({ open, onClose, onSuccess, section, framework, categori
               </Button>
             )}
           </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// =============================================================================
+// Edit Record Modal Component
+// =============================================================================
+
+function EditRecordModal({ open, onClose, onSuccess, section, record, categories }) {
+  const { token } = useAuth();
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  
+  const [formData, setFormData] = useState({
+    field_values: {},
+    source_of_information: '',
+    notes: '',
+    evidence_files: [],
+    change_reason: ''
+  });
+
+  const [selectedCategory, setSelectedCategory] = useState(null);
+
+  const headers = { Authorization: `Bearer ${token}` };
+
+  // Initialize form with record data
+  useEffect(() => {
+    if (record) {
+      setFormData({
+        field_values: record.field_values || {},
+        source_of_information: record.source_of_information || '',
+        notes: record.notes || '',
+        evidence_files: record.evidence_files || [],
+        change_reason: ''
+      });
+      // Find the category config for dynamic fields
+      const cat = categories.find(c => c.id === record.category_id);
+      setSelectedCategory(cat || null);
+    }
+  }, [record, categories]);
+
+  const handleChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleFieldChange = (fieldKey, value) => {
+    setFormData(prev => ({
+      ...prev,
+      field_values: { ...prev.field_values, [fieldKey]: value }
+    }));
+  };
+
+  // Evidence upload handler
+  const handleEvidenceUpload = async (e) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploading(true);
+    const newFiles = [];
+
+    for (const file of files) {
+      try {
+        const formDataUpload = new FormData();
+        formDataUpload.append('file', file);
+
+        const res = await axios.post(
+          `${BACKEND_URL}/api/upload/evidence?bucket_type=esg_records_evidence&folder=${section}`,
+          formDataUpload,
+          { headers: { ...headers, 'Content-Type': 'multipart/form-data' } }
+        );
+
+        if (res.data.url) {
+          newFiles.push({
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            filename: file.name,
+            file_type: file.type.split('/')[1] || 'unknown',
+            file_size: file.size,
+            upload_url: res.data.url,
+            uploaded_at: new Date().toISOString(),
+            uploaded_by: 'current_user'
+          });
+        }
+      } catch (error) {
+        console.error('Failed to upload file:', error);
+      }
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      evidence_files: [...prev.evidence_files, ...newFiles]
+    }));
+    setUploading(false);
+  };
+
+  const removeEvidence = (fileId) => {
+    setFormData(prev => ({
+      ...prev,
+      evidence_files: prev.evidence_files.filter(f => f.id !== fileId)
+    }));
+  };
+
+  const handleSubmit = async () => {
+    setSaving(true);
+    try {
+      const payload = {
+        field_values: formData.field_values,
+        source_of_information: formData.source_of_information || null,
+        notes: formData.notes || null,
+        evidence_files: formData.evidence_files,
+        change_reason: formData.change_reason || null
+      };
+
+      await axios.put(`${BACKEND_URL}/api/esg-records/records/${section}/${record.id}`, payload, { headers });
+      onSuccess();
+    } catch (error) {
+      console.error('Failed to update record:', error);
+      alert('Failed to update record. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!record) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Edit2 className="w-5 h-5 text-blue-600" />
+            Edit Record
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Record Info (Read-only) */}
+          <div className="p-3 bg-stone-50 rounded-lg space-y-1">
+            <p className="text-sm font-medium">{record.category} - {record.subcategory || 'General'}</p>
+            <p className="text-xs text-text-muted">
+              {record.reporting_period?.reporting_type} | {record.record_level} level | v{record.version}
+            </p>
+          </div>
+
+          {/* Dynamic Fields */}
+          {selectedCategory?.fields?.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-text-primary">Data Fields</p>
+              {selectedCategory.fields.map(field => (
+                <DynamicFieldRenderer
+                  key={field.field_key}
+                  field={field}
+                  value={formData.field_values[field.field_key]}
+                  onChange={(val) => handleFieldChange(field.field_key, val)}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Source of Information */}
+          <div>
+            <Label>Source of Information</Label>
+            <Input
+              value={formData.source_of_information}
+              onChange={(e) => handleChange('source_of_information', e.target.value)}
+              placeholder="e.g., Utility Bill, Vendor Invoice..."
+              className="mt-1"
+            />
+          </div>
+
+          {/* Notes */}
+          <div>
+            <Label>Notes / Description</Label>
+            <Textarea
+              value={formData.notes}
+              onChange={(e) => handleChange('notes', e.target.value)}
+              placeholder="Add any additional notes..."
+              rows={2}
+              className="mt-1"
+            />
+          </div>
+
+          {/* Evidence Files */}
+          <div>
+            <Label>Evidence Files</Label>
+            <div className="mt-1">
+              {formData.evidence_files.length > 0 && (
+                <div className="space-y-2 mb-3">
+                  {formData.evidence_files.map(file => (
+                    <div key={file.id} className="flex items-center justify-between p-2 bg-stone-50 rounded text-xs">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-blue-600" />
+                        <span className="truncate max-w-[200px]">{file.filename}</span>
+                        <Badge variant="outline" className="text-[10px]">{Math.round(file.file_size / 1024)} KB</Badge>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => removeEvidence(file.id)} className="h-6 w-6 p-0 text-red-500">
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <label className="block p-3 border-2 border-dashed rounded-lg text-center cursor-pointer hover:bg-stone-50 transition-colors">
+                <input
+                  type="file"
+                  multiple
+                  onChange={handleEvidenceUpload}
+                  className="hidden"
+                  accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.csv,.doc,.docx"
+                />
+                {uploading ? (
+                  <Loader2 className="w-5 h-5 mx-auto text-emerald-600 animate-spin" />
+                ) : (
+                  <Upload className="w-5 h-5 mx-auto text-stone-400" />
+                )}
+                <p className="text-xs text-text-muted mt-1">
+                  {uploading ? 'Uploading...' : 'Click to upload files'}
+                </p>
+              </label>
+            </div>
+          </div>
+
+          {/* Change Reason */}
+          <div>
+            <Label>Reason for Change (Optional)</Label>
+            <Input
+              value={formData.change_reason}
+              onChange={(e) => handleChange('change_reason', e.target.value)}
+              placeholder="Why are you making this change?"
+              className="mt-1"
+            />
+            <p className="text-xs text-text-muted mt-1">This will be recorded in version history</p>
+          </div>
+        </div>
+
+        <DialogFooter className="mt-4">
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSubmit} disabled={saving} className="bg-blue-600 hover:bg-blue-700">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+            Save Changes
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
