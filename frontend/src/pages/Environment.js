@@ -2,11 +2,65 @@ import React, { useState } from 'react';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
-import { Sprout, Edit2, Eye, Info } from 'lucide-react';
+import { Sprout, Edit2, Eye, Info, Database } from 'lucide-react';
 import ESGQuestionnaire from '../components/ESGQuestionnaire';
+import FrameworkTabs from '../components/FrameworkTabs';
 
 export default function Environment() {
   const [isEditing, setIsEditing] = useState(false);
+
+  // Records tab content - placeholder for ledger/records
+  const RecordsContent = () => (
+    <Card className="p-6">
+      <div className="flex items-center gap-3 mb-4">
+        <Database className="w-5 h-5 text-stone-500" />
+        <h3 className="font-semibold text-text-primary">Environment Records Ledger</h3>
+      </div>
+      <p className="text-sm text-text-muted">
+        Environment data records and ledger entries will be displayed here. 
+        This includes raw data entries, calculations, and audit trails.
+      </p>
+      <div className="mt-4 p-4 bg-stone-50 rounded-lg border border-dashed border-stone-300">
+        <p className="text-xs text-stone-500 text-center">Records ledger coming soon</p>
+      </div>
+    </Card>
+  );
+
+  // Framework content renderer
+  const renderFrameworkContent = (framework) => {
+    if (framework === 'BRSR') {
+      return (
+        <>
+          {/* Info Card */}
+          <Card className="p-4 bg-emerald-50/50 border-emerald-100 mb-4">
+            <div className="flex items-start gap-2">
+              <Info className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-emerald-800">
+                <strong>Principle 6 (P6):</strong> Businesses should respect and make efforts to protect and restore the environment. 
+                This section covers energy consumption, water management, air emissions, waste management, biodiversity, and environmental compliance.
+              </p>
+            </div>
+          </Card>
+
+          {/* ESG Questionnaire */}
+          <Card className="p-6">
+            <ESGQuestionnaire 
+              framework="BRSR" 
+              section="environment" 
+              isEditing={isEditing} 
+            />
+          </Card>
+        </>
+      );
+    }
+    
+    // Placeholder for future frameworks
+    return (
+      <Card className="p-6">
+        <p className="text-sm text-text-muted">{framework} framework content coming soon.</p>
+      </Card>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -19,14 +73,11 @@ export default function Environment() {
             </div>
             <div>
               <h1 className="text-2xl font-heading font-bold text-text-primary">Environment</h1>
-              <p className="text-text-muted text-sm">BRSR Section B - Environmental Disclosures (Principle 6)</p>
+              <p className="text-text-muted text-sm">Environmental Disclosures & Records</p>
             </div>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
-            BRSR Framework
-          </Badge>
           <Button
             variant={isEditing ? "default" : "outline"}
             onClick={() => setIsEditing(!isEditing)}
@@ -42,25 +93,12 @@ export default function Environment() {
         </div>
       </div>
 
-      {/* Info Card */}
-      <Card className="p-4 bg-emerald-50/50 border-emerald-100">
-        <div className="flex items-start gap-2">
-          <Info className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-          <p className="text-sm text-emerald-800">
-            <strong>Principle 6 (P6):</strong> Businesses should respect and make efforts to protect and restore the environment. 
-            This section covers energy consumption, water management, air emissions, waste management, biodiversity, and environmental compliance.
-          </p>
-        </div>
-      </Card>
-
-      {/* ESG Questionnaire */}
-      <Card className="p-6">
-        <ESGQuestionnaire 
-          framework="BRSR" 
-          section="environment" 
-          isEditing={isEditing} 
-        />
-      </Card>
+      {/* Framework Tabs */}
+      <FrameworkTabs
+        moduleType="environment"
+        recordsContent={<RecordsContent />}
+        renderFrameworkContent={renderFrameworkContent}
+      />
     </div>
   );
 }
