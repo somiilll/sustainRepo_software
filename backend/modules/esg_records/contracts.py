@@ -173,6 +173,9 @@ class CreateRecordRequest(BaseModel):
 
 class UpdateRecordRequest(BaseModel):
     """Request to update an ESG record (creates new version)."""
+    record_level: Optional[RECORD_LEVEL] = None
+    facility_id: Optional[str] = None
+    reporting_period: Optional[ReportingPeriod] = None
     field_values: Optional[Dict[str, Any]] = None
     evidence_files: Optional[List[Dict[str, Any]]] = None
     source_of_information: Optional[str] = None

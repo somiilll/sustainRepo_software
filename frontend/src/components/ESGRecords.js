@@ -423,6 +423,7 @@ export default function ESGRecords({ section, framework = 'BRSR' }) {
           section={section}
           record={selectedRecord}
           categories={categories}
+          facilities={facilities}
         />
       )}
 
@@ -962,12 +963,23 @@ function AddRecordModal({ open, onClose, onSuccess, section, framework, categori
 // Edit Record Modal Component
 // =============================================================================
 
-function EditRecordModal({ open, onClose, onSuccess, section, record, categories }) {
+function EditRecordModal({ open, onClose, onSuccess, section, record, categories, facilities }) {
   const { token } = useAuth();
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   
   const [formData, setFormData] = useState({
+    record_level: '',
+    facility_id: '',
+    reporting_type: '',
+    year_type: '',
+    date: '',
+    time: '',
+    year: new Date().getFullYear(),
+    month: '',
+    quarter: '',
+    financial_year: '',
+    calendar_year: '',
     field_values: {},
     source_of_information: '',
     notes: '',
@@ -982,14 +994,25 @@ function EditRecordModal({ open, onClose, onSuccess, section, record, categories
   // Initialize form with record data
   useEffect(() => {
     if (record) {
+      const rp = record.reporting_period || {};
       setFormData({
+        record_level: record.record_level || 'organization',
+        facility_id: record.facility_id || '',
+        reporting_type: rp.reporting_type || 'monthly',
+        year_type: rp.year_type || '',
+        date: rp.date || '',
+        time: rp.time || '',
+        year: rp.year || new Date().getFullYear(),
+        month: rp.month || '',
+        quarter: rp.quarter || '',
+        financial_year: rp.financial_year || '',
+        calendar_year: rp.calendar_year || '',
         field_values: record.field_values || {},
         source_of_information: record.source_of_information || '',
         notes: record.notes || '',
         evidence_files: record.evidence_files || [],
         change_reason: ''
       });
-      // Find the category config for dynamic fields
       const cat = categories.find(c => c.id === record.category_id);
       setSelectedCategory(cat || null);
     }
@@ -1006,25 +1029,20 @@ function EditRecordModal({ open, onClose, onSuccess, section, record, categories
     }));
   };
 
-  // Evidence upload handler
   const handleEvidenceUpload = async (e) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-
     setUploading(true);
     const newFiles = [];
-
     for (const file of files) {
       try {
         const formDataUpload = new FormData();
         formDataUpload.append('file', file);
-
         const res = await axios.post(
           `${BACKEND_URL}/api/upload/evidence?bucket_type=esg_records_evidence&folder=${section}`,
           formDataUpload,
           { headers: { ...headers, 'Content-Type': 'multipart/form-data' } }
         );
-
         if (res.data.url) {
           newFiles.push({
             id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
@@ -1040,32 +1058,54 @@ function EditRecordModal({ open, onClose, onSuccess, section, record, categories
         console.error('Failed to upload file:', error);
       }
     }
-
-    setFormData(prev => ({
-      ...prev,
-      evidence_files: [...prev.evidence_files, ...newFiles]
-    }));
+    setFormData(prev => ({ ...prev, evidence_files: [...prev.evidence_files, ...newFiles] }));
     setUploading(false);
   };
 
   const removeEvidence = (fileId) => {
-    setFormData(prev => ({
-      ...prev,
-      evidence_files: prev.evidence_files.filter(f => f.id !== fileId)
-    }));
+    setFormData(prev => ({ ...prev, evidence_files: prev.evidence_files.filter(f => f.id !== fileId) }));
+  };
+
+  const buildReportingPeriod = () => {
+    const period = { reporting_type: formData.reporting_type };
+    switch (formData.reporting_type) {
+      case 'daily':
+        period.date = formData.date;
+        period.time = formData.time || null;
+        break;
+      case 'monthly':
+        period.year = formData.year;
+        period.month = formData.month;
+        break;
+      case 'quarterly':
+        period.year = formData.year;
+        period.quarter = formData.quarter;
+        break;
+      case 'yearly':
+        period.year_type = formData.year_type;
+        if (formData.year_type === 'financial') {
+          period.financial_year = formData.financial_year;
+        } else {
+          period.calendar_year = formData.calendar_year;
+        }
+        break;
+    }
+    return period;
   };
 
   const handleSubmit = async () => {
     setSaving(true);
     try {
       const payload = {
+        record_level: formData.record_level,
+        facility_id: formData.record_level === 'facility' ? formData.facility_id : null,
+        reporting_period: buildReportingPeriod(),
         field_values: formData.field_values,
         source_of_information: formData.source_of_information || null,
         notes: formData.notes || null,
         evidence_files: formData.evidence_files,
         change_reason: formData.change_reason || null
       };
-
       await axios.put(`${BACKEND_URL}/api/esg-records/records/${section}/${record.id}`, payload, { headers });
       onSuccess();
     } catch (error) {
@@ -1080,7 +1120,7 @@ function EditRecordModal({ open, onClose, onSuccess, section, record, categories
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Edit2 className="w-5 h-5 text-blue-600" />
@@ -1088,107 +1128,236 @@ function EditRecordModal({ open, onClose, onSuccess, section, record, categories
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* Record Info (Read-only) */}
-          <div className="p-3 bg-stone-50 rounded-lg space-y-1">
-            <p className="text-sm font-medium">{record.category} - {record.subcategory || 'General'}</p>
-            <p className="text-xs text-text-muted">
-              {record.reporting_period?.reporting_type} | {record.record_level} level | v{record.version}
-            </p>
+        <div className="space-y-6 py-2">
+          {/* Record Info Header */}
+          <div className="p-4 bg-stone-50 rounded-lg">
+            <p className="text-base font-medium">{record.category} - {record.subcategory || 'General'}</p>
+            <p className="text-sm text-text-muted mt-1">Version {record.version}</p>
           </div>
 
-          {/* Dynamic Fields */}
-          {selectedCategory?.fields?.length > 0 && (
+          {/* Record Level & Reporting Type */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Record Level */}
             <div className="space-y-3">
+              <Label className="text-sm font-medium">Record Level</Label>
+              <Select value={formData.record_level} onValueChange={(v) => handleChange('record_level', v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="organization">Organization Level</SelectItem>
+                  <SelectItem value="facility">Facility Level</SelectItem>
+                </SelectContent>
+              </Select>
+              {formData.record_level === 'facility' && (
+                <Select value={formData.facility_id} onValueChange={(v) => handleChange('facility_id', v)}>
+                  <SelectTrigger><SelectValue placeholder="Select facility..." /></SelectTrigger>
+                  <SelectContent>
+                    {(facilities || []).map(f => (
+                      <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            {/* Reporting Type */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Reporting Type</Label>
+              <Select value={formData.reporting_type} onValueChange={(v) => handleChange('reporting_type', v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                  <SelectItem value="quarterly">Quarterly</SelectItem>
+                  <SelectItem value="yearly">Yearly</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Reporting Period Fields */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {formData.reporting_type === 'daily' && (
+              <>
+                <div>
+                  <Label className="text-sm font-medium">Date</Label>
+                  <Input type="date" value={formData.date} onChange={(e) => handleChange('date', e.target.value)} className="mt-2" />
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Time (Optional)</Label>
+                  <Input type="time" value={formData.time} onChange={(e) => handleChange('time', e.target.value)} className="mt-2" />
+                </div>
+              </>
+            )}
+            {formData.reporting_type === 'monthly' && (
+              <>
+                <div>
+                  <Label className="text-sm font-medium">Year</Label>
+                  <Select value={String(formData.year)} onValueChange={(v) => handleChange('year', parseInt(v))}>
+                    <SelectTrigger className="mt-2"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {generateYears().map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Month</Label>
+                  <Select value={formData.month} onValueChange={(v) => handleChange('month', v)}>
+                    <SelectTrigger className="mt-2"><SelectValue placeholder="Select month..." /></SelectTrigger>
+                    <SelectContent>
+                      {MONTHS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+            {formData.reporting_type === 'quarterly' && (
+              <>
+                <div>
+                  <Label className="text-sm font-medium">Year</Label>
+                  <Select value={String(formData.year)} onValueChange={(v) => handleChange('year', parseInt(v))}>
+                    <SelectTrigger className="mt-2"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {generateYears().map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Quarter</Label>
+                  <Select value={formData.quarter} onValueChange={(v) => handleChange('quarter', v)}>
+                    <SelectTrigger className="mt-2"><SelectValue placeholder="Select quarter..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Q1">Q1</SelectItem>
+                      <SelectItem value="Q2">Q2</SelectItem>
+                      <SelectItem value="Q3">Q3</SelectItem>
+                      <SelectItem value="Q4">Q4</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+            {formData.reporting_type === 'yearly' && (
+              <>
+                <div>
+                  <Label className="text-sm font-medium">Year Type</Label>
+                  <Select value={formData.year_type} onValueChange={(v) => handleChange('year_type', v)}>
+                    <SelectTrigger className="mt-2"><SelectValue placeholder="Select type..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="financial">Financial Year</SelectItem>
+                      <SelectItem value="calendar">Calendar Year</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  {formData.year_type === 'financial' && (
+                    <>
+                      <Label className="text-sm font-medium">Financial Year</Label>
+                      <Select value={formData.financial_year} onValueChange={(v) => handleChange('financial_year', v)}>
+                        <SelectTrigger className="mt-2"><SelectValue placeholder="Select FY..." /></SelectTrigger>
+                        <SelectContent>
+                          {generateFYOptions().map(fy => <SelectItem key={fy} value={fy}>{fy}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </>
+                  )}
+                  {formData.year_type === 'calendar' && (
+                    <>
+                      <Label className="text-sm font-medium">Calendar Year</Label>
+                      <Select value={formData.calendar_year} onValueChange={(v) => handleChange('calendar_year', v)}>
+                        <SelectTrigger className="mt-2"><SelectValue placeholder="Select CY..." /></SelectTrigger>
+                        <SelectContent>
+                          {generateCYOptions().map(cy => <SelectItem key={cy} value={cy}>{cy}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Dynamic Category Fields */}
+          {selectedCategory?.fields?.length > 0 && (
+            <div className="space-y-4 pt-2 border-t">
               <p className="text-sm font-medium text-text-primary">Data Fields</p>
-              {selectedCategory.fields.map(field => (
-                <DynamicFieldRenderer
-                  key={field.field_key}
-                  field={field}
-                  value={formData.field_values[field.field_key]}
-                  onChange={(val) => handleFieldChange(field.field_key, val)}
-                />
-              ))}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {selectedCategory.fields.map(field => (
+                  <div key={field.field_key} className={field.type === 'textarea' || field.type === 'table' ? 'md:col-span-2' : ''}>
+                    <DynamicFieldRenderer
+                      field={field}
+                      value={formData.field_values[field.field_key]}
+                      onChange={(val) => handleFieldChange(field.field_key, val)}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
-          {/* Source of Information */}
-          <div>
-            <Label>Source of Information</Label>
-            <Input
-              value={formData.source_of_information}
-              onChange={(e) => handleChange('source_of_information', e.target.value)}
-              placeholder="e.g., Utility Bill, Vendor Invoice..."
-              className="mt-1"
-            />
+          {/* Source & Notes */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 border-t">
+            <div>
+              <Label className="text-sm font-medium">Source of Information</Label>
+              <Input
+                value={formData.source_of_information}
+                onChange={(e) => handleChange('source_of_information', e.target.value)}
+                placeholder="e.g., Utility Bill, Vendor Invoice..."
+                className="mt-2"
+              />
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Reason for Change</Label>
+              <Input
+                value={formData.change_reason}
+                onChange={(e) => handleChange('change_reason', e.target.value)}
+                placeholder="Why are you making this change?"
+                className="mt-2"
+              />
+              <p className="text-xs text-text-muted mt-1">Recorded in version history</p>
+            </div>
           </div>
 
-          {/* Notes */}
+          {/* Notes - Full Width */}
           <div>
-            <Label>Notes / Description</Label>
+            <Label className="text-sm font-medium">Notes / Description</Label>
             <Textarea
               value={formData.notes}
               onChange={(e) => handleChange('notes', e.target.value)}
               placeholder="Add any additional notes..."
-              rows={2}
-              className="mt-1"
+              rows={3}
+              className="mt-2"
             />
           </div>
 
           {/* Evidence Files */}
-          <div>
-            <Label>Evidence Files</Label>
-            <div className="mt-1">
+          <div className="pt-2 border-t">
+            <Label className="text-sm font-medium">Evidence Files</Label>
+            <div className="mt-3">
               {formData.evidence_files.length > 0 && (
-                <div className="space-y-2 mb-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4">
                   {formData.evidence_files.map(file => (
-                    <div key={file.id} className="flex items-center justify-between p-2 bg-stone-50 rounded text-xs">
-                      <div className="flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-blue-600" />
-                        <span className="truncate max-w-[200px]">{file.filename}</span>
-                        <Badge variant="outline" className="text-[10px]">{Math.round(file.file_size / 1024)} KB</Badge>
+                    <div key={file.id} className="flex items-center justify-between p-3 bg-stone-50 rounded-lg text-sm">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                        <span className="truncate">{file.filename}</span>
+                        <Badge variant="outline" className="text-xs flex-shrink-0">{Math.round(file.file_size / 1024)} KB</Badge>
                       </div>
-                      <Button variant="ghost" size="sm" onClick={() => removeEvidence(file.id)} className="h-6 w-6 p-0 text-red-500">
-                        <X className="w-3 h-3" />
+                      <Button variant="ghost" size="sm" onClick={() => removeEvidence(file.id)} className="h-7 w-7 p-0 text-red-500 flex-shrink-0">
+                        <X className="w-4 h-4" />
                       </Button>
                     </div>
                   ))}
                 </div>
               )}
-              <label className="block p-3 border-2 border-dashed rounded-lg text-center cursor-pointer hover:bg-stone-50 transition-colors">
-                <input
-                  type="file"
-                  multiple
-                  onChange={handleEvidenceUpload}
-                  className="hidden"
-                  accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.csv,.doc,.docx"
-                />
-                {uploading ? (
-                  <Loader2 className="w-5 h-5 mx-auto text-emerald-600 animate-spin" />
-                ) : (
-                  <Upload className="w-5 h-5 mx-auto text-stone-400" />
-                )}
-                <p className="text-xs text-text-muted mt-1">
-                  {uploading ? 'Uploading...' : 'Click to upload files'}
-                </p>
+              <label className="block p-4 border-2 border-dashed rounded-lg text-center cursor-pointer hover:bg-stone-50 transition-colors">
+                <input type="file" multiple onChange={handleEvidenceUpload} className="hidden" accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.csv,.doc,.docx" />
+                {uploading ? <Loader2 className="w-6 h-6 mx-auto text-emerald-600 animate-spin" /> : <Upload className="w-6 h-6 mx-auto text-stone-400" />}
+                <p className="text-sm text-text-muted mt-2">{uploading ? 'Uploading...' : 'Click to upload PDF, Images, Excel, CSV'}</p>
               </label>
             </div>
           </div>
-
-          {/* Change Reason */}
-          <div>
-            <Label>Reason for Change (Optional)</Label>
-            <Input
-              value={formData.change_reason}
-              onChange={(e) => handleChange('change_reason', e.target.value)}
-              placeholder="Why are you making this change?"
-              className="mt-1"
-            />
-            <p className="text-xs text-text-muted mt-1">This will be recorded in version history</p>
-          </div>
         </div>
 
-        <DialogFooter className="mt-4">
+        <DialogFooter className="mt-6 pt-4 border-t">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={handleSubmit} disabled={saving} className="bg-blue-600 hover:bg-blue-700">
             {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}

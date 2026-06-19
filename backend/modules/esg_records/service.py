@@ -147,6 +147,18 @@ class ESGRecordsService:
         changed_fields = []
         update_data = {}
         
+        if data.record_level is not None:
+            update_data["record_level"] = data.record_level
+            changed_fields.append("record_level")
+        
+        if data.facility_id is not None:
+            update_data["facility_id"] = data.facility_id
+            changed_fields.append("facility_id")
+        
+        if data.reporting_period is not None:
+            update_data["reporting_period"] = data.reporting_period.model_dump()
+            changed_fields.append("reporting_period")
+        
         if data.field_values is not None:
             update_data["field_values"] = data.field_values
             changed_fields.append("field_values")
