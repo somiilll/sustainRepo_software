@@ -28,12 +28,14 @@ The legacy `users` collection is no longer used for login.
 
 ---
 
-## Organization Admin (ORG1)
+## Organization Admin (ORG1 - Has GHG Emissions Data)
 - **Email:** goyalsomil2001@gmail.com
+- **Password:** TestUser123!
 - **Role:** admin
 - **Organization:** ORG1 (id: 9067d872-8a3a-4ed9-8494-e3ef04952f7c)
 - **ESG Frameworks Enabled:** BRSR
 - **Collection:** users_esg
+- **Note:** This org has 7 facilities with 289 emission records - use to test GHG import in Environment → Records
 
 ---
 

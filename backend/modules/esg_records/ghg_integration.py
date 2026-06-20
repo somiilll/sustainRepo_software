@@ -131,27 +131,32 @@ class GHGIntegrationService:
         Get GHG emissions aggregated by facility and scope per financial year.
         Returns virtual ESG records (not stored in DB).
         """
-        # Query emission_records for this org
-        query = {"org_id": org_id}
+        # First get facilities for this organization
+        # Note: facilities collection uses 'organization_id' not 'org_id'
+        facility_query = {"organization_id": org_id}
         if facility_ids:
-            query["facility_id"] = {"$in": facility_ids}
+            facility_query["id"] = {"$in": facility_ids}
         
+        facilities = await self.db.facilities.find(
+            facility_query,
+            {"_id": 0, "id": 1, "name": 1}
+        ).to_list(1000)
+        
+        if not facilities:
+            return []
+        
+        # Build facility lookup
+        facility_names = {f["id"]: f["name"] for f in facilities}
+        org_facility_ids = list(facility_names.keys())
+        
+        # Query emission_records by facility_id (emission_records don't have org_id)
         emissions = await self.db.emission_records.find(
-            query,
+            {"facility_id": {"$in": org_facility_ids}},
             {"_id": 0}
         ).to_list(100000)
         
         if not emissions:
             return []
-        
-        # Get facility names for display
-        facility_names = {}
-        facilities = await self.db.facilities.find(
-            {"org_id": org_id},
-            {"_id": 0, "id": 1, "name": 1}
-        ).to_list(1000)
-        for f in facilities:
-            facility_names[f["id"]] = f["name"]
         
         # Group by (facility_id, scope, financial_year)
         grouped = {}
@@ -162,6 +167,10 @@ class GHGIntegrationService:
             
             # Skip if no facility or scope
             if not fac_id or not scope:
+                continue
+            
+            # Skip biogenic - only Scope 1, 2, 3
+            if scope not in ["scope1", "scope2", "scope3"]:
                 continue
             
             # Parse reporting period to get FY
@@ -207,7 +216,8 @@ class GHGIntegrationService:
                 "is_locked": True,
                 "section": "environment",
                 "category": "Emissions",
-                "subcategory": get_scope_display_name(scope),
+                "subcategory": "GHG Emissions",
+                "sub_subcategory": get_scope_display_name(scope),
                 "record_level": "facility",
                 "facility_id": fac_id,
                 "facility_name": facility_names.get(fac_id, fac_id),
@@ -247,27 +257,32 @@ class GHGIntegrationService:
         
         Returns aggregated by facility and energy type per financial year.
         """
-        # Query emission_records for this org
-        query = {"org_id": org_id}
+        # First get facilities for this organization
+        # Note: facilities collection uses 'organization_id' not 'org_id'
+        facility_query = {"organization_id": org_id}
         if facility_ids:
-            query["facility_id"] = {"$in": facility_ids}
+            facility_query["id"] = {"$in": facility_ids}
         
+        facilities = await self.db.facilities.find(
+            facility_query,
+            {"_id": 0, "id": 1, "name": 1}
+        ).to_list(1000)
+        
+        if not facilities:
+            return []
+        
+        # Build facility lookup
+        facility_names = {f["id"]: f["name"] for f in facilities}
+        org_facility_ids = list(facility_names.keys())
+        
+        # Query emission_records by facility_id
         emissions = await self.db.emission_records.find(
-            query,
+            {"facility_id": {"$in": org_facility_ids}},
             {"_id": 0}
         ).to_list(100000)
         
         if not emissions:
             return []
-        
-        # Get facility names
-        facility_names = {}
-        facilities = await self.db.facilities.find(
-            {"org_id": org_id},
-            {"_id": 0, "id": 1, "name": 1}
-        ).to_list(1000)
-        for f in facilities:
-            facility_names[f["id"]] = f["name"]
         
         # Load fuel database for calorific values
         fuel_cv_cache = {}

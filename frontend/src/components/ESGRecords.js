@@ -310,10 +310,10 @@ export default function ESGRecords({ section, framework = 'BRSR' }) {
             <TableRow className="bg-stone-50">
               <TableHead className="text-xs font-medium">Category</TableHead>
               <TableHead className="text-xs font-medium">Subcategory</TableHead>
+              <TableHead className="text-xs font-medium">Sub-Subcategory</TableHead>
               <TableHead className="text-xs font-medium">Period</TableHead>
               <TableHead className="text-xs font-medium">Level</TableHead>
-              <TableHead className="text-xs font-medium">Evidence</TableHead>
-              <TableHead className="text-xs font-medium">Version</TableHead>
+              <TableHead className="text-xs font-medium">Quantity</TableHead>
               <TableHead className="text-xs font-medium text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -333,6 +333,17 @@ export default function ESGRecords({ section, framework = 'BRSR' }) {
             ) : records.map(record => {
               const isImported = record.source_type === 'ghg_import';
               const isLocked = record.is_locked;
+              const fieldValues = record.field_values || {};
+              
+              // Get quantity display
+              let quantityDisplay = '-';
+              if (isImported) {
+                if (fieldValues.total_emission) {
+                  quantityDisplay = `${fieldValues.total_emission.toLocaleString()} ${fieldValues.emission_unit || 'tCO2e'}`;
+                } else if (fieldValues.total_energy) {
+                  quantityDisplay = `${fieldValues.total_energy.toLocaleString()} ${fieldValues.energy_unit || 'TJ'}`;
+                }
+              }
               
               return (
               <TableRow key={record.id} className={`hover:bg-stone-50 ${isImported ? 'bg-emerald-50/30' : ''}`}>
@@ -348,6 +359,7 @@ export default function ESGRecords({ section, framework = 'BRSR' }) {
                   </div>
                 </TableCell>
                 <TableCell className="text-sm text-text-muted">{record.subcategory || '-'}</TableCell>
+                <TableCell className="text-sm text-text-muted">{record.sub_subcategory || '-'}</TableCell>
                 <TableCell className="text-sm">
                   <Badge variant="outline" className="text-xs">
                     {formatReportingPeriod(record.reporting_period)}
@@ -366,26 +378,11 @@ export default function ESGRecords({ section, framework = 'BRSR' }) {
                     )}
                   </div>
                 </TableCell>
-                <TableCell>
-                  {record.evidence_files?.length > 0 ? (
-                    <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">
-                      <FileText className="w-3 h-3 mr-1" /> {record.evidence_files.length}
-                    </Badge>
-                  ) : isImported ? (
-                    <Badge variant="outline" className="text-xs bg-stone-50 text-stone-500">
-                      <RefreshCw className="w-3 h-3 mr-1" /> Synced
-                    </Badge>
-                  ) : (
-                    <span className="text-xs text-stone-400">-</span>
-                  )}
-                </TableCell>
                 <TableCell className="text-sm">
-                  {isLocked ? (
-                    <Badge variant="outline" className="text-xs text-amber-600 bg-amber-50">
-                      <Lock className="w-3 h-3 mr-1" /> Locked
-                    </Badge>
+                  {isImported ? (
+                    <span className="font-medium text-emerald-700">{quantityDisplay}</span>
                   ) : (
-                    `v${record.version}`
+                    <span className="text-text-muted">-</span>
                   )}
                 </TableCell>
                 <TableCell className="text-right">
