@@ -394,16 +394,16 @@ class GHGIntegrationService:
             elif scope == "scope2":
                 energy_type = "electricity"
                 
-                # Get quantity from dynamic_field_values.qty
+                # Get quantity from dynamic_field_values.qty_energy (not qty)
                 dfv = em.get("dynamic_field_values") or {}
-                qty_data = dfv.get("qty") or {}
+                qty_data = dfv.get("qty_energy") or {}
                 quantity = float(qty_data.get("value") or 0)
                 quantity_unit = (qty_data.get("unit") or "").lower()
                 
                 if quantity <= 0:
                     continue
                 
-                # Convert to MWh
+                # Convert to MWh (default unit)
                 if "kwh" in quantity_unit:
                     energy_mwh = quantity / 1000
                 elif "mwh" in quantity_unit:
