@@ -335,13 +335,21 @@ export default function ESGRecords({ section, framework = 'BRSR' }) {
               const isLocked = record.is_locked;
               const fieldValues = record.field_values || {};
               
-              // Get quantity display
+              // Get quantity display - works for both imported and native records
               let quantityDisplay = '-';
-              if (isImported) {
-                if (fieldValues.total_emission) {
-                  quantityDisplay = `${fieldValues.total_emission.toLocaleString()} ${fieldValues.emission_unit || 'tCO2e'}`;
-                } else if (fieldValues.total_energy) {
-                  quantityDisplay = `${fieldValues.total_energy.toLocaleString()} ${fieldValues.energy_unit || 'TJ'}`;
+              if (fieldValues.total_emission) {
+                quantityDisplay = `${Number(fieldValues.total_emission).toLocaleString()} ${fieldValues.emission_unit || 'tCO2e'}`;
+              } else if (fieldValues.total_energy) {
+                quantityDisplay = `${Number(fieldValues.total_energy).toLocaleString()} ${fieldValues.energy_unit || 'TJ'}`;
+              } else if (fieldValues.quantity) {
+                quantityDisplay = `${Number(fieldValues.quantity).toLocaleString()} ${fieldValues.unit || fieldValues.quantity_unit || ''}`;
+              } else if (fieldValues.value) {
+                quantityDisplay = `${Number(fieldValues.value).toLocaleString()} ${fieldValues.unit || ''}`;
+              } else {
+                // Try to find first numeric field
+                const numericFields = Object.entries(fieldValues).find(([k, v]) => typeof v === 'number' && !k.includes('count'));
+                if (numericFields) {
+                  quantityDisplay = `${Number(numericFields[1]).toLocaleString()}`;
                 }
               }
               
@@ -359,7 +367,9 @@ export default function ESGRecords({ section, framework = 'BRSR' }) {
                   </div>
                 </TableCell>
                 <TableCell className="text-sm text-text-muted">{record.subcategory || '-'}</TableCell>
-                <TableCell className="text-sm text-text-muted">{record.sub_subcategory || '-'}</TableCell>
+                <TableCell className="text-sm text-text-muted">
+                  {record.sub_subcategory || fieldValues.scope || '-'}
+                </TableCell>
                 <TableCell className="text-sm">
                   <Badge variant="outline" className="text-xs">
                     {formatReportingPeriod(record.reporting_period)}
@@ -379,11 +389,9 @@ export default function ESGRecords({ section, framework = 'BRSR' }) {
                   </div>
                 </TableCell>
                 <TableCell className="text-sm">
-                  {isImported ? (
-                    <span className="font-medium text-emerald-700">{quantityDisplay}</span>
-                  ) : (
-                    <span className="text-text-muted">-</span>
-                  )}
+                  <span className={isImported ? "font-medium text-emerald-700" : "text-text-primary"}>
+                    {quantityDisplay}
+                  </span>
                 </TableCell>
                 <TableCell className="text-right">
                   {isLocked ? (
