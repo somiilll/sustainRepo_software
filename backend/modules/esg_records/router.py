@@ -2,6 +2,7 @@
 ESG Records Module - API Router
 
 Reusable router for Environment, Social, and Governance records.
+Includes integration with GHG module for auto-imported records.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
@@ -11,10 +12,12 @@ import uuid
 
 from core_platform.auth import get_current_user
 from .service import esg_records_service
+from .ghg_integration import get_ghg_integration_service
 from .contracts import (
     ESG_SECTION, REPORTING_TYPE, 
     CreateRecordRequest, UpdateRecordRequest, RecordListFilters
 )
+from shared.database import get_database
 
 router = APIRouter(prefix="/esg-records", tags=["ESG Records"])
 
@@ -88,11 +91,12 @@ async def list_records(
     year: Optional[int] = None,
     month: Optional[str] = None,
     search: Optional[str] = None,
+    include_imported: bool = Query(True, description="Include GHG module imported records"),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     current_user: dict = Depends(get_current_user)
 ):
-    """List ESG records with filtering and pagination."""
+    """List ESG records with filtering and pagination. Includes GHG-imported records."""
     org_id = current_user.get("organization_id")
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization assigned")
@@ -110,11 +114,66 @@ async def list_records(
         limit=limit
     )
     
+    # Get native ESG records
     result = await esg_records_service.list_records(
         section=section,
         org_id=org_id,
         filters=filters
     )
+    
+    # Get GHG-imported records if enabled and section is environment
+    if include_imported and section == "environment":
+        db = get_database()
+        ghg_service = get_ghg_integration_service(db)
+        
+        imported_records = await ghg_service.get_all_imported_records(
+            org_id=org_id,
+            section=section,
+            category=category,
+            facility_id=facility_id
+        )
+        
+        # Filter imported records based on search if provided
+        if search and imported_records:
+            search_lower = search.lower()
+            imported_records = [
+                r for r in imported_records
+                if search_lower in r.get("category", "").lower() or
+                   search_lower in r.get("subcategory", "").lower() or
+                   search_lower in r.get("facility_name", "").lower()
+            ]
+        
+        # Filter by subcategory if provided
+        if subcategory and imported_records:
+            imported_records = [
+                r for r in imported_records
+                if r.get("subcategory", "").lower() == subcategory.lower()
+            ]
+        
+        # Merge with native records
+        # For now, append imported at the end; in future could interleave by date
+        native_records = result.get("records", [])
+        all_records = native_records + imported_records
+        
+        # Update pagination info
+        total_with_imported = result.get("total", 0) + len(imported_records)
+        
+        # Apply pagination to combined list
+        # For simplicity, if we're on page 1 and have imported records, show them
+        # More sophisticated pagination could be added later
+        start_idx = (page - 1) * limit
+        end_idx = start_idx + limit
+        paginated_records = all_records[start_idx:end_idx]
+        
+        result = {
+            "records": paginated_records,
+            "total": total_with_imported,
+            "page": page,
+            "limit": limit,
+            "total_pages": (total_with_imported + limit - 1) // limit,
+            "has_imported": len(imported_records) > 0,
+            "imported_count": len(imported_records)
+        }
     
     return result
 

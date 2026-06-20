@@ -14,7 +14,7 @@ import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { 
   Plus, Search, Filter, History, FileText, Upload, 
   ChevronLeft, ChevronRight, Loader2, Building2, Calendar,
-  Trash2, Edit2, Eye, X
+  Trash2, Edit2, Eye, X, Lock, Link2, RefreshCw
 } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -70,6 +70,7 @@ export default function ESGRecords({ section, framework = 'BRSR' }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showVersionsModal, setShowVersionsModal] = useState(false);
+  const [showImportedModal, setShowImportedModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [versions, setVersions] = useState([]);
   const [deleting, setDeleting] = useState(null);
@@ -195,6 +196,11 @@ export default function ESGRecords({ section, framework = 'BRSR' }) {
     setSelectedRecord(record);
     await fetchVersions(record.id);
     setShowVersionsModal(true);
+  };
+
+  const handleViewImportedRecord = (record) => {
+    setSelectedRecord(record);
+    setShowImportedModal(true);
   };
 
   const formatReportingPeriod = (period) => {
@@ -324,9 +330,23 @@ export default function ESGRecords({ section, framework = 'BRSR' }) {
                   No records found. Click "Add Record" to create one.
                 </TableCell>
               </TableRow>
-            ) : records.map(record => (
-              <TableRow key={record.id} className="hover:bg-stone-50">
-                <TableCell className="text-sm font-medium">{record.category}</TableCell>
+            ) : records.map(record => {
+              const isImported = record.source_type === 'ghg_import';
+              const isLocked = record.is_locked;
+              
+              return (
+              <TableRow key={record.id} className={`hover:bg-stone-50 ${isImported ? 'bg-emerald-50/30' : ''}`}>
+                <TableCell className="text-sm font-medium">
+                  <div className="flex items-center gap-2">
+                    {record.category}
+                    {isImported && (
+                      <Badge className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5">
+                        <Link2 className="w-2.5 h-2.5 mr-0.5" />
+                        GHG
+                      </Badge>
+                    )}
+                  </div>
+                </TableCell>
                 <TableCell className="text-sm text-text-muted">{record.subcategory || '-'}</TableCell>
                 <TableCell className="text-sm">
                   <Badge variant="outline" className="text-xs">
@@ -334,43 +354,70 @@ export default function ESGRecords({ section, framework = 'BRSR' }) {
                   </Badge>
                 </TableCell>
                 <TableCell className="text-sm">
-                  <Badge variant={record.record_level === 'facility' ? 'default' : 'secondary'} className="text-xs">
-                    {record.record_level === 'facility' ? <Building2 className="w-3 h-3 mr-1" /> : null}
-                    {record.record_level}
-                  </Badge>
+                  <div className="flex items-center gap-1">
+                    <Badge variant={record.record_level === 'facility' ? 'default' : 'secondary'} className="text-xs">
+                      {record.record_level === 'facility' ? <Building2 className="w-3 h-3 mr-1" /> : null}
+                      {record.record_level}
+                    </Badge>
+                    {record.facility_name && record.record_level === 'facility' && (
+                      <span className="text-xs text-text-muted truncate max-w-[80px]" title={record.facility_name}>
+                        {record.facility_name}
+                      </span>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell>
                   {record.evidence_files?.length > 0 ? (
                     <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">
                       <FileText className="w-3 h-3 mr-1" /> {record.evidence_files.length}
                     </Badge>
+                  ) : isImported ? (
+                    <Badge variant="outline" className="text-xs bg-stone-50 text-stone-500">
+                      <RefreshCw className="w-3 h-3 mr-1" /> Synced
+                    </Badge>
                   ) : (
                     <span className="text-xs text-stone-400">-</span>
                   )}
                 </TableCell>
-                <TableCell className="text-sm">v{record.version}</TableCell>
+                <TableCell className="text-sm">
+                  {isLocked ? (
+                    <Badge variant="outline" className="text-xs text-amber-600 bg-amber-50">
+                      <Lock className="w-3 h-3 mr-1" /> Locked
+                    </Badge>
+                  ) : (
+                    `v${record.version}`
+                  )}
+                </TableCell>
                 <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => handleEditRecord(record)} className="h-7 px-2" title="Edit">
-                      <Edit2 className="w-3 h-3" />
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => handleViewVersions(record)} className="h-7 px-2" title="Version History">
-                      <History className="w-3 h-3" />
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => handleDeleteRecord(record)} 
-                      className="h-7 px-2 text-red-500 hover:text-red-700"
-                      disabled={deleting === record.id}
-                      title="Delete"
-                    >
-                      {deleting === record.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
-                    </Button>
-                  </div>
+                  {isLocked ? (
+                    <div className="flex items-center justify-end gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => handleViewImportedRecord(record)} className="h-7 px-2" title="View Details">
+                        <Eye className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-end gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => handleEditRecord(record)} className="h-7 px-2" title="Edit">
+                        <Edit2 className="w-3 h-3" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => handleViewVersions(record)} className="h-7 px-2" title="Version History">
+                        <History className="w-3 h-3" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => handleDeleteRecord(record)} 
+                        className="h-7 px-2 text-red-500 hover:text-red-700"
+                        disabled={deleting === record.id}
+                        title="Delete"
+                      >
+                        {deleting === record.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                      </Button>
+                    </div>
+                  )}
                 </TableCell>
               </TableRow>
-            ))}
+            );})}
           </TableBody>
         </Table>
         
@@ -434,6 +481,15 @@ export default function ESGRecords({ section, framework = 'BRSR' }) {
         record={selectedRecord}
         versions={versions}
       />
+
+      {/* Imported Record View Modal */}
+      {selectedRecord && showImportedModal && (
+        <ImportedRecordModal
+          open={showImportedModal}
+          onClose={() => { setShowImportedModal(false); setSelectedRecord(null); }}
+          record={selectedRecord}
+        />
+      )}
     </div>
   );
 }
@@ -1514,6 +1570,154 @@ function VersionHistoryModal({ open, onClose, record, versions }) {
               ))}
             </div>
           )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
+// =============================================================================
+// Imported Record View Modal
+// =============================================================================
+
+function ImportedRecordModal({ open, onClose, record }) {
+  if (!record) return null;
+
+  const fieldValues = record.field_values || {};
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Link2 className="w-5 h-5 text-emerald-600" />
+            Imported Record Details
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Import Status Banner */}
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+            <div className="flex items-center gap-2">
+              <Lock className="w-4 h-4 text-emerald-600" />
+              <span className="text-sm font-medium text-emerald-800">Imported from GHG Module</span>
+            </div>
+            <p className="text-xs text-emerald-700 mt-1">
+              This record is auto-synced and read-only. Changes must be made in the GHG Module.
+            </p>
+          </div>
+
+          {/* Record Info */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-xs text-text-muted">Category</Label>
+              <p className="text-sm font-medium">{record.category}</p>
+            </div>
+            <div>
+              <Label className="text-xs text-text-muted">Subcategory</Label>
+              <p className="text-sm font-medium">{record.subcategory || '-'}</p>
+            </div>
+            <div>
+              <Label className="text-xs text-text-muted">Reporting Period</Label>
+              <p className="text-sm font-medium">
+                {record.reporting_period?.financial_year || record.reporting_period?.calendar_year || '-'}
+              </p>
+            </div>
+            <div>
+              <Label className="text-xs text-text-muted">Facility</Label>
+              <p className="text-sm font-medium">{record.facility_name || 'Organization'}</p>
+            </div>
+          </div>
+
+          {/* Field Values */}
+          <div className="border-t pt-4">
+            <Label className="text-xs text-text-muted mb-2 block">Aggregated Data</Label>
+            <div className="grid grid-cols-2 gap-3">
+              {record.category === 'Emissions' ? (
+                <>
+                  <div className="p-3 bg-stone-50 rounded">
+                    <p className="text-xs text-text-muted">Total Emissions</p>
+                    <p className="text-lg font-bold text-emerald-700">
+                      {fieldValues.total_emission?.toLocaleString() || '0'}
+                    </p>
+                    <p className="text-xs text-text-muted">{fieldValues.emission_unit || 'tCO2e'}</p>
+                  </div>
+                  <div className="p-3 bg-stone-50 rounded">
+                    <p className="text-xs text-text-muted">Source Records</p>
+                    <p className="text-lg font-bold">{fieldValues.source_records_count || 0}</p>
+                    <p className="text-xs text-text-muted">GHG emission entries</p>
+                  </div>
+                </>
+              ) : record.category === 'Energy' ? (
+                <>
+                  <div className="p-3 bg-stone-50 rounded">
+                    <p className="text-xs text-text-muted">Total Energy</p>
+                    <p className="text-lg font-bold text-blue-700">
+                      {fieldValues.total_energy?.toLocaleString() || '0'}
+                    </p>
+                    <p className="text-xs text-text-muted">{fieldValues.energy_unit || 'TJ'}</p>
+                  </div>
+                  <div className="p-3 bg-stone-50 rounded">
+                    <p className="text-xs text-text-muted">Source Records</p>
+                    <p className="text-lg font-bold">{fieldValues.source_records_count || 0}</p>
+                    <p className="text-xs text-text-muted">
+                      {record.subcategory === 'Fuel' ? 'Scope 1 fuel entries' : 'Scope 2 electricity entries'}
+                    </p>
+                  </div>
+                </>
+              ) : (
+                Object.entries(fieldValues).map(([key, value]) => (
+                  <div key={key} className="p-3 bg-stone-50 rounded">
+                    <p className="text-xs text-text-muted capitalize">{key.replace(/_/g, ' ')}</p>
+                    <p className="text-sm font-medium">{typeof value === 'object' ? JSON.stringify(value) : String(value)}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Categories Included (for Emissions) */}
+          {fieldValues.categories_included?.length > 0 && (
+            <div>
+              <Label className="text-xs text-text-muted mb-2 block">Categories Included</Label>
+              <div className="flex flex-wrap gap-1">
+                {fieldValues.categories_included.map((cat, idx) => (
+                  <Badge key={idx} variant="outline" className="text-xs">{cat}</Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Fuels Included (for Energy - Fuel) */}
+          {fieldValues.fuels_included?.length > 0 && (
+            <div>
+              <Label className="text-xs text-text-muted mb-2 block">Fuels Included</Label>
+              <div className="flex flex-wrap gap-1">
+                {fieldValues.fuels_included.map((fuel, idx) => (
+                  <Badge key={idx} variant="outline" className="text-xs">{fuel}</Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Notes */}
+          {record.notes && (
+            <div>
+              <Label className="text-xs text-text-muted">Notes</Label>
+              <p className="text-xs text-text-muted mt-1">{record.notes}</p>
+            </div>
+          )}
+
+          {/* Sync Info */}
+          <div className="flex items-center gap-2 text-xs text-text-muted border-t pt-3">
+            <RefreshCw className="w-3 h-3" />
+            <span>Auto-synced with GHG Module data</span>
+          </div>
         </div>
 
         <DialogFooter>

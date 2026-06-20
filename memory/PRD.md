@@ -1150,6 +1150,28 @@ Five phases executed end-to-end with **37/37 regression tests PASS** (iteration_
 
 ## Recent Implementation (Jun 2026)
 
+### GHG Module Data Synchronization (Jun 20, 2026)
+- **Architecture**: Lightweight integration layer (`ghg_integration.py`) - no duplicate storage
+- **Import Strategies**: DIRECT, AGGREGATED, COMPUTED - extensible for future categories
+- **GHG Emissions Import**:
+  - Auto-imports from `emission_records` collection
+  - FY-aggregated per facility (Scope 1, Scope 2, Scope 3)
+  - Read-only, locked, "Imported from GHG Module" badge
+- **Energy Import** (Computed from GHG):
+  - Scope 1 Fuel: Energy (TJ) = Σ(Quantity × Calorific Value)
+  - Scope 2 Electricity: Energy (MWh) = Σ(Quantity) directly
+  - FY-aggregated per facility
+- **UI Features**:
+  - Green "GHG" badge on imported records
+  - "Synced" indicator for auto-synced records
+  - "Locked" badge instead of version
+  - View-only modal for imported record details
+  - Edit/Delete buttons hidden for locked records
+- **Files Created**:
+  - `/app/backend/modules/esg_records/ghg_integration.py`
+- **API Changes**:
+  - `GET /api/esg-records/records/environment?include_imported=true` - Merges native + imported
+
 ### ESG Config Super Admin Module (Jun 19, 2026) - Phase 4 Complete
 - **New Super Admin Page**: `/super-admin/esg-config` for managing ESG record categories
 - **Backend API Endpoints**:
