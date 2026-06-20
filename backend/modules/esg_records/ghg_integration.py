@@ -284,16 +284,22 @@ class GHGIntegrationService:
         if not emissions:
             return []
         
-        # Load fuel database for calorific values
+        # Load fuel database for calorific values and density
         fuel_cv_cache = {}
+        fuel_density_cache = {}
         fuels = await self.db.fuel_database.find({}, {"_id": 0}).to_list(10000)
         for fuel in fuels:
             fuel_name = (fuel.get("fuel_name") or "").lower()
             fuel_id = fuel.get("id", "")
-            cv = fuel.get("calorific_value") or fuel.get("cv")
+            # CV stored as 'calorific_value' in TJ/kg format
+            cv = fuel.get("calorific_value")
+            density = fuel.get("density")
             if cv:
                 fuel_cv_cache[fuel_name] = float(cv)
                 fuel_cv_cache[fuel_id] = float(cv)
+            if density:
+                fuel_density_cache[fuel_name] = float(density)
+                fuel_density_cache[fuel_id] = float(density)
         
         # Group by (facility_id, energy_type, financial_year)
         # energy_type: "fuel" (scope1) or "electricity" (scope2)
@@ -324,44 +330,51 @@ class GHGIntegrationService:
             if scope == "scope1":
                 energy_type = "fuel"
                 
-                # Get quantity and fuel info
-                quantity = float(em.get("quantity") or 0)
+                # Get quantity from dynamic_field_values.qty
+                dfv = em.get("dynamic_field_values") or {}
+                qty_data = dfv.get("qty") or {}
+                quantity = float(qty_data.get("value") or 0)
+                quantity_unit = (qty_data.get("unit") or "").lower()
+                
                 if quantity <= 0:
                     continue
                 
-                # Get calorific value from fuel database
+                # Get fuel info
                 fuel_name = (em.get("fuel_name") or em.get("fuel_type") or "").lower()
-                fuel_id = em.get("fuel_id") or ""
+                fuel_db_id = em.get("fuel_database_id") or ""
                 
-                cv = fuel_cv_cache.get(fuel_name) or fuel_cv_cache.get(fuel_id)
-                if not cv:
-                    # Try to resolve from override
-                    cv = em.get("override_calorific_value")
-                    if cv:
-                        cv = float(cv)
+                # Get calorific value - first from dynamic_field_values, then from fuel database
+                cv_data = dfv.get("cv") or {}
+                cv = cv_data.get("value")
+                if cv:
+                    cv = float(cv)
+                else:
+                    cv = fuel_cv_cache.get(fuel_name) or fuel_cv_cache.get(fuel_db_id)
                 
                 if not cv:
                     continue  # Skip if no CV available
                 
-                # Calculate energy: Quantity × CV
-                # CV is typically in MJ/kg, convert to TJ
-                # Energy (TJ) = Quantity (kg) × CV (MJ/kg) / 1,000,000
-                quantity_unit = (em.get("unit") or "").lower()
+                # Get density - first from dynamic_field_values, then from fuel database
+                density_data = dfv.get("density") or {}
+                density = density_data.get("value")
+                if density:
+                    density = float(density)
+                else:
+                    density = fuel_density_cache.get(fuel_name) or fuel_density_cache.get(fuel_db_id) or 0.85
                 
-                # Normalize quantity to kg if needed
+                # Normalize quantity to kg
                 if "tonne" in quantity_unit or quantity_unit == "t":
                     quantity_kg = quantity * 1000
                 elif "litre" in quantity_unit or quantity_unit == "l":
-                    # Need density - approximate or skip
-                    density = em.get("density") or 0.85  # Default diesel-like density
-                    quantity_kg = quantity * float(density)
+                    quantity_kg = quantity * density
                 elif quantity_unit == "kg":
                     quantity_kg = quantity
                 else:
                     quantity_kg = quantity  # Assume kg
                 
-                energy_mj = quantity_kg * cv
-                energy_tj = energy_mj / 1_000_000
+                # Calculate energy: Quantity (kg) × CV (TJ/kg) = TJ
+                # CV in fuel_database is already in TJ/kg format
+                energy_tj = quantity_kg * cv
                 
                 key = (fac_id, energy_type, fy)
                 if key not in grouped:
@@ -381,12 +394,14 @@ class GHGIntegrationService:
             elif scope == "scope2":
                 energy_type = "electricity"
                 
-                # For electricity, quantity is directly the energy (typically kWh)
-                quantity = float(em.get("quantity") or 0)
+                # Get quantity from dynamic_field_values.qty
+                dfv = em.get("dynamic_field_values") or {}
+                qty_data = dfv.get("qty") or {}
+                quantity = float(qty_data.get("value") or 0)
+                quantity_unit = (qty_data.get("unit") or "").lower()
+                
                 if quantity <= 0:
                     continue
-                
-                quantity_unit = (em.get("unit") or "").lower()
                 
                 # Convert to MWh
                 if "kwh" in quantity_unit:
@@ -396,8 +411,7 @@ class GHGIntegrationService:
                 elif "gwh" in quantity_unit:
                     energy_mwh = quantity * 1000
                 else:
-                    # Assume kWh if no unit specified
-                    energy_mwh = quantity / 1000
+                    energy_mwh = quantity / 1000  # Assume kWh
                 
                 key = (fac_id, energy_type, fy)
                 if key not in grouped:
@@ -504,11 +518,6 @@ class GHGIntegrationService:
         return records
 
 
-# Singleton instance creator
-_ghg_integration_service = None
-
+# Factory function - creates new instance each time to ensure fresh db connection
 def get_ghg_integration_service(db) -> GHGIntegrationService:
-    global _ghg_integration_service
-    if _ghg_integration_service is None:
-        _ghg_integration_service = GHGIntegrationService(db)
-    return _ghg_integration_service
+    return GHGIntegrationService(db)
