@@ -1,174 +1,181 @@
-<analysis>**original_problem_statement**: The user is building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'SustainRepo' compliant with ISO 14064-1:2018. 
-PRODUCT REQUIREMENTS:
-1. Execute a deep architectural refactoring of the backend to decouple business concerns and remove god files () using a modular domain-driven design, and similarly modularize massive frontend files ( and ).
-2. Create an Approval Workflow module (Admin -> User) where pending emissions are staged until approved.
-3. Restructure the GHG Emissions frontend into a Super Module workspace with Scope-specific routing.
-4. Implement an Enterprise-grade Target Setting management workspace alongside Base Year Emissions.
-5. Implement a Premium Executive ESG Dashboard with advanced data visualization.
+<analysis>**original_problem_statement**: The user is evolving the multi-tenant GHG calculation platform into an ESG Management Platform. PRODUCT REQUIREMENTS: Re-architecture of backend into  and ; Migrate authentication to ; Add Organization-level ESG Framework toggles; Add dynamic BRSR details sections with a hybrid data model; Create a config-driven ESG questionnaire architecture that dynamically renders forms for Environment, Social, and Governance. Implement a highly scalable, configurable ESG Records module with versioning, evidence upload capabilities, and Super Admin configurations.
 
-**User's preferred language**: English
-*(Note to next agent: ALWAYS respond in English)*
+**User's preferred language**: English (INSTRUCT next agent to respond in English only)
 
-**what currently exists?** 
-The platform features a modularized backend (FastAPI/DDD) and a React frontend. The Approval Workflow V2 is integrated using the  collection (the older  collection is obsolete).  is undergoing deep refactoring; Phase 1 (State hook extraction) and Phase 3A (JSX extraction of the Edit Dialog into ) are complete. The backend Scope 3 Bulk Upload module has been rigorously refactored to ensure its saved data structures ( and ) perfectly match the manual entry API payloads, including complex support for C11 continuous_usage formulas and dynamic global/category-specific mandatory fields.
+**what currently exists?**: A fully operational ESG Records module (Phases 1-4) with UI for Super Admins to configure dynamic categories/fields. Records table supports Add/Edit/Delete, version history, and file evidence upload (saving to Cloudflare R2). An API aggregation layer () automatically imports and surfaces existing GHG Emissions and Energy data into the ESG Records table as read-only/locked entries, grouped by Financial Year and automatically segregated into Renewable/Non-Renewable.
 
 **Last working item**: 
-    - Last item agent was working: Enforcing universal and category-specific mandatory fields for Scope 3 bulk uploads in . (Universal: Person Responsible Name, Process Name, Process Description; C7: Employee Name; C8/C13/C14/C15: Asset Name).
-    - Status: USER VERIFICATION PENDING (User stated they will manually test the bulk upload end-to-end after these changes).
-    - Agent Testing Done: Y
-    - Which testing method agent to use? python -c / bash test scripts to verify internal payload matching.
+    - Last item agent was working: The agent was instructed to formulate a plan based on the current pending tasks/issues and present it to the user. The agent called the  tool to confirm the development plan and is currently waiting for the user's input/approval.
+    - Status: USER VERIFICATION PENDING
+    - Agent Testing Done: N
+    - Which testing method agent to use? NA
     - User Testing Done: N
 
-**All Pending/In progress Issue list**:  
-  Issue 1: Scope Change Recalculation bug in  (Priority: P2)
-     - Attempted fixes: None.
-     - Next debug checklist:  wipes fuel state on scope change. Needs state persistence.
-     - Why fix this issue and what will be achieved with the fix? Improves UX when changing scopes.
-     - Status: NOT STARTED
-     - Is recurring issue? Y
-     - Should Test frontend/backend/both after fix? Frontend
-
-  Issue 2: C7 Edit Dialog Stale State (Priority: P2)
-     - Attempted fixes: None.
-     - Next debug checklist: Yearly financial periods not transforming correctly on edit.
-     - Why fix this issue and what will be achieved with the fix? Ensures correct data mapping for C7 editing.
-     - Status: NOT STARTED
-     - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Frontend
-
-  Issue 3: Missing  field on newer emission records (Priority: P2)
-     - Attempted fixes: None.
-     - Next debug checklist:  in  (DOCX). Legacy data bug where newer records lack a field the old docx template expects. 
-     - Why fix this issue and what will be achieved with the fix? Fixes document generation errors.
+**All Pending/In progress Issue list**:
+  Issue 1: Dashboard Scope 1 & 3 Emissions Deduplication Bug (Priority: P0)
+     - Attempted fixes: Investigated only.
+     - Next debug checklist: In , bypass the  deduplication filter entirely so both monthly and yearly records are included.
+     - Why fix this issue and what will be achieved with the fix? Fixes critical dashboard data discrepancies.
      - Status: NOT STARTED
      - Is recurring issue? Y
      - Should Test frontend/backend/both after fix? Backend
+     - Blocked on other issue: None
 
-**In progress Task List**: 
-  Task 1: Phase 3B of Emissions.js Refactoring (Priority: P1)
-     - Where to resume: Phase 3A successfully extracted the pure JSX into . Phase 3B requires migrating the associated edit-state groups and hooks out of  and passing them down cleanly.
-     - What will be achieved with this? Massively reduces the size and complexity of the parent  component.
+  Issue 2: Carbon Intensity Calculation discrepancy in Report Generator (Priority: P0)
+     - Attempted fixes: Inherited from previous forks.
+     - Next debug checklist: Check  logic around lines 818-830 in .
+     - Why fix this issue and what will be achieved with the fix? Ensures mathematically accurate Carbon Intensity metrics.
      - Status: NOT STARTED
-     - Should Test frontend/backend/both after fix? Frontend
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? Backend
+     - Blocked on other issue: None
+
+  Issue 3: Bulk Upload Calculation Discrepancy (Priority: P0)
+     - Attempted fixes: None
+     - Next debug checklist: In , extract  dynamically and add  to context.
+     - Why fix this issue and what will be achieved with the fix? Prevents bad data ingestion from bulk uploads.
+     - Status: NOT STARTED
+     - Is recurring issue? Y
+     - Should Test frontend/backend/both after fix? Backend
+     - Blocked on other issue: None
+
+  Issue 4: ESG Records Dropdown showing GHG Emissions 3 times with missing form fields (Priority: P1)
+     - Attempted fixes: Agent identified there are 3 separate category entries for each scope (Scope 1, 2, 3) all sharing . Their  arrays in DB are empty .
+     - Next debug checklist: Consolidate GHG Emissions category in DB or fix the frontend dropdown deduplication, and populate the  array with necessary config (Scope, Quantity) for manual record entry.
+     - Why fix this issue and what will be achieved with the fix? Fixes UI bug and enables manual entry of GHG emissions records.
+     - Status: NOT STARTED
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? Both
+     - Blocked on other issue: None
+
+  Issue 5: Missing  in pending_downloads (Priority: P2)
+     - Attempted fixes: None
+     - Next debug checklist: Add  to the  dict in .
+     - Why fix this issue and what will be achieved with the fix? Standardizes data models.
+     - Status: NOT STARTED
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? Backend
+     - Blocked on other issue: None
+
+**In progress Task List**:
+  Task 1: ESG Records Architecture - Phase 2 (Social & Governance Extensibility) (Priority: P1)
+     - Where to resume:  needs to be extended to fully support Social and Governance sections dynamically.
+     - What will be achieved with this? Extends the reusable records architecture across all ESG pillars.
+     - Status: NOT STARTED
+     - Should Test frontend/backend/both after fix? Both
      - Blocked on something: None
-
-  Task 2: Phase 2 of Emissions.js Refactoring (Priority: P1)
-     - Where to resume: Extract the Scope 3 Selection Logic (Category -> Method -> Activity) into its own component.
-     - What will be achieved with this? Further breakdown of .
-     - Status: NOT STARTED
-     - Should Test frontend/backend/both after fix? Frontend
-     - Blocked on something: Phase 3B
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
     - P1: Auto-generated TypeScript SDK for the frontend using .
     - P1: Apply to all months autofill for working hours/days in S3C7 Employee Commuting.
-    - P1: Continue backend modularization to completely dismantle  (Phase B12).
+    - P1: Continue backend modularization to dismantle  (Phase B12).
+    - P1: Sentry Error Monitoring Integration (Blocked awaiting User Key).
     
     Future Tasks:
+    - P1: Enterprise Approval Workflow Engine (3-collection decoupled architecture).
+    - P1: Ingestion Engine for ERP/SAP integrations.
     - P2: Organization config layer setup for , , .
     - P2: Implement CBAM module and report template.
-    - P2: Add Monthly/Yearly frequency indicators in UI.
 
 **Completed work in this session**
-- Phase 3A Refactoring: Extracted  from , removing ~1600 lines of JSX and cleaning up unused imports/helpers. Verified via smoke test. (DONE)
-- MongoDB Sync: Verified  against Atlas . Created missing  collection in Atlas. Aligned 21  values for fugitive emissions in Atlas to match the local database without saving the URI anywhere. (DONE)
-- Scope 3 Bulk Upload Architecture: Rewrote  processors so that records produced via bulk upload perfectly match manual API-created payloads, keeping provenance fields intact. (DONE)
-- C11 Bulk Upload Logic: Implemented complex mapping for Type Of Product. Enforced validation and mapped continuous-usage inputs (, ) into  for calculation engines. (DONE)
-- Mandatory Upload Fields: Configured globally required bulk upload fields (Person Responsible Name, Process Name, Process Description) and category-specific ones (C7 Employee Name, Asset Name for C8/C13/C14/C15). (DONE)
+- Agent formulated a plan and initiated the  sequence to verify next steps with the user.
+- *Note: Previous session completions (Evidence file upload, API aggregation for GHG integration, ESG Config Super Admin Module) are detailed in the what currently exists section.*
 
 **Earlier issues found/mentioned but not fixed**
-   None.
+   Issue 1: Dropdown showing GHG Emissions 3 times & missing manual fields.
+   - Debug checklist: Agent found 3 separate category entries for each scope. Their  array is .
+   - Why to solve this issue and what will be achieved with this? Users currently cannot properly add manual GHG Emissions records in the ESG Records ledger because the form fields do not render. User explicitly told previous agent to Ignore above issue to prioritize other bugs, but it remains a broken feature.
+   - Should Test frontend/backend/both after fix: Both
+   - Is recurring issue? N
 
 **Known issue recurrence from previous fork**
-   None.
+  - Issue recurrence in previous fork: None
+  - Recurrence count: 0
+  - Status: NONE
 
 **Code Architecture**
 /app/
 ├── backend/
-│   ├── bulk_upload_scope3/ 
-│   │   ├── validators/base_validator.py, field_validators.py
-│   │   ├── processors/emission_calculator.py, row_processor.py, upload_processor.py
-│   │   ├── models.py, router.py
-│   ├── modules/ 
-│   │   ├── emissions/router.py 
-│   ├── calc_engine/execution.py
-│   ├── server.py
+│   ├── modules/
+│   │   ├── esg_records/ 
+│   │   │   ├── admin_router.py 
+│   │   │   ├── ghg_integration.py 
+│   │   │   ├── router.py
+│   │   │   ├── service.py
+│   │   │   ├── contracts.py
+│   │   ├── dashboards/
+│   │   │   ├── router.py
+│   │   ├── reports/
+│   │   │   ├── router.py
+│   ├── server.py 
 └── frontend/
     └── src/
-        ├── components/EmissionEditForm.jsx (NEW)
-        ├── components/EmissionEntryForm.js
-        └── pages/Emissions.js
+        ├── components/
+        │   ├── ESGRecords.js
+        │   ├── ESGQuestionnaire.js
+        ├── pages/
+        │   ├── ESGConfig.js
+        ├── App.js
+        ├── Sidebar.js
 
 **Key Technical Concepts**
-- Bulk Upload Parity: The  JSON payload generated by bulk-upload processors () must stay exactly synced with payloads created via manual entry , down to exact  properties and compound units, while preserving  and  provenance keys.
-- C11 Continuous Usage: Requires multiple specific sub-variables (, ) inside  rather than standard .
-- Database Environment:  is the active approval staging area;  is deprecated.
+- API Aggregation Layer:  maps existing GHG records (from  and ) to virtual read-only ESG Records in real-time. Prevents data duplication while creating a unified ESG reporting view.
+- Financial Year Aggregation: Energy records imported from GHG module are dynamically summed into FY totals.
+- Config-Driven ESG Records: Dynamic fields defined in DB .
+- Cost Constraint: User is extremely credit-sensitive. Avoid recursive web searches and limit testing subagent strictly to large critical flows unless unavoidable.
 
 **key DB schema**
-  - : Active V2 approval workflow collection.
-  - : Core GHG records storage.
-  - : Deprecated/Stale V1 approval table (Do not use).
-  - : Master lookup for refrigerants and fuels.
+  - : Stores GHG emissions.
+  - : Defines ESG record config for dynamic rendering.
 
 **changes in tech stack**
   - None.
 
 **All files of reference** 
-  -  (New component created in this session)
-  -  (Stripped of ~1600 lines)
-  -  (Updated to pass user metadata)
-  -  (Deeply refactored for shape parity & C11 continuous usage)
-  -  (Updated for C11 and mandatory fields)
-  -  (Added new C11 columns)
-  -  (Added C11 product type logic)
-  -  (Added global/category mandatory field rules)
-  -  &  (Updated)
+  - 
+  - 
+  - 
+  - 
+  - 
 
 **Areas that need refactoring**: 
-  -  Phase 3B: It still holds the state that belongs in the newly created .
+  -  (>3600 lines) should eventually be split.
+  -  remains excessively large.
 
 **key api endpoints**
-  -  (Upload processing)
-  -  (Manual entry insertion)
+  - 
   - 
 
 **Critical Info for New Agent** 
-- **Atlas Database Constraints**: Do not store the user's Atlas MongoDB string inside  or . When making DB edits, the previous agent intentionally used inline heredoc bash scripts () so credentials weren't persisted to the workspace.
-- **Bulk Upload vs Manual Parity**: If modifying backend Scope 3 logic, ensure both the manual endpoint and the bulk upload processor generate perfectly identical dictionary structures inside .
--  is obsolete. All approval logic happens in .
+- **DB Structure Quirk**: The  collection does NOT have an . You must always join/fetch s for the user's organization first before querying emissions.
+- **Energy Quantities Quirk**: In ,  is often null. You MUST use  for Scope 1 Fuels and  for Scope 2 Electricity.
+- **Calorific Values**:  in the  is already stored in TJ/kg. Simply multiply by kg quantity to get TJ.
+- **Ignore Instruction**: The user explicitly said Ignore above issue regarding the 3 duplicate GHG Emissions categories in the UI dropdown in a previous session. Clarify with the user if they want to fix this now or move to P0 legacy bugs.
 
 **documents and test reports created in this job** 
-  -  (Updated)
-  -  (Updated)
+  - 
 
 **Last 10 User Messages and any pending HUMAN messages** 
- 1. User: Asked what differs between local  and Atlas.
- 2. User: Told agent to add empty  to Atlas, noted diff in .
- 3. User: Told agent to align 21  refrigerants in Atlas to match local.
- 4. User: Shared DB string and explicitly warned dont store this in your code.
- 5. User: Asked if  table is being used. (Agent verified it's not).
- 6. User: Requested bulk upload data format exactly match manual data format for Scope 3.
- 7. User: Selected integration options for shape mismatches.
- 8. User: Asked agent to test C7 shape parity in low credits.
- 9. User: Detailed complex C11 Type Of Product (continuous_usage) mapping rules for bulk upload.
- 10. User: Requested making Person Responsible Name, Process Name, Process Description mandatory for all bulk uploads, and specific fields mandatory for C7 and C8/C13/C14/C15. (Resolved, user verification pending).
+ 1. User: Please use ask_human tool and confirm your plan now. (Assistant triggered )
+ *(Pending User Verification: The user's reply to the  tool will define the immediate next task. Read their response carefully.)*
 
 **Project Health Check:**
-- All tests and builds are currently passing. Frontend works perfectly.
+- Broken: Legacy P0 calculation bugs remain untouched. Manual addition of GHG Emissions records is currently broken due to empty fields config.
+- Technical Debt: Large monolith files (, ).
 
 **3rd Party Integrations** 
-	• Cloudflare R2 (Storage) — requires User API Key
-	• Resend (Emails) — requires User API Key
+  - Cloudflare R2 (Storage) — requires User API Key
+  - Resend (Emails) — requires User API Key
 
 **Testing status**
   - Testing agent used after significant changes: NO
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: None
-  - Known regressions: None
+  - Known regressions: Manual entry config for GHG Emissions category is missing fields.
 
 **Credentials to test flow:**
-  - Refer to .
+  -  () - Has data in ORG1/test-org-2 for GHG testing.
 
 **What agent forgot to execute**
-- Nothing was forgotten. The agent successfully built out all requested architectures.</analysis>
+- The agent discovered why GHG Emissions appears 3 times in the dropdown (each Scope was seeded separately with an empty  array) but paused fixing it because the user instructed them to focus on the Energy sync bug. Ensure you address this if the user wants manual ESG emission records working.</analysis>

@@ -382,7 +382,8 @@ class GHGIntegrationService:
                         "records": [],
                         "total_energy": 0,
                         "total_quantity": 0,
-                        "fuels_used": set()
+                        "fuels_used": set(),
+                        "sub_subcategory": "Non-Renewable"  # Fuel is always non-renewable
                     }
                 
                 grouped[key]["records"].append(em)
@@ -392,47 +393,103 @@ class GHGIntegrationService:
                     grouped[key]["fuels_used"].add(fuel_name.title())
             
             elif scope == "scope2":
-                energy_type = "electricity"
+                # Check if this is Purchased Steam/Heat category
+                category_name = (em.get("category") or "").lower()
+                is_steam_heat = "steam" in category_name or "heat" in category_name
                 
-                # Get quantity from dynamic_field_values.qty_energy (not qty)
-                dfv = em.get("dynamic_field_values") or {}
-                qty_data = dfv.get("qty_energy") or {}
-                quantity = float(qty_data.get("value") or 0)
-                quantity_unit = (qty_data.get("unit") or "").lower()
-                
-                if quantity <= 0:
-                    continue
-                
-                # Convert to MWh (default unit)
-                if "kwh" in quantity_unit:
-                    energy_mwh = quantity / 1000
-                elif "mwh" in quantity_unit:
-                    energy_mwh = quantity
-                elif "gwh" in quantity_unit:
-                    energy_mwh = quantity * 1000
+                if is_steam_heat:
+                    # Handle Purchased Steam/Heat -> Energy -> Other Sources -> Non-Renewable
+                    energy_type = "other_sources"
+                    
+                    # Get quantity from dynamic_field_values.qty_energy
+                    dfv = em.get("dynamic_field_values") or {}
+                    qty_data = dfv.get("qty_energy") or {}
+                    quantity = float(qty_data.get("value") or 0)
+                    quantity_unit = (qty_data.get("unit") or "").lower()
+                    
+                    if quantity <= 0:
+                        continue
+                    
+                    # Convert to MWh (default unit)
+                    if "kwh" in quantity_unit:
+                        energy_mwh = quantity / 1000
+                    elif "mwh" in quantity_unit:
+                        energy_mwh = quantity
+                    elif "gwh" in quantity_unit:
+                        energy_mwh = quantity * 1000
+                    else:
+                        energy_mwh = quantity / 1000  # Assume kWh
+                    
+                    # Group under Other Sources -> Non-Renewable
+                    key = (fac_id, energy_type, fy, "Non-Renewable")
+                    if key not in grouped:
+                        grouped[key] = {
+                            "records": [],
+                            "total_energy": 0,
+                            "total_quantity": 0,
+                            "sub_subcategory": "Non-Renewable"
+                        }
+                    
+                    grouped[key]["records"].append(em)
+                    grouped[key]["total_energy"] += energy_mwh
+                    grouped[key]["total_quantity"] += quantity
                 else:
-                    energy_mwh = quantity / 1000  # Assume kWh
-                
-                key = (fac_id, energy_type, fy)
-                if key not in grouped:
-                    grouped[key] = {
-                        "records": [],
-                        "total_energy": 0,
-                        "total_quantity": 0
-                    }
-                
-                grouped[key]["records"].append(em)
-                grouped[key]["total_energy"] += energy_mwh
-                grouped[key]["total_quantity"] += quantity
+                    # Handle Electricity (existing logic)
+                    energy_type = "electricity"
+                    
+                    # Determine if renewable or non-renewable from sub_category
+                    sub_cat = (em.get("sub_category") or "").lower()
+                    is_renewable = "renewable" in sub_cat and "non" not in sub_cat
+                    renewable_type = "Renewable" if is_renewable else "Non-Renewable"
+                    
+                    # Get quantity from dynamic_field_values.qty_energy (not qty)
+                    dfv = em.get("dynamic_field_values") or {}
+                    qty_data = dfv.get("qty_energy") or {}
+                    quantity = float(qty_data.get("value") or 0)
+                    quantity_unit = (qty_data.get("unit") or "").lower()
+                    
+                    if quantity <= 0:
+                        continue
+                    
+                    # Convert to MWh (default unit)
+                    if "kwh" in quantity_unit:
+                        energy_mwh = quantity / 1000
+                    elif "mwh" in quantity_unit:
+                        energy_mwh = quantity
+                    elif "gwh" in quantity_unit:
+                        energy_mwh = quantity * 1000
+                    else:
+                        energy_mwh = quantity / 1000  # Assume kWh
+                    
+                    # Group by facility, energy_type, FY, AND renewable type
+                    key = (fac_id, energy_type, fy, renewable_type)
+                    if key not in grouped:
+                        grouped[key] = {
+                            "records": [],
+                            "total_energy": 0,
+                            "total_quantity": 0,
+                            "sub_subcategory": renewable_type
+                        }
+                    
+                    grouped[key]["records"].append(em)
+                    grouped[key]["total_energy"] += energy_mwh
+                    grouped[key]["total_quantity"] += quantity
         
         # Build virtual ESG records
         records = []
-        for (fac_id, energy_type, fy), data in grouped.items():
-            record_id = f"ghg_energy_{fac_id}_{energy_type}_{fy.replace(' ', '_').replace('-', '_')}"
+        for key, data in grouped.items():
+            # Key can be 3-tuple (fuel) or 4-tuple (electricity with renewable type)
+            if len(key) == 3:
+                fac_id, energy_type, fy = key
+                sub_subcategory = data.get("sub_subcategory", "Non-Renewable")
+            else:
+                fac_id, energy_type, fy, renewable_type = key
+                sub_subcategory = renewable_type
+            
+            record_id = f"ghg_energy_{fac_id}_{energy_type}_{sub_subcategory}_{fy.replace(' ', '_').replace('-', '_')}"
             
             if energy_type == "fuel":
                 subcategory = "Fuel"
-                unit = "TJ"
                 field_values = {
                     "total_energy": round(data["total_energy"], 6),
                     "energy_unit": "TJ",
@@ -440,6 +497,14 @@ class GHGIntegrationService:
                     "fuels_included": list(data.get("fuels_used", []))
                 }
                 notes = f"Calculated from {len(data['records'])} Scope 1 fuel records (Energy = Qty × CV)"
+            elif energy_type == "other_sources":
+                subcategory = "Other Sources"
+                field_values = {
+                    "total_energy": round(data["total_energy"], 2),
+                    "energy_unit": "MWh",
+                    "source_records_count": len(data["records"])
+                }
+                notes = f"Aggregated from {len(data['records'])} Scope 2 Purchased Steam/Heat records"
             else:
                 subcategory = "Electricity"
                 field_values = {
@@ -447,7 +512,7 @@ class GHGIntegrationService:
                     "energy_unit": "MWh",
                     "source_records_count": len(data["records"])
                 }
-                notes = f"Aggregated from {len(data['records'])} Scope 2 electricity records"
+                notes = f"Aggregated from {len(data['records'])} Scope 2 {sub_subcategory.lower()} electricity records"
             
             records.append({
                 "id": record_id,
@@ -458,6 +523,7 @@ class GHGIntegrationService:
                 "section": "environment",
                 "category": "Energy",
                 "subcategory": subcategory,
+                "sub_subcategory": sub_subcategory,
                 "record_level": "facility",
                 "facility_id": fac_id,
                 "facility_name": facility_names.get(fac_id, fac_id),
