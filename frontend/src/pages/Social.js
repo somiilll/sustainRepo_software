@@ -1,28 +1,17 @@
 import React, { useState } from 'react';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { Users2, Edit2, Eye, Info, Database } from 'lucide-react';
+import { Users2, Edit2, Eye, Info } from 'lucide-react';
 import ESGQuestionnaire from '../components/ESGQuestionnaire';
+import ESGRecords from '../components/ESGRecords';
 import FrameworkTabs from '../components/FrameworkTabs';
 
 export default function Social() {
   const [isEditing, setIsEditing] = useState(false);
 
-  // Records tab content
+  // Records tab content - now uses ESGRecords component
   const RecordsContent = () => (
-    <Card className="p-6">
-      <div className="flex items-center gap-3 mb-4">
-        <Database className="w-5 h-5 text-stone-500" />
-        <h3 className="font-semibold text-text-primary">Social Records Ledger</h3>
-      </div>
-      <p className="text-sm text-text-muted">
-        Social data records and ledger entries will be displayed here. 
-        This includes employee data, training records, safety incidents, and community engagement metrics.
-      </p>
-      <div className="mt-4 p-4 bg-stone-50 rounded-lg border border-dashed border-stone-300">
-        <p className="text-xs text-stone-500 text-center">Records ledger coming soon</p>
-      </div>
-    </Card>
+    <ESGRecords section="social" framework="BRSR" />
   );
 
   // Framework content renderer
