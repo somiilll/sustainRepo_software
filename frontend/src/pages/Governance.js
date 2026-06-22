@@ -133,6 +133,8 @@ export default function Governance() {
             <TabsTrigger value="bod-kmp">BoD and KMP</TabsTrigger>
             <TabsTrigger value="policies">Policies, Commitments & Oversight</TabsTrigger>
             <TabsTrigger value="compliance">Regulatory Compliance & Fines</TabsTrigger>
+            <TabsTrigger value="cyber">Cyber Security & Data Privacy</TabsTrigger>
+            <TabsTrigger value="advocacy">Public Policy & Advocacy</TabsTrigger>
             <TabsTrigger value="supply-chain">Sustainable Procurement & Supply Chain</TabsTrigger>
             <TabsTrigger value="consumer">Consumer Value & Education</TabsTrigger>
             <TabsTrigger value="general">General</TabsTrigger>
@@ -167,6 +169,34 @@ export default function Governance() {
             </Card>
             <Card className="p-6">
               <ESGQuestionnaire framework="BRSR" section="governance" isEditing={isEditing} filterPrinciples={["P_COMPLIANCE"]} />
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="cyber">
+            <Card className="p-4 bg-violet-50/50 border-violet-100 mb-4">
+              <div className="flex items-start gap-2">
+                <Info className="w-4 h-4 text-violet-600 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-violet-800">
+                  <strong>Cyber Security & Data Privacy:</strong> Covers cyber security framework/policy and corrective actions on data privacy issues.
+                </p>
+              </div>
+            </Card>
+            <Card className="p-6">
+              <ESGQuestionnaire framework="BRSR" section="governance" isEditing={isEditing} filterPrinciples={["P_CYBER"]} />
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="advocacy">
+            <Card className="p-4 bg-violet-50/50 border-violet-100 mb-4">
+              <div className="flex items-start gap-2">
+                <Info className="w-4 h-4 text-violet-600 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-violet-800">
+                  <strong>Public Policy & Advocacy:</strong> Covers trade/industry chamber affiliations, memberships, and public policy positions.
+                </p>
+              </div>
+            </Card>
+            <Card className="p-6">
+              <ESGQuestionnaire framework="BRSR" section="governance" isEditing={isEditing} filterPrinciples={["P_ADVOCACY"]} />
             </Card>
           </TabsContent>
 
@@ -208,7 +238,7 @@ export default function Governance() {
               </div>
             </Card>
             <Card className="p-6">
-              <ESGQuestionnaire framework="BRSR" section="governance" isEditing={isEditing} excludePrinciples={["P_SUPPLY_CHAIN", "P_CONSUMER", "P_POLICIES", "P_COMPLIANCE"]} />
+              <ESGQuestionnaire framework="BRSR" section="governance" isEditing={isEditing} excludePrinciples={["P_SUPPLY_CHAIN", "P_CONSUMER", "P_POLICIES", "P_COMPLIANCE", "P_CYBER", "P_ADVOCACY"]} />
             </Card>
           </TabsContent>
         </Tabs>

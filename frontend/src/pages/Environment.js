@@ -21,10 +21,11 @@ export default function Environment() {
     if (framework === 'BRSR') {
       return (
         <Tabs defaultValue="general" className="w-full">
-          <TabsList className="mb-4">
+          <TabsList className="mb-4 flex-wrap">
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="lifecycle">Product Lifecycle & Circularity</TabsTrigger>
             <TabsTrigger value="impact">Impact Assessments & Projects</TabsTrigger>
+            <TabsTrigger value="env-mgmt">Environmental Management & Value Chain</TabsTrigger>
           </TabsList>
 
           <TabsContent value="general">
@@ -37,7 +38,7 @@ export default function Environment() {
               </div>
             </Card>
             <Card className="p-6">
-              <ESGQuestionnaire framework="BRSR" section="environment" isEditing={isEditing} excludePrinciples={["P_LIFECYCLE", "P_IMPACT"]} />
+              <ESGQuestionnaire framework="BRSR" section="environment" isEditing={isEditing} excludePrinciples={["P_LIFECYCLE", "P_IMPACT", "P_ENV_MGMT"]} />
             </Card>
           </TabsContent>
 
@@ -66,6 +67,20 @@ export default function Environment() {
             </Card>
             <Card className="p-6">
               <ESGQuestionnaire framework="BRSR" section="environment" isEditing={isEditing} filterPrinciples={["P_IMPACT"]} />
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="env-mgmt">
+            <Card className="p-4 bg-emerald-50/50 border-emerald-100 mb-4">
+              <div className="flex items-start gap-2">
+                <Info className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-emerald-800">
+                  <strong>Environmental Management & Value Chain:</strong> Covers Zero Liquid Discharge, PAT Scheme compliance, business continuity, and value chain environmental assessments.
+                </p>
+              </div>
+            </Card>
+            <Card className="p-6">
+              <ESGQuestionnaire framework="BRSR" section="environment" isEditing={isEditing} filterPrinciples={["P_ENV_MGMT"]} />
             </Card>
           </TabsContent>
         </Tabs>
