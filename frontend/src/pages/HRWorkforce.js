@@ -532,52 +532,67 @@ export default function HRWorkforce() {
     const empTypeLabels = { permanent: 'Permanent', non_permanent: 'Non-Permanent/Temporary' };
     
     return (
-      <Tabs defaultValue="employees" className="w-full">
-        <TabsList className="mb-4">
-          <TabsTrigger value="employees">Employees</TabsTrigger>
-          <TabsTrigger value="workers">Workers</TabsTrigger>
-        </TabsList>
-        {['employees', 'workers'].map(type => (
-          <TabsContent key={type} value={type}>
-            <div className="space-y-6">
-              {empTypes.map(empType => (
-                <div key={empType}>
-                  <h4 className="text-sm font-medium text-stone-700 mb-2">{empTypeLabels[empType]}</h4>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Male</TableHead>
-                        <TableHead>Female</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {metrics.map(metric => {
-                        const key = `${empType}_${metric.toLowerCase().replace(/[^a-z]/g, '_')}`;
-                        return (
-                          <TableRow key={metric}>
-                            <TableCell className="font-medium">{metric}</TableCell>
-                            {['male', 'female'].map(gender => (
-                              <TableCell key={gender}>
-                                <Input
-                                  type="number"
-                                  className="w-28"
-                                  value={data.wages?.[type]?.[`${key}_${gender}`] || ''}
-                                  onChange={(e) => updateValue('wages', type, `${key}_${gender}`, e.target.value)}
-                                />
-                              </TableCell>
-                            ))}
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-              ))}
-            </div>
-          </TabsContent>
-        ))}
-      </Tabs>
+      <div className="space-y-6">
+        {/* Gross wages to females */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label>Gross wages paid to females as % of total wages paid by the entity</Label>
+            <Input
+              type="number"
+              step="0.01"
+              value={data.wages?.gross_wages_female_percent || ''}
+              onChange={(e) => setData(prev => ({ ...prev, wages: { ...prev.wages, gross_wages_female_percent: e.target.value } }))}
+            />
+          </div>
+        </div>
+        
+        <Tabs defaultValue="employees" className="w-full">
+          <TabsList className="mb-4">
+            <TabsTrigger value="employees">Employees</TabsTrigger>
+            <TabsTrigger value="workers">Workers</TabsTrigger>
+          </TabsList>
+          {['employees', 'workers'].map(type => (
+            <TabsContent key={type} value={type}>
+              <div className="space-y-6">
+                {empTypes.map(empType => (
+                  <div key={empType}>
+                    <h4 className="text-sm font-medium text-stone-700 mb-2">{empTypeLabels[empType]}</h4>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Category</TableHead>
+                          <TableHead>Male</TableHead>
+                          <TableHead>Female</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {metrics.map(metric => {
+                          const key = `${empType}_${metric.toLowerCase().replace(/[^a-z]/g, '_')}`;
+                          return (
+                            <TableRow key={metric}>
+                              <TableCell className="font-medium">{metric}</TableCell>
+                              {['male', 'female'].map(gender => (
+                                <TableCell key={gender}>
+                                  <Input
+                                    type="number"
+                                    className="w-28"
+                                    value={data.wages?.[type]?.[`${key}_${gender}`] || ''}
+                                    onChange={(e) => updateValue('wages', type, `${key}_${gender}`, e.target.value)}
+                                  />
+                                </TableCell>
+                              ))}
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ))}
+              </div>
+            </TabsContent>
+          ))}
+        </Tabs>
+      </div>
     );
   };
 
