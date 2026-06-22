@@ -131,11 +131,26 @@ export default function Governance() {
         <Tabs defaultValue="bod-kmp" className="w-full">
           <TabsList className="mb-4">
             <TabsTrigger value="bod-kmp">BoD and KMP</TabsTrigger>
+            <TabsTrigger value="supply-chain">Sustainable Procurement & Supply Chain</TabsTrigger>
             <TabsTrigger value="general">General</TabsTrigger>
           </TabsList>
           
           <TabsContent value="bod-kmp">
             <BodKmpLedger />
+          </TabsContent>
+
+          <TabsContent value="supply-chain">
+            <Card className="p-4 bg-violet-50/50 border-violet-100 mb-4">
+              <div className="flex items-start gap-2">
+                <Info className="w-4 h-4 text-violet-600 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-violet-800">
+                  <strong>Sustainable Procurement & Supply Chain:</strong> Covers sustainable sourcing procedures and preferential procurement policies for marginalized groups.
+                </p>
+              </div>
+            </Card>
+            <Card className="p-6">
+              <ESGQuestionnaire framework="BRSR" section="governance" isEditing={isEditing} filterPrinciples={["P_SUPPLY_CHAIN"]} />
+            </Card>
           </TabsContent>
           
           <TabsContent value="general">
@@ -148,7 +163,7 @@ export default function Governance() {
               </div>
             </Card>
             <Card className="p-6">
-              <ESGQuestionnaire framework="BRSR" section="governance" isEditing={isEditing} />
+              <ESGQuestionnaire framework="BRSR" section="governance" isEditing={isEditing} excludePrinciples={["P_SUPPLY_CHAIN"]} />
             </Card>
           </TabsContent>
         </Tabs>
