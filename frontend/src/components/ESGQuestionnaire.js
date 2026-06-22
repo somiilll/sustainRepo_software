@@ -3462,7 +3462,7 @@ export default function ESGQuestionnaire({
 
   useEffect(() => {
     fetchData();
-  }, [framework, section, reportingYear]);
+  }, [framework, section, reportingYear, filterPrinciples, excludePrinciples]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -3490,14 +3490,17 @@ export default function ESGQuestionnaire({
         `${API}/esg-questionnaire/responses/${framework}/${section}/${reportingYear}`,
         { headers: getAuthHeader() }
       );
-      setResponses(responsesRes.data.responses || {});
+      const allResponses = responsesRes.data.responses || {};
+      setResponses(allResponses);
 
-      // Fetch summary
-      const summaryRes = await axios.get(
-        `${API}/esg-questionnaire/responses/${framework}/${section}/${reportingYear}/summary`,
-        { headers: getAuthHeader() }
-      );
-      setSummary(summaryRes.data);
+      // Calculate filtered summary based on filtered configs
+      const filteredQuestionIds = fetchedConfigs.map(c => c.question_id);
+      const answeredCount = filteredQuestionIds.filter(qid => allResponses[qid] !== undefined && allResponses[qid] !== null && allResponses[qid] !== '').length;
+      setSummary({
+        total_questions: fetchedConfigs.length,
+        answered_questions: answeredCount,
+        completion_percentage: fetchedConfigs.length > 0 ? Math.round((answeredCount / fetchedConfigs.length) * 100) : 0
+      });
 
       // Fetch historical data for autofill
       try {
