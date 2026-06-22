@@ -98,7 +98,7 @@ export default function Social() {
               </div>
             </Card>
             <Card className="p-6">
-              <ESGQuestionnaire framework="BRSR" section="social" isEditing={isEditing} excludePrinciples={["P4", "P_DIVERSITY", "P_OHS", "P_CSR"]} />
+              <ESGQuestionnaire framework="BRSR" section="social" isEditing={isEditing} excludePrinciples={["P4", "P_DIVERSITY", "P_OHS", "P_CSR", "P_HR_EXCLUDE"]} />
             </Card>
           </TabsContent>
         </Tabs>
