@@ -68,6 +68,302 @@ const NGRBC_PRINCIPLES = [
   { key: "P9", name: "Customer Value" },
 ];
 
+// NGRBC Policy Matrix Renderer
+function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
+  const [mode, setMode] = useState(value?.mode || 'together');
+  const [allTogether, setAllTogether] = useState(value?.all_together || { covered: null, board_approved: null, web_link: '', reasons: {} });
+  const [principleWise, setPrincipleWise] = useState(value?.principle_wise || {});
+
+  const noReasons = [
+    { key: 'not_material', label: 'The entity does not consider the Principles material to its business' },
+    { key: 'not_ready', label: 'The entity is not at a stage where it is in a position to formulate and implement the policies on specified principles' },
+    { key: 'no_resources', label: 'The entity does not have the financial or/human and technical resources available for the task' },
+    { key: 'planned_next_fy', label: 'It is planned to be done in the next financial year' },
+    { key: 'other', label: 'Any other reason (please specify)', hasText: true }
+  ];
+
+  useEffect(() => {
+    onChange({ mode, all_together: allTogether, principle_wise: principleWise });
+  }, [mode, allTogether, principleWise]);
+
+  const handleModeChange = (newMode) => {
+    setMode(newMode);
+  };
+
+  const handleAllTogetherChange = (field, val) => {
+    setAllTogether(prev => ({ ...prev, [field]: val }));
+  };
+
+  const handleAllTogetherReasonChange = (reasonKey, checked, textVal = '') => {
+    setAllTogether(prev => ({
+      ...prev,
+      reasons: {
+        ...prev.reasons,
+        [reasonKey]: checked ? (reasonKey === 'other' ? textVal || true : true) : false
+      }
+    }));
+  };
+
+  const handlePrincipleChange = (principle, field, val) => {
+    setPrincipleWise(prev => ({
+      ...prev,
+      [principle]: { ...prev[principle], [field]: val }
+    }));
+  };
+
+  const handlePrincipleReasonChange = (principle, reasonKey, checked, textVal = '') => {
+    setPrincipleWise(prev => ({
+      ...prev,
+      [principle]: {
+        ...prev[principle],
+        reasons: {
+          ...prev[principle]?.reasons,
+          [reasonKey]: checked ? (reasonKey === 'other' ? textVal || true : true) : false
+        }
+      }
+    }));
+  };
+
+  if (!isEditing) {
+    // View mode
+    return (
+      <div className="mt-2 space-y-3">
+        <p className="text-sm"><strong>Mode:</strong> {mode === 'together' ? 'Fill All Principles Together' : 'Fill Principle-wise Separately'}</p>
+        {mode === 'together' ? (
+          <div className="pl-4 border-l-2 border-stone-200">
+            <p className="text-sm"><strong>Policies cover NGRBCs:</strong> {allTogether.covered === true ? 'Yes' : allTogether.covered === false ? 'No' : '-'}</p>
+            {allTogether.covered === true && (
+              <>
+                <p className="text-sm"><strong>Board Approved:</strong> {allTogether.board_approved === true ? 'Yes' : allTogether.board_approved === false ? 'No' : '-'}</p>
+                <p className="text-sm"><strong>Web Link:</strong> {allTogether.web_link || '-'}</p>
+              </>
+            )}
+            {allTogether.covered === false && (
+              <div className="text-sm">
+                <strong>Reasons:</strong>
+                <ul className="list-disc pl-5">
+                  {noReasons.filter(r => allTogether.reasons?.[r.key]).map(r => (
+                    <li key={r.key}>{r.label}{r.key === 'other' && typeof allTogether.reasons?.other === 'string' ? `: ${allTogether.reasons.other}` : ''}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {NGRBC_PRINCIPLES.map(p => (
+              <div key={p.key} className="pl-4 border-l-2 border-stone-200 py-1">
+                <p className="text-sm font-medium">{p.key}: {p.name}</p>
+                <p className="text-sm"><strong>Covered:</strong> {principleWise[p.key]?.covered === true ? 'Yes' : principleWise[p.key]?.covered === false ? 'No' : '-'}</p>
+                {principleWise[p.key]?.covered === true && (
+                  <>
+                    <p className="text-sm"><strong>Board Approved:</strong> {principleWise[p.key]?.board_approved === true ? 'Yes' : principleWise[p.key]?.board_approved === false ? 'No' : '-'}</p>
+                    <p className="text-sm"><strong>Web Link:</strong> {principleWise[p.key]?.web_link || '-'}</p>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Edit mode
+  return (
+    <div className="mt-3 space-y-4">
+      {/* Mode Selection */}
+      <div className="p-3 bg-stone-50 rounded-lg">
+        <Label className="text-sm font-medium">Mode</Label>
+        <RadioGroup value={mode} onValueChange={handleModeChange} className="mt-2 flex gap-4">
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="together" id="mode-together" />
+            <Label htmlFor="mode-together" className="text-sm cursor-pointer">Fill All Principles Together</Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="separate" id="mode-separate" />
+            <Label htmlFor="mode-separate" className="text-sm cursor-pointer">Fill Principle-wise Separately</Label>
+          </div>
+        </RadioGroup>
+      </div>
+
+      {/* All Together Mode */}
+      {mode === 'together' && (
+        <div className="p-4 border rounded-lg space-y-4">
+          <div>
+            <Label className="text-sm font-medium">Do your policies cover all NGRBC principles?</Label>
+            <RadioGroup 
+              value={allTogether.covered === true ? 'yes' : allTogether.covered === false ? 'no' : ''} 
+              onValueChange={(v) => handleAllTogetherChange('covered', v === 'yes')}
+              className="mt-2 flex gap-4"
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="yes" id="all-yes" />
+                <Label htmlFor="all-yes" className="text-sm cursor-pointer">Yes</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="no" id="all-no" />
+                <Label htmlFor="all-no" className="text-sm cursor-pointer">No</Label>
+              </div>
+            </RadioGroup>
+          </div>
+
+          {/* Yes follow-up */}
+          {allTogether.covered === true && (
+            <div className="pl-4 border-l-2 border-green-300 space-y-3">
+              <div>
+                <Label className="text-sm font-medium">Has the policy been approved by the Board?</Label>
+                <RadioGroup 
+                  value={allTogether.board_approved === true ? 'yes' : allTogether.board_approved === false ? 'no' : ''} 
+                  onValueChange={(v) => handleAllTogetherChange('board_approved', v === 'yes')}
+                  className="mt-1 flex gap-4"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="yes" id="board-yes" />
+                    <Label htmlFor="board-yes" className="text-sm cursor-pointer">Yes</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="no" id="board-no" />
+                    <Label htmlFor="board-no" className="text-sm cursor-pointer">No</Label>
+                  </div>
+                </RadioGroup>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Web Link of the Policies, if available</Label>
+                <Input
+                  value={allTogether.web_link || ''}
+                  onChange={(e) => handleAllTogetherChange('web_link', e.target.value)}
+                  placeholder="https://..."
+                  className="mt-1"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* No follow-up - Reasons */}
+          {allTogether.covered === false && (
+            <div className="pl-4 border-l-2 border-red-300 space-y-2">
+              <Label className="text-sm font-medium">If No, please provide reasons:</Label>
+              {noReasons.map(reason => (
+                <div key={reason.key} className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    id={`reason-all-${reason.key}`}
+                    checked={!!allTogether.reasons?.[reason.key]}
+                    onChange={(e) => handleAllTogetherReasonChange(reason.key, e.target.checked)}
+                    className="mt-1"
+                  />
+                  <div className="flex-1">
+                    <Label htmlFor={`reason-all-${reason.key}`} className="text-sm cursor-pointer">{reason.label}</Label>
+                    {reason.hasText && allTogether.reasons?.[reason.key] && (
+                      <Input
+                        value={typeof allTogether.reasons?.other === 'string' ? allTogether.reasons.other : ''}
+                        onChange={(e) => handleAllTogetherReasonChange('other', true, e.target.value)}
+                        placeholder="Please specify..."
+                        className="mt-1"
+                      />
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Principle-wise Mode */}
+      {mode === 'separate' && (
+        <div className="space-y-3">
+          {NGRBC_PRINCIPLES.map(p => (
+            <div key={p.key} className="p-3 border rounded-lg">
+              <Label className="text-sm font-semibold text-violet-700">{p.key}: {p.name}</Label>
+              
+              <div className="mt-2">
+                <Label className="text-xs text-stone-600">Does policy cover this principle?</Label>
+                <RadioGroup 
+                  value={principleWise[p.key]?.covered === true ? 'yes' : principleWise[p.key]?.covered === false ? 'no' : ''} 
+                  onValueChange={(v) => handlePrincipleChange(p.key, 'covered', v === 'yes')}
+                  className="mt-1 flex gap-4"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="yes" id={`${p.key}-yes`} />
+                    <Label htmlFor={`${p.key}-yes`} className="text-sm cursor-pointer">Yes</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="no" id={`${p.key}-no`} />
+                    <Label htmlFor={`${p.key}-no`} className="text-sm cursor-pointer">No</Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
+              {/* Yes follow-up for this principle */}
+              {principleWise[p.key]?.covered === true && (
+                <div className="mt-2 pl-3 border-l-2 border-green-300 space-y-2">
+                  <div>
+                    <Label className="text-xs text-stone-600">Board Approved?</Label>
+                    <RadioGroup 
+                      value={principleWise[p.key]?.board_approved === true ? 'yes' : principleWise[p.key]?.board_approved === false ? 'no' : ''} 
+                      onValueChange={(v) => handlePrincipleChange(p.key, 'board_approved', v === 'yes')}
+                      className="mt-1 flex gap-4"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="yes" id={`${p.key}-board-yes`} />
+                        <Label htmlFor={`${p.key}-board-yes`} className="text-xs cursor-pointer">Yes</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="no" id={`${p.key}-board-no`} />
+                        <Label htmlFor={`${p.key}-board-no`} className="text-xs cursor-pointer">No</Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-stone-600">Web Link</Label>
+                    <Input
+                      value={principleWise[p.key]?.web_link || ''}
+                      onChange={(e) => handlePrincipleChange(p.key, 'web_link', e.target.value)}
+                      placeholder="https://..."
+                      className="mt-1 h-8 text-sm"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* No follow-up - Reasons for this principle */}
+              {principleWise[p.key]?.covered === false && (
+                <div className="mt-2 pl-3 border-l-2 border-red-300 space-y-1">
+                  <Label className="text-xs text-stone-600">Reasons:</Label>
+                  {noReasons.map(reason => (
+                    <div key={reason.key} className="flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        id={`reason-${p.key}-${reason.key}`}
+                        checked={!!principleWise[p.key]?.reasons?.[reason.key]}
+                        onChange={(e) => handlePrincipleReasonChange(p.key, reason.key, e.target.checked)}
+                        className="mt-0.5"
+                      />
+                      <div className="flex-1">
+                        <Label htmlFor={`reason-${p.key}-${reason.key}`} className="text-xs cursor-pointer">{reason.label}</Label>
+                        {reason.hasText && principleWise[p.key]?.reasons?.[reason.key] && (
+                          <Input
+                            value={typeof principleWise[p.key]?.reasons?.other === 'string' ? principleWise[p.key].reasons.other : ''}
+                            onChange={(e) => handlePrincipleReasonChange(p.key, 'other', true, e.target.value)}
+                            placeholder="Please specify..."
+                            className="mt-1 h-7 text-xs"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Individual Question Renderer
 function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {}, historicalData = null }) {
   const { type, question, description, placeholder, options, table_columns, required, conditional, visible_if } = config;
@@ -333,6 +629,9 @@ function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {
 
       case 'percentage_with_description':
         return <PercentageWithDescriptionRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+
+      case 'ngrbc_policy_matrix':
+        return <NGRBCPolicyMatrixRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
 
       default:
         return <p className="text-sm text-red-500 mt-2">Unknown question type: {type}</p>;
