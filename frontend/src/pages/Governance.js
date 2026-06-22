@@ -132,6 +132,7 @@ export default function Governance() {
           <TabsList className="mb-4 flex-wrap">
             <TabsTrigger value="bod-kmp">BoD and KMP</TabsTrigger>
             <TabsTrigger value="policies">Policies, Commitments & Oversight</TabsTrigger>
+            <TabsTrigger value="ethics">Ethics</TabsTrigger>
             <TabsTrigger value="compliance">Regulatory Compliance & Fines</TabsTrigger>
             <TabsTrigger value="cyber">Cyber Security & Data Privacy</TabsTrigger>
             <TabsTrigger value="advocacy">Public Policy & Advocacy</TabsTrigger>
@@ -156,6 +157,20 @@ export default function Governance() {
             </Card>
             <Card className="p-6">
               <ESGQuestionnaire framework="BRSR" section="governance" isEditing={isEditing} filterPrinciples={["P_POLICIES"]} />
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="ethics">
+            <Card className="p-4 bg-violet-50/50 border-violet-100 mb-4">
+              <div className="flex items-start gap-2">
+                <Info className="w-4 h-4 text-violet-600 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-violet-800">
+                  <strong>Ethics:</strong> Covers anti-corruption/anti-bribery policies, corrective actions on corruption and fines, and board conflict of interest management.
+                </p>
+              </div>
+            </Card>
+            <Card className="p-6">
+              <ESGQuestionnaire framework="BRSR" section="governance" isEditing={isEditing} filterPrinciples={["P_ETHICS"]} />
             </Card>
           </TabsContent>
 
@@ -253,7 +268,7 @@ export default function Governance() {
               </div>
             </Card>
             <Card className="p-6">
-              <ESGQuestionnaire framework="BRSR" section="governance" isEditing={isEditing} excludePrinciples={["P_SUPPLY_CHAIN", "P_CONSUMER", "P_POLICIES", "P_COMPLIANCE", "P_CYBER", "P_ADVOCACY", "P_VALUE_CHAIN"]} />
+              <ESGQuestionnaire framework="BRSR" section="governance" isEditing={isEditing} excludePrinciples={["P_SUPPLY_CHAIN", "P_CONSUMER", "P_POLICIES", "P_COMPLIANCE", "P_CYBER", "P_ADVOCACY", "P_VALUE_CHAIN", "P_ETHICS"]} />
             </Card>
           </TabsContent>
         </Tabs>
