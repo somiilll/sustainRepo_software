@@ -124,40 +124,79 @@ export default function HRWorkforce() {
       </TabsList>
       {['employees', 'workers'].map(type => (
         <TabsContent key={type} value={type}>
-          <div className="space-y-4">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Male</TableHead>
-                  <TableHead>Female</TableHead>
-                  <TableHead>Other</TableHead>
-                  <TableHead>Total</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {['Permanent', 'Non-Permanent/Temporary', 'Differently Abled'].map(category => (
-                  <TableRow key={category}>
-                    <TableCell className="font-medium">{category}</TableCell>
-                    {['male', 'female', 'other'].map(gender => (
-                      <TableCell key={gender}>
-                        <Input
-                          type="number"
-                          className="w-24"
-                          value={data.demographics?.[type]?.[`${category.toLowerCase().replace(/[^a-z]/g, '_')}_${gender}`] || ''}
-                          onChange={(e) => updateValue('demographics', type, `${category.toLowerCase().replace(/[^a-z]/g, '_')}_${gender}`, e.target.value)}
-                        />
-                      </TableCell>
-                    ))}
-                    <TableCell className="font-semibold text-stone-600">
-                      {['male', 'female', 'other'].reduce((sum, g) => 
-                        sum + (parseInt(data.demographics?.[type]?.[`${category.toLowerCase().replace(/[^a-z]/g, '_')}_${g}`]) || 0), 0
-                      )}
-                    </TableCell>
+          <div className="space-y-6">
+            {/* Main Demographics */}
+            <div>
+              <h4 className="text-sm font-medium text-stone-700 mb-2">General Demographics</h4>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Male</TableHead>
+                    <TableHead>Female</TableHead>
+                    <TableHead>Total</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {['Permanent', 'Non-Permanent/Temporary'].map(category => (
+                    <TableRow key={category}>
+                      <TableCell className="font-medium">{category}</TableCell>
+                      {['male', 'female'].map(gender => (
+                        <TableCell key={gender}>
+                          <Input
+                            type="number"
+                            className="w-24"
+                            value={data.demographics?.[type]?.[`${category.toLowerCase().replace(/[^a-z]/g, '_')}_${gender}`] || ''}
+                            onChange={(e) => updateValue('demographics', type, `${category.toLowerCase().replace(/[^a-z]/g, '_')}_${gender}`, e.target.value)}
+                          />
+                        </TableCell>
+                      ))}
+                      <TableCell className="font-semibold text-stone-600">
+                        {['male', 'female'].reduce((sum, g) => 
+                          sum + (parseInt(data.demographics?.[type]?.[`${category.toLowerCase().replace(/[^a-z]/g, '_')}_${g}`]) || 0), 0
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            {/* Differently Abled Sub-section */}
+            <div>
+              <h4 className="text-sm font-medium text-stone-700 mb-2">Differently Abled</h4>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Male</TableHead>
+                    <TableHead>Female</TableHead>
+                    <TableHead>Total</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {['Permanent', 'Non-Permanent/Temporary'].map(category => (
+                    <TableRow key={category}>
+                      <TableCell className="font-medium">{category}</TableCell>
+                      {['male', 'female'].map(gender => (
+                        <TableCell key={gender}>
+                          <Input
+                            type="number"
+                            className="w-24"
+                            value={data.demographics?.[type]?.[`differently_abled_${category.toLowerCase().replace(/[^a-z]/g, '_')}_${gender}`] || ''}
+                            onChange={(e) => updateValue('demographics', type, `differently_abled_${category.toLowerCase().replace(/[^a-z]/g, '_')}_${gender}`, e.target.value)}
+                          />
+                        </TableCell>
+                      ))}
+                      <TableCell className="font-semibold text-stone-600">
+                        {['male', 'female'].reduce((sum, g) => 
+                          sum + (parseInt(data.demographics?.[type]?.[`differently_abled_${category.toLowerCase().replace(/[^a-z]/g, '_')}_${g}`]) || 0), 0
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         </TabsContent>
       ))}
@@ -176,206 +215,226 @@ export default function HRWorkforce() {
             <TableHeader>
               <TableRow>
                 <TableHead>Metric</TableHead>
-                <TableHead>Male</TableHead>
-                <TableHead>Female</TableHead>
-                <TableHead>Total</TableHead>
+                <TableHead>Male (%)</TableHead>
+                <TableHead>Female (%)</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {['New Hires', 'Resignations', 'Turnover Rate (%)'].map(metric => (
-                <TableRow key={metric}>
-                  <TableCell className="font-medium">{metric}</TableCell>
-                  {['male', 'female'].map(gender => (
-                    <TableCell key={gender}>
+              <TableRow>
+                <TableCell className="font-medium">Turnover Rate</TableCell>
+                {['male', 'female'].map(gender => (
+                  <TableCell key={gender}>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      className="w-24"
+                      value={data.turnover?.[type]?.[`turnover_rate_${gender}`] || ''}
+                      onChange={(e) => updateValue('turnover', type, `turnover_rate_${gender}`, e.target.value)}
+                    />
+                  </TableCell>
+                ))}
+              </TableRow>
+            </TableBody>
+          </Table>
+        </TabsContent>
+      ))}
+    </Tabs>
+  );
+
+  const renderBenefitsSection = () => {
+    const benefits = ['Health Insurance', 'Accident Insurance', 'Maternity Benefits', 'Paternity Benefits', 'Day Care Facilities'];
+    const empTypes = ['permanent', 'non_permanent'];
+    const empTypeLabels = { permanent: 'Permanent', non_permanent: 'Non-Permanent/Temporary' };
+    
+    return (
+      <Tabs defaultValue="employees" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="employees">Employees</TabsTrigger>
+          <TabsTrigger value="workers">Workers</TabsTrigger>
+        </TabsList>
+        {['employees', 'workers'].map(type => (
+          <TabsContent key={type} value={type}>
+            <div className="space-y-6">
+              {empTypes.map(empType => (
+                <div key={empType}>
+                  <h4 className="text-sm font-medium text-stone-700 mb-2">{empTypeLabels[empType]}</h4>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Benefit</TableHead>
+                        <TableHead>Male</TableHead>
+                        <TableHead>Female</TableHead>
+                        <TableHead>Total</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {benefits.map(benefit => {
+                        const key = `${empType}_${benefit.toLowerCase().replace(/[^a-z]/g, '_')}`;
+                        return (
+                          <TableRow key={benefit}>
+                            <TableCell className="font-medium">{benefit}</TableCell>
+                            {['male', 'female'].map(gender => (
+                              <TableCell key={gender}>
+                                <Input
+                                  type="number"
+                                  className="w-24"
+                                  value={data.benefits?.[type]?.[`${key}_${gender}`] || ''}
+                                  onChange={(e) => updateValue('benefits', type, `${key}_${gender}`, e.target.value)}
+                                />
+                              </TableCell>
+                            ))}
+                            <TableCell className="font-semibold text-stone-600">
+                              {['male', 'female'].reduce((sum, g) => 
+                                sum + (parseInt(data.benefits?.[type]?.[`${key}_${g}`]) || 0), 0
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              ))}
+            </div>
+          </TabsContent>
+        ))}
+      </Tabs>
+    );
+  };
+
+  const renderStatutorySection = () => {
+    const schemes = ['PF (Provident Fund)', 'Gratuity', 'ESI'];
+    
+    return (
+      <Tabs defaultValue="employees" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="employees">Employees</TabsTrigger>
+          <TabsTrigger value="workers">Workers</TabsTrigger>
+        </TabsList>
+        {['employees', 'workers'].map(type => (
+          <TabsContent key={type} value={type}>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Scheme</TableHead>
+                  <TableHead>Covered (No.)</TableHead>
+                  <TableHead>Deposited (INR)</TableHead>
+                  <TableHead>Deducted & Deposited with Authority</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {schemes.map(scheme => {
+                  const key = scheme.toLowerCase().replace(/[^a-z]/g, '_');
+                  return (
+                    <TableRow key={scheme}>
+                      <TableCell className="font-medium">{scheme}</TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          className="w-24"
+                          value={data.statutory?.[type]?.[`${key}_covered`] || ''}
+                          onChange={(e) => updateValue('statutory', type, `${key}_covered`, e.target.value)}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          className="w-28"
+                          value={data.statutory?.[type]?.[`${key}_deposited`] || ''}
+                          onChange={(e) => updateValue('statutory', type, `${key}_deposited`, e.target.value)}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          value={data.statutory?.[type]?.[`${key}_deposited_status`] || ''}
+                          onValueChange={(v) => updateValue('statutory', type, `${key}_deposited_status`, v)}
+                        >
+                          <SelectTrigger className="w-24">
+                            <SelectValue placeholder="Select" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="yes">Yes</SelectItem>
+                            <SelectItem value="no">No</SelectItem>
+                            <SelectItem value="na">NA</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+                {/* Other Statutory Schemes with name field */}
+                <TableRow>
+                  <TableCell className="font-medium">
+                    <div className="space-y-1">
+                      <span>Other Statutory Schemes</span>
                       <Input
-                        type="number"
-                        className="w-24"
-                        value={data.turnover?.[type]?.[`${metric.toLowerCase().replace(/[^a-z]/g, '_')}_${gender}`] || ''}
-                        onChange={(e) => updateValue('turnover', type, `${metric.toLowerCase().replace(/[^a-z]/g, '_')}_${gender}`, e.target.value)}
+                        type="text"
+                        placeholder="Specify scheme name"
+                        className="w-40 text-xs"
+                        value={data.statutory?.[type]?.other_scheme_name || ''}
+                        onChange={(e) => updateValue('statutory', type, 'other_scheme_name', e.target.value)}
                       />
-                    </TableCell>
-                  ))}
-                  <TableCell className="font-semibold text-stone-600">
-                    {metric.includes('%') ? '-' : 
-                      ['male', 'female'].reduce((sum, g) => 
-                        sum + (parseInt(data.turnover?.[type]?.[`${metric.toLowerCase().replace(/[^a-z]/g, '_')}_${g}`]) || 0), 0
-                      )
-                    }
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TabsContent>
-      ))}
-    </Tabs>
-  );
-
-  const renderBenefitsSection = () => (
-    <Tabs defaultValue="employees" className="w-full">
-      <TabsList className="mb-4">
-        <TabsTrigger value="employees">Employees</TabsTrigger>
-        <TabsTrigger value="workers">Workers</TabsTrigger>
-      </TabsList>
-      {['employees', 'workers'].map(type => (
-        <TabsContent key={type} value={type}>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Benefit</TableHead>
-                <TableHead>Covered (No.)</TableHead>
-                <TableHead>% of Total</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {['Health Insurance', 'Accident Insurance', 'Maternity Benefits', 'Paternity Benefits', 'Day Care Facilities'].map(benefit => (
-                <TableRow key={benefit}>
-                  <TableCell className="font-medium">{benefit}</TableCell>
-                  <TableCell>
-                    <Input
-                      type="number"
-                      className="w-24"
-                      value={data.benefits?.[type]?.[`${benefit.toLowerCase().replace(/[^a-z]/g, '_')}_count`] || ''}
-                      onChange={(e) => updateValue('benefits', type, `${benefit.toLowerCase().replace(/[^a-z]/g, '_')}_count`, e.target.value)}
-                    />
+                    </div>
                   </TableCell>
                   <TableCell>
                     <Input
                       type="number"
                       className="w-24"
-                      value={data.benefits?.[type]?.[`${benefit.toLowerCase().replace(/[^a-z]/g, '_')}_percent`] || ''}
-                      onChange={(e) => updateValue('benefits', type, `${benefit.toLowerCase().replace(/[^a-z]/g, '_')}_percent`, e.target.value)}
-                    />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TabsContent>
-      ))}
-    </Tabs>
-  );
-
-  const renderStatutorySection = () => (
-    <Tabs defaultValue="employees" className="w-full">
-      <TabsList className="mb-4">
-        <TabsTrigger value="employees">Employees</TabsTrigger>
-        <TabsTrigger value="workers">Workers</TabsTrigger>
-      </TabsList>
-      {['employees', 'workers'].map(type => (
-        <TabsContent key={type} value={type}>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Scheme</TableHead>
-                <TableHead>Covered (No.)</TableHead>
-                <TableHead>Deposited (INR)</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {['PF (Provident Fund)', 'Gratuity', 'ESI', 'Other Statutory Schemes'].map(scheme => (
-                <TableRow key={scheme}>
-                  <TableCell className="font-medium">{scheme}</TableCell>
-                  <TableCell>
-                    <Input
-                      type="number"
-                      className="w-24"
-                      value={data.statutory?.[type]?.[`${scheme.toLowerCase().replace(/[^a-z]/g, '_')}_covered`] || ''}
-                      onChange={(e) => updateValue('statutory', type, `${scheme.toLowerCase().replace(/[^a-z]/g, '_')}_covered`, e.target.value)}
+                      value={data.statutory?.[type]?.other_covered || ''}
+                      onChange={(e) => updateValue('statutory', type, 'other_covered', e.target.value)}
                     />
                   </TableCell>
                   <TableCell>
                     <Input
                       type="number"
                       className="w-28"
-                      value={data.statutory?.[type]?.[`${scheme.toLowerCase().replace(/[^a-z]/g, '_')}_deposited`] || ''}
-                      onChange={(e) => updateValue('statutory', type, `${scheme.toLowerCase().replace(/[^a-z]/g, '_')}_deposited`, e.target.value)}
+                      value={data.statutory?.[type]?.other_deposited || ''}
+                      onChange={(e) => updateValue('statutory', type, 'other_deposited', e.target.value)}
                     />
                   </TableCell>
                   <TableCell>
                     <Select
-                      value={data.statutory?.[type]?.[`${scheme.toLowerCase().replace(/[^a-z]/g, '_')}_status`] || ''}
-                      onValueChange={(v) => updateValue('statutory', type, `${scheme.toLowerCase().replace(/[^a-z]/g, '_')}_status`, v)}
+                      value={data.statutory?.[type]?.other_deposited_status || ''}
+                      onValueChange={(v) => updateValue('statutory', type, 'other_deposited_status', v)}
                     >
-                      <SelectTrigger className="w-28">
-                        <SelectValue placeholder="Status" />
+                      <SelectTrigger className="w-24">
+                        <SelectValue placeholder="Select" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="compliant">Compliant</SelectItem>
-                        <SelectItem value="partial">Partial</SelectItem>
-                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="yes">Yes</SelectItem>
+                        <SelectItem value="no">No</SelectItem>
+                        <SelectItem value="na">NA</SelectItem>
                       </SelectContent>
                     </Select>
                   </TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TabsContent>
-      ))}
-    </Tabs>
-  );
+              </TableBody>
+            </Table>
+          </TabsContent>
+        ))}
+      </Tabs>
+    );
+  };
 
   const renderWellbeingSection = () => (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label>Well-being Cost as % of Revenue</Label>
-          <Input
-            type="number"
-            step="0.01"
-            value={data.wellbeing?.cost_percent || ''}
-            onChange={(e) => setData(prev => ({ ...prev, wellbeing: { ...prev.wellbeing, cost_percent: e.target.value } }))}
-          />
-        </div>
-        <div>
-          <Label>Total Well-being Spend (INR)</Label>
-          <Input
-            type="number"
-            value={data.wellbeing?.total_spend || ''}
-            onChange={(e) => setData(prev => ({ ...prev, wellbeing: { ...prev.wellbeing, total_spend: e.target.value } }))}
-          />
-        </div>
+    <div className="grid grid-cols-2 gap-4">
+      <div>
+        <Label>Well-being Cost as % of Revenue</Label>
+        <Input
+          type="number"
+          step="0.01"
+          value={data.wellbeing?.cost_percent || ''}
+          onChange={(e) => setData(prev => ({ ...prev, wellbeing: { ...prev.wellbeing, cost_percent: e.target.value } }))}
+        />
       </div>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Initiative</TableHead>
-            <TableHead>Available</TableHead>
-            <TableHead>Beneficiaries</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {['Wellness Programs', 'Mental Health Support', 'Employee Assistance Program', 'Fitness Facilities'].map(initiative => (
-            <TableRow key={initiative}>
-              <TableCell className="font-medium">{initiative}</TableCell>
-              <TableCell>
-                <Select
-                  value={data.wellbeing?.[`${initiative.toLowerCase().replace(/[^a-z]/g, '_')}_available`] || ''}
-                  onValueChange={(v) => setData(prev => ({ ...prev, wellbeing: { ...prev.wellbeing, [`${initiative.toLowerCase().replace(/[^a-z]/g, '_')}_available`]: v } }))}
-                >
-                  <SelectTrigger className="w-24">
-                    <SelectValue placeholder="Select" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="yes">Yes</SelectItem>
-                    <SelectItem value="no">No</SelectItem>
-                  </SelectContent>
-                </Select>
-              </TableCell>
-              <TableCell>
-                <Input
-                  type="number"
-                  className="w-24"
-                  value={data.wellbeing?.[`${initiative.toLowerCase().replace(/[^a-z]/g, '_')}_beneficiaries`] || ''}
-                  onChange={(e) => setData(prev => ({ ...prev, wellbeing: { ...prev.wellbeing, [`${initiative.toLowerCase().replace(/[^a-z]/g, '_')}_beneficiaries`]: e.target.value } }))}
-                />
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+      <div>
+        <Label>Total Well-being Spend (INR)</Label>
+        <Input
+          type="number"
+          value={data.wellbeing?.total_spend || ''}
+          onChange={(e) => setData(prev => ({ ...prev, wellbeing: { ...prev.wellbeing, total_spend: e.target.value } }))}
+        />
+      </div>
     </div>
   );
 
@@ -427,6 +486,9 @@ export default function HRWorkforce() {
       </TabsList>
       {['employees', 'workers'].map(type => (
         <TabsContent key={type} value={type}>
+          <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800">
+            <strong>Note:</strong> This section applies only to <strong>Permanent {type === 'employees' ? 'Employees' : 'Workers'}</strong>.
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
@@ -464,44 +526,60 @@ export default function HRWorkforce() {
     </Tabs>
   );
 
-  const renderWagesSection = () => (
-    <Tabs defaultValue="employees" className="w-full">
-      <TabsList className="mb-4">
-        <TabsTrigger value="employees">Employees</TabsTrigger>
-        <TabsTrigger value="workers">Workers</TabsTrigger>
-      </TabsList>
-      {['employees', 'workers'].map(type => (
-        <TabsContent key={type} value={type}>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Category</TableHead>
-                <TableHead>Male</TableHead>
-                <TableHead>Female</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {['Equal to Minimum Wage', 'More than Minimum Wage', 'Median Remuneration (INR)'].map(category => (
-                <TableRow key={category}>
-                  <TableCell className="font-medium">{category}</TableCell>
-                  {['male', 'female'].map(gender => (
-                    <TableCell key={gender}>
-                      <Input
-                        type="number"
-                        className="w-28"
-                        value={data.wages?.[type]?.[`${category.toLowerCase().replace(/[^a-z]/g, '_')}_${gender}`] || ''}
-                        onChange={(e) => updateValue('wages', type, `${category.toLowerCase().replace(/[^a-z]/g, '_')}_${gender}`, e.target.value)}
-                      />
-                    </TableCell>
-                  ))}
-                </TableRow>
+  const renderWagesSection = () => {
+    const metrics = ['Equal to Minimum Wage', 'More than Minimum Wage', 'Median Remuneration / Salary / Wages (INR)'];
+    const empTypes = ['permanent', 'non_permanent'];
+    const empTypeLabels = { permanent: 'Permanent', non_permanent: 'Non-Permanent/Temporary' };
+    
+    return (
+      <Tabs defaultValue="employees" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="employees">Employees</TabsTrigger>
+          <TabsTrigger value="workers">Workers</TabsTrigger>
+        </TabsList>
+        {['employees', 'workers'].map(type => (
+          <TabsContent key={type} value={type}>
+            <div className="space-y-6">
+              {empTypes.map(empType => (
+                <div key={empType}>
+                  <h4 className="text-sm font-medium text-stone-700 mb-2">{empTypeLabels[empType]}</h4>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Male</TableHead>
+                        <TableHead>Female</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {metrics.map(metric => {
+                        const key = `${empType}_${metric.toLowerCase().replace(/[^a-z]/g, '_')}`;
+                        return (
+                          <TableRow key={metric}>
+                            <TableCell className="font-medium">{metric}</TableCell>
+                            {['male', 'female'].map(gender => (
+                              <TableCell key={gender}>
+                                <Input
+                                  type="number"
+                                  className="w-28"
+                                  value={data.wages?.[type]?.[`${key}_${gender}`] || ''}
+                                  onChange={(e) => updateValue('wages', type, `${key}_${gender}`, e.target.value)}
+                                />
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
               ))}
-            </TableBody>
-          </Table>
-        </TabsContent>
-      ))}
-    </Tabs>
-  );
+            </div>
+          </TabsContent>
+        ))}
+      </Tabs>
+    );
+  };
 
   const renderSectionContent = (sectionId) => {
     switch (sectionId) {
