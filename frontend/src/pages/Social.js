@@ -19,11 +19,12 @@ export default function Social() {
     if (framework === 'BRSR') {
       return (
         <Tabs defaultValue="hr-workforce" className="w-full">
-          <TabsList className="mb-4">
+          <TabsList className="mb-4 flex-wrap">
             <TabsTrigger value="hr-workforce">HR & Workforce</TabsTrigger>
             <TabsTrigger value="stakeholder">Stakeholder</TabsTrigger>
             <TabsTrigger value="diversity">Diversity, Accessibility & Inclusion</TabsTrigger>
             <TabsTrigger value="ohs">Occupational Health, Safety & Well-being</TabsTrigger>
+            <TabsTrigger value="csr">Community & Inclusive Growth (CSR)</TabsTrigger>
             <TabsTrigger value="general">General</TabsTrigger>
           </TabsList>
           
@@ -72,6 +73,20 @@ export default function Social() {
               <ESGQuestionnaire framework="BRSR" section="social" isEditing={isEditing} filterPrinciples={["P_OHS"]} />
             </Card>
           </TabsContent>
+
+          <TabsContent value="csr">
+            <Card className="p-4 bg-blue-50/50 border-blue-100 mb-4">
+              <div className="flex items-start gap-2">
+                <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-blue-800">
+                  <strong>Community & Inclusive Growth (CSR):</strong> Covers CSR projects, Social Impact Assessments (SIA), MSME/local sourcing, and Rehabilitation & Resettlement (R&R) projects.
+                </p>
+              </div>
+            </Card>
+            <Card className="p-6">
+              <ESGQuestionnaire framework="BRSR" section="social" isEditing={isEditing} filterPrinciples={["P_CSR"]} />
+            </Card>
+          </TabsContent>
           
           <TabsContent value="general">
             <Card className="p-4 bg-blue-50/50 border-blue-100 mb-4">
@@ -83,7 +98,7 @@ export default function Social() {
               </div>
             </Card>
             <Card className="p-6">
-              <ESGQuestionnaire framework="BRSR" section="social" isEditing={isEditing} excludePrinciples={["P4", "P_DIVERSITY", "P_OHS"]} />
+              <ESGQuestionnaire framework="BRSR" section="social" isEditing={isEditing} excludePrinciples={["P4", "P_DIVERSITY", "P_OHS", "P_CSR"]} />
             </Card>
           </TabsContent>
         </Tabs>

@@ -132,6 +132,7 @@ export default function Governance() {
           <TabsList className="mb-4">
             <TabsTrigger value="bod-kmp">BoD and KMP</TabsTrigger>
             <TabsTrigger value="supply-chain">Sustainable Procurement & Supply Chain</TabsTrigger>
+            <TabsTrigger value="consumer">Consumer Value & Education</TabsTrigger>
             <TabsTrigger value="general">General</TabsTrigger>
           </TabsList>
           
@@ -152,6 +153,20 @@ export default function Governance() {
               <ESGQuestionnaire framework="BRSR" section="governance" isEditing={isEditing} filterPrinciples={["P_SUPPLY_CHAIN"]} />
             </Card>
           </TabsContent>
+
+          <TabsContent value="consumer">
+            <Card className="p-4 bg-violet-50/50 border-violet-100 mb-4">
+              <div className="flex items-start gap-2">
+                <Info className="w-4 h-4 text-violet-600 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-violet-800">
+                  <strong>Consumer Value & Education:</strong> Covers product information disclosure, consumer satisfaction surveys, safe usage education, and service disruption mechanisms.
+                </p>
+              </div>
+            </Card>
+            <Card className="p-6">
+              <ESGQuestionnaire framework="BRSR" section="governance" isEditing={isEditing} filterPrinciples={["P_CONSUMER"]} />
+            </Card>
+          </TabsContent>
           
           <TabsContent value="general">
             <Card className="p-4 bg-violet-50/50 border-violet-100 mb-4">
@@ -163,7 +178,7 @@ export default function Governance() {
               </div>
             </Card>
             <Card className="p-6">
-              <ESGQuestionnaire framework="BRSR" section="governance" isEditing={isEditing} excludePrinciples={["P_SUPPLY_CHAIN"]} />
+              <ESGQuestionnaire framework="BRSR" section="governance" isEditing={isEditing} excludePrinciples={["P_SUPPLY_CHAIN", "P_CONSUMER"]} />
             </Card>
           </TabsContent>
         </Tabs>
