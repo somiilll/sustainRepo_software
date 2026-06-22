@@ -21,11 +21,26 @@ export default function Social() {
         <Tabs defaultValue="hr-workforce" className="w-full">
           <TabsList className="mb-4">
             <TabsTrigger value="hr-workforce">HR & Workforce</TabsTrigger>
+            <TabsTrigger value="stakeholder">Stakeholder</TabsTrigger>
             <TabsTrigger value="general">General</TabsTrigger>
           </TabsList>
           
           <TabsContent value="hr-workforce">
             <HRWorkforce embedded={true} />
+          </TabsContent>
+
+          <TabsContent value="stakeholder">
+            <Card className="p-4 bg-blue-50/50 border-blue-100 mb-4">
+              <div className="flex items-start gap-2">
+                <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-blue-800">
+                  <strong>Stakeholder Responsiveness (P4):</strong> Covers stakeholder engagement, grievance mechanisms, and responsiveness to stakeholder concerns.
+                </p>
+              </div>
+            </Card>
+            <Card className="p-6">
+              <ESGQuestionnaire framework="BRSR" section="social" isEditing={isEditing} filterPrinciples={["P4"]} />
+            </Card>
           </TabsContent>
           
           <TabsContent value="general">
@@ -38,7 +53,7 @@ export default function Social() {
               </div>
             </Card>
             <Card className="p-6">
-              <ESGQuestionnaire framework="BRSR" section="social" isEditing={isEditing} />
+              <ESGQuestionnaire framework="BRSR" section="social" isEditing={isEditing} excludePrinciples={["P4"]} />
             </Card>
           </TabsContent>
         </Tabs>

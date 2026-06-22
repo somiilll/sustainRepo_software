@@ -3447,7 +3447,9 @@ function PercentageWithDescriptionRenderer({ config, value, onChange, isEditing 
 export default function ESGQuestionnaire({ 
   framework = 'BRSR', 
   section, 
-  isEditing = false 
+  isEditing = false,
+  filterPrinciples = null,
+  excludePrinciples = null
 }) {
   const { getAuthHeader } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -3470,7 +3472,18 @@ export default function ESGQuestionnaire({
         `${API}/esg-questionnaire/configs`,
         { params: { framework, section }, headers: getAuthHeader() }
       );
-      setConfigs(configsRes.data.configs || []);
+      let fetchedConfigs = configsRes.data.configs || [];
+      
+      // Filter by principles if specified
+      if (filterPrinciples && filterPrinciples.length > 0) {
+        fetchedConfigs = fetchedConfigs.filter(c => filterPrinciples.includes(c.principle));
+      }
+      // Exclude principles if specified
+      if (excludePrinciples && excludePrinciples.length > 0) {
+        fetchedConfigs = fetchedConfigs.filter(c => !excludePrinciples.includes(c.principle));
+      }
+      
+      setConfigs(fetchedConfigs);
 
       // Fetch existing responses
       const responsesRes = await axios.get(
