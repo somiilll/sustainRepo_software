@@ -139,6 +139,7 @@ export default function Sidebar() {
       isActive: isAdminGhgActive
     },
     { path: '/environment', label: 'Environment', icon: Sprout },
+    { path: '/hr-workforce', label: 'HR & Workforce', icon: Users },
     { path: '/social', label: 'Social', icon: Users2 },
     { path: '/governance', label: 'Governance', icon: Shield },
     { path: '/reports', label: 'Reports', icon: FileText },
@@ -159,6 +160,7 @@ export default function Sidebar() {
       isActive: isAdminGhgActive
     },
     { path: '/environment', label: 'Environment', icon: Sprout },
+    { path: '/hr-workforce', label: 'HR & Workforce', icon: Users },
     { path: '/social', label: 'Social', icon: Users2 },
     { path: '/governance', label: 'Governance', icon: Shield },
     { path: '/reports', label: 'Reports', icon: FileText },

@@ -41,6 +41,7 @@ import AuditTrails from './pages/AuditTrails';
 import BulkUpload from './pages/BulkUpload';
 import Environment from './pages/Environment';
 import Social from './pages/Social';
+import HRWorkforce from './pages/HRWorkforce';
 import Governance from './pages/Governance';
 import ESGConfig from './pages/ESGConfig';
 import Layout from './components/Layout';
@@ -244,6 +245,7 @@ const AppRoutes = () => {
           <Route path="base-year-emissions" element={<BaseYearAndTargets />} />
           <Route path="environment" element={<Environment />} />
           <Route path="social" element={<Social />} />
+                  <Route path="hr-workforce" element={<HRWorkforce />} />
           <Route path="governance" element={<Governance />} />
           <Route path="reports" element={<Reports />} />
           <Route path="users" element={
