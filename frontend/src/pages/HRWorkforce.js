@@ -37,7 +37,7 @@ const generateFYOptions = () => {
   });
 };
 
-export default function HRWorkforce() {
+export default function HRWorkforce({ embedded = false }) {
   const { token } = useAuth();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -612,20 +612,54 @@ export default function HRWorkforce() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
-            <Users className="w-5 h-5 text-emerald-600" />
+      {/* Header - only show if not embedded */}
+      {!embedded && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
+              <Users className="w-5 h-5 text-emerald-600" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-heading font-bold text-text-primary">HR & Workforce</h1>
+              <p className="text-text-muted text-sm">Consolidated BRSR Workforce Disclosures</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-heading font-bold text-text-primary">HR & Workforce</h1>
-            <p className="text-text-muted text-sm">Consolidated BRSR Workforce Disclosures</p>
+          <div className="flex items-center gap-3">
+            <Select value={selectedFacility} onValueChange={setSelectedFacility}>
+              <SelectTrigger className="w-48">
+                <Building2 className="w-4 h-4 mr-2" />
+                <SelectValue placeholder="All Facilities" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Facilities</SelectItem>
+                {facilities.map(f => (
+                  <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={selectedFY} onValueChange={setSelectedFY}>
+              <SelectTrigger className="w-36">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {generateFYOptions().map(fy => (
+                  <SelectItem key={fy} value={fy}>{fy}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button onClick={saveData} disabled={saving} data-testid="save-hr-data">
+              {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+              Save All
+            </Button>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+      )}
+
+      {/* Embedded header with controls */}
+      {embedded && (
+        <div className="flex items-center justify-end gap-3">
           <Select value={selectedFacility} onValueChange={setSelectedFacility}>
-            <SelectTrigger className="w-48">
+            <SelectTrigger className="w-40">
               <Building2 className="w-4 h-4 mr-2" />
               <SelectValue placeholder="All Facilities" />
             </SelectTrigger>
@@ -637,7 +671,7 @@ export default function HRWorkforce() {
             </SelectContent>
           </Select>
           <Select value={selectedFY} onValueChange={setSelectedFY}>
-            <SelectTrigger className="w-36">
+            <SelectTrigger className="w-32">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -646,12 +680,12 @@ export default function HRWorkforce() {
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={saveData} disabled={saving} data-testid="save-hr-data">
-            {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-            Save All
+          <Button size="sm" onClick={saveData} disabled={saving}>
+            {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
+            Save
           </Button>
         </div>
-      </div>
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center py-12">
