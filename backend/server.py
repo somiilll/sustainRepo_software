@@ -105,6 +105,7 @@ from modules.framework_details.router import router as framework_details_router
 from modules.esg_questionnaire.router import router as esg_questionnaire_router
 from modules.esg_records.router import router as esg_records_router
 from modules.hr_workforce.router import router as hr_workforce_router
+from modules.governance.router import router as governance_router
 from modules.esg_records.admin_router import admin_router as esg_records_admin_router
 
 # Set Playwright browsers path BEFORE any playwright imports
@@ -159,6 +160,7 @@ api_router.include_router(esg_questionnaire_router)
 # ESG Records system (Environment/Social/Governance records)
 api_router.include_router(esg_records_router)
 api_router.include_router(hr_workforce_router)
+api_router.include_router(governance_router)
 # ESG Records Super Admin Config
 api_router.include_router(esg_records_admin_router)
 
