@@ -129,8 +129,9 @@ export default function Governance() {
     if (framework === 'BRSR') {
       return (
         <Tabs defaultValue="bod-kmp" className="w-full">
-          <TabsList className="mb-4">
+          <TabsList className="mb-4 flex-wrap">
             <TabsTrigger value="bod-kmp">BoD and KMP</TabsTrigger>
+            <TabsTrigger value="policies">Policies, Commitments & Oversight</TabsTrigger>
             <TabsTrigger value="supply-chain">Sustainable Procurement & Supply Chain</TabsTrigger>
             <TabsTrigger value="consumer">Consumer Value & Education</TabsTrigger>
             <TabsTrigger value="general">General</TabsTrigger>
@@ -138,6 +139,20 @@ export default function Governance() {
           
           <TabsContent value="bod-kmp">
             <BodKmpLedger />
+          </TabsContent>
+
+          <TabsContent value="policies">
+            <Card className="p-4 bg-violet-50/50 border-violet-100 mb-4">
+              <div className="flex items-start gap-2">
+                <Info className="w-4 h-4 text-violet-600 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-violet-800">
+                  <strong>Policies, Commitments & Oversight:</strong> Covers NGRBC policy coverage, board approvals, sustainability committees, codes/certifications, goals & targets, and external assessments.
+                </p>
+              </div>
+            </Card>
+            <Card className="p-6">
+              <ESGQuestionnaire framework="BRSR" section="governance" isEditing={isEditing} filterPrinciples={["P_POLICIES"]} />
+            </Card>
           </TabsContent>
 
           <TabsContent value="supply-chain">
@@ -178,7 +193,7 @@ export default function Governance() {
               </div>
             </Card>
             <Card className="p-6">
-              <ESGQuestionnaire framework="BRSR" section="governance" isEditing={isEditing} excludePrinciples={["P_SUPPLY_CHAIN", "P_CONSUMER"]} />
+              <ESGQuestionnaire framework="BRSR" section="governance" isEditing={isEditing} excludePrinciples={["P_SUPPLY_CHAIN", "P_CONSUMER", "P_POLICIES"]} />
             </Card>
           </TabsContent>
         </Tabs>
