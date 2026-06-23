@@ -19,7 +19,7 @@ export default function Social() {
     if (framework === 'BRSR') {
       return (
         <Tabs defaultValue="hr-workforce" className="w-full">
-          <TabsList className="mb-4 flex-wrap">
+          <TabsList className="mb-4 w-full overflow-x-auto whitespace-nowrap flex-nowrap justify-start">
             <TabsTrigger value="hr-workforce">HR & Workforce</TabsTrigger>
             <TabsTrigger value="stakeholder">Stakeholder</TabsTrigger>
             <TabsTrigger value="diversity">Diversity, Accessibility & Inclusion</TabsTrigger>

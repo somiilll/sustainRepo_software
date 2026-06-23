@@ -21,7 +21,7 @@ export default function Environment() {
     if (framework === 'BRSR') {
       return (
         <Tabs defaultValue="general" className="w-full">
-          <TabsList className="mb-4 flex-wrap">
+          <TabsList className="mb-4 w-full overflow-x-auto whitespace-nowrap flex-nowrap justify-start">
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="lifecycle">Product Lifecycle & Circularity</TabsTrigger>
             <TabsTrigger value="impact">Impact Assessments & Projects</TabsTrigger>
