@@ -1586,7 +1586,7 @@ function MultiTableRenderer({ config, value, onChange, isEditing }) {
 
 // Conditional Yes/No Text Renderer
 function ConditionalYesNoTextRenderer({ config, value, onChange, isEditing }) {
-  const data = value || { has_value: false, fields: {} };
+  const data = value || { has_value: null, fields: {} };
   const fields = config.conditional_fields || [{ key: 'details', label: 'Details', type: 'textarea' }];
 
   const handleToggle = (val) => {
@@ -1597,11 +1597,22 @@ function ConditionalYesNoTextRenderer({ config, value, onChange, isEditing }) {
     onChange({ ...data, fields: { ...data.fields, [key]: val } });
   };
 
+  // Determine which fields to show based on show_when
+  const getVisibleFields = () => {
+    const answer = data.has_value === true ? 'yes' : data.has_value === false ? 'no' : null;
+    return fields.filter(f => {
+      if (!f.show_when || f.show_when === 'always') return true;
+      return f.show_when === answer;
+    });
+  };
+
+  const visibleFields = getVisibleFields();
+
   if (!isEditing) {
     return (
       <div className="mt-2 space-y-2">
-        <Badge variant="outline" className={data.has_value ? 'bg-green-50 text-green-700' : ''}>{data.has_value ? 'Yes' : 'No'}</Badge>
-        {data.has_value && fields.map(f => (
+        <Badge variant="outline" className={data.has_value ? 'bg-green-50 text-green-700' : data.has_value === false ? 'bg-red-50 text-red-700' : ''}>{data.has_value === true ? 'Yes' : data.has_value === false ? 'No' : 'Not answered'}</Badge>
+        {visibleFields.map(f => (
           <div key={f.key} className="text-sm">
             <span className="text-text-muted">{f.label}:</span> {data.fields?.[f.key] || '-'}
           </div>
@@ -1612,7 +1623,7 @@ function ConditionalYesNoTextRenderer({ config, value, onChange, isEditing }) {
 
   return (
     <div className="mt-3 space-y-3">
-      <RadioGroup value={data.has_value ? 'yes' : 'no'} onValueChange={(v) => handleToggle(v === 'yes')} className="flex gap-4">
+      <RadioGroup value={data.has_value === true ? 'yes' : data.has_value === false ? 'no' : ''} onValueChange={(v) => handleToggle(v === 'yes')} className="flex gap-4">
         <div className="flex items-center gap-2">
           <RadioGroupItem value="yes" id={`${config.question_key}-yes`} />
           <Label htmlFor={`${config.question_key}-yes`} className="text-sm">Yes</Label>
@@ -1622,9 +1633,9 @@ function ConditionalYesNoTextRenderer({ config, value, onChange, isEditing }) {
           <Label htmlFor={`${config.question_key}-no`} className="text-sm">No</Label>
         </div>
       </RadioGroup>
-      {data.has_value && (
+      {visibleFields.length > 0 && data.has_value !== null && (
         <div className="bg-stone-50 p-4 rounded-lg space-y-3">
-          {fields.map(f => (
+          {visibleFields.map(f => (
             <div key={f.key}>
               <Label className="text-sm mb-1 block">{f.label}</Label>
               {f.type === 'url' ? (
