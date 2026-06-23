@@ -1234,6 +1234,10 @@ Five phases executed end-to-end with **37/37 regression tests PASS** (iteration_
 - **FY/CY Period Parsing**: Fixed `get_fiscal_year_from_period()` in `server.py` to handle FY and CY formats
 - **Biogenic Scope Display**: `/emission-combinations` endpoint now returns `"Biogenic (Indirect)"` or `"Biogenic (Direct)"` instead of raw `"biogenic"`
 
+### UI Cleanup (Jun 23, 2026)
+- **Sidebar**: Removed "HR & Workforce" from main navigation since it's now embedded inside Social tab
+- **Governance Tabs**: Changed sub-tabs from `flex-wrap` to horizontal single-row scrollable layout (`overflow-x-auto whitespace-nowrap flex-nowrap`)
+
 ## Future/Backlog (P2)
 - Add Monthly/Yearly frequency indicators
 - CBAM module and report template
