@@ -243,14 +243,12 @@ class RowProcessor:
             c7_errors = self.field_validator.validate_c7_employee(row_data, row_num, sheet_name)
             errors.extend(c7_errors)
         
-        # 11. Check for duplicates
-        row_key, dup_error = self.field_validator.check_duplicate_row(
+        # 11. Check for duplicates - DISABLED (allow duplicate rows to be processed)
+        row_key, _ = self.field_validator.check_duplicate_row(
             row_data, category_code, existing_keys, row_num, sheet_name
         )
-        if dup_error:
-            errors.append(dup_error)
-        else:
-            existing_keys.add(row_key)
+        # Duplicate check disabled - all rows are processed regardless of duplicates
+        existing_keys.add(row_key)
         
         # 12. Validate numeric fields
         numeric_fields = [
