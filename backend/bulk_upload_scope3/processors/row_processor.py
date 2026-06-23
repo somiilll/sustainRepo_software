@@ -247,10 +247,10 @@ class RowProcessor:
         row_key, dup_error = self.field_validator.check_duplicate_row(
             row_data, category_code, existing_keys, row_num, sheet_name
         )
-        if dup_error:
-            errors.append(dup_error)
-        else:
-            existing_keys.add(row_key)
+        # if dup_error:
+        #     errors.append(dup_error)
+        # else:
+        existing_keys.add(row_key)
         
         # 12. Validate numeric fields
         numeric_fields = [
