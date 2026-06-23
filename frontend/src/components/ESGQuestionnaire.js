@@ -3617,6 +3617,15 @@ function DynamicTableRenderer({ config, value, onChange, isEditing }) {
                           <SelectItem value="no">N</SelectItem>
                         </SelectContent>
                       </Select>
+                    ) : col.type === 'select' ? (
+                      <Select value={row[col.key] || ''} onValueChange={(v) => handleCellChange(rowIdx, col.key, v)}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select..." /></SelectTrigger>
+                        <SelectContent>
+                          {(col.options || []).map(opt => (
+                            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     ) : col.type === 'date' ? (
                       <Input type="date" value={row[col.key] || ''} onChange={(e) => handleCellChange(rowIdx, col.key, e.target.value)} className="h-8 text-xs" />
                     ) : col.type === 'url' ? (
