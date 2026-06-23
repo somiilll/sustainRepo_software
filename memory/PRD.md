@@ -1237,6 +1237,44 @@ Five phases executed end-to-end with **37/37 regression tests PASS** (iteration_
 ### UI Cleanup (Jun 23, 2026)
 - **Sidebar**: Removed "HR & Workforce" from main navigation since it's now embedded inside Social tab
 - **Governance Tabs**: Changed sub-tabs from `flex-wrap` to horizontal single-row scrollable layout (`overflow-x-auto whitespace-nowrap flex-nowrap`)
+- **Social/Environment Tabs**: Applied same horizontal scrollable layout
+- **General Tab Removed**: Removed empty "General" sub-tab from Environment, Social, and Governance sections
+- **GHG Sidebar Collapsed**: GHG menu now collapsed by default on page load
+
+### HR & Workforce Enhancements (Jun 23, 2026)
+- **Workforce Demographics**: Added 3 FY columns (current, previous, prior-to-previous) with Male/Female/Total breakdown
+- **Employee/Worker Turnover**: Added 3 FY columns for historical comparison
+- **Statutory Compliance**: Added current + previous FY columns
+- **Employee Wellbeing**: Added current + previous FY table format
+- **Union Participation**: Added current + previous FY columns, removed "Covered by Collective Bargaining" row
+- **Wages & Remuneration**: Added current + previous FY columns with employment type breakdown
+- **Renamed**: "Return to Work & Retention" → "Return to Work & Retention after Parental Leave"
+
+### ESG Questionnaire Database Updates (Jun 23, 2026)
+**Questions Shifted:**
+- IP benefits & disputes questions → CSR sub-tab
+- Preferential procurement policy → Value Chain Governance
+- Assessments for year (% plants assessed) → Labor Practices & Human Rights
+- Corrective actions from assessments → Labor Practices & Human Rights
+- SIA mitigation actions → CSR (below SIA details)
+- Grievance mechanisms for community → CSR
+- LCA environmental concerns → Impact Assessments & Projects
+- Biodiversity impacts → Below ecologically sensitive areas
+
+**Removed:**
+- "Compliance with statutory requirements" question from Regulatory Compliance
+- S.No columns from: R&R table, CSR projects, Environmental laws, Innovative technology, Ecologically sensitive areas
+
+**Renamed:**
+- Director statement (removed placement flexibility text)
+- Anti-competitive conduct (entity → organization)
+- Value chain partners assessment column (added "by value of business done")
+- IP benefits question (entity → organization)
+
+**Updated Question Types:**
+- Visitors accessibility → Yes/No with optional detailed response
+- Employees accessibility → Steps shown when "No" selected
+- Health/safety corrective actions → Text entry (not Yes/No)
 
 ## Future/Backlog (P2)
 - Add Monthly/Yearly frequency indicators
