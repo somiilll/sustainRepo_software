@@ -20,27 +20,12 @@ export default function Environment() {
   const renderFrameworkContent = (framework) => {
     if (framework === 'BRSR') {
       return (
-        <Tabs defaultValue="general" className="w-full">
+        <Tabs defaultValue="lifecycle" className="w-full">
           <TabsList className="mb-4 w-full overflow-x-auto whitespace-nowrap flex-nowrap justify-start">
-            <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="lifecycle">Product Lifecycle & Circularity</TabsTrigger>
             <TabsTrigger value="impact">Impact Assessments & Projects</TabsTrigger>
             <TabsTrigger value="env-mgmt">Environmental Management & Value Chain</TabsTrigger>
           </TabsList>
-
-          <TabsContent value="general">
-            <Card className="p-4 bg-emerald-50/50 border-emerald-100 mb-4">
-              <div className="flex items-start gap-2">
-                <Info className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                <p className="text-sm text-emerald-800">
-                  <strong>Principle 6 (P6):</strong> Covers energy consumption, water management, air emissions, waste management, biodiversity, and environmental compliance.
-                </p>
-              </div>
-            </Card>
-            <Card className="p-6">
-              <ESGQuestionnaire framework="BRSR" section="environment" isEditing={isEditing} excludePrinciples={["P_LIFECYCLE", "P_IMPACT", "P_ENV_MGMT"]} />
-            </Card>
-          </TabsContent>
 
           <TabsContent value="lifecycle">
             <Card className="p-4 bg-emerald-50/50 border-emerald-100 mb-4">

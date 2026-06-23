@@ -16,10 +16,10 @@ export default function Sidebar() {
   const [expandedMenus, setExpandedMenus] = useState({ 
     ghgCalc: false, 
     ghgData: false, 
-    ghg: true,
-    ghgEmissions: true,  // GHG Emissions sub-group under GHG parent
-    adminGhg: true,  // Parent GHG menu for admin/user
-    superAdminGhg: true,  // Parent GHG menu for super admin
+    ghg: false,
+    ghgEmissions: false,  // GHG Emissions sub-group under GHG parent
+    adminGhg: false,  // Parent GHG menu for admin/user
+    superAdminGhg: false,  // Parent GHG menu for super admin
   });
   const [enabledAccess, setEnabledAccess] = useState([]);
   const [approvalEnabled, setApprovalEnabled] = useState(false);

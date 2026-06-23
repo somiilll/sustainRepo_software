@@ -26,7 +26,6 @@ export default function Social() {
             <TabsTrigger value="ohs">Occupational Health, Safety & Well-being</TabsTrigger>
             <TabsTrigger value="labor-hr">Labor Practices & Human Rights</TabsTrigger>
             <TabsTrigger value="csr">Community & Inclusive Growth (CSR)</TabsTrigger>
-            <TabsTrigger value="general">General</TabsTrigger>
           </TabsList>
           
           <TabsContent value="hr-workforce">
@@ -100,20 +99,6 @@ export default function Social() {
             </Card>
             <Card className="p-6">
               <ESGQuestionnaire framework="BRSR" section="social" isEditing={isEditing} filterPrinciples={["P_CSR"]} />
-            </Card>
-          </TabsContent>
-          
-          <TabsContent value="general">
-            <Card className="p-4 bg-blue-50/50 border-blue-100 mb-4">
-              <div className="flex items-start gap-2">
-                <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                <p className="text-sm text-blue-800">
-                  <strong>Social Principles:</strong> Covers P3 (Employee Wellbeing), P5 (Human Rights), and P8 (Inclusive Growth).
-                </p>
-              </div>
-            </Card>
-            <Card className="p-6">
-              <ESGQuestionnaire framework="BRSR" section="social" isEditing={isEditing} excludePrinciples={["P4", "P_DIVERSITY", "P_OHS", "P_CSR", "P_HR_EXCLUDE", "P_LABOR_HR"]} />
             </Card>
           </TabsContent>
         </Tabs>

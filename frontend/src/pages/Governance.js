@@ -139,7 +139,6 @@ export default function Governance() {
             <TabsTrigger value="value-chain">Value Chain Governance</TabsTrigger>
             <TabsTrigger value="supply-chain">Sustainable Procurement & Supply Chain</TabsTrigger>
             <TabsTrigger value="consumer">Consumer Value & Education</TabsTrigger>
-            <TabsTrigger value="general">General</TabsTrigger>
           </TabsList>
           
           <TabsContent value="bod-kmp">
@@ -255,20 +254,6 @@ export default function Governance() {
             </Card>
             <Card className="p-6">
               <ESGQuestionnaire framework="BRSR" section="governance" isEditing={isEditing} filterPrinciples={["P_CONSUMER"]} />
-            </Card>
-          </TabsContent>
-          
-          <TabsContent value="general">
-            <Card className="p-4 bg-violet-50/50 border-violet-100 mb-4">
-              <div className="flex items-start gap-2">
-                <Info className="w-4 h-4 text-violet-600 mt-0.5 flex-shrink-0" />
-                <p className="text-sm text-violet-800">
-                  <strong>Governance Principles:</strong> Covers P1 (Ethics & Transparency), P2 (Sustainable Products), P7 (Policy Advocacy), and P9 (Consumer Value).
-                </p>
-              </div>
-            </Card>
-            <Card className="p-6">
-              <ESGQuestionnaire framework="BRSR" section="governance" isEditing={isEditing} excludePrinciples={["P_SUPPLY_CHAIN", "P_CONSUMER", "P_POLICIES", "P_COMPLIANCE", "P_CYBER", "P_ADVOCACY", "P_VALUE_CHAIN", "P_ETHICS"]} />
             </Card>
           </TabsContent>
         </Tabs>
