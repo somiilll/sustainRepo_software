@@ -2558,24 +2558,28 @@ function HistoricalMaterialPercentageTableRenderer({ config, value, onChange, is
 }
 
 // Historical Reclaim Percentage Table (Q73 - Reclaimed Products)
-function HistoricalReclaimPercentageTableRenderer({ config, value, onChange, isEditing, historicalData = null }) {
+function HistoricalReclaimPercentageTableRenderer({ config, value, onChange, isEditing, historicalData = null, allResponses }) {
   const tableConfig = config.table_config || {};
   const rowCategories = tableConfig.row_categories || [];
   const columnGroups = tableConfig.column_groups || [];
   
-  // Get previous year's data for this question
-  const previousResponses = historicalData?.previous_responses?.[config.question_key] || {};
-  const autofillMapping = historicalData?.autofill_mappings?.[config.question_key] || {};
-  const mappings = autofillMapping.mappings || [];
-  
-  // Helper to get historical value for a category and column
-  const getHistoricalValue = (categoryKey, colKey) => {
-    // Find the mapping that has this colKey as the target
-    const mapping = mappings.find(m => m.target === colKey);
-    if (mapping && previousResponses[categoryKey]) {
-      return previousResponses[categoryKey][mapping.source];
-    }
-    return null;
+  // Get FY labels
+  const getFYLabels = () => {
+    const reportingYear = allResponses?.reporting_year || `FY ${new Date().getFullYear()}-${String(new Date().getFullYear() + 1).slice(-2)}`;
+    const match = reportingYear.match(/FY (\d{4})-(\d{2})/);
+    if (!match) return { current: 'Current Financial Year', previous: 'Previous Financial Year' };
+    const startYear = parseInt(match[1]);
+    return {
+      current: `FY ${startYear}-${String(startYear + 1).slice(-2)}`,
+      previous: `FY ${startYear - 1}-${String(startYear).slice(-2)}`
+    };
+  };
+  const fyLabels = getFYLabels();
+
+  const getGroupLabel = (label) => {
+    if (label?.toLowerCase().includes('current')) return fyLabels.current;
+    if (label?.toLowerCase().includes('previous')) return fyLabels.previous;
+    return label;
   };
   
   // Initialize data structure
@@ -2607,7 +2611,7 @@ function HistoricalReclaimPercentageTableRenderer({ config, value, onChange, isE
                   colSpan={group.columns.length} 
                   className="text-xs font-medium text-center border-r last:border-r-0"
                 >
-                  {group.label}
+                  {getGroupLabel(group.label)}
                 </TableHead>
               ))}
             </TableRow>
@@ -2650,22 +2654,17 @@ function HistoricalReclaimPercentageTableRenderer({ config, value, onChange, isE
                 colSpan={group.columns.length} 
                 className={`text-xs font-medium text-center border-r last:border-r-0 ${idx === 0 ? 'bg-emerald-100' : 'bg-amber-100'}`}
               >
-                {group.label}
+                {getGroupLabel(group.label)}
               </TableHead>
             ))}
           </TableRow>
           <TableRow>
-            {allColumns.map((col, idx) => (
+            {allColumns.map((col) => (
               <TableHead 
                 key={col.key} 
                 className={`text-xs font-medium text-center ${col.historical_autofill ? 'bg-amber-50' : 'bg-emerald-50'}`}
               >
                 {col.label}
-                {col.historical_autofill && (
-                  <Badge variant="outline" className="ml-1 text-[9px] bg-amber-50 text-amber-700 border-amber-200 block mt-1">
-                    Auto-filled
-                  </Badge>
-                )}
               </TableHead>
             ))}
           </TableRow>
@@ -2679,12 +2678,11 @@ function HistoricalReclaimPercentageTableRenderer({ config, value, onChange, isE
                   <div className="flex items-center justify-center">
                     <Input
                       type="number"
-                      value={col.historical_autofill ? (getHistoricalValue(cat.key, col.key) ?? data[cat.key]?.[col.key] ?? '') : (data[cat.key]?.[col.key] ?? '')}
+                      value={data[cat.key]?.[col.key] ?? ''}
                       onChange={(e) => handleCellChange(cat.key, col.key, parseFloat(e.target.value) || 0)}
-                      className={`h-8 text-xs text-center w-20 ${col.historical_autofill ? 'bg-amber-50 border-amber-200' : ''}`}
+                      className="h-8 text-xs text-center w-20"
                       step="0.01"
-                      disabled={col.historical_autofill}
-                      placeholder={col.historical_autofill ? (historicalData?.has_previous_data ? historicalData?.previous_year : 'N/A') : '0'}
+                      placeholder="0"
                     />
                     {col.suffix && <span className="ml-1 text-xs text-text-muted">{col.suffix}</span>}
                   </div>
@@ -2699,28 +2697,30 @@ function HistoricalReclaimPercentageTableRenderer({ config, value, onChange, isE
 }
 
 // Historical Waste Management Matrix (Q74 - Waste Management)
-function HistoricalWasteManagementMatrixRenderer({ config, value, onChange, isEditing, historicalData = null }) {
+function HistoricalWasteManagementMatrixRenderer({ config, value, onChange, isEditing, historicalData = null, allResponses }) {
   const tableConfig = config.table_config || {};
   const columns = tableConfig.columns || [];
   const rows = Array.isArray(value) ? value : [{}];
   
-  // Get previous year's data for this question
-  const previousResponses = historicalData?.previous_responses?.[config.question_key] || [];
-  const autofillMapping = historicalData?.autofill_mappings?.[config.question_key] || {};
-  const sourceColumn = autofillMapping.source_column;
-  const targetColumn = autofillMapping.target_column;
-  
-  // Helper to get historical value for a row (by matching product category)
-  const getHistoricalValue = (row, colKey) => {
-    if (!targetColumn || colKey !== targetColumn || !previousResponses.length) return null;
-    // Try to match by product category
-    const matchingPrevRow = previousResponses.find(
-      prevRow => prevRow?.product_category === row?.product_category
-    );
-    if (matchingPrevRow && sourceColumn) {
-      return matchingPrevRow[sourceColumn];
-    }
-    return null;
+  // Get FY labels
+  const getFYLabels = () => {
+    const reportingYear = allResponses?.reporting_year || `FY ${new Date().getFullYear()}-${String(new Date().getFullYear() + 1).slice(-2)}`;
+    const match = reportingYear.match(/FY (\d{4})-(\d{2})/);
+    if (!match) return { current: 'Current FY', previous: 'Previous FY' };
+    const startYear = parseInt(match[1]);
+    return {
+      current: `FY ${startYear}-${String(startYear + 1).slice(-2)}`,
+      previous: `FY ${startYear - 1}-${String(startYear).slice(-2)}`
+    };
+  };
+  const fyLabels = getFYLabels();
+
+  const getColumnLabel = (col) => {
+    if (col.key?.includes('current_fy') || col.label?.toLowerCase().includes('current')) 
+      return col.label.replace(/Current FY|current FY/gi, fyLabels.current);
+    if (col.key?.includes('previous_fy') || col.label?.toLowerCase().includes('previous')) 
+      return col.label.replace(/Previous FY|previous FY/gi, fyLabels.previous);
+    return col.label;
   };
   
   const handleCellChange = (rowIndex, colKey, cellValue) => {
@@ -2743,8 +2743,7 @@ function HistoricalWasteManagementMatrixRenderer({ config, value, onChange, isEd
             <TableRow className="bg-stone-50">
               {columns.map((col) => (
                 <TableHead key={col.key} className="text-xs font-medium">
-                  {col.label}
-                  {col.historical_autofill && <span className="text-amber-600 ml-1">(Previous FY)</span>}
+                  {getColumnLabel(col)}
                 </TableHead>
               ))}
             </TableRow>
@@ -2775,14 +2774,7 @@ function HistoricalWasteManagementMatrixRenderer({ config, value, onChange, isEd
             <TableRow className="bg-emerald-50">
               {columns.map((col) => (
                 <TableHead key={col.key} className="text-xs font-medium" style={{ width: col.width }}>
-                  <div className="flex flex-col">
-                    <span>{col.label}</span>
-                    {col.historical_autofill && (
-                      <Badge variant="outline" className="mt-1 text-[10px] bg-amber-50 text-amber-700 border-amber-200 w-fit">
-                        Previous FY - Auto-filled
-                      </Badge>
-                    )}
-                  </div>
+                  {getColumnLabel(col)}
                 </TableHead>
               ))}
               <TableHead className="w-12"></TableHead>
@@ -2797,12 +2789,11 @@ function HistoricalWasteManagementMatrixRenderer({ config, value, onChange, isEd
                       <div className="flex items-center">
                         <Input
                           type="number"
-                          value={col.historical_autofill ? (getHistoricalValue(row, col.key) ?? row[col.key] ?? '') : (row[col.key] ?? '')}
+                          value={row[col.key] ?? ''}
                           onChange={(e) => handleCellChange(rowIdx, col.key, parseFloat(e.target.value) || 0)}
-                          className={`h-8 text-xs ${col.historical_autofill ? 'bg-amber-50 border-amber-200' : ''}`}
+                          className="h-8 text-xs"
                           step="0.01"
-                          disabled={col.historical_autofill}
-                          placeholder={col.historical_autofill ? (historicalData?.has_previous_data ? 'From ' + historicalData?.previous_year : 'No data') : '0'}
+                          placeholder="0"
                         />
                         {col.suffix && <span className="ml-1 text-xs text-text-muted">{col.suffix}</span>}
                       </div>
