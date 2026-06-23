@@ -579,13 +579,13 @@ function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {
         return <YesNoWithDynamicTableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
 
       case 'historical_material_percentage_table':
-        return <HistoricalMaterialPercentageTableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} historicalData={historicalData} />;
+        return <HistoricalMaterialPercentageTableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} historicalData={historicalData} allResponses={allResponses} />;
 
       case 'historical_reclaim_percentage_table':
-        return <HistoricalReclaimPercentageTableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} historicalData={historicalData} />;
+        return <HistoricalReclaimPercentageTableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} historicalData={historicalData} allResponses={allResponses} />;
 
       case 'historical_waste_management_matrix':
-        return <HistoricalWasteManagementMatrixRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} historicalData={historicalData} />;
+        return <HistoricalWasteManagementMatrixRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} historicalData={historicalData} allResponses={allResponses} />;
 
       // Environment Q75-94 Renderer Types (Resource Management, Emissions & Compliance)
       case 'historical_environmental_metrics_matrix':
@@ -1652,7 +1652,7 @@ function ConditionalYesNoTextRenderer({ config, value, onChange, isEditing }) {
 }
 
 // FY Comparison Table Renderer (Current/Previous FY with fixed rows)
-function FYComparisonTableRenderer({ config, value, onChange, isEditing }) {
+function FYComparisonTableRenderer({ config, value, onChange, isEditing, allResponses }) {
   const tableConfig = config.table_config || {};
   const fixedRows = tableConfig.fixed_rows || [];
   const columns = tableConfig.columns || [
@@ -1660,6 +1660,26 @@ function FYComparisonTableRenderer({ config, value, onChange, isEditing }) {
     { key: 'previous_fy', label: 'Previous FY', type: 'number' }
   ];
   const data = value || {};
+
+  // Get FY labels from reporting year
+  const getFYLabels = () => {
+    const reportingYear = allResponses?.reporting_year || `FY ${new Date().getFullYear()}-${String(new Date().getFullYear() + 1).slice(-2)}`;
+    const match = reportingYear.match(/FY (\d{4})-(\d{2})/);
+    if (!match) return { current: 'Current FY', previous: 'Previous FY' };
+    const startYear = parseInt(match[1]);
+    return {
+      current: `FY ${startYear}-${String(startYear + 1).slice(-2)}`,
+      previous: `FY ${startYear - 1}-${String(startYear).slice(-2)}`
+    };
+  };
+  const fyLabels = getFYLabels();
+
+  // Map column labels to actual FY years
+  const getColumnLabel = (col) => {
+    if (col.key === 'current_fy' || col.label?.toLowerCase().includes('current')) return fyLabels.current;
+    if (col.key === 'previous_fy' || col.label?.toLowerCase().includes('previous')) return fyLabels.previous;
+    return col.label;
+  };
 
   const handleCellChange = (rowKey, colKey, val) => {
     const newData = { ...data };
@@ -1676,7 +1696,7 @@ function FYComparisonTableRenderer({ config, value, onChange, isEditing }) {
           <TableHeader>
             <TableRow className="bg-stone-50">
               {columns.map(col => (
-                <TableHead key={col.key} className="text-xs font-medium">{col.label}</TableHead>
+                <TableHead key={col.key} className="text-xs font-medium">{getColumnLabel(col)}</TableHead>
               ))}
             </TableRow>
           </TableHeader>
@@ -1710,7 +1730,7 @@ function FYComparisonTableRenderer({ config, value, onChange, isEditing }) {
           <TableRow className="bg-stone-50">
             <TableHead className="text-xs font-medium w-48">Category</TableHead>
             {columns.map(col => (
-              <TableHead key={col.key} className="text-xs font-medium">{col.label}</TableHead>
+              <TableHead key={col.key} className="text-xs font-medium">{getColumnLabel(col)}</TableHead>
             ))}
           </TableRow>
         </TableHeader>
@@ -1743,7 +1763,7 @@ function FYComparisonTableRenderer({ config, value, onChange, isEditing }) {
 }
 
 // Grouped Matrix Table Renderer (grouped rows with FY columns)
-function GroupedMatrixTableRenderer({ config, value, onChange, isEditing }) {
+function GroupedMatrixTableRenderer({ config, value, onChange, isEditing, allResponses }) {
   const tableConfig = config.table_config || {};
   const groups = tableConfig.groups || [];
   const columns = tableConfig.columns || [
@@ -1751,6 +1771,25 @@ function GroupedMatrixTableRenderer({ config, value, onChange, isEditing }) {
     { key: 'previous_fy', label: 'Previous FY' }
   ];
   const data = value || {};
+
+  // Get FY labels from reporting year
+  const getFYLabels = () => {
+    const reportingYear = allResponses?.reporting_year || `FY ${new Date().getFullYear()}-${String(new Date().getFullYear() + 1).slice(-2)}`;
+    const match = reportingYear.match(/FY (\d{4})-(\d{2})/);
+    if (!match) return { current: 'Current FY', previous: 'Previous FY' };
+    const startYear = parseInt(match[1]);
+    return {
+      current: `FY ${startYear}-${String(startYear + 1).slice(-2)}`,
+      previous: `FY ${startYear - 1}-${String(startYear).slice(-2)}`
+    };
+  };
+  const fyLabels = getFYLabels();
+
+  const getColumnLabel = (col) => {
+    if (col.key === 'current_fy' || col.label?.toLowerCase().includes('current')) return fyLabels.current;
+    if (col.key === 'previous_fy' || col.label?.toLowerCase().includes('previous')) return fyLabels.previous;
+    return col.label;
+  };
 
   const handleCellChange = (groupKey, rowKey, colKey, val) => {
     const newData = { ...data };
@@ -1768,7 +1807,7 @@ function GroupedMatrixTableRenderer({ config, value, onChange, isEditing }) {
             <TableHead className="text-xs font-medium w-64">Parameter</TableHead>
             <TableHead className="text-xs font-medium w-80">Metrics</TableHead>
             {columns.map(col => (
-              <TableHead key={col.key} className="text-xs font-medium">{col.label}</TableHead>
+              <TableHead key={col.key} className="text-xs font-medium">{getColumnLabel(col)}</TableHead>
             ))}
           </TableRow>
         </TableHeader>
@@ -2363,10 +2402,31 @@ function YesNoWithDynamicTableRenderer({ config, value, onChange, isEditing }) {
 }
 
 // Historical Material Percentage Table (Q72 - Recycled Input Material)
-function HistoricalMaterialPercentageTableRenderer({ config, value, onChange, isEditing, historicalData = null }) {
+function HistoricalMaterialPercentageTableRenderer({ config, value, onChange, isEditing, historicalData = null, allResponses }) {
   const tableConfig = config.table_config || {};
   const columns = tableConfig.columns || [];
   const rows = Array.isArray(value) ? value : [{}];
+  
+  // Get FY labels from reporting year
+  const getFYLabels = () => {
+    const reportingYear = allResponses?.reporting_year || `FY ${new Date().getFullYear()}-${String(new Date().getFullYear() + 1).slice(-2)}`;
+    const match = reportingYear.match(/FY (\d{4})-(\d{2})/);
+    if (!match) return { current: 'Current FY', previous: 'Previous FY' };
+    const startYear = parseInt(match[1]);
+    return {
+      current: `FY ${startYear}-${String(startYear + 1).slice(-2)}`,
+      previous: `FY ${startYear - 1}-${String(startYear).slice(-2)}`
+    };
+  };
+  const fyLabels = getFYLabels();
+
+  const getColumnLabel = (col) => {
+    if (col.key?.includes('current_fy') || col.label?.toLowerCase().includes('current')) 
+      return col.label.replace(/Current FY|current FY/gi, fyLabels.current);
+    if (col.key?.includes('previous_fy') || col.label?.toLowerCase().includes('previous')) 
+      return col.label.replace(/Previous FY|previous FY/gi, fyLabels.previous);
+    return col.label;
+  };
   
   // Get previous year's data for this question
   const previousResponses = historicalData?.previous_responses?.[config.question_key] || [];
@@ -2407,7 +2467,7 @@ function HistoricalMaterialPercentageTableRenderer({ config, value, onChange, is
             <TableRow className="bg-stone-50">
               {columns.map((col) => (
                 <TableHead key={col.key} className="text-xs font-medium">
-                  {col.label}
+                  {getColumnLabel(col)}
                   {col.historical_autofill && <span className="text-amber-600 ml-1">(Auto-filled)</span>}
                 </TableHead>
               ))}
@@ -2439,10 +2499,10 @@ function HistoricalMaterialPercentageTableRenderer({ config, value, onChange, is
             <TableRow className="bg-emerald-50">
               {columns.map((col) => (
                 <TableHead key={col.key} className="text-xs font-medium" style={{ width: col.width }}>
-                  {col.label}
+                  {getColumnLabel(col)}
                   {col.historical_autofill && (
                     <Badge variant="outline" className="ml-1 text-[10px] bg-amber-50 text-amber-700 border-amber-200">
-                      Previous FY
+                      {fyLabels.previous}
                     </Badge>
                   )}
                 </TableHead>
