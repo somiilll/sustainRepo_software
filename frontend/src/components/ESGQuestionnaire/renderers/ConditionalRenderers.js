@@ -20,6 +20,12 @@ export function ConditionalYesNoTextRenderer({ config, value, onChange, isEditin
   const getVisibleFields = () => {
     const answer = data.has_value === true ? 'yes' : data.has_value === false ? 'no' : null;
     return fields.filter(f => {
+      // Check nested field conditions first
+      if (f.show_when_field && f.show_when_value) {
+        const fieldValue = data.fields?.[f.show_when_field];
+        return fieldValue === f.show_when_value || fieldValue === (f.show_when_value === 'no' ? false : true);
+      }
+      // Check main answer conditions
       if (!f.show_when || f.show_when === 'always') return true;
       return f.show_when === answer;
     });
@@ -33,7 +39,7 @@ export function ConditionalYesNoTextRenderer({ config, value, onChange, isEditin
         <Badge variant="outline" className={data.has_value ? 'bg-green-50 text-green-700' : data.has_value === false ? 'bg-red-50 text-red-700' : ''}>{data.has_value === true ? 'Yes' : data.has_value === false ? 'No' : 'Not answered'}</Badge>
         {visibleFields.map(f => (
           <div key={f.key} className="text-sm">
-            <span className="text-text-muted">{f.label}:</span> {data.fields?.[f.key] || '-'}
+            <span className="text-text-muted">{f.label}:</span> {f.type === 'nested_yes_no' ? (data.fields?.[f.key] === true ? 'Yes' : data.fields?.[f.key] === false ? 'No' : '-') : (data.fields?.[f.key] || '-')}
           </div>
         ))}
       </div>
@@ -57,7 +63,18 @@ export function ConditionalYesNoTextRenderer({ config, value, onChange, isEditin
           {visibleFields.map(f => (
             <div key={f.key}>
               <Label className="text-sm mb-1 block">{f.label}</Label>
-              {f.type === 'url' ? (
+              {f.type === 'nested_yes_no' ? (
+                <RadioGroup value={data.fields?.[f.key] === true ? 'yes' : data.fields?.[f.key] === false ? 'no' : ''} onValueChange={(v) => handleFieldChange(f.key, v === 'yes')} className="flex gap-4">
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="yes" id={`${config.question_key}-${f.key}-yes`} />
+                    <Label htmlFor={`${config.question_key}-${f.key}-yes`} className="text-sm">Yes</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="no" id={`${config.question_key}-${f.key}-no`} />
+                    <Label htmlFor={`${config.question_key}-${f.key}-no`} className="text-sm">No</Label>
+                  </div>
+                </RadioGroup>
+              ) : f.type === 'url' ? (
                 <Input type="url" value={data.fields?.[f.key] || ''} onChange={(e) => handleFieldChange(f.key, e.target.value)} placeholder="https://..." className="text-sm" />
               ) : (
                 <Textarea value={data.fields?.[f.key] || ''} onChange={(e) => handleFieldChange(f.key, e.target.value)} placeholder={f.label} rows={2} className="text-sm" />
