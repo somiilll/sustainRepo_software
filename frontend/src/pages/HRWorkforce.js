@@ -23,7 +23,7 @@ const SECTIONS = [
   { id: 'benefits', title: 'Social Security & Employee Benefits', icon: Shield, color: 'green' },
   { id: 'statutory', title: 'Statutory Compliance & Social Security Coverage', icon: UserCheck, color: 'purple' },
   { id: 'wellbeing', title: 'Employee Well-being & Welfare', icon: Heart, color: 'pink' },
-  { id: 'retention', title: 'Return to Work & Retention', icon: RotateCcw, color: 'teal' },
+  { id: 'retention', title: 'Return to Work & Retention after Parental Leave', icon: RotateCcw, color: 'teal' },
   { id: 'union', title: 'Freedom of Association & Union Participation', icon: Users2, color: 'indigo' },
   { id: 'wages', title: 'Wage & Remuneration Structure', icon: Wallet, color: 'amber' },
 ];
@@ -35,6 +35,20 @@ const generateFYOptions = () => {
     const startYear = currentYear - i;
     return `FY ${startYear}-${String(startYear + 1).slice(-2)}`;
   });
+};
+
+// Get FY labels for multi-year tables (current, previous, prior-to-previous)
+const getFYLabels = (selectedFY) => {
+  // Parse selected FY (e.g., "FY 2025-26" -> startYear = 2025)
+  const match = selectedFY.match(/FY (\d{4})-(\d{2})/);
+  if (!match) return { current: selectedFY, previous: '', priorToPrevious: '' };
+  
+  const startYear = parseInt(match[1]);
+  return {
+    current: `FY ${startYear}-${String(startYear + 1).slice(-2)}`,
+    previous: `FY ${startYear - 1}-${String(startYear).slice(-2)}`,
+    priorToPrevious: `FY ${startYear - 2}-${String(startYear - 1).slice(-2)}`
+  };
 };
 
 export default function HRWorkforce({ embedded = false }) {
@@ -116,130 +130,185 @@ export default function HRWorkforce({ embedded = false }) {
     }));
   };
 
-  const renderDemographicsSection = () => (
-    <Tabs defaultValue="employees" className="w-full">
-      <TabsList className="mb-4">
-        <TabsTrigger value="employees">Employees</TabsTrigger>
-        <TabsTrigger value="workers">Workers</TabsTrigger>
-      </TabsList>
-      {['employees', 'workers'].map(type => (
-        <TabsContent key={type} value={type}>
-          <div className="space-y-6">
-            {/* Main Demographics */}
-            <div>
-              <h4 className="text-sm font-medium text-stone-700 mb-2">General Demographics</h4>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Male</TableHead>
-                    <TableHead>Female</TableHead>
-                    <TableHead>Total</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {['Permanent', 'Non-Permanent/Temporary'].map(category => (
-                    <TableRow key={category}>
-                      <TableCell className="font-medium">{category}</TableCell>
-                      {['male', 'female'].map(gender => (
-                        <TableCell key={gender}>
-                          <Input
-                            type="number"
-                            className="w-24"
-                            value={data.demographics?.[type]?.[`${category.toLowerCase().replace(/[^a-z]/g, '_')}_${gender}`] || ''}
-                            onChange={(e) => updateValue('demographics', type, `${category.toLowerCase().replace(/[^a-z]/g, '_')}_${gender}`, e.target.value)}
-                          />
-                        </TableCell>
+  const renderDemographicsSection = () => {
+    const fyLabels = getFYLabels(selectedFY);
+    const fyKeys = ['current', 'previous', 'priorToPrevious'];
+    
+    return (
+      <Tabs defaultValue="employees" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="employees">Employees</TabsTrigger>
+          <TabsTrigger value="workers">Workers</TabsTrigger>
+        </TabsList>
+        {['employees', 'workers'].map(type => (
+          <TabsContent key={type} value={type}>
+            <div className="space-y-6">
+              {/* Main Demographics */}
+              <div>
+                <h4 className="text-sm font-medium text-stone-700 mb-2">General Demographics</h4>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead rowSpan={2} className="align-bottom border-r">Category</TableHead>
+                        {fyKeys.map(fyKey => (
+                          <TableHead key={fyKey} colSpan={3} className="text-center border-r">{fyLabels[fyKey]}</TableHead>
+                        ))}
+                      </TableRow>
+                      <TableRow>
+                        {fyKeys.map(fyKey => (
+                          <React.Fragment key={fyKey}>
+                            <TableHead className="text-center">Male</TableHead>
+                            <TableHead className="text-center">Female</TableHead>
+                            <TableHead className="text-center border-r">Total</TableHead>
+                          </React.Fragment>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {['Permanent', 'Non-Permanent/Temporary'].map(category => (
+                        <TableRow key={category}>
+                          <TableCell className="font-medium border-r">{category}</TableCell>
+                          {fyKeys.map(fyKey => (
+                            <React.Fragment key={fyKey}>
+                              {['male', 'female'].map(gender => (
+                                <TableCell key={gender} className="text-center">
+                                  <Input
+                                    type="number"
+                                    className="w-20"
+                                    value={data.demographics?.[type]?.[`${category.toLowerCase().replace(/[^a-z]/g, '_')}_${gender}_${fyKey}`] || ''}
+                                    onChange={(e) => updateValue('demographics', type, `${category.toLowerCase().replace(/[^a-z]/g, '_')}_${gender}_${fyKey}`, e.target.value)}
+                                  />
+                                </TableCell>
+                              ))}
+                              <TableCell className="font-semibold text-stone-600 text-center border-r">
+                                {['male', 'female'].reduce((sum, g) => 
+                                  sum + (parseInt(data.demographics?.[type]?.[`${category.toLowerCase().replace(/[^a-z]/g, '_')}_${g}_${fyKey}`]) || 0), 0
+                                )}
+                              </TableCell>
+                            </React.Fragment>
+                          ))}
+                        </TableRow>
                       ))}
-                      <TableCell className="font-semibold text-stone-600">
-                        {['male', 'female'].reduce((sum, g) => 
-                          sum + (parseInt(data.demographics?.[type]?.[`${category.toLowerCase().replace(/[^a-z]/g, '_')}_${g}`]) || 0), 0
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-            {/* Differently Abled Sub-section */}
-            <div>
-              <h4 className="text-sm font-medium text-stone-700 mb-2">Differently Abled</h4>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Male</TableHead>
-                    <TableHead>Female</TableHead>
-                    <TableHead>Total</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {['Permanent', 'Non-Permanent/Temporary'].map(category => (
-                    <TableRow key={category}>
-                      <TableCell className="font-medium">{category}</TableCell>
-                      {['male', 'female'].map(gender => (
-                        <TableCell key={gender}>
-                          <Input
-                            type="number"
-                            className="w-24"
-                            value={data.demographics?.[type]?.[`differently_abled_${category.toLowerCase().replace(/[^a-z]/g, '_')}_${gender}`] || ''}
-                            onChange={(e) => updateValue('demographics', type, `differently_abled_${category.toLowerCase().replace(/[^a-z]/g, '_')}_${gender}`, e.target.value)}
-                          />
-                        </TableCell>
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+              {/* Differently Abled Sub-section */}
+              <div>
+                <h4 className="text-sm font-medium text-stone-700 mb-2">Differently Abled</h4>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead rowSpan={2} className="align-bottom border-r">Category</TableHead>
+                        {fyKeys.map(fyKey => (
+                          <TableHead key={fyKey} colSpan={3} className="text-center border-r">{fyLabels[fyKey]}</TableHead>
+                        ))}
+                      </TableRow>
+                      <TableRow>
+                        {fyKeys.map(fyKey => (
+                          <React.Fragment key={fyKey}>
+                            <TableHead className="text-center">Male</TableHead>
+                            <TableHead className="text-center">Female</TableHead>
+                            <TableHead className="text-center border-r">Total</TableHead>
+                          </React.Fragment>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {['Permanent', 'Non-Permanent/Temporary'].map(category => (
+                        <TableRow key={category}>
+                          <TableCell className="font-medium border-r">{category}</TableCell>
+                          {fyKeys.map(fyKey => (
+                            <React.Fragment key={fyKey}>
+                              {['male', 'female'].map(gender => (
+                                <TableCell key={gender} className="text-center">
+                                  <Input
+                                    type="number"
+                                    className="w-20"
+                                    value={data.demographics?.[type]?.[`differently_abled_${category.toLowerCase().replace(/[^a-z]/g, '_')}_${gender}_${fyKey}`] || ''}
+                                    onChange={(e) => updateValue('demographics', type, `differently_abled_${category.toLowerCase().replace(/[^a-z]/g, '_')}_${gender}_${fyKey}`, e.target.value)}
+                                  />
+                                </TableCell>
+                              ))}
+                              <TableCell className="font-semibold text-stone-600 text-center border-r">
+                                {['male', 'female'].reduce((sum, g) => 
+                                  sum + (parseInt(data.demographics?.[type]?.[`differently_abled_${category.toLowerCase().replace(/[^a-z]/g, '_')}_${g}_${fyKey}`]) || 0), 0
+                                )}
+                              </TableCell>
+                            </React.Fragment>
+                          ))}
+                        </TableRow>
                       ))}
-                      <TableCell className="font-semibold text-stone-600">
-                        {['male', 'female'].reduce((sum, g) => 
-                          sum + (parseInt(data.demographics?.[type]?.[`differently_abled_${category.toLowerCase().replace(/[^a-z]/g, '_')}_${g}`]) || 0), 0
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
             </div>
-          </div>
-        </TabsContent>
-      ))}
-    </Tabs>
-  );
+          </TabsContent>
+        ))}
+      </Tabs>
+    );
+  };
 
-  const renderTurnoverSection = () => (
-    <Tabs defaultValue="employees" className="w-full">
-      <TabsList className="mb-4">
-        <TabsTrigger value="employees">Employees</TabsTrigger>
-        <TabsTrigger value="workers">Workers</TabsTrigger>
-      </TabsList>
-      {['employees', 'workers'].map(type => (
-        <TabsContent key={type} value={type}>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Metric</TableHead>
-                <TableHead>Male (%)</TableHead>
-                <TableHead>Female (%)</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow>
-                <TableCell className="font-medium">Turnover Rate</TableCell>
-                {['male', 'female'].map(gender => (
-                  <TableCell key={gender}>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      className="w-24"
-                      value={data.turnover?.[type]?.[`turnover_rate_${gender}`] || ''}
-                      onChange={(e) => updateValue('turnover', type, `turnover_rate_${gender}`, e.target.value)}
-                    />
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableBody>
-          </Table>
-        </TabsContent>
-      ))}
-    </Tabs>
-  );
+  const renderTurnoverSection = () => {
+    const fyLabels = getFYLabels(selectedFY);
+    const fyKeys = ['current', 'previous', 'priorToPrevious'];
+    
+    return (
+      <Tabs defaultValue="employees" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="employees">Employees</TabsTrigger>
+          <TabsTrigger value="workers">Workers</TabsTrigger>
+        </TabsList>
+        {['employees', 'workers'].map(type => (
+          <TabsContent key={type} value={type}>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead rowSpan={2} className="align-bottom border-r">Metric</TableHead>
+                    {fyKeys.map(fyKey => (
+                      <TableHead key={fyKey} colSpan={2} className="text-center border-r">{fyLabels[fyKey]}</TableHead>
+                    ))}
+                  </TableRow>
+                  <TableRow>
+                    {fyKeys.map(fyKey => (
+                      <React.Fragment key={fyKey}>
+                        <TableHead className="text-center">Male (%)</TableHead>
+                        <TableHead className="text-center border-r">Female (%)</TableHead>
+                      </React.Fragment>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <TableRow>
+                    <TableCell className="font-medium border-r">Turnover Rate</TableCell>
+                    {fyKeys.map(fyKey => (
+                      <React.Fragment key={fyKey}>
+                        {['male', 'female'].map(gender => (
+                          <TableCell key={gender} className={`text-center ${gender === 'female' ? 'border-r' : ''}`}>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              className="w-20"
+                              value={data.turnover?.[type]?.[`turnover_rate_${gender}_${fyKey}`] || ''}
+                              onChange={(e) => updateValue('turnover', type, `turnover_rate_${gender}_${fyKey}`, e.target.value)}
+                            />
+                          </TableCell>
+                        ))}
+                      </React.Fragment>
+                    ))}
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+          </TabsContent>
+        ))}
+      </Tabs>
+    );
+  };
 
   const renderBenefitsSection = () => {
     const benefits = ['Health Insurance', 'Accident Insurance', 'Maternity Benefits', 'Paternity Benefits', 'Day Care Facilities'];
@@ -304,6 +373,8 @@ export default function HRWorkforce({ embedded = false }) {
 
   const renderStatutorySection = () => {
     const schemes = ['PF (Provident Fund)', 'Gratuity', 'ESI'];
+    const fyLabels = getFYLabels(selectedFY);
+    const fyKeys = ['current', 'previous'];
     
     return (
       <Tabs defaultValue="employees" className="w-full">
@@ -313,130 +384,187 @@ export default function HRWorkforce({ embedded = false }) {
         </TabsList>
         {['employees', 'workers'].map(type => (
           <TabsContent key={type} value={type}>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Scheme</TableHead>
-                  <TableHead>Covered (No.)</TableHead>
-                  <TableHead>Deposited (INR)</TableHead>
-                  <TableHead>Deducted & Deposited with Authority</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {schemes.map(scheme => {
-                  const key = scheme.toLowerCase().replace(/[^a-z]/g, '_');
-                  return (
-                    <TableRow key={scheme}>
-                      <TableCell className="font-medium">{scheme}</TableCell>
-                      <TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead rowSpan={2} className="align-bottom border-r">Scheme</TableHead>
+                    {fyKeys.map(fyKey => (
+                      <TableHead key={fyKey} colSpan={3} className="text-center border-r">{fyLabels[fyKey]}</TableHead>
+                    ))}
+                  </TableRow>
+                  <TableRow>
+                    {fyKeys.map(fyKey => (
+                      <React.Fragment key={fyKey}>
+                        <TableHead className="text-center">Covered (No.)</TableHead>
+                        <TableHead className="text-center">Deposited (INR)</TableHead>
+                        <TableHead className="text-center border-r">Deducted & Deposited</TableHead>
+                      </React.Fragment>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {schemes.map(scheme => {
+                    const key = scheme.toLowerCase().replace(/[^a-z]/g, '_');
+                    return (
+                      <TableRow key={scheme}>
+                        <TableCell className="font-medium border-r">{scheme}</TableCell>
+                        {fyKeys.map(fyKey => (
+                          <React.Fragment key={fyKey}>
+                            <TableCell className="text-center">
+                              <Input
+                                type="number"
+                                className="w-20"
+                                value={data.statutory?.[type]?.[`${key}_covered_${fyKey}`] || ''}
+                                onChange={(e) => updateValue('statutory', type, `${key}_covered_${fyKey}`, e.target.value)}
+                              />
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Input
+                                type="number"
+                                className="w-24"
+                                value={data.statutory?.[type]?.[`${key}_deposited_${fyKey}`] || ''}
+                                onChange={(e) => updateValue('statutory', type, `${key}_deposited_${fyKey}`, e.target.value)}
+                              />
+                            </TableCell>
+                            <TableCell className="text-center border-r">
+                              <Select
+                                value={data.statutory?.[type]?.[`${key}_deposited_status_${fyKey}`] || ''}
+                                onValueChange={(v) => updateValue('statutory', type, `${key}_deposited_status_${fyKey}`, v)}
+                              >
+                                <SelectTrigger className="w-20">
+                                  <SelectValue placeholder="Select" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="yes">Yes</SelectItem>
+                                  <SelectItem value="no">No</SelectItem>
+                                  <SelectItem value="na">NA</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                          </React.Fragment>
+                        ))}
+                      </TableRow>
+                    );
+                  })}
+                  {/* Other Statutory Schemes with name field */}
+                  <TableRow>
+                    <TableCell className="font-medium border-r">
+                      <div className="space-y-1">
+                        <span>Other Statutory Schemes</span>
                         <Input
-                          type="number"
-                          className="w-24"
-                          value={data.statutory?.[type]?.[`${key}_covered`] || ''}
-                          onChange={(e) => updateValue('statutory', type, `${key}_covered`, e.target.value)}
+                          type="text"
+                          placeholder="Specify scheme name"
+                          className="w-36 text-xs"
+                          value={data.statutory?.[type]?.other_scheme_name || ''}
+                          onChange={(e) => updateValue('statutory', type, 'other_scheme_name', e.target.value)}
                         />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          className="w-28"
-                          value={data.statutory?.[type]?.[`${key}_deposited`] || ''}
-                          onChange={(e) => updateValue('statutory', type, `${key}_deposited`, e.target.value)}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Select
-                          value={data.statutory?.[type]?.[`${key}_deposited_status`] || ''}
-                          onValueChange={(v) => updateValue('statutory', type, `${key}_deposited_status`, v)}
-                        >
-                          <SelectTrigger className="w-24">
-                            <SelectValue placeholder="Select" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="yes">Yes</SelectItem>
-                            <SelectItem value="no">No</SelectItem>
-                            <SelectItem value="na">NA</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-                {/* Other Statutory Schemes with name field */}
-                <TableRow>
-                  <TableCell className="font-medium">
-                    <div className="space-y-1">
-                      <span>Other Statutory Schemes</span>
-                      <Input
-                        type="text"
-                        placeholder="Specify scheme name"
-                        className="w-40 text-xs"
-                        value={data.statutory?.[type]?.other_scheme_name || ''}
-                        onChange={(e) => updateValue('statutory', type, 'other_scheme_name', e.target.value)}
-                      />
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      type="number"
-                      className="w-24"
-                      value={data.statutory?.[type]?.other_covered || ''}
-                      onChange={(e) => updateValue('statutory', type, 'other_covered', e.target.value)}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      type="number"
-                      className="w-28"
-                      value={data.statutory?.[type]?.other_deposited || ''}
-                      onChange={(e) => updateValue('statutory', type, 'other_deposited', e.target.value)}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Select
-                      value={data.statutory?.[type]?.other_deposited_status || ''}
-                      onValueChange={(v) => updateValue('statutory', type, 'other_deposited_status', v)}
-                    >
-                      <SelectTrigger className="w-24">
-                        <SelectValue placeholder="Select" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="yes">Yes</SelectItem>
-                        <SelectItem value="no">No</SelectItem>
-                        <SelectItem value="na">NA</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
+                      </div>
+                    </TableCell>
+                    {fyKeys.map(fyKey => (
+                      <React.Fragment key={fyKey}>
+                        <TableCell className="text-center">
+                          <Input
+                            type="number"
+                            className="w-20"
+                            value={data.statutory?.[type]?.[`other_covered_${fyKey}`] || ''}
+                            onChange={(e) => updateValue('statutory', type, `other_covered_${fyKey}`, e.target.value)}
+                          />
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Input
+                            type="number"
+                            className="w-24"
+                            value={data.statutory?.[type]?.[`other_deposited_${fyKey}`] || ''}
+                            onChange={(e) => updateValue('statutory', type, `other_deposited_${fyKey}`, e.target.value)}
+                          />
+                        </TableCell>
+                        <TableCell className="text-center border-r">
+                          <Select
+                            value={data.statutory?.[type]?.[`other_deposited_status_${fyKey}`] || ''}
+                            onValueChange={(v) => updateValue('statutory', type, `other_deposited_status_${fyKey}`, v)}
+                          >
+                            <SelectTrigger className="w-20">
+                              <SelectValue placeholder="Select" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="yes">Yes</SelectItem>
+                              <SelectItem value="no">No</SelectItem>
+                              <SelectItem value="na">NA</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                      </React.Fragment>
+                    ))}
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
           </TabsContent>
         ))}
       </Tabs>
     );
   };
 
-  const renderWellbeingSection = () => (
-    <div className="grid grid-cols-2 gap-4">
-      <div>
-        <Label>Well-being Cost as % of Revenue</Label>
-        <Input
-          type="number"
-          step="0.01"
-          value={data.wellbeing?.cost_percent || ''}
-          onChange={(e) => setData(prev => ({ ...prev, wellbeing: { ...prev.wellbeing, cost_percent: e.target.value } }))}
-        />
+  const renderWellbeingSection = () => {
+    const fyLabels = getFYLabels(selectedFY);
+    
+    return (
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Metric</TableHead>
+              <TableHead className="text-center">{fyLabels.current}</TableHead>
+              <TableHead className="text-center">{fyLabels.previous}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow>
+              <TableCell className="font-medium">Well-being Cost as % of Revenue</TableCell>
+              <TableCell className="text-center">
+                <Input
+                  type="number"
+                  step="0.01"
+                  className="w-28"
+                  value={data.wellbeing?.cost_percent_current || ''}
+                  onChange={(e) => setData(prev => ({ ...prev, wellbeing: { ...prev.wellbeing, cost_percent_current: e.target.value } }))}
+                />
+              </TableCell>
+              <TableCell className="text-center">
+                <Input
+                  type="number"
+                  step="0.01"
+                  className="w-28"
+                  value={data.wellbeing?.cost_percent_previous || ''}
+                  onChange={(e) => setData(prev => ({ ...prev, wellbeing: { ...prev.wellbeing, cost_percent_previous: e.target.value } }))}
+                />
+              </TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell className="font-medium">Total Well-being Spend (INR)</TableCell>
+              <TableCell className="text-center">
+                <Input
+                  type="number"
+                  className="w-28"
+                  value={data.wellbeing?.total_spend_current || ''}
+                  onChange={(e) => setData(prev => ({ ...prev, wellbeing: { ...prev.wellbeing, total_spend_current: e.target.value } }))}
+                />
+              </TableCell>
+              <TableCell className="text-center">
+                <Input
+                  type="number"
+                  className="w-28"
+                  value={data.wellbeing?.total_spend_previous || ''}
+                  onChange={(e) => setData(prev => ({ ...prev, wellbeing: { ...prev.wellbeing, total_spend_previous: e.target.value } }))}
+                />
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
       </div>
-      <div>
-        <Label>Total Well-being Spend (INR)</Label>
-        <Input
-          type="number"
-          value={data.wellbeing?.total_spend || ''}
-          onChange={(e) => setData(prev => ({ ...prev, wellbeing: { ...prev.wellbeing, total_spend: e.target.value } }))}
-        />
-      </div>
-    </div>
-  );
+    );
+  };
 
   const renderRetentionSection = () => (
     <Tabs defaultValue="employees" className="w-full">
@@ -478,72 +606,117 @@ export default function HRWorkforce({ embedded = false }) {
     </Tabs>
   );
 
-  const renderUnionSection = () => (
-    <Tabs defaultValue="employees" className="w-full">
-      <TabsList className="mb-4">
-        <TabsTrigger value="employees">Employees</TabsTrigger>
-        <TabsTrigger value="workers">Workers</TabsTrigger>
-      </TabsList>
-      {['employees', 'workers'].map(type => (
-        <TabsContent key={type} value={type}>
-          <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800">
-            <strong>Note:</strong> This section applies only to <strong>Permanent {type === 'employees' ? 'Employees' : 'Workers'}</strong>.
-          </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Metric</TableHead>
-                <TableHead>Male</TableHead>
-                <TableHead>Female</TableHead>
-                <TableHead>Total</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {['Union Members', 'Covered by Collective Bargaining'].map(metric => (
-                <TableRow key={metric}>
-                  <TableCell className="font-medium">{metric}</TableCell>
-                  {['male', 'female'].map(gender => (
-                    <TableCell key={gender}>
-                      <Input
-                        type="number"
-                        className="w-24"
-                        value={data.union?.[type]?.[`${metric.toLowerCase().replace(/[^a-z]/g, '_')}_${gender}`] || ''}
-                        onChange={(e) => updateValue('union', type, `${metric.toLowerCase().replace(/[^a-z]/g, '_')}_${gender}`, e.target.value)}
-                      />
-                    </TableCell>
+  const renderUnionSection = () => {
+    const fyLabels = getFYLabels(selectedFY);
+    const fyKeys = ['current', 'previous'];
+    
+    return (
+      <Tabs defaultValue="employees" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="employees">Employees</TabsTrigger>
+          <TabsTrigger value="workers">Workers</TabsTrigger>
+        </TabsList>
+        {['employees', 'workers'].map(type => (
+          <TabsContent key={type} value={type}>
+            <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800">
+              <strong>Note:</strong> This section applies only to <strong>Permanent {type === 'employees' ? 'Employees' : 'Workers'}</strong>.
+            </div>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead rowSpan={2} className="align-bottom border-r">Metric</TableHead>
+                    {fyKeys.map(fyKey => (
+                      <TableHead key={fyKey} colSpan={3} className="text-center border-r">{fyLabels[fyKey]}</TableHead>
+                    ))}
+                  </TableRow>
+                  <TableRow>
+                    {fyKeys.map(fyKey => (
+                      <React.Fragment key={fyKey}>
+                        <TableHead className="text-center">Male</TableHead>
+                        <TableHead className="text-center">Female</TableHead>
+                        <TableHead className="text-center border-r">Total</TableHead>
+                      </React.Fragment>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {['Union Members'].map(metric => (
+                    <TableRow key={metric}>
+                      <TableCell className="font-medium border-r">{metric}</TableCell>
+                      {fyKeys.map(fyKey => (
+                        <React.Fragment key={fyKey}>
+                          {['male', 'female'].map(gender => (
+                            <TableCell key={gender} className="text-center">
+                              <Input
+                                type="number"
+                                className="w-20"
+                                value={data.union?.[type]?.[`${metric.toLowerCase().replace(/[^a-z]/g, '_')}_${gender}_${fyKey}`] || ''}
+                                onChange={(e) => updateValue('union', type, `${metric.toLowerCase().replace(/[^a-z]/g, '_')}_${gender}_${fyKey}`, e.target.value)}
+                              />
+                            </TableCell>
+                          ))}
+                          <TableCell className="font-semibold text-stone-600 text-center border-r">
+                            {['male', 'female'].reduce((sum, g) => 
+                              sum + (parseInt(data.union?.[type]?.[`${metric.toLowerCase().replace(/[^a-z]/g, '_')}_${g}_${fyKey}`]) || 0), 0
+                            )}
+                          </TableCell>
+                        </React.Fragment>
+                      ))}
+                    </TableRow>
                   ))}
-                  <TableCell className="font-semibold text-stone-600">
-                    {['male', 'female'].reduce((sum, g) => 
-                      sum + (parseInt(data.union?.[type]?.[`${metric.toLowerCase().replace(/[^a-z]/g, '_')}_${g}`]) || 0), 0
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TabsContent>
-      ))}
-    </Tabs>
-  );
+                </TableBody>
+              </Table>
+            </div>
+          </TabsContent>
+        ))}
+      </Tabs>
+    );
+  };
 
   const renderWagesSection = () => {
     const metrics = ['Equal to Minimum Wage', 'More than Minimum Wage', 'Median Remuneration / Salary / Wages (INR)'];
     const empTypes = ['permanent', 'non_permanent'];
     const empTypeLabels = { permanent: 'Permanent', non_permanent: 'Non-Permanent/Temporary' };
+    const fyLabels = getFYLabels(selectedFY);
+    const fyKeys = ['current', 'previous'];
     
     return (
       <div className="space-y-6">
         {/* Gross wages to females */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <Label>Gross wages paid to females as % of total wages paid by the entity</Label>
-            <Input
-              type="number"
-              step="0.01"
-              value={data.wages?.gross_wages_female_percent || ''}
-              onChange={(e) => setData(prev => ({ ...prev, wages: { ...prev.wages, gross_wages_female_percent: e.target.value } }))}
-            />
-          </div>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Metric</TableHead>
+                <TableHead className="text-center">{fyLabels.current}</TableHead>
+                <TableHead className="text-center">{fyLabels.previous}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow>
+                <TableCell className="font-medium">Gross wages paid to females as % of total wages</TableCell>
+                <TableCell className="text-center">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    className="w-28"
+                    value={data.wages?.gross_wages_female_percent_current || ''}
+                    onChange={(e) => setData(prev => ({ ...prev, wages: { ...prev.wages, gross_wages_female_percent_current: e.target.value } }))}
+                  />
+                </TableCell>
+                <TableCell className="text-center">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    className="w-28"
+                    value={data.wages?.gross_wages_female_percent_previous || ''}
+                    onChange={(e) => setData(prev => ({ ...prev, wages: { ...prev.wages, gross_wages_female_percent_previous: e.target.value } }))}
+                  />
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
         </div>
         
         <Tabs defaultValue="employees" className="w-full">
@@ -557,35 +730,50 @@ export default function HRWorkforce({ embedded = false }) {
                 {empTypes.map(empType => (
                   <div key={empType}>
                     <h4 className="text-sm font-medium text-stone-700 mb-2">{empTypeLabels[empType]}</h4>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Category</TableHead>
-                          <TableHead>Male</TableHead>
-                          <TableHead>Female</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {metrics.map(metric => {
-                          const key = `${empType}_${metric.toLowerCase().replace(/[^a-z]/g, '_')}`;
-                          return (
-                            <TableRow key={metric}>
-                              <TableCell className="font-medium">{metric}</TableCell>
-                              {['male', 'female'].map(gender => (
-                                <TableCell key={gender}>
-                                  <Input
-                                    type="number"
-                                    className="w-28"
-                                    value={data.wages?.[type]?.[`${key}_${gender}`] || ''}
-                                    onChange={(e) => updateValue('wages', type, `${key}_${gender}`, e.target.value)}
-                                  />
-                                </TableCell>
-                              ))}
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead rowSpan={2} className="align-bottom border-r">Category</TableHead>
+                            {fyKeys.map(fyKey => (
+                              <TableHead key={fyKey} colSpan={2} className="text-center border-r">{fyLabels[fyKey]}</TableHead>
+                            ))}
+                          </TableRow>
+                          <TableRow>
+                            {fyKeys.map(fyKey => (
+                              <React.Fragment key={fyKey}>
+                                <TableHead className="text-center">Male</TableHead>
+                                <TableHead className="text-center border-r">Female</TableHead>
+                              </React.Fragment>
+                            ))}
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {metrics.map(metric => {
+                            const key = `${empType}_${metric.toLowerCase().replace(/[^a-z]/g, '_')}`;
+                            return (
+                              <TableRow key={metric}>
+                                <TableCell className="font-medium border-r">{metric}</TableCell>
+                                {fyKeys.map(fyKey => (
+                                  <React.Fragment key={fyKey}>
+                                    {['male', 'female'].map(gender => (
+                                      <TableCell key={gender} className={`text-center ${gender === 'female' ? 'border-r' : ''}`}>
+                                        <Input
+                                          type="number"
+                                          className="w-24"
+                                          value={data.wages?.[type]?.[`${key}_${gender}_${fyKey}`] || ''}
+                                          onChange={(e) => updateValue('wages', type, `${key}_${gender}_${fyKey}`, e.target.value)}
+                                        />
+                                      </TableCell>
+                                    ))}
+                                  </React.Fragment>
+                                ))}
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
                 ))}
               </div>
