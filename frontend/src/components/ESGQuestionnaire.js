@@ -3064,7 +3064,7 @@ export default function ESGQuestionnaire({
                     value={responses[config.question_key]}
                     onChange={(val) => handleResponseChange(config.question_key, val)}
                     isEditing={isEditing}
-                    allResponses={responses}
+                    allResponses={{ ...responses, reporting_year: reportingYear }}
                     historicalData={historicalData}
                   />
                 ))}

@@ -1250,6 +1250,17 @@ Five phases executed end-to-end with **37/37 regression tests PASS** (iteration_
 - **Wages & Remuneration**: Added current + previous FY columns with employment type breakdown
 - **Renamed**: "Return to Work & Retention" → "Return to Work & Retention after Parental Leave"
 
+### Environment FY Label Bug Fix (Jun 23, 2026)
+**Issue:** When changing the Reporting Year dropdown in the ESG Questionnaire, dynamic FY table headers (e.g., "FY 2025-26", "FY 2024-25") were not updating.
+
+**Root Cause:** The `allResponses` prop passed to table renderers contained saved questionnaire data but not the current `reportingYear` state. Renderers called `getFYLabels(allResponses)` which fell back to the system date.
+
+**Fix Applied:**
+- `ESGQuestionnaire.js` (line 3067): Changed `allResponses={responses}` to `allResponses={{ ...responses, reporting_year: reportingYear }}`
+- `TableRenderers.js` & `HistoricalRenderers.js`: Updated `getFYLabels()` regex to handle both `"2025-26"` and `"FY 2025-26"` formats
+
+**Result:** FY comparison tables now correctly display dynamic year labels (e.g., "FY 2022-23", "FY 2021-22") when the reporting year is changed.
+
 ### ESG Questionnaire Database Updates (Jun 23, 2026)
 **Questions Shifted:**
 - IP benefits & disputes questions → CSR sub-tab

@@ -9,8 +9,9 @@ import { Plus, Trash2 } from 'lucide-react';
 
 // Helper to get FY labels
 const getFYLabels = (allResponses) => {
-  const reportingYear = allResponses?.reporting_year || `FY ${new Date().getFullYear()}-${String(new Date().getFullYear() + 1).slice(-2)}`;
-  const match = reportingYear.match(/FY (\d{4})-(\d{2})/);
+  const reportingYear = allResponses?.reporting_year || `${new Date().getFullYear()}-${String(new Date().getFullYear() + 1).slice(-2)}`;
+  // Handle both "2025-26" and "FY 2025-26" formats
+  const match = reportingYear.match(/(?:FY\s*)?(\d{4})-(\d{2})/);
   if (!match) return { current: 'Current FY', previous: 'Previous FY' };
   const startYear = parseInt(match[1]);
   return {
