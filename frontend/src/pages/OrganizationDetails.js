@@ -6,7 +6,8 @@ import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
-import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload, Download, Info } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload, Download, Info, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
@@ -57,6 +58,7 @@ export default function OrganizationDetails() {
   const [pincodeError, setPincodeError] = useState('');
   const [isBRSREnabled, setIsBRSREnabled] = useState(false);
   const [brsrData, setBRSRData] = useState(null);
+  const [activeTab, setActiveTab] = useState('organization');
   const { getAuthHeader, user, subscriptionExpired } = useAuth();
 
   // Check if user is Admin (can edit) or User (read-only)
@@ -524,7 +526,7 @@ export default function OrganizationDetails() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Organization Details</h1>
+          <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Organization</h1>
           <p className="text-text-secondary">
             {subscriptionExpired 
               ? 'Your subscription has expired. Editing is disabled.' 
@@ -532,7 +534,7 @@ export default function OrganizationDetails() {
             }
           </p>
         </div>
-        {user?.role === 'admin' && !editing && (
+        {user?.role === 'admin' && !editing && activeTab === 'organization' && (
           <Button 
             onClick={() => {
               if (subscriptionExpired) {
@@ -551,9 +553,40 @@ export default function OrganizationDetails() {
         )}
       </div>
 
-      {editing ? (
-        <Card className="p-6 border border-stone-200 rounded-xl bg-white">
-          <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Framework Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="bg-stone-100 p-1 rounded-lg">
+          <TabsTrigger 
+            value="organization" 
+            className="data-[state=active]:bg-white data-[state=active]:text-primary px-6"
+          >
+            Organization Details
+          </TabsTrigger>
+          {isBRSREnabled && (
+            <TabsTrigger 
+              value="brsr" 
+              className="data-[state=active]:bg-white data-[state=active]:text-primary px-6"
+            >
+              BRSR
+            </TabsTrigger>
+          )}
+          <TabsTrigger 
+            value="gri" 
+            className="data-[state=active]:bg-white data-[state=active]:text-stone-400 px-6"
+            disabled
+          >
+            <span className="flex items-center gap-1.5">
+              GRI
+              <Lock className="w-3 h-3" />
+            </span>
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Organization Details Tab */}
+        <TabsContent value="organization" className="mt-6">
+          {editing ? (
+            <Card className="p-6 border border-stone-200 rounded-xl bg-white">
+              <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Organization Name (Read-only)</Label>
@@ -1378,14 +1411,29 @@ export default function OrganizationDetails() {
           </div>
         </Card>
       )}
+        </TabsContent>
 
-      {/* BRSR Organization Details Section - Only shown if BRSR is enabled */}
-      {isBRSREnabled && (
-        <BRSRDetailsSection 
-          isEditing={editing}
-          onDataChange={setBRSRData}
-        />
-      )}
+        {/* BRSR Tab */}
+        {isBRSREnabled && (
+          <TabsContent value="brsr" className="mt-6">
+            <BRSRDetailsSection 
+              isEditing={editing}
+              onDataChange={setBRSRData}
+            />
+          </TabsContent>
+        )}
+
+        {/* GRI Tab - Placeholder */}
+        <TabsContent value="gri" className="mt-6">
+          <Card className="p-12 border border-stone-200 rounded-xl bg-white text-center">
+            <Lock className="w-12 h-12 mx-auto text-stone-300 mb-4" />
+            <h3 className="text-lg font-medium text-text-primary mb-2">GRI Framework Coming Soon</h3>
+            <p className="text-text-muted">
+              Global Reporting Initiative (GRI) framework support will be available in a future update.
+            </p>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
