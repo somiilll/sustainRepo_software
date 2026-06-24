@@ -1541,23 +1541,14 @@ export default function OrganizationDetails() {
                       className="flex-1"
                       disabled={subscriptionExpired}
                     />
-                    <Select 
-                      value={yearlyData.production_unit} 
-                      onValueChange={(val) => setYearlyData(prev => ({ ...prev, production_unit: val }))}
+                    <Input
+                      type="text"
+                      value={yearlyData.production_unit}
+                      onChange={(e) => setYearlyData(prev => ({ ...prev, production_unit: e.target.value }))}
+                      placeholder="Unit"
+                      className="w-24"
                       disabled={subscriptionExpired}
-                    >
-                      <SelectTrigger className="w-24">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="MT">MT</SelectItem>
-                        <SelectItem value="KG">KG</SelectItem>
-                        <SelectItem value="L">Liters</SelectItem>
-                        <SelectItem value="KL">KL</SelectItem>
-                        <SelectItem value="Units">Units</SelectItem>
-                        <SelectItem value="MWh">MWh</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    />
                   </div>
                 </div>
               </div>
