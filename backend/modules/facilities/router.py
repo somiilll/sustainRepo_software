@@ -287,6 +287,7 @@ async def get_facility_production(
     
     # Build monthly data dict (keyed by month name for frontend)
     monthly_data = {}
+    monthly_unit = None  # Track unit from monthly records
     for record in monthly_records:
         period = record.get("reporting_period", "")
         fy_year, month_name = get_fy_month_from_period(period)
@@ -295,22 +296,29 @@ async def get_facility_production(
                 "quantity": record.get("quantity", 0),
                 "unit": record.get("unit", "MT")
             }
+            # Capture unit from first monthly record
+            if monthly_unit is None:
+                monthly_unit = record.get("unit", "MT")
     
     # Determine input type based on what data exists
     if monthly_data:
         input_type = "monthly"
         total_quantity = sum(m.get("quantity", 0) for m in monthly_data.values())
+        # Use unit from monthly records
+        final_unit = monthly_unit or "MT"
     elif yearly_record:
         input_type = "yearly"
         total_quantity = yearly_record.get("quantity", 0)
+        final_unit = yearly_record.get("unit", "MT")
     else:
         input_type = "yearly"
         total_quantity = 0
+        final_unit = "MT"
     
     return {
         "input_type": input_type,
         "quantity": yearly_record.get("quantity", 0) if yearly_record else 0,
-        "unit": yearly_record.get("unit", "MT") if yearly_record else "MT",
+        "unit": final_unit,
         "monthly_data": monthly_data,
         "total_quantity": total_quantity
     }
