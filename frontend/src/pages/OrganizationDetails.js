@@ -7,7 +7,8 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload, Download, Info, Lock } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload, Download, Info, Lock, TrendingUp, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
@@ -59,6 +60,17 @@ export default function OrganizationDetails() {
   const [isBRSREnabled, setIsBRSREnabled] = useState(false);
   const [brsrData, setBRSRData] = useState(null);
   const [activeTab, setActiveTab] = useState('organization');
+  
+  // Yearly Data State (Turnover & Production Quantity)
+  const [yearlyDataYear, setYearlyDataYear] = useState(() => {
+    const now = new Date();
+    const year = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+    return `${year}-${String(year + 1).slice(-2)}`;
+  });
+  const [yearlyData, setYearlyData] = useState({ turnover: '', production_quantity: '', production_unit: 'MT' });
+  const [yearlyDataLoading, setYearlyDataLoading] = useState(false);
+  const [yearlyDataSaving, setYearlyDataSaving] = useState(false);
+  
   const { getAuthHeader, user, subscriptionExpired } = useAuth();
 
   // Check if user is Admin (can edit) or User (read-only)
@@ -210,6 +222,56 @@ export default function OrganizationDetails() {
   useEffect(() => {
     fetchOrganization();
   }, []);
+
+  // Fetch yearly data when year changes
+  const fetchYearlyData = useCallback(async () => {
+    if (!yearlyDataYear) return;
+    setYearlyDataLoading(true);
+    try {
+      const response = await axios.get(
+        `${process.env.REACT_APP_BACKEND_URL}/api/organization/yearly-data/${yearlyDataYear}`,
+        { headers: getAuthHeader() }
+      );
+      if (response.data) {
+        setYearlyData({
+          turnover: response.data.turnover || '',
+          production_quantity: response.data.production_quantity || '',
+          production_unit: response.data.production_unit || 'MT'
+        });
+      } else {
+        setYearlyData({ turnover: '', production_quantity: '', production_unit: 'MT' });
+      }
+    } catch (error) {
+      console.log('No yearly data found for', yearlyDataYear);
+      setYearlyData({ turnover: '', production_quantity: '', production_unit: 'MT' });
+    } finally {
+      setYearlyDataLoading(false);
+    }
+  }, [yearlyDataYear, getAuthHeader]);
+
+  useEffect(() => {
+    fetchYearlyData();
+  }, [fetchYearlyData]);
+
+  const saveYearlyData = async () => {
+    if (subscriptionExpired) {
+      toast.error('Subscription expired. Cannot save data.');
+      return;
+    }
+    setYearlyDataSaving(true);
+    try {
+      await axios.post(
+        `${process.env.REACT_APP_BACKEND_URL}/api/organization/yearly-data/${yearlyDataYear}`,
+        yearlyData,
+        { headers: getAuthHeader() }
+      );
+      toast.success(`Saved data for FY ${yearlyDataYear}`);
+    } catch (error) {
+      toast.error('Failed to save yearly data');
+    } finally {
+      setYearlyDataSaving(false);
+    }
+  };
 
   // Fetch BRSR enabled status when organization is loaded
   useEffect(() => {
@@ -1401,6 +1463,124 @@ export default function OrganizationDetails() {
           </div>
         </Card>
       )}
+
+        {/* Yearly Data Section - Turnover & Production Quantity */}
+        <Card className="p-6 border border-stone-200 rounded-xl bg-white mt-6">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-emerald-100 rounded-lg">
+                <TrendingUp className="w-5 h-5 text-emerald-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-text-primary">Yearly Organization Data</h3>
+                <p className="text-xs text-text-muted">Financial turnover and production quantity</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Select value={yearlyDataYear} onValueChange={setYearlyDataYear}>
+                <SelectTrigger className="w-36">
+                  <SelectValue placeholder="Select FY" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 5 }, (_, i) => {
+                    const year = new Date().getFullYear() - i;
+                    return (
+                      <SelectItem key={year} value={`${year}-${String(year + 1).slice(-2)}`}>
+                        FY {year}-{String(year + 1).slice(-2)}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {yearlyDataLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Turnover */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">
+                    Annual Turnover (INR)
+                    <span className="text-text-muted font-normal ml-1">for FY {yearlyDataYear}</span>
+                  </Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">₹</span>
+                    <Input
+                      type="number"
+                      value={yearlyData.turnover}
+                      onChange={(e) => setYearlyData(prev => ({ ...prev, turnover: e.target.value }))}
+                      placeholder="Enter annual turnover"
+                      className="pl-8"
+                      disabled={subscriptionExpired}
+                    />
+                  </div>
+                  {yearlyData.turnover && (
+                    <p className="text-xs text-text-muted">
+                      ₹{Number(yearlyData.turnover).toLocaleString('en-IN')}
+                    </p>
+                  )}
+                </div>
+
+                {/* Production Quantity */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">
+                    Production Quantity
+                    <span className="text-text-muted font-normal ml-1">for FY {yearlyDataYear}</span>
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      value={yearlyData.production_quantity}
+                      onChange={(e) => setYearlyData(prev => ({ ...prev, production_quantity: e.target.value }))}
+                      placeholder="Enter quantity"
+                      className="flex-1"
+                      disabled={subscriptionExpired}
+                    />
+                    <Select 
+                      value={yearlyData.production_unit} 
+                      onValueChange={(val) => setYearlyData(prev => ({ ...prev, production_unit: val }))}
+                      disabled={subscriptionExpired}
+                    >
+                      <SelectTrigger className="w-24">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="MT">MT</SelectItem>
+                        <SelectItem value="KG">KG</SelectItem>
+                        <SelectItem value="L">Liters</SelectItem>
+                        <SelectItem value="KL">KL</SelectItem>
+                        <SelectItem value="Units">Units</SelectItem>
+                        <SelectItem value="MWh">MWh</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button
+                  onClick={saveYearlyData}
+                  disabled={yearlyDataSaving || subscriptionExpired}
+                  className="bg-primary hover:bg-primary/90"
+                >
+                  {yearlyDataSaving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Yearly Data'
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </Card>
         </TabsContent>
 
         {/* BRSR Tab */}
