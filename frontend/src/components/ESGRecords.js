@@ -203,13 +203,22 @@ export default function ESGRecords({ section, framework = 'BRSR' }) {
     setShowImportedModal(true);
   };
 
+  // Month names for formatting
+  const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 
+                       'July', 'August', 'September', 'October', 'November', 'December'];
+
   const formatReportingPeriod = (period) => {
     if (!period) return '-';
     switch (period.reporting_type) {
       case 'daily':
         return period.date + (period.time ? ` ${period.time}` : '');
       case 'monthly':
-        return `${period.month} ${period.year}`;
+        // Handle both string month names and numeric months
+        let monthDisplay = period.month;
+        if (typeof period.month === 'number') {
+          monthDisplay = MONTH_NAMES[period.month - 1] || period.month;
+        }
+        return `${monthDisplay}-${period.year}`;
       case 'quarterly':
         return `${period.quarter} ${period.year}`;
       case 'yearly':
