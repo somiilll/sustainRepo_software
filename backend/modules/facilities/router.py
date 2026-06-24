@@ -191,8 +191,49 @@ async def delete_facility(facility_id: str, current_user: dict = Depends(get_adm
     }
 
 
-# Month order for financial year (Apr-Mar)
+# Month order for financial year (Apr-Mar) with their numeric values
 MONTH_ORDER = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"]
+MONTH_TO_NUM = {"Apr": 4, "May": 5, "Jun": 6, "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12, "Jan": 1, "Feb": 2, "Mar": 3}
+NUM_TO_MONTH = {4: "Apr", 5: "May", 6: "Jun", 7: "Jul", 8: "Aug", 9: "Sep", 10: "Oct", 11: "Nov", 12: "Dec", 1: "Jan", 2: "Feb", 3: "Mar"}
+
+
+def get_calendar_year_month(fy_year: str, month_name: str) -> tuple:
+    """
+    Convert FY year and month name to calendar year and month number.
+    FY 2024-25: Apr-Dec are in 2024, Jan-Mar are in 2025
+    Returns (year, month_num) e.g., (2024, 4) for Apr in FY 2024-25
+    """
+    fy_start = int(fy_year.split("-")[0])
+    month_num = MONTH_TO_NUM.get(month_name)
+    if not month_num:
+        return None, None
+    # Apr-Dec belong to FY start year, Jan-Mar belong to FY start year + 1
+    if month_num >= 4:
+        return fy_start, month_num
+    else:
+        return fy_start + 1, month_num
+
+
+def get_fy_month_from_period(period: str) -> tuple:
+    """
+    Convert YYYY-MM format to FY year and month name.
+    e.g., "2024-04" -> ("2024-25", "Apr")
+    """
+    import re
+    match = re.match(r'^(\d{4})-(\d{2})$', period)
+    if not match:
+        return None, None
+    year = int(match.group(1))
+    month_num = int(match.group(2))
+    month_name = NUM_TO_MONTH.get(month_num)
+    if not month_name:
+        return None, None
+    # Determine FY: Apr-Dec belong to FY starting that year, Jan-Mar belong to FY starting previous year
+    if month_num >= 4:
+        fy_year = f"{year}-{str(year + 1)[-2:]}"
+    else:
+        fy_year = f"{year - 1}-{str(year)[-2:]}"
+    return fy_year, month_name
 
 
 @router.get("/facilities/{facility_id}/production/{reporting_year}")
@@ -225,25 +266,32 @@ async def get_facility_production(
         {"_id": 0}
     )
     
-    # Check for monthly production records
+    # Build list of YYYY-MM periods for this FY
+    fy_start = int(reporting_year.split("-")[0])
+    monthly_periods = []
+    for month_name in MONTH_ORDER:
+        year, month_num = get_calendar_year_month(reporting_year, month_name)
+        if year and month_num:
+            monthly_periods.append(f"{year}-{month_num:02d}")
+    
+    # Check for monthly production records using YYYY-MM format
     monthly_records = await db.production_quantities.find(
         {
             "organization_id": org_id,
             "facility_id": facility_id,
-            "reporting_period": {"$regex": f"^{reporting_year}-"},
+            "reporting_period": {"$in": monthly_periods},
             "is_deleted": {"$ne": True}
         },
         {"_id": 0}
     ).to_list(12)
     
-    # Build monthly data dict
+    # Build monthly data dict (keyed by month name for frontend)
     monthly_data = {}
     for record in monthly_records:
-        # Extract month from reporting_period like "2024-25-Apr"
-        parts = record.get("reporting_period", "").split("-")
-        if len(parts) >= 3:
-            month = parts[2]
-            monthly_data[month] = {
+        period = record.get("reporting_period", "")
+        fy_year, month_name = get_fy_month_from_period(period)
+        if month_name:
+            monthly_data[month_name] = {
                 "quantity": record.get("quantity", 0),
                 "unit": record.get("unit", "MT")
             }
@@ -290,6 +338,13 @@ async def save_facility_production(
     now = datetime.now(timezone.utc)
     user_id = current_user.get("id")
     
+    # Build list of YYYY-MM periods for this FY (for cleanup)
+    monthly_periods = []
+    for month_name in MONTH_ORDER:
+        year, month_num = get_calendar_year_month(reporting_year, month_name)
+        if year and month_num:
+            monthly_periods.append(f"{year}-{month_num:02d}")
+    
     if data.input_type == "monthly" and data.monthly_data:
         # Clear any existing yearly record for this FY
         await db.production_quantities.update_many(
@@ -302,15 +357,21 @@ async def save_facility_production(
             {"$set": {"is_deleted": True, "deleted_at": now}}
         )
         
-        # Save/update monthly records
-        for month, month_data in data.monthly_data.items():
-            if month not in MONTH_ORDER:
+        # Save/update monthly records using YYYY-MM format
+        for month_name, month_data in data.monthly_data.items():
+            if month_name not in MONTH_ORDER:
+                continue
+            
+            # Convert to calendar year and month
+            year, month_num = get_calendar_year_month(reporting_year, month_name)
+            if not year or not month_num:
                 continue
                 
             quantity = month_data.get("quantity", 0) if isinstance(month_data, dict) else month_data
             unit = month_data.get("unit", data.unit or "MT") if isinstance(month_data, dict) else (data.unit or "MT")
             
-            reporting_period = f"{reporting_year}-{month}"
+            # Use YYYY-MM format (e.g., "2024-04" for April 2024)
+            reporting_period = f"{year}-{month_num:02d}"
             
             existing = await db.production_quantities.find_one({
                 "organization_id": org_id,
@@ -337,7 +398,7 @@ async def save_facility_production(
                     "reporting_period": reporting_period,
                     "quantity": float(quantity) if quantity else 0,
                     "unit": unit,
-                    "notes": f"Monthly production for {month}",
+                    "notes": f"Monthly production for {month_name}",
                     "created_at": now,
                     "created_by": user_id,
                     "updated_at": now,
@@ -360,12 +421,12 @@ async def save_facility_production(
     
     else:
         # Yearly input - clear monthly records and save yearly
-        # Soft delete monthly records
+        # Soft delete monthly records using YYYY-MM format
         await db.production_quantities.update_many(
             {
                 "organization_id": org_id,
                 "facility_id": facility_id,
-                "reporting_period": {"$regex": f"^{reporting_year}-"},
+                "reporting_period": {"$in": monthly_periods},
                 "is_deleted": {"$ne": True}
             },
             {"$set": {"is_deleted": True, "deleted_at": now}}
