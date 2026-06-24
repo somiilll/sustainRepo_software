@@ -515,7 +515,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
           </div>
         </CollapsibleTrigger>
         <CollapsibleContent className="p-4 pt-0 border-t">
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div className="p-3 border rounded bg-stone-50">
               <Label className="text-xs">CSR under Section 135?</Label>
               {isEditing ? (
@@ -524,12 +524,6 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                   <span className="text-xs">{csrApplicability.is_applicable ? 'Yes' : 'No'}</span>
                 </div>
               ) : <p className="text-sm font-medium mt-1">{csrApplicability.is_applicable ? 'Yes' : 'No'}</p>}
-            </div>
-            <div className="p-3 border rounded">
-              <Label className="text-xs flex items-center gap-1"><IndianRupee className="w-3 h-3" /> Turnover</Label>
-              {isEditing ? (
-                <Input type="number" min="0" value={csrApplicability.turnover_inr} onChange={(e) => setCSRApplicability(p => ({ ...p, turnover_inr: parseFloat(e.target.value) || 0 }))} className="h-8 mt-1" />
-              ) : <p className="text-sm font-medium mt-1">{formatINR(csrApplicability.turnover_inr)}</p>}
             </div>
             <div className="p-3 border rounded">
               <Label className="text-xs flex items-center gap-1"><IndianRupee className="w-3 h-3" /> Net Worth</Label>

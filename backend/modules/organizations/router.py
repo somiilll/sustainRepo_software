@@ -82,17 +82,28 @@ async def get_yearly_data(
     reporting_year: str,
     current_user: dict = Depends(get_current_user)
 ):
-    """Get organization yearly data (turnover, production quantity) for a specific year."""
+    """Get organization yearly data (turnover from financials, production from production_quantities)."""
     org_id = current_user.get("organization_id")
     if not org_id:
         raise HTTPException(status_code=404, detail="No organization assigned")
     
-    data = await db.organization_yearly_data.find_one(
+    # Fetch turnover from organization_financials
+    financials = await db.organization_financials.find_one(
         {"org_id": org_id, "reporting_year": reporting_year},
         {"_id": 0}
     )
     
-    return data or {}
+    # Fetch production quantity from production_quantities (org-level, facility_id=None)
+    production = await db.production_quantities.find_one(
+        {"organization_id": org_id, "facility_id": None, "reporting_period": f"FY {reporting_year}", "is_deleted": {"$ne": True}},
+        {"_id": 0}
+    )
+    
+    return {
+        "turnover": financials.get("turnover") if financials else "",
+        "production_quantity": str(production.get("quantity", "")) if production else "",
+        "production_unit": production.get("unit", "MT") if production else "MT"
+    }
 
 
 @router.post("/organization/yearly-data/{reporting_year}")
@@ -101,27 +112,63 @@ async def save_yearly_data(
     data: YearlyDataCreate,
     current_user: dict = Depends(get_current_user)
 ):
-    """Save organization yearly data (turnover, production quantity) for a specific year."""
+    """Save organization yearly data - turnover to financials, production to production_quantities."""
     org_id = current_user.get("organization_id")
     if not org_id:
         raise HTTPException(status_code=404, detail="No organization assigned")
     
     now = datetime.now(timezone.utc)
+    user_id = current_user.get("id")
     
-    update_data = {
-        "org_id": org_id,
-        "reporting_year": reporting_year,
-        "turnover": data.turnover,
-        "production_quantity": data.production_quantity,
-        "production_unit": data.production_unit,
-        "updated_at": now,
-        "updated_by": current_user.get("id")
-    }
+    # Save turnover to organization_financials
+    if data.turnover:
+        await db.organization_financials.update_one(
+            {"org_id": org_id, "reporting_year": reporting_year},
+            {"$set": {
+                "org_id": org_id,
+                "reporting_year": reporting_year,
+                "turnover": data.turnover,
+                "updated_at": now,
+                "updated_by": user_id
+            }, "$setOnInsert": {"created_at": now}},
+            upsert=True
+        )
     
-    await db.organization_yearly_data.update_one(
-        {"org_id": org_id, "reporting_year": reporting_year},
-        {"$set": update_data, "$setOnInsert": {"created_at": now}},
-        upsert=True
-    )
+    # Save production quantity to production_quantities (org-level)
+    if data.production_quantity:
+        import uuid
+        existing = await db.production_quantities.find_one({
+            "organization_id": org_id,
+            "facility_id": None,
+            "reporting_period": f"FY {reporting_year}",
+            "is_deleted": {"$ne": True}
+        })
+        
+        if existing:
+            await db.production_quantities.update_one(
+                {"id": existing["id"]},
+                {"$set": {
+                    "quantity": float(data.production_quantity) if data.production_quantity else 0,
+                    "unit": data.production_unit or "MT",
+                    "updated_at": now,
+                    "updated_by": user_id
+                }}
+            )
+        else:
+            new_record = {
+                "id": str(uuid.uuid4()),
+                "organization_id": org_id,
+                "facility_id": None,
+                "reporting_period": f"FY {reporting_year}",
+                "quantity": float(data.production_quantity) if data.production_quantity else 0,
+                "unit": data.production_unit or "MT",
+                "notes": "Added from Organization module",
+                "created_at": now,
+                "created_by": user_id,
+                "updated_at": now,
+                "updated_by": user_id,
+                "is_deleted": False
+            }
+            await db.production_quantities.insert_one(new_record)
     
     return {"success": True, "message": f"Saved yearly data for FY {reporting_year}"}

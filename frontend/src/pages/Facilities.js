@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
+import FacilityProductionSection from '../components/FacilityProductionSection';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -1029,6 +1030,17 @@ export default function Facilities() {
             {facility.attachments?.length > 0 && (
               <div className="mt-3 pt-3 border-t border-stone-100">
                 <p className="text-xs text-text-muted mb-1">{facility.attachments.length} attachment(s)</p>
+              </div>
+            )}
+            
+            {/* Production Quantity Section - Only for active facilities */}
+            {facility.is_active !== false && (
+              <div className="mt-4">
+                <FacilityProductionSection 
+                  facilityId={facility.id}
+                  facilityName={facility.name}
+                  readOnly={!canEdit || subscriptionExpired}
+                />
               </div>
             )}
           </Card>
