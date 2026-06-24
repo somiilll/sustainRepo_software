@@ -570,16 +570,6 @@ export default function OrganizationDetails() {
               BRSR
             </TabsTrigger>
           )}
-          <TabsTrigger 
-            value="gri" 
-            className="data-[state=active]:bg-white data-[state=active]:text-stone-400 px-6"
-            disabled
-          >
-            <span className="flex items-center gap-1.5">
-              GRI
-              <Lock className="w-3 h-3" />
-            </span>
-          </TabsTrigger>
         </TabsList>
 
         {/* Organization Details Tab */}
@@ -1419,20 +1409,11 @@ export default function OrganizationDetails() {
             <BRSRDetailsSection 
               isEditing={editing}
               onDataChange={setBRSRData}
+              isCollapsible={false}
+              hideSections={['employees_workers', 'women_representation', 'turnover_rate', 'complaints_grievances']}
             />
           </TabsContent>
         )}
-
-        {/* GRI Tab - Placeholder */}
-        <TabsContent value="gri" className="mt-6">
-          <Card className="p-12 border border-stone-200 rounded-xl bg-white text-center">
-            <Lock className="w-12 h-12 mx-auto text-stone-300 mb-4" />
-            <h3 className="text-lg font-medium text-text-primary mb-2">GRI Framework Coming Soon</h3>
-            <p className="text-text-muted">
-              Global Reporting Initiative (GRI) framework support will be available in a future update.
-            </p>
-          </Card>
-        </TabsContent>
       </Tabs>
     </div>
   );

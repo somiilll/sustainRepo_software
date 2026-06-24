@@ -129,7 +129,7 @@ const DEFAULT_MATERIAL_ISSUE_ROW = {
 
 const formatINR = (num) => num ? '₹' + num.toLocaleString('en-IN') : '₹0';
 
-export default function BRSRYearlySections({ isEditing = false }) {
+export default function BRSRYearlySections({ isEditing = false, hideSections = [] }) {
   const { getAuthHeader } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -335,6 +335,7 @@ export default function BRSRYearlySections({ isEditing = false }) {
       </div>
 
       {/* 1. Employee & Worker Details */}
+      {!hideSections.includes('employees_workers') && (
       <Collapsible open={openSections.employees} onOpenChange={() => toggleSection('employees')} className="border rounded-lg bg-white">
         <CollapsibleTrigger className="w-full">
           <div className="flex items-center justify-between p-3 hover:bg-stone-50">
@@ -428,8 +429,10 @@ export default function BRSRYearlySections({ isEditing = false }) {
           </div>
         </CollapsibleContent>
       </Collapsible>
+      )}
 
       {/* 2. Women Representation */}
+      {!hideSections.includes('women_representation') && (
       <Collapsible open={openSections.women} onOpenChange={() => toggleSection('women')} className="border rounded-lg bg-white">
         <CollapsibleTrigger className="w-full">
           <div className="flex items-center justify-between p-3 hover:bg-stone-50">
@@ -495,6 +498,7 @@ export default function BRSRYearlySections({ isEditing = false }) {
           )}
         </CollapsibleContent>
       </Collapsible>
+      )}
 
       {/* 3. CSR Applicability */}
       <Collapsible open={openSections.csr} onOpenChange={() => toggleSection('csr')} className="border rounded-lg bg-white">
@@ -615,6 +619,7 @@ export default function BRSRYearlySections({ isEditing = false }) {
       </Collapsible>
 
       {/* 5. Turnover Rate Matrix */}
+      {!hideSections.includes('turnover_rate') && (
       <Collapsible open={openSections.turnover} onOpenChange={() => toggleSection('turnover')} className="border rounded-lg bg-white">
         <CollapsibleTrigger className="w-full">
           <div className="flex items-center justify-between p-3 hover:bg-stone-50">
@@ -746,11 +751,13 @@ export default function BRSRYearlySections({ isEditing = false }) {
               </TableBody>
             </Table>
           </div>
-          <p className="text-xs text-text-muted mt-2">* All 3 years are editable. Saving will update each year's document separately.</p>
+          <p className="text-xs text-text-muted mt-2">* All 3 years are editable. Saving will update each year&apos;s document separately.</p>
         </CollapsibleContent>
       </Collapsible>
+      )}
 
       {/* 6. Complaints & Grievances */}
+      {!hideSections.includes('complaints_grievances') && (
       <Collapsible open={openSections.complaints} onOpenChange={() => toggleSection('complaints')} className="border rounded-lg bg-white">
         <CollapsibleTrigger className="w-full">
           <div className="flex items-center justify-between p-3 hover:bg-stone-50">
@@ -856,6 +863,7 @@ export default function BRSRYearlySections({ isEditing = false }) {
           <p className="text-xs text-text-muted mt-2">* Web-link is mandatory when Grievance Mechanism is enabled</p>
         </CollapsibleContent>
       </Collapsible>
+      )}
 
       {/* 7. Material Responsible Business Conduct Issues */}
       <Collapsible open={openSections.materialIssues} onOpenChange={() => toggleSection('materialIssues')} className="border rounded-lg bg-white">

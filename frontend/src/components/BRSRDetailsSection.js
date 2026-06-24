@@ -54,7 +54,9 @@ const EMPTY_MARKET_SERVED = { location_type: 'National', number: 0 };
 export default function BRSRDetailsSection({ 
   isEditing = false, 
   onDataChange = null,
-  initialData = null 
+  initialData = null,
+  isCollapsible = true,
+  hideSections = []
 }) {
   const { getAuthHeader } = useAuth();
   const [isOpen, setIsOpen] = useState(true);
@@ -222,40 +224,11 @@ export default function BRSRDetailsSection({
     );
   }
 
-  return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="border rounded-lg">
-      <CollapsibleTrigger className="w-full">
-        <div className="flex items-center justify-between p-4 bg-stone-50 hover:bg-stone-100 transition-colors rounded-t-lg">
-          <div className="flex items-center gap-3">
-            {isOpen ? (
-              <ChevronDown className="w-5 h-5 text-text-muted" />
-            ) : (
-              <ChevronRight className="w-5 h-5 text-text-muted" />
-            )}
-            <FileText className="w-5 h-5 text-primary" />
-            <span className="font-semibold text-text-primary">BRSR Organization Details</span>
-          </div>
-          <div className="flex items-center gap-2">
-            {isComplete ? (
-              <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
-                <CheckCircle2 className="w-3 h-3 mr-1" />
-                Complete
-              </Badge>
-            ) : (
-              <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">
-                <AlertCircle className="w-3 h-3 mr-1" />
-                Incomplete
-              </Badge>
-            )}
-          </div>
-        </div>
-      </CollapsibleTrigger>
-      
-      <CollapsibleContent>
-        <div className="p-6 space-y-8 border-t">
-          {/* Basic Information Section */}
-          <div>
-            <h4 className="text-sm font-semibold text-text-primary mb-4 pb-2 border-b">
+  const content = (
+    <div className={`p-6 space-y-8 ${isCollapsible ? 'border-t' : ''}`}>
+      {/* Basic Information Section */}
+      <div>
+        <h4 className="text-sm font-semibold text-text-primary mb-4 pb-2 border-b">
               Basic Information
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -994,9 +967,50 @@ export default function BRSRDetailsSection({
             </h4>
             
             {/* Unified Yearly Sections Component */}
-            <BRSRYearlySections isEditing={isEditing} />
+            <BRSRYearlySections isEditing={isEditing} hideSections={hideSections} />
           </div>
         </div>
+  );
+
+  if (!isCollapsible) {
+    return (
+      <div className="border rounded-lg bg-white">
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="border rounded-lg">
+      <CollapsibleTrigger className="w-full">
+        <div className="flex items-center justify-between p-4 bg-stone-50 hover:bg-stone-100 transition-colors rounded-t-lg">
+          <div className="flex items-center gap-3">
+            {isOpen ? (
+              <ChevronDown className="w-5 h-5 text-text-muted" />
+            ) : (
+              <ChevronRight className="w-5 h-5 text-text-muted" />
+            )}
+            <FileText className="w-5 h-5 text-primary" />
+            <span className="font-semibold text-text-primary">BRSR Organization Details</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {isComplete ? (
+              <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+                <CheckCircle2 className="w-3 h-3 mr-1" />
+                Complete
+              </Badge>
+            ) : (
+              <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">
+                <AlertCircle className="w-3 h-3 mr-1" />
+                Incomplete
+              </Badge>
+            )}
+          </div>
+        </div>
+      </CollapsibleTrigger>
+      
+      <CollapsibleContent>
+        {content}
       </CollapsibleContent>
     </Collapsible>
   );
