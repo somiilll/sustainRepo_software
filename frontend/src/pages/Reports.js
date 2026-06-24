@@ -6,10 +6,9 @@ import { Card } from '../components/ui/card';
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
 import { MonthYearPicker } from '../components/ui/month-year-picker';
-import { FileText, Download, Building2, Calendar, CheckCircle2, Loader2, Sparkles, Package } from 'lucide-react';
+import { FileText, Download, Building2, Calendar, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { toast } from 'sonner';
-import ProductionQuantityModal from './ProductionQuantityModal';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -64,9 +63,6 @@ export default function Reports() {
     reporting_period_end: ''
   });
   const [generatingAi, setGeneratingAi] = useState(false);
-
-  // Production Quantity Modal State
-  const [productionModalOpen, setProductionModalOpen] = useState(false);
 
   useEffect(() => {
     fetchFacilities();
@@ -469,24 +465,7 @@ export default function Reports() {
           <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Reports</h1>
           <p className="text-text-secondary">Download comprehensive GHG emission reports</p>
         </div>
-        <Button
-          variant="outline"
-          onClick={() => setProductionModalOpen(true)}
-          className="flex items-center gap-2"
-          data-testid="production-quantity-btn"
-        >
-          <Package className="w-4 h-4" />
-          Production Quantity
-        </Button>
       </div>
-
-      {/* Production Quantity Modal */}
-      <ProductionQuantityModal
-        open={productionModalOpen}
-        onOpenChange={setProductionModalOpen}
-        facilities={facilities}
-        getAuthHeader={getAuthHeader}
-      />
 
       {/* GHG Inventory Report Card */}
       {hasScope12Access && (
