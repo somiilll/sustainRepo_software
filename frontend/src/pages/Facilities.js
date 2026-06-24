@@ -910,6 +910,15 @@ export default function Facilities() {
                   />
                 </div>
 
+                {/* Production Quantity Section - Only show when editing existing facility */}
+                {(editingFacility || autoSavedId) && (
+                  <FacilityProductionSection 
+                    facilityId={editingFacility?.id || autoSavedId}
+                    facilityName={formData.name}
+                    readOnly={subscriptionExpired}
+                  />
+                )}
+
                 <div className="flex justify-between items-center gap-3 pt-4 border-t border-stone-200">
                   <AutoSaveStatus 
                     status={saveStatus} 
@@ -1030,17 +1039,6 @@ export default function Facilities() {
             {facility.attachments?.length > 0 && (
               <div className="mt-3 pt-3 border-t border-stone-100">
                 <p className="text-xs text-text-muted mb-1">{facility.attachments.length} attachment(s)</p>
-              </div>
-            )}
-            
-            {/* Production Quantity Section - Only for active facilities */}
-            {facility.is_active !== false && (
-              <div className="mt-4">
-                <FacilityProductionSection 
-                  facilityId={facility.id}
-                  facilityName={facility.name}
-                  readOnly={!canEdit || subscriptionExpired}
-                />
               </div>
             )}
           </Card>
