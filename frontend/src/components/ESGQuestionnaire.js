@@ -2941,13 +2941,21 @@ export default function ESGQuestionnaire({
         completion_percentage: fetchedConfigs.length > 0 ? Math.round((answeredCount / fetchedConfigs.length) * 100) : 0
       });
 
-      // Fetch historical data for autofill
+      // Fetch historical data for autofill (includes previous year AND next year for backward fill)
       try {
         const historicalRes = await axios.get(
-          `${API}/esg-questionnaire/responses/${framework}/${section}/${reportingYear}/historical`,
+          `${API}/esg-questionnaire/responses/${framework}/${section}/${reportingYear}/multi-year`,
           { headers: getAuthHeader() }
         );
-        setHistoricalData(historicalRes.data);
+        // Transform multi-year response to historicalData format expected by renderers
+        setHistoricalData({
+          previous_year: historicalRes.data.previous_year,
+          previous_responses: historicalRes.data.previous_year_data,
+          next_year: historicalRes.data.next_year,
+          next_year_data: historicalRes.data.next_year_data,
+          has_previous_data: historicalRes.data.has_previous_data,
+          has_next_year_data: historicalRes.data.has_next_year_data,
+        });
       } catch (err) {
         console.log('No historical data available:', err.message);
         setHistoricalData(null);

@@ -262,6 +262,45 @@ async def get_historical_data(
     }
 
 
+@router.get("/responses/{framework}/{section}/{reporting_year}/multi-year")
+async def get_multi_year_responses(
+    framework: str,
+    section: str,
+    reporting_year: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get current year + previous year + next year responses in a single call.
+    
+    This supports the normalized 1-doc-per-year data model by:
+    1. Fetching current year's document
+    2. Fetching previous year's document (for Previous FY column)
+    3. Fetching next year's document (for backward fill if data was entered there)
+    
+    The frontend uses this to:
+    - Display Current FY values from current_year_data
+    - Display Previous FY values from previous_year_data
+    - Backfill Current FY from next_year's previous_fy data if needed
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    result = await esg_questionnaire_service.get_multi_year_responses(
+        org_id=org_id,
+        framework=framework,
+        section=section,
+        reporting_year=reporting_year
+    )
+    
+    return {
+        "org_id": org_id,
+        "framework": framework,
+        "section": section,
+        **result
+    }
+
+
 # =============================================================================
 # Helper Endpoints
 # =============================================================================
