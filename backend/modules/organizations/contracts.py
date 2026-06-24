@@ -65,6 +65,10 @@ class OrganizationCreate(BaseModel):
 
     # ESG Frameworks enabled for this organization (BRSR, GRI, SBTi)
     esg_frameworks_enabled: Optional[List[str]] = None
+    
+    # Module enablement flags
+    has_ghg: Optional[bool] = True  # Enable GHG module
+    has_esg: Optional[bool] = True  # Enable ESG module (Environment, Social, Governance records)
 
     @field_validator('pincode')
     @classmethod
@@ -148,4 +152,8 @@ class OrganizationResponse(BaseModel):
 
     # ESG Frameworks enabled for this organization (BRSR, GRI, SBTi)
     esg_frameworks_enabled: Optional[List[str]] = None
+    
+    # Module enablement flags
+    has_ghg: Optional[bool] = True  # Enable GHG module
+    has_esg: Optional[bool] = True  # Enable ESG module (Environment, Social, Governance records)
 

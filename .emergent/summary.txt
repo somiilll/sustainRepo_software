@@ -1,19 +1,20 @@
-<analysis>**original_problem_statement**: The user is evolving the multi-tenant GHG calculation platform into an ESG Management Platform. PRODUCT REQUIREMENTS: Re-architecture of backend into  and ; Migrate authentication to ; Add Organization-level ESG Framework toggles; Add dynamic BRSR details sections with a hybrid data model; Create a config-driven ESG questionnaire architecture that dynamically renders forms for Environment, Social, and Governance. Implement a highly scalable, configurable ESG Records module with versioning, evidence upload capabilities, and Super Admin configurations.
+<analysis>**original_problem_statement**: The user is evolving the multi-tenant GHG calculation platform into an ESG Management Platform. PRODUCT REQUIREMENTS: Re-architecture of backend into  and ; Add Organization-level ESG Framework toggles; Add dynamic BRSR details sections with a hybrid data model; Create a config-driven ESG questionnaire architecture that dynamically renders forms for Environment, Social, and Governance; Implement a highly scalable, configurable ESG Records module with versioning, evidence upload capabilities, and Super Admin configurations.
 
 **User's preferred language**: English (INSTRUCT next agent to respond in English only)
 
-**what currently exists?**: A fully operational ESG Records module (Phases 1-4) with UI for Super Admins to configure dynamic categories/fields. Records table supports Add/Edit/Delete, version history, and file evidence upload (saving to Cloudflare R2). An API aggregation layer () automatically imports and surfaces existing GHG Emissions and Energy data into the ESG Records table as read-only/locked entries, grouped by Financial Year and automatically segregated into Renewable/Non-Renewable.
+**what currently exists?** 
+A fully operational ESG Records module with dynamic renderers and a 1-document-per-year architecture for questionnaire/HR data. The Organization Details module supports tabbed interfaces (Org Details, BRSR). Yearly Organization Data (Turnover and Production Qty) successfully decoupled into distinct collections (, ). The application now leverages a unified  collection (migrated away from ) and dynamic module toggles (, ) that configure the Sidebar visibility for Environment/GHG vs ESG features.
 
 **Last working item**: 
-    - Last item agent was working: The agent was instructed to formulate a plan based on the current pending tasks/issues and present it to the user. The agent called the  tool to confirm the development plan and is currently waiting for the user's input/approval.
+    - Last item agent was working: Testing the newly implemented SuperAdmin Organization Management UI toggles ( and ) and observing the dynamic Sidebar rendering. The user stopped the agent to perform the manual verification themselves.
     - Status: USER VERIFICATION PENDING
-    - Agent Testing Done: N
-    - Which testing method agent to use? NA
+    - Agent Testing Done: Y
+    - Which testing method agent to use? screenshot tool
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:
   Issue 1: Dashboard Scope 1 & 3 Emissions Deduplication Bug (Priority: P0)
-     - Attempted fixes: Investigated only.
+     - Attempted fixes: Investigated only in prior sessions. Deferred due to UI feature priorities.
      - Next debug checklist: In , bypass the  deduplication filter entirely so both monthly and yearly records are included.
      - Why fix this issue and what will be achieved with the fix? Fixes critical dashboard data discrepancies.
      - Status: NOT STARTED
@@ -22,7 +23,7 @@
      - Blocked on other issue: None
 
   Issue 2: Carbon Intensity Calculation discrepancy in Report Generator (Priority: P0)
-     - Attempted fixes: Inherited from previous forks.
+     - Attempted fixes: Inherited from previous forks. Deferred.
      - Next debug checklist: Check  logic around lines 818-830 in .
      - Why fix this issue and what will be achieved with the fix? Ensures mathematically accurate Carbon Intensity metrics.
      - Status: NOT STARTED
@@ -30,43 +31,28 @@
      - Should Test frontend/backend/both after fix? Backend
      - Blocked on other issue: None
 
-  Issue 3: Bulk Upload Calculation Discrepancy (Priority: P0)
+  Issue 3: ESG Records Dropdown showing GHG Emissions 3 times with missing form fields (Priority: P1)
      - Attempted fixes: None
-     - Next debug checklist: In , extract  dynamically and add  to context.
-     - Why fix this issue and what will be achieved with the fix? Prevents bad data ingestion from bulk uploads.
+     - Next debug checklist: Consolidate GHG Emissions category in DB or fix the frontend dropdown deduplication, and populate the  array with necessary config.
      - Status: NOT STARTED
      - Is recurring issue? Y
-     - Should Test frontend/backend/both after fix? Backend
-     - Blocked on other issue: None
-
-  Issue 4: ESG Records Dropdown showing GHG Emissions 3 times with missing form fields (Priority: P1)
-     - Attempted fixes: Agent identified there are 3 separate category entries for each scope (Scope 1, 2, 3) all sharing . Their  arrays in DB are empty .
-     - Next debug checklist: Consolidate GHG Emissions category in DB or fix the frontend dropdown deduplication, and populate the  array with necessary config (Scope, Quantity) for manual record entry.
-     - Why fix this issue and what will be achieved with the fix? Fixes UI bug and enables manual entry of GHG emissions records.
-     - Status: NOT STARTED
-     - Is recurring issue? N
      - Should Test frontend/backend/both after fix? Both
      - Blocked on other issue: None
 
-  Issue 5: Missing  in pending_downloads (Priority: P2)
+  Issue 4: Missing  in pending_downloads (Priority: P2)
      - Attempted fixes: None
      - Next debug checklist: Add  to the  dict in .
-     - Why fix this issue and what will be achieved with the fix? Standardizes data models.
      - Status: NOT STARTED
      - Is recurring issue? N
      - Should Test frontend/backend/both after fix? Backend
      - Blocked on other issue: None
 
 **In progress Task List**:
-  Task 1: ESG Records Architecture - Phase 2 (Social & Governance Extensibility) (Priority: P1)
-     - Where to resume:  needs to be extended to fully support Social and Governance sections dynamically.
-     - What will be achieved with this? Extends the reusable records architecture across all ESG pillars.
-     - Status: NOT STARTED
-     - Should Test frontend/backend/both after fix? Both
-     - Blocked on something: None
+  None. (The previous tasks were fully implemented and handed to the user for testing).
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
+    - P0: Ensure GHG Report Generation is hidden from UI if the organization does not have  enabled (as requested by user, partial completion done via Sidebar).
     - P1: Auto-generated TypeScript SDK for the frontend using .
     - P1: Apply to all months autofill for working hours/days in S3C7 Employee Commuting.
     - P1: Continue backend modularization to dismantle  (Phase B12).
@@ -77,105 +63,129 @@
     - P1: Ingestion Engine for ERP/SAP integrations.
     - P2: Organization config layer setup for , , .
     - P2: Implement CBAM module and report template.
+    - P2: Refactor  to Specialized Component + Static Config Strategy.
 
 **Completed work in this session**
-- Agent formulated a plan and initiated the  sequence to verify next steps with the user.
-- *Note: Previous session completions (Evidence file upload, API aggregation for GHG integration, ESG Config Super Admin Module) are detailed in the what currently exists section.*
+- Verified Yearly Organization Data backend routes (Turnover to , Production to ).
+- Added Facility Production Quantity UI (Yearly/Monthly) to the Add/Edit Facility Modal and integrated the backend endpoints.
+- Fixed backend parsing to ensure monthly production quantities save as  to be strictly compatible with the  regex.
+- Fixed a bug where custom production units (e.g., Steel) defaulted back to MT on fetch.
+- Removed the deprecated Production Quantity Modal & Button from the Reports page.
+- Fixed ESG Records aggregation logic: Stopped mixing monthly and yearly emissions/energy sums. Monthly records now render individually by exact month (e.g. January-2026).
+- Implemented Equity Share Proportionation:  now reduces emissions and energy sums by the facility's  (when < 100%) and displays a clarifying note.
+- **Major Architecture**: Migrated all records from  collection to the central  collection. Updated 40+ backend files to route queries appropriately.
+- **Major Architecture**: Added  and  boolean configs to the Organization schema. Rebuilt the Frontend Sidebar with GHG and ESG parent menus that dynamically render based on this configuration. Added toggle controls to SuperAdmin org form.
 
 **Earlier issues found/mentioned but not fixed**
-   Issue 1: Dropdown showing GHG Emissions 3 times & missing manual fields.
-   - Debug checklist: Agent found 3 separate category entries for each scope. Their  array is .
-   - Why to solve this issue and what will be achieved with this? Users currently cannot properly add manual GHG Emissions records in the ESG Records ledger because the form fields do not render. User explicitly told previous agent to Ignore above issue to prioritize other bugs, but it remains a broken feature.
+   Issue 1: Missing DB schema formatting for questionnaire configs.
+   - Debug checklist: When creating new ESG Questions directly via DB, they MUST have  (Array), not  (String).
+   - Why to solve this issue and what will be achieved with this? Prevents Question not found or Unknown question type frontend crashes.
    - Should Test frontend/backend/both after fix: Both
-   - Is recurring issue? N
+   - Is recurring issue? Y
 
 **Known issue recurrence from previous fork**
-  - Issue recurrence in previous fork: None
-  - Recurrence count: 0
-  - Status: NONE
+  - Legacy P0 calculation bugs (Scope 1/3 dashboards, Carbon Intensity) remain ignored as feature expansion took priority.
+  - Frontend caching issues:  caches  API response. Direct DB changes require a browser hard refresh.
+  - Recurrence count: 5
+  - Status: NOT STARTED
 
 **Code Architecture**
 /app/
 ├── backend/
 │   ├── modules/
-│   │   ├── esg_records/ 
-│   │   │   ├── admin_router.py 
-│   │   │   ├── ghg_integration.py 
-│   │   │   ├── router.py
-│   │   │   ├── service.py
-│   │   │   ├── contracts.py
-│   │   ├── dashboards/
-│   │   │   ├── router.py
-│   │   ├── reports/
-│   │   │   ├── router.py
-│   ├── server.py 
+│   │   ├── facilities/ (Updated with production limits and proportionation configs)
+│   │   ├── organizations/ (Updated with / toggles)
+│   │   ├── esg_records/ (Updated  with equity factor and correct date parsing)
+│   │   ├── users/ (Updated to target unified  collection)
+│   ├── repositories/
+│   │   └── users_repository.py (Updated schema target)
 └── frontend/
     └── src/
         ├── components/
-        │   ├── ESGRecords.js
-        │   ├── ESGQuestionnaire.js
+        │   ├── FacilityProductionSection.js (New)
+        │   ├── ESGRecords.js (Updated aggregation rendering & date parsing)
+        │   ├── Sidebar.js (Major restructure for parent ESG/GHG grouping)
         ├── pages/
-        │   ├── ESGConfig.js
-        ├── App.js
-        ├── Sidebar.js
+        │   ├── Facilities.js (Moved Production info to Edit modal)
+        │   ├── Reports.js (Removed Production Quantity button)
+        │   ├── OrganizationManagement.js (Added SuperAdmin module config toggles)
 
 **Key Technical Concepts**
-- API Aggregation Layer:  maps existing GHG records (from  and ) to virtual read-only ESG Records in real-time. Prevents data duplication while creating a unified ESG reporting view.
-- Financial Year Aggregation: Energy records imported from GHG module are dynamically summed into FY totals.
-- Config-Driven ESG Records: Dynamic fields defined in DB .
-- Cost Constraint: User is extremely credit-sensitive. Avoid recursive web searches and limit testing subagent strictly to large critical flows unless unavoidable.
+- 1-Document-Per-Year Architecture for data persistence.
+- Dynamic Module Configs: Sidebar visibility strictly governed by backend org variables (, ).
+- Equity Share Proportionation: The platform natively scales down total tCO2e / Energy calculations if an Org only holds partial equity of a facility.
+- DB Normalization: All system users (Admin, SuperAdmin, User) live strictly in  now.
 
 **key DB schema**
-  - : Stores GHG emissions.
-  - : Defines ESG record config for dynamic rendering.
+  - : (REPLACED ) Consolidated user table.
+  - :  (boolean),  (boolean).
+  - : Used heavily by Reports and Facilities. Monthly rows must match . Yearly rows must match .
+  - : Used exclusively for Yearly Turnover.
 
 **changes in tech stack**
-  - None.
+  - None strictly, but database collections have structurally merged ( deprecated to ).
 
 **All files of reference** 
-  - 
-  - 
-  - 
+  -  (Equity share and logic splits for monthly/yearly logic)
+  -  (Main entry for user collection swap)
+  -  (Restructured)
+  -  (Super Admin module config toggles added)
+  -  (New Component)
   - 
   - 
 
 **Areas that need refactoring**: 
-  -  (>3600 lines) should eventually be split.
-  -  remains excessively large.
+  - Backend modularization to dismantle  is pending.
+  - Legacy calculation logic in  and  modules still needs addressing.
 
 **key api endpoints**
   - 
   - 
-
-**Critical Info for New Agent** 
-- **DB Structure Quirk**: The  collection does NOT have an . You must always join/fetch s for the user's organization first before querying emissions.
-- **Energy Quantities Quirk**: In ,  is often null. You MUST use  for Scope 1 Fuels and  for Scope 2 Electricity.
-- **Calorific Values**:  in the  is already stored in TJ/kg. Simply multiply by kg quantity to get TJ.
-- **Ignore Instruction**: The user explicitly said Ignore above issue regarding the 3 duplicate GHG Emissions categories in the UI dropdown in a previous session. Clarify with the user if they want to fix this now or move to P0 legacy bugs.
-
-**documents and test reports created in this job** 
   - 
 
+**Critical Info for New Agent** 
+- **User Database Change:** Do NOT query the  collection. All queries must hit .
+- **Date Matching Regex:** When inserting to , make sure monthly keys are strictly stored as  (e.g. ). The  strictly relies on this format.
+- **Reporting Toggles:** Organizations now have  and  flags which toggle the entire Sidebar groupings. Remember to ensure that other UI components (like Report dropdowns or Dashboard tabs) also respect these flags where relevant.
+
+**documents and test reports created in this job** 
+  - None.
+
 **Last 10 User Messages and any pending HUMAN messages** 
- 1. User: Please use ask_human tool and confirm your plan now. (Assistant triggered )
- *(Pending User Verification: The user's reply to the  tool will define the immediate next task. Read their response carefully.)*
+ 1. User: Asked why facility production isn't saving/showing in reports.
+ 2. Assistant: Explained that monthly format () failed the report module's regex ().
+ 3. User: Instructed agent to fix it.
+ 4. Assistant: Changed format, restarted backend, verified API endpoint successfully.
+ 5. User: Reported custom Unit bug (unit changes back to MT upon closing/reopening).
+ 6. Assistant: Updated the GET endpoint to properly extract unit strings for monthly fetches.
+ 7. User: Asked to remove Production Quantity UI/buttons from the Reports Module.
+ 8. Assistant: Executed removal and deleted .
+ 9. User: Asked to fix aggregation of ESG Records to stop mixing/summing monthly vs yearly periods into a singular yearly record.
+ 10. Assistant: Fixed  to stop aggregating them together.
+ 11. User: Asked to format monthly labels to  and implement Equity Share Proportionation logic.
+ 12. Assistant: Built the Equity Share proportionation in the backend and reformatted frontend date strings.
+ 13. User: Asked for a major architecture update: (1) Migrate all users to the  table. (2) Create overarching ESG and GHG parent sidebar menus. (3) Give SuperAdmin config toggles (/).
+ 14. Assistant: Executed the database migration and built the UI toggles. Asked to verify.
+ 15. User: i will test it no need for you to test *(End of session)*.
 
 **Project Health Check:**
-- Broken: Legacy P0 calculation bugs remain untouched. Manual addition of GHG Emissions records is currently broken due to empty fields config.
-- Technical Debt: Large monolith files (, ).
+- Broken: Dashboard Scope 1 & 3 Emissions Deduplication Bug; Carbon Intensity calc discrepancy.
+- Refactored: Users Table completely modernized. Organization logic completely modularized.
 
 **3rd Party Integrations** 
   - Cloudflare R2 (Storage) — requires User API Key
   - Resend (Emails) — requires User API Key
 
 **Testing status**
-  - Testing agent used after significant changes: NO
-  - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: None
-  - Known regressions: Manual entry config for GHG Emissions category is missing fields.
+  - Testing agent used after significant changes: NO (Heavy usage of cURL testing and Screenshot verification).
+  - Troubleshoot agent used after agent stuck in loop: NO.
+  - Test files created: None.
+  - Known regressions: None detected.
 
 **Credentials to test flow:**
-  -  () - Has data in ORG1/test-org-2 for GHG testing.
+  - Standard User:  () - Has data in ORG1/test-org-2.
+  - Super Admin: 
 
 **What agent forgot to execute**
-- The agent discovered why GHG Emissions appears 3 times in the dropdown (each Scope was seeded separately with an empty  array) but paused fixing it because the user instructed them to focus on the Energy sync bug. Ensure you address this if the user wants manual ESG emission records working.</analysis>
+- The P0 legacy calculation bugs were bypassed due to the sheer volume of high-priority UI and architectural changes requested dynamically by the user.
+- The user mentioned: *if org doesnt have GHG then hide the GHG side tab and the report generation for GHG inventory should be hidden*. The agent hid the side tab, but may not have hidden the GHG inventory report logic from the Reports interface. Double-check this.</analysis>

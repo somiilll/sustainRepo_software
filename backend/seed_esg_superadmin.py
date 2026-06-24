@@ -1,7 +1,7 @@
 """
 ESG Platform - Super Admin Seed Script
 
-Seeds the initial ESG Super Admin user in the users_esg collection.
+Seeds the initial ESG Super Admin user in the users collection.
 Run this script once to create the first ESG administrator.
 
 Usage:
@@ -42,7 +42,7 @@ async def seed_esg_superadmin():
     db = client[DB_NAME]
     
     # Check if ESG Super Admin already exists
-    existing = await db.users_esg.find_one(
+    existing = await db.users.find_one(
         {"email": ESG_SUPERADMIN_EMAIL},
         {"_id": 0}
     )
@@ -68,7 +68,7 @@ async def seed_esg_superadmin():
         "updated_at": None,
     }
     
-    await db.users_esg.insert_one(superadmin)
+    await db.users.insert_one(superadmin)
     
     print("=" * 60)
     print("ESG Super Admin Created Successfully!")

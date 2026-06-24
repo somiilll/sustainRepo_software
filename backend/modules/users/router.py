@@ -6,7 +6,7 @@ Users admin router — 4 routes:
     DELETE /admin/users/{user_id}
 
 Behaviour preserved exactly from server.py.
-ESG Platform: Uses users_esg collection.
+ESG Platform: Uses users collection.
 """
 import os
 import uuid
@@ -40,7 +40,7 @@ async def create_user(
     org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
     if org:
         max_users = org.get("max_users", 20)
-        current_user_count = await db.users_esg.count_documents({
+        current_user_count = await db.users.count_documents({
             "organization_id": org_id,
             "role": "user",
             "is_deleted": {"$ne": True},
@@ -52,7 +52,7 @@ async def create_user(
             )
 
     # Email uniqueness — soft-deleted accounts release the email.
-    existing = await db.users_esg.find_one(
+    existing = await db.users.find_one(
         {"email": user_data.email, "is_deleted": {"$ne": True}}, {"_id": 0}
     )
     if existing:
@@ -70,12 +70,12 @@ async def create_user(
         "requires_password_change": True,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
-    await db.users_esg.insert_one(user_dict)
+    await db.users.insert_one(user_dict)
 
     org_name_doc = await db.organizations.find_one({"id": org_id}, {"_id": 0, "name": 1})
     org_name = org_name_doc.get("name", "your organization") if org_name_doc else "your organization"
 
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://carbon-track-23.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://sustainability-core-1.preview.emergentagent.com')
     login_link = f"{frontend_url}/login"
 
     email_body = user_invite_email(
@@ -97,7 +97,7 @@ async def get_all_users(current_user: dict = Depends(get_admin_user)):
     if not org_id:
         return []  # Admin without organization has no users to manage.
     query = {"organization_id": org_id, "role": "user", "is_deleted": {"$ne": True}}
-    users = await db.users_esg.find(query, {"_id": 0, "password_hash": 0}).to_list(1000)
+    users = await db.users.find(query, {"_id": 0, "password_hash": 0}).to_list(1000)
     return [UserResponse(**u) for u in users]
 
 
@@ -107,10 +107,10 @@ async def assign_facilities(
     facility_ids: List[str],
     current_user: dict = Depends(get_admin_user),
 ):
-    user = await db.users_esg.find_one({"id": user_id}, {"_id": 0})
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    await db.users_esg.update_one({"id": user_id}, {"$set": {"assigned_facilities": facility_ids}})
+    await db.users.update_one({"id": user_id}, {"$set": {"assigned_facilities": facility_ids}})
     return {"message": "Facilities assigned successfully"}
 
 
@@ -119,7 +119,7 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_admin_user)
     if user_id == current_user["id"]:
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
 
-    user_to_delete = await db.users_esg.find_one({"id": user_id}, {"_id": 0})
+    user_to_delete = await db.users.find_one({"id": user_id}, {"_id": 0})
     if not user_to_delete:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -129,5 +129,5 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_admin_user)
             raise HTTPException(status_code=403, detail="Not authorized to delete users from other organizations")
 
     # Hard delete — same as legacy.
-    await db.users_esg.delete_one({"id": user_id})
+    await db.users.delete_one({"id": user_id})
     return {"message": "User deleted permanently."}

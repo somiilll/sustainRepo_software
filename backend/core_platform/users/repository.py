@@ -2,7 +2,7 @@
 Abstract User Repository
 
 Provides a collection-agnostic user repository that can work with different
-MongoDB collections (e.g., 'users' for legacy GHG, 'users_esg' for ESG platform).
+MongoDB collections (e.g., 'users' for legacy GHG, 'users' for ESG platform).
 
 This abstraction allows:
 - Multiple user stores for different platform contexts
@@ -23,7 +23,7 @@ class AbstractUserRepository:
         legacy_repo = AbstractUserRepository(collection_name="users")
         
         # For ESG platform
-        esg_repo = AbstractUserRepository(collection_name="users_esg")
+        esg_repo = AbstractUserRepository(collection_name="users")
     """
 
     def __init__(self, collection_name: str = "users", database=None):
@@ -121,4 +121,4 @@ def create_user_repository(collection_name: str = "users", database=None) -> Abs
 
 # Pre-configured repository instances
 legacy_users_repository = AbstractUserRepository(collection_name="users")
-esg_users_repository = AbstractUserRepository(collection_name="users_esg")
+esg_users_repository = AbstractUserRepository(collection_name="users")

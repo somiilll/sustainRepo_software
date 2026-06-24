@@ -20,23 +20,33 @@ export default function Sidebar() {
     ghgEmissions: false,  // GHG Emissions sub-group under GHG parent
     adminGhg: false,  // Parent GHG menu for admin/user
     superAdminGhg: false,  // Parent GHG menu for super admin
+    esg: false,  // ESG parent menu containing Environment, Social, Governance
   });
   const [enabledAccess, setEnabledAccess] = useState([]);
   const [approvalEnabled, setApprovalEnabled] = useState(false);
+  const [moduleConfig, setModuleConfig] = useState({ has_ghg: true, has_esg: true });
 
-  // Pull the current org's scope-access + approval flag once on mount so
-  // the GHG sub-menu only shows scopes the org actually has.
+  // Pull the current org's scope-access + approval flag + module config once on mount
   useEffect(() => {
     let cancelled = false;
     if (!user || user.role === 'super_admin' || !user.organization_id) return;
     (async () => {
       try {
+        // Fetch org details for enabled_access and approval
         const { data } = await axios.get(`${API}/organizations/my`, { headers: getAuthHeader() });
         if (cancelled) return;
         setEnabledAccess(data?.enabled_access || []);
         setApprovalEnabled(!!data?.approval_workflow_enabled);
+        
+        // Fetch module config for sidebar visibility
+        const configRes = await axios.get(`${API}/organization/module-config`, { headers: getAuthHeader() });
+        if (cancelled) return;
+        setModuleConfig({
+          has_ghg: configRes.data?.has_ghg ?? true,
+          has_esg: configRes.data?.has_esg ?? true,
+        });
       } catch {
-        /* ignore — fall back to no access */
+        /* ignore — fall back to showing all */
       }
     })();
     return () => { cancelled = true; };
@@ -126,43 +136,99 @@ export default function Sidebar() {
     location.pathname.startsWith('/base-year-emissions') ||
     location.pathname.startsWith('/ghg');
 
-  const adminItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/organization', label: 'Organization', icon: Building },
-    { path: '/facilities', label: 'Facilities', icon: Building2 },
-    { 
-      type: 'parent', 
-      key: 'adminGhg', 
-      label: 'GHG', 
-      icon: Leaf, 
-      items: adminGhgSubItems,
-      isActive: isAdminGhgActive
-    },
+  // Check if any ESG item is active
+  const isEsgActive = 
+    location.pathname === '/environment' ||
+    location.pathname === '/social' ||
+    location.pathname === '/governance';
+
+  // ESG sub-items (Environment, Social, Governance)
+  const esgSubItems = [
     { path: '/environment', label: 'Environment', icon: Sprout },
     { path: '/social', label: 'Social', icon: Users2 },
     { path: '/governance', label: 'Governance', icon: Shield },
-    { path: '/reports', label: 'Reports', icon: FileText },
-    { path: '/users', label: 'Users', icon: Users },
-    { path: '/audit-trails', label: 'Audit Trails', icon: History },
   ];
 
-  const userItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/organization', label: 'Organization', icon: Building },
-    { path: '/facilities', label: 'Facilities', icon: Building2 },
-    { 
-      type: 'parent', 
-      key: 'adminGhg', 
-      label: 'GHG', 
-      icon: Leaf, 
-      items: adminGhgSubItems,
-      isActive: isAdminGhgActive
-    },
-    { path: '/environment', label: 'Environment', icon: Sprout },
-    { path: '/social', label: 'Social', icon: Users2 },
-    { path: '/governance', label: 'Governance', icon: Shield },
-    { path: '/reports', label: 'Reports', icon: FileText },
-  ];
+  // Build admin items dynamically based on module config
+  const buildAdminItems = () => {
+    const items = [
+      { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { path: '/organization', label: 'Organization', icon: Building },
+      { path: '/facilities', label: 'Facilities', icon: Building2 },
+    ];
+    
+    // Add GHG if enabled
+    if (moduleConfig.has_ghg) {
+      items.push({ 
+        type: 'parent', 
+        key: 'adminGhg', 
+        label: 'GHG', 
+        icon: Leaf, 
+        items: adminGhgSubItems,
+        isActive: isAdminGhgActive
+      });
+    }
+    
+    // Add ESG if enabled
+    if (moduleConfig.has_esg) {
+      items.push({ 
+        type: 'parent', 
+        key: 'esg', 
+        label: 'ESG', 
+        icon: Globe, 
+        items: esgSubItems,
+        isActive: isEsgActive
+      });
+    }
+    
+    // Add remaining items
+    items.push({ path: '/reports', label: 'Reports', icon: FileText });
+    items.push({ path: '/users', label: 'Users', icon: Users });
+    items.push({ path: '/audit-trails', label: 'Audit Trails', icon: History });
+    
+    return items;
+  };
+
+  // Build user items dynamically based on module config
+  const buildUserItems = () => {
+    const items = [
+      { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { path: '/organization', label: 'Organization', icon: Building },
+      { path: '/facilities', label: 'Facilities', icon: Building2 },
+    ];
+    
+    // Add GHG if enabled
+    if (moduleConfig.has_ghg) {
+      items.push({ 
+        type: 'parent', 
+        key: 'adminGhg', 
+        label: 'GHG', 
+        icon: Leaf, 
+        items: adminGhgSubItems,
+        isActive: isAdminGhgActive
+      });
+    }
+    
+    // Add ESG if enabled
+    if (moduleConfig.has_esg) {
+      items.push({ 
+        type: 'parent', 
+        key: 'esg', 
+        label: 'ESG', 
+        icon: Globe, 
+        items: esgSubItems,
+        isActive: isEsgActive
+      });
+    }
+    
+    // Add Reports
+    items.push({ path: '/reports', label: 'Reports', icon: FileText });
+    
+    return items;
+  };
+
+  const adminItems = buildAdminItems();
+  const userItems = buildUserItems();
 
   const navItems = user?.role === 'super_admin' ? superAdminBaseItems : 
                    user?.role === 'admin' ? adminItems : userItems;

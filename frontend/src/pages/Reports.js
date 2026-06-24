@@ -88,6 +88,9 @@ export default function Reports() {
   
   // Check if organization has scope 3 access (for report type selection)
   const hasScope3Access = enabledAccess?.includes('scope1_2_3') || false;
+  
+  // Check if organization has GHG module enabled (hides GHG reports if disabled)
+  const hasGhgEnabled = organization?.has_ghg !== false;
 
   const fetchFacilities = async () => {
     try {
@@ -467,8 +470,8 @@ export default function Reports() {
         </div>
       </div>
 
-      {/* GHG Inventory Report Card */}
-      {hasScope12Access && (
+      {/* GHG Inventory Report Card - Only show if org has GHG module enabled */}
+      {hasScope12Access && hasGhgEnabled && (
         <Card className="p-6 border-2 border-green-200 rounded-xl bg-gradient-to-br from-green-50 to-white">
           <div className="flex items-start gap-4">
             <div className="p-3 bg-green-100 rounded-xl">
@@ -740,8 +743,8 @@ export default function Reports() {
         </DialogContent>
       </Dialog>
 
-      {/* AI Report Card */}
-      {hasScope12Access && (
+      {/* AI Report Card - Only show if org has GHG module enabled */}
+      {hasScope12Access && hasGhgEnabled && (
         <Card className="p-6 border-2 border-purple-200 rounded-xl bg-gradient-to-br from-purple-50 to-white">
           <div className="flex items-start gap-4">
             <div className="p-3 bg-purple-100 rounded-xl">

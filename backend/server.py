@@ -96,7 +96,7 @@ from modules.production.router import router as production_router
 # ============================================================================
 # ESG Platform Extension - Phase 1
 # ----------------------------------------------------------------------------
-# ESG platform uses users_esg collection for all authentication.
+# ESG platform uses users collection for all authentication.
 # Modular ESG architecture supporting multiple frameworks (BRSR, GRI, SBTi).
 # ============================================================================
 from modules.esg.router import router as esg_config_router
@@ -2975,7 +2975,7 @@ async def list_files(current_user: dict = Depends(get_current_user)):
         org_id = current_user.get("organization_id")
         if not org_id:
             return []  # Admin without organization has no files to see
-        org_users = await db.users_esg.find(
+        org_users = await db.users.find(
             {"organization_id": org_id},
             {"_id": 0, "id": 1}
         ).to_list(1000)
@@ -2987,7 +2987,7 @@ async def list_files(current_user: dict = Depends(get_current_user)):
     
     # Add uploader info
     for file_record in files:
-        uploader = await db.users_esg.find_one(
+        uploader = await db.users.find_one(
             {"id": file_record["uploaded_by"]}, 
             {"_id": 0, "full_name": 1, "email": 1}
         )
@@ -3010,7 +3010,7 @@ async def delete_file(
         raise HTTPException(status_code=403, detail="Not authorized to delete this file")
     elif current_user["role"] == "admin":
         # Check if file was uploaded by someone in the same organization
-        uploader = await db.users_esg.find_one({"id": file_record["uploaded_by"]}, {"_id": 0})
+        uploader = await db.users.find_one({"id": file_record["uploaded_by"]}, {"_id": 0})
         if uploader and uploader.get("organization_id") != current_user.get("organization_id"):
             raise HTTPException(status_code=403, detail="Not authorized to delete this file")
     
@@ -3243,7 +3243,7 @@ async def get_audit_filter_options(
     if current_user["role"] != "super_admin":
         query["organization_id"] = current_user.get("organization_id")
     
-    user_list = await db.users_esg.find(query, {"_id": 0, "id": 1, "email": 1, "full_name": 1}).to_list(1000)
+    user_list = await db.users.find(query, {"_id": 0, "id": 1, "email": 1, "full_name": 1}).to_list(1000)
     users = [{"value": u["id"], "label": u.get("full_name") or u["email"]} for u in user_list]
     
     return {

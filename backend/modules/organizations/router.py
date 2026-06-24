@@ -18,6 +18,46 @@ class YearlyDataCreate(BaseModel):
     production_unit: Optional[str] = "MT"
 
 
+class OrgModuleConfig(BaseModel):
+    """Organization module configuration for frontend sidebar visibility."""
+    has_ghg: bool = True
+    has_esg: bool = True
+    enabled_access: Optional[list] = None  # scope1_2 or scope1_2_3
+    esg_frameworks_enabled: Optional[list] = None
+
+
+@router.get("/organization/module-config")
+async def get_org_module_config(current_user: dict = Depends(get_current_user)):
+    """Get organization's module configuration for sidebar visibility."""
+    if current_user["role"] == "super_admin":
+        # Super admin sees all modules
+        return OrgModuleConfig(
+            has_ghg=True,
+            has_esg=True,
+            enabled_access=["scope1_2_3"],
+            esg_frameworks_enabled=["BRSR", "GRI"]
+        )
+    
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=404, detail="No organization assigned")
+    
+    org = await db.organizations.find_one(
+        {"id": org_id},
+        {"_id": 0, "has_ghg": 1, "has_esg": 1, "enabled_access": 1, "esg_frameworks_enabled": 1}
+    )
+    
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    return OrgModuleConfig(
+        has_ghg=org.get("has_ghg", True),
+        has_esg=org.get("has_esg", True),
+        enabled_access=org.get("enabled_access"),
+        esg_frameworks_enabled=org.get("esg_frameworks_enabled")
+    )
+
+
 @router.get("/organizations/my", response_model=OrganizationResponse)
 async def get_my_organization(current_user: dict = Depends(get_current_user)):
     """Get organization details - Admin can edit, User can only view"""

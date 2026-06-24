@@ -132,6 +132,8 @@ export default function OrganizationManagement() {
     enabled_access: ['scope1_2'],
     approval_workflow_enabled: false,
     esg_frameworks_enabled: [],
+    has_ghg: true,
+    has_esg: true,
     // SuperAdmin Internal Fields
     date_of_joining: '',
     selected_plan: '',
@@ -348,6 +350,8 @@ export default function OrganizationManagement() {
       enabled_access: org.enabled_access || ['scope1_2'],
       approval_workflow_enabled: !!org.approval_workflow_enabled,
       esg_frameworks_enabled: org.esg_frameworks_enabled || [],
+      has_ghg: org.has_ghg !== false,
+      has_esg: org.has_esg !== false,
       // SuperAdmin Internal Fields
       date_of_joining: org.date_of_joining ? org.date_of_joining.split('T')[0] : '',
       selected_plan: org.selected_plan || '',
@@ -388,6 +392,8 @@ export default function OrganizationManagement() {
       enabled_access: ['scope1_2'],
       approval_workflow_enabled: false,
       esg_frameworks_enabled: [],
+      has_ghg: true,
+      has_esg: true,
       // SuperAdmin Internal Fields
       date_of_joining: '',
       selected_plan: '',
@@ -614,41 +620,79 @@ export default function OrganizationManagement() {
                   
                   {/* Report Access Control */}
                   <div className="pt-4 border-t border-stone-200">
-                    <Label className="text-sm font-medium">Report Access</Label>
-                    <p className="text-xs text-text-muted mb-3">Select which report templates this organization can access</p>
-                    <div className="space-y-2">
+                    <Label className="text-sm font-medium">Module Access</Label>
+                    <p className="text-xs text-text-muted mb-3">Select which modules this organization can access</p>
+                    
+                    {/* GHG Module Toggle */}
+                    <div className="space-y-3 mb-4">
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="checkbox"
-                          checked={formData.enabled_access?.includes('scope1_2')}
-                          onChange={(e) => {
-                            const newAccess = e.target.checked
-                              ? [...(formData.enabled_access || []), 'scope1_2']
-                              : (formData.enabled_access || []).filter(a => a !== 'scope1_2');
-                            setFormData({ ...formData, enabled_access: newAccess });
-                          }}
+                          checked={formData.has_ghg !== false}
+                          onChange={(e) => setFormData({ ...formData, has_ghg: e.target.checked })}
                           className="w-4 h-4 rounded border-stone-300 text-primary focus:ring-primary"
-                          data-testid="access-scope1-2"
+                          data-testid="has-ghg-toggle"
                         />
-                        <span className="text-sm font-medium">Scope 1 & 2 Report</span>
-                        <span className="text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded">Available</span>
+                        <span className="text-sm font-medium">Enable GHG Module</span>
+                        <span className={`text-xs px-2 py-0.5 rounded ${formData.has_ghg !== false ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-100 text-stone-500'}`}>
+                          {formData.has_ghg !== false ? 'Enabled' : 'Disabled'}
+                        </span>
                       </label>
+                      
+                      {/* GHG Scope Options - Only show if GHG is enabled */}
+                      {formData.has_ghg !== false && (
+                        <div className="ml-6 space-y-2 p-3 bg-stone-50 rounded-lg">
+                          <p className="text-xs text-text-muted">GHG Scope Access</p>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={formData.enabled_access?.includes('scope1_2')}
+                              onChange={(e) => {
+                                const newAccess = e.target.checked
+                                  ? [...(formData.enabled_access || []), 'scope1_2']
+                                  : (formData.enabled_access || []).filter(a => a !== 'scope1_2');
+                                setFormData({ ...formData, enabled_access: newAccess });
+                              }}
+                              className="w-4 h-4 rounded border-stone-300 text-primary focus:ring-primary"
+                              data-testid="access-scope1-2"
+                            />
+                            <span className="text-sm">Scope 1 & 2</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={formData.enabled_access?.includes('scope1_2_3')}
+                              onChange={(e) => {
+                                const newAccess = e.target.checked
+                                  ? [...(formData.enabled_access || []), 'scope1_2_3']
+                                  : (formData.enabled_access || []).filter(a => a !== 'scope1_2_3');
+                                setFormData({ ...formData, enabled_access: newAccess });
+                              }}
+                              className="w-4 h-4 rounded border-stone-300 text-primary focus:ring-primary"
+                              data-testid="access-scope1-2-3"
+                            />
+                            <span className="text-sm">Scope 1, 2 & 3</span>
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* ESG Module Toggle */}
+                    <div className="space-y-3">
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="checkbox"
-                          checked={formData.enabled_access?.includes('scope1_2_3')}
-                          onChange={(e) => {
-                            const newAccess = e.target.checked
-                              ? [...(formData.enabled_access || []), 'scope1_2_3']
-                              : (formData.enabled_access || []).filter(a => a !== 'scope1_2_3');
-                            setFormData({ ...formData, enabled_access: newAccess });
-                          }}
+                          checked={formData.has_esg !== false}
+                          onChange={(e) => setFormData({ ...formData, has_esg: e.target.checked })}
                           className="w-4 h-4 rounded border-stone-300 text-primary focus:ring-primary"
-                          data-testid="access-scope1-2-3"
+                          data-testid="has-esg-toggle"
                         />
-                        <span className="text-sm font-medium">Scope 1, 2 & 3 Report</span>
-                        <span className="text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded">Available</span>
+                        <span className="text-sm font-medium">Enable ESG Module</span>
+                        <span className={`text-xs px-2 py-0.5 rounded ${formData.has_esg !== false ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-100 text-stone-500'}`}>
+                          {formData.has_esg !== false ? 'Enabled' : 'Disabled'}
+                        </span>
                       </label>
+                      <p className="text-xs text-text-muted ml-6">Includes Environment, Social, and Governance modules</p>
                     </div>
                   </div>
 

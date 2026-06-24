@@ -65,7 +65,7 @@ def _validate_password_strength(pwd: str) -> None:
 
 @router.post("/auth/signup", response_model=TokenResponse)
 async def signup(user_data: UserCreate):
-    existing = await db.users_esg.find_one(
+    existing = await db.users.find_one(
         {"email": user_data.email, "is_deleted": {"$ne": True}}, {"_id": 0}
     )
     if existing:
@@ -85,7 +85,7 @@ async def signup(user_data: UserCreate):
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
 
-    await db.users_esg.insert_one(user_dict)
+    await db.users.insert_one(user_dict)
 
     access_token = create_access_token(data={"sub": user_dict["id"]})
     user_response = UserResponse(**{k: v for k, v in user_dict.items() if k != "password_hash"})
@@ -97,7 +97,7 @@ async def signup(user_data: UserCreate):
 async def login(credentials: UserLogin):
     logger.info(f"[AUTH_LOGIN] Attempt: email={credentials.email}")
     
-    user = await db.users_esg.find_one({"email": credentials.email}, {"_id": 0})
+    user = await db.users.find_one({"email": credentials.email}, {"_id": 0})
     if not user or not verify_password(credentials.password, user["password_hash"]):
         logger.warning(f"[AUTH_LOGIN] Failed: email={credentials.email}, reason=invalid_credentials")
         raise HTTPException(status_code=401, detail="Incorrect email or password")
@@ -150,7 +150,7 @@ async def change_password(password_data: PasswordChange, current_user: dict = De
     _validate_password_strength(password_data.new_password)
 
     new_hash = get_password_hash(password_data.new_password)
-    await db.users_esg.update_one(
+    await db.users.update_one(
         {"id": current_user["id"]},
         {"$set": {"password_hash": new_hash, "requires_password_change": False}},
     )
@@ -159,7 +159,7 @@ async def change_password(password_data: PasswordChange, current_user: dict = De
 
 @router.post("/auth/forgot-password")
 async def forgot_password(reset_data: PasswordReset):
-    user = await db.users_esg.find_one({"email": reset_data.email}, {"_id": 0})
+    user = await db.users.find_one({"email": reset_data.email}, {"_id": 0})
     if not user:
         # Don't reveal if user exists.
         return {"message": "If the email exists, recovery instructions will be sent"}
@@ -174,7 +174,7 @@ async def forgot_password(reset_data: PasswordReset):
         "used": False,
     })
 
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://carbon-track-23.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://sustainability-core-1.preview.emergentagent.com')
     reset_link = f"{frontend_url}/reset-password?token={reset_token}"
 
     email_body = password_reset_email(user.get('full_name', 'User'), reset_link)
@@ -199,7 +199,7 @@ async def reset_password(reset_data: ResetPasswordRequest):
     _validate_password_strength(reset_data.new_password)
 
     new_hash = get_password_hash(reset_data.new_password)
-    await db.users_esg.update_one(
+    await db.users.update_one(
         {"id": reset_record["user_id"]},
         {"$set": {"password_hash": new_hash, "requires_password_change": False}},
     )
@@ -225,7 +225,7 @@ async def update_profile(profile_data: ProfileUpdate, current_user: dict = Depen
         "full_name": profile_data.full_name.strip(),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
-    await db.users_esg.update_one({"id": current_user["id"]}, {"$set": update_dict})
+    await db.users.update_one({"id": current_user["id"]}, {"$set": update_dict})
 
-    updated_user = await db.users_esg.find_one({"id": current_user["id"]}, {"_id": 0})
+    updated_user = await db.users.find_one({"id": current_user["id"]}, {"_id": 0})
     return UserResponse(**updated_user)
