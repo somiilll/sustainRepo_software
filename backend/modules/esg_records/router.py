@@ -325,3 +325,37 @@ async def get_record_stats(
     )
     
     return stats
+
+
+
+@router.get("/summary")
+async def get_esg_summary(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get overall ESG summary counts for dashboard."""
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    db = await get_database()
+    
+    # Count records per section
+    environment_count = await db.esg_records.count_documents({
+        "organization_id": org_id,
+        "section": "environment"
+    })
+    social_count = await db.esg_records.count_documents({
+        "organization_id": org_id,
+        "section": "social"
+    })
+    governance_count = await db.esg_records.count_documents({
+        "organization_id": org_id,
+        "section": "governance"
+    })
+    
+    return {
+        "environment_records": environment_count,
+        "social_records": social_count,
+        "governance_records": governance_count,
+        "total_records": environment_count + social_count + governance_count
+    }
