@@ -158,14 +158,37 @@ class GHGIntegrationService:
         if not emissions:
             return []
         
-        # Group by (facility_id, scope, financial_year)
-        grouped = {}
+        # Separate monthly vs yearly records
+        # Monthly format: "2024-01", "January 2024"
+        # Yearly format: "FY 2024-25", "CY 2025"
+        monthly_records = []
+        yearly_records = []
+        
         for em in emissions:
+            period = em.get("reporting_period", "")
+            if not period:
+                continue
+            
+            # Check if it's a yearly format (FY or CY)
+            period_lower = period.lower().strip()
+            is_yearly = period_lower.startswith("fy") or period_lower.startswith("cy")
+            
+            if is_yearly:
+                yearly_records.append(em)
+            else:
+                monthly_records.append(em)
+        
+        records = []
+        
+        # =====================================================
+        # Process YEARLY records - aggregate by (facility, scope, FY)
+        # =====================================================
+        yearly_grouped = {}
+        for em in yearly_records:
             fac_id = em.get("facility_id")
             scope = em.get("scope", "").lower()
             period = em.get("reporting_period", "")
             
-            # Skip if no facility or scope
             if not fac_id or not scope:
                 continue
             
@@ -173,39 +196,33 @@ class GHGIntegrationService:
             if scope not in ["scope1", "scope2", "scope3"]:
                 continue
             
-            # Parse reporting period to get FY
+            # Parse FY from period
             month, year = parse_reporting_period(period)
-            if month and year:
-                fy = get_financial_year(month, year)
-            elif year:
-                # Yearly record - use the year as-is for FY determination
-                # Assume it belongs to FY starting that year
+            if year:
                 fy = f"FY {year}-{str(year + 1)[-2:]}"
             else:
-                continue  # Skip records with unparseable periods
+                continue
             
             # Filter by requested FY if specified
             if financial_year and fy != financial_year:
                 continue
             
             key = (fac_id, scope, fy)
-            if key not in grouped:
-                grouped[key] = {
+            if key not in yearly_grouped:
+                yearly_grouped[key] = {
                     "emissions": [],
                     "total_co2e": 0,
                     "categories": set()
                 }
             
-            # Get emission value
             tco2e = float(em.get("total_emissions") or em.get("co2e_emissions") or em.get("calculated_co2e") or 0)
-            grouped[key]["emissions"].append(em)
-            grouped[key]["total_co2e"] += tco2e
+            yearly_grouped[key]["emissions"].append(em)
+            yearly_grouped[key]["total_co2e"] += tco2e
             if em.get("category"):
-                grouped[key]["categories"].add(em.get("category"))
+                yearly_grouped[key]["categories"].add(em.get("category"))
         
-        # Build virtual ESG records
-        records = []
-        for (fac_id, scope, fy), data in grouped.items():
+        # Build yearly aggregated records
+        for (fac_id, scope, fy), data in yearly_grouped.items():
             record_id = f"ghg_emission_{fac_id}_{scope}_{fy.replace(' ', '_').replace('-', '_')}"
             
             records.append({
@@ -234,7 +251,91 @@ class GHGIntegrationService:
                     "categories_included": list(data["categories"])
                 },
                 "source_of_information": "GHG Module",
-                "notes": f"Auto-aggregated from {len(data['emissions'])} GHG emission records",
+                "notes": f"Auto-aggregated from {len(data['emissions'])} yearly GHG emission records",
+                "evidence_files": [],
+                "version": 1,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            })
+        
+        # =====================================================
+        # Process MONTHLY records - aggregate by (facility, scope, month)
+        # Keep monthly granularity, don't roll up into yearly
+        # =====================================================
+        monthly_grouped = {}
+        for em in monthly_records:
+            fac_id = em.get("facility_id")
+            scope = em.get("scope", "").lower()
+            period = em.get("reporting_period", "")
+            
+            if not fac_id or not scope:
+                continue
+            
+            # Skip biogenic - only Scope 1, 2, 3
+            if scope not in ["scope1", "scope2", "scope3"]:
+                continue
+            
+            # Parse month/year from period
+            month, year = parse_reporting_period(period)
+            if not month or not year:
+                continue
+            
+            # Filter by requested FY if specified
+            if financial_year:
+                record_fy = get_financial_year(month, year)
+                if record_fy != financial_year:
+                    continue
+            
+            # Create month period string (YYYY-MM format)
+            month_period = f"{year}-{month:02d}"
+            
+            key = (fac_id, scope, month_period)
+            if key not in monthly_grouped:
+                monthly_grouped[key] = {
+                    "emissions": [],
+                    "total_co2e": 0,
+                    "categories": set(),
+                    "month": month,
+                    "year": year
+                }
+            
+            tco2e = float(em.get("total_emissions") or em.get("co2e_emissions") or em.get("calculated_co2e") or 0)
+            monthly_grouped[key]["emissions"].append(em)
+            monthly_grouped[key]["total_co2e"] += tco2e
+            if em.get("category"):
+                monthly_grouped[key]["categories"].add(em.get("category"))
+        
+        # Build monthly aggregated records (grouped by month, not rolled into yearly)
+        for (fac_id, scope, month_period), data in monthly_grouped.items():
+            record_id = f"ghg_emission_{fac_id}_{scope}_{month_period.replace('-', '_')}"
+            
+            records.append({
+                "id": record_id,
+                "source_type": "ghg_import",
+                "source_module": "ghg",
+                "import_strategy": ImportStrategy.AGGREGATED,
+                "is_locked": True,
+                "section": "environment",
+                "category": "Emissions",
+                "subcategory": "GHG Emissions",
+                "sub_subcategory": get_scope_display_name(scope),
+                "record_level": "facility",
+                "facility_id": fac_id,
+                "facility_name": facility_names.get(fac_id, fac_id),
+                "org_id": org_id,
+                "reporting_period": {
+                    "reporting_type": "monthly",
+                    "year": data["year"],
+                    "month": data["month"]
+                },
+                "field_values": {
+                    "total_emission": round(data["total_co2e"], 4),
+                    "emission_unit": "tCO2e",
+                    "source_records_count": len(data["emissions"]),
+                    "categories_included": list(data["categories"])
+                },
+                "source_of_information": "GHG Module",
+                "notes": f"Auto-aggregated from {len(data['emissions'])} monthly GHG emission records for {month_period}",
                 "evidence_files": [],
                 "version": 1,
                 "created_at": datetime.now(timezone.utc).isoformat(),
@@ -301,30 +402,30 @@ class GHGIntegrationService:
                 fuel_density_cache[fuel_name] = float(density)
                 fuel_density_cache[fuel_id] = float(density)
         
-        # Group by (facility_id, energy_type, financial_year)
-        # energy_type: "fuel" (scope1) or "electricity" (scope2)
-        grouped = {}
+        # Separate monthly vs yearly records
+        monthly_records = []
+        yearly_records = []
         
         for em in emissions:
+            period = em.get("reporting_period", "")
+            if not period:
+                continue
+            
+            period_lower = period.lower().strip()
+            is_yearly = period_lower.startswith("fy") or period_lower.startswith("cy")
+            
+            if is_yearly:
+                yearly_records.append(em)
+            else:
+                monthly_records.append(em)
+        
+        def process_energy_record(em, grouped, period_key, period_info):
+            """Helper to process a single energy record into the grouped dict."""
             fac_id = em.get("facility_id")
             scope = (em.get("scope") or "").lower()
-            period = em.get("reporting_period", "")
             
             if not fac_id:
-                continue
-            
-            # Parse reporting period
-            month, year = parse_reporting_period(period)
-            if month and year:
-                fy = get_financial_year(month, year)
-            elif year:
-                fy = f"FY {year}-{str(year + 1)[-2:]}"
-            else:
-                continue
-            
-            # Filter by requested FY
-            if financial_year and fy != financial_year:
-                continue
+                return
             
             # Determine energy type and calculate
             if scope == "scope1":
@@ -337,13 +438,13 @@ class GHGIntegrationService:
                 quantity_unit = (qty_data.get("unit") or "").lower()
                 
                 if quantity <= 0:
-                    continue
+                    return
                 
                 # Get fuel info
                 fuel_name = (em.get("fuel_name") or em.get("fuel_type") or "").lower()
                 fuel_db_id = em.get("fuel_database_id") or ""
                 
-                # Get calorific value - first from dynamic_field_values, then from fuel database
+                # Get calorific value
                 cv_data = dfv.get("cv") or {}
                 cv = cv_data.get("value")
                 if cv:
@@ -352,9 +453,9 @@ class GHGIntegrationService:
                     cv = fuel_cv_cache.get(fuel_name) or fuel_cv_cache.get(fuel_db_id)
                 
                 if not cv:
-                    continue  # Skip if no CV available
+                    return
                 
-                # Get density - first from dynamic_field_values, then from fuel database
+                # Get density
                 density_data = dfv.get("density") or {}
                 density = density_data.get("value")
                 if density:
@@ -370,20 +471,20 @@ class GHGIntegrationService:
                 elif quantity_unit == "kg":
                     quantity_kg = quantity
                 else:
-                    quantity_kg = quantity  # Assume kg
+                    quantity_kg = quantity
                 
                 # Calculate energy: Quantity (kg) × CV (TJ/kg) = TJ
-                # CV in fuel_database is already in TJ/kg format
                 energy_tj = quantity_kg * cv
                 
-                key = (fac_id, energy_type, fy)
+                key = (fac_id, energy_type, period_key)
                 if key not in grouped:
                     grouped[key] = {
                         "records": [],
                         "total_energy": 0,
                         "total_quantity": 0,
                         "fuels_used": set(),
-                        "sub_subcategory": "Non-Renewable"  # Fuel is always non-renewable
+                        "sub_subcategory": "Non-Renewable",
+                        "period_info": period_info
                     }
                 
                 grouped[key]["records"].append(em)
@@ -393,24 +494,20 @@ class GHGIntegrationService:
                     grouped[key]["fuels_used"].add(fuel_name.title())
             
             elif scope == "scope2":
-                # Check if this is Purchased Steam/Heat category
                 category_name = (em.get("category") or "").lower()
                 is_steam_heat = "steam" in category_name or "heat" in category_name
                 
                 if is_steam_heat:
-                    # Handle Purchased Steam/Heat -> Energy -> Other Sources -> Non-Renewable
                     energy_type = "other_sources"
                     
-                    # Get quantity from dynamic_field_values.qty_energy
                     dfv = em.get("dynamic_field_values") or {}
                     qty_data = dfv.get("qty_energy") or {}
                     quantity = float(qty_data.get("value") or 0)
                     quantity_unit = (qty_data.get("unit") or "").lower()
                     
                     if quantity <= 0:
-                        continue
+                        return
                     
-                    # Convert to MWh (default unit)
                     if "kwh" in quantity_unit:
                         energy_mwh = quantity / 1000
                     elif "mwh" in quantity_unit:
@@ -418,40 +515,36 @@ class GHGIntegrationService:
                     elif "gwh" in quantity_unit:
                         energy_mwh = quantity * 1000
                     else:
-                        energy_mwh = quantity / 1000  # Assume kWh
+                        energy_mwh = quantity / 1000
                     
-                    # Group under Other Sources -> Non-Renewable
-                    key = (fac_id, energy_type, fy, "Non-Renewable")
+                    key = (fac_id, energy_type, period_key, "Non-Renewable")
                     if key not in grouped:
                         grouped[key] = {
                             "records": [],
                             "total_energy": 0,
                             "total_quantity": 0,
-                            "sub_subcategory": "Non-Renewable"
+                            "sub_subcategory": "Non-Renewable",
+                            "period_info": period_info
                         }
                     
                     grouped[key]["records"].append(em)
                     grouped[key]["total_energy"] += energy_mwh
                     grouped[key]["total_quantity"] += quantity
                 else:
-                    # Handle Electricity (existing logic)
                     energy_type = "electricity"
                     
-                    # Determine if renewable or non-renewable from sub_category
                     sub_cat = (em.get("sub_category") or "").lower()
                     is_renewable = "renewable" in sub_cat and "non" not in sub_cat
                     renewable_type = "Renewable" if is_renewable else "Non-Renewable"
                     
-                    # Get quantity from dynamic_field_values.qty_energy (not qty)
                     dfv = em.get("dynamic_field_values") or {}
                     qty_data = dfv.get("qty_energy") or {}
                     quantity = float(qty_data.get("value") or 0)
                     quantity_unit = (qty_data.get("unit") or "").lower()
                     
                     if quantity <= 0:
-                        continue
+                        return
                     
-                    # Convert to MWh (default unit)
                     if "kwh" in quantity_unit:
                         energy_mwh = quantity / 1000
                     elif "mwh" in quantity_unit:
@@ -459,34 +552,75 @@ class GHGIntegrationService:
                     elif "gwh" in quantity_unit:
                         energy_mwh = quantity * 1000
                     else:
-                        energy_mwh = quantity / 1000  # Assume kWh
+                        energy_mwh = quantity / 1000
                     
-                    # Group by facility, energy_type, FY, AND renewable type
-                    key = (fac_id, energy_type, fy, renewable_type)
+                    key = (fac_id, energy_type, period_key, renewable_type)
                     if key not in grouped:
                         grouped[key] = {
                             "records": [],
                             "total_energy": 0,
                             "total_quantity": 0,
-                            "sub_subcategory": renewable_type
+                            "sub_subcategory": renewable_type,
+                            "period_info": period_info
                         }
                     
                     grouped[key]["records"].append(em)
                     grouped[key]["total_energy"] += energy_mwh
                     grouped[key]["total_quantity"] += quantity
         
+        # =====================================================
+        # Process YEARLY records - aggregate by FY
+        # =====================================================
+        yearly_grouped = {}
+        for em in yearly_records:
+            period = em.get("reporting_period", "")
+            month, year = parse_reporting_period(period)
+            if year:
+                fy = f"FY {year}-{str(year + 1)[-2:]}"
+            else:
+                continue
+            
+            if financial_year and fy != financial_year:
+                continue
+            
+            period_info = {"reporting_type": "yearly", "year_type": "financial", "financial_year": fy}
+            process_energy_record(em, yearly_grouped, fy, period_info)
+        
+        # =====================================================
+        # Process MONTHLY records - aggregate by month
+        # =====================================================
+        monthly_grouped = {}
+        for em in monthly_records:
+            period = em.get("reporting_period", "")
+            month, year = parse_reporting_period(period)
+            if not month or not year:
+                continue
+            
+            if financial_year:
+                record_fy = get_financial_year(month, year)
+                if record_fy != financial_year:
+                    continue
+            
+            month_period = f"{year}-{month:02d}"
+            period_info = {"reporting_type": "monthly", "year": year, "month": month}
+            process_energy_record(em, monthly_grouped, month_period, period_info)
+        
+        # Combine yearly and monthly grouped data
+        all_grouped = {**yearly_grouped, **monthly_grouped}
+        
         # Build virtual ESG records
         records = []
-        for key, data in grouped.items():
+        for key, data in all_grouped.items():
             # Key can be 3-tuple (fuel) or 4-tuple (electricity with renewable type)
             if len(key) == 3:
-                fac_id, energy_type, fy = key
+                fac_id, energy_type, period_key = key
                 sub_subcategory = data.get("sub_subcategory", "Non-Renewable")
             else:
-                fac_id, energy_type, fy, renewable_type = key
+                fac_id, energy_type, period_key, renewable_type = key
                 sub_subcategory = renewable_type
             
-            record_id = f"ghg_energy_{fac_id}_{energy_type}_{sub_subcategory}_{fy.replace(' ', '_').replace('-', '_')}"
+            period_info = data.get("period_info", {})
+            record_id = f"ghg_energy_{fac_id}_{energy_type}_{sub_subcategory}_{period_key.replace(' ', '_').replace('-', '_')}"
             
             if energy_type == "fuel":
                 subcategory = "Fuel"
@@ -528,11 +662,7 @@ class GHGIntegrationService:
                 "facility_id": fac_id,
                 "facility_name": facility_names.get(fac_id, fac_id),
                 "org_id": org_id,
-                "reporting_period": {
-                    "reporting_type": "yearly",
-                    "year_type": "financial",
-                    "financial_year": fy
-                },
+                "reporting_period": period_info,
                 "field_values": field_values,
                 "source_of_information": "GHG Module",
                 "notes": notes,
