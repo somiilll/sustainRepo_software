@@ -130,6 +130,7 @@ class GHGIntegrationService:
         """
         Get GHG emissions aggregated by facility and scope per financial year.
         Returns virtual ESG records (not stored in DB).
+        Applies equity share proportionation for facilities with < 100% equity.
         """
         # First get facilities for this organization
         # Note: facilities collection uses 'organization_id' not 'org_id'
@@ -139,14 +140,16 @@ class GHGIntegrationService:
         
         facilities = await self.db.facilities.find(
             facility_query,
-            {"_id": 0, "id": 1, "name": 1}
+            {"_id": 0, "id": 1, "name": 1, "equity_share_percentage": 1}
         ).to_list(1000)
         
         if not facilities:
             return []
         
-        # Build facility lookup
+        # Build facility lookups (name and equity share)
         facility_names = {f["id"]: f["name"] for f in facilities}
+        # Equity share as decimal (e.g., 60% -> 0.6), default to 1.0 (100%)
+        facility_equity = {f["id"]: (f.get("equity_share_percentage") or 100) / 100 for f in facilities}
         org_facility_ids = list(facility_names.keys())
         
         # Query emission_records by facility_id (emission_records don't have org_id)
@@ -216,14 +219,20 @@ class GHGIntegrationService:
                 }
             
             tco2e = float(em.get("total_emissions") or em.get("co2e_emissions") or em.get("calculated_co2e") or 0)
+            # Apply equity share proportionation
+            equity_factor = facility_equity.get(fac_id, 1.0)
+            tco2e_proportioned = tco2e * equity_factor
             yearly_grouped[key]["emissions"].append(em)
-            yearly_grouped[key]["total_co2e"] += tco2e
+            yearly_grouped[key]["total_co2e"] += tco2e_proportioned
+            yearly_grouped[key]["equity_share"] = equity_factor * 100  # Store for notes
             if em.get("category"):
                 yearly_grouped[key]["categories"].add(em.get("category"))
         
         # Build yearly aggregated records
         for (fac_id, scope, fy), data in yearly_grouped.items():
             record_id = f"ghg_emission_{fac_id}_{scope}_{fy.replace(' ', '_').replace('-', '_')}"
+            equity_pct = data.get("equity_share", 100)
+            equity_note = f" (Proportionated by {equity_pct:.0f}% equity share)" if equity_pct < 100 else ""
             
             records.append({
                 "id": record_id,
@@ -251,7 +260,7 @@ class GHGIntegrationService:
                     "categories_included": list(data["categories"])
                 },
                 "source_of_information": "GHG Module",
-                "notes": f"Auto-aggregated from {len(data['emissions'])} yearly GHG emission records",
+                "notes": f"Auto-aggregated from {len(data['emissions'])} yearly GHG emission records{equity_note}",
                 "evidence_files": [],
                 "version": 1,
                 "created_at": datetime.now(timezone.utc).isoformat(),
@@ -300,14 +309,20 @@ class GHGIntegrationService:
                 }
             
             tco2e = float(em.get("total_emissions") or em.get("co2e_emissions") or em.get("calculated_co2e") or 0)
+            # Apply equity share proportionation
+            equity_factor = facility_equity.get(fac_id, 1.0)
+            tco2e_proportioned = tco2e * equity_factor
             monthly_grouped[key]["emissions"].append(em)
-            monthly_grouped[key]["total_co2e"] += tco2e
+            monthly_grouped[key]["total_co2e"] += tco2e_proportioned
+            monthly_grouped[key]["equity_share"] = equity_factor * 100  # Store for notes
             if em.get("category"):
                 monthly_grouped[key]["categories"].add(em.get("category"))
         
         # Build monthly aggregated records (grouped by month, not rolled into yearly)
         for (fac_id, scope, month_period), data in monthly_grouped.items():
             record_id = f"ghg_emission_{fac_id}_{scope}_{month_period.replace('-', '_')}"
+            equity_pct = data.get("equity_share", 100)
+            equity_note = f" (Proportionated by {equity_pct:.0f}% equity share)" if equity_pct < 100 else ""
             
             records.append({
                 "id": record_id,
@@ -335,7 +350,7 @@ class GHGIntegrationService:
                     "categories_included": list(data["categories"])
                 },
                 "source_of_information": "GHG Module",
-                "notes": f"Auto-aggregated from {len(data['emissions'])} monthly GHG emission records for {month_period}",
+                "notes": f"Auto-aggregated from {len(data['emissions'])} monthly GHG emission records for {month_period}{equity_note}",
                 "evidence_files": [],
                 "version": 1,
                 "created_at": datetime.now(timezone.utc).isoformat(),
@@ -357,6 +372,7 @@ class GHGIntegrationService:
         Scope 2 (Electricity): Energy = Σ(Quantity) in MWh (direct)
         
         Returns aggregated by facility and energy type per financial year.
+        Applies equity share proportionation for facilities with < 100% equity.
         """
         # First get facilities for this organization
         # Note: facilities collection uses 'organization_id' not 'org_id'
@@ -366,14 +382,16 @@ class GHGIntegrationService:
         
         facilities = await self.db.facilities.find(
             facility_query,
-            {"_id": 0, "id": 1, "name": 1}
+            {"_id": 0, "id": 1, "name": 1, "equity_share_percentage": 1}
         ).to_list(1000)
         
         if not facilities:
             return []
         
-        # Build facility lookup
+        # Build facility lookups (name and equity share)
         facility_names = {f["id"]: f["name"] for f in facilities}
+        # Equity share as decimal (e.g., 60% -> 0.6), default to 1.0 (100%)
+        facility_equity = {f["id"]: (f.get("equity_share_percentage") or 100) / 100 for f in facilities}
         org_facility_ids = list(facility_names.keys())
         
         # Query emission_records by facility_id
@@ -427,6 +445,9 @@ class GHGIntegrationService:
             if not fac_id:
                 return
             
+            # Get equity factor for this facility
+            equity_factor = facility_equity.get(fac_id, 1.0)
+            
             # Determine energy type and calculate
             if scope == "scope1":
                 energy_type = "fuel"
@@ -475,6 +496,8 @@ class GHGIntegrationService:
                 
                 # Calculate energy: Quantity (kg) × CV (TJ/kg) = TJ
                 energy_tj = quantity_kg * cv
+                # Apply equity share proportionation
+                energy_tj_proportioned = energy_tj * equity_factor
                 
                 key = (fac_id, energy_type, period_key)
                 if key not in grouped:
@@ -484,11 +507,12 @@ class GHGIntegrationService:
                         "total_quantity": 0,
                         "fuels_used": set(),
                         "sub_subcategory": "Non-Renewable",
-                        "period_info": period_info
+                        "period_info": period_info,
+                        "equity_share": equity_factor * 100
                     }
                 
                 grouped[key]["records"].append(em)
-                grouped[key]["total_energy"] += energy_tj
+                grouped[key]["total_energy"] += energy_tj_proportioned
                 grouped[key]["total_quantity"] += quantity
                 if fuel_name:
                     grouped[key]["fuels_used"].add(fuel_name.title())
@@ -517,6 +541,9 @@ class GHGIntegrationService:
                     else:
                         energy_mwh = quantity / 1000
                     
+                    # Apply equity share proportionation
+                    energy_mwh_proportioned = energy_mwh * equity_factor
+                    
                     key = (fac_id, energy_type, period_key, "Non-Renewable")
                     if key not in grouped:
                         grouped[key] = {
@@ -524,11 +551,12 @@ class GHGIntegrationService:
                             "total_energy": 0,
                             "total_quantity": 0,
                             "sub_subcategory": "Non-Renewable",
-                            "period_info": period_info
+                            "period_info": period_info,
+                            "equity_share": equity_factor * 100
                         }
                     
                     grouped[key]["records"].append(em)
-                    grouped[key]["total_energy"] += energy_mwh
+                    grouped[key]["total_energy"] += energy_mwh_proportioned
                     grouped[key]["total_quantity"] += quantity
                 else:
                     energy_type = "electricity"
@@ -554,6 +582,9 @@ class GHGIntegrationService:
                     else:
                         energy_mwh = quantity / 1000
                     
+                    # Apply equity share proportionation
+                    energy_mwh_proportioned = energy_mwh * equity_factor
+                    
                     key = (fac_id, energy_type, period_key, renewable_type)
                     if key not in grouped:
                         grouped[key] = {
@@ -561,11 +592,12 @@ class GHGIntegrationService:
                             "total_energy": 0,
                             "total_quantity": 0,
                             "sub_subcategory": renewable_type,
-                            "period_info": period_info
+                            "period_info": period_info,
+                            "equity_share": equity_factor * 100
                         }
                     
                     grouped[key]["records"].append(em)
-                    grouped[key]["total_energy"] += energy_mwh
+                    grouped[key]["total_energy"] += energy_mwh_proportioned
                     grouped[key]["total_quantity"] += quantity
         
         # =====================================================
@@ -622,6 +654,10 @@ class GHGIntegrationService:
             period_info = data.get("period_info", {})
             record_id = f"ghg_energy_{fac_id}_{energy_type}_{sub_subcategory}_{period_key.replace(' ', '_').replace('-', '_')}"
             
+            # Build equity note if proportionated
+            equity_pct = data.get("equity_share", 100)
+            equity_note = f" (Proportionated by {equity_pct:.0f}% equity share)" if equity_pct < 100 else ""
+            
             if energy_type == "fuel":
                 subcategory = "Fuel"
                 field_values = {
@@ -630,7 +666,7 @@ class GHGIntegrationService:
                     "source_records_count": len(data["records"]),
                     "fuels_included": list(data.get("fuels_used", []))
                 }
-                notes = f"Calculated from {len(data['records'])} Scope 1 fuel records (Energy = Qty × CV)"
+                notes = f"Calculated from {len(data['records'])} Scope 1 fuel records (Energy = Qty × CV){equity_note}"
             elif energy_type == "other_sources":
                 subcategory = "Other Sources"
                 field_values = {
@@ -638,7 +674,7 @@ class GHGIntegrationService:
                     "energy_unit": "MWh",
                     "source_records_count": len(data["records"])
                 }
-                notes = f"Aggregated from {len(data['records'])} Scope 2 Purchased Steam/Heat records"
+                notes = f"Aggregated from {len(data['records'])} Scope 2 Purchased Steam/Heat records{equity_note}"
             else:
                 subcategory = "Electricity"
                 field_values = {
@@ -646,7 +682,7 @@ class GHGIntegrationService:
                     "energy_unit": "MWh",
                     "source_records_count": len(data["records"])
                 }
-                notes = f"Aggregated from {len(data['records'])} Scope 2 {sub_subcategory.lower()} electricity records"
+                notes = f"Aggregated from {len(data['records'])} Scope 2 {sub_subcategory.lower()} electricity records{equity_note}"
             
             records.append({
                 "id": record_id,
