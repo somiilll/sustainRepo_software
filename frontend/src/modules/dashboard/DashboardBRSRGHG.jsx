@@ -309,7 +309,7 @@ export default function DashboardBRSRGHG({ data }) {
           unit="MT"
           yoyChange={esgMetrics?.waste_yoy_change}
           icon={Trash2}
-          accentColor="#F43F5E"
+          accentColor="#92400E"
           loading={esgLoading}
         />
         <PremiumKpiCard
