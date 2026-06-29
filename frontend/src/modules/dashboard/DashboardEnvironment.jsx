@@ -29,6 +29,8 @@ import WaterDischargeDestinations from './components/brsr/WaterDischargeDestinat
 import WaterHighlightCards from './components/brsr/WaterHighlightCards';
 import WasteFunnel from './components/brsr/WasteFunnel';
 import WasteTreemap from './components/brsr/WasteTreemap';
+import EnergyTreemap from './components/brsr/EnergyTreemap';
+import AirEmissionsCompareBars from './components/brsr/AirEmissionsCompareBars';
 
 // Hooks
 import { useIntensityData, useIntensityCalculations } from './hooks/useIntensityData';
@@ -361,87 +363,47 @@ export default function DashboardEnvironment({ data }) {
         </SectionCard>
       </div>
 
-      {/* ROW 4: Air Emissions Breakdown */}
-      <SectionCard
-        title="Air Emissions Breakdown"
-        subtitle="Pollutant-wise distribution"
-        accent="#EF4444"
-        testId="section-air-emissions"
-      >
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 py-4">
-          {[
-            { label: 'NOx', value: airEmissions?.NOx || 0, color: '#EF4444' },
-            { label: 'SOx', value: airEmissions?.SOx || 0, color: '#F97316' },
-            { label: 'PM', value: airEmissions?.PM || 0, color: '#EAB308' },
-            { label: 'VOC', value: airEmissions?.VOC || 0, color: '#22C55E' },
-            { label: 'HAP', value: airEmissions?.HAP || 0, color: '#3B82F6' },
-            { label: 'Other', value: airEmissions?.Other || 0, color: '#8B5CF6' },
-          ].map(item => (
-            <div key={item.label} className="text-center p-3 bg-stone-50 rounded-lg border border-stone-100">
-              <div className="text-xs text-stone-500 mb-1">{item.label}</div>
-              <div className="text-lg font-bold" style={{ color: item.color }}>
-                {item.value.toLocaleString()}
-              </div>
-              <div className="text-[10px] text-stone-400">tonnes</div>
-            </div>
-          ))}
-        </div>
-      </SectionCard>
+      {/* ROW 4: Energy + Air Emissions (Environmental Performance Row) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* LEFT: Energy by Subcategory - Treemap */}
+        <SectionCard
+          title="Energy by Category"
+          subtitle="Consumption mix with renewable share"
+          accent="#F59E0B"
+          testId="section-energy-treemap"
+        >
+          <EnergyTreemap
+            data={{
+              electricity: (energyData?.emission_records?.electricity?.total || 0) + (energyData?.esg_records?.electricity?.total || 0),
+              fuel: (energyData?.emission_records?.fuel?.total || 0) + (energyData?.esg_records?.fuel?.total || 0),
+              renewable: energyData?.renewable_total || 0,
+              other: (energyData?.emission_records?.other_sources?.total || 0) + (energyData?.esg_records?.other_sources?.total || 0),
+            }}
+            renewablePct={renewableEnergyPct}
+            totalEnergy={energyData?.total || 0}
+          />
+        </SectionCard>
 
-      {/* ROW 5: Energy Breakdown */}
-      <SectionCard
-        title="Energy Consumption"
-        subtitle="Renewable vs Non-renewable breakdown"
-        accent="#F59E0B"
-        testId="section-energy"
-      >
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 py-4">
-          {/* Fuel */}
-          <div className="p-4 bg-stone-50 rounded-lg border border-stone-100">
-            <div className="text-sm font-medium text-stone-700 mb-3">Fuel Energy</div>
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs">
-                <span className="text-stone-500">Renewable</span>
-                <span className="font-medium text-emerald-600">{((energyData?.emission_records?.fuel?.renewable || 0) + (energyData?.esg_records?.fuel?.renewable || 0)).toLocaleString()} TJ</span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-stone-500">Non-renewable</span>
-                <span className="font-medium text-stone-700">{((energyData?.emission_records?.fuel?.non_renewable || 0) + (energyData?.esg_records?.fuel?.non_renewable || 0)).toLocaleString()} TJ</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Electricity */}
-          <div className="p-4 bg-stone-50 rounded-lg border border-stone-100">
-            <div className="text-sm font-medium text-stone-700 mb-3">Electricity</div>
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs">
-                <span className="text-stone-500">Renewable</span>
-                <span className="font-medium text-emerald-600">{((energyData?.emission_records?.electricity?.renewable || 0) + (energyData?.esg_records?.electricity?.renewable || 0)).toLocaleString()} MWh</span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-stone-500">Non-renewable</span>
-                <span className="font-medium text-stone-700">{((energyData?.emission_records?.electricity?.non_renewable || 0) + (energyData?.esg_records?.electricity?.non_renewable || 0)).toLocaleString()} MWh</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Other Sources */}
-          <div className="p-4 bg-stone-50 rounded-lg border border-stone-100">
-            <div className="text-sm font-medium text-stone-700 mb-3">Other Sources</div>
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs">
-                <span className="text-stone-500">Renewable</span>
-                <span className="font-medium text-emerald-600">{((energyData?.emission_records?.other_sources?.renewable || 0) + (energyData?.esg_records?.other_sources?.renewable || 0)).toLocaleString()} MWh</span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-stone-500">Non-renewable</span>
-                <span className="font-medium text-stone-700">{((energyData?.emission_records?.other_sources?.non_renewable || 0) + (energyData?.esg_records?.other_sources?.non_renewable || 0)).toLocaleString()} MWh</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </SectionCard>
+        {/* RIGHT: Air Emissions - Horizontal Comparative Bars */}
+        <SectionCard
+          title="Air Emissions by Pollutant"
+          subtitle="Regulatory compliance tracking"
+          accent="#EF4444"
+          testId="section-air-emissions-bars"
+        >
+          <AirEmissionsCompareBars
+            data={{
+              NOx: airEmissions?.NOx || 0,
+              SOx: airEmissions?.SOx || 0,
+              PM: airEmissions?.PM || 0,
+              VOC: airEmissions?.VOC || 0,
+              HAP: airEmissions?.HAP || 0,
+              Other: airEmissions?.Other || 0,
+            }}
+            showLimits={true}
+          />
+        </SectionCard>
+      </div>
     </div>
   );
 }
