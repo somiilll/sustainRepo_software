@@ -32,11 +32,10 @@ import EmissionsByScopeDonut from './components/charts/EmissionsByScopeDonut';
 // Icons
 import { 
   Leaf, Droplets, Trash2, AlertTriangle, Zap, Target,
-  Minus, ArrowUpRight, ArrowDownRight, Download, RefreshCw, Factory,
+  Minus, ArrowUpRight, ArrowDownRight, RefreshCw, Factory,
   Recycle, Activity, Waves, CheckCircle2
 } from 'lucide-react';
 
-import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -683,22 +682,16 @@ export default function DashboardBRSRGHG({ data }) {
         showFilters={showFilters}
         setShowFilters={setShowFilters}
         filterProps={filterProps}
+        onExport={() => console.log('Export triggered')}
+        showExport={true}
       />
 
-      {/* Top Action Bar */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      {/* Top Action Bar - Intensity Toggle */}
+      {hasIntensityData && (
         <div className="flex items-center gap-3">
-          {hasIntensityData && (
-            <IntensityToggle mode={intensityMode} setMode={setIntensityMode} />
-          )}
+          <IntensityToggle mode={intensityMode} setMode={setIntensityMode} />
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="text-xs" data-testid="export-btn">
-            <Download className="w-3.5 h-3.5 mr-1.5" />
-            Export
-          </Button>
-        </div>
-      </div>
+      )}
 
       {/* ================================================================== */}
       {/* ROW 1: TOP KPI CARDS */}

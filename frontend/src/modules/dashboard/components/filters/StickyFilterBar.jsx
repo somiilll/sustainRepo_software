@@ -4,7 +4,7 @@
  * don't reimplement filter state management.
  */
 import React from 'react';
-import { ChevronDown, ChevronUp, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { ChevronDown, ChevronUp, SlidersHorizontal, Sparkles, Download } from 'lucide-react';
 import DashboardFilters from '../../../../pages/dashboard/components/DashboardFilters';
 import PendingApprovalBell from '../../../ghg/components/PendingApprovalBell';
 
@@ -15,6 +15,8 @@ export default function StickyFilterBar({
   showFilters,
   setShowFilters,
   filterProps,
+  onExport,
+  showExport = true,
 }) {
   return (
     <div
@@ -35,6 +37,16 @@ export default function StickyFilterBar({
         </div>
         <div className="flex items-center gap-2">
           <PendingApprovalBell />
+          {showExport && (
+            <button
+              onClick={onExport}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-stone-700 border border-stone-200 hover:border-stone-300 bg-white rounded-lg px-3 py-1.5 transition-colors"
+              data-testid="export-btn"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Export
+            </button>
+          )}
           <button
             onClick={() => setShowFilters((s) => !s)}
             className="inline-flex items-center gap-1.5 text-xs font-medium text-stone-700 border border-stone-200 hover:border-stone-300 bg-white rounded-lg px-3 py-1.5 transition-colors"
