@@ -1,15 +1,14 @@
 /**
  * Dashboard — thin router that dispatches to the appropriate variant
- * based on the organization's module configuration.
+ * based on the organization's module configuration and user selection.
  *
- * Priority order:
- *   1. has_ghg + has_esg  →  DashboardBRSRGHG (combined BRSR + GHG dashboard)
- *   2. scope1_2_3 access  →  DashboardScope123 (full GHG with Scope 3)
- *   3. otherwise          →  DashboardScope12 (Scope 1 & 2 only)
- *
- * Future: ESG-only dashboard when has_esg && !has_ghg
+ * Toggle options:
+ *   - GHG: Shows DashboardScope123 or DashboardScope12 based on org scopes
+ *   - ESG: Shows section-specific dashboards
+ *     - All: DashboardBRSRGHG (combined)
+ *     - Environment/Social/Governance: Separate dashboards (placeholder)
  */
-import React from 'react';
+import React, { useState } from 'react';
 import { useDashboardData } from './dashboard/useDashboardData';
 import DashboardScope12 from '../modules/dashboard/DashboardScope12';
 import DashboardScope123 from '../modules/dashboard/DashboardScope123';
@@ -21,15 +20,37 @@ export default function Dashboard() {
   
   const hasGhg = organization?.has_ghg !== false;
   const hasEsg = organization?.has_esg === true;
+  
+  // Default to ESG if both modules enabled, else GHG
+  const [dashboardType, setDashboardType] = useState(hasEsg ? 'esg' : 'ghg');
+  const [esgSection, setEsgSection] = useState('all');
+  
+  // Only show toggle if org has both modules
+  const showToggle = hasGhg && hasEsg;
+  
+  // Pass toggle state to data for StickyFilterBar
+  const enhancedData = {
+    ...data,
+    dashboardType,
+    setDashboardType,
+    esgSection,
+    setEsgSection,
+    showDashboardToggle: showToggle,
+  };
 
-  // Combined BRSR + GHG dashboard
-  if (hasGhg && hasEsg) {
-    return <DashboardBRSRGHG data={data} />;
+  // GHG Dashboard selection
+  if (dashboardType === 'ghg' || !hasEsg) {
+    if (hasScope3Access) {
+      return <DashboardScope123 data={enhancedData} />;
+    }
+    return <DashboardScope12 data={enhancedData} />;
   }
   
-  // GHG-only dashboards
-  if (hasScope3Access) {
-    return <DashboardScope123 data={data} />;
+  // ESG Dashboard selection
+  if (esgSection === 'all') {
+    return <DashboardBRSRGHG data={enhancedData} />;
   }
-  return <DashboardScope12 data={data} />;
+  
+  // Section-specific ESG dashboards (placeholder - shows BRSR with section filter)
+  return <DashboardBRSRGHG data={enhancedData} />;
 }

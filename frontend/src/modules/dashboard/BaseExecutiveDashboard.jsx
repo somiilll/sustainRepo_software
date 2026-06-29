@@ -199,6 +199,11 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
         showFilters={showFilters}
         setShowFilters={setShowFilters}
         filterProps={filterProps}
+        dashboardType={data.dashboardType}
+        setDashboardType={data.setDashboardType}
+        esgSection={data.esgSection}
+        setEsgSection={data.setEsgSection}
+        showDashboardToggle={data.showDashboardToggle}
       />
 
       {loading ? (

@@ -246,6 +246,11 @@ export default function DashboardBRSRGHG({ data }) {
         filterProps={filterProps}
         onExport={() => console.log('Export triggered')}
         showExport={true}
+        dashboardType={data.dashboardType}
+        setDashboardType={data.setDashboardType}
+        esgSection={data.esgSection}
+        setEsgSection={data.setEsgSection}
+        showDashboardToggle={data.showDashboardToggle}
       />
 
       {/* Intensity Toggle - Show toggle only at org level when both turnover and production available */}
