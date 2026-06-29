@@ -63,7 +63,7 @@ export default function DashboardBRSRGHG({ data }) {
 
   // Fetch intensity data from yearly-data endpoint (org-level) or facility production (facility-level)
   const { 
-    turnover, productionQty, productionUnit, hasIntensityData, hasTurnover, hasProduction, isOrgLevel 
+    turnover, productionQty, productionUnit, hasIntensityData, hasTurnover, hasProduction, isOrgLevel, fyYear 
   } = useIntensityData(dateRange, selectedFacilities);
 
   // Calculate previous year date range
@@ -76,13 +76,24 @@ export default function DashboardBRSRGHG({ data }) {
     return { from: prevFrom, to: prevTo };
   }, [dateRange]);
 
-  // Fetch BRSR/ESG-specific metrics (current + previous year)
+  // Calculate previous FY year for intensity data fetch
+  const prevFyYear = useMemo(() => {
+    if (!fyYear) return null;
+    const [startYear] = fyYear.split('-').map(Number);
+    const prevStartYear = startYear - 1;
+    return `${prevStartYear}-${String(prevStartYear + 1).slice(-2)}`;
+  }, [fyYear]);
+
+  // State for previous year intensity data
+  const [prevYearIntensity, setPrevYearIntensity] = useState({ turnover: null, productionQty: null });
+
+  // Fetch BRSR/ESG-specific metrics (current + previous year) AND previous year intensity data
   useEffect(() => {
     const fetchMetrics = async () => {
       setEsgLoading(true);
       try {
-        const [metricsRes, prevMetricsRes, targetsRes] = await Promise.all([
-          // Current period
+        const requests = [
+          // Current period ESG metrics
           axios.get(`${API}/esg-records/dashboard-metrics`, {
             headers: getAuthHeader(),
             params: {
@@ -91,7 +102,7 @@ export default function DashboardBRSRGHG({ data }) {
               facility_ids: selectedFacilities.length > 0 ? selectedFacilities.join(',') : undefined,
             }
           }).catch(() => ({ data: null })),
-          // Previous year period
+          // Previous year period ESG metrics
           axios.get(`${API}/esg-records/dashboard-metrics`, {
             headers: getAuthHeader(),
             params: {
@@ -100,12 +111,36 @@ export default function DashboardBRSRGHG({ data }) {
               facility_ids: selectedFacilities.length > 0 ? selectedFacilities.join(',') : undefined,
             }
           }).catch(() => ({ data: null })),
+          // Targets
           axios.get(`${API}/targets`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
-        ]);
+        ];
+
+        // Add previous year intensity data fetch (org-level only for now)
+        if (prevFyYear && isOrgLevel) {
+          requests.push(
+            axios.get(`${API}/organization/yearly-data/${prevFyYear}`, { headers: getAuthHeader() })
+              .catch(() => ({ data: null }))
+          );
+        }
+
+        const responses = await Promise.all(requests);
+        const [metricsRes, prevMetricsRes, targetsRes, prevIntensityRes] = responses;
         
         setEsgMetrics(metricsRes.data);
         setPrevYearMetrics(prevMetricsRes.data);
         setTargets(targetsRes.data || []);
+        
+        // Set previous year intensity data
+        if (prevIntensityRes?.data) {
+          const prevTurnover = prevIntensityRes.data.turnover ? parseFloat(prevIntensityRes.data.turnover) : null;
+          const prevProdQty = prevIntensityRes.data.production_quantity ? parseFloat(prevIntensityRes.data.production_quantity) : null;
+          setPrevYearIntensity({
+            turnover: prevTurnover && !isNaN(prevTurnover) ? prevTurnover : null,
+            productionQty: prevProdQty && !isNaN(prevProdQty) ? prevProdQty : null,
+          });
+        } else {
+          setPrevYearIntensity({ turnover: null, productionQty: null });
+        }
       } catch (error) {
         console.error('Metrics fetch error:', error);
       } finally {
@@ -116,9 +151,10 @@ export default function DashboardBRSRGHG({ data }) {
     if (dateRange.from && dateRange.to) {
       fetchMetrics();
     }
-  }, [dateRange, prevYearDateRange, selectedFacilities, getAuthHeader]);
+  }, [dateRange, prevYearDateRange, prevFyYear, selectedFacilities, isOrgLevel, getAuthHeader]);
 
   console.log("esgMetrics", esgMetrics)
+  console.log("prevYearMetrics", prevYearMetrics)
   // Calculate totals from nested emissions structure
   const totals = filteredData?.totals || {};
   const ghgEmissionsFallback = (totals.total || 0) - (filteredData?.filteredSinks || 0);
@@ -129,7 +165,7 @@ export default function DashboardBRSRGHG({ data }) {
   const energyData = esgMetrics?.energy || {};
   const netEnergy = energyData?.total || 0;
 
-  // Calculate YoY trend deltas for all KPIs
+  // Calculate YoY trend deltas for all KPIs (including intensity)
   const trendDeltas = useMemo(() => {
     const computePct = (current = 0, previous = 0) => {
       if (!previous || previous === 0) return null;
@@ -150,14 +186,52 @@ export default function DashboardBRSRGHG({ data }) {
     const prevWaste = prevYearMetrics?.waste?.generated || 0;
     const prevSafety = prevYearMetrics?.safety_incidents?.total || 0;
 
+    // Calculate intensity deltas (only if both current AND previous intensity data exist)
+    const hasPrevTurnover = prevYearIntensity.turnover !== null;
+    const hasPrevProduction = prevYearIntensity.productionQty !== null;
+    const hasPrevIntensityData = hasPrevTurnover || hasPrevProduction;
+
+    let emissionsIntensityDelta = null;
+    let energyIntensityDelta = null;
+
+    if (hasIntensityData && hasPrevIntensityData) {
+      // Use same mode logic as useIntensityCalculations
+      const effectiveMode = !isOrgLevel ? 'production' : intensityMode;
+      
+      if (effectiveMode === 'revenue' && turnover && hasPrevTurnover) {
+        const currEmissionIntensity = currEmissions / turnover;
+        const prevEmissionIntensity = prevEmissions / prevYearIntensity.turnover;
+        emissionsIntensityDelta = computePct(currEmissionIntensity, prevEmissionIntensity);
+
+        const currEnergyIntensity = currEnergy / turnover;
+        const prevEnergyIntensity = prevEnergy / prevYearIntensity.turnover;
+        energyIntensityDelta = computePct(currEnergyIntensity, prevEnergyIntensity);
+      } else if (effectiveMode === 'production' && productionQty && hasPrevProduction) {
+        const currEmissionIntensity = currEmissions / productionQty;
+        const prevEmissionIntensity = prevEmissions / prevYearIntensity.productionQty;
+        emissionsIntensityDelta = computePct(currEmissionIntensity, prevEmissionIntensity);
+
+        const currEnergyIntensity = currEnergy / productionQty;
+        const prevEnergyIntensity = prevEnergy / prevYearIntensity.productionQty;
+        energyIntensityDelta = computePct(currEnergyIntensity, prevEnergyIntensity);
+      }
+    }
+
     return {
-      emissionsDelta: computePct(currEmissions, prevEmissions),
-      energyDelta: computePct(currEnergy, prevEnergy),
+      // Net value deltas (used when intensity is not shown)
+      netEmissionsDelta: computePct(currEmissions, prevEmissions),
+      netEnergyDelta: computePct(currEnergy, prevEnergy),
+      // Intensity deltas (used when intensity is shown)
+      emissionsIntensityDelta,
+      energyIntensityDelta,
+      // Other KPIs
       waterDelta: computePct(currWater, prevWater),
       wasteDelta: computePct(currWaste, prevWaste),
       safetyDelta: computePct(currSafety, prevSafety),
+      // Flags
+      hasIntensityTrend: emissionsIntensityDelta !== null,
     };
-  }, [esgMetrics, prevYearMetrics]);
+  }, [esgMetrics, prevYearMetrics, prevYearIntensity, hasIntensityData, turnover, productionQty, intensityMode, isOrgLevel]);
 
   // Use intensity calculations hook
   const intensityCalcs = useIntensityCalculations({
@@ -323,7 +397,9 @@ export default function DashboardBRSRGHG({ data }) {
           intensityValue={intensityCalcs.emissionIntensity}
           intensityUnit={intensityCalcs.emissionIntensityUnit}
           showIntensity={hasIntensityData && intensityCalcs.hasEmissionIntensity}
-          yoyChange={trendDeltas.emissionsDelta}
+          yoyChange={hasIntensityData && intensityCalcs.hasEmissionIntensity 
+            ? trendDeltas.emissionsIntensityDelta 
+            : trendDeltas.netEmissionsDelta}
           icon={Leaf}
           accentColor="#10B981"
           loading={esgLoading}
@@ -336,7 +412,9 @@ export default function DashboardBRSRGHG({ data }) {
           intensityValue={intensityCalcs.energyIntensity}
           intensityUnit={intensityCalcs.energyIntensityUnit}
           showIntensity={hasIntensityData && intensityCalcs.hasEnergyIntensity}
-          yoyChange={trendDeltas.energyDelta}
+          yoyChange={hasIntensityData && intensityCalcs.hasEnergyIntensity 
+            ? trendDeltas.energyIntensityDelta 
+            : trendDeltas.netEnergyDelta}
           icon={Zap}
           accentColor="#F59E0B"
           loading={esgLoading}
