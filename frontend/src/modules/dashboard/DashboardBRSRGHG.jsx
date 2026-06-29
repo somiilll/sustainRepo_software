@@ -108,6 +108,8 @@ export default function DashboardBRSRGHG({ data }) {
   // Use combined energy from dashboard-metrics endpoint (includes GHG + ESG records)
   const netEnergy = esgMetrics?.total_energy || 0;
 
+  console.log("netEnergy", netEnergy)
+
   // Use intensity calculations hook
   const intensityCalcs = useIntensityCalculations({
     netEmissions,
