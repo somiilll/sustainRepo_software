@@ -23,9 +23,10 @@ import EmissionsByScopeDonut from './components/charts/EmissionsByScopeDonut';
 
 // BRSR Components
 import PremiumKpiCard from './components/kpi/PremiumKpiCard';
-import WaterManagementSection from './components/brsr/WaterManagementSection';
-import WasteManagementSection from './components/brsr/WasteManagementSection';
-import ResourceTrendChart from './components/brsr/ResourceTrendChart';
+import WaterFlowSankey from './components/brsr/WaterFlowSankey';
+import WaterSourcesBar from './components/brsr/WaterSourcesBar';
+import WasteFunnel from './components/brsr/WasteFunnel';
+import WasteTreemap from './components/brsr/WasteTreemap';
 
 // Hooks
 import { useIntensityData, useIntensityCalculations } from './hooks/useIntensityData';
@@ -253,7 +254,105 @@ export default function DashboardEnvironment({ data }) {
         />
       </div>
 
-      {/* ROW 2: Emissions Trend + Scope Donut */}
+      {/* ROW 2: Water & Waste Operations (Premium) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* LEFT: Water Management */}
+        <SectionCard
+          title="Water Management"
+          subtitle="Flow analysis & source breakdown"
+          accent="#0EA5E9"
+          testId="section-water-premium"
+        >
+          <div className="space-y-4">
+            {/* Water Flow Sankey */}
+            <WaterFlowSankey
+              withdrawal={waterData?.withdrawal || 8500}
+              consumption={waterData?.consumption || 5200}
+              discharge={waterData?.discharge || 3100}
+              recycled={waterData?.recycled || 1800}
+            />
+            
+            {/* Side Metrics */}
+            <div className="grid grid-cols-4 gap-2">
+              <div className="text-center p-2 bg-sky-50 rounded-lg border border-sky-100">
+                <div className="text-[10px] text-sky-600 font-medium">Stress Area</div>
+                <div className="text-base font-bold text-sky-700">{waterData?.stress_area_pct ?? 12}%</div>
+              </div>
+              <div className="text-center p-2 bg-teal-50 rounded-lg border border-teal-100">
+                <div className="text-[10px] text-teal-600 font-medium">Treated</div>
+                <div className="text-base font-bold text-teal-700">{waterData?.treated_pct ?? 85}%</div>
+              </div>
+              <div className="text-center p-2 bg-amber-50 rounded-lg border border-amber-100">
+                <div className="text-[10px] text-amber-600 font-medium">Untreated</div>
+                <div className="text-base font-bold text-amber-700">{waterData?.untreated_pct ?? 15}%</div>
+              </div>
+              <div className="text-center p-2 bg-emerald-50 rounded-lg border border-emerald-100">
+                <div className="text-[10px] text-emerald-600 font-medium">Recycled</div>
+                <div className="text-base font-bold text-emerald-700">{waterRecyclingPct}%</div>
+              </div>
+            </div>
+
+            {/* Source & Destination Breakdown */}
+            <div className="grid grid-cols-1 gap-3 pt-2">
+              <WaterSourcesBar 
+                type="sources" 
+                sources={waterData?.sources || {}} 
+              />
+              <WaterSourcesBar 
+                type="destinations" 
+                destinations={waterData?.destinations || {}} 
+              />
+            </div>
+          </div>
+        </SectionCard>
+
+        {/* RIGHT: Waste Management */}
+        <SectionCard
+          title="Waste Management"
+          subtitle="Flow funnel & type breakdown"
+          accent="#8B5CF6"
+          testId="section-waste-premium"
+        >
+          <div className="space-y-4">
+            {/* Waste Funnel */}
+            <WasteFunnel
+              generated={wasteData?.generated || 21222}
+              recovered={wasteData?.recovered || 15400}
+              disposed={wasteData?.disposal || 5822}
+            />
+
+            {/* Side Metrics */}
+            <div className="grid grid-cols-4 gap-2">
+              <div className="text-center p-2 bg-violet-50 rounded-lg border border-violet-100">
+                <div className="text-[10px] text-violet-600 font-medium">Treatment</div>
+                <div className="text-base font-bold text-violet-700">{wasteData?.treatment_pct ?? 78}%</div>
+              </div>
+              <div className="text-center p-2 bg-rose-50 rounded-lg border border-rose-100">
+                <div className="text-[10px] text-rose-600 font-medium">Hazardous</div>
+                <div className="text-base font-bold text-rose-700">{wasteData?.hazardous_pct ?? 8}%</div>
+              </div>
+              <div className="text-center p-2 bg-emerald-50 rounded-lg border border-emerald-100">
+                <div className="text-[10px] text-emerald-600 font-medium">Recovery</div>
+                <div className="text-base font-bold text-emerald-700">{wasteRecoveryPct.toFixed(0)}%</div>
+              </div>
+              <div className="text-center p-2 bg-amber-50 rounded-lg border border-amber-100">
+                <div className="text-[10px] text-amber-600 font-medium">Disposal</div>
+                <div className="text-base font-bold text-amber-700">{wasteData?.disposal_pct ?? 27}%</div>
+              </div>
+            </div>
+
+            {/* Waste Type Treemap */}
+            <div className="pt-2">
+              <div className="text-[10px] font-medium text-stone-600 uppercase tracking-wide mb-2">
+                Waste Type Breakdown
+              </div>
+              <WasteTreemap data={wasteData?.types || {}} />
+            </div>
+          </div>
+        </SectionCard>
+      </div>
+
+      {/* ROW 3: Emissions Trend + Scope Donut */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
         <SectionCard
           className="lg:col-span-3"
@@ -272,37 +371,6 @@ export default function DashboardEnvironment({ data }) {
           testId="section-scope-donut"
         >
           <EmissionsByScopeDonut data={donutData} />
-        </SectionCard>
-      </div>
-
-      {/* ROW 3: Water & Waste Management */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <SectionCard
-          title="Water Management"
-          subtitle="Withdrawal, consumption & discharge"
-          accent="#0EA5E9"
-          testId="section-water"
-        >
-          <WaterManagementSection
-            withdrawn={waterData?.withdrawal || 0}
-            consumed={waterData?.consumption || 0}
-            discharged={waterData?.discharge || 0}
-            recyclingPct={waterRecyclingPct}
-          />
-        </SectionCard>
-
-        <SectionCard
-          title="Waste Management"
-          subtitle="Generation, recovery & disposal"
-          accent="#8B5CF6"
-          testId="section-waste"
-        >
-          <WasteManagementSection
-            generated={wasteData?.generated || 0}
-            recovered={wasteData?.recovered || 0}
-            disposed={wasteData?.disposal || 0}
-            recoveryPct={wasteRecoveryPct}
-          />
         </SectionCard>
       </div>
 
