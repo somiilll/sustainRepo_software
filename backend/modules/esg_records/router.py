@@ -404,6 +404,6 @@ async def get_dashboard_metrics(
     
     # Get metrics from service
     service = get_dashboard_metrics_service(db)
-    metrics = await service.get_dashboard_metrics(org_id, fac_list, financial_year)
+    metrics = await service.get_dashboard_metrics(org_id, fac_list, financial_year, start_date, end_date)
     
     return metrics

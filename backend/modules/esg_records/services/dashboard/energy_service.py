@@ -17,17 +17,19 @@ class EnergyMetricsService:
         self,
         org_id: str,
         facility_ids: Optional[List[str]] = None,
-        financial_year: Optional[str] = None
+        financial_year: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
     ) -> Dict[str, Any]:
         """Get aggregated energy metrics from ESG records + GHG data"""
         # ESG energy from environment_records
-        esg_electricity = await self._get_subcategory_total(org_id, facility_ids, "Electricity")
-        esg_fuel = await self._get_subcategory_total(org_id, facility_ids, "Fuel")
-        esg_other = await self._get_subcategory_total(org_id, facility_ids, "Other Sources")
+        esg_electricity = await self._get_subcategory_total(org_id, facility_ids, "Electricity", start_date, end_date)
+        esg_fuel = await self._get_subcategory_total(org_id, facility_ids, "Fuel", start_date, end_date)
+        esg_other = await self._get_subcategory_total(org_id, facility_ids, "Other Sources", start_date, end_date)
         esg_total = esg_electricity + esg_fuel + esg_other
         
         # Renewable energy
-        renewable = await self._get_renewable_total(org_id, facility_ids)
+        renewable = await self._get_renewable_total(org_id, facility_ids, start_date, end_date)
         
         # GHG energy from emission_records
         ghg_energy = await self._get_ghg_energy(org_id, facility_ids, financial_year)
@@ -50,7 +52,9 @@ class EnergyMetricsService:
         self,
         org_id: str,
         facility_ids: Optional[List[str]],
-        subcategory: str
+        subcategory: str,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
     ) -> float:
         """Get total quantity for an energy subcategory (converted to MWh)"""
         query = {
@@ -60,6 +64,12 @@ class EnergyMetricsService:
         }
         if facility_ids:
             query["facility_id"] = {"$in": facility_ids}
+        
+        # Add reporting period filter
+        if start_date and end_date:
+            date_filter = self._build_date_filter(start_date, end_date)
+            if date_filter:
+                query["$or"] = date_filter
         
         records = await self.db.environment_records.find(query, {"_id": 0, "field_values": 1}).to_list(10000)
         
@@ -81,7 +91,13 @@ class EnergyMetricsService:
         
         return total_mwh
     
-    async def _get_renewable_total(self, org_id: str, facility_ids: Optional[List[str]]) -> float:
+    async def _get_renewable_total(
+        self,
+        org_id: str,
+        facility_ids: Optional[List[str]],
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
+    ) -> float:
         """Get total renewable energy"""
         query = {
             "organization_id": org_id,
@@ -90,6 +106,12 @@ class EnergyMetricsService:
         }
         if facility_ids:
             query["facility_id"] = {"$in": facility_ids}
+        
+        # Add reporting period filter
+        if start_date and end_date:
+            date_filter = self._build_date_filter(start_date, end_date)
+            if date_filter:
+                query["$or"] = date_filter
         
         records = await self.db.environment_records.find(query, {"_id": 0, "field_values": 1}).to_list(10000)
         
@@ -139,3 +161,27 @@ class EnergyMetricsService:
         except Exception as e:
             print(f"Error fetching GHG energy: {e}")
             return 0.0
+    
+    def _build_date_filter(self, start_date: str, end_date: str) -> List[Dict]:
+        """Build date filter conditions for reporting_period"""
+        try:
+            start_year, start_month = int(start_date[:4]), int(start_date[5:7])
+            end_year, end_month = int(end_date[:4]), int(end_date[5:7])
+            
+            months = ["January", "February", "March", "April", "May", "June",
+                      "July", "August", "September", "October", "November", "December"]
+            
+            conditions = []
+            for year in range(start_year, end_year + 1):
+                for month_idx in range(1, 13):
+                    if year == start_year and month_idx < start_month:
+                        continue
+                    if year == end_year and month_idx > end_month:
+                        continue
+                    conditions.append({
+                        "reporting_period.year": year,
+                        "reporting_period.month": months[month_idx - 1]
+                    })
+            return conditions
+        except:
+            return []

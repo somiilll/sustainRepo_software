@@ -22,16 +22,18 @@ class DashboardMetricsService:
         self,
         org_id: str,
         facility_ids: Optional[List[str]] = None,
-        financial_year: Optional[str] = None
+        financial_year: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Aggregate all dashboard metrics from environment_records and GHG data.
         """
         # Get metrics from each service
-        water = await self.water_service.get_metrics(org_id, facility_ids)
-        waste = await self.waste_service.get_metrics(org_id, facility_ids)
-        energy = await self.energy_service.get_metrics(org_id, facility_ids, financial_year)
-        emissions = await self.emissions_service.get_metrics(org_id, facility_ids, financial_year)
+        water = await self.water_service.get_metrics(org_id, facility_ids, start_date, end_date)
+        waste = await self.waste_service.get_metrics(org_id, facility_ids, start_date, end_date)
+        energy = await self.energy_service.get_metrics(org_id, facility_ids, financial_year, start_date, end_date)
+        emissions = await self.emissions_service.get_metrics(org_id, facility_ids, financial_year, start_date, end_date)
         
         # Get record counts
         counts = await self._get_record_counts(org_id, facility_ids)
@@ -56,12 +58,12 @@ class DashboardMetricsService:
             "total_energy": energy["total"],
             "ghg_energy": energy["ghg_energy"],
             "esg_energy": energy["esg_energy"],
-            "water_consumption": water["consumption"],
-            "water_withdrawn": water["withdrawal"],
-            "water_discharged": water["discharge"],
-            "waste_generated": waste["generated"],
-            "waste_recovered": waste["recovered"],
-            "waste_disposed": waste["disposal"],
+            # "water_consumption": water["consumption"],
+            # "water_withdrawn": water["withdrawal"],
+            # "water_discharged": water["discharge"],
+            # "waste_generated": waste["generated"],
+            # "waste_recovered": waste["recovered"],
+            # "waste_disposed": waste["disposal"],
             
             # Placeholders for other metrics
             "safety_incidents": 0,
@@ -69,8 +71,8 @@ class DashboardMetricsService:
             "complaints": 0,
             "data_breaches": 0,
             "renewable_pct": energy.get("renewable_pct", 0),
-            "waste_recovery_pct": waste.get("recovery_pct", 0),
-            "water_recycling_pct": water.get("recycling_pct", 0),
+            # "waste_recovery_pct": waste.get("recovery_pct", 0),
+            # "water_recycling_pct": water.get("recycling_pct", 0),
             "audit_readiness_score": min(100, (counts["total"] / 50) * 100),
         }
     

@@ -291,7 +291,7 @@ export default function DashboardBRSRGHG({ data }) {
         />
         <PremiumKpiCard
           title="Water Discharged"
-          value={esgMetrics?.water_discharged || 0}
+          value={esgMetrics?.water?.discharge || 0}
           unit="KL"
           yoyChange={esgMetrics?.water_yoy_change}
           icon={Droplets}
@@ -300,7 +300,7 @@ export default function DashboardBRSRGHG({ data }) {
         />
         <PremiumKpiCard
           title="Waste Generated"
-          value={esgMetrics?.waste_generated || 0}
+          value={esgMetrics?.wate?.generated || 0}
           unit="MT"
           yoyChange={esgMetrics?.waste_yoy_change}
           icon={Trash2}
