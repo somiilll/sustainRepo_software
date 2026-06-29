@@ -6,13 +6,15 @@
  *   - GHG: Shows DashboardScope123 or DashboardScope12 based on org scopes
  *   - ESG: Shows section-specific dashboards
  *     - All: DashboardBRSRGHG (combined)
- *     - Environment/Social/Governance: Separate dashboards (placeholder)
+ *     - Environment: DashboardEnvironment
+ *     - Social/Governance: Placeholder (shows BRSR for now)
  */
 import React, { useState } from 'react';
 import { useDashboardData } from './dashboard/useDashboardData';
 import DashboardScope12 from '../modules/dashboard/DashboardScope12';
 import DashboardScope123 from '../modules/dashboard/DashboardScope123';
 import DashboardBRSRGHG from '../modules/dashboard/DashboardBRSRGHG';
+import DashboardEnvironment from '../modules/dashboard/DashboardEnvironment';
 
 export default function Dashboard() {
   const data = useDashboardData();
@@ -51,6 +53,10 @@ export default function Dashboard() {
     return <DashboardBRSRGHG data={enhancedData} />;
   }
   
-  // Section-specific ESG dashboards (placeholder - shows BRSR with section filter)
+  if (esgSection === 'environment') {
+    return <DashboardEnvironment data={enhancedData} />;
+  }
+  
+  // Social & Governance dashboards (placeholder - shows BRSR for now)
   return <DashboardBRSRGHG data={enhancedData} />;
 }
