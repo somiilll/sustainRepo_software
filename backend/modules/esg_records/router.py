@@ -382,7 +382,7 @@ async def get_dashboard_metrics(
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization assigned")
     
-    db = await get_database()
+    db = get_database()
     ghg_service = get_ghg_integration_service(db)
     
     # Parse facility IDs
