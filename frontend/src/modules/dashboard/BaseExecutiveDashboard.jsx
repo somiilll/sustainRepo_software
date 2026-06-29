@@ -252,7 +252,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
 
           {/* ROW 2: Trend + Donut */}
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
-            <SectionCard
+             <SectionCard
               className="lg:col-span-3"
               title={hasScope3 ? 'Scope 1, 2 & 3 Emissions Trend' : 'Scope 1 & 2 Emissions Trend'}
               subtitle="Emissions over reporting period"
