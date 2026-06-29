@@ -486,11 +486,11 @@ export default function DashboardBRSRGHG({ data }) {
           testId="targets-section"
         >
           <div className="space-y-1">
-            <TargetProgressBar label="Net Zero Target" current={35} target={100} targetYear="2050" color="#10B981" />
-            <TargetProgressBar label="Emission Reduction" current={22} target={50} targetYear="2030" color="#3B82F6" />
-            <TargetProgressBar label="Energy Reduction" current={18} target={30} targetYear="2030" color="#F59E0B" />
-            <TargetProgressBar label="Water Reduction" current={12} target={25} targetYear="2030" color="#0EA5E9" />
-            <TargetProgressBar label="Waste Recovery" current={65} target={80} targetYear="2030" color="#F43F5E" />
+            <TargetProgressBar label="Net Zero by 2050" current={15} target={100} targetYear="2050" unit="%" color="#10B981" />
+            <TargetProgressBar label="50% Emission Reduction" current={18.5} target={50} targetYear="2030" unit="%" color="#3B82F6" />
+            <TargetProgressBar label="30% Energy Reduction" current={12} target={30} targetYear="2030" unit="%" color="#F59E0B" />
+            <TargetProgressBar label="25% Water Reduction" current={8} target={25} targetYear="2030" unit="%" color="#0EA5E9" />
+            <TargetProgressBar label="80% Waste Recovery" current={52} target={80} targetYear="2030" unit="%" color="#92400E" />
           </div>
         </SectionCard>
 
