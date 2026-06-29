@@ -21,6 +21,7 @@ export default function PremiumKpiCard({
   icon: Icon,
   accentColor = '#10B981',
   loading = false,
+  actionSlot,
   invertedTrend = true,
 }) {
   const displayValue = showIntensity && intensityValue != null ? intensityValue : value;
@@ -36,8 +37,12 @@ export default function PremiumKpiCard({
       className="relative overflow-hidden p-5 bg-white border border-stone-200/60 rounded-2xl hover:shadow-lg transition-all duration-300 group"
       data-testid={`kpi-${title.toLowerCase().replace(/\s+/g, '-')}`}
     >
-      <div className="absolute inset-x-0 top-0 h-1 opacity-80" style={{ background: accentColor }} />
-      
+      <div className="absolute inset-x-0 top-0 h-1 opacity-100" style={{ background: accentColor }} />
+      {actionSlot && (
+        <div className="absolute top-3 right-3 z-10" onClick={(e) => e.stopPropagation()}>
+          {actionSlot}
+        </div>
+      )}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <div 

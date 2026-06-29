@@ -143,6 +143,7 @@ export function useIntensityCalculations({
   netEnergy, 
   turnover, 
   productionQty, 
+  productionUnit = 'Unit',
   intensityMode = 'revenue',
   isOrgLevel = true,
 }) {
@@ -157,9 +158,9 @@ export function useIntensityCalculations({
 
     return {
       emissionIntensity: effectiveMode === 'revenue' ? emissionIntensityRevenue : emissionIntensityProd,
-      emissionIntensityUnit: effectiveMode === 'revenue' ? 'tCO₂e/Cr' : 'tCO₂e/unit',
+      emissionIntensityUnit: effectiveMode === 'revenue' ? 'tCO₂e/Cr' : `tCO₂e/${productionUnit}`,
       energyIntensity: effectiveMode === 'revenue' ? energyIntensityRevenue : energyIntensityProd,
-      energyIntensityUnit: effectiveMode === 'revenue' ? 'MWh/Cr' : 'MWh/unit',
+      energyIntensityUnit: effectiveMode === 'revenue' ? 'MWh/Cr' : `MWh/${productionUnit}`,
       hasEmissionIntensity: effectiveMode === 'revenue' ? emissionIntensityRevenue !== null : emissionIntensityProd !== null,
       hasEnergyIntensity: effectiveMode === 'revenue' ? energyIntensityRevenue !== null : energyIntensityProd !== null,
       effectiveMode,

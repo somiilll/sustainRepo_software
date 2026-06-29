@@ -62,7 +62,7 @@ export default function DashboardBRSRGHG({ data }) {
 
   // Fetch intensity data from yearly-data endpoint (org-level) or facility production (facility-level)
   const { 
-    turnover, productionQty, hasIntensityData, hasTurnover, hasProduction, isOrgLevel 
+    turnover, productionQty, productionUnit, hasIntensityData, hasTurnover, hasProduction, isOrgLevel 
   } = useIntensityData(dateRange, selectedFacilities);
 
   // Fetch BRSR/ESG-specific metrics
@@ -99,6 +99,7 @@ export default function DashboardBRSRGHG({ data }) {
   // Calculate totals
   const totals = filteredData?.totals || {};
   const netEmissions = (totals.total || 0) - (filteredData?.filteredSinks || 0);
+  console.log("esgMetrics", esgMetrics)
   const netEnergy = esgMetrics?.total_energy || 0;
 
   // Use intensity calculations hook
@@ -107,6 +108,7 @@ export default function DashboardBRSRGHG({ data }) {
     netEnergy,
     turnover,
     productionQty,
+    productionUnit,
     intensityMode,
     isOrgLevel,
   });
@@ -203,6 +205,30 @@ export default function DashboardBRSRGHG({ data }) {
     );
   }
 
+  const intensityDropdown = hasIntensityData ? (
+    <div onClick={(e) => e.stopPropagation()}>
+      {isOrgLevel && hasTurnover && hasProduction ? (
+        <select 
+          value={intensityMode} 
+          onChange={(e) => setIntensityMode(e.target.value)}
+          /* Reduced text, padding, and height */
+          className="text-[10px] font-semibold border border-stone-200 rounded-md bg-stone-50 text-stone-600 px-1.5 py-0.5 outline-none cursor-pointer hover:border-emerald-300 focus:ring-1 focus:ring-emerald-500"
+        >
+          <option value="revenue">INR</option>
+          <option value="production">Prod</option>
+        </select>
+      ) : isOrgLevel && hasTurnover ? (
+        <span className="text-[10px] font-semibold text-stone-500 bg-stone-100 px-1.5 py-0.5 rounded-md border border-stone-200">
+          Rev
+        </span>
+      ) : (
+        <span className="text-[10px] font-semibold text-stone-500 bg-stone-100 px-1.5 py-0.5 rounded-md border border-stone-200">
+          Prod
+        </span>
+      )}
+    </div>
+  ) : null;
+
   return (
     <div className="space-y-6" data-testid="dashboard-brsr-ghg">
       <StickyFilterBar
@@ -217,7 +243,7 @@ export default function DashboardBRSRGHG({ data }) {
       />
 
       {/* Intensity Toggle - Show toggle only at org level when both turnover and production available */}
-      {hasIntensityData && (
+      {/* const intensityDropdown = {hasIntensityData && (
         <div className="flex items-center gap-3">
           {isOrgLevel && hasTurnover && hasProduction ? (
             <IntensityToggle mode={intensityMode} setMode={setIntensityMode} />
@@ -227,7 +253,7 @@ export default function DashboardBRSRGHG({ data }) {
             <span className="text-xs text-stone-500 bg-stone-100 px-3 py-1.5 rounded-lg">By Production</span>
           )}
         </div>
-      )}
+      )} */}
 
       {/* ROW 1: TOP KPI CARDS */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4" data-testid="top-kpi-row">
@@ -243,6 +269,7 @@ export default function DashboardBRSRGHG({ data }) {
           icon={Leaf}
           accentColor="#10B981"
           loading={loading}
+          actionSlot={intensityDropdown}
         />
         <PremiumKpiCard
           title={hasIntensityData ? "Energy Intensity" : "Net Energy"}
@@ -254,6 +281,7 @@ export default function DashboardBRSRGHG({ data }) {
           icon={Zap}
           accentColor="#F59E0B"
           loading={esgLoading}
+          actionSlot={intensityDropdown}
         />
         <PremiumKpiCard
           title="Water Disposed"
