@@ -417,25 +417,23 @@ async def get_dashboard_metrics(
         total_ghg_emissions += float(field_values.get("total_emission", 0))
     
     # =========================================================================
-    # 2. Get ESG Emissions from esg_records (category=Emissions, subcategory=GHG)
+    # 2. Get ESG Emissions from environment_records (category=Emissions, subcategory=GHG Emissions)
     # =========================================================================
     esg_emission_query = {
         "organization_id": org_id,
-        "section": "environment",
         "category": {"$regex": "emission", "$options": "i"},
         "subcategory": {"$regex": "ghg", "$options": "i"}
     }
     if fac_list:
         esg_emission_query["facility_id"] = {"$in": fac_list}
     
-    esg_emission_records = await db.esg_records.find(esg_emission_query, {"_id": 0}).to_list(10000)
+    esg_emission_records = await db.environment_records.find(esg_emission_query, {"_id": 0}).to_list(10000)
     
     total_esg_emissions = 0.0
     for rec in esg_emission_records:
-        # Try to get emission value from field_values or data
+        # Get emission value from field_values.quantity
         fv = rec.get("field_values", {})
-        data = rec.get("data", {})
-        emission_val = fv.get("total_emission") or fv.get("value") or data.get("value") or 0
+        emission_val = fv.get("quantity") or fv.get("total_emission") or fv.get("value") or 0
         total_esg_emissions += float(emission_val or 0)
     
     # =========================================================================
@@ -460,44 +458,52 @@ async def get_dashboard_metrics(
         total_ghg_energy_mwh += energy_val
     
     # =========================================================================
-    # 4. Get ESG Energy from esg_records (category=Energy)
+    # 4. Get ESG Energy from environment_records (category=Energy)
     # =========================================================================
     esg_energy_query = {
         "organization_id": org_id,
-        "section": "environment",
         "category": {"$regex": "energy", "$options": "i"}
     }
     if fac_list:
         esg_energy_query["facility_id"] = {"$in": fac_list}
     
-    esg_energy_records = await db.esg_records.find(esg_energy_query, {"_id": 0}).to_list(10000)
+    esg_energy_records = await db.environment_records.find(esg_energy_query, {"_id": 0}).to_list(10000)
     
     total_esg_energy = 0.0
     for rec in esg_energy_records:
         fv = rec.get("field_values", {})
-        data = rec.get("data", {})
-        energy_val = fv.get("total_energy") or fv.get("value") or data.get("value") or 0
-        total_esg_energy += float(energy_val or 0)
+        energy_val = fv.get("quantity") or fv.get("total_energy") or fv.get("value") or 0
+        energy_unit = (fv.get("unit") or "").lower()
+        energy_num = float(energy_val or 0)
+        # Convert to MWh if needed
+        if "kwh" in energy_unit:
+            energy_num = energy_num / 1000
+        elif "gwh" in energy_unit:
+            energy_num = energy_num * 1000
+        total_esg_energy += energy_num
     
     # =========================================================================
-    # 5. Get ESG record counts and other metrics
+    # 5. Get record counts and other metrics from environment_records
     # =========================================================================
     base_query = {"organization_id": org_id}
     if fac_list:
         base_query["facility_id"] = {"$in": fac_list}
     
-    environment_count = await db.esg_records.count_documents({**base_query, "section": "environment"})
-    social_count = await db.esg_records.count_documents({**base_query, "section": "social"})
-    governance_count = await db.esg_records.count_documents({**base_query, "section": "governance"})
+    # Count by category type
+    env_count = await db.environment_records.count_documents(base_query)
+    
+    # For social/governance, check if there's a section field or separate collections
+    social_count = await db.environment_records.count_documents({**base_query, "section": "social"})
+    governance_count = await db.environment_records.count_documents({**base_query, "section": "governance"})
     
     # =========================================================================
     # 6. Build final metrics
     # =========================================================================
     metrics = {
-        "environment_records": environment_count,
+        "environment_records": env_count,
         "social_records": social_count,
         "governance_records": governance_count,
-        "total_records": environment_count + social_count + governance_count,
+        "total_records": env_count + social_count + governance_count,
         
         # Combined emissions: GHG + ESG records
         "total_emissions": round(total_ghg_emissions + total_esg_emissions, 2),
@@ -540,18 +546,17 @@ async def get_dashboard_metrics(
         "complaints_yoy_change": None,
     }
     
-    # Aggregate other ESG categories
+    # Aggregate other categories from environment_records
     pipeline = [
         {"$match": base_query},
         {"$group": {
             "_id": "$category",
-            "section": {"$first": "$section"},
-            "total_value": {"$sum": {"$toDouble": {"$ifNull": ["$field_values.value", {"$ifNull": ["$data.value", 0]}]}}},
+            "total_value": {"$sum": {"$toDouble": {"$ifNull": ["$field_values.quantity", 0]}}},
             "count": {"$sum": 1}
         }}
     ]
     
-    category_aggregates = await db.esg_records.aggregate(pipeline).to_list(100)
+    category_aggregates = await db.environment_records.aggregate(pipeline).to_list(100)
     
     category_mapping = {
         "water": "water_consumption",
@@ -572,13 +577,13 @@ async def get_dashboard_metrics(
     
     # Calculate percentages
     if metrics["total_energy"] > 0:
-        metrics["renewable_pct"] = min(35, (environment_count / max(1, metrics["total_records"])) * 100)
+        metrics["renewable_pct"] = min(35, (env_count / max(1, metrics["total_records"])) * 100)
     
     if metrics["waste_generated"] > 0:
-        metrics["waste_recovery_pct"] = min(60, 40 + (environment_count * 2))
+        metrics["waste_recovery_pct"] = min(60, 40 + (env_count * 2))
     
     if metrics["water_consumption"] > 0:
-        metrics["water_recycling_pct"] = min(50, 30 + (environment_count * 1.5))
+        metrics["water_recycling_pct"] = min(50, 30 + (env_count * 1.5))
     
     total_expected = 50
     metrics["audit_readiness_score"] = min(100, (metrics["total_records"] / total_expected) * 100)
