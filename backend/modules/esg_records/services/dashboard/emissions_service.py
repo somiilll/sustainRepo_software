@@ -26,6 +26,7 @@ class EmissionsMetricsService:
         
         # GHG Emissions
         ghg_emission_records = await self._get_ghg_emission_records_by_scope(org_id, facility_ids, start_date, end_date)
+        print("ghg_emission_records", ghg_emission_records)
         ghg_esg_records = await self._get_esg_ghg_by_scope(org_id, facility_ids, start_date, end_date)
         
         ghg_total_scope1 = ghg_emission_records["scope1"] + ghg_esg_records["scope1"]
@@ -71,6 +72,10 @@ class EmissionsMetricsService:
         
         ghg_service = get_ghg_integration_service(self.db)
         
+        print("org_id", org_id)
+        print("facility_ids", facility_ids)
+        print("start_date", start_date)
+        print("end_date", end_date)
         try:
             records = await ghg_service.get_ghg_emissions_as_records(
                 org_id=org_id,
@@ -78,7 +83,7 @@ class EmissionsMetricsService:
                 start_date=start_date,
                 end_date=end_date
             )
-            
+            print("records", records)
             scope1, scope2, scope3 = 0.0, 0.0, 0.0
             for rec in records:
                 fv = rec.get("field_values", {})
