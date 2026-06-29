@@ -31,10 +31,9 @@ import EmissionsByScopeDonut from './components/charts/EmissionsByScopeDonut';
 
 // Icons
 import { 
-  Leaf, Droplets, Trash2, AlertTriangle, Zap, Target, TrendingUp, TrendingDown,
-  Minus, ArrowUpRight, ArrowDownRight, Download, Bell, RefreshCw, Factory,
-  Recycle, Shield, Users, AlertCircle, CheckCircle2, XCircle, Activity,
-  BarChart3, Waves, Flame, Building2
+  Leaf, Droplets, Trash2, AlertTriangle, Zap, Target,
+  Minus, ArrowUpRight, ArrowDownRight, Download, RefreshCw, Factory,
+  Recycle, Activity, Waves, CheckCircle2
 } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
@@ -512,69 +511,6 @@ function ResourceTrendChart({ data = [], type = 'water', height = 220 }) {
 }
 
 // =============================================================================
-// Alert Center Component
-// =============================================================================
-function AlertCenter({ alerts = [] }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const criticalCount = alerts.filter(a => a.severity === 'critical').length;
-  const warningCount = alerts.filter(a => a.severity === 'warning').length;
-
-  return (
-    <div className="relative">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 rounded-lg hover:bg-stone-100 transition-colors"
-        data-testid="alert-center-btn"
-      >
-        <Bell className="w-5 h-5 text-stone-600" />
-        {(criticalCount + warningCount) > 0 && (
-          <span className={`absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full text-[10px] font-bold text-white flex items-center justify-center ${
-            criticalCount > 0 ? 'bg-rose-500' : 'bg-amber-500'
-          }`}>
-            {criticalCount + warningCount}
-          </span>
-        )}
-      </button>
-      
-      {isOpen && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-stone-200 z-50 overflow-hidden">
-            <div className="p-3 border-b border-stone-100 bg-stone-50">
-              <h4 className="font-semibold text-stone-900 text-sm">Alert Center</h4>
-            </div>
-            <div className="max-h-64 overflow-y-auto">
-              {alerts.length === 0 ? (
-                <div className="p-4 text-center text-stone-500 text-sm">
-                  <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-emerald-500" />
-                  All metrics within targets
-                </div>
-              ) : (
-                alerts.map((alert, idx) => (
-                  <div key={idx} className="p-3 border-b border-stone-50 hover:bg-stone-50 transition-colors">
-                    <div className="flex items-start gap-2">
-                      {alert.severity === 'critical' ? (
-                        <XCircle className="w-4 h-4 text-rose-500 mt-0.5 flex-shrink-0" />
-                      ) : (
-                        <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
-                      )}
-                      <div>
-                        <p className="text-sm font-medium text-stone-900">{alert.title}</p>
-                        <p className="text-xs text-stone-500 mt-0.5">{alert.message}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-// =============================================================================
 // Main Dashboard Component
 // =============================================================================
 export default function DashboardBRSRGHG({ data }) {
@@ -594,7 +530,6 @@ export default function DashboardBRSRGHG({ data }) {
   const [esgMetrics, setEsgMetrics] = useState(null);
   const [esgLoading, setEsgLoading] = useState(true);
   const [targets, setTargets] = useState([]);
-  const [alerts, setAlerts] = useState([]);
 
   // Fetch BRSR/ESG-specific metrics
   useEffect(() => {
@@ -615,7 +550,6 @@ export default function DashboardBRSRGHG({ data }) {
         
         setEsgMetrics(metricsRes.data);
         setTargets(targetsRes.data || []);
-        generateAlerts(metricsRes.data, targetsRes.data || []);
       } catch (error) {
         console.error('Metrics fetch error:', error);
       } finally {
@@ -627,26 +561,6 @@ export default function DashboardBRSRGHG({ data }) {
       fetchMetrics();
     }
   }, [dateRange, selectedFacilities, getAuthHeader]);
-
-  // Generate alerts
-  const generateAlerts = (metrics, targets) => {
-    const newAlerts = [];
-    if (metrics?.safety_incidents > 0) {
-      newAlerts.push({
-        severity: 'critical',
-        title: 'Safety Incidents',
-        message: `${metrics.safety_incidents} incidents recorded`,
-      });
-    }
-    if (metrics?.data_breaches > 0) {
-      newAlerts.push({
-        severity: 'critical',
-        title: 'Data Breaches',
-        message: `${metrics.data_breaches} security incidents`,
-      });
-    }
-    setAlerts(newAlerts);
-  };
 
   // Intensity calculations
   const turnover = organization?.turnover_value || null;
@@ -756,13 +670,15 @@ export default function DashboardBRSRGHG({ data }) {
       </div>
     );
   }
+  const dateRangeLabel = dateRange?.from && dateRange?.to
+    ? `${format(dateRange.from, 'MMM yyyy')} – ${format(dateRange.to, 'MMM yyyy')}`
+    : 'All time';
 
   return (
     <div className="space-y-6" data-testid="dashboard-brsr-ghg">
-      {/* Sticky Filter Bar */}
       <StickyFilterBar
-        title="BRSR Dashboard"
-        subtitle={organization?.name || 'Enterprise ESG Operating System'}
+        title={organization?.name ? `${organization.name} · Executive Dashboard` : 'Executive Dashboard'}
+        subtitle={`Reporting window: ${dateRangeLabel}`}
         liveBadge={liveBadge}
         showFilters={showFilters}
         setShowFilters={setShowFilters}
@@ -777,7 +693,6 @@ export default function DashboardBRSRGHG({ data }) {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <AlertCenter alerts={alerts} />
           <Button variant="outline" size="sm" className="text-xs" data-testid="export-btn">
             <Download className="w-3.5 h-3.5 mr-1.5" />
             Export
