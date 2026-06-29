@@ -51,7 +51,7 @@ export default function DashboardBRSRGHG({ data }) {
     showFilters, setShowFilters,
     showFacilityDropdown, setShowFacilityDropdown, facilityDropdownRef,
     filteredData, baseYearComparison,
-    isLive,
+    isLive, getPreviousFinancialYear,
   } = data;
 
   const [intensityMode, setIntensityMode] = useState('revenue');
@@ -187,6 +187,7 @@ export default function DashboardBRSRGHG({ data }) {
   const filterProps = {
     dateRange, setDateRange, facilities, selectedFacilities, setSelectedFacilities,
     showFacilityDropdown, setShowFacilityDropdown, facilityDropdownRef,
+    getPreviousFinancialYear,
   };
 
   // Live badge
