@@ -91,7 +91,8 @@ class EnergyMetricsService:
                 fv = rec.get("field_values", {})
                 energy_val = float(fv.get("total_energy", 0))
                 unit = fv.get("energy_unit", "MWh")
-                category = (fv.get("category") or "").lower()
+                # category = (fv.get("category") or "").lower()
+                category = (rec.get("subcategory") or "").lower()
                 
                 # Convert TJ to MWh
                 if unit == "TJ":

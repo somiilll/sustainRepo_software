@@ -100,14 +100,9 @@ export default function DashboardBRSRGHG({ data }) {
   // Calculate totals from nested emissions structure
   const totals = filteredData?.totals || {};
   const ghgEmissionsFallback = (totals.total || 0) - (filteredData?.filteredSinks || 0);
-  console.log("ghgEmissionsFallback", ghgEmissionsFallback)
-
-  console.log("esgMetrics?.emissions", esgMetrics?.emissions)
   // Use nested emissions structure from dashboard-metrics endpoint
   const emissionsData = esgMetrics?.emissions || {};
-  console.log("emissionsData?.ghg_emissions?.total", emissionsData?.ghg_emissions?.total)
   const netEmissions = emissionsData?.ghg_emissions?.total ?? ghgEmissionsFallback;
-  console.log("netEmissions", netEmissions)
   // Use nested energy structure from dashboard-metrics endpoint
   const energyData = esgMetrics?.energy || {};
   const netEnergy = energyData?.total || 0;

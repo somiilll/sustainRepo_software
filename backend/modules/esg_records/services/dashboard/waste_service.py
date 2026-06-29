@@ -73,6 +73,7 @@ class WasteMetricsService:
         ]
         
         result = await self.db.environment_records.aggregate(pipeline).to_list(1)
+        print("result", result)
         return result[0]["total"] if result else 0
     
     def _build_date_filter(self, start_date: str, end_date: str) -> List[Dict]:
