@@ -108,8 +108,6 @@ export default function DashboardBRSRGHG({ data }) {
   // Use combined energy from dashboard-metrics endpoint (includes GHG + ESG records)
   const netEnergy = esgMetrics?.total_energy || 0;
 
-  console.log("netEnergy", netEnergy)
-
   // Use intensity calculations hook
   const intensityCalcs = useIntensityCalculations({
     netEmissions,
@@ -292,7 +290,7 @@ export default function DashboardBRSRGHG({ data }) {
           actionSlot={intensityDropdown}
         />
         <PremiumKpiCard
-          title="Water Disposed"
+          title="Water Discharged"
           value={esgMetrics?.water_discharged || 0}
           unit="KL"
           yoyChange={esgMetrics?.water_yoy_change}
