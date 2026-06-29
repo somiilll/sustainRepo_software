@@ -57,6 +57,7 @@ export default function DashboardBRSRGHG({ data }) {
   const [intensityMode, setIntensityMode] = useState('revenue');
   const [incidentCategory, setIncidentCategory] = useState('safety');
   const [esgMetrics, setEsgMetrics] = useState(null);
+  const [prevYearMetrics, setPrevYearMetrics] = useState(null);
   const [esgLoading, setEsgLoading] = useState(true);
   const [targets, setTargets] = useState([]);
 
@@ -65,12 +66,23 @@ export default function DashboardBRSRGHG({ data }) {
     turnover, productionQty, productionUnit, hasIntensityData, hasTurnover, hasProduction, isOrgLevel 
   } = useIntensityData(dateRange, selectedFacilities);
 
-  // Fetch BRSR/ESG-specific metrics
+  // Calculate previous year date range
+  const prevYearDateRange = useMemo(() => {
+    if (!dateRange.from || !dateRange.to) return { from: null, to: null };
+    const prevFrom = new Date(dateRange.from);
+    const prevTo = new Date(dateRange.to);
+    prevFrom.setFullYear(prevFrom.getFullYear() - 1);
+    prevTo.setFullYear(prevTo.getFullYear() - 1);
+    return { from: prevFrom, to: prevTo };
+  }, [dateRange]);
+
+  // Fetch BRSR/ESG-specific metrics (current + previous year)
   useEffect(() => {
     const fetchMetrics = async () => {
       setEsgLoading(true);
       try {
-        const [metricsRes, targetsRes] = await Promise.all([
+        const [metricsRes, prevMetricsRes, targetsRes] = await Promise.all([
+          // Current period
           axios.get(`${API}/esg-records/dashboard-metrics`, {
             headers: getAuthHeader(),
             params: {
@@ -79,10 +91,20 @@ export default function DashboardBRSRGHG({ data }) {
               facility_ids: selectedFacilities.length > 0 ? selectedFacilities.join(',') : undefined,
             }
           }).catch(() => ({ data: null })),
+          // Previous year period
+          axios.get(`${API}/esg-records/dashboard-metrics`, {
+            headers: getAuthHeader(),
+            params: {
+              start_date: prevYearDateRange.from ? format(prevYearDateRange.from, 'yyyy-MM') : undefined,
+              end_date: prevYearDateRange.to ? format(prevYearDateRange.to, 'yyyy-MM') : undefined,
+              facility_ids: selectedFacilities.length > 0 ? selectedFacilities.join(',') : undefined,
+            }
+          }).catch(() => ({ data: null })),
           axios.get(`${API}/targets`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
         ]);
         
         setEsgMetrics(metricsRes.data);
+        setPrevYearMetrics(prevMetricsRes.data);
         setTargets(targetsRes.data || []);
       } catch (error) {
         console.error('Metrics fetch error:', error);
@@ -94,7 +116,7 @@ export default function DashboardBRSRGHG({ data }) {
     if (dateRange.from && dateRange.to) {
       fetchMetrics();
     }
-  }, [dateRange, selectedFacilities, getAuthHeader]);
+  }, [dateRange, prevYearDateRange, selectedFacilities, getAuthHeader]);
 
   console.log("esgMetrics", esgMetrics)
   // Calculate totals from nested emissions structure
@@ -106,6 +128,36 @@ export default function DashboardBRSRGHG({ data }) {
   // Use nested energy structure from dashboard-metrics endpoint
   const energyData = esgMetrics?.energy || {};
   const netEnergy = energyData?.total || 0;
+
+  // Calculate YoY trend deltas for all KPIs
+  const trendDeltas = useMemo(() => {
+    const computePct = (current = 0, previous = 0) => {
+      if (!previous || previous === 0) return null;
+      return ((current - previous) / previous) * 100;
+    };
+
+    // Current values
+    const currEmissions = esgMetrics?.emissions?.ghg_emissions?.total || 0;
+    const currEnergy = esgMetrics?.energy?.total || 0;
+    const currWater = esgMetrics?.water?.discharge || 0;
+    const currWaste = esgMetrics?.waste?.generated || 0;
+    const currSafety = esgMetrics?.safety_incidents?.total || 0;
+
+    // Previous year values
+    const prevEmissions = prevYearMetrics?.emissions?.ghg_emissions?.total || 0;
+    const prevEnergy = prevYearMetrics?.energy?.total || 0;
+    const prevWater = prevYearMetrics?.water?.discharge || 0;
+    const prevWaste = prevYearMetrics?.waste?.generated || 0;
+    const prevSafety = prevYearMetrics?.safety_incidents?.total || 0;
+
+    return {
+      emissionsDelta: computePct(currEmissions, prevEmissions),
+      energyDelta: computePct(currEnergy, prevEnergy),
+      waterDelta: computePct(currWater, prevWater),
+      wasteDelta: computePct(currWaste, prevWaste),
+      safetyDelta: computePct(currSafety, prevSafety),
+    };
+  }, [esgMetrics, prevYearMetrics]);
 
   // Use intensity calculations hook
   const intensityCalcs = useIntensityCalculations({
@@ -226,6 +278,9 @@ export default function DashboardBRSRGHG({ data }) {
     </div>
   ) : null;
 
+  console.log("data.trendDeltas?.totalDelta", data.trendDeltas?.totalDelta)
+  console.log("data", data)
+
 
   return (
     <div className="space-y-6" data-testid="dashboard-brsr-ghg">
@@ -267,10 +322,10 @@ export default function DashboardBRSRGHG({ data }) {
           intensityValue={intensityCalcs.emissionIntensity}
           intensityUnit={intensityCalcs.emissionIntensityUnit}
           showIntensity={hasIntensityData && intensityCalcs.hasEmissionIntensity}
-          yoyChange={data.trendDeltas?.totalDelta}
+          yoyChange={trendDeltas.emissionsDelta}
           icon={Leaf}
           accentColor="#10B981"
-          loading={loading}
+          loading={esgLoading}
           actionSlot={intensityDropdown}
         />
         <PremiumKpiCard
@@ -280,7 +335,7 @@ export default function DashboardBRSRGHG({ data }) {
           intensityValue={intensityCalcs.energyIntensity}
           intensityUnit={intensityCalcs.energyIntensityUnit}
           showIntensity={hasIntensityData && intensityCalcs.hasEnergyIntensity}
-          yoyChange={esgMetrics?.energy_yoy_change}
+          yoyChange={trendDeltas.energyDelta}
           icon={Zap}
           accentColor="#F59E0B"
           loading={esgLoading}
@@ -290,7 +345,7 @@ export default function DashboardBRSRGHG({ data }) {
           title="Water Discharged"
           value={esgMetrics?.water?.discharge || 0}
           unit="KL"
-          yoyChange={esgMetrics?.water_yoy_change}
+          yoyChange={trendDeltas.waterDelta}
           icon={Droplets}
           accentColor="#0EA5E9"
           loading={esgLoading}
@@ -299,15 +354,16 @@ export default function DashboardBRSRGHG({ data }) {
           title="Waste Generated"
           value={esgMetrics?.waste?.generated || 0}
           unit="MT"
-          yoyChange={esgMetrics?.waste_yoy_change}
+          yoyChange={trendDeltas.wasteDelta}
           icon={Trash2}
           accentColor="#92400E"
           loading={esgLoading}
         />
         <PremiumKpiCard
           title="Safety Incidents"
-          value={esgMetrics?.safety_incidents.total || 0}
+          value={esgMetrics?.safety_incidents?.total || 0}
           unit="incidents"
+          yoyChange={trendDeltas.safetyDelta}
           icon={AlertTriangle}
           accentColor="#DC2626"
           loading={esgLoading}
