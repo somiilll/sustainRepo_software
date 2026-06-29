@@ -23,8 +23,10 @@ import EmissionsByScopeDonut from './components/charts/EmissionsByScopeDonut';
 
 // BRSR Components
 import PremiumKpiCard from './components/kpi/PremiumKpiCard';
-import WaterFlowSankey from './components/brsr/WaterFlowSankey';
-import WaterSourcesBar from './components/brsr/WaterSourcesBar';
+import WaterLifecycleRadial from './components/brsr/WaterLifecycleRadial';
+import WaterSourcesTreemap from './components/brsr/WaterSourcesTreemap';
+import WaterDischargeDestinations from './components/brsr/WaterDischargeDestinations';
+import WaterHighlightCards from './components/brsr/WaterHighlightCards';
 import WasteFunnel from './components/brsr/WasteFunnel';
 import WasteTreemap from './components/brsr/WasteTreemap';
 
@@ -259,49 +261,34 @@ export default function DashboardEnvironment({ data }) {
         {/* LEFT: Water Management */}
         <SectionCard
           title="Water Management"
-          subtitle="Flow analysis & source breakdown"
+          subtitle="Lifecycle analysis & source breakdown"
           accent="#0EA5E9"
           testId="section-water-premium"
         >
-          <div className="space-y-4">
-            {/* Water Flow Sankey */}
-            <WaterFlowSankey
+          <div className="space-y-5">
+            {/* Water Lifecycle Radial with Connected Metrics */}
+            <WaterLifecycleRadial
               withdrawal={waterData?.withdrawal || 8500}
               consumption={waterData?.consumption || 5200}
               discharge={waterData?.discharge || 3100}
               recycled={waterData?.recycled || 1800}
+              withdrawalChange={5}
+              consumptionChange={-3}
+              dischargeChange={2}
+              recycledChange={12}
             />
             
-            {/* Side Metrics */}
-            <div className="grid grid-cols-4 gap-2">
-              <div className="text-center p-2 bg-sky-50 rounded-lg border border-sky-100">
-                <div className="text-[10px] text-sky-600 font-medium">Stress Area</div>
-                <div className="text-base font-bold text-sky-700">{waterData?.stress_area_pct ?? 12}%</div>
-              </div>
-              <div className="text-center p-2 bg-teal-50 rounded-lg border border-teal-100">
-                <div className="text-[10px] text-teal-600 font-medium">Treated</div>
-                <div className="text-base font-bold text-teal-700">{waterData?.treated_pct ?? 85}%</div>
-              </div>
-              <div className="text-center p-2 bg-amber-50 rounded-lg border border-amber-100">
-                <div className="text-[10px] text-amber-600 font-medium">Untreated</div>
-                <div className="text-base font-bold text-amber-700">{waterData?.untreated_pct ?? 15}%</div>
-              </div>
-              <div className="text-center p-2 bg-emerald-50 rounded-lg border border-emerald-100">
-                <div className="text-[10px] text-emerald-600 font-medium">Recycled</div>
-                <div className="text-base font-bold text-emerald-700">{waterRecyclingPct}%</div>
-              </div>
-            </div>
+            {/* Highlight Cards */}
+            <WaterHighlightCards
+              stressAreaPct={waterData?.stress_area_pct ?? 12}
+              treatedPct={waterData?.treated_pct ?? 85}
+              untreatedPct={waterData?.untreated_pct ?? 15}
+            />
 
             {/* Source & Destination Breakdown */}
-            <div className="grid grid-cols-1 gap-3 pt-2">
-              <WaterSourcesBar 
-                type="sources" 
-                sources={waterData?.sources || {}} 
-              />
-              <WaterSourcesBar 
-                type="destinations" 
-                destinations={waterData?.destinations || {}} 
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+              <WaterSourcesTreemap sources={waterData?.sources || {}} />
+              <WaterDischargeDestinations destinations={waterData?.destinations || {}} />
             </div>
           </div>
         </SectionCard>
@@ -314,7 +301,7 @@ export default function DashboardEnvironment({ data }) {
           testId="section-waste-premium"
         >
           <div className="space-y-4">
-            {/* Waste Funnel */}
+            {/* Waste Funnel - Clear amounts shown */}
             <WasteFunnel
               generated={wasteData?.generated || 21222}
               recovered={wasteData?.recovered || 15400}
@@ -343,7 +330,7 @@ export default function DashboardEnvironment({ data }) {
 
             {/* Waste Type Treemap */}
             <div className="pt-2">
-              <div className="text-[10px] font-medium text-stone-600 uppercase tracking-wide mb-2">
+              <div className="text-[11px] font-semibold text-stone-700 uppercase tracking-wide mb-2">
                 Waste Type Breakdown
               </div>
               <WasteTreemap data={wasteData?.types || {}} />

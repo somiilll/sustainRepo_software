@@ -1,8 +1,9 @@
 /**
  * WasteFunnel - Premium waste flow funnel visualization
- * Flow: Generated → Recovered → Disposed
+ * Flow: Generated → Recovered → Disposed (with clear amounts)
  */
 import React from 'react';
+import { ArrowDown } from 'lucide-react';
 
 export default function WasteFunnel({ 
   generated = 0, 
@@ -13,72 +14,96 @@ export default function WasteFunnel({
   const recoveredPct = (recovered / total) * 100;
   const disposedPct = (disposed / total) * 100;
 
+  const stages = [
+    { 
+      label: 'Generated', 
+      value: generated, 
+      color: '#8B5CF6',
+      gradient: 'from-violet-500 to-purple-600',
+      width: '100%',
+      description: 'Total waste produced'
+    },
+    { 
+      label: 'Recovered', 
+      value: recovered, 
+      pct: recoveredPct,
+      color: '#10B981',
+      gradient: 'from-emerald-500 to-teal-600',
+      width: `${Math.max(recoveredPct, 30)}%`,
+      description: 'Recycled, reused, or reclaimed'
+    },
+    { 
+      label: 'Disposed', 
+      value: disposed, 
+      pct: disposedPct,
+      color: '#EF4444',
+      gradient: 'from-rose-500 to-red-600',
+      width: `${Math.max(disposedPct, 20)}%`,
+      description: 'Sent to landfill or incineration'
+    },
+  ];
+
   return (
-    <div className="relative h-48 flex items-center justify-center">
-      <svg viewBox="0 0 300 180" className="w-full h-full max-w-[280px]">
-        <defs>
-          <linearGradient id="funnelGrad1" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.9" />
-            <stop offset="100%" stopColor="#7C3AED" stopOpacity="0.7" />
-          </linearGradient>
-          <linearGradient id="funnelGrad2" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#10B981" stopOpacity="0.85" />
-            <stop offset="100%" stopColor="#059669" stopOpacity="0.65" />
-          </linearGradient>
-          <linearGradient id="funnelGrad3" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#EF4444" stopOpacity="0.8" />
-            <stop offset="100%" stopColor="#DC2626" stopOpacity="0.6" />
-          </linearGradient>
-        </defs>
-
-        {/* Funnel Layers */}
-        {/* Generated - Top (widest) */}
-        <path
-          d="M 30,10 L 270,10 L 240,55 L 60,55 Z"
-          fill="url(#funnelGrad1)"
-          className="drop-shadow-md"
-        />
-        
-        {/* Recovered - Middle */}
-        <path
-          d="M 60,60 L 240,60 L 200,105 L 100,105 Z"
-          fill="url(#funnelGrad2)"
-          className="drop-shadow-md"
-        />
-        
-        {/* Disposed - Bottom (narrowest) */}
-        <path
-          d="M 100,110 L 200,110 L 170,155 L 130,155 Z"
-          fill="url(#funnelGrad3)"
-          className="drop-shadow-md"
-        />
-
-        {/* Labels on funnel */}
-        <text x="150" y="38" textAnchor="middle" className="text-[11px] fill-white font-bold">
-          Generated
-        </text>
-        <text x="150" y="52" textAnchor="middle" className="text-[10px] fill-white/90 font-medium">
-          {generated.toLocaleString()} MT
-        </text>
-
-        <text x="150" y="83" textAnchor="middle" className="text-[11px] fill-white font-bold">
-          Recovered
-        </text>
-        <text x="150" y="97" textAnchor="middle" className="text-[10px] fill-white/90 font-medium">
-          {recovered.toLocaleString()} MT ({recoveredPct.toFixed(1)}%)
-        </text>
-
-        <text x="150" y="133" textAnchor="middle" className="text-[11px] fill-white font-bold">
-          Disposed
-        </text>
-        <text x="150" y="147" textAnchor="middle" className="text-[10px] fill-white/90 font-medium">
-          {disposed.toLocaleString()} MT
-        </text>
-
-        {/* Flow Arrows */}
-        <path d="M 150,55 L 150,60" stroke="white" strokeWidth="2" strokeOpacity="0.5" />
-        <path d="M 150,105 L 150,110" stroke="white" strokeWidth="2" strokeOpacity="0.5" />
-      </svg>
+    <div className="space-y-3 py-2">
+      {stages.map((stage, idx) => (
+        <div key={stage.label} className="relative">
+          {/* Connector Arrow */}
+          {idx > 0 && (
+            <div className="absolute -top-2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
+              <div className="w-6 h-6 rounded-full bg-white shadow-md flex items-center justify-center">
+                <ArrowDown className="w-3.5 h-3.5 text-stone-400" />
+              </div>
+            </div>
+          )}
+          
+          {/* Stage Bar */}
+          <div 
+            className="mx-auto transition-all duration-500"
+            style={{ width: stage.width }}
+          >
+            <div className={`bg-gradient-to-r ${stage.gradient} rounded-xl p-4 shadow-lg relative overflow-hidden`}>
+              {/* Shine effect */}
+              <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0" />
+              
+              <div className="relative z-10 flex items-center justify-between">
+                <div>
+                  <div className="text-white/80 text-[10px] font-medium uppercase tracking-wide">
+                    {stage.label}
+                  </div>
+                  <div className="text-white text-xl font-bold">
+                    {stage.value.toLocaleString()} 
+                    <span className="text-sm font-medium ml-1">MT</span>
+                  </div>
+                  <div className="text-white/60 text-[9px] mt-0.5">
+                    {stage.description}
+                  </div>
+                </div>
+                
+                {stage.pct !== undefined && (
+                  <div className="text-right">
+                    <div className="text-white text-2xl font-bold">
+                      {stage.pct.toFixed(1)}%
+                    </div>
+                    <div className="text-white/60 text-[9px]">of generated</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+      
+      {/* Summary Footer */}
+      <div className="flex justify-center gap-6 pt-2 text-[10px] text-stone-500">
+        <span>
+          <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1" />
+          Recovery Rate: <strong className="text-emerald-600">{recoveredPct.toFixed(1)}%</strong>
+        </span>
+        <span>
+          <span className="inline-block w-2 h-2 rounded-full bg-rose-500 mr-1" />
+          Disposal Rate: <strong className="text-rose-600">{disposedPct.toFixed(1)}%</strong>
+        </span>
+      </div>
     </div>
   );
 }
