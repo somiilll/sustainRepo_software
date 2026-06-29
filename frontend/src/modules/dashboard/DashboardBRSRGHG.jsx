@@ -153,8 +153,6 @@ export default function DashboardBRSRGHG({ data }) {
     }
   }, [dateRange, prevYearDateRange, prevFyYear, selectedFacilities, isOrgLevel, getAuthHeader]);
 
-  console.log("esgMetrics", esgMetrics)
-  console.log("prevYearMetrics", prevYearMetrics)
   // Calculate totals from nested emissions structure
   const totals = filteredData?.totals || {};
   const ghgEmissionsFallback = (totals.total || 0) - (filteredData?.filteredSinks || 0);

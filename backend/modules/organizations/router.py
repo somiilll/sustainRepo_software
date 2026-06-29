@@ -160,7 +160,7 @@ async def save_yearly_data(
     now = datetime.now(timezone.utc)
     user_id = current_user.get("id")
     
-    # Save turnover to organization_financials
+    # Handle turnover - save if provided, delete if empty/null
     if data.turnover:
         await db.organization_financials.update_one(
             {"org_id": org_id, "reporting_year": reporting_year},
@@ -173,8 +173,14 @@ async def save_yearly_data(
             }, "$setOnInsert": {"created_at": now}},
             upsert=True
         )
+    else:
+        # Delete turnover record if value is cleared
+        await db.organization_financials.delete_one({
+            "org_id": org_id, 
+            "reporting_year": reporting_year
+        })
     
-    # Save production quantity to production_quantities (org-level)
+    # Handle production quantity - save if provided, delete if empty/null
     if data.production_quantity:
         import uuid
         existing = await db.production_quantities.find_one({
@@ -210,5 +216,16 @@ async def save_yearly_data(
                 "is_deleted": False
             }
             await db.production_quantities.insert_one(new_record)
+    else:
+        # Delete production record if value is cleared (soft delete)
+        await db.production_quantities.update_one(
+            {
+                "organization_id": org_id,
+                "facility_id": None,
+                "reporting_period": f"FY {reporting_year}",
+                "is_deleted": {"$ne": True}
+            },
+            {"$set": {"is_deleted": True, "updated_at": now, "updated_by": user_id}}
+        )
     
     return {"success": True, "message": f"Saved yearly data for FY {reporting_year}"}
