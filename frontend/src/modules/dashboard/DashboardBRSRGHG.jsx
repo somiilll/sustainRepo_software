@@ -60,8 +60,10 @@ export default function DashboardBRSRGHG({ data }) {
   const [esgLoading, setEsgLoading] = useState(true);
   const [targets, setTargets] = useState([]);
 
-  // Fetch intensity data from yearly-data endpoint
-  const { turnover, productionQty, hasIntensityData } = useIntensityData(dateRange);
+  // Fetch intensity data from yearly-data endpoint (org-level) or facility production (facility-level)
+  const { 
+    turnover, productionQty, hasIntensityData, hasTurnover, hasProduction, isOrgLevel 
+  } = useIntensityData(dateRange, selectedFacilities);
 
   // Fetch BRSR/ESG-specific metrics
   useEffect(() => {
@@ -106,6 +108,7 @@ export default function DashboardBRSRGHG({ data }) {
     turnover,
     productionQty,
     intensityMode,
+    isOrgLevel,
   });
 
   // Build sparkline data
@@ -213,10 +216,16 @@ export default function DashboardBRSRGHG({ data }) {
         showExport={true}
       />
 
-      {/* Intensity Toggle */}
+      {/* Intensity Toggle - Show toggle only at org level when both turnover and production available */}
       {hasIntensityData && (
         <div className="flex items-center gap-3">
-          <IntensityToggle mode={intensityMode} setMode={setIntensityMode} />
+          {isOrgLevel && hasTurnover && hasProduction ? (
+            <IntensityToggle mode={intensityMode} setMode={setIntensityMode} />
+          ) : isOrgLevel && hasTurnover ? (
+            <span className="text-xs text-stone-500 bg-stone-100 px-3 py-1.5 rounded-lg">By Revenue</span>
+          ) : (
+            <span className="text-xs text-stone-500 bg-stone-100 px-3 py-1.5 rounded-lg">By Production</span>
+          )}
         </div>
       )}
 

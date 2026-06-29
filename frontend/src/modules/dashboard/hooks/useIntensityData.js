@@ -1,5 +1,14 @@
 /**
  * useIntensityData — Hook to fetch turnover and production data for intensity calculations
+ * 
+ * Logic:
+ * - If ALL facilities selected (org-level): Fetch from /api/organization/yearly-data/{year}
+ *   - Year format: "2025-26" (FY format)
+ *   - Returns both turnover and production_quantity
+ * 
+ * - If SPECIFIC facilities selected (facility-level): Fetch from /api/facilities/{id}/production/{year}
+ *   - Year format: "2025-26" (FY format)
+ *   - Only production-based intensity available (no turnover at facility level)
  */
 import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
@@ -7,64 +16,120 @@ import { useAuth } from '../../../contexts/AuthContext';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
-export function useIntensityData(dateRange) {
+export function useIntensityData(dateRange, selectedFacilities = []) {
   const { getAuthHeader } = useAuth();
   const [turnover, setTurnover] = useState(null);
   const [productionQty, setProductionQty] = useState(null);
+  const [productionUnit, setProductionUnit] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Determine FY year from dateRange
+  // Determine FY year from dateRange in format "2025-26"
   const fyYear = useMemo(() => {
     if (!dateRange?.from) return null;
     const fromDate = new Date(dateRange.from);
     const month = fromDate.getMonth();
     const year = fromDate.getFullYear();
     // FY starts in April (month 3)
-    return month >= 3 ? year : year - 1;
+    const startYear = month >= 3 ? year : year - 1;
+    const endYear = startYear + 1;
+    // Format: "2025-26"
+    return `${startYear}-${String(endYear).slice(-2)}`;
   }, [dateRange]);
 
+  // Check if org-level (all facilities) or facility-level (specific selection)
+  const isOrgLevel = selectedFacilities.length === 0;
+
   useEffect(() => {
-    const fetchYearlyData = async () => {
+    const fetchIntensityData = async () => {
       if (!fyYear) return;
       
       setLoading(true);
-      console.log("fyYear", fyYear)
+      
       try {
-        // Fetch from organization/yearly-data endpoint which pulls from
-        // organization_financials (turnover) and production_quantities tables
-        const response = await axios.get(
-          `${API}/organization/yearly-data/${fyYear}`,
-          { headers: getAuthHeader() }
-        );
-        
-        const data = response.data;
-        
-        // Turnover is stored as string, parse to number
-        const turnoverValue = data?.turnover ? parseFloat(data.turnover) : null;
-        setTurnover(turnoverValue && !isNaN(turnoverValue) ? turnoverValue : null);
-        
-        // Production quantity
-        const prodQty = data?.production_quantity ? parseFloat(data.production_quantity) : null;
-        setProductionQty(prodQty && !isNaN(prodQty) ? prodQty : null);
+        if (isOrgLevel) {
+          // Org-level: Fetch from organization/yearly-data endpoint
+          // This pulls from organization_financials (turnover) and production_quantities tables
+          const response = await axios.get(
+            `${API}/organization/yearly-data/${fyYear}`,
+            { headers: getAuthHeader() }
+          );
+          
+          const data = response.data;
+          
+          // Turnover is stored as string, parse to number
+          const turnoverValue = data?.turnover ? parseFloat(data.turnover) : null;
+          setTurnover(turnoverValue && !isNaN(turnoverValue) ? turnoverValue : null);
+          
+          // Production quantity
+          const prodQty = data?.production_quantity ? parseFloat(data.production_quantity) : null;
+          setProductionQty(prodQty && !isNaN(prodQty) ? prodQty : null);
+          setProductionUnit(data?.production_unit || null);
+          
+        } else {
+          // Facility-level: Only production data available (no turnover)
+          // Sum production from all selected facilities
+          setTurnover(null); // Turnover not available at facility level
+          
+          let totalProduction = 0;
+          let unit = null;
+          
+          for (const facilityId of selectedFacilities) {
+            try {
+              const response = await axios.get(
+                `${API}/facilities/${facilityId}/production/${fyYear}`,
+                { headers: getAuthHeader() }
+              );
+              
+              const data = response.data;
+              
+              // Use yearly quantity if available
+              if (data?.quantity) {
+                totalProduction += parseFloat(data.quantity) || 0;
+                unit = unit || data.unit;
+              } else if (data?.monthly_data) {
+                // Sum monthly data if yearly not available
+                const monthlyTotal = Object.values(data.monthly_data).reduce((sum, val) => {
+                  const num = parseFloat(val);
+                  return sum + (isNaN(num) ? 0 : num);
+                }, 0);
+                totalProduction += monthlyTotal;
+                unit = unit || data.unit;
+              }
+            } catch (err) {
+              // Skip facilities with no production data
+              console.warn(`No production data for facility ${facilityId}`);
+            }
+          }
+          
+          setProductionQty(totalProduction > 0 ? totalProduction : null);
+          setProductionUnit(unit);
+        }
         
       } catch (error) {
-        console.error('Failed to fetch yearly data for intensity:', error);
+        console.error('Failed to fetch intensity data:', error);
         setTurnover(null);
         setProductionQty(null);
+        setProductionUnit(null);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchYearlyData();
-  }, [fyYear, getAuthHeader]);
+    fetchIntensityData();
+  }, [fyYear, isOrgLevel, selectedFacilities, getAuthHeader]);
 
   const hasIntensityData = turnover !== null || productionQty !== null;
+  const hasTurnover = turnover !== null;
+  const hasProduction = productionQty !== null;
 
   return {
     turnover,
     productionQty,
+    productionUnit,
     hasIntensityData,
+    hasTurnover,
+    hasProduction,
+    isOrgLevel,
     loading,
     fyYear,
   };
@@ -78,21 +143,26 @@ export function useIntensityCalculations({
   netEnergy, 
   turnover, 
   productionQty, 
-  intensityMode = 'revenue' 
+  intensityMode = 'revenue',
+  isOrgLevel = true,
 }) {
   return useMemo(() => {
+    // At facility level, only production intensity is available
+    const effectiveMode = !isOrgLevel ? 'production' : intensityMode;
+    
     const emissionIntensityRevenue = turnover ? netEmissions / turnover : null;
     const emissionIntensityProd = productionQty ? netEmissions / productionQty : null;
     const energyIntensityRevenue = turnover ? netEnergy / turnover : null;
     const energyIntensityProd = productionQty ? netEnergy / productionQty : null;
 
     return {
-      emissionIntensity: intensityMode === 'revenue' ? emissionIntensityRevenue : emissionIntensityProd,
-      emissionIntensityUnit: intensityMode === 'revenue' ? 'tCO₂e/Cr' : 'tCO₂e/unit',
-      energyIntensity: intensityMode === 'revenue' ? energyIntensityRevenue : energyIntensityProd,
-      energyIntensityUnit: intensityMode === 'revenue' ? 'MWh/Cr' : 'MWh/unit',
-      hasEmissionIntensity: intensityMode === 'revenue' ? emissionIntensityRevenue !== null : emissionIntensityProd !== null,
-      hasEnergyIntensity: intensityMode === 'revenue' ? energyIntensityRevenue !== null : energyIntensityProd !== null,
+      emissionIntensity: effectiveMode === 'revenue' ? emissionIntensityRevenue : emissionIntensityProd,
+      emissionIntensityUnit: effectiveMode === 'revenue' ? 'tCO₂e/Cr' : 'tCO₂e/unit',
+      energyIntensity: effectiveMode === 'revenue' ? energyIntensityRevenue : energyIntensityProd,
+      energyIntensityUnit: effectiveMode === 'revenue' ? 'MWh/Cr' : 'MWh/unit',
+      hasEmissionIntensity: effectiveMode === 'revenue' ? emissionIntensityRevenue !== null : emissionIntensityProd !== null,
+      hasEnergyIntensity: effectiveMode === 'revenue' ? energyIntensityRevenue !== null : energyIntensityProd !== null,
+      effectiveMode,
     };
-  }, [netEmissions, netEnergy, turnover, productionQty, intensityMode]);
+  }, [netEmissions, netEnergy, turnover, productionQty, intensityMode, isOrgLevel]);
 }
