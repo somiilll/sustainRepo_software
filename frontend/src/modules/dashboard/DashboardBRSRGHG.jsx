@@ -269,7 +269,7 @@ export default function DashboardBRSRGHG({ data }) {
       {/* ROW 1: TOP KPI CARDS */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4" data-testid="top-kpi-row">
         <PremiumKpiCard
-          title={hasIntensityData ? "Emission Intensity" : "Net Emissions"}
+          title={hasIntensityData ? "GHG Emission Intensity" : "GHG Net Emissions"}
           value={netEmissions}
           unit="tCO₂e"
           intensityValue={intensityCalcs.emissionIntensity}

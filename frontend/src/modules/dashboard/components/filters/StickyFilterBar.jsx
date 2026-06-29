@@ -66,7 +66,7 @@ export default function StickyFilterBar({
                   data-testid="toggle-esg"
                 >
                   ESG
-                  {dashboardType === 'esg' && <ChevronDown className="w-3 h-3" />}
+                  {dashboardType === 'esg' }
                 </button>
               </div>
             </div>
