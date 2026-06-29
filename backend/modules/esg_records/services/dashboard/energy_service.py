@@ -29,7 +29,7 @@ class EnergyMetricsService:
         """Get aggregated energy metrics with renewable/non-renewable breakdown"""
         
         # GHG energy from emission_records
-        ghg_energy = await self._get_ghg_energy_breakdown(org_id, facility_ids, financial_year)
+        ghg_energy = await self._get_ghg_energy_breakdown(org_id, facility_ids, start_date, end_date)
         
         # ESG energy from environment_records
         esg_energy = await self._get_esg_energy_breakdown(org_id, facility_ids, start_date, end_date)
@@ -62,7 +62,8 @@ class EnergyMetricsService:
         self,
         org_id: str,
         facility_ids: Optional[List[str]],
-        financial_year: Optional[str]
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
     ) -> Dict[str, Any]:
         """Get energy from GHG emission_records with renewable breakdown"""
         from ...ghg_integration import get_ghg_integration_service
@@ -82,7 +83,8 @@ class EnergyMetricsService:
             records = await ghg_service.get_energy_from_ghg(
                 org_id=org_id,
                 facility_ids=facility_ids,
-                financial_year=financial_year
+                start_date=start_date,
+                end_date=end_date
             )
             
             for rec in records:

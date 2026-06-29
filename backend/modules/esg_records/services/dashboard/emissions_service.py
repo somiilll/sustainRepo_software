@@ -25,7 +25,7 @@ class EmissionsMetricsService:
         """Get aggregated emissions with scope breakdown"""
         
         # GHG Emissions
-        ghg_emission_records = await self._get_ghg_emission_records_by_scope(org_id, facility_ids, financial_year)
+        ghg_emission_records = await self._get_ghg_emission_records_by_scope(org_id, facility_ids, start_date, end_date)
         ghg_esg_records = await self._get_esg_ghg_by_scope(org_id, facility_ids, start_date, end_date)
         
         ghg_total_scope1 = ghg_emission_records["scope1"] + ghg_esg_records["scope1"]
@@ -63,7 +63,8 @@ class EmissionsMetricsService:
         self,
         org_id: str,
         facility_ids: Optional[List[str]],
-        financial_year: Optional[str]
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
     ) -> Dict[str, float]:
         """Get GHG emissions from emission_records with scope breakdown"""
         from ...ghg_integration import get_ghg_integration_service
@@ -74,7 +75,8 @@ class EmissionsMetricsService:
             records = await ghg_service.get_ghg_emissions_as_records(
                 org_id=org_id,
                 facility_ids=facility_ids,
-                financial_year=financial_year
+                start_date=start_date,
+                end_date=end_date
             )
             
             scope1, scope2, scope3 = 0.0, 0.0, 0.0

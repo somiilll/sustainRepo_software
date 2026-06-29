@@ -125,13 +125,37 @@ class GHGIntegrationService:
         self,
         org_id: str,
         facility_ids: Optional[List[str]] = None,
-        financial_year: Optional[str] = None
+        financial_year: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Get GHG emissions aggregated by facility and scope per financial year.
         Returns virtual ESG records (not stored in DB).
         Applies equity share proportionation for facilities with < 100% equity.
+        
+        Filtering priority:
+        1. If start_date/end_date provided, filter by date range
+        2. Else if financial_year provided, filter by FY
+        3. Else return all records
         """
+        # Parse start/end dates for range filtering
+        start_year_filter, start_month_filter = None, None
+        end_year_filter, end_month_filter = None, None
+        if start_date:
+            try:
+                start_year_filter = int(start_date[:4])
+                start_month_filter = int(start_date[5:7])
+            except:
+                pass
+        if end_date:
+            try:
+                end_year_filter = int(end_date[:4])
+                end_month_filter = int(end_date[5:7])
+            except:
+                pass
+        
+        use_date_range = start_year_filter and start_month_filter and end_year_filter and end_month_filter
         # First get facilities for this organization
         # Note: facilities collection uses 'organization_id' not 'org_id'
         facility_query = {"organization_id": org_id}
@@ -206,8 +230,22 @@ class GHGIntegrationService:
             else:
                 continue
             
-            # Filter by requested FY if specified
-            if financial_year and fy != financial_year:
+            # Filter by date range or FY
+            if use_date_range:
+                # For yearly records, check if the FY overlaps with the date range
+                # FY starts in April, so FY 2024-25 = April 2024 to March 2025
+                fy_start_month, fy_start_year = 4, year
+                fy_end_month, fy_end_year = 3, year + 1
+                
+                # Check if FY overlaps with filter range
+                fy_start_val = fy_start_year * 12 + fy_start_month
+                fy_end_val = fy_end_year * 12 + fy_end_month
+                filter_start_val = start_year_filter * 12 + start_month_filter
+                filter_end_val = end_year_filter * 12 + end_month_filter
+                
+                if fy_end_val < filter_start_val or fy_start_val > filter_end_val:
+                    continue  # No overlap
+            elif financial_year and fy != financial_year:
                 continue
             
             key = (fac_id, scope, fy)
@@ -289,8 +327,16 @@ class GHGIntegrationService:
             if not month or not year:
                 continue
             
-            # Filter by requested FY if specified
-            if financial_year:
+            # Filter by date range or FY
+            if use_date_range:
+                # Check if this month/year falls within the date range
+                record_val = year * 12 + month
+                filter_start_val = start_year_filter * 12 + start_month_filter
+                filter_end_val = end_year_filter * 12 + end_month_filter
+                
+                if record_val < filter_start_val or record_val > filter_end_val:
+                    continue  # Outside date range
+            elif financial_year:
                 record_fy = get_financial_year(month, year)
                 if record_fy != financial_year:
                     continue
@@ -363,7 +409,9 @@ class GHGIntegrationService:
         self,
         org_id: str,
         facility_ids: Optional[List[str]] = None,
-        financial_year: Optional[str] = None
+        financial_year: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Calculate energy consumption from GHG module data.
@@ -373,7 +421,29 @@ class GHGIntegrationService:
         
         Returns aggregated by facility and energy type per financial year.
         Applies equity share proportionation for facilities with < 100% equity.
+        
+        Filtering priority:
+        1. If start_date/end_date provided, filter by date range
+        2. Else if financial_year provided, filter by FY
+        3. Else return all records
         """
+        # Parse start/end dates for range filtering
+        start_year_filter, start_month_filter = None, None
+        end_year_filter, end_month_filter = None, None
+        if start_date:
+            try:
+                start_year_filter = int(start_date[:4])
+                start_month_filter = int(start_date[5:7])
+            except:
+                pass
+        if end_date:
+            try:
+                end_year_filter = int(end_date[:4])
+                end_month_filter = int(end_date[5:7])
+            except:
+                pass
+        
+        use_date_range = start_year_filter and start_month_filter and end_year_filter and end_month_filter
         # First get facilities for this organization
         # Note: facilities collection uses 'organization_id' not 'org_id'
         facility_query = {"organization_id": org_id}
@@ -612,7 +682,20 @@ class GHGIntegrationService:
             else:
                 continue
             
-            if financial_year and fy != financial_year:
+            # Filter by date range or FY
+            if use_date_range:
+                # For yearly records, check if the FY overlaps with the date range
+                fy_start_month, fy_start_year = 4, year
+                fy_end_month, fy_end_year = 3, year + 1
+                
+                fy_start_val = fy_start_year * 12 + fy_start_month
+                fy_end_val = fy_end_year * 12 + fy_end_month
+                filter_start_val = start_year_filter * 12 + start_month_filter
+                filter_end_val = end_year_filter * 12 + end_month_filter
+                
+                if fy_end_val < filter_start_val or fy_start_val > filter_end_val:
+                    continue  # No overlap
+            elif financial_year and fy != financial_year:
                 continue
             
             period_info = {"reporting_type": "yearly", "year_type": "financial", "financial_year": fy}
@@ -628,7 +711,15 @@ class GHGIntegrationService:
             if not month or not year:
                 continue
             
-            if financial_year:
+            # Filter by date range or FY
+            if use_date_range:
+                record_val = year * 12 + month
+                filter_start_val = start_year_filter * 12 + start_month_filter
+                filter_end_val = end_year_filter * 12 + end_month_filter
+                
+                if record_val < filter_start_val or record_val > filter_end_val:
+                    continue  # Outside date range
+            elif financial_year:
                 record_fy = get_financial_year(month, year)
                 if record_fy != financial_year:
                     continue
