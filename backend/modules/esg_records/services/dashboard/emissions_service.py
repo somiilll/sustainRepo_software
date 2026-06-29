@@ -103,17 +103,23 @@ class EmissionsMetricsService:
         end_date: Optional[str]
     ) -> Dict[str, float]:
         """Get GHG emissions from ESG records with scope breakdown"""
-        query = {
+        base_query = {
             "organization_id": org_id,
             "category": {"$regex": "^Emissions$", "$options": "i"},
             "subcategory": {"$regex": "^GHG Emissions$", "$options": "i"}
         }
         if facility_ids:
-            query["facility_id"] = {"$in": facility_ids}
+            base_query["facility_id"] = {"$in": facility_ids}
+        
+        # Build final query with optional date filter
         if start_date and end_date:
             date_filter = self._build_date_filter(start_date, end_date)
             if date_filter:
-                query["$or"] = date_filter
+                query = {"$and": [base_query, {"$or": date_filter}]}
+            else:
+                query = base_query
+        else:
+            query = base_query
         
         records = await self.db.environment_records.find(query, {"_id": 0, "field_values": 1}).to_list(10000)
         
@@ -140,17 +146,23 @@ class EmissionsMetricsService:
         end_date: Optional[str]
     ) -> Dict[str, float]:
         """Get air emissions from ESG records by pollutant type"""
-        query = {
+        base_query = {
             "organization_id": org_id,
             "category": {"$regex": "^Emissions$", "$options": "i"},
             "subcategory": {"$regex": "^Air Emissions$", "$options": "i"}
         }
         if facility_ids:
-            query["facility_id"] = {"$in": facility_ids}
+            base_query["facility_id"] = {"$in": facility_ids}
+        
+        # Build final query with optional date filter
         if start_date and end_date:
             date_filter = self._build_date_filter(start_date, end_date)
             if date_filter:
-                query["$or"] = date_filter
+                query = {"$and": [base_query, {"$or": date_filter}]}
+            else:
+                query = base_query
+        else:
+            query = base_query
         
         records = await self.db.environment_records.find(query, {"_id": 0, "field_values": 1}).to_list(10000)
         

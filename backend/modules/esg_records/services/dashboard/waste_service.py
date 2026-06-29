@@ -46,19 +46,23 @@ class WasteMetricsService:
         end_date: Optional[str] = None
     ) -> float:
         """Get total quantity for a waste subcategory"""
-        query = {
+        base_query = {
             "organization_id": org_id,
             "category": {"$regex": f"^{self.CATEGORY}$", "$options": "i"},
             "subcategory": {"$regex": f"^{subcategory}$", "$options": "i"}
         }
         if facility_ids:
-            query["facility_id"] = {"$in": facility_ids}
+            base_query["facility_id"] = {"$in": facility_ids}
         
-        # Add reporting period filter
+        # Build final query with optional date filter
         if start_date and end_date:
             date_filter = self._build_date_filter(start_date, end_date)
             if date_filter:
-                query["$or"] = date_filter
+                query = {"$and": [base_query, {"$or": date_filter}]}
+            else:
+                query = base_query
+        else:
+            query = base_query
         
         pipeline = [
             {"$match": query},
