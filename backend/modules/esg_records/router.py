@@ -372,80 +372,149 @@ async def get_dashboard_metrics(
 ):
     """
     Get aggregated ESG metrics for the executive dashboard.
-    Pulls data from ESG records and aggregates by category.
+    
+    Emissions = GHG emission_records + ESG esg_records (category=Emissions, subcategory=GHG)
+    Energy = GHG emission_records (fuel/electricity) + ESG esg_records (category=Energy)
     """
+    from .ghg_integration import get_ghg_integration_service
+    
     org_id = current_user.get("organization_id")
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization assigned")
     
     db = await get_database()
+    ghg_service = get_ghg_integration_service(db)
     
-    # Build base query
-    query = {"organization_id": org_id}
-    
-    # Apply facility filter
+    # Parse facility IDs
+    fac_list = None
     if facility_ids:
         fac_list = [f.strip() for f in facility_ids.split(",") if f.strip()]
-        if fac_list:
-            query["facility_id"] = {"$in": fac_list}
     
-    # Apply date filter if provided
-    # ESG records have reporting_period.year and reporting_period.month
-    if start_date and end_date:
+    # Determine financial year from date range
+    financial_year = None
+    if start_date:
         try:
-            start_year, start_month = int(start_date[:4]), int(start_date[5:7])
-            end_year, end_month = int(end_date[:4]), int(end_date[5:7])
-            
-            # Build date range conditions
-            date_conditions = []
-            for year in range(start_year, end_year + 1):
-                for month in range(1, 13):
-                    if (year == start_year and month < start_month):
-                        continue
-                    if (year == end_year and month > end_month):
-                        continue
-                    month_name = ["January", "February", "March", "April", "May", "June",
-                                  "July", "August", "September", "October", "November", "December"][month - 1]
-                    date_conditions.append({
-                        "reporting_period.year": year,
-                        "reporting_period.month": month_name
-                    })
-            
-            if date_conditions:
-                query["$or"] = date_conditions
+            start_year = int(start_date[:4])
+            start_month = int(start_date[5:7])
+            # FY starts in April
+            fy_start = start_year if start_month >= 4 else start_year - 1
+            financial_year = f"FY {fy_start}-{str(fy_start + 1)[-2:]}"
         except:
-            pass  # Skip date filter if invalid
+            pass
     
-    # Get record counts by section
-    environment_count = await db.esg_records.count_documents({**query, "section": "environment"})
-    social_count = await db.esg_records.count_documents({**query, "section": "social"})
-    governance_count = await db.esg_records.count_documents({**query, "section": "governance"})
+    # =========================================================================
+    # 1. Get GHG Emissions from emission_records table
+    # =========================================================================
+    ghg_emissions = await ghg_service.get_ghg_emissions_as_records(
+        org_id=org_id,
+        facility_ids=fac_list,
+        financial_year=financial_year
+    )
     
-    # Aggregate numeric data from records
-    # This is a simplified aggregation - in production, you'd map specific categories to metrics
-    pipeline = [
-        {"$match": query},
-        {"$group": {
-            "_id": "$category",
-            "section": {"$first": "$section"},
-            "total_value": {"$sum": {"$toDouble": {"$ifNull": ["$data.value", 0]}}},
-            "count": {"$sum": 1}
-        }}
-    ]
+    total_ghg_emissions = 0.0
+    for rec in ghg_emissions:
+        field_values = rec.get("field_values", {})
+        total_ghg_emissions += float(field_values.get("total_emission", 0))
     
-    category_aggregates = await db.esg_records.aggregate(pipeline).to_list(100)
+    # =========================================================================
+    # 2. Get ESG Emissions from esg_records (category=Emissions, subcategory=GHG)
+    # =========================================================================
+    esg_emission_query = {
+        "organization_id": org_id,
+        "section": "environment",
+        "category": {"$regex": "emission", "$options": "i"},
+        "subcategory": {"$regex": "ghg", "$options": "i"}
+    }
+    if fac_list:
+        esg_emission_query["facility_id"] = {"$in": fac_list}
     
-    # Map categories to dashboard metrics
+    esg_emission_records = await db.esg_records.find(esg_emission_query, {"_id": 0}).to_list(10000)
+    
+    total_esg_emissions = 0.0
+    for rec in esg_emission_records:
+        # Try to get emission value from field_values or data
+        fv = rec.get("field_values", {})
+        data = rec.get("data", {})
+        emission_val = fv.get("total_emission") or fv.get("value") or data.get("value") or 0
+        total_esg_emissions += float(emission_val or 0)
+    
+    # =========================================================================
+    # 3. Get GHG Energy from emission_records table (fuel + electricity)
+    # =========================================================================
+    ghg_energy_records = await ghg_service.get_energy_from_ghg(
+        org_id=org_id,
+        facility_ids=fac_list,
+        financial_year=financial_year
+    )
+    
+    total_ghg_energy_mwh = 0.0
+    for rec in ghg_energy_records:
+        field_values = rec.get("field_values", {})
+        energy_val = float(field_values.get("total_energy", 0))
+        energy_unit = field_values.get("energy_unit", "MWh")
+        
+        # Convert TJ to MWh (1 TJ = 277.778 MWh)
+        if energy_unit == "TJ":
+            energy_val = energy_val * 277.778
+        
+        total_ghg_energy_mwh += energy_val
+    
+    # =========================================================================
+    # 4. Get ESG Energy from esg_records (category=Energy)
+    # =========================================================================
+    esg_energy_query = {
+        "organization_id": org_id,
+        "section": "environment",
+        "category": {"$regex": "energy", "$options": "i"}
+    }
+    if fac_list:
+        esg_energy_query["facility_id"] = {"$in": fac_list}
+    
+    esg_energy_records = await db.esg_records.find(esg_energy_query, {"_id": 0}).to_list(10000)
+    
+    total_esg_energy = 0.0
+    for rec in esg_energy_records:
+        fv = rec.get("field_values", {})
+        data = rec.get("data", {})
+        energy_val = fv.get("total_energy") or fv.get("value") or data.get("value") or 0
+        total_esg_energy += float(energy_val or 0)
+    
+    # =========================================================================
+    # 5. Get ESG record counts and other metrics
+    # =========================================================================
+    base_query = {"organization_id": org_id}
+    if fac_list:
+        base_query["facility_id"] = {"$in": fac_list}
+    
+    environment_count = await db.esg_records.count_documents({**base_query, "section": "environment"})
+    social_count = await db.esg_records.count_documents({**base_query, "section": "social"})
+    governance_count = await db.esg_records.count_documents({**base_query, "section": "governance"})
+    
+    # =========================================================================
+    # 6. Build final metrics
+    # =========================================================================
     metrics = {
         "environment_records": environment_count,
         "social_records": social_count,
         "governance_records": governance_count,
         "total_records": environment_count + social_count + governance_count,
         
-        # Environment metrics - will be populated from records
-        "total_energy": 0,
+        # Combined emissions: GHG + ESG records
+        "total_emissions": round(total_ghg_emissions + total_esg_emissions, 2),
+        "ghg_emissions": round(total_ghg_emissions, 2),
+        "esg_emissions": round(total_esg_emissions, 2),
+        
+        # Combined energy: GHG + ESG records (in MWh)
+        "total_energy": round(total_ghg_energy_mwh + total_esg_energy, 2),
+        "ghg_energy": round(total_ghg_energy_mwh, 2),
+        "esg_energy": round(total_esg_energy, 2),
+        
+        # Other environment metrics (from ESG records)
         "water_consumption": 0,
+        "water_withdrawn": 0,
+        "water_discharged": 0,
         "waste_generated": 0,
+        "waste_recovered": 0,
         "renewable_pct": 0,
         "waste_recovery_pct": 0,
         "water_recycling_pct": 0,
@@ -458,11 +527,11 @@ async def get_dashboard_metrics(
         
         # Governance metrics
         "data_breaches": 0,
-        "policy_compliance_pct": 85,  # Default/mock
+        "policy_compliance_pct": 85,
         "board_diversity_pct": 0,
         "audit_readiness_score": 0,
         
-        # YoY changes (placeholder - would need previous year comparison)
+        # YoY changes (placeholder)
         "energy_yoy_change": None,
         "water_yoy_change": None,
         "waste_yoy_change": None,
@@ -471,10 +540,21 @@ async def get_dashboard_metrics(
         "complaints_yoy_change": None,
     }
     
-    # Map category names to metrics (simplified mapping)
+    # Aggregate other ESG categories
+    pipeline = [
+        {"$match": base_query},
+        {"$group": {
+            "_id": "$category",
+            "section": {"$first": "$section"},
+            "total_value": {"$sum": {"$toDouble": {"$ifNull": ["$field_values.value", {"$ifNull": ["$data.value", 0]}]}}},
+            "count": {"$sum": 1}
+        }}
+    ]
+    
+    category_aggregates = await db.esg_records.aggregate(pipeline).to_list(100)
+    
     category_mapping = {
-        "energy": "total_energy",
-        "water": "water_consumption", 
+        "water": "water_consumption",
         "waste": "waste_generated",
         "safety": "safety_incidents",
         "training": "training_hours",
@@ -490,9 +570,8 @@ async def get_dashboard_metrics(
                 if metric_key in metrics:
                     metrics[metric_key] += agg.get("total_value", 0)
     
-    # Calculate percentages based on available data
+    # Calculate percentages
     if metrics["total_energy"] > 0:
-        # Mock renewable percentage based on records - would need actual renewable energy data
         metrics["renewable_pct"] = min(35, (environment_count / max(1, metrics["total_records"])) * 100)
     
     if metrics["waste_generated"] > 0:
@@ -501,8 +580,7 @@ async def get_dashboard_metrics(
     if metrics["water_consumption"] > 0:
         metrics["water_recycling_pct"] = min(50, 30 + (environment_count * 1.5))
     
-    # Audit readiness based on record completeness
-    total_expected = 50  # Expected number of records for full compliance
+    total_expected = 50
     metrics["audit_readiness_score"] = min(100, (metrics["total_records"] / total_expected) * 100)
     
     return metrics
