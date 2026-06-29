@@ -186,52 +186,58 @@ export default function DashboardBRSRGHG({ data }) {
     const prevWaste = prevYearMetrics?.waste?.generated || 0;
     const prevSafety = prevYearMetrics?.safety_incidents?.total || 0;
 
-    // Calculate intensity deltas (only if both current AND previous intensity data exist)
-    const hasPrevTurnover = prevYearIntensity.turnover !== null;
-    const hasPrevProduction = prevYearIntensity.productionQty !== null;
-    const hasPrevIntensityData = hasPrevTurnover || hasPrevProduction;
+    // Calculate intensity deltas separately for revenue and production modes
+    const hasPrevTurnover = prevYearIntensity.turnover !== null && prevYearIntensity.turnover > 0;
+    const hasPrevProduction = prevYearIntensity.productionQty !== null && prevYearIntensity.productionQty > 0;
 
-    let emissionsIntensityDelta = null;
-    let energyIntensityDelta = null;
+    // Revenue-based intensity delta (only if both current AND previous turnover exist)
+    let emissionsIntensityDeltaRevenue = null;
+    let energyIntensityDeltaRevenue = null;
+    if (turnover && hasPrevTurnover) {
+      const currEmissionIntensity = currEmissions / turnover;
+      const prevEmissionIntensity = prevEmissions / prevYearIntensity.turnover;
+      emissionsIntensityDeltaRevenue = computePct(currEmissionIntensity, prevEmissionIntensity);
 
-    if (hasIntensityData && hasPrevIntensityData) {
-      // Use same mode logic as useIntensityCalculations
-      const effectiveMode = !isOrgLevel ? 'production' : intensityMode;
-      
-      if (effectiveMode === 'revenue' && turnover && hasPrevTurnover) {
-        const currEmissionIntensity = currEmissions / turnover;
-        const prevEmissionIntensity = prevEmissions / prevYearIntensity.turnover;
-        emissionsIntensityDelta = computePct(currEmissionIntensity, prevEmissionIntensity);
-
-        const currEnergyIntensity = currEnergy / turnover;
-        const prevEnergyIntensity = prevEnergy / prevYearIntensity.turnover;
-        energyIntensityDelta = computePct(currEnergyIntensity, prevEnergyIntensity);
-      } else if (effectiveMode === 'production' && productionQty && hasPrevProduction) {
-        const currEmissionIntensity = currEmissions / productionQty;
-        const prevEmissionIntensity = prevEmissions / prevYearIntensity.productionQty;
-        emissionsIntensityDelta = computePct(currEmissionIntensity, prevEmissionIntensity);
-
-        const currEnergyIntensity = currEnergy / productionQty;
-        const prevEnergyIntensity = prevEnergy / prevYearIntensity.productionQty;
-        energyIntensityDelta = computePct(currEnergyIntensity, prevEnergyIntensity);
-      }
+      const currEnergyIntensity = currEnergy / turnover;
+      const prevEnergyIntensity = prevEnergy / prevYearIntensity.turnover;
+      energyIntensityDeltaRevenue = computePct(currEnergyIntensity, prevEnergyIntensity);
     }
+
+    // Production-based intensity delta (only if both current AND previous production exist)
+    let emissionsIntensityDeltaProduction = null;
+    let energyIntensityDeltaProduction = null;
+    if (productionQty && hasPrevProduction) {
+      const currEmissionIntensity = currEmissions / productionQty;
+      const prevEmissionIntensity = prevEmissions / prevYearIntensity.productionQty;
+      emissionsIntensityDeltaProduction = computePct(currEmissionIntensity, prevEmissionIntensity);
+
+      const currEnergyIntensity = currEnergy / productionQty;
+      const prevEnergyIntensity = prevEnergy / prevYearIntensity.productionQty;
+      energyIntensityDeltaProduction = computePct(currEnergyIntensity, prevEnergyIntensity);
+    }
+
+    // Select the correct intensity delta based on current mode
+    const effectiveMode = !isOrgLevel ? 'production' : intensityMode;
+    const emissionsIntensityDelta = effectiveMode === 'revenue' 
+      ? emissionsIntensityDeltaRevenue 
+      : emissionsIntensityDeltaProduction;
+    const energyIntensityDelta = effectiveMode === 'revenue' 
+      ? energyIntensityDeltaRevenue 
+      : energyIntensityDeltaProduction;
 
     return {
       // Net value deltas (used when intensity is not shown)
       netEmissionsDelta: computePct(currEmissions, prevEmissions),
       netEnergyDelta: computePct(currEnergy, prevEnergy),
-      // Intensity deltas (used when intensity is shown)
+      // Intensity deltas (used when intensity is shown) - null if prev year data doesn't exist for selected mode
       emissionsIntensityDelta,
       energyIntensityDelta,
       // Other KPIs
       waterDelta: computePct(currWater, prevWater),
       wasteDelta: computePct(currWaste, prevWaste),
       safetyDelta: computePct(currSafety, prevSafety),
-      // Flags
-      hasIntensityTrend: emissionsIntensityDelta !== null,
     };
-  }, [esgMetrics, prevYearMetrics, prevYearIntensity, hasIntensityData, turnover, productionQty, intensityMode, isOrgLevel]);
+  }, [esgMetrics, prevYearMetrics, prevYearIntensity, turnover, productionQty, intensityMode, isOrgLevel]);
 
   // Use intensity calculations hook
   const intensityCalcs = useIntensityCalculations({
