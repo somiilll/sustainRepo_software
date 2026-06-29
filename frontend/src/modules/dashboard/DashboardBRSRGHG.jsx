@@ -96,6 +96,7 @@ export default function DashboardBRSRGHG({ data }) {
     }
   }, [dateRange, selectedFacilities, getAuthHeader]);
 
+  console.log("esgMetrics", esgMetrics)
   // Calculate totals - Use combined emissions from esgMetrics (GHG + ESG records)
   // Fallback to filteredData.totals for backward compatibility if esgMetrics not loaded
   const totals = filteredData?.totals || {};
