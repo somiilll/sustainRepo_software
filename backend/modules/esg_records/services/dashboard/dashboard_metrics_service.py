@@ -51,28 +51,11 @@ class DashboardMetricsService:
             "energy": energy,
             "emissions": emissions,
             
-            # Totals for KPI cards (for backward compatibility)
-            "total_emissions": emissions["total"],
-            "ghg_emissions": emissions["ghg_emissions"],
-            "esg_emissions": emissions["esg_emissions"],
-            "total_energy": energy["total"],
-            "ghg_energy": energy["ghg_energy"],
-            "esg_energy": energy["esg_energy"],
-            # "water_consumption": water["consumption"],
-            # "water_withdrawn": water["withdrawal"],
-            # "water_discharged": water["discharge"],
-            # "waste_generated": waste["generated"],
-            # "waste_recovered": waste["recovered"],
-            # "waste_disposed": waste["disposal"],
-            
             # Placeholders for other metrics
             "safety_incidents": 0,
             "training_hours": 0,
             "complaints": 0,
             "data_breaches": 0,
-            "renewable_pct": energy.get("renewable_pct", 0),
-            # "waste_recovery_pct": waste.get("recovery_pct", 0),
-            # "water_recycling_pct": water.get("recycling_pct", 0),
             "audit_readiness_score": min(100, (counts["total"] / 50) * 100),
         }
     

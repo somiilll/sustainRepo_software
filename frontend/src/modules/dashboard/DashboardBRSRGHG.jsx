@@ -96,17 +96,17 @@ export default function DashboardBRSRGHG({ data }) {
     }
   }, [dateRange, selectedFacilities, getAuthHeader]);
 
-  console.log("esgMetrics", esgMetrics)
-  // Calculate totals - Use combined emissions from esgMetrics (GHG + ESG records)
-  // Fallback to filteredData.totals for backward compatibility if esgMetrics not loaded
+  // Calculate totals from nested emissions structure
   const totals = filteredData?.totals || {};
-  const ghgEmissions = (totals.total || 0) - (filteredData?.filteredSinks || 0);
+  const ghgEmissionsFallback = (totals.total || 0) - (filteredData?.filteredSinks || 0);
   
-  // Use combined emissions from dashboard-metrics endpoint (includes GHG + ESG records)
-  const netEmissions = esgMetrics?.total_emissions ?? ghgEmissions;
+  // Use nested emissions structure from dashboard-metrics endpoint
+  const emissionsData = esgMetrics?.emissions || {};
+  const netEmissions = emissionsData?.ghg_emissions?.total ?? ghgEmissionsFallback;
   
-  // Use combined energy from dashboard-metrics endpoint (includes GHG + ESG records)
-  const netEnergy = esgMetrics?.total_energy || 0;
+  // Use nested energy structure from dashboard-metrics endpoint
+  const energyData = esgMetrics?.energy || {};
+  const netEnergy = energyData?.total || 0;
 
   // Use intensity calculations hook
   const intensityCalcs = useIntensityCalculations({
