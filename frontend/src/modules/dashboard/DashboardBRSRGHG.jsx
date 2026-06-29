@@ -309,7 +309,7 @@ export default function DashboardBRSRGHG({ data }) {
         />
         <PremiumKpiCard
           title="Safety Incidents"
-          value={esgMetrics?.safety_incidents || 0}
+          value={esgMetrics?.safety_incidents.total || 0}
           unit="incidents"
           icon={AlertTriangle}
           accentColor="#DC2626"

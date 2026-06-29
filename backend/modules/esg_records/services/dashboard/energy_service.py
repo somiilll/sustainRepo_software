@@ -145,7 +145,7 @@ class EnergyMetricsService:
         }
         
         base_query = {
-            "organization_id": org_id,
+            "org_id": org_id,
             "category": {"$regex": "^Energy$", "$options": "i"}
         }
         if facility_ids:

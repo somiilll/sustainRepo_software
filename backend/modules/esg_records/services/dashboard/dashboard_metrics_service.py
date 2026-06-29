@@ -61,13 +61,13 @@ class DashboardMetricsService:
     
     async def _get_record_counts(self, org_id: str, facility_ids: Optional[List[str]]) -> Dict[str, int]:
         """Get record counts by section"""
-        query = {"organization_id": org_id}
+        query = {"org_id": org_id}
         if facility_ids:
             query["facility_id"] = {"$in": facility_ids}
         
         env_count = await self.db.environment_records.count_documents(query)
         social_count = await self.db.environment_records.count_documents({**query, "section": "social"})
-        gov_count = await self.db.environment_records.count_documents({**query, "section": "governance"})
+        gov_count = await self.db.governance_records.count_documents({"org_id": org_id})
         
         return {
             "environment": env_count,

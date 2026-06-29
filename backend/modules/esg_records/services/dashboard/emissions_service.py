@@ -105,7 +105,7 @@ class EmissionsMetricsService:
     ) -> Dict[str, float]:
         """Get GHG emissions from ESG records with scope breakdown"""
         base_query = {
-            "organization_id": org_id,
+            "org_id": org_id,
             "category": {"$regex": "^Emissions$", "$options": "i"},
             "subcategory": {"$regex": "^GHG Emissions$", "$options": "i"}
         }
@@ -148,7 +148,7 @@ class EmissionsMetricsService:
     ) -> Dict[str, float]:
         """Get air emissions from ESG records by pollutant type"""
         base_query = {
-            "organization_id": org_id,
+            "org_id": org_id,
             "category": {"$regex": "^Emissions$", "$options": "i"},
             "subcategory": {"$regex": "^Air Emissions$", "$options": "i"}
         }
