@@ -47,7 +47,7 @@ class WasteMetricsService:
     ) -> float:
         """Get total quantity for a waste subcategory"""
         base_query = {
-            "organization_id": org_id,
+            "org_id": org_id,
             "category": {"$regex": f"^{self.CATEGORY}$", "$options": "i"},
             "subcategory": {"$regex": f"^{subcategory}$", "$options": "i"}
         }

@@ -234,6 +234,7 @@ export default function DashboardBRSRGHG({ data }) {
     </div>
   ) : null;
 
+
   return (
     <div className="space-y-6" data-testid="dashboard-brsr-ghg">
       <StickyFilterBar
@@ -299,7 +300,7 @@ export default function DashboardBRSRGHG({ data }) {
         />
         <PremiumKpiCard
           title="Waste Generated"
-          value={esgMetrics?.wate?.generated || 0}
+          value={esgMetrics?.waste?.generated || 0}
           unit="MT"
           yoyChange={esgMetrics?.waste_yoy_change}
           icon={Trash2}
