@@ -51,8 +51,8 @@ class DashboardMetricsService:
             "energy": energy,
             "emissions": emissions,
             
-            # Placeholders for other metrics
-            "safety_incidents": 0,
+            # Safety incidents from governance_records
+            "safety_incidents": await self._get_safety_incidents(org_id, facility_ids, start_date, end_date),
             "training_hours": 0,
             "complaints": 0,
             "data_breaches": 0,
@@ -75,6 +75,35 @@ class DashboardMetricsService:
             "governance": gov_count,
             "total": env_count + social_count + gov_count
         }
+    
+    async def _get_safety_incidents(
+        self,
+        org_id: str,
+        facility_ids: Optional[List[str]],
+        start_date: Optional[str],
+        end_date: Optional[str]
+    ) -> Dict[str, int]:
+        """Get safety incidents count by type from governance_records"""
+        query = {"org_id": org_id, "category": {"$regex": "^Safety Incidents$", "$options": "i"}}
+        if facility_ids:
+            query["facility_id"] = {"$in": facility_ids}
+        
+        records = await self.db.governance_records.find(query, {"_id": 0, "field_values.type": 1}).to_list(10000)
+        
+        result = {"injury": 0, "fatality": 0, "ill_health": 0, "others": 0, "total": 0}
+        for r in records:
+            incident_type = (r.get("field_values", {}).get("type") or "").lower().replace("-", "_")
+            if "injury" in incident_type:
+                result["injury"] += 1
+            elif "fatality" in incident_type:
+                result["fatality"] += 1
+            elif "ill" in incident_type:
+                result["ill_health"] += 1
+            else:
+                result["others"] += 1
+            result["total"] += 1
+        
+        return result
 
 
 def get_dashboard_metrics_service(db) -> DashboardMetricsService:

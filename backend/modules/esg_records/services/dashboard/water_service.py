@@ -33,11 +33,6 @@ class WaterMetricsService:
         # hardcoded to kL, need to expand it in future
 
         return {
-            # "consumption": round(consumption, 2),
-            # "withdrawal": round(withdrawal, 2),
-            # "discharge": round(discharge, 2),
-            # "total": round(consumption + withdrawal, 2),
-            # "recycling_pct": round(recycling_pct, 2),
             "consumption": round(consumption / 1000, 2),
             "withdrawal": round(withdrawal / 1000, 2),
             "discharge": round(discharge / 1000, 2),
