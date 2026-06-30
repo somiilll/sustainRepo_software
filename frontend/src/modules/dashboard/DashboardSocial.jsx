@@ -389,7 +389,7 @@ function TrainingByTypeChart({ byType }) {
   }
 
   return (
-    <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
+    <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
       {displayTypes.map((type) => {
         const value = byType[type] || 0;
         const pct = (value / maxValue) * 100;
