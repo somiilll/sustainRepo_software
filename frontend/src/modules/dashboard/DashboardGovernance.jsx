@@ -104,7 +104,7 @@ export default function DashboardGovernance({ data }) {
   const govData = esgMetrics?.governance || {};
   const prevGovData = prevYearMetrics?.governance || {};
   const incidentAnalytics = govData.incident_analytics || {};
-  console.log("esgMetrics", 
+  console.log("esgMetrics", esgMetrics)
   console.log("govData", govData)
 
   // KPI values
