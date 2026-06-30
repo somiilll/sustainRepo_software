@@ -1532,6 +1532,21 @@ function DynamicFieldRenderer({ field, value, onChange }) {
         </div>
       );
 
+    case 'radio':
+      return (
+        <div>
+          <Label>{label}{required && ' *'}</Label>
+          <RadioGroup value={value || ''} onValueChange={onChange} className="mt-2 flex flex-wrap gap-4">
+            {(options || []).map(opt => (
+              <div key={opt} className="flex items-center space-x-2">
+                <RadioGroupItem value={opt} id={`${field_key}-${opt}`} />
+                <Label htmlFor={`${field_key}-${opt}`} className="font-normal cursor-pointer">{opt}</Label>
+              </div>
+            ))}
+          </RadioGroup>
+        </div>
+      );
+
     default:
       return null;
   }
