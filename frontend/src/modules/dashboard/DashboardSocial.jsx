@@ -108,7 +108,7 @@ export default function DashboardSocial({ data }) {
   // KPI values
   const trainingsCount = trainingData.count || 0;
   const trainingHours = trainingData.hours || 0;
-  const complaintsTotal = complaintsData.general || 0;
+  const complaintsTotal = complaintsData.total || 0;
   const poshCases = complaintsData.posh || 0;
   const consumerComplaints = complaintsData.consumer || 0;
 
@@ -242,6 +242,23 @@ export default function DashboardSocial({ data }) {
         />
       </div>
 
+      {/* ROW 1: Training Analytics */}
+      <SectionCard title="Training Analytics" subtitle="Training distribution and coverage metrics">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-4">
+          {/* LEFT: Training by Type - Horizontal Bars */}
+          <div className="bg-white rounded-xl p-5 border border-stone-200">
+            <h4 className="font-semibold text-stone-800 mb-4">Training by Type</h4>
+            <TrainingByTypeChart byType={trainingData.by_type || {}} />
+          </div>
+
+          {/* RIGHT: Training Coverage */}
+          <div className="bg-white rounded-xl p-5 border border-stone-200">
+            <h4 className="font-semibold text-stone-800 mb-4">Training Coverage</h4>
+            <TrainingCoverageStats coverage={trainingData.coverage || {}} />
+          </div>
+        </div>
+      </SectionCard>
+
       {/* Summary Section */}
       <SectionCard title="Social Performance Summary" subtitle="Key workforce and stakeholder metrics">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-4">
@@ -320,5 +337,75 @@ export default function DashboardSocial({ data }) {
       </SectionCard>
     </div>
   </div>
+  );
+}
+
+// Training by Type Horizontal Bar Chart
+function TrainingByTypeChart({ byType }) {
+  const TRAINING_TYPES = [
+    'Health', 'Safety', 'Environment', 'Human Right Issues', 'Organization Policy(ies)',
+    'Skill Upgrade', 'Anti-corruption', 'Ethical Principles',
+    'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9', 'Others'
+  ];
+
+  const maxValue = Math.max(...Object.values(byType), 1);
+  const hasData = Object.keys(byType).length > 0;
+
+  // Filter to only show types with data or all if no data
+  const displayTypes = hasData 
+    ? TRAINING_TYPES.filter(type => byType[type] > 0)
+    : TRAINING_TYPES.slice(0, 6);
+
+  if (!hasData) {
+    return (
+      <div className="text-center py-8 text-stone-400">
+        <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
+        <p className="text-sm">No training data available</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
+      {displayTypes.map((type) => {
+        const value = byType[type] || 0;
+        const pct = (value / maxValue) * 100;
+        return (
+          <div key={type} className="flex items-center gap-3">
+            <span className="text-xs text-stone-600 w-32 truncate" title={type}>{type}</span>
+            <div className="flex-1 bg-stone-100 rounded-full h-5 overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-500"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <span className="text-xs font-semibold text-stone-700 w-8 text-right">{value}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Training Coverage Stats
+function TrainingCoverageStats({ coverage }) {
+  const { employees_trained = 0, workers_trained = 0, female_pct = 0, total_attendees = 0 } = coverage;
+
+  const stats = [
+    { label: 'Total Attendees', value: total_attendees, color: 'blue' },
+    { label: 'Employees Trained', value: employees_trained, color: 'indigo' },
+    { label: 'Workers Trained', value: workers_trained, color: 'violet' },
+    { label: 'Female Attendees %', value: `${female_pct}%`, color: 'pink' },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      {stats.map((stat) => (
+        <div key={stat.label} className={`bg-${stat.color}-50 rounded-lg p-4 border border-${stat.color}-100`}>
+          <p className="text-xs text-stone-500 mb-1">{stat.label}</p>
+          <p className={`text-2xl font-bold text-${stat.color}-600`}>{stat.value}</p>
+        </div>
+      ))}
+    </div>
   );
 }
