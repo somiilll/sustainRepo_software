@@ -98,7 +98,6 @@ export default function DashboardSocial({ data }) {
     }
   }, [dateRange, prevYearDateRange, selectedFacilities, getAuthHeader]);
 
-  console.log("esgMetrics in social", esgMetrics)
   // Extract social metrics
   const trainingData = esgMetrics?.training || {};
   const complaintsData = esgMetrics?.complaints || {};
@@ -148,7 +147,6 @@ export default function DashboardSocial({ data }) {
       Live
     </span>
   ) : null;
-  console.log("complaintsData", complaintsData)
 
   return (
 

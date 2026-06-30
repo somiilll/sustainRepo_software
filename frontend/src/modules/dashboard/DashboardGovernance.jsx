@@ -398,7 +398,6 @@ function IncidentTypeChart({ byType }) {
   );
 }
 
-// Who Was Affected - Vertical Bar Chart
 function AffectedDonut({ byAffected }) {
   const CATEGORIES = [
     { key: 'Board of Directors', color: '#8B5CF6', label: 'Board' },
@@ -408,36 +407,63 @@ function AffectedDonut({ byAffected }) {
     { key: 'Contractor', color: '#14B8A6', label: 'Contractor' },
   ];
 
-  const total = Object.values(byAffected).reduce((sum, v) => sum + v, 0);
-  const maxValue = Math.max(...Object.values(byAffected), 1);
+  const total = Object.values(byAffected || {}).reduce((a, b) => a + b, 0);
+  const maxValue = Math.max(...Object.values(byAffected || {}), 1);
 
   if (total === 0) {
     return (
-      <div className="text-center py-8 text-stone-400">
-        <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
+      <div className="flex flex-col items-center justify-center h-[220px] text-stone-400">
+        <Users className="w-8 h-8 mb-2 opacity-40" />
         <p className="text-sm">No affected data</p>
       </div>
     );
   }
 
   return (
-    <div className="flex items-end justify-between gap-2 h-[180px] pt-4">
-      {CATEGORIES.map((cat) => {
-        const value = byAffected[cat.key] || 0;
-        const heightPct = maxValue > 0 ? (value / maxValue) * 100 : 0;
-        return (
-          <div key={cat.key} className="flex flex-col items-center flex-1">
-            <span className="text-xs font-semibold text-stone-700 mb-1">{value}</span>
-            <div className="w-full flex-1 flex items-end">
-              <div
-                className="w-full rounded-t-md transition-all duration-500"
-                style={{ backgroundColor: cat.color, height: `${Math.max(heightPct, 4)}%` }}
-              />
+    <div className="h-[220px] flex flex-col">
+      {/* Chart */}
+      <div className="flex-1 flex items-end justify-between gap-4 border-b border-stone-200 pb-2">
+        {CATEGORIES.map((cat) => {
+          const value = byAffected?.[cat.key] || 0;
+          const height = (value / maxValue) * 100;
+
+          return (
+            <div
+              key={cat.key}
+              className="relative flex flex-col items-center flex-1 group"
+            >
+              {/* Tooltip */}
+              <div className="absolute -top-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
+                <div className="bg-stone-900 text-white text-xs px-2 py-1 rounded-md shadow-lg whitespace-nowrap">
+                  {cat.label}: {value}
+                </div>
+              </div>
+
+              {/* Bar */}
+              <div className="w-full h-[160px] flex items-end">
+                <div
+                  className="w-full rounded-t-xl transition-all duration-500 group-hover:opacity-90 cursor-pointer"
+                  style={{
+                    height: `${Math.max(height, 6)}%`,
+                    background: `linear-gradient(to top, ${cat.color}, ${cat.color}CC)`,
+                  }}
+                />
+              </div>
+
+              {/* Label */}
+              <span className="text-[11px] text-stone-500 mt-3 text-center leading-tight">
+                {cat.label}
+              </span>
             </div>
-            <span className="text-[10px] text-stone-500 mt-2 text-center">{cat.label}</span>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between mt-3 text-xs text-stone-500">
+        <span>Total Affected</span>
+        <span className="font-semibold text-stone-700">{total}</span>
+      </div>
     </div>
   );
 }
