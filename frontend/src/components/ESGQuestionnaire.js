@@ -455,6 +455,43 @@ function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {
           </Badge>
         );
 
+      case 'yes_no_with_text':
+        const yesNoVal = typeof value === 'object' ? value : { answer: value || '', text: '' };
+        return isEditing ? (
+          <div className="space-y-3 mt-2">
+            <RadioGroup value={yesNoVal.answer || ''} onValueChange={(v) => onChange({ ...yesNoVal, answer: v })} className="flex gap-4">
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="yes" id={`${config.question_key}-yes`} />
+                <Label htmlFor={`${config.question_key}-yes`}>Yes</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="no" id={`${config.question_key}-no`} />
+                <Label htmlFor={`${config.question_key}-no`}>No</Label>
+              </div>
+            </RadioGroup>
+            {yesNoVal.answer === 'yes' && (
+              <div>
+                <Label className="text-sm text-stone-600">{config.conditional_field_label || 'Please specify'}</Label>
+                <Input
+                  value={yesNoVal.text || ''}
+                  onChange={(e) => onChange({ ...yesNoVal, text: e.target.value })}
+                  placeholder={config.conditional_field_label || 'Enter details...'}
+                  className="mt-1"
+                />
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="mt-2">
+            <Badge variant="outline" className={`${yesNoVal.answer === 'yes' ? 'bg-green-50 text-green-700' : yesNoVal.answer === 'no' ? 'bg-red-50 text-red-700' : ''}`}>
+              {yesNoVal.answer === 'yes' ? 'Yes' : yesNoVal.answer === 'no' ? 'No' : '-'}
+            </Badge>
+            {yesNoVal.answer === 'yes' && yesNoVal.text && (
+              <p className="text-sm text-stone-600 mt-1">{config.conditional_field_label}: {yesNoVal.text}</p>
+            )}
+          </div>
+        );
+
       case 'url':
         return isEditing ? (
           <Input

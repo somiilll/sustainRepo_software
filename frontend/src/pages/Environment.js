@@ -25,6 +25,7 @@ export default function Environment() {
             <TabsTrigger value="lifecycle">Product Lifecycle & Circularity</TabsTrigger>
             <TabsTrigger value="impact">Impact Assessments & Projects</TabsTrigger>
             <TabsTrigger value="env-mgmt">Environmental Management & Value Chain</TabsTrigger>
+            <TabsTrigger value="assurance">Assurance</TabsTrigger>
           </TabsList>
 
           <TabsContent value="lifecycle">
@@ -66,6 +67,20 @@ export default function Environment() {
             </Card>
             <Card className="p-6">
               <ESGQuestionnaire framework="BRSR" section="environment" isEditing={isEditing} filterPrinciples={["P_ENV_MGMT"]} />
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="assurance">
+            <Card className="p-4 bg-emerald-50/50 border-emerald-100 mb-4">
+              <div className="flex items-start gap-2">
+                <Info className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-emerald-800">
+                  <strong>Assurance:</strong> Track external audit status for environmental data including energy, water, air emissions, GHG emissions, and waste management.
+                </p>
+              </div>
+            </Card>
+            <Card className="p-6">
+              <ESGQuestionnaire framework="BRSR" section="environment" isEditing={isEditing} filterPrinciples={["P_ASSURANCE"]} />
             </Card>
           </TabsContent>
         </Tabs>
