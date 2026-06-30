@@ -285,7 +285,9 @@ export default function DashboardEnvironment({ data }) {
           intensityValue={intensityCalcs.emissionIntensity}
           intensityUnit={intensityCalcs.emissionIntensityUnit}
           showIntensity={hasIntensityData && intensityCalcs.hasEmissionIntensity}
-          sparkData={emissionsSparkData}
+          yoyChange={hasIntensityData && intensityCalcs.hasEmissionIntensity 
+            ? trendDeltas.emissionsIntensityDelta 
+            : trendDeltas.netEmissionsDelta}
           icon={Leaf}
           accentColor="#10B981"
           loading={esgLoading}
@@ -431,15 +433,6 @@ export default function DashboardEnvironment({ data }) {
         >
           <ScopeTrendChart data={filteredData?.trend || []} hasScope3={true} />
         </SectionCard>
-
-        {/* <SectionCard
-          title="Emissions by Scope"
-          subtitle="Distribution breakdown"
-          accent="#3B82F6"
-          testId="section-scope-donut"
-        >
-          <EmissionsByScopeDonut data={donutData} />
-        </SectionCard> */}
 
         <SectionCard
           title="Emissions Split"

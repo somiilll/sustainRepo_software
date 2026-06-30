@@ -6,6 +6,8 @@ from .water_service import WaterMetricsService
 from .waste_service import WasteMetricsService
 from .energy_service import EnergyMetricsService
 from .emissions_service import EmissionsMetricsService
+from .training_service import TrainingMetricsService
+from .complaints_service import ComplaintsMetricsService
 
 
 class DashboardMetricsService:
@@ -17,6 +19,8 @@ class DashboardMetricsService:
         self.waste_service = WasteMetricsService(db)
         self.energy_service = EnergyMetricsService(db)
         self.emissions_service = EmissionsMetricsService(db)
+        self.training_service = TrainingMetricsService(db)
+        self.complaints_service = ComplaintsMetricsService(db)
     
     async def get_dashboard_metrics(
         self,
@@ -34,6 +38,8 @@ class DashboardMetricsService:
         waste = await self.waste_service.get_metrics(org_id, facility_ids, start_date, end_date)
         energy = await self.energy_service.get_metrics(org_id, facility_ids, financial_year, start_date, end_date)
         emissions = await self.emissions_service.get_metrics(org_id, facility_ids, financial_year, start_date, end_date)
+        training = await self.training_service.get_metrics(org_id, facility_ids, start_date, end_date)
+        complaints = await self.complaints_service.get_metrics(org_id, facility_ids, start_date, end_date)
         
         # Get record counts
         counts = await self._get_record_counts(org_id, facility_ids)
@@ -51,10 +57,13 @@ class DashboardMetricsService:
             "energy": energy,
             "emissions": emissions,
             
+            # Social metrics
+            "training": training,
+            "complaints": complaints,
+            
             # Safety incidents from governance_records
             "safety_incidents": await self._get_safety_incidents(org_id, facility_ids, start_date, end_date),
-            "training_hours": 0,
-            "complaints": 0,
+            "training_hours": training.get("hours", 0),
             "data_breaches": 0,
             "audit_readiness_score": min(100, (counts["total"] / 50) * 100),
         }
