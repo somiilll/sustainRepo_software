@@ -17,47 +17,46 @@ class ComplaintsMetricsService:
         end_date: Optional[str] = None
     ) -> Dict[str, Any]:
         """Get aggregated complaints metrics"""
-        # Query for general complaints in social records
-        general = await self._get_category_count(
+        # Query for General Complaints subcategory
+        general = await self._get_subcategory_count(
             org_id, facility_ids, start_date, end_date,
-            collection="social_records",
-            category_pattern="complaint"
+            subcategory="General Complaints"
         )
         
-        # Query for POSH cases
-        posh = await self._get_category_count(
+        # Query for Complaints on Principles subcategory
+        principles = await self._get_subcategory_count(
             org_id, facility_ids, start_date, end_date,
-            collection="social_records",
-            category_pattern="posh|sexual harassment"
+            subcategory="Complaints on Principles"
         )
         
-        # Query for consumer complaints in governance
-        consumer = await self._get_category_count(
+        # Query for Consumer Complaints subcategory
+        consumer = await self._get_subcategory_count(
             org_id, facility_ids, start_date, end_date,
-            collection="governance_records",
-            category_pattern="consumer|customer complaint"
+            subcategory="Consumer Complaints"
         )
+        
+        # Query for POSH cases (field: was_the_complaint_reported_under_the_posh_act_2013)
+        posh = await self._get_posh_count(org_id, facility_ids, start_date, end_date)
         
         return {
-            "general": general,
+            "general": general + principles,
             "posh": posh,
             "consumer": consumer,
-            "total": general + posh + consumer
+            "total": general + principles + consumer
         }
     
-    async def _get_category_count(
+    async def _get_subcategory_count(
         self,
         org_id: str,
         facility_ids: Optional[List[str]],
         start_date: Optional[str],
         end_date: Optional[str],
-        collection: str,
-        category_pattern: str
+        subcategory: str
     ) -> int:
-        """Get count of records matching category pattern"""
+        """Get count of records matching subcategory"""
         query = {
             "org_id": org_id,
-            "category": {"$regex": category_pattern, "$options": "i"}
+            "subcategory": {"$regex": f"^{subcategory}$", "$options": "i"}
         }
         if facility_ids:
             query["facility_id"] = {"$in": facility_ids}
@@ -67,8 +66,29 @@ class ComplaintsMetricsService:
             if date_filter:
                 query = {"$and": [query, {"$or": date_filter}]}
         
-        coll = self.db[collection]
-        return await coll.count_documents(query)
+        return await self.db.social_records.count_documents(query)
+    
+    async def _get_posh_count(
+        self,
+        org_id: str,
+        facility_ids: Optional[List[str]],
+        start_date: Optional[str],
+        end_date: Optional[str]
+    ) -> int:
+        """Get count of POSH complaints"""
+        query = {
+            "org_id": org_id,
+            "field_values.was_the_complaint_reported_under_the_posh_act_2013": {"$in": [True, "Yes", "yes", "true"]}
+        }
+        if facility_ids:
+            query["facility_id"] = {"$in": facility_ids}
+        
+        if start_date and end_date:
+            date_filter = self._build_date_filter(start_date, end_date)
+            if date_filter:
+                query = {"$and": [query, {"$or": date_filter}]}
+        
+        return await self.db.social_records.count_documents(query)
     
     def _build_date_filter(self, start_date: str, end_date: str) -> List[Dict]:
         """Build date filter conditions for reporting_period"""
