@@ -148,6 +148,7 @@ export default function DashboardSocial({ data }) {
       Live
     </span>
   ) : null;
+  console.log("complaintsData", complaintsData)
 
   return (
 

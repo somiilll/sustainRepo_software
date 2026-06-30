@@ -23,7 +23,7 @@ import TrendArrow from './components/shared/TrendArrow';
 import { useIntensityData } from './hooks/useIntensityData';
 
 // Icons
-import { ShieldAlert, Database, Skull, Scale, RadioTower } from 'lucide-react';
+import { ShieldAlert, Database, Skull, Scale, RadioTower, Users } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -93,6 +93,7 @@ export default function DashboardGovernance({ data }) {
   // Extract governance metrics
   const govData = esgMetrics?.governance || {};
   const prevGovData = prevYearMetrics?.governance || {};
+  const incidentAnalytics = govData.incident_analytics || {};
 
   // KPI values
   const safetyIncidents = govData.safety_incidents || 0;
@@ -189,6 +190,29 @@ export default function DashboardGovernance({ data }) {
         />
       </div>
 
+      {/* ROW 1: Safety Incident Analytics */}
+      <SectionCard title="Safety Incident Analytics" subtitle="Incident distribution and rehabilitation tracking">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-4">
+          {/* LEFT: Incident Type Distribution */}
+          <div className="bg-white rounded-xl p-5 border border-stone-200">
+            <h4 className="font-semibold text-stone-800 mb-4">Incident Type Distribution</h4>
+            <IncidentTypeChart byType={incidentAnalytics.by_type || {}} />
+          </div>
+
+          {/* CENTER: Who Was Affected */}
+          <div className="bg-white rounded-xl p-5 border border-stone-200">
+            <h4 className="font-semibold text-stone-800 mb-4">Who Was Affected</h4>
+            <AffectedDonut byAffected={incidentAnalytics.by_affected || {}} />
+          </div>
+
+          {/* RIGHT: Rehabilitation & Corrective Actions */}
+          <div className="bg-white rounded-xl p-5 border border-stone-200">
+            <h4 className="font-semibold text-stone-800 mb-4">Rehabilitation & Corrective Actions</h4>
+            <RehabilitationStatus rehabilitation={incidentAnalytics.rehabilitation || {}} />
+          </div>
+        </div>
+      </SectionCard>
+
       {/* Summary Section */}
       <SectionCard title="Governance Overview" subtitle="Risk and compliance status">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4">
@@ -249,6 +273,152 @@ export default function DashboardGovernance({ data }) {
           </div>
         </div>
       </SectionCard>
+    </div>
+  );
+}
+
+// Incident Type Distribution - Stacked Horizontal Bars
+function IncidentTypeChart({ byType }) {
+  const TYPES = ['Injury', 'Fatality', 'Ill-Health', 'Others'];
+  const COLORS = {
+    'Injury': 'bg-amber-500',
+    'Fatality': 'bg-red-600',
+    'Ill-Health': 'bg-orange-500',
+    'Others': 'bg-stone-400'
+  };
+
+  const total = Object.values(byType).reduce((sum, v) => sum + v, 0);
+
+  if (total === 0) {
+    return (
+      <div className="text-center py-8 text-stone-400">
+        <ShieldAlert className="w-8 h-8 mx-auto mb-2 opacity-50" />
+        <p className="text-sm">No incident data</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Stacked bar */}
+      <div className="h-10 flex rounded-lg overflow-hidden bg-stone-100">
+        {TYPES.map((type) => {
+          const value = byType[type] || 0;
+          const pct = (value / total) * 100;
+          if (pct === 0) return null;
+          return (
+            <div
+              key={type}
+              className={`${COLORS[type]} transition-all duration-500 flex items-center justify-center`}
+              style={{ width: `${pct}%` }}
+              title={`${type}: ${value}`}
+            >
+              {pct > 12 && <span className="text-xs text-white font-medium">{value}</span>}
+            </div>
+          );
+        })}
+      </div>
+      {/* Legend */}
+      <div className="grid grid-cols-2 gap-2">
+        {TYPES.map((type) => (
+          <div key={type} className="flex items-center gap-2">
+            <div className={`w-3 h-3 rounded ${COLORS[type]}`} />
+            <span className="text-xs text-stone-600">{type}: {byType[type] || 0}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Who Was Affected - Donut Chart
+function AffectedDonut({ byAffected }) {
+  const CATEGORIES = [
+    { key: 'Board of Directors', color: '#8B5CF6', label: 'Board' },
+    { key: 'Key Management Personnel', color: '#6366F1', label: 'KMP' },
+    { key: 'Employee', color: '#3B82F6', label: 'Employee' },
+    { key: 'Worker', color: '#0EA5E9', label: 'Worker' },
+    { key: 'Contractor', color: '#14B8A6', label: 'Contractor' },
+  ];
+
+  const total = Object.values(byAffected).reduce((sum, v) => sum + v, 0);
+
+  if (total === 0) {
+    return (
+      <div className="text-center py-8 text-stone-400">
+        <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
+        <p className="text-sm">No affected data</p>
+      </div>
+    );
+  }
+
+  // Simple segmented cards instead of donut for simplicity
+  return (
+    <div className="space-y-2">
+      {CATEGORIES.map((cat) => {
+        const value = byAffected[cat.key] || 0;
+        const pct = total > 0 ? ((value / total) * 100).toFixed(0) : 0;
+        return (
+          <div key={cat.key} className="flex items-center gap-3">
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }} />
+            <span className="text-xs text-stone-600 flex-1">{cat.label}</span>
+            <span className="text-xs font-semibold text-stone-800">{value}</span>
+            <span className="text-xs text-stone-400 w-10 text-right">{pct}%</span>
+          </div>
+        );
+      })}
+      <div className="pt-2 border-t border-stone-100 flex justify-between">
+        <span className="text-xs font-medium text-stone-600">Total</span>
+        <span className="text-xs font-bold text-stone-800">{total}</span>
+      </div>
+    </div>
+  );
+}
+
+// Rehabilitation & Corrective Actions Status
+function RehabilitationStatus({ rehabilitation }) {
+  const { done = 0, pending = 0, total = 0, done_pct = 0 } = rehabilitation;
+
+  return (
+    <div className="space-y-4">
+      {/* Rehabilitation Done Progress */}
+      <div>
+        <div className="flex justify-between items-center mb-2">
+          <span className="text-xs text-stone-600">Rehabilitation Done</span>
+          <span className="text-sm font-bold text-emerald-600">{done_pct}%</span>
+        </div>
+        <div className="h-3 bg-stone-100 rounded-full overflow-hidden">
+          <div 
+            className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-500"
+            style={{ width: `${done_pct}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Status Cards */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-100">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-base">✅</span>
+            <span className="text-xs text-stone-500">Completed</span>
+          </div>
+          <p className="text-xl font-bold text-emerald-600">{done}</p>
+        </div>
+
+        <div className="bg-amber-50 rounded-lg p-3 border border-amber-100">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-base">⏳</span>
+            <span className="text-xs text-stone-500">Pending</span>
+          </div>
+          <p className="text-xl font-bold text-amber-600">{pending}</p>
+        </div>
+      </div>
+
+      {/* Total */}
+      <div className="bg-stone-50 rounded-lg p-3 text-center">
+        <span className="text-xs text-stone-500">Total Incidents</span>
+        <p className="text-lg font-bold text-stone-700">{total}</p>
+      </div>
     </div>
   );
 }

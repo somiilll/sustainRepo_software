@@ -45,7 +45,75 @@ class GovernanceMetricsService:
             "safety_incidents": safety_incidents,
             "data_breaches": data_breaches,
             "fatalities": fatalities,
-            "regulatory_escalations": regulatory
+            "regulatory_escalations": regulatory,
+            "incident_analytics": await self._get_incident_analytics(org_id, facility_ids, start_date, end_date)
+        }
+    
+    async def _get_incident_analytics(
+        self,
+        org_id: str,
+        facility_ids: Optional[List[str]],
+        start_date: Optional[str],
+        end_date: Optional[str]
+    ) -> Dict[str, Any]:
+        """Get detailed incident analytics for dashboard"""
+        query = {"org_id": org_id}
+        if facility_ids:
+            query["facility_id"] = {"$in": facility_ids}
+        
+        if start_date and end_date:
+            date_filter = self._build_date_filter(start_date, end_date)
+            if date_filter:
+                query = {"$and": [query, {"$or": date_filter}]}
+        
+        # Incident type distribution
+        type_pipeline = [
+            {"$match": query},
+            {"$group": {"_id": "$field_values.type", "count": {"$sum": 1}}}
+        ]
+        type_results = await self.db.governance_records.aggregate(type_pipeline).to_list(100)
+        by_type = {}
+        for r in type_results:
+            t = r.get("_id") or "Others"
+            # Normalize type names
+            t_lower = t.lower()
+            if "injury" in t_lower:
+                by_type["Injury"] = by_type.get("Injury", 0) + r["count"]
+            elif "fatal" in t_lower or "death" in t_lower:
+                by_type["Fatality"] = by_type.get("Fatality", 0) + r["count"]
+            elif "ill" in t_lower or "health" in t_lower or "disease" in t_lower:
+                by_type["Ill-Health"] = by_type.get("Ill-Health", 0) + r["count"]
+            else:
+                by_type["Others"] = by_type.get("Others", 0) + r["count"]
+        
+        # Who was affected distribution
+        affected_pipeline = [
+            {"$match": query},
+            {"$group": {"_id": "$field_values.who_was_affected", "count": {"$sum": 1}}}
+        ]
+        affected_results = await self.db.governance_records.aggregate(affected_pipeline).to_list(100)
+        by_affected = {r["_id"]: r["count"] for r in affected_results if r["_id"]}
+        
+        # Rehabilitation stats
+        total_incidents = await self.db.governance_records.count_documents(query)
+        
+        rehab_yes_query = {**query, "field_values.rehabilitation_done": {"$in": ["yes", "Yes", "YES", True]}}
+        rehab_no_query = {**query, "field_values.rehabilitation_done": {"$in": ["no", "No", "NO", False]}}
+        
+        rehab_done = await self.db.governance_records.count_documents(rehab_yes_query)
+        rehab_pending = await self.db.governance_records.count_documents(rehab_no_query)
+        
+        rehab_pct = (rehab_done / total_incidents * 100) if total_incidents > 0 else 0
+        
+        return {
+            "by_type": by_type,
+            "by_affected": by_affected,
+            "rehabilitation": {
+                "done": rehab_done,
+                "pending": rehab_pending,
+                "total": total_incidents,
+                "done_pct": round(rehab_pct, 1)
+            }
         }
     
     async def _count_by_type(
