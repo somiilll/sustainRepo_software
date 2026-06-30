@@ -21,7 +21,6 @@ class TrainingMetricsService:
         """Get aggregated training metrics"""
         query = {
             "org_id": org_id,
-            "section": "social",
             "category": {"$regex": f"^{self.CATEGORY}$", "$options": "i"}
         }
         if facility_ids:
@@ -37,12 +36,12 @@ class TrainingMetricsService:
             {"$group": {
                 "_id": None,
                 "total_trainings": {"$sum": 1},
-                "total_hours": {"$sum": {"$toDouble": {"$ifNull": ["$field_values.hours", "$field_values.training_hours", 0]}}},
-                "total_participants": {"$sum": {"$toDouble": {"$ifNull": ["$field_values.participants", "$field_values.attendees", 0]}}}
+                "total_hours": {"$sum": {"$toDouble": {"$ifNull": ["$field_values.training_hours", 0]}}},
+                "total_participants": {"$sum": {"$toDouble": {"$ifNull": ["$field_values.attendees_number", 0]}}}
             }}
         ]
         
-        result = await self.db.environment_records.aggregate(pipeline).to_list(1)
+        result = await self.db.social_records.aggregate(pipeline).to_list(1)
         print("result", print)
         
         if result:
@@ -56,20 +55,24 @@ class TrainingMetricsService:
     
     def _build_date_filter(self, start_date: str, end_date: str) -> List[Dict]:
         """Build date filter conditions for reporting_period"""
-        filters = []
         try:
-            from datetime import datetime
-            start_dt = datetime.strptime(start_date, "%Y-%m")
-            end_dt = datetime.strptime(end_date, "%Y-%m")
+            start_year, start_month = int(start_date[:4]), int(start_date[5:7])
+            end_year, end_month = int(end_date[:4]), int(end_date[5:7])
             
-            current = start_dt
-            while current <= end_dt:
-                month_str = current.strftime("%Y-%m")
-                filters.append({"reporting_period": {"$regex": f"^{month_str}", "$options": "i"}})
-                if current.month == 12:
-                    current = current.replace(year=current.year + 1, month=1)
-                else:
-                    current = current.replace(month=current.month + 1)
-        except Exception:
-            pass
-        return filters
+            months = ["January", "February", "March", "April", "May", "June",
+                      "July", "August", "September", "October", "November", "December"]
+            
+            conditions = []
+            for year in range(start_year, end_year + 1):
+                for month_idx in range(1, 13):
+                    if year == start_year and month_idx < start_month:
+                        continue
+                    if year == end_year and month_idx > end_month:
+                        continue
+                    conditions.append({
+                        "reporting_period.year": year,
+                        "reporting_period.month": months[month_idx - 1]
+                    })
+            return conditions
+        except:
+            return []
