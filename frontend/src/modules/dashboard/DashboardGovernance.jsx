@@ -104,8 +104,7 @@ export default function DashboardGovernance({ data }) {
   const govData = esgMetrics?.governance || {};
   const prevGovData = prevYearMetrics?.governance || {};
   const incidentAnalytics = govData.incident_analytics || {};
-  console.log("esgMetrics", esgMetrics)
-  console.log("govData", govData)
+  const breachAnalytics = govData.breach_analytics || {};
 
   // KPI values
   const safetyIncidents = govData.safety_incidents || 0;
@@ -250,6 +249,29 @@ export default function DashboardGovernance({ data }) {
           <div className="bg-white rounded-xl p-5 border border-stone-200">
             <h4 className="font-semibold text-stone-800 mb-4">Rehabilitation & Corrective Actions</h4>
             <RehabilitationStatus rehabilitation={incidentAnalytics.rehabilitation || {}} />
+          </div>
+        </div>
+      </SectionCard>
+
+      {/* ROW 2: Data Breach Analytics */}
+      <SectionCard title="Data Breach Analytics" subtitle="Breach types, risk assessment, and resolution tracking">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-4">
+          {/* LEFT: Data Breach Types - Treemap */}
+          <div className="bg-white rounded-xl p-5 border border-stone-200">
+            <h4 className="font-semibold text-stone-800 mb-4">Data Breach Types</h4>
+            <BreachTypesTreemap byType={breachAnalytics.by_type || {}} />
+          </div>
+
+          {/* CENTER: Risk Assessment */}
+          <div className="bg-white rounded-xl p-5 border border-stone-200">
+            <h4 className="font-semibold text-stone-800 mb-4">Risk Assessment</h4>
+            <RiskAssessmentCards risk={breachAnalytics.risk || {}} total={breachAnalytics.total || 0} />
+          </div>
+
+          {/* RIGHT: Resolution Monitoring */}
+          <div className="bg-white rounded-xl p-5 border border-stone-200">
+            <h4 className="font-semibold text-stone-800 mb-4">Resolution Monitoring</h4>
+            <ResolutionMonitoring resolution={breachAnalytics.resolution || {}} />
           </div>
         </div>
       </SectionCard>
@@ -459,6 +481,124 @@ function RehabilitationStatus({ rehabilitation }) {
       <div className="bg-stone-50 rounded-lg p-3 text-center">
         <span className="text-xs text-stone-500">Total Incidents</span>
         <p className="text-lg font-bold text-stone-700">{total}</p>
+      </div>
+    </div>
+  );
+}
+
+// Data Breach Types Treemap
+function BreachTypesTreemap({ byType }) {
+  const BREACH_COLORS = {
+    'Ransomware attack': 'bg-red-600',
+    'Malware infection': 'bg-rose-500',
+    'Spyware attack': 'bg-orange-500',
+    'Trojan attack': 'bg-amber-500',
+    'Virus outbreak': 'bg-purple-500',
+    'Cryptojacking': 'bg-indigo-500',
+  };
+
+  const types = Object.entries(byType).map(([type, count]) => ({
+    type,
+    count,
+    color: BREACH_COLORS[type] || 'bg-stone-400'
+  })).sort((a, b) => b.count - a.count);
+
+  const total = types.reduce((sum, t) => sum + t.count, 0);
+
+  if (total === 0) {
+    return (
+      <div className="text-center py-8 text-stone-400">
+        <Database className="w-8 h-8 mx-auto mb-2 opacity-50" />
+        <p className="text-sm">No breach data</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-2 gap-2 h-[180px]">
+      {types.slice(0, 6).map((item) => {
+        const pct = (item.count / total) * 100;
+        const sizeClass = pct > 40 ? 'col-span-2' : '';
+        return (
+          <div
+            key={item.type}
+            className={`${item.color} ${sizeClass} rounded-lg p-3 flex flex-col justify-between transition-transform hover:scale-105`}
+            title={`${item.type}: ${item.count}`}
+          >
+            <span className="text-[10px] text-white/90 font-medium truncate">{item.type}</span>
+            <span className="text-xl font-bold text-white">{item.count}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Risk Assessment Cards
+function RiskAssessmentCards({ risk, total }) {
+  const { personal_affected = 0, sensitive_affected = 0 } = risk;
+
+  const cards = [
+    { label: 'Personal Data Affected', value: personal_affected, icon: '👤', color: 'rose' },
+    { label: 'Sensitive Data Affected', value: sensitive_affected, icon: '🔐', color: 'red' },
+    { label: 'Total Breaches', value: total, icon: '⚠️', color: 'amber' },
+  ];
+
+  return (
+    <div className="space-y-3">
+      {cards.map((card) => (
+        <div key={card.label} className={`bg-${card.color}-50 rounded-lg p-3 border border-${card.color}-100 flex items-center justify-between`}>
+          <div className="flex items-center gap-2">
+            <span className="text-lg">{card.icon}</span>
+            <span className="text-xs text-stone-600">{card.label}</span>
+          </div>
+          <span className={`text-xl font-bold text-${card.color}-600`}>{card.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Resolution Monitoring
+function ResolutionMonitoring({ resolution }) {
+  const { open = 0, closed = 0, escalated = 0, regulatory_reported = 0 } = resolution;
+  const total = open + closed;
+  const closedPct = total > 0 ? ((closed / total) * 100).toFixed(0) : 0;
+
+  return (
+    <div className="space-y-4">
+      {/* Resolution Progress */}
+      <div>
+        <div className="flex justify-between items-center mb-2">
+          <span className="text-xs text-stone-600">Resolution Rate</span>
+          <span className="text-sm font-bold text-emerald-600">{closedPct}%</span>
+        </div>
+        <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
+          <div 
+            className="h-full bg-emerald-500 rounded-full transition-all"
+            style={{ width: `${closedPct}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Status Grid */}
+      <div className="grid grid-cols-2 gap-2">
+        <div className="bg-amber-50 rounded-lg p-2 border border-amber-100 text-center">
+          <span className="text-[10px] text-stone-500">Open</span>
+          <p className="text-lg font-bold text-amber-600">{open}</p>
+        </div>
+        <div className="bg-emerald-50 rounded-lg p-2 border border-emerald-100 text-center">
+          <span className="text-[10px] text-stone-500">Closed</span>
+          <p className="text-lg font-bold text-emerald-600">{closed}</p>
+        </div>
+        <div className="bg-rose-50 rounded-lg p-2 border border-rose-100 text-center">
+          <span className="text-[10px] text-stone-500">Escalated</span>
+          <p className="text-lg font-bold text-rose-600">{escalated}</p>
+        </div>
+        <div className="bg-blue-50 rounded-lg p-2 border border-blue-100 text-center">
+          <span className="text-[10px] text-stone-500">Reported</span>
+          <p className="text-lg font-bold text-blue-600">{regulatory_reported}</p>
+        </div>
       </div>
     </div>
   );

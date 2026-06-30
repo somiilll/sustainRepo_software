@@ -46,7 +46,73 @@ class GovernanceMetricsService:
             "data_breaches": data_breaches,
             "fatalities": fatalities,
             "regulatory_escalations": regulatory,
-            "incident_analytics": await self._get_incident_analytics(org_id, facility_ids, start_date, end_date)
+            "incident_analytics": await self._get_incident_analytics(org_id, facility_ids, start_date, end_date),
+            "breach_analytics": await self._get_breach_analytics(org_id, facility_ids, start_date, end_date)
+        }
+    
+    async def _get_breach_analytics(
+        self,
+        org_id: str,
+        facility_ids: Optional[List[str]],
+        start_date: Optional[str],
+        end_date: Optional[str]
+    ) -> Dict[str, Any]:
+        """Get data breach analytics"""
+        query = {
+            "org_id": org_id,
+            "subcategory": {"$regex": "malware|cyber|breach|attack", "$options": "i"}
+        }
+        if facility_ids:
+            query["facility_id"] = {"$in": facility_ids}
+        
+        if start_date and end_date:
+            date_filter = self._build_date_filter(start_date, end_date)
+            if date_filter:
+                query = {"$and": [query, {"$or": date_filter}]}
+        
+        # Breach type distribution
+        type_pipeline = [
+            {"$match": query},
+            {"$group": {"_id": "$field_values.type", "count": {"$sum": 1}}}
+        ]
+        type_results = await self.db.governance_records.aggregate(type_pipeline).to_list(100)
+        by_type = {r["_id"]: r["count"] for r in type_results if r["_id"]}
+        
+        # Risk metrics
+        total_breaches = await self.db.governance_records.count_documents(query)
+        
+        personal_query = {**query, "field_values.personal_data_of_costumers_involved": {"$in": ["yes", "Yes", "YES", True]}}
+        personal_affected = await self.db.governance_records.count_documents(personal_query)
+        
+        sensitive_query = {**query, "field_values.sensitive_data_involved": {"$in": ["yes", "Yes", "YES", True]}}
+        sensitive_affected = await self.db.governance_records.count_documents(sensitive_query)
+        
+        # Resolution metrics
+        open_query = {**query, "field_values.resolution_status": {"$in": ["Pending", "pending", "Open", "open"]}}
+        closed_query = {**query, "field_values.resolution_status": {"$in": ["Done", "done", "Resolved", "resolved", "Closed"]}}
+        open_breaches = await self.db.governance_records.count_documents(open_query)
+        closed_breaches = await self.db.governance_records.count_documents(closed_query)
+        
+        escalated_query = {**query, "field_values.escalated": {"$in": ["yes", "Yes", "YES", True]}}
+        escalated = await self.db.governance_records.count_documents(escalated_query)
+        
+        regulatory_query = {**query, "field_values.regulatory_reporting_done": {"$in": ["yes", "Yes", "YES", True]}}
+        regulatory_reported = await self.db.governance_records.count_documents(regulatory_query)
+        
+        return {
+            "by_type": by_type,
+            "total": total_breaches,
+            "risk": {
+                "personal_affected": personal_affected,
+                "sensitive_affected": sensitive_affected,
+                "records_impacted": 0  # Would need specific field
+            },
+            "resolution": {
+                "open": open_breaches,
+                "closed": closed_breaches,
+                "escalated": escalated,
+                "regulatory_reported": regulatory_reported
+            }
         }
     
     async def _get_incident_analytics(
