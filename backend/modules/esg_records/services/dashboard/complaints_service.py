@@ -122,11 +122,11 @@ class ComplaintsMetricsService:
             posh_query["facility_id"] = {"$in": facility_ids}
         posh_cases = await self.db.social_records.count_documents(posh_query)
         
-        # Open vs Closed (check for status field)
-        open_query = {**query, "field_values.status": {"$in": ["Open", "open", "Pending", "pending", "In Progress"]}}
-        closed_query = {**query, "field_values.status": {"$in": ["Closed", "closed", "Resolved", "resolved"]}}
-        open_count = await self.db.social_records.count_documents(open_query)
+        # Open vs Closed (check for resolution_status field: Done/Pending)
+        closed_query = {**query, "field_values.resolution_status": {"$in": ["Done", "done", "DONE", "Resolved", "resolved"]}}
+        open_query = {**query, "field_values.resolution_status": {"$in": ["Pending", "pending", "PENDING", "Open", "open", "In Progress"]}}
         closed_count = await self.db.social_records.count_documents(closed_query)
+        open_count = await self.db.social_records.count_documents(open_query)
         
         # Total complaints for calculating untracked
         total = await self.db.social_records.count_documents(query)
@@ -187,6 +187,11 @@ class ComplaintsMetricsService:
         
         return await self.db.social_records.count_documents(query)
     
+    
+
+
+    
+
     def _build_date_filter(self, start_date: str, end_date: str) -> List[Dict]:
         """Build date filter conditions for reporting_period"""
         try:
