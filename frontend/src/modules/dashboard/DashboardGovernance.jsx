@@ -14,6 +14,7 @@ import { useAuth } from '../../contexts/AuthContext';
 
 // Layout & Shared Components
 import SectionCard from './components/layout/SectionCard';
+import StickyFilterBar from './components/filters/StickyFilterBar';
 
 // BRSR Components
 import PremiumKpiCard from './components/kpi/PremiumKpiCard';
@@ -30,8 +31,17 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 export default function DashboardGovernance({ data }) {
   const { getAuthHeader } = useAuth();
   const {
+    organization,
+    facilities,
     dateRange,
+    setDateRange,
     selectedFacilities,
+    setSelectedFacilities,
+    showFilters,
+    setShowFilters,
+    showFacilityDropdown,
+    setShowFacilityDropdown,
+    facilityDropdownRef,
     isLive,
   } = data;
 
@@ -129,8 +139,37 @@ export default function DashboardGovernance({ data }) {
     </span>
   ) : null;
 
+  // Filter props
+  const filterProps = {
+    facilities,
+    selectedFacilities,
+    setSelectedFacilities,
+    dateRange,
+    setDateRange,
+    showFacilityDropdown,
+    setShowFacilityDropdown,
+    facilityDropdownRef,
+  };
+
   return (
     <div className="space-y-6">
+      {/* Sticky Filter Bar */}
+      <StickyFilterBar
+        title={organization?.name ? `${organization.name} · Executive Dashboard` : 'Executive Dashboard'}
+        subtitle={`Reporting window: ${dateRangeLabel}`}
+        liveBadge={liveBadge}
+        showFilters={showFilters}
+        setShowFilters={setShowFilters}
+        filterProps={filterProps}
+        onExport={() => console.log('Export triggered')}
+        showExport={true}
+        dashboardType={data.dashboardType}
+        setDashboardType={data.setDashboardType}
+        esgSection={data.esgSection}
+        setEsgSection={data.setEsgSection}
+        showDashboardToggle={data.showDashboardToggle}
+      />
+
       {/* KPI Cards Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Safety Incidents */}
