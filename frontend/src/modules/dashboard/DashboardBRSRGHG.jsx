@@ -357,10 +357,6 @@ export default function DashboardBRSRGHG({ data }) {
     </div>
   ) : null;
 
-  console.log("data.trendDeltas?.totalDelta", data.trendDeltas?.totalDelta)
-  console.log("data", data)
-
-
   return (
     <div className="space-y-6" data-testid="dashboard-brsr-ghg">
       <StickyFilterBar

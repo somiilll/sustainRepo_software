@@ -54,27 +54,80 @@ export default function DashboardEnvironment({ data }) {
 
   const [intensityMode, setIntensityMode] = useState('revenue');
   const [esgMetrics, setEsgMetrics] = useState(null);
+  const [prevYearMetrics, setPrevYearMetrics] = useState(null);
+  const [prevYearIntensity, setPrevYearIntensity] = useState({ turnover: null, productionQty: null });
   const [esgLoading, setEsgLoading] = useState(true);
 
   // Fetch intensity data
   const { 
-    turnover, productionQty, productionUnit, hasIntensityData, hasTurnover, hasProduction, isOrgLevel 
+    turnover, productionQty, productionUnit, hasIntensityData, hasTurnover, hasProduction, isOrgLevel, fyYear 
   } = useIntensityData(dateRange, selectedFacilities);
 
-  // Fetch ESG metrics
+  // Calculate previous year date range
+  const prevYearDateRange = useMemo(() => {
+    if (!dateRange.from || !dateRange.to) return { from: null, to: null };
+    const prevFrom = new Date(dateRange.from);
+    const prevTo = new Date(dateRange.to);
+    prevFrom.setFullYear(prevFrom.getFullYear() - 1);
+    prevTo.setFullYear(prevTo.getFullYear() - 1);
+    return { from: prevFrom, to: prevTo };
+  }, [dateRange]);
+
+  // Calculate previous FY year for intensity data fetch
+  const prevFyYear = useMemo(() => {
+    if (!fyYear) return null;
+    const [startYear] = fyYear.split('-').map(Number);
+    const prevStartYear = startYear - 1;
+    return `${prevStartYear}-${String(prevStartYear + 1).slice(-2)}`;
+  }, [fyYear]);
+
+  // Fetch ESG metrics (current + previous year) AND previous year intensity data
   useEffect(() => {
     const fetchMetrics = async () => {
       setEsgLoading(true);
       try {
-        const res = await axios.get(`${API}/esg-records/dashboard-metrics`, {
-          headers: getAuthHeader(),
-          params: {
-            start_date: dateRange.from ? format(dateRange.from, 'yyyy-MM') : undefined,
-            end_date: dateRange.to ? format(dateRange.to, 'yyyy-MM') : undefined,
-            facility_ids: selectedFacilities.length > 0 ? selectedFacilities.join(',') : undefined,
-          }
-        });
-        setEsgMetrics(res.data);
+        const requests = [
+          axios.get(`${API}/esg-records/dashboard-metrics`, {
+            headers: getAuthHeader(),
+            params: {
+              start_date: dateRange.from ? format(dateRange.from, 'yyyy-MM') : undefined,
+              end_date: dateRange.to ? format(dateRange.to, 'yyyy-MM') : undefined,
+              facility_ids: selectedFacilities.length > 0 ? selectedFacilities.join(',') : undefined,
+            }
+          }).catch(() => ({ data: null })),
+          axios.get(`${API}/esg-records/dashboard-metrics`, {
+            headers: getAuthHeader(),
+            params: {
+              start_date: prevYearDateRange.from ? format(prevYearDateRange.from, 'yyyy-MM') : undefined,
+              end_date: prevYearDateRange.to ? format(prevYearDateRange.to, 'yyyy-MM') : undefined,
+              facility_ids: selectedFacilities.length > 0 ? selectedFacilities.join(',') : undefined,
+            }
+          }).catch(() => ({ data: null })),
+        ];
+
+        if (prevFyYear && isOrgLevel) {
+          requests.push(
+            axios.get(`${API}/organization/yearly-data/${prevFyYear}`, { headers: getAuthHeader() })
+              .catch(() => ({ data: null }))
+          );
+        }
+
+        const responses = await Promise.all(requests);
+        const [metricsRes, prevMetricsRes, prevIntensityRes] = responses;
+        
+        setEsgMetrics(metricsRes.data);
+        setPrevYearMetrics(prevMetricsRes.data);
+        
+        if (prevIntensityRes?.data) {
+          const prevTurnover = prevIntensityRes.data.turnover ? parseFloat(prevIntensityRes.data.turnover) : null;
+          const prevProdQty = prevIntensityRes.data.production_quantity ? parseFloat(prevIntensityRes.data.production_quantity) : null;
+          setPrevYearIntensity({
+            turnover: prevTurnover && !isNaN(prevTurnover) ? prevTurnover : null,
+            productionQty: prevProdQty && !isNaN(prevProdQty) ? prevProdQty : null,
+          });
+        } else {
+          setPrevYearIntensity({ turnover: null, productionQty: null });
+        }
       } catch (error) {
         console.error('Metrics fetch error:', error);
       } finally {
@@ -85,7 +138,7 @@ export default function DashboardEnvironment({ data }) {
     if (dateRange.from && dateRange.to) {
       fetchMetrics();
     }
-  }, [dateRange, selectedFacilities, getAuthHeader]);
+  }, [dateRange, prevYearDateRange, prevFyYear, selectedFacilities, isOrgLevel, getAuthHeader]);
 
   // Extract metrics
   const emissionsData = esgMetrics?.emissions || {};
@@ -95,15 +148,57 @@ export default function DashboardEnvironment({ data }) {
   const airEmissions = emissionsData?.air_emissions || {};
 
   const netEmissions = emissionsData?.ghg_emissions?.total || 0;
+  const netEnergy = energyData?.total || 0;
   const renewableEnergyPct = energyData?.renewable_pct || 0;
   const waterRecyclingPct = waterData?.recycling_pct || 0;
   const wasteRecoveryPct = wasteData?.recovery_pct || 0;
   const totalAirEmissions = airEmissions?.total || 0;
 
+  // Calculate YoY trend deltas (same logic as DashboardBRSRGHG)
+  const trendDeltas = useMemo(() => {
+    const computePct = (current = 0, previous = 0) => {
+      if (!previous || previous === 0) return null;
+      return ((current - previous) / previous) * 100;
+    };
+
+    const currEmissions = esgMetrics?.emissions?.ghg_emissions?.total || 0;
+    const currEnergy = esgMetrics?.energy?.total || 0;
+    const prevEmissions = prevYearMetrics?.emissions?.ghg_emissions?.total || 0;
+    const prevEnergy = prevYearMetrics?.energy?.total || 0;
+
+    const hasPrevTurnover = prevYearIntensity.turnover !== null && prevYearIntensity.turnover > 0;
+    const hasPrevProduction = prevYearIntensity.productionQty !== null && prevYearIntensity.productionQty > 0;
+
+    let emissionsIntensityDeltaRevenue = null;
+    let energyIntensityDeltaRevenue = null;
+    if (turnover && hasPrevTurnover) {
+      emissionsIntensityDeltaRevenue = computePct(currEmissions / turnover, prevEmissions / prevYearIntensity.turnover);
+      energyIntensityDeltaRevenue = computePct(currEnergy / turnover, prevEnergy / prevYearIntensity.turnover);
+    }
+
+    let emissionsIntensityDeltaProduction = null;
+    let energyIntensityDeltaProduction = null;
+    if (productionQty && hasPrevProduction) {
+      emissionsIntensityDeltaProduction = computePct(currEmissions / productionQty, prevEmissions / prevYearIntensity.productionQty);
+      energyIntensityDeltaProduction = computePct(currEnergy / productionQty, prevEnergy / prevYearIntensity.productionQty);
+    }
+
+    const effectiveMode = !isOrgLevel ? 'production' : intensityMode;
+    return {
+      netEmissionsDelta: computePct(currEmissions, prevEmissions),
+      netEnergyDelta: computePct(currEnergy, prevEnergy),
+      emissionsIntensityDelta: effectiveMode === 'revenue' ? emissionsIntensityDeltaRevenue : emissionsIntensityDeltaProduction,
+      energyIntensityDelta: effectiveMode === 'revenue' ? energyIntensityDeltaRevenue : energyIntensityDeltaProduction,
+      waterDelta: computePct(esgMetrics?.water?.discharge || 0, prevYearMetrics?.water?.discharge || 0),
+      wasteDelta: computePct(esgMetrics?.waste?.generated || 0, prevYearMetrics?.waste?.generated || 0),
+      airEmissionsDelta: computePct(esgMetrics?.emissions?.air_emissions?.total || 0, prevYearMetrics?.emissions?.air_emissions?.total || 0),
+    };
+  }, [esgMetrics, prevYearMetrics, prevYearIntensity, turnover, productionQty, intensityMode, isOrgLevel]);
+
   // Intensity calculations
   const intensityCalcs = useIntensityCalculations({
     netEmissions,
-    netEnergy: energyData?.total || 0,
+    netEnergy,
     turnover,
     productionQty,
     productionUnit,
@@ -111,21 +206,29 @@ export default function DashboardEnvironment({ data }) {
     isOrgLevel,
   });
 
+  console.log("intensityCalcs", intensityCalcs)
+
   // Sparkline data for emissions
   const emissionsSparkData = useMemo(() => {
     const trend = filteredData?.trend || [];
     return trend.slice(-12).map(t => t.total || 0);
   }, [filteredData]);
 
-  // Build donut data for emissions by scope
+  // Calculate totals from nested emissions structure
+  const totals = filteredData?.totals || {};
+
   const donutData = useMemo(() => {
-    const ghg = emissionsData?.ghg_emissions || {};
+    const t = totals;
+    const total = t.total || 0;
+    if (!total) return [];
     return [
-      { name: 'Scope 1', value: ghg.total_scope1 || 0, color: '#10B981' },
-      { name: 'Scope 2', value: ghg.total_scope2 || 0, color: '#3B82F6' },
-      { name: 'Scope 3', value: ghg.total_scope3 || 0, color: '#8B5CF6' },
+      { id: 'scope1', name: 'Scope 1', value: t.scope1 || 0, pct: total ? ((t.scope1 || 0) / total) * 100 : 0 },
+      { id: 'scope2', name: 'Scope 2', value: t.scope2 || 0, pct: total ? ((t.scope2 || 0) / total) * 100 : 0 },
+      { id: 'scope3', name: 'Scope 3', value: t.scope3 || 0, pct: total ? ((t.scope3 || 0) / total) * 100 : 0 },
+      { id: 'biogenic', name: 'Biogenic', value: t.biogenic || 0, pct: total ? ((t.biogenic || 0) / total) * 100 : 0 },
     ].filter(d => d.value > 0);
-  }, [emissionsData]);
+  }, [totals]);
+  console.log("donutData", donutData)
 
   // Filter props
   const filterProps = {
@@ -353,13 +456,22 @@ export default function DashboardEnvironment({ data }) {
           <ScopeTrendChart data={filteredData?.trend || []} hasScope3={true} />
         </SectionCard>
 
-        <SectionCard
+        {/* <SectionCard
           title="Emissions by Scope"
           subtitle="Distribution breakdown"
           accent="#3B82F6"
           testId="section-scope-donut"
         >
           <EmissionsByScopeDonut data={donutData} />
+        </SectionCard> */}
+
+        <SectionCard
+          title="Emissions Split"
+          subtitle="By scope category"
+          accent="#3B82F6"
+          testId="emissions-split-section"
+        >
+          <EmissionsByScopeDonut data={donutData} height={220} />
         </SectionCard>
       </div>
 
