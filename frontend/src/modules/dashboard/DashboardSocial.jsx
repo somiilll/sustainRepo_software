@@ -111,6 +111,7 @@ export default function DashboardSocial({ data }) {
   const complaintsTotal = complaintsData.total || 0;
   const poshCases = complaintsData.posh || 0;
   const consumerComplaints = complaintsData.consumer || 0;
+  const generalComplaints = complaintsData.general || 0;
 
   // Calculate YoY trend deltas
   const trendDeltas = useMemo(() => {
@@ -320,7 +321,7 @@ export default function DashboardSocial({ data }) {
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-stone-600">General Complaints</span>
-                <span className="font-semibold text-stone-900">{complaintsTotal}</span>
+                <span className="font-semibold text-stone-900">{generalComplaints}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-stone-600">POSH Cases</span>
@@ -388,25 +389,36 @@ function TrainingByTypeChart({ byType }) {
     );
   }
 
+
   return (
-    <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
-      {displayTypes.map((type) => {
-        const value = byType[type] || 0;
-        const pct = (value / maxValue) * 100;
-        return (
-          <div key={type} className="flex items-center gap-3">
-            <span className="text-xs text-stone-600 w-32 truncate" title={type}>{type}</span>
-            <div className="flex-1 bg-stone-100 rounded-full h-5 overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-500"
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-            <span className="text-xs font-semibold text-stone-700 w-8 text-right">{value}</span>
+    <div className="space-y-5 max-h-[300px] overflow-y-auto pr-2">
+    {displayTypes.map((type) => {
+      const value = byType[type] || 0;
+      const pct = (value / maxValue) * 100;
+
+      return (
+        <div key={type} className="flex items-center gap-3 mb-5">
+          <span
+            className="text-xs text-stone-600 w-32 truncate"
+            title={type}
+          >
+            {type}
+          </span>
+
+          <div className="flex-1 bg-stone-100 rounded-full h-3 overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-500"
+              style={{ width: `${pct}%` }}
+            />
           </div>
-        );
-      })}
-    </div>
+
+          <span className="text-xs font-semibold text-stone-700 w-8 text-right">
+            {value}
+          </span>
+        </div>
+      );
+    })}
+  </div>
   );
 }
 

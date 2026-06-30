@@ -17,6 +17,7 @@ import DashboardScope123 from '../modules/dashboard/DashboardScope123';
 import DashboardBRSRGHG from '../modules/dashboard/DashboardBRSRGHG';
 import DashboardEnvironment from '../modules/dashboard/DashboardEnvironment';
 import DashboardSocial from '../modules/dashboard/DashboardSocial';
+import DashboardGovernance from '../modules/dashboard/DashboardGovernance';
 
 export default function Dashboard() {
   const data = useDashboardData();
@@ -63,6 +64,10 @@ export default function Dashboard() {
     return <DashboardSocial data={enhancedData} />;
   }
   
-  // Governance dashboard (placeholder - shows BRSR for now)
+  if (esgSection === 'governance') {
+    return <DashboardGovernance data={enhancedData} />;
+  }
+  
+  // Default: DashboardBRSRGHG (All ESG)
   return <DashboardBRSRGHG data={enhancedData} />;
 }

@@ -8,6 +8,7 @@ from .energy_service import EnergyMetricsService
 from .emissions_service import EmissionsMetricsService
 from .training_service import TrainingMetricsService
 from .complaints_service import ComplaintsMetricsService
+from .governance_service import GovernanceMetricsService
 
 
 class DashboardMetricsService:
@@ -21,6 +22,7 @@ class DashboardMetricsService:
         self.emissions_service = EmissionsMetricsService(db)
         self.training_service = TrainingMetricsService(db)
         self.complaints_service = ComplaintsMetricsService(db)
+        self.governance_service = GovernanceMetricsService(db)
     
     async def get_dashboard_metrics(
         self,
@@ -61,7 +63,10 @@ class DashboardMetricsService:
             "training": training,
             "complaints": complaints,
             
-            # Safety incidents from governance_records
+            # Governance metrics
+            "governance": await self.governance_service.get_metrics(org_id, facility_ids, start_date, end_date),
+            
+            # Legacy fields (kept for backward compatibility)
             "safety_incidents": await self._get_safety_incidents(org_id, facility_ids, start_date, end_date),
             "training_hours": training.get("hours", 0),
             "data_breaches": 0,
