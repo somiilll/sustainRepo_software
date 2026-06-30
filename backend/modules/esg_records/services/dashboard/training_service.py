@@ -43,6 +43,7 @@ class TrainingMetricsService:
         ]
         
         result = await self.db.environment_records.aggregate(pipeline).to_list(1)
+        print("result", print)
         
         if result:
             return {

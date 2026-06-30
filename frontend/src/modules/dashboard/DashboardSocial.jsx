@@ -98,6 +98,7 @@ export default function DashboardSocial({ data }) {
     }
   }, [dateRange, prevYearDateRange, selectedFacilities, getAuthHeader]);
 
+  console.log("esgMetrics in social", esgMetrics)
   // Extract social metrics
   const trainingData = esgMetrics?.training || {};
   const complaintsData = esgMetrics?.complaints || {};
@@ -148,6 +149,25 @@ export default function DashboardSocial({ data }) {
   ) : null;
 
   return (
+
+   <div className="space-y-6" data-testid="dashboard-brsr-ghg">
+      <StickyFilterBar
+        title={organization?.name ? `${organization.name} · Executive Dashboard` : 'Executive Dashboard'}
+        subtitle={`Reporting window: ${dateRangeLabel}`}
+        liveBadge={liveBadge}
+        showFilters={showFilters}
+        setShowFilters={setShowFilters}
+        filterProps={filterProps}
+        onExport={() => console.log('Export triggered')}
+        showExport={true}
+        dashboardType={data.dashboardType}
+        setDashboardType={data.setDashboardType}
+        esgSection={data.esgSection}
+        setEsgSection={data.setEsgSection}
+        showDashboardToggle={data.showDashboardToggle}
+      />
+
+
     <div className="space-y-6">
       {/* KPI Cards Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
@@ -299,5 +319,6 @@ export default function DashboardSocial({ data }) {
         </div>
       </SectionCard>
     </div>
+  </div>
   );
 }
