@@ -17,29 +17,21 @@ class GovernanceMetricsService:
     ) -> Dict[str, Any]:
         """Get aggregated governance metrics"""
         
-        # Safety Incidents (from governance_records where type includes safety-related)
-        safety_incidents = await self._count_by_type(
-            org_id, facility_ids, start_date, end_date,
-            type_pattern="injury|safety|accident"
-        )
+        # Safety Incidents (category = "Safety Incidents")
+        safety_query = await self._build_category_query(org_id, facility_ids, start_date, end_date, "Safety Incidents")
+        safety_incidents = await self.db.governance_records.count_documents(safety_query)
         
-        # Data Breaches (Malware & Cyber Attacks or data breach type)
-        data_breaches = await self._count_by_subcategory(
-            org_id, facility_ids, start_date, end_date,
-            subcategory_pattern="malware|cyber|data breach|security"
-        )
+        # Data Breaches (category = "Data Breach")
+        breach_query = await self._build_category_query(org_id, facility_ids, start_date, end_date, "Data Breach")
+        data_breaches = await self.db.governance_records.count_documents(breach_query)
         
-        # Fatalities
-        fatalities = await self._count_by_type(
-            org_id, facility_ids, start_date, end_date,
-            type_pattern="fatality|death|fatal"
-        )
+        # Fatalities (derived from Safety Incidents where type matches fatality/fatal/death)
+        fatality_query = {**safety_query, "field_values.type": {"$regex": "fatality|fatal|death", "$options": "i"}}
+        fatalities = await self.db.governance_records.count_documents(fatality_query)
         
-        # Regulatory Escalations
-        regulatory = await self._count_by_type(
-            org_id, facility_ids, start_date, end_date,
-            type_pattern="regulatory|compliance|legal|violation"
-        )
+        # Regulatory Escalations (derived from Safety Incidents where type matches regulatory/compliance/legal/violation)
+        regulatory_query = {**safety_query, "field_values.type": {"$regex": "regulatory|compliance|legal|violation", "$options": "i"}}
+        regulatory = await self.db.governance_records.count_documents(regulatory_query)
         
         return {
             "safety_incidents": safety_incidents,
@@ -50,17 +42,18 @@ class GovernanceMetricsService:
             "breach_analytics": await self._get_breach_analytics(org_id, facility_ids, start_date, end_date)
         }
     
-    async def _get_breach_analytics(
+    async def _build_category_query(
         self,
         org_id: str,
         facility_ids: Optional[List[str]],
         start_date: Optional[str],
-        end_date: Optional[str]
-    ) -> Dict[str, Any]:
-        """Get data breach analytics"""
+        end_date: Optional[str],
+        category: str
+    ) -> Dict:
+        """Build query for a specific category with date filter"""
         query = {
             "org_id": org_id,
-            "subcategory": {"$regex": "malware|cyber|breach|attack", "$options": "i"}
+            "category": category
         }
         if facility_ids:
             query["facility_id"] = {"$in": facility_ids}
@@ -69,6 +62,19 @@ class GovernanceMetricsService:
             date_filter = self._build_date_filter(start_date, end_date)
             if date_filter:
                 query = {"$and": [query, {"$or": date_filter}]}
+        
+        return query
+    
+    async def _get_breach_analytics(
+        self,
+        org_id: str,
+        facility_ids: Optional[List[str]],
+        start_date: Optional[str],
+        end_date: Optional[str]
+    ) -> Dict[str, Any]:
+        """Get data breach analytics"""
+        # Query by category = "Data Breach"
+        query = await self._build_category_query(org_id, facility_ids, start_date, end_date, "Data Breach")
         
         # Breach type distribution
         type_pipeline = [
@@ -123,34 +129,16 @@ class GovernanceMetricsService:
         end_date: Optional[str]
     ) -> Dict[str, Any]:
         """Get detailed incident analytics for dashboard"""
-        query = {"org_id": org_id}
-        if facility_ids:
-            query["facility_id"] = {"$in": facility_ids}
+        # Query by category = "Safety Incidents"
+        query = await self._build_category_query(org_id, facility_ids, start_date, end_date, "Safety Incidents")
         
-        if start_date and end_date:
-            date_filter = self._build_date_filter(start_date, end_date)
-            if date_filter:
-                query = {"$and": [query, {"$or": date_filter}]}
-        
-        # Incident type distribution
+        # Incident type distribution (dynamic, no hardcoding)
         type_pipeline = [
             {"$match": query},
             {"$group": {"_id": "$field_values.type", "count": {"$sum": 1}}}
         ]
         type_results = await self.db.governance_records.aggregate(type_pipeline).to_list(100)
-        by_type = {}
-        for r in type_results:
-            t = r.get("_id") or "Others"
-            # Normalize type names
-            t_lower = t.lower()
-            if "injury" in t_lower:
-                by_type["Injury"] = by_type.get("Injury", 0) + r["count"]
-            elif "fatal" in t_lower or "death" in t_lower:
-                by_type["Fatality"] = by_type.get("Fatality", 0) + r["count"]
-            elif "ill" in t_lower or "health" in t_lower or "disease" in t_lower:
-                by_type["Ill-Health"] = by_type.get("Ill-Health", 0) + r["count"]
-            else:
-                by_type["Others"] = by_type.get("Others", 0) + r["count"]
+        by_type = {(r["_id"] or "Others"): r["count"] for r in type_results}
         
         # Who was affected distribution
         affected_pipeline = [

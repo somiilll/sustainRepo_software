@@ -345,17 +345,17 @@ export default function DashboardGovernance({ data }) {
   );
 }
 
-// Incident Type Distribution - Stacked Horizontal Bars
+// Incident Type Distribution - Stacked Horizontal Bars (Dynamic)
 function IncidentTypeChart({ byType }) {
-  const TYPES = ['Injury', 'Fatality', 'Ill-Health', 'Others'];
-  const COLORS = {
-    'Injury': 'bg-amber-500',
-    'Fatality': 'bg-red-600',
-    'Ill-Health': 'bg-orange-500',
-    'Others': 'bg-stone-400'
-  };
+  const COLORS = ['bg-amber-500', 'bg-red-600', 'bg-orange-500', 'bg-purple-500', 'bg-rose-500', 'bg-indigo-500', 'bg-teal-500', 'bg-stone-400'];
+  
+  const types = Object.entries(byType).map(([type, count], idx) => ({
+    type,
+    count,
+    color: COLORS[idx % COLORS.length]
+  })).sort((a, b) => b.count - a.count);
 
-  const total = Object.values(byType).reduce((sum, v) => sum + v, 0);
+  const total = types.reduce((sum, t) => sum + t.count, 0);
 
   if (total === 0) {
     return (
@@ -370,28 +370,27 @@ function IncidentTypeChart({ byType }) {
     <div className="space-y-4">
       {/* Stacked bar */}
       <div className="h-10 flex rounded-lg overflow-hidden bg-stone-100">
-        {TYPES.map((type) => {
-          const value = byType[type] || 0;
-          const pct = (value / total) * 100;
+        {types.map((item) => {
+          const pct = (item.count / total) * 100;
           if (pct === 0) return null;
           return (
             <div
-              key={type}
-              className={`${COLORS[type]} transition-all duration-500 flex items-center justify-center`}
+              key={item.type}
+              className={`${item.color} transition-all duration-500 flex items-center justify-center`}
               style={{ width: `${pct}%` }}
-              title={`${type}: ${value}`}
+              title={`${item.type}: ${item.count}`}
             >
-              {pct > 12 && <span className="text-xs text-white font-medium">{value}</span>}
+              {pct > 12 && <span className="text-xs text-white font-medium">{item.count}</span>}
             </div>
           );
         })}
       </div>
       {/* Legend */}
       <div className="grid grid-cols-2 gap-2">
-        {TYPES.map((type) => (
-          <div key={type} className="flex items-center gap-2">
-            <div className={`w-3 h-3 rounded ${COLORS[type]}`} />
-            <span className="text-xs text-stone-600">{type}: {byType[type] || 0}</span>
+        {types.map((item) => (
+          <div key={item.type} className="flex items-center gap-2">
+            <div className={`w-3 h-3 rounded ${item.color}`} />
+            <span className="text-xs text-stone-600 truncate" title={item.type}>{item.type}: {item.count}</span>
           </div>
         ))}
       </div>
