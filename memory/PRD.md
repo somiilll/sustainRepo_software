@@ -1287,6 +1287,20 @@ Five phases executed end-to-end with **37/37 regression tests PASS** (iteration_
 - Employees accessibility → Steps shown when "No" selected
 - Health/safety corrective actions → Text entry (not Yes/No)
 
+### ESG Questionnaire Response Mode Fix (Dec 2025)
+**Issue:** Some questionnaire questions were getting saved correctly but not showing on reload. Questions answered in both current and previous years were corrupted with `_current_fy` suffixes on atomic fields.
+
+**Root Cause:** `_merge_year_responses()` function in `esg_questionnaire/service.py` iterated all keys in nested dicts and unconditionally appended `_current_fy`/`_previous_fy` suffixes. This corrupted atomic question shapes like `{answer: 'Yes', text: 'X'}` into `{answer_current_fy: 'Yes', text_current_fy: 'X'}`. The frontend `yes_no_with_text` handler looks up bare keys `answer` and `text`, so suffixed keys wouldn't match.
+
+**Fix Applied:**
+- Added `response_mode` field to all 112 question configs in `esg_question_configs` collection
+- `response_mode: "atomic"` - 60 questions (yes_no_with_text, textarea, text, etc.) - values preserved as-is
+- `response_mode: "fy_comparison"` - 52 questions (tables, matrices) - values get FY suffixes for comparison
+- Updated `get_responses()` to fetch configs and pass response_modes to `_merge_year_responses()`
+- Updated `_merge_year_responses()` to short-circuit atomic questions and return values as-is
+
+**Verified:** Testing agent passed 5/5 backend tests + full UI round-trip (save → reload → data displays correctly)
+
 ## Future/Backlog (P2)
 - Add Monthly/Yearly frequency indicators
 - CBAM module and report template
