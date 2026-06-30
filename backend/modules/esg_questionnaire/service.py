@@ -246,8 +246,12 @@ class ESGQuestionnaireService:
                             col_val_curr = curr_row.get(col_key)
                             col_val_prev = prev_row.get(col_key)
                             
+                            # If key is exactly 'current_fy' or 'previous_fy' (field names, not suffixes), copy as-is
+                            if col_key in ('current_fy', 'previous_fy'):
+                                if col_val_curr is not None:
+                                    merged_row[col_key] = col_val_curr
                             # Check if key already has FY suffix (old format)
-                            if col_key.endswith('_current_fy'):
+                            elif col_key.endswith('_current_fy'):
                                 if col_val_curr is not None:
                                     merged_row[col_key] = col_val_curr
                             elif col_key.endswith('_previous_fy'):
