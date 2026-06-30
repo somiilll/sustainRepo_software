@@ -398,7 +398,7 @@ function IncidentTypeChart({ byType }) {
   );
 }
 
-// Who Was Affected - Donut Chart
+// Who Was Affected - Vertical Bar Chart
 function AffectedDonut({ byAffected }) {
   const CATEGORIES = [
     { key: 'Board of Directors', color: '#8B5CF6', label: 'Board' },
@@ -409,6 +409,7 @@ function AffectedDonut({ byAffected }) {
   ];
 
   const total = Object.values(byAffected).reduce((sum, v) => sum + v, 0);
+  const maxValue = Math.max(...Object.values(byAffected), 1);
 
   if (total === 0) {
     return (
@@ -419,25 +420,24 @@ function AffectedDonut({ byAffected }) {
     );
   }
 
-  // Simple segmented cards instead of donut for simplicity
   return (
-    <div className="space-y-2">
+    <div className="flex items-end justify-between gap-2 h-[180px] pt-4">
       {CATEGORIES.map((cat) => {
         const value = byAffected[cat.key] || 0;
-        const pct = total > 0 ? ((value / total) * 100).toFixed(0) : 0;
+        const heightPct = maxValue > 0 ? (value / maxValue) * 100 : 0;
         return (
-          <div key={cat.key} className="flex items-center gap-3">
-            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }} />
-            <span className="text-xs text-stone-600 flex-1">{cat.label}</span>
-            <span className="text-xs font-semibold text-stone-800">{value}</span>
-            <span className="text-xs text-stone-400 w-10 text-right">{pct}%</span>
+          <div key={cat.key} className="flex flex-col items-center flex-1">
+            <span className="text-xs font-semibold text-stone-700 mb-1">{value}</span>
+            <div className="w-full flex-1 flex items-end">
+              <div
+                className="w-full rounded-t-md transition-all duration-500"
+                style={{ backgroundColor: cat.color, height: `${Math.max(heightPct, 4)}%` }}
+              />
+            </div>
+            <span className="text-[10px] text-stone-500 mt-2 text-center">{cat.label}</span>
           </div>
         );
       })}
-      <div className="pt-2 border-t border-stone-100 flex justify-between">
-        <span className="text-xs font-medium text-stone-600">Total</span>
-        <span className="text-xs font-bold text-stone-800">{total}</span>
-      </div>
     </div>
   );
 }

@@ -171,8 +171,6 @@ export default function DashboardEnvironment({ data }) {
     };
   }, [esgMetrics, prevYearMetrics, prevYearIntensity, turnover, productionQty, intensityMode, isOrgLevel]);
 
-  console.log("prevYearIntensity", prevYearIntensity)
-
   // Intensity calculations
   const intensityCalcs = useIntensityCalculations({
     netEmissions,
@@ -204,7 +202,6 @@ export default function DashboardEnvironment({ data }) {
       { id: 'biogenic', name: 'Biogenic', value: t.biogenic || 0, pct: total ? ((t.biogenic || 0) / total) * 100 : 0 },
     ].filter(d => d.value > 0);
   }, [totals]);
-  console.log("donutData", donutData)
 
   // Filter props
   const filterProps = {
