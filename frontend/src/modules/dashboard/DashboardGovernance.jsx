@@ -100,17 +100,22 @@ export default function DashboardGovernance({ data }) {
     }
   }, [dateRange, prevYearDateRange, selectedFacilities, getAuthHeader]);
 
-  // Extract governance metrics
-  const govData = esgMetrics?.governance || {};
-  const prevGovData = prevYearMetrics?.governance || {};
-  const incidentAnalytics = govData.incident_analytics || {};
-  const breachAnalytics = govData.breach_analytics || {};
+  // Extract governance metrics (now at top level)
+  const incidentAnalytics = esgMetrics?.incident_analytics || {};
+  const breachAnalytics = esgMetrics?.breach_analytics || {};
+  const prevIncidentAnalytics = prevYearMetrics?.incident_analytics || {};
 
   // KPI values
-  const safetyIncidents = govData.safety_incidents || 0;
-  const dataBreaches = govData.data_breaches || 0;
-  const fatalities = govData.fatalities || 0;
-  const regulatoryEscalations = govData.regulatory_escalations || 0;
+  const safetyIncidents = esgMetrics?.safety_incidents || 0;
+  const dataBreaches = esgMetrics?.data_breaches || 0;
+  const fatalities = esgMetrics?.fatalities || 0;
+  const regulatoryEscalations = esgMetrics?.regulatory_escalations || 0;
+
+  // Previous year values
+  const prevSafetyIncidents = prevYearMetrics?.safety_incidents || 0;
+  const prevDataBreaches = prevYearMetrics?.data_breaches || 0;
+  const prevFatalities = prevYearMetrics?.fatalities || 0;
+  const prevRegulatoryEscalations = prevYearMetrics?.regulatory_escalations || 0;
 
   // Calculate YoY trend deltas
   const trendDeltas = useMemo(() => {
@@ -120,12 +125,12 @@ export default function DashboardGovernance({ data }) {
     };
 
     return {
-      safetyDelta: computePct(safetyIncidents, prevGovData.safety_incidents),
-      breachesDelta: computePct(dataBreaches, prevGovData.data_breaches),
-      fatalityDelta: computePct(fatalities, prevGovData.fatalities),
-      regulatoryDelta: computePct(regulatoryEscalations, prevGovData.regulatory_escalations),
+      safetyDelta: computePct(safetyIncidents, prevSafetyIncidents),
+      breachesDelta: computePct(dataBreaches, prevDataBreaches),
+      fatalityDelta: computePct(fatalities, prevFatalities),
+      regulatoryDelta: computePct(regulatoryEscalations, prevRegulatoryEscalations),
     };
-  }, [safetyIncidents, dataBreaches, fatalities, regulatoryEscalations, prevGovData]);
+  }, [safetyIncidents, dataBreaches, fatalities, regulatoryEscalations, prevSafetyIncidents, prevDataBreaches, prevFatalities, prevRegulatoryEscalations]);
 
   // Date range label
   const dateRangeLabel = dateRange.from && dateRange.to

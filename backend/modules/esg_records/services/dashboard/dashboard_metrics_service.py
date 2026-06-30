@@ -63,13 +63,11 @@ class DashboardMetricsService:
             "training": training,
             "complaints": complaints,
             
-            # Governance metrics
-            "governance": await self.governance_service.get_metrics(org_id, facility_ids, start_date, end_date),
+            # Governance metrics (flattened)
+            **await self.governance_service.get_metrics(org_id, facility_ids, start_date, end_date),
             
             # Legacy fields (kept for backward compatibility)
-            "safety_incidents": await self._get_safety_incidents(org_id, facility_ids, start_date, end_date),
             "training_hours": training.get("hours", 0),
-            "data_breaches": 0,
             "audit_readiness_score": min(100, (counts["total"] / 50) * 100),
         }
     

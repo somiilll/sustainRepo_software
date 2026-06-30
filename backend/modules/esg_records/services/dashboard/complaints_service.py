@@ -123,8 +123,8 @@ class ComplaintsMetricsService:
         posh_cases = await self.db.social_records.count_documents(posh_query)
         
         # Open vs Closed (check for resolution_status field: Done/Pending)
-        closed_query = {**query, "field_values.resolution_status": {"$in": ["Done", "done", "DONE", "Resolved", "resolved"]}}
-        open_query = {**query, "field_values.resolution_status": {"$in": ["Pending", "pending", "PENDING", "Open", "open", "In Progress"]}}
+        closed_query = {**query, "field_values.resolution_status": {"$in": ["Done", "done", "DONE"]}}
+        open_query = {**query, "field_values.resolution_status": {"$in": ["Pending", "pending", "PENDING"]}}
         closed_count = await self.db.social_records.count_documents(closed_query)
         open_count = await self.db.social_records.count_documents(open_query)
         
