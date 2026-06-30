@@ -33,7 +33,7 @@ import EnergyTreemap from './components/brsr/EnergyTreemap';
 import AirEmissionsCompareBars from './components/brsr/AirEmissionsCompareBars';
 
 // Hooks
-import { useIntensityData, useIntensityCalculations } from './hooks/useIntensityData';
+import { useIntensityData, useIntensityCalculations, usePrevYearIntensity } from './hooks/useIntensityData';
 
 // Icons
 import { Leaf, Zap, Droplets, Trash2, Wind, RefreshCw, RadioTower } from 'lucide-react';
@@ -55,13 +55,15 @@ export default function DashboardEnvironment({ data }) {
   const [intensityMode, setIntensityMode] = useState('revenue');
   const [esgMetrics, setEsgMetrics] = useState(null);
   const [prevYearMetrics, setPrevYearMetrics] = useState(null);
-  const [prevYearIntensity, setPrevYearIntensity] = useState({ turnover: null, productionQty: null });
   const [esgLoading, setEsgLoading] = useState(true);
 
   // Fetch intensity data
   const { 
     turnover, productionQty, productionUnit, hasIntensityData, hasTurnover, hasProduction, isOrgLevel, fyYear 
   } = useIntensityData(dateRange, selectedFacilities);
+
+  // Fetch previous year intensity data (reusable hook)
+  const { prevYearIntensity } = usePrevYearIntensity(fyYear, isOrgLevel);
 
   // Calculate previous year date range
   const prevYearDateRange = useMemo(() => {
@@ -73,15 +75,7 @@ export default function DashboardEnvironment({ data }) {
     return { from: prevFrom, to: prevTo };
   }, [dateRange]);
 
-  // Calculate previous FY year for intensity data fetch
-  const prevFyYear = useMemo(() => {
-    if (!fyYear) return null;
-    const [startYear] = fyYear.split('-').map(Number);
-    const prevStartYear = startYear - 1;
-    return `${prevStartYear}-${String(prevStartYear + 1).slice(-2)}`;
-  }, [fyYear]);
-
-  // Fetch ESG metrics (current + previous year) AND previous year intensity data
+  // Fetch ESG metrics (current + previous year)
   useEffect(() => {
     const fetchMetrics = async () => {
       setEsgLoading(true);
@@ -105,29 +99,11 @@ export default function DashboardEnvironment({ data }) {
           }).catch(() => ({ data: null })),
         ];
 
-        if (prevFyYear && isOrgLevel) {
-          requests.push(
-            axios.get(`${API}/organization/yearly-data/${prevFyYear}`, { headers: getAuthHeader() })
-              .catch(() => ({ data: null }))
-          );
-        }
-
         const responses = await Promise.all(requests);
-        const [metricsRes, prevMetricsRes, prevIntensityRes] = responses;
+        const [metricsRes, prevMetricsRes] = responses;
         
         setEsgMetrics(metricsRes.data);
         setPrevYearMetrics(prevMetricsRes.data);
-        
-        if (prevIntensityRes?.data) {
-          const prevTurnover = prevIntensityRes.data.turnover ? parseFloat(prevIntensityRes.data.turnover) : null;
-          const prevProdQty = prevIntensityRes.data.production_quantity ? parseFloat(prevIntensityRes.data.production_quantity) : null;
-          setPrevYearIntensity({
-            turnover: prevTurnover && !isNaN(prevTurnover) ? prevTurnover : null,
-            productionQty: prevProdQty && !isNaN(prevProdQty) ? prevProdQty : null,
-          });
-        } else {
-          setPrevYearIntensity({ turnover: null, productionQty: null });
-        }
       } catch (error) {
         console.error('Metrics fetch error:', error);
       } finally {
@@ -138,7 +114,7 @@ export default function DashboardEnvironment({ data }) {
     if (dateRange.from && dateRange.to) {
       fetchMetrics();
     }
-  }, [dateRange, prevYearDateRange, prevFyYear, selectedFacilities, isOrgLevel, getAuthHeader]);
+  }, [dateRange, prevYearDateRange, selectedFacilities, getAuthHeader]);
 
   // Extract metrics
   const emissionsData = esgMetrics?.emissions || {};
@@ -195,6 +171,8 @@ export default function DashboardEnvironment({ data }) {
     };
   }, [esgMetrics, prevYearMetrics, prevYearIntensity, turnover, productionQty, intensityMode, isOrgLevel]);
 
+  console.log("prevYearIntensity", prevYearIntensity)
+
   // Intensity calculations
   const intensityCalcs = useIntensityCalculations({
     netEmissions,
@@ -205,8 +183,6 @@ export default function DashboardEnvironment({ data }) {
     intensityMode,
     isOrgLevel,
   });
-
-  console.log("intensityCalcs", intensityCalcs)
 
   // Sparkline data for emissions
   const emissionsSparkData = useMemo(() => {

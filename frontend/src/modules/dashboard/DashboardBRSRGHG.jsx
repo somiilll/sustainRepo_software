@@ -32,7 +32,7 @@ import IncidentTrendChart from './components/brsr/IncidentTrendChart';
 import ResourceTrendChart from './components/brsr/ResourceTrendChart';
 
 // Hooks
-import { useIntensityData, useIntensityCalculations } from './hooks/useIntensityData';
+import { useIntensityData, useIntensityCalculations, usePrevYearIntensity } from './hooks/useIntensityData';
 
 // Icons
 import { Leaf, Droplets, Trash2, AlertTriangle, Zap, RefreshCw } from 'lucide-react';
@@ -66,6 +66,9 @@ export default function DashboardBRSRGHG({ data }) {
     turnover, productionQty, productionUnit, hasIntensityData, hasTurnover, hasProduction, isOrgLevel, fyYear 
   } = useIntensityData(dateRange, selectedFacilities);
 
+  // Fetch previous year intensity data (reusable hook)
+  const { prevYearIntensity } = usePrevYearIntensity(fyYear, isOrgLevel);
+
   // Calculate previous year date range
   const prevYearDateRange = useMemo(() => {
     if (!dateRange.from || !dateRange.to) return { from: null, to: null };
@@ -76,18 +79,7 @@ export default function DashboardBRSRGHG({ data }) {
     return { from: prevFrom, to: prevTo };
   }, [dateRange]);
 
-  // Calculate previous FY year for intensity data fetch
-  const prevFyYear = useMemo(() => {
-    if (!fyYear) return null;
-    const [startYear] = fyYear.split('-').map(Number);
-    const prevStartYear = startYear - 1;
-    return `${prevStartYear}-${String(prevStartYear + 1).slice(-2)}`;
-  }, [fyYear]);
-
-  // State for previous year intensity data
-  const [prevYearIntensity, setPrevYearIntensity] = useState({ turnover: null, productionQty: null });
-
-  // Fetch BRSR/ESG-specific metrics (current + previous year) AND previous year intensity data
+  // Fetch BRSR/ESG-specific metrics (current + previous year)
   useEffect(() => {
     const fetchMetrics = async () => {
       setEsgLoading(true);
@@ -115,32 +107,12 @@ export default function DashboardBRSRGHG({ data }) {
           axios.get(`${API}/targets`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
         ];
 
-        // Add previous year intensity data fetch (org-level only for now)
-        if (prevFyYear && isOrgLevel) {
-          requests.push(
-            axios.get(`${API}/organization/yearly-data/${prevFyYear}`, { headers: getAuthHeader() })
-              .catch(() => ({ data: null }))
-          );
-        }
-
         const responses = await Promise.all(requests);
-        const [metricsRes, prevMetricsRes, targetsRes, prevIntensityRes] = responses;
+        const [metricsRes, prevMetricsRes, targetsRes] = responses;
         
         setEsgMetrics(metricsRes.data);
         setPrevYearMetrics(prevMetricsRes.data);
         setTargets(targetsRes.data || []);
-        
-        // Set previous year intensity data
-        if (prevIntensityRes?.data) {
-          const prevTurnover = prevIntensityRes.data.turnover ? parseFloat(prevIntensityRes.data.turnover) : null;
-          const prevProdQty = prevIntensityRes.data.production_quantity ? parseFloat(prevIntensityRes.data.production_quantity) : null;
-          setPrevYearIntensity({
-            turnover: prevTurnover && !isNaN(prevTurnover) ? prevTurnover : null,
-            productionQty: prevProdQty && !isNaN(prevProdQty) ? prevProdQty : null,
-          });
-        } else {
-          setPrevYearIntensity({ turnover: null, productionQty: null });
-        }
       } catch (error) {
         console.error('Metrics fetch error:', error);
       } finally {
@@ -151,7 +123,7 @@ export default function DashboardBRSRGHG({ data }) {
     if (dateRange.from && dateRange.to) {
       fetchMetrics();
     }
-  }, [dateRange, prevYearDateRange, prevFyYear, selectedFacilities, isOrgLevel, getAuthHeader]);
+  }, [dateRange, prevYearDateRange, selectedFacilities, getAuthHeader]);
 
   // Calculate totals from nested emissions structure
   const totals = filteredData?.totals || {};

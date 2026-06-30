@@ -136,6 +136,58 @@ export function useIntensityData(dateRange, selectedFacilities = []) {
 }
 
 /**
+ * usePrevYearIntensity — Hook to fetch previous year's turnover/production for YoY intensity comparisons
+ */
+export function usePrevYearIntensity(fyYear, isOrgLevel) {
+  const { getAuthHeader } = useAuth();
+  const [prevYearIntensity, setPrevYearIntensity] = useState({ turnover: null, productionQty: null });
+  const [loading, setLoading] = useState(false);
+
+  // Calculate previous FY year (e.g., "2025-26" -> "2024-25")
+  const prevFyYear = useMemo(() => {
+    if (!fyYear) return null;
+    const [startStr] = fyYear.split('-');
+    const startYear = parseInt(startStr, 10);
+    const prevStart = startYear - 1;
+    const prevEnd = startYear;
+    return `${prevStart}-${String(prevEnd).slice(-2)}`;
+  }, [fyYear]);
+
+  useEffect(() => {
+    const fetchPrevYearIntensity = async () => {
+      if (!prevFyYear || !isOrgLevel) {
+        setPrevYearIntensity({ turnover: null, productionQty: null });
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const response = await axios.get(
+          `${API}/organization/yearly-data/${prevFyYear}`,
+          { headers: getAuthHeader() }
+        );
+        const data = response.data;
+        const prevTurnover = data?.turnover ? parseFloat(data.turnover) : null;
+        const prevProdQty = data?.production_quantity ? parseFloat(data.production_quantity) : null;
+        setPrevYearIntensity({
+          turnover: prevTurnover && !isNaN(prevTurnover) ? prevTurnover : null,
+          productionQty: prevProdQty && !isNaN(prevProdQty) ? prevProdQty : null,
+        });
+      } catch (error) {
+        console.error('Failed to fetch prev year intensity:', error);
+        setPrevYearIntensity({ turnover: null, productionQty: null });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPrevYearIntensity();
+  }, [prevFyYear, isOrgLevel, getAuthHeader]);
+
+  return { prevYearIntensity, prevFyYear, loading };
+}
+
+/**
  * Calculate intensity values for emissions and energy
  */
 export function useIntensityCalculations({ 
