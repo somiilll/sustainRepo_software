@@ -137,9 +137,14 @@ class ESGQuestionnaireService:
         
         This method fetches the current year's document and the previous year's
         document, then merges them back into the frontend-expected format with
-        `*_current_fy` and `*_previous_fy` suffixes.
+        `*_current_fy` and `*_previous_fy` suffixes for fy_comparison questions,
+        while preserving atomic questions as-is.
         """
         previous_year = self._calculate_previous_fy(reporting_year)
+        
+        # Fetch question configs to get response_mode for each question
+        configs = await self.list_question_configs(framework=framework, section=section)
+        response_modes = {c["question_key"]: c.get("response_mode", "fy_comparison") for c in configs}
         
         # Fetch both year documents
         current_doc = await self._responses.find_one(
@@ -168,7 +173,8 @@ class ESGQuestionnaireService:
         # Merge responses with FY suffixes for frontend compatibility
         merged_responses = self._merge_year_responses(
             current_doc.get("responses", {}) if current_doc else {},
-            previous_doc.get("responses", {}) if previous_doc else {}
+            previous_doc.get("responses", {}) if previous_doc else {},
+            response_modes
         )
         
         # Return in expected format
@@ -205,24 +211,39 @@ class ESGQuestionnaireService:
     def _merge_year_responses(
         self,
         current_year_data: Dict[str, Any],
-        previous_year_data: Dict[str, Any]
+        previous_year_data: Dict[str, Any],
+        response_modes: Dict[str, str] = None
     ) -> Dict[str, Any]:
         """
         Merge current and previous year data back into frontend format.
         
-        Handles both:
-        - Old format: { "reused_current_fy": 10, "reused_previous_fy": 5 }
-        - New format: { "reused": 10 } (no suffixes)
+        Uses response_modes to determine how to handle each question:
+        - "atomic": Preserve value as-is (no FY suffixes). Use current year value only.
+        - "fy_comparison": Add _current_fy/_previous_fy suffixes for comparison fields.
         
-        Output always uses the frontend format with suffixes.
+        Args:
+            current_year_data: Responses from current reporting year
+            previous_year_data: Responses from previous reporting year
+            response_modes: Dict mapping question_key to response mode ("atomic" or "fy_comparison")
         """
         merged = {}
+        response_modes = response_modes or {}
         all_questions = set(current_year_data.keys()) | set(previous_year_data.keys())
         
         for question_key in all_questions:
             current_val = current_year_data.get(question_key)
             previous_val = previous_year_data.get(question_key)
+            mode = response_modes.get(question_key, "fy_comparison")  # Default to fy_comparison for safety
             
+            # ATOMIC MODE: Preserve value as-is, use current year only
+            if mode == "atomic":
+                if current_val is not None:
+                    merged[question_key] = current_val
+                elif previous_val is not None:
+                    merged[question_key] = previous_val
+                continue
+            
+            # FY_COMPARISON MODE: Add suffixes for comparison
             # Handle dict-based responses (row categories)
             if isinstance(current_val, dict) or isinstance(previous_val, dict):
                 current_dict = current_val or {}
