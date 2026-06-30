@@ -201,7 +201,7 @@ export default function DashboardSocial({ data }) {
 
         {/* Complaints No. */}
         <PremiumKpiCard
-          title="COMPLAINTS"
+          title="TOTAL COMPLAINTS"
           value={complaintsTotal}
           unit="cases"
           icon={AlertTriangle}
@@ -255,6 +255,29 @@ export default function DashboardSocial({ data }) {
           <div className="bg-white rounded-xl p-5 border border-stone-200">
             <h4 className="font-semibold text-stone-800 mb-4">Training Coverage</h4>
             <TrainingCoverageStats coverage={trainingData.coverage || {}} />
+          </div>
+        </div>
+      </SectionCard>
+
+      {/* ROW 2: Complaints Analytics */}
+      <SectionCard title="Complaints Analytics" subtitle="Complaint distribution, topics, and compliance tracking">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-4">
+          {/* LEFT: Complaints by Type - Stacked Bars */}
+          <div className="bg-white rounded-xl p-5 border border-stone-200">
+            <h4 className="font-semibold text-stone-800 mb-4">Complaints by Type</h4>
+            <ComplaintsByTypeChart byType={complaintsData.by_type || {}} />
+          </div>
+
+          {/* CENTER: Complaint Topics - Treemap */}
+          <div className="bg-white rounded-xl p-5 border border-stone-200">
+            <h4 className="font-semibold text-stone-800 mb-4">Complaint Topics</h4>
+            <ComplaintTopicsTreemap byTopic={complaintsData.by_topic || {}} />
+          </div>
+
+          {/* RIGHT: Compliance & Escalation - Status Cards */}
+          <div className="bg-white rounded-xl p-5 border border-stone-200">
+            <h4 className="font-semibold text-stone-800 mb-4">Compliance & Escalation</h4>
+            <ComplianceStatusCards compliance={complaintsData.compliance || {}} poshCases={poshCases} />
           </div>
         </div>
       </SectionCard>
@@ -404,6 +427,163 @@ function TrainingCoverageStats({ coverage }) {
         <div key={stat.label} className={`bg-${stat.color}-50 rounded-lg p-4 border border-${stat.color}-100`}>
           <p className="text-xs text-stone-500 mb-1">{stat.label}</p>
           <p className={`text-2xl font-bold text-${stat.color}-600`}>{stat.value}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Complaints by Type - Stacked Horizontal Bars
+function ComplaintsByTypeChart({ byType }) {
+  const { General = 0, Principal = 0, Consumer = 0 } = byType;
+  const total = General + Principal + Consumer;
+  
+  const types = [
+    { label: 'General', value: General, color: 'bg-amber-500' },
+    { label: 'Principal', value: Principal, color: 'bg-orange-500' },
+    { label: 'Consumer', value: Consumer, color: 'bg-red-500' },
+  ];
+
+  if (total === 0) {
+    return (
+      <div className="text-center py-8 text-stone-400">
+        <AlertTriangle className="w-8 h-8 mx-auto mb-2 opacity-50" />
+        <p className="text-sm">No complaints data</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Stacked bar */}
+      <div className="h-8 flex rounded-lg overflow-hidden bg-stone-100">
+        {types.map((type) => {
+          const pct = (type.value / total) * 100;
+          if (pct === 0) return null;
+          return (
+            <div
+              key={type.label}
+              className={`${type.color} transition-all duration-500 flex items-center justify-center`}
+              style={{ width: `${pct}%` }}
+              title={`${type.label}: ${type.value}`}
+            >
+              {pct > 15 && <span className="text-xs text-white font-medium">{type.value}</span>}
+            </div>
+          );
+        })}
+      </div>
+      {/* Legend */}
+      <div className="flex flex-wrap gap-4 justify-center">
+        {types.map((type) => (
+          <div key={type.label} className="flex items-center gap-2">
+            <div className={`w-3 h-3 rounded ${type.color}`} />
+            <span className="text-xs text-stone-600">{type.label}: {type.value}</span>
+          </div>
+        ))}
+      </div>
+      <div className="text-center text-sm font-semibold text-stone-700">
+        Total: {total}
+      </div>
+    </div>
+  );
+}
+
+// Complaint Topics Treemap
+function ComplaintTopicsTreemap({ byTopic }) {
+  const TOPIC_COLORS = {
+    'Working Conditions': 'bg-blue-500',
+    'Safety': 'bg-emerald-500',
+    'Health': 'bg-teal-500',
+    'POSH': 'bg-rose-500',
+    'Discrimination': 'bg-purple-500',
+    'Wages': 'bg-amber-500',
+    'Human Rights': 'bg-indigo-500',
+    'Cybersecurity': 'bg-cyan-500',
+    'Data Privacy': 'bg-violet-500',
+  };
+
+  const topics = Object.entries(byTopic).map(([topic, count]) => ({
+    topic,
+    count,
+    color: TOPIC_COLORS[topic] || 'bg-stone-400'
+  })).sort((a, b) => b.count - a.count);
+
+  const total = topics.reduce((sum, t) => sum + t.count, 0);
+
+  if (total === 0) {
+    return (
+      <div className="text-center py-8 text-stone-400">
+        <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
+        <p className="text-sm">No topic data available</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-3 gap-1.5 h-[200px]">
+      {topics.slice(0, 9).map((item, idx) => {
+        const pct = (item.count / total) * 100;
+        // Vary sizes based on value
+        const sizeClass = pct > 30 ? 'col-span-2 row-span-2' : pct > 15 ? 'col-span-1 row-span-2' : '';
+        return (
+          <div
+            key={item.topic}
+            className={`${item.color} ${sizeClass} rounded-lg p-2 flex flex-col justify-between transition-transform hover:scale-105 cursor-default`}
+            title={`${item.topic}: ${item.count}`}
+          >
+            <span className="text-[10px] text-white/90 font-medium truncate">{item.topic}</span>
+            <span className="text-lg font-bold text-white">{item.count}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Compliance & Escalation Status Cards
+function ComplianceStatusCards({ compliance, poshCases }) {
+  const { law_enforcement = 0, open = 0, closed = 0, total = 0 } = compliance;
+  
+  const stats = [
+    { 
+      label: 'Law Enforcement', 
+      value: law_enforcement, 
+      icon: '⚖️',
+      color: law_enforcement > 0 ? 'bg-red-50 border-red-200' : 'bg-stone-50 border-stone-200',
+      textColor: law_enforcement > 0 ? 'text-red-600' : 'text-stone-600'
+    },
+    { 
+      label: 'POSH Cases', 
+      value: poshCases, 
+      icon: '🛡️',
+      color: poshCases > 0 ? 'bg-rose-50 border-rose-200' : 'bg-stone-50 border-stone-200',
+      textColor: poshCases > 0 ? 'text-rose-600' : 'text-stone-600'
+    },
+    { 
+      label: 'Open', 
+      value: open, 
+      icon: '📂',
+      color: open > 0 ? 'bg-amber-50 border-amber-200' : 'bg-stone-50 border-stone-200',
+      textColor: open > 0 ? 'text-amber-600' : 'text-stone-600'
+    },
+    { 
+      label: 'Closed', 
+      value: closed, 
+      icon: '✅',
+      color: 'bg-emerald-50 border-emerald-200',
+      textColor: 'text-emerald-600'
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      {stats.map((stat) => (
+        <div key={stat.label} className={`${stat.color} rounded-lg p-3 border`}>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-base">{stat.icon}</span>
+            <span className="text-xs text-stone-500">{stat.label}</span>
+          </div>
+          <p className={`text-xl font-bold ${stat.textColor}`}>{stat.value}</p>
         </div>
       ))}
     </div>

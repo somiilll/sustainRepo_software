@@ -38,11 +38,108 @@ class ComplaintsMetricsService:
         # Query for POSH cases (field: was_the_complaint_reported_under_the_posh_act_2013)
         posh = await self._get_posh_count(org_id, facility_ids, start_date, end_date)
         
+        # Get by_type breakdown for stacked bars
+        by_type = {
+            "General": general,
+            "Principal": principles,
+            "Consumer": consumer
+        }
+        
+        # Get by_topic breakdown for treemap
+        by_topic = await self._get_complaints_by_topic(org_id, facility_ids, start_date, end_date)
+        
+        # Get compliance stats
+        compliance = await self._get_compliance_stats(org_id, facility_ids, start_date, end_date)
+        
         return {
             "general": general + principles,
             "posh": posh,
             "consumer": consumer,
-            "total": general + principles + consumer
+            "total": general + principles + consumer,
+            "by_type": by_type,
+            "by_topic": by_topic,
+            "compliance": compliance
+        }
+    
+    async def _get_complaints_by_topic(
+        self,
+        org_id: str,
+        facility_ids: Optional[List[str]],
+        start_date: Optional[str],
+        end_date: Optional[str]
+    ) -> Dict[str, int]:
+        """Get complaints grouped by topic/type"""
+        query = {
+            "org_id": org_id,
+            "subcategory": {"$in": ["General Complaints", "Complaints on Principles", "Consumer Complaints"]}
+        }
+        if facility_ids:
+            query["facility_id"] = {"$in": facility_ids}
+        
+        if start_date and end_date:
+            date_filter = self._build_date_filter(start_date, end_date)
+            if date_filter:
+                query = {"$and": [query, {"$or": date_filter}]}
+        
+        pipeline = [
+            {"$match": query},
+            {"$group": {
+                "_id": "$field_values.complaints_type",
+                "count": {"$sum": 1}
+            }}
+        ]
+        
+        results = await self.db.social_records.aggregate(pipeline).to_list(100)
+        return {r["_id"]: r["count"] for r in results if r["_id"]}
+    
+    async def _get_compliance_stats(
+        self,
+        org_id: str,
+        facility_ids: Optional[List[str]],
+        start_date: Optional[str],
+        end_date: Optional[str]
+    ) -> Dict[str, Any]:
+        """Get compliance and escalation stats"""
+        query = {
+            "org_id": org_id,
+            "subcategory": {"$in": ["General Complaints", "Complaints on Principles", "Consumer Complaints"]}
+        }
+        if facility_ids:
+            query["facility_id"] = {"$in": facility_ids}
+        
+        if start_date and end_date:
+            date_filter = self._build_date_filter(start_date, end_date)
+            if date_filter:
+                query = {"$and": [query, {"$or": date_filter}]}
+        
+        # Law enforcement involved
+        law_query = {**query, "field_values.law_enforcement_agency_involved": {"$in": [True, "Yes", "yes", "true"]}}
+        law_enforcement = await self.db.social_records.count_documents(law_query)
+        
+        # POSH cases
+        posh_query = {"org_id": org_id, "field_values.was_the_complaint_reported_under_the_posh_act_2013": {"$in": [True, "Yes", "yes", "true"]}}
+        if facility_ids:
+            posh_query["facility_id"] = {"$in": facility_ids}
+        posh_cases = await self.db.social_records.count_documents(posh_query)
+        
+        # Open vs Closed (check for status field)
+        open_query = {**query, "field_values.status": {"$in": ["Open", "open", "Pending", "pending", "In Progress"]}}
+        closed_query = {**query, "field_values.status": {"$in": ["Closed", "closed", "Resolved", "resolved"]}}
+        open_count = await self.db.social_records.count_documents(open_query)
+        closed_count = await self.db.social_records.count_documents(closed_query)
+        
+        # Total complaints for calculating untracked
+        total = await self.db.social_records.count_documents(query)
+        untracked = total - open_count - closed_count
+        
+        return {
+            "law_enforcement": law_enforcement,
+            "posh_cases": posh_cases,
+            "repeat_complaints": 0,  # Would need complaint_raised_by grouping
+            "open": open_count,
+            "closed": closed_count,
+            "untracked": untracked,
+            "total": total
         }
     
     async def _get_subcategory_count(
