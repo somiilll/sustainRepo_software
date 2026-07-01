@@ -64,7 +64,7 @@ const generateReportingYears = () => {
   const years = [];
   for (let i = 0; i < 5; i++) {
     const startYear = currentYear - i;
-    years.push(`${startYear}-${(startYear + 1).toString().slice(-2)}`);
+    years.push(`FY ${startYear}-${startYear + 1}`);
   }
   return years;
 };

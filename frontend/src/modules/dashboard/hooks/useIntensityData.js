@@ -3,11 +3,11 @@
  * 
  * Logic:
  * - If ALL facilities selected (org-level): Fetch from /api/organization/yearly-data/{year}
- *   - Year format: "2025-26" (FY format)
+ *   - Year format: "FY 2025-2026" (full FY format)
  *   - Returns both turnover and production_quantity
  * 
  * - If SPECIFIC facilities selected (facility-level): Fetch from /api/facilities/{id}/production/{year}
- *   - Year format: "2025-26" (FY format)
+ *   - Year format: "FY 2025-2026" (full FY format)
  *   - Only production-based intensity available (no turnover at facility level)
  */
 import { useState, useEffect, useMemo } from 'react';
@@ -23,7 +23,7 @@ export function useIntensityData(dateRange, selectedFacilities = []) {
   const [productionUnit, setProductionUnit] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Determine FY year from dateRange in format "2025-26"
+  // Determine FY year from dateRange in format "FY 2025-2026"
   const fyYear = useMemo(() => {
     if (!dateRange?.from) return null;
     const fromDate = new Date(dateRange.from);
@@ -32,8 +32,8 @@ export function useIntensityData(dateRange, selectedFacilities = []) {
     // FY starts in April (month 3)
     const startYear = month >= 3 ? year : year - 1;
     const endYear = startYear + 1;
-    // Format: "2025-26"
-    return `${startYear}-${String(endYear).slice(-2)}`;
+    // Format: "FY 2025-2026"
+    return `FY ${startYear}-${endYear}`;
   }, [dateRange]);
 
   // Check if org-level (all facilities) or facility-level (specific selection)
@@ -143,14 +143,22 @@ export function usePrevYearIntensity(fyYear, isOrgLevel) {
   const [prevYearIntensity, setPrevYearIntensity] = useState({ turnover: null, productionQty: null });
   const [loading, setLoading] = useState(false);
 
-  // Calculate previous FY year (e.g., "2025-26" -> "2024-25")
+  // Calculate previous FY year (e.g., "FY 2025-2026" -> "FY 2024-2025")
   const prevFyYear = useMemo(() => {
     if (!fyYear) return null;
-    const [startStr] = fyYear.split('-');
-    const startYear = parseInt(startStr, 10);
-    const prevStart = startYear - 1;
-    const prevEnd = startYear;
-    return `${prevStart}-${String(prevEnd).slice(-2)}`;
+    // Handle "FY 2025-2026" format
+    const fullMatch = fyYear.match(/FY (\d{4})-(\d{4})/);
+    if (fullMatch) {
+      const startYear = parseInt(fullMatch[1], 10);
+      return `FY ${startYear - 1}-${startYear}`;
+    }
+    // Handle legacy "2025-26" format
+    const shortMatch = fyYear.match(/(\d{4})-(\d{2})/);
+    if (shortMatch) {
+      const startYear = parseInt(shortMatch[1], 10);
+      return `FY ${startYear - 1}-${startYear}`;
+    }
+    return null;
   }, [fyYear]);
 
   useEffect(() => {

@@ -28,26 +28,38 @@ const SECTIONS = [
   { id: 'wages', title: 'Wage & Remuneration Structure', icon: Wallet, color: 'amber' },
 ];
 
-// Generate FY options
+// Generate FY options - "FY 2025-2026" format
 const generateFYOptions = () => {
   const currentYear = new Date().getFullYear();
   return Array.from({ length: 5 }, (_, i) => {
     const startYear = currentYear - i;
-    return `FY ${startYear}-${String(startYear + 1).slice(-2)}`;
+    return `FY ${startYear}-${startYear + 1}`;
   });
 };
 
 // Get FY labels for multi-year tables (current, previous, prior-to-previous)
 const getFYLabels = (selectedFY) => {
-  // Parse selected FY (e.g., "FY 2025-26" -> startYear = 2025)
-  const match = selectedFY.match(/FY (\d{4})-(\d{2})/);
-  if (!match) return { current: selectedFY, previous: '', priorToPrevious: '' };
+  // Parse selected FY (e.g., "FY 2025-2026" -> startYear = 2025)
+  const match = selectedFY.match(/FY (\d{4})-(\d{4})/);
+  if (!match) {
+    // Fallback for legacy "FY 2025-26" format
+    const legacyMatch = selectedFY.match(/FY (\d{4})-(\d{2})/);
+    if (legacyMatch) {
+      const startYear = parseInt(legacyMatch[1]);
+      return {
+        current: `FY ${startYear}-${startYear + 1}`,
+        previous: `FY ${startYear - 1}-${startYear}`,
+        priorToPrevious: `FY ${startYear - 2}-${startYear - 1}`
+      };
+    }
+    return { current: selectedFY, previous: '', priorToPrevious: '' };
+  }
   
   const startYear = parseInt(match[1]);
   return {
-    current: `FY ${startYear}-${String(startYear + 1).slice(-2)}`,
-    previous: `FY ${startYear - 1}-${String(startYear).slice(-2)}`,
-    priorToPrevious: `FY ${startYear - 2}-${String(startYear - 1).slice(-2)}`
+    current: `FY ${startYear}-${startYear + 1}`,
+    previous: `FY ${startYear - 1}-${startYear}`,
+    priorToPrevious: `FY ${startYear - 2}-${startYear - 1}`
   };
 };
 

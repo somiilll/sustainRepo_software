@@ -7,17 +7,28 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Badge } from '../../ui/badge';
 import { Plus, Trash2 } from 'lucide-react';
 
-// Helper to get FY labels
+// Helper to get FY labels - supports "FY 2025-2026" format
 const getFYLabels = (allResponses) => {
-  const reportingYear = allResponses?.reporting_year || `${new Date().getFullYear()}-${String(new Date().getFullYear() + 1).slice(-2)}`;
-  // Handle both "2025-26" and "FY 2025-26" formats
-  const match = reportingYear.match(/(?:FY\s*)?(\d{4})-(\d{2})/);
-  if (!match) return { current: 'Current FY', previous: 'Previous FY' };
-  const startYear = parseInt(match[1]);
-  return {
-    current: `FY ${startYear}-${String(startYear + 1).slice(-2)}`,
-    previous: `FY ${startYear - 1}-${String(startYear).slice(-2)}`
-  };
+  const reportingYear = allResponses?.reporting_year || `FY ${new Date().getFullYear()}-${new Date().getFullYear() + 1}`;
+  // Handle "FY 2025-2026" format (primary) and legacy "2025-26" format
+  const fullMatch = reportingYear.match(/FY\s*(\d{4})-(\d{4})/);
+  if (fullMatch) {
+    const startYear = parseInt(fullMatch[1]);
+    return {
+      current: `FY ${startYear}-${startYear + 1}`,
+      previous: `FY ${startYear - 1}-${startYear}`
+    };
+  }
+  // Legacy "2025-26" format fallback
+  const shortMatch = reportingYear.match(/(\d{4})-(\d{2})/);
+  if (shortMatch) {
+    const startYear = parseInt(shortMatch[1]);
+    return {
+      current: `FY ${startYear}-${startYear + 1}`,
+      previous: `FY ${startYear - 1}-${startYear}`
+    };
+  }
+  return { current: 'Current FY', previous: 'Previous FY' };
 };
 
 export function DynamicTableRenderer({ config, value, onChange, isEditing }) {

@@ -61,16 +61,19 @@ const generateReportingYears = () => {
   const years = [];
   for (let i = 0; i < 5; i++) {
     const startYear = currentYear - i;
-    years.push(`${startYear}-${(startYear + 1).toString().slice(-2)}`);
+    years.push(`FY ${startYear}-${startYear + 1}`);
   }
   return years;
 };
 
-// Calculate previous FY from current
+// Calculate previous FY from current (handles "FY 2025-2026" format)
 const getPreviousFY = (currentFY) => {
-  const [start] = currentFY.split('-');
-  const prevStart = parseInt(start) - 1;
-  return `${prevStart}-${start.slice(-2)}`;
+  const match = currentFY.match(/(\d{4})-(\d{4})/);
+  if (match) {
+    const startYear = parseInt(match[1]);
+    return `FY ${startYear - 1}-${startYear}`;
+  }
+  return currentFY;
 };
 
 // Default structures

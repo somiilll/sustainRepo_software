@@ -726,10 +726,19 @@ class ESGQuestionnaireService:
         if reporting_year.startswith("CY "):
             year = int(reporting_year.replace("CY ", ""))
             return f"CY {year + 1}"
+        elif reporting_year.startswith("FY "):
+            # Handle "FY 2025-2026" format
+            parts = reporting_year.replace("FY ", "").split("-")
+            start_year = int(parts[0])
+            return f"FY {start_year + 1}-{start_year + 2}"
         elif "-" in reporting_year:
+            # Handle legacy "2025-26" format
             parts = reporting_year.split("-")
             start_year = int(parts[0])
-            return f"{start_year + 1}-{str(start_year + 2)[-2:]}"
+            if len(parts[1]) == 2:
+                return f"{start_year + 1}-{str(start_year + 2)[-2:]}"
+            else:
+                return f"FY {start_year + 1}-{start_year + 2}"
         else:
             return str(int(reporting_year) + 1)
 
@@ -738,19 +747,27 @@ class ESGQuestionnaireService:
         Calculate the previous financial year from a reporting year string.
         
         Examples:
-            "2025-26" -> "2024-25"
-            "2024-25" -> "2023-24"
+            "FY 2025-2026" -> "FY 2024-2025"
+            "2025-26" -> "2024-25" (legacy format)
             "CY 2025" -> "CY 2024"
         """
         if reporting_year.startswith("CY "):
             # Calendar year format: "CY 2025"
             year = int(reporting_year.replace("CY ", ""))
             return f"CY {year - 1}"
+        elif reporting_year.startswith("FY "):
+            # Handle "FY 2025-2026" format
+            parts = reporting_year.replace("FY ", "").split("-")
+            start_year = int(parts[0])
+            return f"FY {start_year - 1}-{start_year}"
         elif "-" in reporting_year:
-            # Financial year format: "2025-26"
+            # Handle legacy "2025-26" format
             parts = reporting_year.split("-")
             start_year = int(parts[0])
-            return f"{start_year - 1}-{str(start_year)[-2:]}"
+            if len(parts[1]) == 2:
+                return f"{start_year - 1}-{str(start_year)[-2:]}"
+            else:
+                return f"FY {start_year - 1}-{start_year}"
         else:
             # Default: assume numeric year
             return str(int(reporting_year) - 1)
