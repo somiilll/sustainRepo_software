@@ -41,19 +41,7 @@ const generateFYOptions = () => {
 const getFYLabels = (selectedFY) => {
   // Parse selected FY (e.g., "FY 2025-2026" -> startYear = 2025)
   const match = selectedFY.match(/FY (\d{4})-(\d{4})/);
-  if (!match) {
-    // Fallback for legacy "FY 2025-26" format
-    const legacyMatch = selectedFY.match(/FY (\d{4})-(\d{2})/);
-    if (legacyMatch) {
-      const startYear = parseInt(legacyMatch[1]);
-      return {
-        current: `FY ${startYear}-${startYear + 1}`,
-        previous: `FY ${startYear - 1}-${startYear}`,
-        priorToPrevious: `FY ${startYear - 2}-${startYear - 1}`
-      };
-    }
-    return { current: selectedFY, previous: '', priorToPrevious: '' };
-  }
+  if (!match) return { current: selectedFY, previous: '', priorToPrevious: '' };
   
   const startYear = parseInt(match[1]);
   return {

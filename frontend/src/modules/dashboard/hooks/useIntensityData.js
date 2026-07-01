@@ -146,19 +146,10 @@ export function usePrevYearIntensity(fyYear, isOrgLevel) {
   // Calculate previous FY year (e.g., "FY 2025-2026" -> "FY 2024-2025")
   const prevFyYear = useMemo(() => {
     if (!fyYear) return null;
-    // Handle "FY 2025-2026" format
-    const fullMatch = fyYear.match(/FY (\d{4})-(\d{4})/);
-    if (fullMatch) {
-      const startYear = parseInt(fullMatch[1], 10);
-      return `FY ${startYear - 1}-${startYear}`;
-    }
-    // Handle legacy "2025-26" format
-    const shortMatch = fyYear.match(/(\d{4})-(\d{2})/);
-    if (shortMatch) {
-      const startYear = parseInt(shortMatch[1], 10);
-      return `FY ${startYear - 1}-${startYear}`;
-    }
-    return null;
+    const match = fyYear.match(/FY (\d{4})-(\d{4})/);
+    if (!match) return null;
+    const startYear = parseInt(match[1], 10);
+    return `FY ${startYear - 1}-${startYear}`;
   }, [fyYear]);
 
   useEffect(() => {
