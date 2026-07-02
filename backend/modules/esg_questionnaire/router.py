@@ -148,7 +148,8 @@ async def save_gri_response(
 ):
     """
     Save a single GRI disclosure response.
-    Expects: { question_key, value, reporting_period }
+    Expects: { question_key, value, reporting_period, status? }
+    status: "draft" (saves as draft, shown as pending) or "saved" (final save)
     """
     org_id = current_user.get("organization_id")
     if not org_id:
@@ -157,6 +158,10 @@ async def save_gri_response(
     question_key = data.get("question_key")
     value = data.get("value")
     reporting_period = data.get("reporting_period")
+    status = data.get("status", "saved")  # Default to saved
+    
+    if status not in ["draft", "saved"]:
+        raise HTTPException(status_code=400, detail="status must be 'draft' or 'saved'")
     
     if not question_key or not reporting_period:
         raise HTTPException(status_code=400, detail="question_key and reporting_period are required")
@@ -166,10 +171,46 @@ async def save_gri_response(
         question_key=question_key,
         value=value,
         reporting_period=reporting_period,
-        changed_by_user_id=current_user.get("id")
+        changed_by_user_id=current_user.get("id"),
+        changed_by_user_name=current_user.get("full_name") or current_user.get("name") or current_user.get("email"),
+        changed_by_user_email=current_user.get("email"),
+        status=status
     )
     
-    return {"message": "Response saved", "question_key": question_key, "success": result}
+    return {
+        "message": f"Response {'saved as draft' if status == 'draft' else 'saved'}",
+        "question_key": question_key,
+        "status": status,
+        "success": result
+    }
+
+
+@router.get("/history/{question_key}")
+async def get_question_history(
+    question_key: str,
+    reporting_period: str = Query(..., description="Reporting period (e.g., FY 2025-26)"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get version history for a specific question.
+    Returns all changes, assignments, and approvals.
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    history = await esg_questionnaire_service.get_question_history(
+        org_id=org_id,
+        question_key=question_key,
+        reporting_period=reporting_period
+    )
+    
+    return {
+        "question_key": question_key,
+        "reporting_period": reporting_period,
+        "history": history,
+        "total": len(history)
+    }
 
 
 # =============================================================================

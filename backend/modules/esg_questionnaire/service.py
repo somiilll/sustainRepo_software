@@ -165,17 +165,17 @@ class ESGQuestionnaireService:
             else:
                 all_response_keys.append(q_key)
         
-        # Fetch responses from esg_responses collection
+        # Fetch responses from esg_responses collection (include status)
         responses_cursor = db.esg_responses.find(
             {
                 "organization_id": org_id,
                 "question_key": {"$in": all_response_keys},
                 "reporting_period": reporting_period,
             },
-            {"_id": 0, "question_key": 1, "value": 1}
+            {"_id": 0, "question_key": 1, "value": 1, "status": 1, "updated_at": 1, "updated_by_name": 1}
         )
         responses_list = await responses_cursor.to_list(1000)
-        responses_map = {r["question_key"]: r.get("value") for r in responses_list}
+        responses_map = {r["question_key"]: r for r in responses_list}
         
         # Build questions list with responses
         questions = []
@@ -201,17 +201,37 @@ class ESGQuestionnaireService:
             if sub_questions:
                 # Include sub_questions with their individual responses
                 question_data["sub_questions"] = []
+                has_any_saved = False
+                has_any_draft = False
                 for sub in sub_questions:
                     sub_response_key = f"{q_key}_{sub['sub_key']}"
+                    sub_response = responses_map.get(sub_response_key, {})
+                    sub_status = sub_response.get("status")
+                    if sub_status == "saved":
+                        has_any_saved = True
+                    elif sub_status == "draft":
+                        has_any_draft = True
                     question_data["sub_questions"].append({
                         "sub_key": sub["sub_key"],
                         "label": sub["label"],
                         "response_key": sub_response_key,
-                        "response_value": responses_map.get(sub_response_key),
+                        "response_value": sub_response.get("value"),
+                        "response_status": sub_status,
                     })
+                # Overall status for the parent question
+                if has_any_saved:
+                    question_data["status"] = "saved"
+                elif has_any_draft:
+                    question_data["status"] = "draft"
+                else:
+                    question_data["status"] = "pending"
             else:
                 # Simple question with single response
-                question_data["response_value"] = responses_map.get(q_key)
+                response = responses_map.get(q_key, {})
+                question_data["response_value"] = response.get("value")
+                question_data["status"] = response.get("status", "pending") if response else "pending"
+                question_data["updated_at"] = response.get("updated_at")
+                question_data["updated_by_name"] = response.get("updated_by_name")
             
             questions.append(question_data)
         
@@ -229,12 +249,32 @@ class ESGQuestionnaireService:
         value: Any,
         reporting_period: str,
         changed_by_user_id: Optional[str] = None,
+        changed_by_user_name: Optional[str] = None,
+        changed_by_user_email: Optional[str] = None,
+        status: str = "saved",  # "draft" or "saved"
     ) -> bool:
         """
         Save a single GRI disclosure response.
         Uses upsert to create or update the response.
+        Supports draft and saved status.
+        Logs changes to audit trail for version history.
         """
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
+        
+        # Get previous response for audit logging
+        previous_response = await db.esg_responses.find_one(
+            {
+                "organization_id": org_id,
+                "question_key": question_key,
+                "reporting_period": reporting_period,
+            },
+            {"_id": 0, "value": 1, "status": 1, "updated_by": 1}
+        )
+        
+        previous_value = previous_response.get("value") if previous_response else None
+        previous_status = previous_response.get("status") if previous_response else None
+        is_new = previous_response is None
         
         # Upsert the response in esg_responses collection
         result = await db.esg_responses.update_one(
@@ -246,21 +286,80 @@ class ESGQuestionnaireService:
             {
                 "$set": {
                     "value": value,
-                    "updated_at": now,
+                    "status": status,
+                    "updated_at": now_iso,
                     "updated_by": changed_by_user_id,
+                    "updated_by_name": changed_by_user_name,
+                    "updated_by_email": changed_by_user_email,
                 },
                 "$setOnInsert": {
                     "id": str(uuid.uuid4()),
                     "organization_id": org_id,
                     "question_key": question_key,
                     "reporting_period": reporting_period,
-                    "created_at": now,
+                    "created_at": now_iso,
                 }
             },
             upsert=True
         )
         
+        # Log to audit trail for version history
+        if result.acknowledged:
+            # Determine the action type
+            if is_new:
+                action = "created"
+            elif previous_status == "draft" and status == "saved":
+                action = "submitted"
+            elif status == "draft":
+                action = "draft_updated"
+            else:
+                action = "updated"
+            
+            audit_entry = {
+                "id": str(uuid.uuid4()),
+                "question_key": question_key,
+                "reporting_period": reporting_period,
+                "organization_id": org_id,
+                "action": action,
+                "timestamp": now,
+                "performed_by": {
+                    "user_id": changed_by_user_id,
+                    "name": changed_by_user_name or "Unknown",
+                    "email": changed_by_user_email or "Unknown",
+                },
+                "change_details": {
+                    "field_changed": "response_value",
+                    "old_value": previous_value,
+                    "new_value": value,
+                    "old_status": previous_status,
+                    "new_status": status,
+                },
+            }
+            
+            await db.question_audit_log.insert_one(audit_entry)
+        
         return result.acknowledged
+    
+    async def get_question_history(
+        self,
+        org_id: str,
+        question_key: str,
+        reporting_period: str,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get version history for a specific question.
+        Returns all audit log entries for the question.
+        """
+        cursor = db.question_audit_log.find(
+            {
+                "organization_id": org_id,
+                "question_key": question_key,
+                "reporting_period": reporting_period,
+            },
+            {"_id": 0}
+        ).sort("timestamp", -1)
+        
+        return await cursor.to_list(100)
 
     # =========================================================================
     # Response Methods

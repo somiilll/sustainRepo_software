@@ -18,6 +18,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from './ui/dialog';
 import { 
   ChevronDown, 
   ChevronRight, 
@@ -27,7 +34,11 @@ import {
   Circle,
   FileText,
   Info,
-  Calendar
+  Calendar,
+  History,
+  Clock,
+  FileEdit,
+  Send
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getCurrentReportingYear, generateReportingYears } from '../utils/reportingYearUtils';
@@ -52,6 +63,8 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
   const [organization, setOrganization] = useState(null);
   const [reportingPeriod, setReportingPeriod] = useState(null);
   const [reportingYears, setReportingYears] = useState([]);
+  const [historyDialog, setHistoryDialog] = useState({ open: false, questionKey: null, history: [] });
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   // Fetch organization data to get reporting_year_type
   useEffect(() => {
@@ -177,8 +190,8 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
     }));
   };
 
-  // Save single response
-  const saveResponse = async (responseKey) => {
+  // Save single response (with status)
+  const saveResponse = async (responseKey, status = 'saved') => {
     setSaving(prev => ({ ...prev, [responseKey]: true }));
     try {
       await axios.post(
@@ -186,11 +199,14 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
         {
           question_key: responseKey,
           value: responses[responseKey] || '',
-          reporting_period: reportingPeriod
+          reporting_period: reportingPeriod,
+          status: status
         },
         { headers: getAuthHeader() }
       );
-      toast.success('Response saved');
+      toast.success(status === 'draft' ? 'Saved as draft' : 'Response saved');
+      // Refresh to get updated status
+      await fetchDisclosures();
     } catch (error) {
       console.error('Failed to save response:', error);
       toast.error('Failed to save response');
@@ -199,8 +215,8 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
     }
   };
 
-  // Save all responses for a disclosure
-  const saveDisclosure = async (disclosure) => {
+  // Save all responses for a disclosure (with status)
+  const saveDisclosure = async (disclosure, status = 'saved') => {
     setSaving(prev => ({ ...prev, [disclosure.disclosure_id]: true }));
     try {
       const savePromises = [];
@@ -214,7 +230,8 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
                 {
                   question_key: sub.response_key,
                   value: responses[sub.response_key] || '',
-                  reporting_period: reportingPeriod
+                  reporting_period: reportingPeriod,
+                  status: status
                 },
                 { headers: getAuthHeader() }
               )
@@ -228,7 +245,8 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
               {
                 question_key: q.question_key,
                 value: responses[q.question_key] || '',
-                reporting_period: reportingPeriod
+                reporting_period: reportingPeriod,
+                status: status
               },
               { headers: getAuthHeader() }
             )
@@ -236,12 +254,79 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
         }
       });
       await Promise.all(savePromises);
-      toast.success(`Saved ${disclosure.disclosure_id} responses`);
+      toast.success(status === 'draft' 
+        ? `${disclosure.disclosure_id} saved as draft` 
+        : `Saved ${disclosure.disclosure_id} responses`
+      );
+      // Refresh to get updated statuses
+      await fetchDisclosures();
     } catch (error) {
       console.error('Failed to save disclosure:', error);
       toast.error('Failed to save responses');
     } finally {
       setSaving(prev => ({ ...prev, [disclosure.disclosure_id]: false }));
+    }
+  };
+
+  // Fetch version history for a question
+  const fetchHistory = async (questionKey) => {
+    setLoadingHistory(true);
+    try {
+      const res = await axios.get(
+        `${API}/api/esg-questionnaire/history/${questionKey}?reporting_period=${encodeURIComponent(reportingPeriod)}`,
+        { headers: getAuthHeader() }
+      );
+      setHistoryDialog({
+        open: true,
+        questionKey: questionKey,
+        history: res.data.history || []
+      });
+    } catch (error) {
+      console.error('Failed to fetch history:', error);
+      toast.error('Failed to load version history');
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  // Get status badge for a question
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case 'saved':
+        return <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle2 className="w-3 h-3 mr-1" />Saved</Badge>;
+      case 'draft':
+        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200"><FileEdit className="w-3 h-3 mr-1" />Draft</Badge>;
+      default:
+        return <Badge className="bg-gray-100 text-gray-600 border-gray-200"><Circle className="w-3 h-3 mr-1" />Pending</Badge>;
+    }
+  };
+
+  // Format date for display
+  const formatDate = (dateStr) => {
+    if (!dateStr) return 'N/A';
+    const date = new Date(dateStr);
+    return date.toLocaleString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  // Get action icon for history
+  const getActionIcon = (action) => {
+    switch (action) {
+      case 'created':
+        return <FileText className="w-4 h-4 text-blue-500" />;
+      case 'updated':
+        return <FileEdit className="w-4 h-4 text-orange-500" />;
+      case 'draft_updated':
+        return <Clock className="w-4 h-4 text-yellow-500" />;
+      case 'submitted':
+        return <Send className="w-4 h-4 text-green-500" />;
+      default:
+        return <Circle className="w-4 h-4 text-gray-400" />;
     }
   };
 
@@ -273,16 +358,38 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
     
     return (
       <div key={question.question_key} className="space-y-3">
-        {/* Question Label */}
-        <Label className="text-sm font-medium text-text-primary flex items-start gap-2">
-          <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded font-mono shrink-0">
-            Q{qIndex + 1}
-          </span>
-          <span className="leading-relaxed">{question.description}</span>
-          {question.is_required && (
-            <span className="text-red-500 shrink-0">*</span>
-          )}
-        </Label>
+        {/* Question Label with Status */}
+        <div className="flex items-start justify-between gap-4">
+          <Label className="text-sm font-medium text-text-primary flex items-start gap-2 flex-1">
+            <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded font-mono shrink-0">
+              Q{qIndex + 1}
+            </span>
+            <span className="leading-relaxed">{question.description}</span>
+            {question.is_required && (
+              <span className="text-red-500 shrink-0">*</span>
+            )}
+          </Label>
+          
+          {/* Status Badge & History Button */}
+          <div className="flex items-center gap-2 shrink-0">
+            {getStatusBadge(question.status)}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => fetchHistory(question.question_key)}
+              disabled={loadingHistory}
+              className="h-7 px-2 text-xs text-stone-500 hover:text-blue-600"
+              title="View version history"
+              data-testid={`history-${question.question_key}`}
+            >
+              {loadingHistory ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <History className="w-4 h-4" />
+              )}
+            </Button>
+          </div>
+        </div>
         
         {hasSubQuestions ? (
           // Render sub-questions with individual textareas
@@ -511,18 +618,32 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
                 <div className="border-t border-stone-100 p-4 space-y-6 bg-stone-50/50">
                   {disclosure.questions.map((question, qIndex) => renderQuestion(question, qIndex))}
 
-                  {/* Save All Button */}
+                  {/* Save Buttons */}
                   {isEditing && (
-                    <div className="pt-4 border-t border-stone-200 flex justify-end">
+                    <div className="pt-4 border-t border-stone-200 flex justify-end gap-3">
                       <Button
-                        onClick={() => saveDisclosure(disclosure)}
+                        variant="outline"
+                        onClick={() => saveDisclosure(disclosure, 'draft')}
                         disabled={saving[disclosure.disclosure_id]}
-                        className="bg-blue-600 hover:bg-blue-700"
+                        className="border-yellow-300 text-yellow-700 hover:bg-yellow-50"
+                        data-testid={`save-draft-${disclosure.disclosure_id}`}
                       >
                         {saving[disclosure.disclosure_id] ? (
                           <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</>
                         ) : (
-                          <><Save className="w-4 h-4 mr-2" /> Save All Responses</>
+                          <><FileEdit className="w-4 h-4 mr-2" /> Save as Draft</>
+                        )}
+                      </Button>
+                      <Button
+                        onClick={() => saveDisclosure(disclosure, 'saved')}
+                        disabled={saving[disclosure.disclosure_id]}
+                        className="bg-blue-600 hover:bg-blue-700"
+                        data-testid={`save-${disclosure.disclosure_id}`}
+                      >
+                        {saving[disclosure.disclosure_id] ? (
+                          <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</>
+                        ) : (
+                          <><Save className="w-4 h-4 mr-2" /> Save</>
                         )}
                       </Button>
                     </div>
@@ -533,6 +654,87 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
           </Collapsible>
         );
       })}
+
+      {/* Version History Dialog */}
+      <Dialog open={historyDialog.open} onOpenChange={(open) => !open && setHistoryDialog({ open: false, questionKey: null, history: [] })}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="w-5 h-5 text-blue-600" />
+              Version History
+            </DialogTitle>
+            <p className="text-sm text-text-muted">
+              Question: <code className="bg-stone-100 px-1 rounded">{historyDialog.questionKey}</code>
+            </p>
+          </DialogHeader>
+          
+          {historyDialog.history.length === 0 ? (
+            <div className="py-8 text-center">
+              <Clock className="w-12 h-12 text-stone-300 mx-auto mb-3" />
+              <p className="text-text-muted">No history available for this question yet.</p>
+            </div>
+          ) : (
+            <div className="space-y-4 mt-4">
+              {historyDialog.history.map((entry, idx) => (
+                <div key={entry.id || idx} className="border border-stone-200 rounded-lg p-4 bg-stone-50/50">
+                  {/* Header with action and timestamp */}
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      {getActionIcon(entry.action)}
+                      <span className="font-medium text-sm capitalize">
+                        {entry.action?.replace('_', ' ')}
+                      </span>
+                      <Badge 
+                        variant="outline" 
+                        className={
+                          entry.change_details?.new_status === 'saved' 
+                            ? 'bg-green-50 text-green-700 border-green-200' 
+                            : entry.change_details?.new_status === 'draft'
+                            ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                            : 'bg-stone-50'
+                        }
+                      >
+                        {entry.change_details?.new_status || 'unknown'}
+                      </Badge>
+                    </div>
+                    <span className="text-xs text-text-muted">
+                      {formatDate(entry.timestamp)}
+                    </span>
+                  </div>
+                  
+                  {/* User info */}
+                  <div className="text-sm text-text-secondary mb-3">
+                    <span className="font-medium">{entry.performed_by?.name || 'Unknown'}</span>
+                    <span className="text-text-muted ml-1">({entry.performed_by?.email})</span>
+                  </div>
+                  
+                  {/* Value changes */}
+                  {entry.change_details && (
+                    <div className="space-y-2">
+                      {entry.change_details.old_value && (
+                        <div className="text-xs">
+                          <span className="text-red-600 font-medium">Previous:</span>
+                          <p className="mt-1 p-2 bg-red-50 rounded border border-red-100 text-text-secondary line-clamp-3">
+                            {entry.change_details.old_value}
+                          </p>
+                        </div>
+                      )}
+                      {entry.change_details.new_value && (
+                        <div className="text-xs">
+                          <span className="text-green-600 font-medium">New:</span>
+                          <p className="mt-1 p-2 bg-green-50 rounded border border-green-100 text-text-secondary line-clamp-3">
+                            {entry.change_details.new_value}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
