@@ -135,6 +135,8 @@ class TrackingService:
         )
         
         enabled_frameworks = org.get("enabled_frameworks", ["brsr"]) if org else ["brsr"]
+        # Normalize to lowercase for comparison
+        enabled_frameworks = [fw.lower() for fw in enabled_frameworks]
         stale_threshold = org.get("stale_threshold_days", DEFAULT_STALE_THRESHOLD_DAYS)
         
         # Get all question configs for this domain

@@ -11,6 +11,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from './ui/collapsible';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui/select';
 import { 
   ChevronDown, 
   ChevronRight, 
@@ -19,10 +26,11 @@ import {
   CheckCircle2,
   Circle,
   FileText,
-  Info
+  Info,
+  Calendar
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getCurrentReportingYear } from '../utils/reportingYearUtils';
+import { getCurrentReportingYear, generateReportingYears } from '../utils/reportingYearUtils';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -35,16 +43,50 @@ const API = process.env.REACT_APP_BACKEND_URL;
  * @param {boolean} isEditing - Whether in edit mode
  */
 export default function GRIQuestionnaire({ section, isEditing = false }) {
-  const { getAuthHeader } = useAuth();
+  const { getAuthHeader, token } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState({});
   const [disclosures, setDisclosures] = useState([]);
   const [responses, setResponses] = useState({});
   const [openDisclosures, setOpenDisclosures] = useState({});
-  const [reportingPeriod] = useState(() => getCurrentReportingYear('financial_year'));
+  const [organization, setOrganization] = useState(null);
+  const [reportingPeriod, setReportingPeriod] = useState(null);
+  const [reportingYears, setReportingYears] = useState([]);
+
+  // Fetch organization data to get reporting_year_type
+  useEffect(() => {
+    const fetchOrganization = async () => {
+      try {
+        const res = await axios.get(`${API}/api/organizations/my`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setOrganization(res.data);
+        
+        // Set reporting year type and generate years
+        const yearType = res.data.reporting_year_type || 'financial_year';
+        const years = generateReportingYears(yearType, 5);
+        setReportingYears(years);
+        
+        // Set default to current reporting year
+        const currentYear = getCurrentReportingYear(yearType);
+        setReportingPeriod(currentYear);
+      } catch (error) {
+        console.error('Failed to fetch organization:', error);
+        // Fallback to financial year
+        const years = generateReportingYears('financial_year', 5);
+        setReportingYears(years);
+        setReportingPeriod(getCurrentReportingYear('financial_year'));
+      }
+    };
+    
+    if (token) {
+      fetchOrganization();
+    }
+  }, [token]);
 
   // Fetch GRI disclosures for this section
   const fetchDisclosures = useCallback(async () => {
+    if (!reportingPeriod) return; // Wait for reporting period to be set
     try {
       setLoading(true);
       const res = await axios.get(
@@ -341,7 +383,7 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
     );
   };
 
-  if (loading) {
+  if (loading || !reportingPeriod) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
@@ -364,18 +406,37 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
 
   return (
     <div className="space-y-4">
-      {/* Header Info */}
+      {/* Header with Reporting Year Selector */}
       <Card className="p-4 bg-blue-50/50 border-blue-100">
-        <div className="flex items-start gap-2">
-          <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-          <div>
-            <p className="text-sm text-blue-800">
-              <strong>GRI Standards:</strong> Complete the disclosures below based on your organization&apos;s material topics.
-              Click on each disclosure to expand and fill in the required information.
-            </p>
-            <p className="text-xs text-blue-600 mt-1">
-              Reporting Period: {reportingPeriod}
-            </p>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-2 flex-1">
+            <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-sm text-blue-800">
+                <strong>GRI Standards:</strong> Complete the disclosures below based on your organization&apos;s material topics.
+                Click on each disclosure to expand and fill in the required information.
+              </p>
+            </div>
+          </div>
+          
+          {/* Reporting Year Selector */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Calendar className="w-4 h-4 text-blue-600" />
+            <Select value={reportingPeriod} onValueChange={setReportingPeriod}>
+              <SelectTrigger 
+                className="w-[180px] h-9 bg-white border-blue-200 text-sm"
+                data-testid="gri-reporting-year-selector"
+              >
+                <SelectValue placeholder="Select Year" />
+              </SelectTrigger>
+              <SelectContent>
+                {reportingYears.map(year => (
+                  <SelectItem key={year} value={year}>
+                    {year}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </Card>
