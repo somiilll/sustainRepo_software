@@ -5190,39 +5190,75 @@ class GHGReportGenerator:
         is_scope3_report = getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3'
         scope3_total = org_totals.get('scope3', 0)
 
-         # Scope 3 category display names
-        scope3_display_names = {
-            'c1': 'C1 - Purchased Goods & Services',
-            'c2': 'C2 - Capital Goods',
-            'c3': 'C3 - Fuel & Energy Related Activities',
-            'c4': 'C4 - Upstream Transportation & Distribution',
-            'c5': 'C5 - Waste Generated in Operations',
-            'c6': 'C6 - Business Travel',
-            'c7': 'C7 - Employee Commuting',
-            'c8': 'C8 - Upstream Leased Assets',
-            'c9': 'C9 - Downstream Transportation & Distribution',
-            'c10': 'C10 - Processing of Sold Products',
-            'c11': 'C11 - Use of Sold Products',
-            'c12': 'C12 - End-of-Life Treatment of Sold Products',
-            'c13': 'C13 - Downstream Leased Assets',
-            'c14': 'C14 - Franchises',
-            'c15': 'C15 - Investments',
-        }
+        #  # Scope 3 category display names
+        # scope3_display_names = {
+        #     'c1': 'C1 - Purchased Goods & Services',
+        #     'c2': 'C2 - Capital Goods',
+        #     'c3': 'C3 - Fuel & Energy Related Activities',
+        #     'c4': 'C4 - Upstream Transportation & Distribution',
+        #     'c5': 'C5 - Waste Generated in Operations',
+        #     'c6': 'C6 - Business Travel',
+        #     'c7': 'C7 - Employee Commuting',
+        #     'c8': 'C8 - Upstream Leased Assets',
+        #     'c9': 'C9 - Downstream Transportation & Distribution',
+        #     'c10': 'C10 - Processing of Sold Products',
+        #     'c11': 'C11 - Use of Sold Products',
+        #     'c12': 'C12 - End-of-Life Treatment of Sold Products',
+        #     'c13': 'C13 - Downstream Leased Assets',
+        #     'c14': 'C14 - Franchises',
+        #     'c15': 'C15 - Investments',
+        # }
         
+        # # Get Scope 3 category breakdown from org_totals
+        # scope3_category_totals = {}
+        # if is_scope3_report:
+        #     scope_cat_fuel = org_totals.get('by_scope_category_fuel', {})
+        #     scope3_data = scope_cat_fuel.get('scope3', {})
+        #     for cat, fuels in scope3_data.items():
+        #         # Normalize category key to c1, c2, etc.
+        #         cat_lower = cat.lower()
+        #         cat_key = cat_lower.split(' ')[0] if cat_lower else 'other'
+        #         if cat_key.startswith('c') and cat_key[1:].split('-')[0].isdigit():
+        #             cat_key = cat_key.split('-')[0]
+        #         cat_total = sum(fuels.values()) if isinstance(fuels, dict) else 0
+        #         scope3_category_totals[cat_key] = scope3_category_totals.get(cat_key, 0) + cat_total
+        
+
         # Get Scope 3 category breakdown from org_totals
         scope3_category_totals = {}
         if is_scope3_report:
+            category_mapping = {
+                'purchased goods': 'c1', 'capital goods': 'c2', 'fuel and energy': 'c3', 
+                'upstream transportation': 'c4', 'waste generated': 'c5', 'business travel': 'c6', 
+                'employee commuting': 'c7', 'upstream leased': 'c8', 'downstream transportation': 'c9', 
+                'processing of sold': 'c10', 'use of sold': 'c11', 'end-of-life treatment': 'c12', 
+                'downstream leased': 'c13', 'franchises': 'c14', 'investments': 'c15'
+            }
+            
             scope_cat_fuel = org_totals.get('by_scope_category_fuel', {})
             scope3_data = scope_cat_fuel.get('scope3', {})
+            
             for cat, fuels in scope3_data.items():
-                # Normalize category key to c1, c2, etc.
-                cat_lower = cat.lower()
-                cat_key = cat_lower.split(' ')[0] if cat_lower else 'other'
-                if cat_key.startswith('c') and cat_key[1:].split('-')[0].isdigit():
-                    cat_key = cat_key.split('-')[0]
+                category = cat.lower()
+                
+                # 1. Try to find C1, C2 prefix natively
+                cat_key = 'other'
+                for i in range(15, 0, -1):
+                    prefix = f'c{i}'
+                    if category.startswith(f'{prefix} ') or category.startswith(f'{prefix}-') or category == prefix:
+                        cat_key = prefix
+                        break
+                        
+                # 2. Fallback to matching category name text
+                if cat_key == 'other':
+                    for name, key in category_mapping.items():
+                        if name in category:
+                            cat_key = key
+                            break
+
                 cat_total = sum(fuels.values()) if isinstance(fuels, dict) else 0
                 scope3_category_totals[cat_key] = scope3_category_totals.get(cat_key, 0) + cat_total
-        
+                
         if is_scope3_report:
             total_emissions = org_totals['scope1'] + org_totals['scope2'] + scope3_total
             net_emissions = total_emissions - removals
