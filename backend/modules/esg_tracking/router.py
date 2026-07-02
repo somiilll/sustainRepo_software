@@ -362,16 +362,17 @@ async def get_organization_users(
     """
     from shared.database.mongo import db
     
-    users = await db.users.find(
+    # Query users_esg collection (ESG platform users)
+    users = await db.users_esg.find(
         {"organization_id": current_user["organization_id"]},
-        {"_id": 0, "id": 1, "name": 1, "email": 1, "role": 1}
+        {"_id": 0, "id": 1, "name": 1, "full_name": 1, "email": 1, "role": 1}
     ).to_list(500)
     
     return {
         "users": [
             {
                 "id": u["id"],
-                "name": u.get("name") or u.get("email", "").split("@")[0],
+                "name": u.get("full_name") or u.get("name") or u.get("email", "").split("@")[0],
                 "email": u.get("email"),
                 "role": u.get("role"),
             }

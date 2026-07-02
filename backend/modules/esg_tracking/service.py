@@ -92,7 +92,8 @@ class TrackingService:
     def _get_display_name(self, config: Optional[dict], q_key: str) -> str:
         """
         Get the display name for a disclosure from config.
-        Priority: label > description (truncated) > formatted key
+        Priority: label > description (full text) > formatted key
+        Returns full text - truncation should be handled by frontend.
         """
         if not config:
             return self._format_question_key(q_key)
@@ -103,11 +104,12 @@ class TrackingService:
         
         desc = config.get("description")
         if desc:
-            # Use first sentence or first 100 chars
-            display = desc.split('.')[0][:100]
-            if len(desc) > 100 and '.' not in desc[:100]:
-                display += "..."
-            return display
+            # Return full description - let frontend handle truncation
+            # For single-sentence descriptions, return the first sentence
+            first_sentence = desc.split('.')[0]
+            if len(first_sentence) < len(desc) - 1:  # There's more after first sentence
+                return first_sentence + "."
+            return desc
         
         return self._format_question_key(q_key)
     

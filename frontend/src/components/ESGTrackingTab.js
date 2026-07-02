@@ -49,6 +49,8 @@ import {
   Loader2,
   ChevronRight,
   ChevronLeft,
+  ChevronDown,
+  ChevronUp,
   Users,
   Clock,
   AlertTriangle,
@@ -173,6 +175,38 @@ const MultiUserSelect = ({ users, selectedUserIds, onChange, label }) => {
           })}
         </div>
       )}
+    </div>
+  );
+};
+
+// Expandable text component for long questions
+const ExpandableText = ({ text, maxLength = 150 }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  if (!text || text.length <= maxLength) {
+    return <span>{text}</span>;
+  }
+  
+  return (
+    <div className="space-y-1">
+      <span>
+        {isExpanded ? text : `${text.substring(0, maxLength)}...`}
+      </span>
+      <button 
+        type="button"
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="text-emerald-600 hover:text-emerald-700 text-xs font-medium flex items-center gap-1 mt-1"
+      >
+        {isExpanded ? (
+          <>
+            <ChevronUp className="w-3 h-3" /> Read less
+          </>
+        ) : (
+          <>
+            <ChevronDown className="w-3 h-3" /> Read more
+          </>
+        )}
+      </button>
     </div>
   );
 };
@@ -741,8 +775,13 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
                   disclosures.map(disc => (
                     <TableRow key={disc.disclosure_id} className="hover:bg-stone-50">
                       <TableCell>
-                        {/* Show question text (disclosure_name) instead of key */}
-                        <div className="font-medium text-sm">{disc.disclosure_name}</div>
+                        {/* Show question text with tooltip for full text */}
+                        <div 
+                          className="font-medium text-sm line-clamp-2 cursor-help"
+                          title={disc.disclosure_name}
+                        >
+                          {disc.disclosure_name}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <StatusBadge 
@@ -852,13 +891,22 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
                     : 'Assign Question'
               }
             </DialogTitle>
-            <DialogDescription>
-              {assigningItem?.bulk 
-                ? `Assign all unassigned questions in ${selectedSection?.section_name}`
-                : assigningItem?.isSection
-                  ? `Assign all questions in ${assigningItem.section_name} to selected users`
-                  : `Assign "${assigningItem?.disclosure_name}" to users`
-              }
+            <DialogDescription asChild>
+              <div className="text-sm text-text-muted">
+                {assigningItem?.bulk 
+                  ? `Assign all unassigned questions in ${selectedSection?.section_name}`
+                  : assigningItem?.isSection
+                    ? `Assign all questions in ${assigningItem.section_name} to selected users`
+                    : (
+                      <div className="space-y-2">
+                        <span>Assign the following question to users:</span>
+                        <div className="p-3 bg-stone-50 rounded-lg border text-text-primary mt-2">
+                          <ExpandableText text={assigningItem?.disclosure_name} maxLength={120} />
+                        </div>
+                      </div>
+                    )
+                }
+              </div>
             </DialogDescription>
           </DialogHeader>
           
