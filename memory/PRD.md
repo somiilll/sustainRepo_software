@@ -1301,6 +1301,34 @@ Five phases executed end-to-end with **37/37 regression tests PASS** (iteration_
 
 **Verified:** Testing agent passed 5/5 backend tests + full UI round-trip (save → reload → data displays correctly)
 
+### Dynamic CY/FY Reporting Year Support (Jul 2026)
+**Feature:** Decoupled hardcoded Indian Financial Year (Apr-Mar) logic to support both Calendar Year (CY) and Financial Year (FY) based on organization settings.
+
+**Implementation:**
+- Created `/app/frontend/src/utils/reportingYearUtils.js` utility module with:
+  - `generateReportingYears(yearType, count)` - Generates year options in `FY YYYY-YYYY` or `CY YYYY` format
+  - `getCurrentReportingYear(yearType)` - Returns current reporting year based on type
+  - `getEffectiveYearType(orgYearType, framework)` - Determines effective year type (BRSR forces FY)
+  - `getMonthsForYearType(yearType)` - Returns month arrays (Apr-Mar for FY, Jan-Dec for CY)
+  - `getYearLabelsForTable({reportingYear, yearType, framework})` - Generates table column labels
+  - `parseReportingYear(reportingYear)` - Parses year strings to extract type and years
+  - `getPreviousReportingYear()`, `getNextReportingYear()` - Year navigation helpers
+
+**Components Updated:**
+- `ESGQuestionnaire.js`: Added `yearType` prop, uses utility for year options and passes `year_type` to renderers
+- `FacilityProductionSection.js`: Added `yearType` and `framework` props, uses utility for months and year options
+- `TableRenderers.js`: Updated `getFYLabels()` to use `getYearLabelsForTable()` utility
+- `HistoricalRenderers.js`: Updated `getFYLabels()` to use `getYearLabelsForTable()` utility
+- `Facilities.js`: Passes `organization?.reporting_year_type` to FacilityProductionSection
+
+**Key Behavior:**
+- BRSR framework always enforces Financial Year (Indian Apr-Mar) regardless of org settings
+- Non-BRSR frameworks respect organization's `reporting_year_type` setting
+- Year dropdowns now show `FY 2026-2027` or `CY 2026` format based on effective year type
+- Monthly inputs in FacilityProductionSection show Apr-Mar for FY, Jan-Dec for CY
+
+**Verified:** Testing agent iteration 91 passed all frontend tests with BRSR forcing FY correctly.
+
 ## Future/Backlog (P2)
 - Add Monthly/Yearly frequency indicators
 - CBAM module and report template
