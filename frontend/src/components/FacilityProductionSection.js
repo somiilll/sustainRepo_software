@@ -8,43 +8,43 @@ import { Card } from './ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Package, Calendar, Loader2, Save, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
+import { 
+  generateReportingYears, 
+  getCurrentReportingYear, 
+  getMonthsForYearType,
+  getEffectiveYearType,
+  parseReportingYear
+} from '../utils/reportingYearUtils';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
-const MONTHS = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
-
-// Generate FY options (last 5 years)
-const generateFYOptions = () => {
-  const options = [];
-  const now = new Date();
-  const currentYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-  
-  for (let i = 0; i < 5; i++) {
-    const startYear = currentYear - i;
-    const endYear = startYear + 1;
-    options.push(`${startYear}-${String(endYear).slice(-2)}`);
-  }
-  return options;
-};
-
-export default function FacilityProductionSection({ facilityId, facilityName, readOnly = false }) {
+export default function FacilityProductionSection({ 
+  facilityId, 
+  facilityName, 
+  readOnly = false,
+  yearType = 'financial_year',  // Organization's reporting year type
+  framework = null              // Optional framework override (e.g., 'BRSR' forces FY)
+}) {
   const { getAuthHeader, subscriptionExpired } = useAuth();
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   
-  const [selectedYear, setSelectedYear] = useState(() => {
-    const now = new Date();
-    const year = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-    return `${year}-${String(year + 1).slice(-2)}`;
-  });
+  // Determine effective year type (BRSR forces FY)
+  const effectiveYearType = getEffectiveYearType(yearType, framework);
+  
+  // Get months based on year type
+  const months = getMonthsForYearType(effectiveYearType);
+  
+  // Generate year options using the utility
+  const yearOptions = generateReportingYears(effectiveYearType, 5);
+  
+  const [selectedYear, setSelectedYear] = useState(() => getCurrentReportingYear(effectiveYearType));
   
   const [inputType, setInputType] = useState('yearly'); // 'yearly' or 'monthly'
   const [yearlyQuantity, setYearlyQuantity] = useState('');
   const [unit, setUnit] = useState('MT');
   const [monthlyData, setMonthlyData] = useState({});
-  
-  const fyOptions = generateFYOptions();
 
   const fetchProductionData = useCallback(async () => {
     if (!facilityId || !selectedYear) return;
@@ -101,7 +101,7 @@ export default function FacilityProductionSection({ facilityId, facilityName, re
       
       if (inputType === 'monthly') {
         const monthlyPayload = {};
-        MONTHS.forEach(month => {
+        months.forEach(month => {
           const val = monthlyData[month];
           if (val !== undefined && val !== '') {
             monthlyPayload[month] = { quantity: parseFloat(val) || 0, unit };
@@ -118,7 +118,7 @@ export default function FacilityProductionSection({ facilityId, facilityName, re
         { headers: getAuthHeader() }
       );
       
-      toast.success(`Production data saved for FY ${selectedYear}`);
+      toast.success(`Production data saved for ${selectedYear}`);
     } catch (error) {
       toast.error('Failed to save production data');
       console.error(error);
@@ -138,7 +138,7 @@ export default function FacilityProductionSection({ facilityId, facilityName, re
     if (inputType === 'yearly') {
       return parseFloat(yearlyQuantity) || 0;
     }
-    return MONTHS.reduce((sum, month) => sum + (parseFloat(monthlyData[month]) || 0), 0);
+    return months.reduce((sum, month) => sum + (parseFloat(monthlyData[month]) || 0), 0);
   };
 
   const isDisabled = readOnly || subscriptionExpired;
@@ -174,14 +174,14 @@ export default function FacilityProductionSection({ facilityId, facilityName, re
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-text-muted" />
-              <Label className="text-sm">Financial Year:</Label>
+              <Label className="text-sm">{effectiveYearType === 'calendar_year' ? 'Calendar Year:' : 'Financial Year:'}</Label>
               <Select value={selectedYear} onValueChange={setSelectedYear} disabled={isDisabled}>
-                <SelectTrigger className="w-32 bg-white">
+                <SelectTrigger className="w-40 bg-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {fyOptions.map(fy => (
-                    <SelectItem key={fy} value={fy}>FY {fy}</SelectItem>
+                  {yearOptions.map(year => (
+                    <SelectItem key={year} value={year}>{year}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -238,7 +238,7 @@ export default function FacilityProductionSection({ facilityId, facilityName, re
               {/* Input Fields */}
               {inputType === 'yearly' ? (
                 <div className="space-y-2">
-                  <Label>Total Production for FY {selectedYear}</Label>
+                  <Label>Total Production for {selectedYear}</Label>
                   <div className="flex items-center gap-2">
                     <Input
                       type="number"
@@ -253,9 +253,9 @@ export default function FacilityProductionSection({ facilityId, facilityName, re
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <Label>Monthly Production for FY {selectedYear}</Label>
+                  <Label>Monthly Production for {selectedYear}</Label>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                    {MONTHS.map(month => (
+                    {months.map(month => (
                       <div key={month} className="space-y-1">
                         <Label className="text-xs text-text-muted">{month}</Label>
                         <Input

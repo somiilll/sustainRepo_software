@@ -6,17 +6,20 @@ import { Button } from '../../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select';
 import { Badge } from '../../ui/badge';
 import { Plus, Trash2 } from 'lucide-react';
+import { getYearLabelsForTable, replaceYearPlaceholders } from '../../../utils/reportingYearUtils';
 
-// Helper to get FY labels - supports "FY 2025-2026" format only
+/**
+ * Helper to get FY/CY labels based on reporting year and organization settings
+ * Supports both "FY 2025-2026" and "CY 2025" formats
+ * @param {Object} allResponses - Contains reporting_year and optionally year_type/framework
+ * @returns {{ current: string, previous: string, yearType: string }}
+ */
 const getFYLabels = (allResponses) => {
-  const reportingYear = allResponses?.reporting_year || `FY ${new Date().getFullYear()}-${new Date().getFullYear() + 1}`;
-  const match = reportingYear.match(/FY\s*(\d{4})-(\d{4})/);
-  if (!match) return { current: 'Current FY', previous: 'Previous FY' };
-  const startYear = parseInt(match[1]);
-  return {
-    current: `FY ${startYear}-${startYear + 1}`,
-    previous: `FY ${startYear - 1}-${startYear}`
-  };
+  const reportingYear = allResponses?.reporting_year;
+  const yearType = allResponses?.year_type || allResponses?.reporting_year_type || 'financial_year';
+  const framework = allResponses?.framework || null;
+  
+  return getYearLabelsForTable({ reportingYear, yearType, framework });
 };
 
 export function DynamicTableRenderer({ config, value, onChange, isEditing }) {

@@ -916,6 +916,7 @@ export default function Facilities() {
                     facilityId={editingFacility?.id || autoSavedId}
                     facilityName={formData.name}
                     readOnly={subscriptionExpired}
+                    yearType={organization?.reporting_year_type || 'financial_year'}
                   />
                 )}
 

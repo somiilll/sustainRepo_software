@@ -54,20 +54,14 @@ import {
   AlertCircle,
   HelpCircle
 } from 'lucide-react';
+import { 
+  generateReportingYears, 
+  getCurrentReportingYear,
+  getEffectiveYearType
+} from '../utils/reportingYearUtils';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
-
-// Generate reporting year options
-const generateReportingYears = () => {
-  const currentYear = new Date().getFullYear();
-  const years = [];
-  for (let i = 0; i < 5; i++) {
-    const startYear = currentYear - i;
-    years.push(`FY ${startYear}-${startYear + 1}`);
-  }
-  return years;
-};
 
 // NGRBC Principles (P1-P9)
 const NGRBC_PRINCIPLES = [
@@ -2925,12 +2919,20 @@ export default function ESGQuestionnaire({
   section, 
   isEditing = false,
   filterPrinciples = null,
-  excludePrinciples = null
+  excludePrinciples = null,
+  yearType = 'financial_year'  // Organization's reporting year type
 }) {
   const { getAuthHeader } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [reportingYear, setReportingYear] = useState(generateReportingYears()[0]);
+  
+  // Determine effective year type (BRSR forces FY unless explicitly configured otherwise)
+  const effectiveYearType = getEffectiveYearType(yearType, framework);
+  
+  // Generate year options based on effective year type
+  const yearOptions = generateReportingYears(effectiveYearType, 5);
+  
+  const [reportingYear, setReportingYear] = useState(() => getCurrentReportingYear(effectiveYearType));
   const [configs, setConfigs] = useState([]);
   const [responses, setResponses] = useState({});
   const [summary, setSummary] = useState(null);
@@ -3060,9 +3062,9 @@ export default function ESGQuestionnaire({
             <Label className="text-sm">Reporting Year:</Label>
             {isEditing ? (
               <Select value={reportingYear} onValueChange={setReportingYear}>
-                <SelectTrigger className="w-32 h-9"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-40 h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {generateReportingYears().map(year => (
+                  {yearOptions.map(year => (
                     <SelectItem key={year} value={year}>{year}</SelectItem>
                   ))}
                 </SelectContent>
@@ -3109,7 +3111,12 @@ export default function ESGQuestionnaire({
                     value={responses[config.question_key]}
                     onChange={(val) => handleResponseChange(config.question_key, val)}
                     isEditing={isEditing}
-                    allResponses={{ ...responses, reporting_year: reportingYear }}
+                    allResponses={{ 
+                      ...responses, 
+                      reporting_year: reportingYear,
+                      year_type: effectiveYearType,
+                      framework: framework
+                    }}
                     historicalData={historicalData}
                   />
                 ))}
