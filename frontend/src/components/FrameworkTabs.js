@@ -3,7 +3,8 @@ import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 import { Badge } from './ui/badge';
-import { Loader2, FileText, ClipboardList } from 'lucide-react';
+import { Loader2, FileText, ClipboardList, BarChart3 } from 'lucide-react';
+import ESGTrackingTab from './ESGTrackingTab';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -28,10 +29,13 @@ export default function FrameworkTabs({
   recordsContent, 
   renderFrameworkContent 
 }) {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [activeTab, setActiveTab] = useState('records');
   const [enabledFrameworks, setEnabledFrameworks] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Check if user is admin
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
 
   useEffect(() => {
     fetchEnabledFrameworks();
@@ -59,9 +63,11 @@ export default function FrameworkTabs({
     );
   }
 
-  // Build tabs: Records + enabled frameworks
+  // Build tabs: Records + Tracking (admin only) + enabled frameworks
   const tabs = [
     { key: 'records', label: 'Records', icon: FileText },
+    // Add Tracking tab for admins only
+    ...(isAdmin ? [{ key: 'tracking', label: 'Tracking', icon: BarChart3, isTracking: true }] : []),
     ...enabledFrameworks.map(fw => ({
       key: fw.toLowerCase(),
       label: FRAMEWORK_META[fw]?.label || fw,
@@ -88,6 +94,11 @@ export default function FrameworkTabs({
                   Framework
                 </Badge>
               )}
+              {tab.isTracking && (
+                <Badge variant="outline" className="ml-1 text-[10px] px-1.5 py-0 border-emerald-300 text-emerald-600">
+                  Admin
+                </Badge>
+              )}
             </TabsTrigger>
           );
         })}
@@ -97,6 +108,13 @@ export default function FrameworkTabs({
       <TabsContent value="records" className="mt-0">
         {recordsContent}
       </TabsContent>
+      
+      {/* Tracking Tab (Admin Only) */}
+      {isAdmin && (
+        <TabsContent value="tracking" className="mt-0">
+          <ESGTrackingTab domain={moduleType} />
+        </TabsContent>
+      )}
 
       {/* Framework Tabs */}
       {enabledFrameworks.map(fw => (

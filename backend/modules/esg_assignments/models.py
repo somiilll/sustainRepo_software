@@ -51,7 +51,9 @@ class FillingFrequency(str, Enum):
     WEEKLY = "weekly"
     MONTHLY = "monthly"
     QUARTERLY = "quarterly"
+    HALF_YEARLY = "half_yearly"
     YEARLY = "yearly"
+    EVENT_BASED = "event_based"
     ONE_TIME = "one_time"
 
 
@@ -94,15 +96,22 @@ class CreateAssignmentRequest(BaseModel):
     status: AssignmentStatus = AssignmentStatus.PENDING
     due_date: Optional[datetime] = None
     
+    # Framework context
+    framework_id: Optional[str] = None  # "brsr", "gri", "csrd", etc.
+    
+    # Approval configuration (only works if org-level approval enabled)
+    requires_approval: bool = False
+    
     # Filling frequency
     filling_frequency: Optional[FillingFrequency] = None
     filling_due_day: Optional[int] = None  # Day of month/quarter when filling is due
     
-    # Reminder settings
+    # Reminder settings (enhanced)
     reminder_enabled: bool = False
     reminder_frequency: Optional[ReminderFrequency] = None
     reminder_start_before_days: Optional[int] = None  # Start reminding X days before due
     reminder_recipients: Optional[List[str]] = None  # Additional user IDs
+    reminder_config: Optional[dict] = None  # {"frequency": "daily", "days_before_due": [7,3,1], "repeat_overdue": true}
     
     # Metadata for extensibility
     metadata: Optional[dict] = None
@@ -114,12 +123,15 @@ class UpdateAssignmentRequest(BaseModel):
     role: Optional[AssignmentRole] = None
     status: Optional[AssignmentStatus] = None
     due_date: Optional[datetime] = None
+    framework_id: Optional[str] = None
+    requires_approval: Optional[bool] = None
     filling_frequency: Optional[FillingFrequency] = None
     filling_due_day: Optional[int] = None
     reminder_enabled: Optional[bool] = None
     reminder_frequency: Optional[ReminderFrequency] = None
     reminder_start_before_days: Optional[int] = None
     reminder_recipients: Optional[List[str]] = None
+    reminder_config: Optional[dict] = None
     metadata: Optional[dict] = None
 
 
@@ -164,6 +176,12 @@ class AssignmentResponse(BaseModel):
     status: AssignmentStatus
     due_date: Optional[datetime] = None
     
+    # Framework context
+    framework_id: Optional[str] = None
+    
+    # Approval configuration
+    requires_approval: bool = False
+    
     # Filling frequency
     filling_frequency: Optional[FillingFrequency] = None
     filling_due_day: Optional[int] = None
@@ -173,6 +191,7 @@ class AssignmentResponse(BaseModel):
     reminder_frequency: Optional[ReminderFrequency] = None
     reminder_start_before_days: Optional[int] = None
     reminder_recipients: Optional[List[str]] = None
+    reminder_config: Optional[dict] = None
     last_reminder_sent_at: Optional[datetime] = None
     next_reminder_at: Optional[datetime] = None
     

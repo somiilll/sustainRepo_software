@@ -92,6 +92,9 @@ from modules.approvals.router_v2 import router as approvals_router
 # Enterprise Approval Workflow Engine (generic multi-level approvals)
 from modules.approval_workflow.router import router as approval_workflow_router
 
+# ESG Tracking Module (workflow tracking, assignments, completion monitoring)
+from modules.esg_tracking.router import router as esg_tracking_router
+
 # Targets domain (multi-target reduction management).
 from modules.targets.router import router as targets_router
 from modules.production.router import router as production_router
@@ -146,6 +149,9 @@ api_router.include_router(approvals_router)
 
 # Enterprise Approval Workflow Engine
 api_router.include_router(approval_workflow_router)
+
+# ESG Tracking Module
+api_router.include_router(esg_tracking_router)
 
 # Targets module (org-level reduction targets)
 api_router.include_router(targets_router)

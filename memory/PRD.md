@@ -1370,6 +1370,83 @@ Five phases executed end-to-end with **37/37 regression tests PASS** (iteration_
 
 **Verified:** Backend API tested with curl - workflow creation, 2-level approval flow, and audit history all working correctly.
 
+### ESG Tracking Module (Jul 2026)
+**Feature:** Comprehensive "ESG Control Center" for admins to monitor disclosure completion, assign/reassign disclosures, track pending items, send reminders, and monitor framework readiness.
+
+**Architecture:**
+- Framework-driven, metadata-driven, applicability-driven
+- Uses `esg_assignments` for ownership tracking
+- Uses `esg_responses` for completion status (stale detection uses `updated_at`)
+- Aggregates data via `esg_tracking` service layer
+
+**Backend Module:** `/app/backend/modules/esg_tracking/`
+- `models.py` - TrackingDomain, CompletionStatus, FrameworkSummary, SectionSummary, DisclosureTrackingItem
+- `service.py` - TrackingService with aggregation logic, progress calculation, stale detection (90-day default)
+- `router.py` - API endpoints for tracking
+
+**API Endpoints:**
+- `GET /api/tracking/{domain}/frameworks` - Framework summaries with completion %
+- `GET /api/tracking/{domain}/frameworks/{id}/sections` - Section-level tracking
+- `GET /api/tracking/{domain}/frameworks/{id}/sections/{section_id}` - Disclosure-level details
+- `POST /api/tracking/{domain}/assign` - Single/bulk assign disclosures
+- `POST /api/tracking/{domain}/reassign` - Reassign without losing data
+- `POST /api/tracking/{domain}/send-reminder` - Send email reminder via Resend
+- `GET /api/tracking/{domain}/overdue` - All overdue items
+- `GET /api/tracking/{domain}/unassigned` - All unassigned items
+- `GET /api/tracking/{domain}/stale` - All stale items
+
+**Frontend Component:** `/app/frontend/src/components/ESGTrackingTab.js`
+- Admin-only visibility (checks user.role)
+- Framework selector cards with completion %, progress bars
+- Section cards with assigned users, overdue/stale counts
+- Disclosures table with status badges (completed, in_progress, not_started, stale, overdue)
+- Assignment modal with user selector, due date, filling frequency, approval toggle
+- Bulk "Assign Remaining" functionality
+- Send Reminder button (sends actual email)
+- Filters: Status (all/completed/pending/overdue/stale/due_soon), Assignment (all/unassigned)
+
+**Integration:**
+- Added "Tracking" tab to Environment, Social, Governance pages via FrameworkTabs.js
+- Tab shows "(Admin)" badge and only visible to admin/super_admin users
+
+**Extended esg_assignments schema:**
+- Added `framework_id`, `requires_approval`, `reminder_config`, `half_yearly` frequency
+
+**Verified:** Screenshots show working Tracking tab with framework summary, section cards, and disclosure table with Assign buttons.
+
+### Tracking Tab Extended to All ESG Modules (Jul 2026)
+**Feature:** Added Tracking tab to Social and Governance pages (already using shared FrameworkTabs component).
+
+**Implementation:** FrameworkTabs.js already passes `moduleType` prop to ESGTrackingTab:
+- Environment → `domain="environment"`
+- Social → `domain="social"`
+- Governance → `domain="governance"`
+
+**Verified:** Screenshots show Tracking tab working in Social (38 disclosures, 4 sections: P3, P4, P5, P8) and Governance (43 disclosures, 9 sections).
+
+### Approval Workflow Integration with Disclosure Submission (Jul 2026)
+**Feature:** Auto-create approval request when a disclosure with `requires_approval=true` is saved.
+
+**Implementation:** Added `_trigger_approval_if_required()` method to `esg_questionnaire/service.py`:
+1. Called after each response save in `_save_year_document()`
+2. Checks if assignment exists with `requires_approval=true`
+3. Checks if organization has approval workflow for `esg_response` entity type
+4. Creates approval_request via `ApprovalWorkflowService.submit_for_approval()`
+5. Updates assignment status to `submitted`
+
+**Flow:**
+1. Admin creates assignment with `requires_approval: true` via Tracking tab or API
+2. User fills in disclosure response
+3. System auto-submits for approval
+4. Approvers see pending request in approval workflow
+5. After approval, disclosure is finalized
+
+**Verified:** 
+- Created assignment with `requires_approval: true` for `env_sustainable_rd_capex`
+- Saved response
+- Confirmed approval request created with status `pending`
+- Assignment status updated to `submitted`
+
 ## Future/Backlog (P2)
 - Add Monthly/Yearly frequency indicators
 - CBAM module and report template

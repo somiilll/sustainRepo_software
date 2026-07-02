@@ -70,6 +70,12 @@ class AssignmentService:
             "status": request.status.value,
             "due_date": request.due_date,
             
+            # Framework context
+            "framework_id": request.framework_id,
+            
+            # Approval configuration
+            "requires_approval": request.requires_approval,
+            
             # Filling frequency
             "filling_frequency": request.filling_frequency.value if request.filling_frequency else None,
             "filling_due_day": request.filling_due_day,
@@ -79,6 +85,7 @@ class AssignmentService:
             "reminder_frequency": request.reminder_frequency.value if request.reminder_frequency else None,
             "reminder_start_before_days": request.reminder_start_before_days,
             "reminder_recipients": request.reminder_recipients,
+            "reminder_config": request.reminder_config,
             "last_reminder_sent_at": None,
             "next_reminder_at": self._calculate_next_reminder(request) if request.reminder_enabled else None,
             
@@ -157,6 +164,10 @@ class AssignmentService:
             update_fields["status"] = request.status.value
         if request.due_date is not None:
             update_fields["due_date"] = request.due_date
+        if request.framework_id is not None:
+            update_fields["framework_id"] = request.framework_id
+        if request.requires_approval is not None:
+            update_fields["requires_approval"] = request.requires_approval
         if request.filling_frequency is not None:
             update_fields["filling_frequency"] = request.filling_frequency.value
         if request.filling_due_day is not None:
@@ -169,6 +180,8 @@ class AssignmentService:
             update_fields["reminder_start_before_days"] = request.reminder_start_before_days
         if request.reminder_recipients is not None:
             update_fields["reminder_recipients"] = request.reminder_recipients
+        if request.reminder_config is not None:
+            update_fields["reminder_config"] = request.reminder_config
         if request.metadata is not None:
             update_fields["metadata"] = request.metadata
         

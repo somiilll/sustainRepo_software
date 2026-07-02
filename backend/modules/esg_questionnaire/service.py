@@ -449,6 +449,11 @@ class ESGQuestionnaireService:
                                 changed_by_user_id=changed_by_user_id,
                                 change_type=ResponseChangeType.UPDATED if old_value else ResponseChangeType.CREATED,
                             )
+                            
+                            # Check if this disclosure requires approval and trigger workflow
+                            await self._trigger_approval_if_required(
+                                org_id, question_key, reporting_year, new_value, changed_by_user_id
+                            )
                         except Exception as e:
                             # Don't fail save if version tracking fails
                             print(f"Warning: Failed to log response version for {question_key}: {e}")
@@ -477,6 +482,11 @@ class ESGQuestionnaireService:
                             new_value=new_value,
                             changed_by_user_id=changed_by_user_id,
                             change_type=ResponseChangeType.CREATED,
+                        )
+                        
+                        # Check if this disclosure requires approval and trigger workflow
+                        await self._trigger_approval_if_required(
+                            org_id, question_key, reporting_year, new_value, changed_by_user_id
                         )
                     except Exception as e:
                         print(f"Warning: Failed to log response version for {question_key}: {e}")
@@ -603,6 +613,104 @@ class ESGQuestionnaireService:
             else:
                 result[key] = value
         return result
+
+    async def _trigger_approval_if_required(
+        self,
+        org_id: str,
+        question_key: str,
+        reporting_year: str,
+        response_value: Any,
+        changed_by_user_id: str,
+    ) -> None:
+        """
+        Check if a disclosure requires approval and trigger approval workflow.
+        
+        This is called after a response is saved. It:
+        1. Checks if there's an assignment for this question with requires_approval=True
+        2. Checks if the organization has approval workflows enabled
+        3. Creates an approval_request if conditions are met
+        """
+        try:
+            from shared.database.mongo import db
+            from modules.approval_workflow.service import ApprovalWorkflowService
+            from modules.approval_workflow.models import SubmitForApprovalInput, EntityType
+            
+            # Check if there's an assignment with requires_approval=True
+            assignment = await db.esg_assignments.find_one({
+                "organization_id": org_id,
+                "entity_id": question_key,
+                "entity_type": "question",
+                "reporting_period": reporting_year,
+                "requires_approval": True,
+            }, {"_id": 0})
+            
+            if not assignment:
+                return  # No approval required for this disclosure
+            
+            # Check if org has approval workflow enabled for esg_response entity type
+            workflow = await ApprovalWorkflowService.get_workflow_for_entity(
+                org_id, "esg_response", None
+            )
+            
+            if not workflow:
+                return  # No workflow configured for ESG responses
+            
+            # Check if there's already a pending approval request for this entity
+            existing_request = await db.approval_requests.find_one({
+                "organization_id": org_id,
+                "entity_type": "esg_response",
+                "entity_id": question_key,
+                "status": {"$in": ["pending", "in_review"]},
+            })
+            
+            if existing_request:
+                return  # Already has a pending request
+            
+            # Get user details for submission
+            user = await db.users.find_one(
+                {"id": changed_by_user_id},
+                {"_id": 0, "id": 1, "email": 1, "full_name": 1, "name": 1}
+            )
+            
+            if not user:
+                print(f"Warning: Could not find user {changed_by_user_id} for approval submission")
+                return
+            
+            # Create approval request
+            submit_input = SubmitForApprovalInput(
+                entity_type=EntityType.ESG_RESPONSE,
+                entity_id=question_key,
+                entity_subtype=None,
+                entity_snapshot={"value": response_value, "reporting_year": reporting_year},
+                comment="Auto-submitted for approval after disclosure update",
+                workflow_id=workflow.get("id"),
+            )
+            
+            current_user = {
+                "id": user.get("id"),
+                "email": user.get("email", ""),
+                "full_name": user.get("full_name") or user.get("name") or user.get("email", ""),
+                "role": "user",  # Role doesn't matter for submission
+            }
+            
+            success, message, request = await ApprovalWorkflowService.submit_for_approval(
+                org_id, submit_input, current_user
+            )
+            
+            if success:
+                print(f"Auto-submitted approval request for {question_key}: {request.get('id')}")
+                
+                # Update assignment status to 'submitted'
+                await db.esg_assignments.update_one(
+                    {"id": assignment.get("id")},
+                    {"$set": {"status": "submitted"}}
+                )
+            else:
+                print(f"Warning: Failed to auto-submit approval for {question_key}: {message}")
+                
+        except Exception as e:
+            # Don't fail the save if approval workflow fails
+            print(f"Warning: Approval workflow trigger failed for {question_key}: {e}")
 
     async def get_response_summary(
         self,
