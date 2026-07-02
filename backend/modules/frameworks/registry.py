@@ -214,13 +214,13 @@ framework_registry.register(FrameworkConfig(
     }
 ))
 
-# GRI Framework (Coming Soon)
+# GRI Framework (Available)
 framework_registry.register(FrameworkConfig(
     id="GRI",
     name="Global Reporting Initiative Standards",
     version="2021",
     description="The world's most widely used sustainability reporting standards. Provides a comprehensive framework for organizations to report their impacts on the economy, environment, and society.",
-    status=FrameworkStatus.COMING_SOON,
+    status=FrameworkStatus.AVAILABLE,
     disclosure_categories=[
         "universal",   # Universal Standards (GRI 1-3)
         "economic",    # Economic Standards (GRI 200)
