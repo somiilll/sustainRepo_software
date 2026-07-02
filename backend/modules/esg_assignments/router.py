@@ -384,6 +384,19 @@ async def get_upcoming_deadlines(
     return {"upcoming": upcoming, "count": len(upcoming)}
 
 
+@router.post("/reminders/send-overdue-notifications")
+async def send_overdue_notifications(
+    current_user: dict = Depends(get_admin_user),
+):
+    """
+    Send overdue summary emails to all users with overdue assignments (Admin only).
+    
+    Groups overdue assignments by user and sends one summary email per user.
+    """
+    result = await reminder_scheduler.process_overdue_notifications()
+    return result
+
+
 # ============================================
 # ENTITY LOOKUP ENDPOINT
 # ============================================

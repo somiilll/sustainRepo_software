@@ -6,11 +6,17 @@ Can be run as a cron job or background task.
 """
 
 import asyncio
-from datetime import datetime, timezone
+import logging
+from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any
 from shared.database.mongo import db
+from shared.helpers.email import send_email
 from .service import assignment_service
 from .models import AssignmentStatus
+from .email_templates import (
+    assignment_reminder_email,
+    assignment_overdue_email,
+)
 
 
 class ReminderScheduler:
@@ -30,7 +36,8 @@ class ReminderScheduler:
     def __init__(self):
         self._assignments = db["esg_assignments"]
         self._users = db["users"]
-        self._notifications = db["notifications"]  # For in-app notifications
+        self._notifications = db["notifications"]
+        self._organizations = db["organizations"]
     
     async def process_due_reminders(self) -> Dict[str, Any]:
         """
@@ -42,39 +49,107 @@ class ReminderScheduler:
         
         processed = 0
         failed = 0
+        emails_sent = 0
         
         for assignment in due_reminders:
             try:
-                await self._send_reminder(assignment)
+                email_sent = await self._send_reminder(assignment)
                 await assignment_service.mark_reminder_sent(assignment["id"])
                 processed += 1
+                if email_sent:
+                    emails_sent += 1
             except Exception as e:
-                print(f"Failed to send reminder for assignment {assignment['id']}: {e}")
+                logging.error(f"Failed to send reminder for assignment {assignment['id']}: {e}")
                 failed += 1
         
         return {
             "processed": processed,
             "failed": failed,
+            "emails_sent": emails_sent,
             "total_due": len(due_reminders),
             "processed_at": datetime.now(timezone.utc).isoformat(),
         }
     
-    async def _send_reminder(self, assignment: Dict[str, Any]):
+    async def process_overdue_notifications(self) -> Dict[str, Any]:
+        """
+        Send summary emails for users with overdue assignments.
+        
+        Groups overdue assignments by user and sends one email per user.
+        """
+        # Get all organizations
+        orgs_cursor = self._organizations.find({}, {"id": 1})
+        orgs = await orgs_cursor.to_list(1000)
+        
+        total_users_notified = 0
+        total_overdue = 0
+        
+        for org in orgs:
+            org_id = org.get("id")
+            if not org_id:
+                continue
+            
+            overdue = await self.get_overdue_assignments(org_id)
+            if not overdue:
+                continue
+            
+            # Group by user
+            by_user = {}
+            for a in overdue:
+                user_id = a.get("assigned_to_user_id")
+                if user_id not in by_user:
+                    by_user[user_id] = []
+                by_user[user_id].append(a)
+            
+            # Send email to each user
+            for user_id, user_overdue in by_user.items():
+                try:
+                    user = await self._users.find_one({"id": user_id}, {"email": 1, "name": 1})
+                    if not user or not user.get("email"):
+                        continue
+                    
+                    user_name = user.get("name") or user.get("email", "").split("@")[0]
+                    email_body = assignment_overdue_email(
+                        user_name=user_name,
+                        overdue_count=len(user_overdue),
+                        assignments=user_overdue,
+                    )
+                    
+                    await send_email(
+                        to_email=user["email"],
+                        subject=f"⚠️ {len(user_overdue)} Overdue ESG Assignment(s) Require Attention",
+                        body=email_body,
+                    )
+                    
+                    total_users_notified += 1
+                    total_overdue += len(user_overdue)
+                except Exception as e:
+                    logging.error(f"Failed to send overdue email to user {user_id}: {e}")
+        
+        return {
+            "users_notified": total_users_notified,
+            "total_overdue_assignments": total_overdue,
+            "processed_at": datetime.now(timezone.utc).isoformat(),
+        }
+    
+    async def _send_reminder(self, assignment: Dict[str, Any]) -> bool:
         """
         Send reminder for an assignment.
         
-        Creates in-app notification. Can be extended to send emails.
+        Creates in-app notification and sends email.
+        Returns True if email was sent successfully.
         """
         assigned_user_id = assignment.get("assigned_to_user_id")
         additional_recipients = assignment.get("reminder_recipients") or []
+        org_id = assignment.get("organization_id")
         
         all_recipients = [assigned_user_id] + additional_recipients
         
         # Get assignment details for notification
-        entity_type = assignment.get("entity_type")
-        entity_id = assignment.get("entity_id")
+        entity_type = assignment.get("entity_type", "")
+        entity_id = assignment.get("entity_id", "")
         due_date = assignment.get("due_date")
-        status = assignment.get("status")
+        status = assignment.get("status", "pending")
+        reporting_period = assignment.get("reporting_period", "")
         
         # Build notification message
         due_str = ""
@@ -86,14 +161,15 @@ class ReminderScheduler:
         
         message = f"Reminder: {entity_type.title()} '{entity_id}' is {status}{due_str}"
         
-        # Create notifications for all recipients
         now = datetime.now(timezone.utc)
+        email_sent = False
         
         for user_id in all_recipients:
+            # Create in-app notification
             notification = {
                 "id": f"notif_{assignment['id']}_{user_id}_{now.timestamp()}",
                 "user_id": user_id,
-                "organization_id": assignment.get("organization_id"),
+                "organization_id": org_id,
                 "type": "assignment_reminder",
                 "title": "ESG Assignment Reminder",
                 "message": message,
@@ -105,6 +181,34 @@ class ReminderScheduler:
             }
             
             await self._notifications.insert_one(notification)
+            
+            # Send email
+            try:
+                user = await self._users.find_one({"id": user_id}, {"email": 1, "name": 1})
+                if user and user.get("email"):
+                    user_name = user.get("name") or user.get("email", "").split("@")[0]
+                    
+                    email_body = assignment_reminder_email(
+                        user_name=user_name,
+                        entity_type=entity_type,
+                        entity_id=entity_id,
+                        status=status,
+                        due_date=due_date,
+                        reporting_period=reporting_period,
+                    )
+                    
+                    success = await send_email(
+                        to_email=user["email"],
+                        subject=f"ESG Assignment Reminder: {entity_id}",
+                        body=email_body,
+                    )
+                    
+                    if success:
+                        email_sent = True
+            except Exception as e:
+                logging.error(f"Failed to send reminder email to user {user_id}: {e}")
+        
+        return email_sent
     
     async def get_overdue_assignments(self, organization_id: str) -> List[Dict[str, Any]]:
         """Get all overdue assignments for an organization"""
@@ -148,20 +252,32 @@ class ReminderScheduler:
         return await cursor.to_list(500)
 
 
-# Import timedelta at the top level for get_upcoming_deadlines
-from datetime import timedelta
-
 # Singleton instance
 reminder_scheduler = ReminderScheduler()
 
 
 async def run_reminder_job():
     """
-    Entry point for cron job.
+    Entry point for cron job - processes due reminders.
     
     Can be called via:
-    - python -c "import asyncio; from modules.esg_assignments.scheduler import run_reminder_job; asyncio.run(run_reminder_job())"
+    - python -m modules.esg_assignments.cron_job reminders
     """
+    logging.info("Starting reminder job...")
     result = await reminder_scheduler.process_due_reminders()
-    print(f"Reminder job completed: {result}")
+    logging.info(f"Reminder job completed: {result}")
     return result
+
+
+async def run_overdue_job():
+    """
+    Entry point for cron job - sends overdue summary emails.
+    
+    Can be called via:
+    - python -m modules.esg_assignments.cron_job overdue
+    """
+    logging.info("Starting overdue notifications job...")
+    result = await reminder_scheduler.process_overdue_notifications()
+    logging.info(f"Overdue notifications job completed: {result}")
+    return result
+

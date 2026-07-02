@@ -52,6 +52,7 @@ class AssignmentService:
         Create a new assignment.
         
         Returns the created assignment document.
+        Sends email notification to the assigned user.
         """
         now = datetime.now(timezone.utc)
         
@@ -99,6 +100,12 @@ class AssignmentService:
             action=HistoryAction.CREATED,
             new_value=assignment,
             changed_by_user_id=assigned_by_user_id,
+        )
+        
+        # Send email notification to assigned user
+        await self._send_assignment_notification(
+            assignment=assignment,
+            assigned_by_user_id=assigned_by_user_id,
         )
         
         return self._sanitize_doc(assignment)
@@ -760,6 +767,60 @@ class AssignmentService:
             return {k: v for k, v in doc.items() if k != "_id"}
         
         return doc
+    
+    async def _send_assignment_notification(
+        self,
+        assignment: Dict[str, Any],
+        assigned_by_user_id: str,
+    ):
+        """
+        Send email notification when a new assignment is created.
+        """
+        import logging
+        from shared.helpers.email import send_email
+        from .email_templates import assignment_created_email
+        
+        try:
+            # Get assigned user details
+            assigned_user = await self._users.find_one(
+                {"id": assignment.get("assigned_to_user_id")},
+                {"email": 1, "name": 1}
+            )
+            
+            if not assigned_user or not assigned_user.get("email"):
+                logging.warning(f"Cannot send assignment notification: user not found or no email")
+                return
+            
+            # Get assigner details
+            assigner = await self._users.find_one(
+                {"id": assigned_by_user_id},
+                {"name": 1, "email": 1}
+            )
+            assigner_name = "Admin"
+            if assigner:
+                assigner_name = assigner.get("name") or assigner.get("email", "").split("@")[0]
+            
+            user_name = assigned_user.get("name") or assigned_user.get("email", "").split("@")[0]
+            
+            email_body = assignment_created_email(
+                user_name=user_name,
+                entity_type=assignment.get("entity_type", ""),
+                entity_id=assignment.get("entity_id", ""),
+                reporting_period=assignment.get("reporting_period", ""),
+                due_date=assignment.get("due_date"),
+                assigned_by=assigner_name,
+            )
+            
+            await send_email(
+                to_email=assigned_user["email"],
+                subject=f"New ESG Assignment: {assignment.get('entity_id', 'Task')}",
+                body=email_body,
+            )
+            
+            logging.info(f"Assignment notification sent to {assigned_user['email']}")
+            
+        except Exception as e:
+            logging.error(f"Failed to send assignment notification: {e}")
 
 
 # Singleton instance
