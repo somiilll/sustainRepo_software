@@ -1329,6 +1329,47 @@ Five phases executed end-to-end with **37/37 regression tests PASS** (iteration_
 
 **Verified:** Testing agent iteration 91 passed all frontend tests with BRSR forcing FY correctly.
 
+### Enterprise Approval Workflow Engine (Jul 2026)
+**Feature:** Generic multi-level approval system for ESG data submissions.
+
+**Architecture (3-Collection Design):**
+- `approval_workflows`: Workflow definitions per org, per entity type
+- `approval_requests`: Active requests with current state & step history
+- `approval_history`: Immutable audit trail of all actions
+
+**Key Features:**
+- Configurable multi-level approval chains (User → Manager → Admin)
+- Entity type support: ESG responses, emission records, facilities, targets, reports
+- Delegation support (approver can delegate to another user)
+- Request changes flow (approver can request modifications)
+- Resubmission after rejection
+- Deadline tracking with reminder support
+- Full audit trail with actor, timestamp, comments
+
+**Approver Types:**
+- `user`: Specific user ID
+- `role`: Anyone with specified role
+- `org_admin`: Organization administrators
+- `manager`: Submitter's manager
+- `facility_admin`: Facility-level admin
+
+**API Endpoints:**
+- `POST /api/approval-workflows/workflows` - Create workflow
+- `GET /api/approval-workflows/workflows` - List workflows
+- `POST /api/approval-workflows/requests` - Submit for approval
+- `GET /api/approval-workflows/requests` - List requests
+- `POST /api/approval-workflows/requests/{id}/decide` - Approve/reject/request changes
+- `GET /api/approval-workflows/requests/{id}/history` - Audit trail
+- `GET /api/approval-workflows/check-required` - Check if entity needs approval
+
+**Backend Files:**
+- `/app/backend/modules/approval_workflow/__init__.py`
+- `/app/backend/modules/approval_workflow/models.py`
+- `/app/backend/modules/approval_workflow/service.py`
+- `/app/backend/modules/approval_workflow/router.py`
+
+**Verified:** Backend API tested with curl - workflow creation, 2-level approval flow, and audit history all working correctly.
+
 ## Future/Backlog (P2)
 - Add Monthly/Yearly frequency indicators
 - CBAM module and report template

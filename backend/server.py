@@ -89,6 +89,9 @@ from modules.superadmin.router import router as superadmin_router
 # Approval workflow extension (per-org opt-in feature) - V2 architecture.
 from modules.approvals.router_v2 import router as approvals_router
 
+# Enterprise Approval Workflow Engine (generic multi-level approvals)
+from modules.approval_workflow.router import router as approval_workflow_router
+
 # Targets domain (multi-target reduction management).
 from modules.targets.router import router as targets_router
 from modules.production.router import router as production_router
@@ -140,6 +143,9 @@ api_router.include_router(superadmin_router)
 
 # Approval workflow extension (org opt-in)
 api_router.include_router(approvals_router)
+
+# Enterprise Approval Workflow Engine
+api_router.include_router(approval_workflow_router)
 
 # Targets module (org-level reduction targets)
 api_router.include_router(targets_router)
