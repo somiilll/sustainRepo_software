@@ -394,6 +394,10 @@ class TrackingService:
                             except (ValueError, TypeError):
                                 resp_updated = None
                         
+                        # Normalize naive datetime to UTC for comparison
+                        if resp_updated and resp_updated.tzinfo is None:
+                            resp_updated = resp_updated.replace(tzinfo=timezone.utc)
+                        
                         if resp_updated and resp_updated < stale_cutoff:
                             stale += 1
                         
@@ -416,6 +420,10 @@ class TrackingService:
                                 due_date = datetime.fromisoformat(due_date.replace("Z", "+00:00"))
                             except (ValueError, TypeError):
                                 due_date = None
+                        
+                        # Normalize naive datetime to UTC for comparison
+                        if due_date and due_date.tzinfo is None:
+                            due_date = due_date.replace(tzinfo=timezone.utc)
                         
                         if due_date:
                             if due_date < now and not is_completed:
@@ -595,6 +603,10 @@ class TrackingService:
                         except (ValueError, TypeError):
                             resp_updated = None
                     
+                    # Normalize naive datetime to UTC for comparison
+                    if resp_updated and resp_updated.tzinfo is None:
+                        resp_updated = resp_updated.replace(tzinfo=timezone.utc)
+                    
                     if resp_updated:
                         days_since = (now - resp_updated).days
                         is_stale = resp_updated < stale_cutoff
@@ -646,6 +658,10 @@ class TrackingService:
                             due_date = datetime.fromisoformat(due_date.replace("Z", "+00:00"))
                         except (ValueError, TypeError):
                             due_date = None
+                    
+                    # Normalize naive datetime to UTC for comparison
+                    if due_date and due_date.tzinfo is None:
+                        due_date = due_date.replace(tzinfo=timezone.utc)
                     
                     if due_date:
                         days_until_due = (due_date - now).days
@@ -1119,6 +1135,10 @@ class TrackingService:
                 except (ValueError, TypeError):
                     due_date = None
             
+            # Normalize naive datetime to UTC for comparison
+            if due_date and due_date.tzinfo is None:
+                due_date = due_date.replace(tzinfo=timezone.utc)
+            
             items.append(DisclosureTrackingItem(
                 disclosure_id=q_key,
                 disclosure_name=self._get_display_name(config, q_key),
@@ -1235,6 +1255,10 @@ class TrackingService:
                     updated_at = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
                 except (ValueError, TypeError):
                     updated_at = None
+            
+            # Normalize naive datetime to UTC for comparison
+            if updated_at and updated_at.tzinfo is None:
+                updated_at = updated_at.replace(tzinfo=timezone.utc)
             
             days_since = (now - updated_at).days if updated_at else None
             
