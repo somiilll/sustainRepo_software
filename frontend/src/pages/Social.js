@@ -7,6 +7,7 @@ import ESGQuestionnaire from '../components/ESGQuestionnaire';
 import ESGRecords from '../components/ESGRecords';
 import HRWorkforce from './HRWorkforce';
 import FrameworkTabs from '../components/FrameworkTabs';
+import GRIQuestionnaire from '../components/GRIQuestionnaire';
 
 export default function Social() {
   const [isEditing, setIsEditing] = useState(false);
@@ -104,6 +105,12 @@ export default function Social() {
         </Tabs>
       );
     }
+    
+    // GRI Framework - uses GRIQuestionnaire component
+    if (framework === 'GRI') {
+      return <GRIQuestionnaire section="social" isEditing={isEditing} />;
+    }
+    
     return <Card className="p-6"><p className="text-sm text-text-muted">{framework} framework content coming soon.</p></Card>;
   };
 
