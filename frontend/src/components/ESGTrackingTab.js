@@ -228,6 +228,9 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
   const [disclosures, setDisclosures] = useState([]);
   const [sectionSummary, setSectionSummary] = useState(null);
   
+  // Feature flags
+  const [multiLevelApprovalEnabled, setMultiLevelApprovalEnabled] = useState(false);
+  
   // Filter state
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterAssigned, setFilterAssigned] = useState('all');
@@ -329,6 +332,16 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
     }
   }, [getAuthHeader]);
   
+  // Fetch org module config (feature flags)
+  const fetchModuleConfig = useCallback(async () => {
+    try {
+      const res = await axios.get(`${API}/organization/module-config`, { headers: getAuthHeader() });
+      setMultiLevelApprovalEnabled(res.data.multi_level_approval_enabled || false);
+    } catch (error) {
+      console.error('Failed to fetch module config:', error);
+    }
+  }, [getAuthHeader]);
+  
   // Effects
   useEffect(() => {
     fetchFrameworkSummary();
@@ -349,8 +362,9 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
   useEffect(() => {
     if (isAdmin) {
       fetchOrgUsers();
+      fetchModuleConfig();
     }
-  }, [isAdmin, fetchOrgUsers]);
+  }, [isAdmin, fetchOrgUsers, fetchModuleConfig]);
   
   // Reset form when modal closes
   const resetAssignForm = () => {
@@ -373,7 +387,7 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
       return;
     }
     
-    if (assignForm.requires_approval && assignForm.approval_chain.length === 0) {
+    if (multiLevelApprovalEnabled && assignForm.requires_approval && assignForm.approval_chain.length === 0) {
       toast.error('Please add at least one approver to the approval chain');
       return;
     }
@@ -994,66 +1008,67 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
               )}
             </div>
             
-            {/* Approval Settings */}
-            <div className="space-y-3 p-3 border rounded-lg bg-violet-50">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="requires_approval"
-                  checked={assignForm.requires_approval}
-                  onCheckedChange={(checked) => setAssignForm({
-                    ...assignForm, 
-                    requires_approval: checked,
-                    approval_chain: checked ? assignForm.approval_chain : []
-                  })}
-                />
-                <Label htmlFor="requires_approval" className="text-sm cursor-pointer">
-                  Requires multi-level approval before finalization
-                </Label>
-              </div>
-              
-              {/* Multi-level approval chain builder */}
-              {assignForm.requires_approval && (
-                <div className="space-y-3 mt-3">
-                  <Label className="text-sm">Approval Chain * <span className="text-xs text-text-muted">(in order)</span></Label>
-                  
-                  {/* Current approval chain */}
-                  {assignForm.approval_chain.length > 0 && (
-                    <div className="space-y-2">
-                      {assignForm.approval_chain.map((approverId, index) => {
-                        const approver = orgUsers.find(u => u.id === approverId);
-                        return (
-                          <div key={approverId} className="flex items-center gap-2 p-2 bg-white rounded border">
-                            <Badge variant="outline" className="bg-violet-100 text-violet-700">
-                              Level {index + 1}
-                            </Badge>
-                            <div className="flex-1 flex items-center gap-2">
-                              <div className="w-6 h-6 rounded-full bg-violet-200 flex items-center justify-center text-xs font-medium text-violet-700">
-                                {approver?.name?.charAt(0) || '?'}
+            {/* Approval Settings - Only show if multi-level approval is enabled for this org */}
+            {multiLevelApprovalEnabled && (
+              <div className="space-y-3 p-3 border rounded-lg bg-violet-50">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="requires_approval"
+                    checked={assignForm.requires_approval}
+                    onCheckedChange={(checked) => setAssignForm({
+                      ...assignForm, 
+                      requires_approval: checked,
+                      approval_chain: checked ? assignForm.approval_chain : []
+                    })}
+                  />
+                  <Label htmlFor="requires_approval" className="text-sm cursor-pointer">
+                    Requires multi-level approval before finalization
+                  </Label>
+                </div>
+                
+                {/* Multi-level approval chain builder */}
+                {assignForm.requires_approval && (
+                  <div className="space-y-3 mt-3">
+                    <Label className="text-sm">Approval Chain * <span className="text-xs text-text-muted">(in order)</span></Label>
+                    
+                    {/* Current approval chain */}
+                    {assignForm.approval_chain.length > 0 && (
+                      <div className="space-y-2">
+                        {assignForm.approval_chain.map((approverId, index) => {
+                          const approver = orgUsers.find(u => u.id === approverId);
+                          return (
+                            <div key={approverId} className="flex items-center gap-2 p-2 bg-white rounded border">
+                              <Badge variant="outline" className="bg-violet-100 text-violet-700">
+                                Level {index + 1}
+                              </Badge>
+                              <div className="flex-1 flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full bg-violet-200 flex items-center justify-center text-xs font-medium text-violet-700">
+                                  {approver?.name?.charAt(0) || '?'}
+                                </div>
+                                <span className="text-sm font-medium">{approver?.name || approver?.email || 'Unknown'}</span>
+                                <span className="text-xs text-text-muted">({approver?.role})</span>
                               </div>
-                              <span className="text-sm font-medium">{approver?.name || approver?.email || 'Unknown'}</span>
-                              <span className="text-xs text-text-muted">({approver?.role})</span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  const newChain = assignForm.approval_chain.filter((_, i) => i !== index);
+                                  setAssignForm({...assignForm, approval_chain: newChain});
+                                }}
+                              >
+                                <X className="w-4 h-4 text-red-500" />
+                              </Button>
                             </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                const newChain = assignForm.approval_chain.filter((_, i) => i !== index);
-                                setAssignForm({...assignForm, approval_chain: newChain});
-                              }}
-                            >
-                              <X className="w-4 h-4 text-red-500" />
-                            </Button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                  
-                  {/* Add approver dropdown */}
-                  <Select 
-                    value="" 
-                    onValueChange={(userId) => {
-                      if (userId && !assignForm.approval_chain.includes(userId)) {
+                          );
+                        })}
+                      </div>
+                    )}
+                    
+                    {/* Add approver dropdown */}
+                    <Select 
+                      value="" 
+                      onValueChange={(userId) => {
+                        if (userId && !assignForm.approval_chain.includes(userId)) {
                         setAssignForm({
                           ...assignForm, 
                           approval_chain: [...assignForm.approval_chain, userId]
@@ -1089,6 +1104,7 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
                 </div>
               )}
             </div>
+            )}
           </div>
           
           <DialogFooter>
@@ -1100,7 +1116,7 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
             </Button>
             <Button 
               onClick={handleAssign}
-              disabled={assigning || assignForm.assigned_user_ids.length === 0 || (assignForm.requires_approval && assignForm.approval_chain.length === 0) || (assignForm.reminder_enabled && !assignForm.reminder_frequency)}
+              disabled={assigning || assignForm.assigned_user_ids.length === 0 || (multiLevelApprovalEnabled && assignForm.requires_approval && assignForm.approval_chain.length === 0) || (assignForm.reminder_enabled && !assignForm.reminder_frequency)}
             >
               {assigning ? (
                 <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Assigning...</>

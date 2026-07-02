@@ -62,6 +62,9 @@ class OrganizationCreate(BaseModel):
 
     # Approval workflow (per-org opt-in extension).
     approval_workflow_enabled: Optional[bool] = False
+    
+    # Multi-level approval chain (Manager → Director → VP style approval)
+    multi_level_approval_enabled: Optional[bool] = False
 
     # ESG Frameworks enabled for this organization (BRSR, GRI, SBTi)
     esg_frameworks_enabled: Optional[List[str]] = None
@@ -149,6 +152,9 @@ class OrganizationResponse(BaseModel):
 
     # Approval workflow (per-org opt-in extension; super-admin controlled).
     approval_workflow_enabled: Optional[bool] = False
+    
+    # Multi-level approval chain (Manager → Director → VP style approval)
+    multi_level_approval_enabled: Optional[bool] = False
 
     # ESG Frameworks enabled for this organization (BRSR, GRI, SBTi)
     esg_frameworks_enabled: Optional[List[str]] = None

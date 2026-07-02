@@ -640,4 +640,50 @@ async def get_org_esg_frameworks(
     }
 
 
+# Super Admin - Multi-Level Approval Toggle
+@router.put("/super-admin/organizations/{org_id}/multi-level-approval")
+async def toggle_multi_level_approval(
+    org_id: str,
+    enabled: bool = Query(..., description="Enable or disable multi-level approval"),
+    current_user: dict = Depends(get_super_admin_user)
+):
+    """Enable or disable multi-level approval chain for an organization"""
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    await db.organizations.update_one(
+        {"id": org_id},
+        {"$set": {"multi_level_approval_enabled": enabled}}
+    )
+    
+    return {
+        "message": f"Multi-level approval {'enabled' if enabled else 'disabled'} for organization",
+        "organization_id": org_id,
+        "multi_level_approval_enabled": enabled
+    }
+
+
+@router.get("/super-admin/organizations/{org_id}/feature-flags")
+async def get_org_feature_flags(
+    org_id: str,
+    current_user: dict = Depends(get_super_admin_user)
+):
+    """Get all feature flags for an organization"""
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    return {
+        "organization_id": org_id,
+        "organization_name": org.get("name"),
+        "feature_flags": {
+            "approval_workflow_enabled": org.get("approval_workflow_enabled", False),
+            "multi_level_approval_enabled": org.get("multi_level_approval_enabled", False),
+            "has_ghg": org.get("has_ghg", True),
+            "has_esg": org.get("has_esg", True),
+        }
+    }
+
+
 # Super Admin - Emission Factors Management

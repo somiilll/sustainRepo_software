@@ -24,6 +24,7 @@ class OrgModuleConfig(BaseModel):
     has_esg: bool = True
     enabled_access: Optional[list] = None  # scope1_2 or scope1_2_3
     esg_frameworks_enabled: Optional[list] = None
+    multi_level_approval_enabled: bool = False  # Multi-level approval chain feature flag
 
 
 @router.get("/organization/module-config")
@@ -35,7 +36,8 @@ async def get_org_module_config(current_user: dict = Depends(get_current_user)):
             has_ghg=True,
             has_esg=True,
             enabled_access=["scope1_2_3"],
-            esg_frameworks_enabled=["BRSR", "GRI"]
+            esg_frameworks_enabled=["BRSR", "GRI"],
+            multi_level_approval_enabled=True  # Super admin can see all features
         )
     
     org_id = current_user.get("organization_id")
@@ -44,7 +46,7 @@ async def get_org_module_config(current_user: dict = Depends(get_current_user)):
     
     org = await db.organizations.find_one(
         {"id": org_id},
-        {"_id": 0, "has_ghg": 1, "has_esg": 1, "enabled_access": 1, "esg_frameworks_enabled": 1}
+        {"_id": 0, "has_ghg": 1, "has_esg": 1, "enabled_access": 1, "esg_frameworks_enabled": 1, "multi_level_approval_enabled": 1}
     )
     
     if not org:
@@ -54,7 +56,8 @@ async def get_org_module_config(current_user: dict = Depends(get_current_user)):
         has_ghg=org.get("has_ghg", True),
         has_esg=org.get("has_esg", True),
         enabled_access=org.get("enabled_access"),
-        esg_frameworks_enabled=org.get("esg_frameworks_enabled")
+        esg_frameworks_enabled=org.get("esg_frameworks_enabled"),
+        multi_level_approval_enabled=org.get("multi_level_approval_enabled", False)
     )
 
 
@@ -87,7 +90,7 @@ async def update_my_organization(org_data: OrganizationCreate, current_user: dic
     update_dict = org_data.model_dump(exclude_unset=True)
 
     # Fields that admin shouldn't be able to overwrite (super-admin only).
-    fields_to_preserve = ['id', 'is_active', 'is_deleted', 'max_facilities', 'max_admins', 'max_users', 'subscription_expires_at', 'approval_workflow_enabled']
+    fields_to_preserve = ['id', 'is_active', 'is_deleted', 'max_facilities', 'max_admins', 'max_users', 'subscription_expires_at', 'approval_workflow_enabled', 'multi_level_approval_enabled']
     for field in fields_to_preserve:
         update_dict.pop(field, None)
 
