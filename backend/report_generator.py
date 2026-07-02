@@ -4873,6 +4873,39 @@ class GHGReportGenerator:
         is_scope3_report = getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3'
         scope3_total = totals.get('scope3', 0)
         
+         # Calculate Scope 3 category breakdown from facility_emissions
+        scope3_category_totals = {}
+        if is_scope3_report:
+            for em in facility_emissions:
+                scope = (em.get('scope') or '').lower()
+                if 'scope3' in scope or 'scope 3' in scope or scope == '3':
+                    category = em.get('category', '').lower()
+                    # Normalize category to c1, c2, etc.
+                    cat_key = category.split(' ')[0] if category else 'other'
+                    if cat_key.startswith('c') and cat_key[1:].split('-')[0].isdigit():
+                        cat_key = cat_key.split('-')[0]  # c1-purchased -> c1
+                    tco2e = float(em.get('total_emissions', 0) or em.get('co2e_emissions', 0) or 0)
+                    scope3_category_totals[cat_key] = scope3_category_totals.get(cat_key, 0) + tco2e
+        
+        # Scope 3 category display names
+        scope3_display_names = {
+            'c1': 'C1 - Purchased Goods & Services',
+            'c2': 'C2 - Capital Goods',
+            'c3': 'C3 - Fuel & Energy Related Activities',
+            'c4': 'C4 - Upstream Transportation & Distribution',
+            'c5': 'C5 - Waste Generated in Operations',
+            'c6': 'C6 - Business Travel',
+            'c7': 'C7 - Employee Commuting',
+            'c8': 'C8 - Upstream Leased Assets',
+            'c9': 'C9 - Downstream Transportation & Distribution',
+            'c10': 'C10 - Processing of Sold Products',
+            'c11': 'C11 - Use of Sold Products',
+            'c12': 'C12 - End-of-Life Treatment of Sold Products',
+            'c13': 'C13 - Downstream Leased Assets',
+            'c14': 'C14 - Franchises',
+            'c15': 'C15 - Investments',
+        }
+
         if is_scope3_report:
             total_abc = totals['scope1'] + totals['scope2'] + scope3_total
             net_ghg = total_abc - totals['removals']
@@ -5156,6 +5189,39 @@ class GHGReportGenerator:
         # Check if this is a Scope 3 report
         is_scope3_report = getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3'
         scope3_total = org_totals.get('scope3', 0)
+
+         # Scope 3 category display names
+        scope3_display_names = {
+            'c1': 'C1 - Purchased Goods & Services',
+            'c2': 'C2 - Capital Goods',
+            'c3': 'C3 - Fuel & Energy Related Activities',
+            'c4': 'C4 - Upstream Transportation & Distribution',
+            'c5': 'C5 - Waste Generated in Operations',
+            'c6': 'C6 - Business Travel',
+            'c7': 'C7 - Employee Commuting',
+            'c8': 'C8 - Upstream Leased Assets',
+            'c9': 'C9 - Downstream Transportation & Distribution',
+            'c10': 'C10 - Processing of Sold Products',
+            'c11': 'C11 - Use of Sold Products',
+            'c12': 'C12 - End-of-Life Treatment of Sold Products',
+            'c13': 'C13 - Downstream Leased Assets',
+            'c14': 'C14 - Franchises',
+            'c15': 'C15 - Investments',
+        }
+        
+        # Get Scope 3 category breakdown from org_totals
+        scope3_category_totals = {}
+        if is_scope3_report:
+            scope_cat_fuel = org_totals.get('by_scope_category_fuel', {})
+            scope3_data = scope_cat_fuel.get('scope3', {})
+            for cat, fuels in scope3_data.items():
+                # Normalize category key to c1, c2, etc.
+                cat_lower = cat.lower()
+                cat_key = cat_lower.split(' ')[0] if cat_lower else 'other'
+                if cat_key.startswith('c') and cat_key[1:].split('-')[0].isdigit():
+                    cat_key = cat_key.split('-')[0]
+                cat_total = sum(fuels.values()) if isinstance(fuels, dict) else 0
+                scope3_category_totals[cat_key] = scope3_category_totals.get(cat_key, 0) + cat_total
         
         if is_scope3_report:
             total_emissions = org_totals['scope1'] + org_totals['scope2'] + scope3_total
