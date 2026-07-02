@@ -50,6 +50,67 @@ class TrackingService:
         self._organizations = db["organizations"]
         self._frameworks = db["esg_frameworks"]
     
+    def _format_question_key(self, key: str) -> str:
+        """
+        Convert question key to human-readable name.
+        e.g., "env_sustainable_rd_capex" -> "Sustainable R&D Capex"
+        """
+        # Remove section prefix (env_, soc_, gov_)
+        prefixes = ['env_', 'soc_', 'gov_', 'social_', 'governance_', 'environment_']
+        formatted = key
+        for prefix in prefixes:
+            if formatted.startswith(prefix):
+                formatted = formatted[len(prefix):]
+                break
+        
+        # Common abbreviation expansions
+        abbreviations = {
+            'rd': 'R&D',
+            'capex': 'Capital Expenditure',
+            'epr': 'Extended Producer Responsibility',
+            'lca': 'Life Cycle Assessment',
+            'eia': 'Environmental Impact Assessment',
+            'ghg': 'GHG',
+            'pat': 'PAT',
+            'zld': 'Zero Liquid Discharge',
+            'desc': '',  # Remove 'desc' suffix
+        }
+        
+        # Split by underscore and process each word
+        words = formatted.split('_')
+        result = []
+        for word in words:
+            lower = word.lower()
+            if lower in abbreviations:
+                if abbreviations[lower]:  # Skip empty mappings
+                    result.append(abbreviations[lower])
+            else:
+                result.append(word.capitalize())
+        
+        return ' '.join(result).strip()
+    
+    def _get_display_name(self, config: Optional[dict], q_key: str) -> str:
+        """
+        Get the display name for a disclosure from config.
+        Priority: label > description (truncated) > formatted key
+        """
+        if not config:
+            return self._format_question_key(q_key)
+        
+        label = config.get("label")
+        if label:
+            return label
+        
+        desc = config.get("description")
+        if desc:
+            # Use first sentence or first 100 chars
+            display = desc.split('.')[0][:100]
+            if len(desc) > 100 and '.' not in desc[:100]:
+                display += "..."
+            return display
+        
+        return self._format_question_key(q_key)
+    
     # =========================================================================
     # FRAMEWORK-LEVEL TRACKING
     # =========================================================================
@@ -155,6 +216,10 @@ class TrackingService:
                                 resp_updated = datetime.fromisoformat(resp_updated.replace("Z", "+00:00"))
                             except (ValueError, TypeError):
                                 resp_updated = None
+                        
+                        # Normalize naive datetime to UTC for comparison
+                        if resp_updated and resp_updated.tzinfo is None:
+                            resp_updated = resp_updated.replace(tzinfo=timezone.utc)
                         
                         if resp_updated and resp_updated < stale_cutoff:
                             stale += 1
@@ -618,7 +683,7 @@ class TrackingService:
             
             disclosures.append(DisclosureTrackingItem(
                 disclosure_id=q_key,
-                disclosure_name=config.get("label", q_key),
+                disclosure_name=self._get_display_name(config, q_key),
                 disclosure_type="question",
                 section_id=section_id,
                 section_name=section_id.replace("_", " ").title(),
@@ -1056,7 +1121,7 @@ class TrackingService:
             
             items.append(DisclosureTrackingItem(
                 disclosure_id=q_key,
-                disclosure_name=config.get("label", q_key) if config else q_key,
+                disclosure_name=self._get_display_name(config, q_key),
                 disclosure_type="question",
                 section_id=config.get("brsr_section", "") if config else "",
                 section_name=config.get("brsr_section", "").replace("_", " ").title() if config else "",
@@ -1115,7 +1180,7 @@ class TrackingService:
             
             items.append(DisclosureTrackingItem(
                 disclosure_id=q_key,
-                disclosure_name=config.get("label", q_key),
+                disclosure_name=self._get_display_name(config, q_key),
                 disclosure_type="question",
                 section_id=config.get("brsr_section") or config.get("topic") or "",
                 section_name=(config.get("brsr_section") or config.get("topic") or "").replace("_", " ").title(),
@@ -1175,7 +1240,7 @@ class TrackingService:
             
             items.append(DisclosureTrackingItem(
                 disclosure_id=q_key,
-                disclosure_name=config.get("label", q_key) if config else q_key,
+                disclosure_name=self._get_display_name(config, q_key),
                 disclosure_type="question",
                 section_id=config.get("brsr_section", "") if config else "",
                 section_name=config.get("brsr_section", "").replace("_", " ").title() if config else "",
