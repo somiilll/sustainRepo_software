@@ -849,27 +849,31 @@ class TrackingService:
         if request.disclosure_ids:
             configs = [c for c in configs if c["question_key"] in request.disclosure_ids]
         
-        # Get existing assignments if skip_already_assigned
-        existing_keys = set()
-        if request.skip_already_assigned:
+        # Get existing assignments
+        existing_assignments = {}
+        if not request.skip_already_assigned or True:  # Always fetch for potential update
             existing = await self._assignments.find(
                 {
                     "organization_id": organization_id,
                     "reporting_period": reporting_period,
                     "entity_type": "question",
                 },
-                {"_id": 0, "entity_id": 1}
+                {"_id": 0, "entity_id": 1, "id": 1}
             ).to_list(5000)
-            existing_keys = {a["entity_id"] for a in existing}
+            existing_assignments = {a["entity_id"]: a["id"] for a in existing}
         
-        # Create assignments
+        existing_keys = set(existing_assignments.keys())
+        
+        # Create/Update assignments
         created_count = 0
         skipped_count = 0
+        updated_count = 0
         group_id = str(__import__("uuid").uuid4())
         
         for config in configs:
             q_key = config["question_key"]
             
+            # Skip if already assigned and skip_already_assigned is True
             if request.skip_already_assigned and q_key in existing_keys:
                 skipped_count += 1
                 continue
@@ -910,17 +914,32 @@ class TrackingService:
                 reminder_config=request.reminder_config,
             )
             
-            await assignment_service.create_assignment(
-                organization_id=organization_id,
-                request=create_req,
-                assigned_by_user_id=assigned_by_user_id,
-                group_assignment_id=group_id,
-            )
-            created_count += 1
+            # Check if this is a reassignment (existing assignment for this question)
+            existing_assignment_id = existing_assignments.get(q_key)
+            if existing_assignment_id and not request.skip_already_assigned:
+                # Update existing assignment (reassign)
+                from modules.esg_assignments.models import ReassignRequest
+                await assignment_service.reassign(
+                    assignment_id=existing_assignment_id,
+                    organization_id=organization_id,
+                    request=ReassignRequest(new_user_id=request.assigned_to_user_id),
+                    reassigned_by_user_id=assigned_by_user_id,
+                )
+                updated_count += 1
+            else:
+                # Create new assignment
+                await assignment_service.create_assignment(
+                    organization_id=organization_id,
+                    request=create_req,
+                    assigned_by_user_id=assigned_by_user_id,
+                    group_assignment_id=group_id,
+                )
+                created_count += 1
         
         return {
             "success": True,
             "created_count": created_count,
+            "updated_count": updated_count,
             "skipped_count": skipped_count,
             "group_assignment_id": group_id,
         }

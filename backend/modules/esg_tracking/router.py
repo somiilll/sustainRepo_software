@@ -362,9 +362,12 @@ async def get_organization_users(
     """
     from shared.database.mongo import db
     
-    # Query users collection (all organization users)
+    # Query users collection (all active organization users)
     users = await db.users.find(
-        {"organization_id": current_user["organization_id"]},
+        {
+            "organization_id": current_user["organization_id"],
+            "is_deleted": {"$ne": True},  # Exclude soft-deleted users
+        },
         {"_id": 0, "id": 1, "name": 1, "full_name": 1, "email": 1, "role": 1}
     ).to_list(500)
     

@@ -388,6 +388,7 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
       // Create assignment for each selected user
       let totalCreated = 0;
       let totalSkipped = 0;
+      let totalUpdated = 0;
       
       for (const userId of assignForm.assigned_user_ids) {
         const payload = {
@@ -427,9 +428,15 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
         
         totalCreated += res.data.created_count || 0;
         totalSkipped += res.data.skipped_count || 0;
+        totalUpdated += res.data.updated_count || 0;
       }
       
-      toast.success(`Assigned ${totalCreated} question(s) to ${assignForm.assigned_user_ids.length} user(s)${totalSkipped > 0 ? ` (${totalSkipped} skipped)` : ''}`);
+      const messages = [];
+      if (totalCreated > 0) messages.push(`${totalCreated} assigned`);
+      if (totalUpdated > 0) messages.push(`${totalUpdated} reassigned`);
+      if (totalSkipped > 0) messages.push(`${totalSkipped} skipped`);
+      
+      toast.success(`Questions: ${messages.join(', ')} to ${assignForm.assigned_user_ids.length} user(s)`);
       setAssignModalOpen(false);
       resetAssignForm();
       
