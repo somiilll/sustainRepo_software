@@ -10,6 +10,7 @@ import { Shield, Edit2, Eye, Info, Save, Loader2 } from 'lucide-react';
 import ESGQuestionnaire from '../components/ESGQuestionnaire';
 import ESGRecords from '../components/ESGRecords';
 import FrameworkTabs from '../components/FrameworkTabs';
+import GRIQuestionnaire from '../components/GRIQuestionnaire';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -259,6 +260,12 @@ export default function Governance() {
         </Tabs>
       );
     }
+    
+    // GRI Framework - uses GRIQuestionnaire component
+    if (framework === 'GRI') {
+      return <GRIQuestionnaire section="governance" isEditing={isEditing} />;
+    }
+    
     return <Card className="p-6"><p className="text-sm text-text-muted">{framework} framework content coming soon.</p></Card>;
   };
 

@@ -115,6 +115,64 @@ async def delete_question_config(
 
 
 # =============================================================================
+# GRI Disclosure Endpoints
+# =============================================================================
+
+@router.get("/gri/{section}")
+async def get_gri_disclosures(
+    section: str,
+    reporting_period: str = Query(..., description="Reporting period e.g. 'FY 2024-2025'"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get GRI disclosures with responses for a section.
+    Returns questions grouped by disclosure with completion status.
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    result = await esg_questionnaire_service.get_gri_disclosures(
+        org_id=org_id,
+        section=section,
+        reporting_period=reporting_period
+    )
+    
+    return result
+
+
+@router.post("/response")
+async def save_gri_response(
+    data: dict,
+    current_user: dict = Depends(get_admin_user)
+):
+    """
+    Save a single GRI disclosure response.
+    Expects: { question_key, value, reporting_period }
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    question_key = data.get("question_key")
+    value = data.get("value")
+    reporting_period = data.get("reporting_period")
+    
+    if not question_key or not reporting_period:
+        raise HTTPException(status_code=400, detail="question_key and reporting_period are required")
+    
+    result = await esg_questionnaire_service.save_gri_response(
+        org_id=org_id,
+        question_key=question_key,
+        value=value,
+        reporting_period=reporting_period,
+        changed_by_user_id=current_user.get("id")
+    )
+    
+    return {"message": "Response saved", "question_key": question_key, "success": result}
+
+
+# =============================================================================
 # Response Endpoints
 # =============================================================================
 

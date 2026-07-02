@@ -7,6 +7,7 @@ import { Sprout, Edit2, Eye, Info, Database } from 'lucide-react';
 import ESGQuestionnaire from '../components/ESGQuestionnaire';
 import FrameworkTabs from '../components/FrameworkTabs';
 import ESGRecords from '../components/ESGRecords';
+import GRIQuestionnaire from '../components/GRIQuestionnaire';
 
 export default function Environment() {
   const [isEditing, setIsEditing] = useState(false);
@@ -85,6 +86,11 @@ export default function Environment() {
           </TabsContent>
         </Tabs>
       );
+    }
+    
+    // GRI Framework - uses GRIQuestionnaire component
+    if (framework === 'GRI') {
+      return <GRIQuestionnaire section="environment" isEditing={isEditing} />;
     }
     
     // Placeholder for future frameworks

@@ -122,6 +122,117 @@ class ESGQuestionnaireService:
         return docs
 
     # =========================================================================
+    # GRI Disclosure Methods
+    # =========================================================================
+
+    async def get_gri_disclosures(
+        self,
+        org_id: str,
+        section: str,
+        reporting_period: str,
+    ) -> Dict[str, Any]:
+        """
+        Get GRI disclosures with responses for a section.
+        Returns questions with their current responses.
+        """
+        # Fetch GRI question configs for this section
+        configs = await self._configs.find(
+            {
+                "framework": "GRI",
+                "section": section,
+            },
+            {"_id": 0}
+        ).sort([("disclosure_id", 1), ("question_order", 1)]).to_list(500)
+        
+        if not configs:
+            return {
+                "section": section,
+                "reporting_period": reporting_period,
+                "questions": [],
+                "total": 0
+            }
+        
+        # Fetch responses from esg_responses collection
+        question_keys = [c["question_key"] for c in configs]
+        responses_cursor = db.esg_responses.find(
+            {
+                "organization_id": org_id,
+                "question_key": {"$in": question_keys},
+                "reporting_period": reporting_period,
+            },
+            {"_id": 0, "question_key": 1, "value": 1}
+        )
+        responses_list = await responses_cursor.to_list(500)
+        responses_map = {r["question_key"]: r.get("value") for r in responses_list}
+        
+        # Build questions list with responses
+        questions = []
+        for config in configs:
+            q_key = config["question_key"]
+            questions.append({
+                "question_key": q_key,
+                "disclosure_id": config.get("disclosure_id"),
+                "disclosure_name": config.get("disclosure_name"),
+                "material_topic": config.get("material_topic"),
+                "material_topic_id": config.get("material_topic_id"),
+                "question_order": config.get("question_order", 0),
+                "description": config.get("description"),
+                "input_type": config.get("input_type", "textarea"),
+                "response_mode": config.get("response_mode", "single"),
+                "is_required": config.get("is_required", False),
+                "validation_rules": config.get("validation_rules"),
+                "visibility_conditions": config.get("visibility_conditions"),
+                "response_value": responses_map.get(q_key),
+            })
+        
+        return {
+            "section": section,
+            "reporting_period": reporting_period,
+            "questions": questions,
+            "total": len(questions)
+        }
+
+    async def save_gri_response(
+        self,
+        org_id: str,
+        question_key: str,
+        value: Any,
+        reporting_period: str,
+        changed_by_user_id: Optional[str] = None,
+    ) -> bool:
+        """
+        Save a single GRI disclosure response.
+        Uses upsert to create or update the response.
+        """
+        now = datetime.now(timezone.utc).isoformat()
+        
+        # Upsert the response in esg_responses collection
+        result = await db.esg_responses.update_one(
+            {
+                "organization_id": org_id,
+                "question_key": question_key,
+                "reporting_period": reporting_period,
+            },
+            {
+                "$set": {
+                    "value": value,
+                    "updated_at": now,
+                    "updated_by": changed_by_user_id,
+                },
+                "$setOnInsert": {
+                    "id": str(uuid.uuid4()),
+                    "organization_id": org_id,
+                    "question_key": question_key,
+                    "reporting_period": reporting_period,
+                    "created_at": now,
+                }
+            },
+            upsert=True
+        )
+        
+        return result.acknowledged
+
+    # =========================================================================
     # Response Methods
     # =========================================================================
 
