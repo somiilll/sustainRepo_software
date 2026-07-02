@@ -29,6 +29,7 @@ const API = process.env.REACT_APP_BACKEND_URL;
 /**
  * GRI Questionnaire Component
  * Renders GRI disclosures in collapsible format with questions grouped by disclosure
+ * Supports sub_questions with individual input fields for each sub-part
  * 
  * @param {string} section - 'environment' | 'social' | 'governance'
  * @param {boolean} isEditing - Whether in edit mode
@@ -36,7 +37,7 @@ const API = process.env.REACT_APP_BACKEND_URL;
 export default function GRIQuestionnaire({ section, isEditing = false }) {
   const { getAuthHeader } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState({});
   const [disclosures, setDisclosures] = useState([]);
   const [responses, setResponses] = useState({});
   const [openDisclosures, setOpenDisclosures] = useState({});
@@ -58,11 +59,21 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
       const grouped = groupByDisclosure(res.data.questions || []);
       setDisclosures(grouped);
       
-      // Set responses
+      // Set responses (including sub-question responses)
       const initialResponses = {};
       (res.data.questions || []).forEach(q => {
-        if (q.response_value !== undefined && q.response_value !== null) {
-          initialResponses[q.question_key] = q.response_value;
+        if (q.sub_questions && q.sub_questions.length > 0) {
+          // Question has sub-parts
+          q.sub_questions.forEach(sub => {
+            if (sub.response_value !== undefined && sub.response_value !== null) {
+              initialResponses[sub.response_key] = sub.response_value;
+            }
+          });
+        } else {
+          // Simple question
+          if (q.response_value !== undefined && q.response_value !== null) {
+            initialResponses[q.question_key] = q.response_value;
+          }
         }
       });
       setResponses(initialResponses);
@@ -117,22 +128,22 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
   };
 
   // Handle response change
-  const handleResponseChange = (questionKey, value) => {
+  const handleResponseChange = (responseKey, value) => {
     setResponses(prev => ({
       ...prev,
-      [questionKey]: value
+      [responseKey]: value
     }));
   };
 
   // Save single response
-  const saveResponse = async (questionKey) => {
-    setSaving(true);
+  const saveResponse = async (responseKey) => {
+    setSaving(prev => ({ ...prev, [responseKey]: true }));
     try {
       await axios.post(
         `${API}/api/esg-questionnaire/response`,
         {
-          question_key: questionKey,
-          value: responses[questionKey] || '',
+          question_key: responseKey,
+          value: responses[responseKey] || '',
           reporting_period: reportingPeriod
         },
         { headers: getAuthHeader() }
@@ -142,42 +153,192 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
       console.error('Failed to save response:', error);
       toast.error('Failed to save response');
     } finally {
-      setSaving(false);
+      setSaving(prev => ({ ...prev, [responseKey]: false }));
     }
   };
 
   // Save all responses for a disclosure
   const saveDisclosure = async (disclosure) => {
-    setSaving(true);
+    setSaving(prev => ({ ...prev, [disclosure.disclosure_id]: true }));
     try {
-      const savePromises = disclosure.questions.map(q => 
-        axios.post(
-          `${API}/api/esg-questionnaire/response`,
-          {
-            question_key: q.question_key,
-            value: responses[q.question_key] || '',
-            reporting_period: reportingPeriod
-          },
-          { headers: getAuthHeader() }
-        )
-      );
+      const savePromises = [];
+      disclosure.questions.forEach(q => {
+        if (q.sub_questions && q.sub_questions.length > 0) {
+          // Save each sub-question response
+          q.sub_questions.forEach(sub => {
+            savePromises.push(
+              axios.post(
+                `${API}/api/esg-questionnaire/response`,
+                {
+                  question_key: sub.response_key,
+                  value: responses[sub.response_key] || '',
+                  reporting_period: reportingPeriod
+                },
+                { headers: getAuthHeader() }
+              )
+            );
+          });
+        } else {
+          // Save simple question response
+          savePromises.push(
+            axios.post(
+              `${API}/api/esg-questionnaire/response`,
+              {
+                question_key: q.question_key,
+                value: responses[q.question_key] || '',
+                reporting_period: reportingPeriod
+              },
+              { headers: getAuthHeader() }
+            )
+          );
+        }
+      });
       await Promise.all(savePromises);
       toast.success(`Saved ${disclosure.disclosure_id} responses`);
     } catch (error) {
       console.error('Failed to save disclosure:', error);
       toast.error('Failed to save responses');
     } finally {
-      setSaving(false);
+      setSaving(prev => ({ ...prev, [disclosure.disclosure_id]: false }));
     }
   };
 
   // Calculate completion status for a disclosure
   const getDisclosureCompletion = (disclosure) => {
-    const total = disclosure.questions.length;
-    const completed = disclosure.questions.filter(q => 
-      responses[q.question_key] && responses[q.question_key].trim() !== ''
-    ).length;
+    let total = 0;
+    let completed = 0;
+    
+    disclosure.questions.forEach(q => {
+      if (q.sub_questions && q.sub_questions.length > 0) {
+        total += q.sub_questions.length;
+        completed += q.sub_questions.filter(sub => 
+          responses[sub.response_key] && responses[sub.response_key].trim() !== ''
+        ).length;
+      } else {
+        total += 1;
+        if (responses[q.question_key] && responses[q.question_key].trim() !== '') {
+          completed += 1;
+        }
+      }
+    });
+    
     return { completed, total, percentage: total > 0 ? Math.round((completed / total) * 100) : 0 };
+  };
+
+  // Render a single question (with or without sub-questions)
+  const renderQuestion = (question, qIndex) => {
+    const hasSubQuestions = question.sub_questions && question.sub_questions.length > 0;
+    
+    return (
+      <div key={question.question_key} className="space-y-3">
+        {/* Question Label */}
+        <Label className="text-sm font-medium text-text-primary flex items-start gap-2">
+          <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded font-mono shrink-0">
+            Q{qIndex + 1}
+          </span>
+          <span className="leading-relaxed">{question.description}</span>
+          {question.is_required && (
+            <span className="text-red-500 shrink-0">*</span>
+          )}
+        </Label>
+        
+        {hasSubQuestions ? (
+          // Render sub-questions with individual textareas
+          <div className="ml-8 space-y-4 border-l-2 border-blue-100 pl-4">
+            {question.sub_questions.map((sub) => (
+              <div key={sub.response_key} className="space-y-2">
+                <Label className="text-sm text-text-secondary flex items-start gap-2">
+                  <span className="text-blue-600 font-mono text-xs shrink-0">{sub.sub_key}.</span>
+                  <span>{sub.label}</span>
+                </Label>
+                
+                {isEditing ? (
+                  <div className="space-y-2">
+                    <Textarea
+                      value={responses[sub.response_key] || ''}
+                      onChange={(e) => handleResponseChange(sub.response_key, e.target.value)}
+                      placeholder={`Enter response for ${sub.sub_key}...`}
+                      rows={3}
+                      className="bg-white"
+                      data-testid={`input-${sub.response_key}`}
+                    />
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-text-muted">
+                        {(responses[sub.response_key] || '').length} / {question.validation_rules?.max_length || 10000} characters
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => saveResponse(sub.response_key)}
+                        disabled={saving[sub.response_key]}
+                        className="h-7 text-xs"
+                      >
+                        {saving[sub.response_key] ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <><Save className="w-3 h-3 mr-1" /> Save</>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-white rounded-lg border border-stone-200 min-h-[50px]">
+                    {responses[sub.response_key] ? (
+                      <p className="text-sm text-text-primary whitespace-pre-wrap">
+                        {responses[sub.response_key]}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-text-muted italic">No response provided</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          // Simple question without sub-parts
+          isEditing ? (
+            <div className="space-y-2">
+              <Textarea
+                value={responses[question.question_key] || ''}
+                onChange={(e) => handleResponseChange(question.question_key, e.target.value)}
+                placeholder="Enter your response..."
+                rows={4}
+                className="bg-white"
+                data-testid={`input-${question.question_key}`}
+              />
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-text-muted">
+                  {(responses[question.question_key] || '').length} / {question.validation_rules?.max_length || 10000} characters
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => saveResponse(question.question_key)}
+                  disabled={saving[question.question_key]}
+                >
+                  {saving[question.question_key] ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <><Save className="w-3 h-3 mr-1" /> Save</>
+                  )}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="p-3 bg-white rounded-lg border border-stone-200 min-h-[60px]">
+              {responses[question.question_key] ? (
+                <p className="text-sm text-text-primary whitespace-pre-wrap">
+                  {responses[question.question_key]}
+                </p>
+              ) : (
+                <p className="text-sm text-text-muted italic">No response provided</p>
+              )}
+            </div>
+          )
+        )}
+      </div>
+    );
   };
 
   if (loading) {
@@ -287,66 +448,17 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
               {/* Disclosure Content */}
               <CollapsibleContent>
                 <div className="border-t border-stone-100 p-4 space-y-6 bg-stone-50/50">
-                  {disclosure.questions.map((question, qIndex) => (
-                    <div key={question.question_key} className="space-y-2">
-                      <Label className="text-sm font-medium text-text-primary flex items-start gap-2">
-                        <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded font-mono">
-                          Q{qIndex + 1}
-                        </span>
-                        <span>{question.description}</span>
-                        {question.is_required && (
-                          <span className="text-red-500">*</span>
-                        )}
-                      </Label>
-                      
-                      {isEditing ? (
-                        <div className="space-y-2">
-                          <Textarea
-                            value={responses[question.question_key] || ''}
-                            onChange={(e) => handleResponseChange(question.question_key, e.target.value)}
-                            placeholder="Enter your response..."
-                            rows={4}
-                            className="bg-white"
-                            data-testid={`input-${question.question_key}`}
-                          />
-                          <div className="flex justify-between items-center">
-                            <span className="text-xs text-text-muted">
-                              {(responses[question.question_key] || '').length} / {question.validation_rules?.max_length || 10000} characters
-                            </span>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => saveResponse(question.question_key)}
-                              disabled={saving}
-                            >
-                              {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3 mr-1" />}
-                              Save
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="p-3 bg-white rounded-lg border border-stone-200 min-h-[60px]">
-                          {responses[question.question_key] ? (
-                            <p className="text-sm text-text-primary whitespace-pre-wrap">
-                              {responses[question.question_key]}
-                            </p>
-                          ) : (
-                            <p className="text-sm text-text-muted italic">No response provided</p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                  {disclosure.questions.map((question, qIndex) => renderQuestion(question, qIndex))}
 
                   {/* Save All Button */}
                   {isEditing && (
                     <div className="pt-4 border-t border-stone-200 flex justify-end">
                       <Button
                         onClick={() => saveDisclosure(disclosure)}
-                        disabled={saving}
+                        disabled={saving[disclosure.disclosure_id]}
                         className="bg-blue-600 hover:bg-blue-700"
                       >
-                        {saving ? (
+                        {saving[disclosure.disclosure_id] ? (
                           <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</>
                         ) : (
                           <><Save className="w-4 h-4 mr-2" /> Save All Responses</>

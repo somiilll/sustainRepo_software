@@ -134,6 +134,7 @@ class ESGQuestionnaireService:
         """
         Get GRI disclosures with responses for a section.
         Returns questions with their current responses.
+        Supports sub_questions with individual response fields.
         """
         # Fetch GRI question configs for this section
         configs = await self._configs.find(
@@ -152,24 +153,37 @@ class ESGQuestionnaireService:
                 "total": 0
             }
         
+        # Build list of all response keys (including sub-question keys)
+        all_response_keys = []
+        for config in configs:
+            q_key = config["question_key"]
+            sub_questions = config.get("sub_questions", [])
+            if sub_questions:
+                # For questions with sub-parts, each sub_key gets its own response
+                for sub in sub_questions:
+                    all_response_keys.append(f"{q_key}_{sub['sub_key']}")
+            else:
+                all_response_keys.append(q_key)
+        
         # Fetch responses from esg_responses collection
-        question_keys = [c["question_key"] for c in configs]
         responses_cursor = db.esg_responses.find(
             {
                 "organization_id": org_id,
-                "question_key": {"$in": question_keys},
+                "question_key": {"$in": all_response_keys},
                 "reporting_period": reporting_period,
             },
             {"_id": 0, "question_key": 1, "value": 1}
         )
-        responses_list = await responses_cursor.to_list(500)
+        responses_list = await responses_cursor.to_list(1000)
         responses_map = {r["question_key"]: r.get("value") for r in responses_list}
         
         # Build questions list with responses
         questions = []
         for config in configs:
             q_key = config["question_key"]
-            questions.append({
+            sub_questions = config.get("sub_questions", [])
+            
+            question_data = {
                 "question_key": q_key,
                 "disclosure_id": config.get("disclosure_id"),
                 "disclosure_name": config.get("disclosure_name"),
@@ -182,8 +196,24 @@ class ESGQuestionnaireService:
                 "is_required": config.get("is_required", False),
                 "validation_rules": config.get("validation_rules"),
                 "visibility_conditions": config.get("visibility_conditions"),
-                "response_value": responses_map.get(q_key),
-            })
+            }
+            
+            if sub_questions:
+                # Include sub_questions with their individual responses
+                question_data["sub_questions"] = []
+                for sub in sub_questions:
+                    sub_response_key = f"{q_key}_{sub['sub_key']}"
+                    question_data["sub_questions"].append({
+                        "sub_key": sub["sub_key"],
+                        "label": sub["label"],
+                        "response_key": sub_response_key,
+                        "response_value": responses_map.get(sub_response_key),
+                    })
+            else:
+                # Simple question with single response
+                question_data["response_value"] = responses_map.get(q_key)
+            
+            questions.append(question_data)
         
         return {
             "section": section,
