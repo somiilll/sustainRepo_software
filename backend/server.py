@@ -107,6 +107,7 @@ from modules.esg_records.router import router as esg_records_router
 from modules.hr_workforce.router import router as hr_workforce_router
 from modules.governance.router import router as governance_router
 from modules.esg_records.admin_router import admin_router as esg_records_admin_router
+from modules.esg_assignments.router import router as esg_assignments_router
 
 # Set Playwright browsers path BEFORE any playwright imports
 os.environ['PLAYWRIGHT_BROWSERS_PATH'] = '/app/.playwright'
@@ -163,6 +164,8 @@ api_router.include_router(hr_workforce_router)
 api_router.include_router(governance_router)
 # ESG Records Super Admin Config
 api_router.include_router(esg_records_admin_router)
+# ESG Assignments & Access Control
+api_router.include_router(esg_assignments_router)
 
 # Run module contract verifier at import time. Phase B1: log-only, will be
 # escalated to fail-fast in dev once all modules expose their contracts.

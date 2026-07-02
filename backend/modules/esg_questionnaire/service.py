@@ -364,6 +364,7 @@ class ESGQuestionnaireService:
         reporting_year: str,
         section: str,
         data: ESGResponseCreate,
+        changed_by_user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Save responses using 1-document-per-year architecture.
@@ -374,6 +375,7 @@ class ESGQuestionnaireService:
         - Previous FY data → saved to `previous_year` document
         
         Field names like `reused_current_fy` become `reused` in the stored document.
+        Also tracks version history for each question if changed_by_user_id is provided.
         """
         now = datetime.now(timezone.utc).isoformat()
         previous_year = self._calculate_previous_fy(reporting_year)
@@ -384,13 +386,13 @@ class ESGQuestionnaireService:
         # Save current year data
         if current_year_data:
             await self._save_year_document(
-                org_id, framework, reporting_year, section, current_year_data, now
+                org_id, framework, reporting_year, section, current_year_data, now, changed_by_user_id
             )
         
         # Save previous year data (if any previous_fy fields were filled)
         if previous_year_data:
             await self._save_year_document(
-                org_id, framework, previous_year, section, previous_year_data, now
+                org_id, framework, previous_year, section, previous_year_data, now, changed_by_user_id
             )
         
         # Return merged view (for frontend compatibility)
@@ -404,8 +406,12 @@ class ESGQuestionnaireService:
         section: str,
         responses: Dict[str, Any],
         now: str,
+        changed_by_user_id: Optional[str] = None,
     ) -> None:
-        """Save or update a single year's document."""
+        """Save or update a single year's document and track version history."""
+        from modules.esg_assignments.service import assignment_service
+        from modules.esg_assignments.models import ResponseChangeType
+        
         existing = await self._responses.find_one({
             "org_id": org_id,
             "framework": framework,
@@ -415,7 +421,9 @@ class ESGQuestionnaireService:
         
         if existing:
             # Merge with existing responses
-            merged = self._deep_merge(existing.get("responses", {}), responses)
+            old_responses = existing.get("responses", {})
+            merged = self._deep_merge(old_responses, responses)
+            
             await self._responses.update_one(
                 {
                     "org_id": org_id,
@@ -425,6 +433,25 @@ class ESGQuestionnaireService:
                 },
                 {"$set": {"responses": merged, "updated_at": now}}
             )
+            
+            # Log version history for each changed question
+            if changed_by_user_id:
+                for question_key, new_value in responses.items():
+                    old_value = old_responses.get(question_key)
+                    if old_value != new_value:
+                        try:
+                            await assignment_service.log_response_version(
+                                organization_id=org_id,
+                                question_key=question_key,
+                                reporting_period=reporting_year,
+                                previous_value=old_value,
+                                new_value=new_value,
+                                changed_by_user_id=changed_by_user_id,
+                                change_type=ResponseChangeType.UPDATED if old_value else ResponseChangeType.CREATED,
+                            )
+                        except Exception as e:
+                            # Don't fail save if version tracking fails
+                            print(f"Warning: Failed to log response version for {question_key}: {e}")
         else:
             doc = {
                 "id": str(uuid.uuid4()),
@@ -437,6 +464,22 @@ class ESGQuestionnaireService:
                 "updated_at": None,
             }
             await self._responses.insert_one(doc)
+            
+            # Log initial version for each question
+            if changed_by_user_id:
+                for question_key, new_value in responses.items():
+                    try:
+                        await assignment_service.log_response_version(
+                            organization_id=org_id,
+                            question_key=question_key,
+                            reporting_period=reporting_year,
+                            previous_value=None,
+                            new_value=new_value,
+                            changed_by_user_id=changed_by_user_id,
+                            change_type=ResponseChangeType.CREATED,
+                        )
+                    except Exception as e:
+                        print(f"Warning: Failed to log response version for {question_key}: {e}")
 
     def _split_responses_by_year(
         self, 

@@ -160,6 +160,7 @@ async def save_responses(
 ):
     """
     Save ESG responses for org+framework+section+year. Admin only.
+    Automatically tracks version history for each question.
     """
     org_id = current_user.get("organization_id")
     if not org_id:
@@ -170,7 +171,8 @@ async def save_responses(
         framework=framework,
         reporting_year=reporting_year,
         section=section,
-        data=data
+        data=data,
+        changed_by_user_id=current_user.get("id"),
     )
     
     return {
