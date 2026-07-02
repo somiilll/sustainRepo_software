@@ -550,7 +550,11 @@ async def create_admin(
 # Super Admin - Get all admins
 @router.get("/super-admin/admins")
 async def get_all_admins(current_user: dict = Depends(get_super_admin_user)):
-    admins = await db.users.find({"role": "admin"}, {"_id": 0, "password_hash": 0}).to_list(1000)
+    # Only return active (non-deleted) admins
+    admins = await db.users.find({
+        "role": "admin",
+        "is_deleted": {"$ne": True}
+    }, {"_id": 0, "password_hash": 0}).to_list(1000)
     return [UserResponse(**a) for a in admins]
 
 # Super Admin - Delete admin

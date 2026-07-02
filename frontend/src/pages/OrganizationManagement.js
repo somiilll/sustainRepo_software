@@ -131,6 +131,7 @@ export default function OrganizationManagement() {
     subscription_expires_at: '',
     enabled_access: ['scope1_2'],
     approval_workflow_enabled: false,
+    multi_level_approval_enabled: false,
     esg_frameworks_enabled: [],
     has_ghg: true,
     has_esg: true,
@@ -349,6 +350,7 @@ export default function OrganizationManagement() {
       subscription_expires_at: org.subscription_expires_at ? org.subscription_expires_at.split('T')[0] : '',
       enabled_access: org.enabled_access || ['scope1_2'],
       approval_workflow_enabled: !!org.approval_workflow_enabled,
+      multi_level_approval_enabled: !!org.multi_level_approval_enabled,
       esg_frameworks_enabled: org.esg_frameworks_enabled || [],
       has_ghg: org.has_ghg !== false,
       has_esg: org.has_esg !== false,
@@ -391,6 +393,7 @@ export default function OrganizationManagement() {
       subscription_expires_at: '',
       enabled_access: ['scope1_2'],
       approval_workflow_enabled: false,
+      multi_level_approval_enabled: false,
       esg_frameworks_enabled: [],
       has_ghg: true,
       has_esg: true,
@@ -717,6 +720,31 @@ export default function OrganizationManagement() {
                           : 'bg-stone-100 text-stone-600'}`}
                       >
                         {formData.approval_workflow_enabled ? 'On' : 'Off'}
+                      </span>
+                    </label>
+                  </div>
+
+                  {/* Multi-Level Approval Toggle */}
+                  <div className="pt-4 border-t border-stone-200">
+                    <Label className="text-sm font-medium">Multi-Level Approval Chain</Label>
+                    <p className="text-xs text-text-muted mb-3">
+                      When enabled, admins can configure approval chains with multiple approvers (e.g., Manager → Director → VP) for ESG disclosures in the Tracking module.
+                    </p>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={!!formData.multi_level_approval_enabled}
+                        onChange={(e) => setFormData({ ...formData, multi_level_approval_enabled: e.target.checked })}
+                        className="w-4 h-4 rounded border-stone-300 text-violet-600 focus:ring-violet-500"
+                        data-testid="multi-level-approval-toggle"
+                      />
+                      <span className="text-sm font-medium">Enable Multi-Level Approval</span>
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded ${formData.multi_level_approval_enabled
+                          ? 'bg-violet-100 text-violet-700'
+                          : 'bg-stone-100 text-stone-600'}`}
+                      >
+                        {formData.multi_level_approval_enabled ? 'On' : 'Off'}
                       </span>
                     </label>
                   </div>

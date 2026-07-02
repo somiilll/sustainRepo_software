@@ -326,18 +326,20 @@ class ApprovalWorkflowService:
             return [approver_id] if approver_id else []
         
         elif approver_type == ApproverType.ROLE.value:
-            # Find users with this role in the organization
+            # Find active users with this role in the organization
             users = await db.users.find({
                 "organization_id": organization_id,
                 "role": approver_id,
+                "is_deleted": {"$ne": True},
             }, {"_id": 0, "id": 1}).to_list(100)
             return [u["id"] for u in users]
         
         elif approver_type == ApproverType.ORG_ADMIN.value:
-            # Find org admins
+            # Find active org admins
             users = await db.users.find({
                 "organization_id": organization_id,
                 "role": {"$in": ["admin", "super_admin"]},
+                "is_deleted": {"$ne": True},
             }, {"_id": 0, "id": 1}).to_list(100)
             return [u["id"] for u in users]
         

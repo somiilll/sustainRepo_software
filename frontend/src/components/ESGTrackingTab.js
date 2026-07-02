@@ -230,6 +230,7 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
   
   // Feature flags
   const [multiLevelApprovalEnabled, setMultiLevelApprovalEnabled] = useState(false);
+  const [approvalWorkflowEnabled, setApprovalWorkflowEnabled] = useState(false);
   
   // Filter state
   const [filterStatus, setFilterStatus] = useState('all');
@@ -246,6 +247,7 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
     reminder_enabled: false,
     reminder_frequency: '',
     requires_approval: false,
+    approver_id: '',  // Single-level approval
     approval_chain: [], // Multi-level approval: ordered list of approver user IDs
   });
   const [assigning, setAssigning] = useState(false);
@@ -337,6 +339,7 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
     try {
       const res = await axios.get(`${API}/organization/module-config`, { headers: getAuthHeader() });
       setMultiLevelApprovalEnabled(res.data.multi_level_approval_enabled || false);
+      setApprovalWorkflowEnabled(res.data.approval_workflow_enabled || false);
     } catch (error) {
       console.error('Failed to fetch module config:', error);
     }
@@ -375,6 +378,7 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
       reminder_enabled: false,
       reminder_frequency: '',
       requires_approval: false,
+      approver_id: '',
       approval_chain: [],
     });
     setAssigningItem(null);
@@ -387,9 +391,15 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
       return;
     }
     
-    if (multiLevelApprovalEnabled && assignForm.requires_approval && assignForm.approval_chain.length === 0) {
-      toast.error('Please add at least one approver to the approval chain');
-      return;
+    if (assignForm.requires_approval) {
+      if (multiLevelApprovalEnabled && assignForm.approval_chain.length === 0) {
+        toast.error('Please add at least one approver to the approval chain');
+        return;
+      }
+      if (!multiLevelApprovalEnabled && approvalWorkflowEnabled && !assignForm.approver_id) {
+        toast.error('Please select an approver');
+        return;
+      }
     }
     
     if (assignForm.reminder_enabled && !assignForm.reminder_frequency) {
@@ -405,6 +415,17 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
       let totalUpdated = 0;
       
       for (const userId of assignForm.assigned_user_ids) {
+        // Build approval chain based on enabled feature
+        let approvalChain = null;
+        if (assignForm.requires_approval) {
+          if (multiLevelApprovalEnabled && assignForm.approval_chain.length > 0) {
+            approvalChain = assignForm.approval_chain;
+          } else if (approvalWorkflowEnabled && assignForm.approver_id) {
+            // Single-level approval: convert to chain with one approver
+            approvalChain = [assignForm.approver_id];
+          }
+        }
+        
         const payload = {
           framework_id: selectedFramework.framework_id,
           assigned_to_user_id: userId,
@@ -414,9 +435,7 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
           reminder_frequency: assignForm.reminder_frequency || null,
           requires_approval: assignForm.requires_approval,
           // Multi-level approval chain (ordered list of approver user IDs)
-          approval_chain: assignForm.requires_approval && assignForm.approval_chain.length > 0 
-            ? assignForm.approval_chain 
-            : null,
+          approval_chain: approvalChain,
           skip_already_assigned: true,
         };
         
@@ -1008,8 +1027,8 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
               )}
             </div>
             
-            {/* Approval Settings - Only show if multi-level approval is enabled for this org */}
-            {multiLevelApprovalEnabled && (
+            {/* Approval Settings - Show if either approval workflow or multi-level is enabled */}
+            {(approvalWorkflowEnabled || multiLevelApprovalEnabled) && (
               <div className="space-y-3 p-3 border rounded-lg bg-violet-50">
                 <div className="flex items-center gap-2">
                   <Checkbox
@@ -1018,16 +1037,50 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
                     onCheckedChange={(checked) => setAssignForm({
                       ...assignForm, 
                       requires_approval: checked,
+                      approver_id: checked ? assignForm.approver_id : '',
                       approval_chain: checked ? assignForm.approval_chain : []
                     })}
                   />
                   <Label htmlFor="requires_approval" className="text-sm cursor-pointer">
-                    Requires multi-level approval before finalization
+                    {multiLevelApprovalEnabled 
+                      ? 'Requires multi-level approval before finalization'
+                      : 'Requires approval before finalization'
+                    }
                   </Label>
                 </div>
                 
-                {/* Multi-level approval chain builder */}
-                {assignForm.requires_approval && (
+                {/* Single-level approval - show when only approval_workflow_enabled */}
+                {assignForm.requires_approval && !multiLevelApprovalEnabled && approvalWorkflowEnabled && (
+                  <div className="space-y-2 mt-3">
+                    <Label className="text-sm">Select Approver *</Label>
+                    <Select 
+                      value={assignForm.approver_id} 
+                      onValueChange={(v) => setAssignForm({...assignForm, approver_id: v})}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select approver" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {orgUsers.map(user => (
+                          <SelectItem key={user.id} value={user.id}>
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 rounded-full bg-violet-100 flex items-center justify-center text-xs font-medium text-violet-700">
+                                {user.name?.charAt(0) || user.email?.charAt(0) || '?'}
+                              </div>
+                              <div>
+                                <span className="font-medium">{user.name || user.email}</span>
+                                <span className="text-xs text-text-muted ml-2">({user.role})</span>
+                              </div>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                
+                {/* Multi-level approval chain builder - show when multi_level_approval_enabled */}
+                {assignForm.requires_approval && multiLevelApprovalEnabled && (
                   <div className="space-y-3 mt-3">
                     <Label className="text-sm">Approval Chain * <span className="text-xs text-text-muted">(in order)</span></Label>
                     
@@ -1116,7 +1169,13 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
             </Button>
             <Button 
               onClick={handleAssign}
-              disabled={assigning || assignForm.assigned_user_ids.length === 0 || (multiLevelApprovalEnabled && assignForm.requires_approval && assignForm.approval_chain.length === 0) || (assignForm.reminder_enabled && !assignForm.reminder_frequency)}
+              disabled={
+                assigning || 
+                assignForm.assigned_user_ids.length === 0 || 
+                (assignForm.requires_approval && multiLevelApprovalEnabled && assignForm.approval_chain.length === 0) ||
+                (assignForm.requires_approval && !multiLevelApprovalEnabled && approvalWorkflowEnabled && !assignForm.approver_id) ||
+                (assignForm.reminder_enabled && !assignForm.reminder_frequency)
+              }
             >
               {assigning ? (
                 <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Assigning...</>

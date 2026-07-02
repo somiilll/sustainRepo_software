@@ -24,6 +24,7 @@ class OrgModuleConfig(BaseModel):
     has_esg: bool = True
     enabled_access: Optional[list] = None  # scope1_2 or scope1_2_3
     esg_frameworks_enabled: Optional[list] = None
+    approval_workflow_enabled: bool = False  # Single-level approval workflow
     multi_level_approval_enabled: bool = False  # Multi-level approval chain feature flag
 
 
@@ -37,6 +38,7 @@ async def get_org_module_config(current_user: dict = Depends(get_current_user)):
             has_esg=True,
             enabled_access=["scope1_2_3"],
             esg_frameworks_enabled=["BRSR", "GRI"],
+            approval_workflow_enabled=True,
             multi_level_approval_enabled=True  # Super admin can see all features
         )
     
@@ -46,7 +48,7 @@ async def get_org_module_config(current_user: dict = Depends(get_current_user)):
     
     org = await db.organizations.find_one(
         {"id": org_id},
-        {"_id": 0, "has_ghg": 1, "has_esg": 1, "enabled_access": 1, "esg_frameworks_enabled": 1, "multi_level_approval_enabled": 1}
+        {"_id": 0, "has_ghg": 1, "has_esg": 1, "enabled_access": 1, "esg_frameworks_enabled": 1, "approval_workflow_enabled": 1, "multi_level_approval_enabled": 1}
     )
     
     if not org:
@@ -57,6 +59,7 @@ async def get_org_module_config(current_user: dict = Depends(get_current_user)):
         has_esg=org.get("has_esg", True),
         enabled_access=org.get("enabled_access"),
         esg_frameworks_enabled=org.get("esg_frameworks_enabled"),
+        approval_workflow_enabled=org.get("approval_workflow_enabled", False),
         multi_level_approval_enabled=org.get("multi_level_approval_enabled", False)
     )
 
