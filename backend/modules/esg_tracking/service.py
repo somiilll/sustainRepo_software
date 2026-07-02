@@ -903,11 +903,11 @@ class TrackingService:
                 due_date=request.due_date,
                 framework_id=request.framework_id,
                 requires_approval=request.requires_approval,
+                approval_chain=request.approval_chain,  # Multi-level approval chain
                 filling_frequency=freq,
                 reminder_enabled=request.reminder_enabled,
                 reminder_frequency=reminder_freq,
                 reminder_config=request.reminder_config,
-                metadata={"approver_id": request.approver_id} if request.approver_id else None,
             )
             
             await assignment_service.create_assignment(

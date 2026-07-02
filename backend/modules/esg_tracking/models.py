@@ -129,7 +129,9 @@ class BulkAssignRequest(BaseModel):
     reminder_frequency: Optional[str] = None  # daily, weekly, monthly, etc.
     reminder_config: Optional[Dict[str, Any]] = None
     requires_approval: bool = False
-    approver_id: Optional[str] = None  # User ID of designated approver
+    # Multi-level approval chain (list of user IDs in order)
+    # e.g., ["manager_id", "director_id", "vp_id"] for 3-level approval
+    approval_chain: Optional[List[str]] = None  # Ordered list of approver user IDs
     skip_already_assigned: bool = True  # Don't overwrite existing assignments
 
 

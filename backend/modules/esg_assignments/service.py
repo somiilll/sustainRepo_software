@@ -75,6 +75,7 @@ class AssignmentService:
             
             # Approval configuration
             "requires_approval": request.requires_approval,
+            "approval_chain": request.approval_chain,  # Direct from request, not metadata
             
             # Filling frequency
             "filling_frequency": request.filling_frequency.value if request.filling_frequency else None,

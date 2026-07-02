@@ -362,8 +362,8 @@ async def get_organization_users(
     """
     from shared.database.mongo import db
     
-    # Query users_esg collection (ESG platform users)
-    users = await db.users_esg.find(
+    # Query users collection (all organization users)
+    users = await db.users.find(
         {"organization_id": current_user["organization_id"]},
         {"_id": 0, "id": 1, "name": 1, "full_name": 1, "email": 1, "role": 1}
     ).to_list(500)

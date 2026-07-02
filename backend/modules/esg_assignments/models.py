@@ -101,6 +101,8 @@ class CreateAssignmentRequest(BaseModel):
     
     # Approval configuration (only works if org-level approval enabled)
     requires_approval: bool = False
+    approval_workflow_id: Optional[str] = None  # Links to approval_workflows collection
+    approval_chain: Optional[List[str]] = None  # Ordered list of approver user IDs for this assignment
     
     # Filling frequency
     filling_frequency: Optional[FillingFrequency] = None
@@ -181,6 +183,8 @@ class AssignmentResponse(BaseModel):
     
     # Approval configuration
     requires_approval: bool = False
+    approval_workflow_id: Optional[str] = None  # Links to approval_workflows collection
+    approval_chain: Optional[List[str]] = None  # Ordered list of approver user IDs
     
     # Filling frequency
     filling_frequency: Optional[FillingFrequency] = None
