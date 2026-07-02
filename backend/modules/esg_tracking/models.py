@@ -125,8 +125,11 @@ class BulkAssignRequest(BaseModel):
     role: str = "owner"
     due_date: Optional[datetime] = None
     filling_frequency: Optional[str] = None
+    reminder_enabled: bool = False
+    reminder_frequency: Optional[str] = None  # daily, weekly, monthly, etc.
     reminder_config: Optional[Dict[str, Any]] = None
     requires_approval: bool = False
+    approver_id: Optional[str] = None  # User ID of designated approver
     skip_already_assigned: bool = True  # Don't overwrite existing assignments
 
 

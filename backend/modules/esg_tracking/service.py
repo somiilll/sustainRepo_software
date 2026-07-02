@@ -177,6 +177,10 @@ class TrackingService:
                             except (ValueError, TypeError):
                                 due_date = None
                         
+                        # Normalize naive datetime to UTC for comparison
+                        if due_date and due_date.tzinfo is None:
+                            due_date = due_date.replace(tzinfo=timezone.utc)
+                        
                         if due_date and due_date < now and not is_completed:
                             overdue += 1
                 else:
@@ -720,18 +724,41 @@ class TrackingService:
         }
         section = domain_section_map.get(domain)
         
-        # Build config query
-        config_query = {
-            "section": section,
-            "framework": {"$regex": f"^{request.framework_id}$", "$options": "i"},
-        }
+        # Build config query - handle missing framework field for BRSR
+        if request.framework_id.lower() == "brsr":
+            config_query = {
+                "section": section,
+                "$or": [
+                    {"framework": {"$regex": f"^{request.framework_id}$", "$options": "i"}},
+                    {"framework": None},
+                    {"framework": {"$exists": False}},
+                ]
+            }
+        else:
+            config_query = {
+                "section": section,
+                "framework": {"$regex": f"^{request.framework_id}$", "$options": "i"},
+            }
         
         if request.section_id:
-            config_query["$or"] = [
-                {"brsr_section": request.section_id},
-                {"topic": request.section_id},
-                {"brsr_principle": request.section_id},
-            ]
+            if "$or" in config_query:
+                # Need to use $and to combine with existing $or
+                config_query = {
+                    "$and": [
+                        config_query,
+                        {"$or": [
+                            {"brsr_section": request.section_id},
+                            {"topic": request.section_id},
+                            {"brsr_principle": request.section_id},
+                        ]}
+                    ]
+                }
+            else:
+                config_query["$or"] = [
+                    {"brsr_section": request.section_id},
+                    {"topic": request.section_id},
+                    {"brsr_principle": request.section_id},
+                ]
         
         configs = await self._configs.find(config_query, {"_id": 0, "question_key": 1}).to_list(500)
         
@@ -774,6 +801,15 @@ class TrackingService:
             except (ValueError, KeyError):
                 freq = None
             
+            # Parse reminder frequency if provided
+            reminder_freq = None
+            if request.reminder_frequency:
+                try:
+                    from modules.esg_assignments.models import ReminderFrequency
+                    reminder_freq = ReminderFrequency(request.reminder_frequency)
+                except (ValueError, KeyError):
+                    reminder_freq = None
+            
             create_req = CreateAssignmentRequest(
                 entity_type=EntityType.QUESTION,
                 assignment_level=AssignmentLevel.QUESTION,
@@ -785,7 +821,10 @@ class TrackingService:
                 framework_id=request.framework_id,
                 requires_approval=request.requires_approval,
                 filling_frequency=freq,
+                reminder_enabled=request.reminder_enabled,
+                reminder_frequency=reminder_freq,
                 reminder_config=request.reminder_config,
+                metadata={"approver_id": request.approver_id} if request.approver_id else None,
             )
             
             await assignment_service.create_assignment(

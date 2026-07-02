@@ -3,7 +3,7 @@
  * 
  * Provides a comprehensive "ESG Control Center" for admins to:
  * - Monitor disclosure completion
- * - Assign/reassign disclosures
+ * - Assign/reassign questions to multiple users
  * - Track pending items
  * - Send reminders
  * - Monitor framework readiness
@@ -20,6 +20,7 @@ import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Progress } from './ui/progress';
+import { Checkbox } from './ui/checkbox';
 import { 
   Select, 
   SelectContent, 
@@ -55,12 +56,12 @@ import {
   Circle,
   Bell,
   UserPlus,
-  Calendar,
   Filter,
   RefreshCw,
   ArrowRight,
   AlertCircle,
   XCircle,
+  X,
 } from 'lucide-react';
 import { 
   generateReportingYears, 
@@ -118,6 +119,64 @@ const StatusBadge = ({ status, isOverdue, isStale, isDueSoon }) => {
   );
 };
 
+// Multi-select user component
+const MultiUserSelect = ({ users, selectedUserIds, onChange, label }) => {
+  const toggleUser = (userId) => {
+    if (selectedUserIds.includes(userId)) {
+      onChange(selectedUserIds.filter(id => id !== userId));
+    } else {
+      onChange([...selectedUserIds, userId]);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      <div className="border rounded-lg max-h-48 overflow-y-auto">
+        {users.map(user => (
+          <div 
+            key={user.id}
+            className="flex items-center gap-3 p-2 hover:bg-stone-50 cursor-pointer border-b last:border-b-0"
+            onClick={() => toggleUser(user.id)}
+          >
+            <Checkbox 
+              checked={selectedUserIds.includes(user.id)}
+              onCheckedChange={() => toggleUser(user.id)}
+            />
+            <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-sm font-medium text-emerald-700">
+              {user.name?.charAt(0) || user.email?.charAt(0) || '?'}
+            </div>
+            <div className="flex-1">
+              <div className="font-medium text-sm">{user.name || 'No Name'}</div>
+              <div className="text-xs text-text-muted">{user.email}</div>
+            </div>
+            <Badge variant="outline" className="text-xs">{user.role}</Badge>
+          </div>
+        ))}
+      </div>
+      {selectedUserIds.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-2">
+          {selectedUserIds.map(id => {
+            const user = users.find(u => u.id === id);
+            return user ? (
+              <Badge key={id} variant="secondary" className="text-xs flex items-center gap-1">
+                {user.name || user.email}
+                <X 
+                  className="w-3 h-3 cursor-pointer hover:text-red-500" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onChange(selectedUserIds.filter(uid => uid !== id));
+                  }}
+                />
+              </Badge>
+            ) : null;
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 /**
  * Main ESG Tracking Tab Component
  */
@@ -141,13 +200,16 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
   
   // Assignment modal state
   const [assignModalOpen, setAssignModalOpen] = useState(false);
-  const [assigningDisclosure, setAssigningDisclosure] = useState(null);
+  const [assigningItem, setAssigningItem] = useState(null); // Can be disclosure, section, or { bulk: true }
   const [orgUsers, setOrgUsers] = useState([]);
   const [assignForm, setAssignForm] = useState({
-    assigned_to_user_id: '',
+    assigned_user_ids: [],
     due_date: '',
     filling_frequency: '',
+    reminder_enabled: false,
+    reminder_frequency: '',
     requires_approval: false,
+    approver_id: '',
   });
   const [assigning, setAssigning] = useState(false);
   
@@ -156,6 +218,9 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
   
   // Year options
   const yearOptions = generateReportingYears('financial_year', 5);
+  
+  // Get admins from org users for approver dropdown
+  const adminUsers = orgUsers.filter(u => u.role === 'admin' || u.role === 'super_admin');
   
   // Fetch framework summary
   const fetchFrameworkSummary = useCallback(async () => {
@@ -253,86 +318,93 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
     }
   }, [isAdmin, fetchOrgUsers]);
   
-  // Handle assignment
+  // Reset form when modal closes
+  const resetAssignForm = () => {
+    setAssignForm({
+      assigned_user_ids: [],
+      due_date: '',
+      filling_frequency: '',
+      reminder_enabled: false,
+      reminder_frequency: '',
+      requires_approval: false,
+      approver_id: '',
+    });
+    setAssigningItem(null);
+  };
+  
+  // Handle assignment (supports multiple users)
   const handleAssign = async () => {
-    if (!assigningDisclosure || !assignForm.assigned_to_user_id) {
-      toast.error('Please select a user');
+    if (assignForm.assigned_user_ids.length === 0) {
+      toast.error('Please select at least one user');
+      return;
+    }
+    
+    if (assignForm.requires_approval && !assignForm.approver_id) {
+      toast.error('Please select an approver');
+      return;
+    }
+    
+    if (assignForm.reminder_enabled && !assignForm.reminder_frequency) {
+      toast.error('Please select a reminder frequency');
       return;
     }
     
     setAssigning(true);
     try {
-      await axios.post(
-        `${API}/tracking/${domain}/assign?reporting_period=${encodeURIComponent(reportingPeriod)}`,
-        {
+      // Create assignment for each selected user
+      let totalCreated = 0;
+      let totalSkipped = 0;
+      
+      for (const userId of assignForm.assigned_user_ids) {
+        const payload = {
           framework_id: selectedFramework.framework_id,
-          section_id: selectedSection?.section_id,
-          disclosure_ids: [assigningDisclosure.disclosure_id],
-          assigned_to_user_id: assignForm.assigned_to_user_id,
+          assigned_to_user_id: userId,
           due_date: assignForm.due_date || null,
           filling_frequency: assignForm.filling_frequency || null,
+          reminder_enabled: assignForm.reminder_enabled,
+          reminder_frequency: assignForm.reminder_frequency || null,
           requires_approval: assignForm.requires_approval,
-          skip_already_assigned: false,
-        },
-        { headers: getAuthHeader() }
-      );
+          approver_id: assignForm.requires_approval ? assignForm.approver_id : null,
+          skip_already_assigned: true,
+        };
+        
+        // If assigning a specific question
+        if (assigningItem?.disclosure_id) {
+          payload.disclosure_ids = [assigningItem.disclosure_id];
+          payload.skip_already_assigned = false;
+        }
+        // If assigning a whole section
+        else if (assigningItem?.section_id) {
+          payload.section_id = assigningItem.section_id;
+        }
+        // If bulk assigning remaining
+        else if (assigningItem?.bulk) {
+          payload.section_id = selectedSection?.section_id;
+        }
+        
+        const res = await axios.post(
+          `${API}/tracking/${domain}/assign?reporting_period=${encodeURIComponent(reportingPeriod)}`,
+          payload,
+          { headers: getAuthHeader() }
+        );
+        
+        totalCreated += res.data.created_count || 0;
+        totalSkipped += res.data.skipped_count || 0;
+      }
       
-      toast.success('Disclosure assigned successfully');
+      toast.success(`Assigned ${totalCreated} question(s) to ${assignForm.assigned_user_ids.length} user(s)${totalSkipped > 0 ? ` (${totalSkipped} skipped)` : ''}`);
       setAssignModalOpen(false);
-      setAssigningDisclosure(null);
-      setAssignForm({
-        assigned_to_user_id: '',
-        due_date: '',
-        filling_frequency: '',
-        requires_approval: false,
-      });
+      resetAssignForm();
       
       // Refresh data
-      fetchDisclosures(selectedFramework, selectedSection);
+      if (selectedSection) {
+        fetchDisclosures(selectedFramework, selectedSection);
+      }
       fetchSections(selectedFramework);
       fetchFrameworkSummary();
     } catch (error) {
       console.error('Failed to assign:', error);
-      toast.error(error.response?.data?.detail || 'Failed to assign disclosure');
-    } finally {
-      setAssigning(false);
-    }
-  };
-  
-  // Handle bulk assign remaining
-  const handleBulkAssignRemaining = async () => {
-    if (!assignForm.assigned_to_user_id) {
-      toast.error('Please select a user');
-      return;
-    }
-    
-    setAssigning(true);
-    try {
-      const res = await axios.post(
-        `${API}/tracking/${domain}/assign?reporting_period=${encodeURIComponent(reportingPeriod)}`,
-        {
-          framework_id: selectedFramework.framework_id,
-          section_id: selectedSection?.section_id,
-          assigned_to_user_id: assignForm.assigned_to_user_id,
-          due_date: assignForm.due_date || null,
-          filling_frequency: assignForm.filling_frequency || null,
-          requires_approval: assignForm.requires_approval,
-          skip_already_assigned: true,
-        },
-        { headers: getAuthHeader() }
-      );
-      
-      toast.success(`Assigned ${res.data.created_count} disclosures (${res.data.skipped_count} already assigned)`);
-      setAssignModalOpen(false);
-      setAssigningDisclosure(null);
-      
-      // Refresh data
-      fetchDisclosures(selectedFramework, selectedSection);
-      fetchSections(selectedFramework);
-      fetchFrameworkSummary();
-    } catch (error) {
-      console.error('Failed to bulk assign:', error);
-      toast.error(error.response?.data?.detail || 'Failed to assign disclosures');
+      toast.error(error.response?.data?.detail || 'Failed to assign questions');
     } finally {
       setAssigning(false);
     }
@@ -341,7 +413,7 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
   // Handle send reminder
   const handleSendReminder = async (disclosure) => {
     if (!disclosure.is_assigned) {
-      toast.error('Disclosure is not assigned');
+      toast.error('Question is not assigned');
       return;
     }
     
@@ -362,6 +434,12 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
     } finally {
       setSendingReminder(null);
     }
+  };
+  
+  // Open assign modal for section
+  const openAssignSectionModal = (section) => {
+    setAssigningItem({ ...section, isSection: true });
+    setAssignModalOpen(true);
   };
   
   if (!isAdmin) {
@@ -421,6 +499,7 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
           {frameworkSummary.frameworks.map(fw => (
             <Card 
               key={fw.framework_id}
+              data-testid={`framework-card-${fw.framework_id}`}
               className={`p-4 cursor-pointer transition-all hover:shadow-md ${
                 selectedFramework?.framework_id === fw.framework_id 
                   ? 'ring-2 ring-emerald-500 border-emerald-200' 
@@ -476,7 +555,7 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
         </div>
       )}
       
-      {/* Sections View */}
+      {/* Sections View - One section per row */}
       {selectedFramework && sections.length > 0 && !selectedSection && (
         <Card className="p-4">
           <div className="flex items-center justify-between mb-4">
@@ -491,38 +570,63 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
             </Badge>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* Changed to single column layout */}
+          <div className="flex flex-col gap-3">
             {sections.map(section => (
               <Card 
                 key={section.section_id}
-                className="p-4 cursor-pointer hover:shadow-md hover:border-emerald-200 transition-all"
-                onClick={() => setSelectedSection(section)}
+                data-testid={`section-card-${section.section_id}`}
+                className="p-4 hover:shadow-md hover:border-emerald-200 transition-all"
               >
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium">{section.section_name}</h4>
-                  <Badge variant="outline" className="text-xs">
-                    {section.completion_percentage}%
-                  </Badge>
-                </div>
-                
-                <Progress value={section.completion_percentage} className="h-1.5 mb-3" />
-                
-                <div className="flex items-center justify-between text-xs text-text-muted">
-                  <div className="flex items-center gap-3">
-                    <span>{section.total_disclosures} items</span>
-                    <span className="text-emerald-600">{section.completed_disclosures} done</span>
-                    {section.overdue_count > 0 && (
-                      <span className="text-red-600">{section.overdue_count} overdue</span>
-                    )}
+                <div className="flex items-center gap-4">
+                  {/* Section info - clickable */}
+                  <div 
+                    className="flex-1 cursor-pointer"
+                    onClick={() => setSelectedSection(section)}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium text-base">{section.section_name}</h4>
+                      <Badge variant="outline" className="text-xs">
+                        {section.completion_percentage}%
+                      </Badge>
+                    </div>
+                    
+                    <Progress value={section.completion_percentage} className="h-1.5 mb-3" />
+                    
+                    <div className="flex items-center gap-4 text-xs text-text-muted">
+                      <span>{section.total_disclosures} questions</span>
+                      <span className="text-emerald-600">{section.completed_disclosures} done</span>
+                      {section.overdue_count > 0 && (
+                        <span className="text-red-600">{section.overdue_count} overdue</span>
+                      )}
+                      {section.assigned_users?.length > 0 && (
+                        <span className="flex items-center gap-1">
+                          <Users className="w-3 h-3" /> 
+                          {section.assigned_users.map(u => u.name).join(', ')}
+                        </span>
+                      )}
+                    </div>
                   </div>
+                  
+                  {/* Action buttons */}
                   <div className="flex items-center gap-2">
-                    {section.assigned_users?.length > 0 && (
-                      <span className="flex items-center gap-1">
-                        <Users className="w-3 h-3" /> 
-                        {section.assigned_users.length}
-                      </span>
-                    )}
-                    <ArrowRight className="w-4 h-4" />
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openAssignSectionModal(section);
+                      }}
+                    >
+                      <UserPlus className="w-4 h-4 mr-1" /> Assign Section
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => setSelectedSection(section)}
+                    >
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
                   </div>
                 </div>
               </Card>
@@ -531,7 +635,7 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
         </Card>
       )}
       
-      {/* Disclosures View */}
+      {/* Questions View (renamed from Disclosures) */}
       {selectedSection && (
         <Card className="p-4">
           <div className="flex items-center justify-between mb-4">
@@ -539,14 +643,14 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
               <Button variant="ghost" size="sm" onClick={() => setSelectedSection(null)}>
                 <ChevronLeft className="w-4 h-4" />
               </Button>
-              {selectedSection.section_name} Disclosures
+              {selectedSection.section_name} Questions
             </h3>
             <div className="flex items-center gap-2">
               <Button 
                 variant="outline" 
                 size="sm"
                 onClick={() => {
-                  setAssigningDisclosure({ bulk: true });
+                  setAssigningItem({ bulk: true });
                   setAssignModalOpen(true);
                 }}
               >
@@ -614,12 +718,12 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
             </Select>
           </div>
           
-          {/* Disclosures Table */}
+          {/* Questions Table (renamed from Disclosures) */}
           <div className="border rounded-lg overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow className="bg-stone-50">
-                  <TableHead className="w-[40%]">Disclosure</TableHead>
+                  <TableHead className="w-[45%]">Question</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Assigned To</TableHead>
                   <TableHead>Due Date</TableHead>
@@ -630,15 +734,15 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
                 {disclosures.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center py-8 text-text-muted">
-                      No disclosures found matching filters
+                      No questions found matching filters
                     </TableCell>
                   </TableRow>
                 ) : (
                   disclosures.map(disc => (
                     <TableRow key={disc.disclosure_id} className="hover:bg-stone-50">
                       <TableCell>
+                        {/* Show question text (disclosure_name) instead of key */}
                         <div className="font-medium text-sm">{disc.disclosure_name}</div>
-                        <div className="text-xs text-text-muted">{disc.disclosure_id}</div>
                       </TableCell>
                       <TableCell>
                         <StatusBadge 
@@ -652,7 +756,9 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
                         {disc.is_assigned ? (
                           <div className="text-sm">
                             <div className="font-medium">{disc.assigned_to_user_name || 'Unknown'}</div>
-                            <div className="text-xs text-text-muted">{disc.assignment_role || 'owner'}</div>
+                            {disc.assigned_to_user_email && (
+                              <div className="text-xs text-text-muted">{disc.assigned_to_user_email}</div>
+                            )}
                           </div>
                         ) : (
                           <span className="text-xs text-text-muted">Unassigned</span>
@@ -698,7 +804,7 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => {
-                                  setAssigningDisclosure(disc);
+                                  setAssigningItem(disc);
                                   setAssignModalOpen(true);
                                 }}
                                 title="Reassign"
@@ -711,7 +817,7 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
                               variant="outline"
                               size="sm"
                               onClick={() => {
-                                setAssigningDisclosure(disc);
+                                setAssigningItem(disc);
                                 setAssignModalOpen(true);
                               }}
                             >
@@ -730,52 +836,40 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
       )}
       
       {/* Assignment Modal */}
-      <Dialog open={assignModalOpen} onOpenChange={setAssignModalOpen}>
-        <DialogContent>
+      <Dialog open={assignModalOpen} onOpenChange={(open) => {
+        setAssignModalOpen(open);
+        if (!open) resetAssignForm();
+      }}>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {assigningDisclosure?.bulk 
-                ? 'Assign Remaining Disclosures' 
-                : assigningDisclosure?.is_assigned 
-                  ? 'Reassign Disclosure' 
-                  : 'Assign Disclosure'
+              {assigningItem?.bulk 
+                ? 'Assign Remaining Questions' 
+                : assigningItem?.isSection
+                  ? `Assign Section: ${assigningItem.section_name}`
+                  : assigningItem?.is_assigned 
+                    ? 'Reassign Question' 
+                    : 'Assign Question'
               }
             </DialogTitle>
             <DialogDescription>
-              {assigningDisclosure?.bulk 
-                ? `Assign all unassigned disclosures in ${selectedSection?.section_name}`
-                : `Assign "${assigningDisclosure?.disclosure_name}" to a user`
+              {assigningItem?.bulk 
+                ? `Assign all unassigned questions in ${selectedSection?.section_name}`
+                : assigningItem?.isSection
+                  ? `Assign all questions in ${assigningItem.section_name} to selected users`
+                  : `Assign "${assigningItem?.disclosure_name}" to users`
               }
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Assign To *</Label>
-              <Select 
-                value={assignForm.assigned_to_user_id} 
-                onValueChange={(v) => setAssignForm({...assignForm, assigned_to_user_id: v})}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select user" />
-                </SelectTrigger>
-                <SelectContent>
-                  {orgUsers.map(user => (
-                    <SelectItem key={user.id} value={user.id}>
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-xs font-medium text-emerald-700">
-                          {user.name?.charAt(0) || user.email?.charAt(0) || '?'}
-                        </div>
-                        <div>
-                          <div className="font-medium">{user.name}</div>
-                          <div className="text-xs text-text-muted">{user.role}</div>
-                        </div>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Multi-user selection */}
+            <MultiUserSelect
+              users={orgUsers}
+              selectedUserIds={assignForm.assigned_user_ids}
+              onChange={(ids) => setAssignForm({...assignForm, assigned_user_ids: ids})}
+              label="Assign To *"
+            />
             
             <div className="space-y-2">
               <Label>Due Date</Label>
@@ -805,32 +899,110 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
               </Select>
             </div>
             
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="requires_approval"
-                checked={assignForm.requires_approval}
-                onChange={(e) => setAssignForm({...assignForm, requires_approval: e.target.checked})}
-                className="rounded border-stone-300"
-              />
-              <Label htmlFor="requires_approval" className="text-sm cursor-pointer">
-                Requires approval before finalization
-              </Label>
+            {/* Reminder Settings */}
+            <div className="space-y-3 p-3 border rounded-lg bg-stone-50">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="reminder_enabled"
+                  checked={assignForm.reminder_enabled}
+                  onCheckedChange={(checked) => setAssignForm({
+                    ...assignForm, 
+                    reminder_enabled: checked,
+                    reminder_frequency: checked ? assignForm.reminder_frequency : ''
+                  })}
+                />
+                <Label htmlFor="reminder_enabled" className="text-sm cursor-pointer">
+                  Enable reminders
+                </Label>
+              </div>
+              
+              {assignForm.reminder_enabled && (
+                <div className="space-y-2 mt-2">
+                  <Label className="text-sm">Reminder Frequency *</Label>
+                  <Select 
+                    value={assignForm.reminder_frequency} 
+                    onValueChange={(v) => setAssignForm({...assignForm, reminder_frequency: v})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select reminder frequency" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="daily">Daily</SelectItem>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+            
+            {/* Approval Settings */}
+            <div className="space-y-3 p-3 border rounded-lg bg-violet-50">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="requires_approval"
+                  checked={assignForm.requires_approval}
+                  onCheckedChange={(checked) => setAssignForm({
+                    ...assignForm, 
+                    requires_approval: checked,
+                    approver_id: checked ? assignForm.approver_id : ''
+                  })}
+                />
+                <Label htmlFor="requires_approval" className="text-sm cursor-pointer">
+                  Requires approval before finalization
+                </Label>
+              </div>
+              
+              {/* Approver dropdown - only shown when requires_approval is checked */}
+              {assignForm.requires_approval && (
+                <div className="space-y-2 mt-3">
+                  <Label className="text-sm">Select Approver *</Label>
+                  <Select 
+                    value={assignForm.approver_id} 
+                    onValueChange={(v) => setAssignForm({...assignForm, approver_id: v})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select approver" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {adminUsers.map(admin => (
+                        <SelectItem key={admin.id} value={admin.id}>
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-full bg-violet-100 flex items-center justify-center text-xs font-medium text-violet-700">
+                              {admin.name?.charAt(0) || admin.email?.charAt(0) || '?'}
+                            </div>
+                            <div>
+                              <span className="font-medium">{admin.name || admin.email}</span>
+                              <span className="text-xs text-text-muted ml-2">({admin.role})</span>
+                            </div>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {adminUsers.length === 0 && (
+                    <p className="text-xs text-text-muted">No admin users available</p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAssignModalOpen(false)}>
+            <Button variant="outline" onClick={() => {
+              setAssignModalOpen(false);
+              resetAssignForm();
+            }}>
               Cancel
             </Button>
             <Button 
-              onClick={assigningDisclosure?.bulk ? handleBulkAssignRemaining : handleAssign}
-              disabled={assigning || !assignForm.assigned_to_user_id}
+              onClick={handleAssign}
+              disabled={assigning || assignForm.assigned_user_ids.length === 0 || (assignForm.requires_approval && !assignForm.approver_id) || (assignForm.reminder_enabled && !assignForm.reminder_frequency)}
             >
               {assigning ? (
                 <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Assigning...</>
               ) : (
-                <><UserPlus className="w-4 h-4 mr-2" /> {assigningDisclosure?.bulk ? 'Assign All' : 'Assign'}</>
+                <><UserPlus className="w-4 h-4 mr-2" /> Assign to {assignForm.assigned_user_ids.length} User{assignForm.assigned_user_ids.length !== 1 ? 's' : ''}</>
               )}
             </Button>
           </DialogFooter>
