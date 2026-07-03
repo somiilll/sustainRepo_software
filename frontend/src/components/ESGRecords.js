@@ -1443,7 +1443,7 @@ function EditRecordModal({ open, onClose, onSuccess, section, record, categories
 // Dynamic Field Renderer
 // =============================================================================
 
-function DynamicFieldRenderer({ field, value, onChange }) {
+export function DynamicFieldRenderer({ field, value, onChange }) {
   const { field_key, type, label, required, options, placeholder } = field;
 
   switch (type) {
@@ -1614,7 +1614,7 @@ function VersionHistoryModal({ open, onClose, record, versions }) {
 // Imported Record View Modal
 // =============================================================================
 
-function ImportedRecordModal({ open, onClose, record }) {
+export function ImportedRecordModal({ open, onClose, record }) {
   if (!record) return null;
 
   const fieldValues = record.field_values || {};

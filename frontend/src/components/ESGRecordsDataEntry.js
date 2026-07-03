@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from './ui/dialog';
 import { toast } from 'sonner';
+import { ImportedRecordModal, DynamicFieldRenderer } from './ESGRecords';
 import { 
   Plus, Search, Filter, History, FileText, Upload, 
   ChevronLeft, ChevronRight, Loader2, Building2, Calendar,
@@ -65,6 +66,7 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
   const [showImportedModal, setShowImportedModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState(null);
   const [editData, setEditData] = useState({});
   const [versions, setVersions] = useState([]);
   const [saving, setSaving] = useState({});
@@ -294,15 +296,29 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
   };
 
   // Open edit modal
-  const openEditModal = (record) => {
+  const openEditModal = async (record) => {
     setSelectedRecord(record);
     setEditData({
-      value: record.value || '',
-      unit: record.unit || '',
+      field_values: record.field_values || {},
       notes: record.notes || '',
+      source_of_information: record.source_of_information || '',
       reporting_month: record.reporting_month || '',
       reporting_year: record.reporting_year || new Date().getFullYear(),
     });
+    
+    // Fetch category config for dynamic fields
+    if (record.category_id) {
+      try {
+        const res = await axios.get(
+          `${API}/api/esg-records/categories/${section}/${record.category_id}`,
+          { headers }
+        );
+        setSelectedCategory(res.data);
+      } catch (err) {
+        console.error('Failed to fetch category config:', err);
+        setSelectedCategory(null);
+      }
+    }
     setShowEditModal(true);
   };
 
@@ -315,7 +331,9 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
       await axios.put(
         `${API}/api/esg-records/records/${section}/${selectedRecord.id}`,
         {
-          ...editData,
+          field_values: editData.field_values,
+          notes: editData.notes,
+          source_of_information: editData.source_of_information,
           status: asDraft ? 'draft' : 'submitted',
         },
         { headers }
@@ -324,6 +342,7 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
       toast.success(asDraft ? 'Saved as draft' : 'Record updated');
       setShowEditModal(false);
       setSelectedRecord(null);
+      setSelectedCategory(null);
       fetchRecords();
       fetchDrafts();
     } catch (error) {
@@ -338,6 +357,7 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
   const discardEdit = () => {
     setShowEditModal(false);
     setSelectedRecord(null);
+    setSelectedCategory(null);
     setEditData({});
   };
 
@@ -869,7 +889,7 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
 
       {/* Edit Record Modal */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Edit2 className="w-5 h-5 text-emerald-600" />
@@ -882,68 +902,41 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
           </DialogHeader>
           
           <div className="space-y-4 py-4">
-            {/* Value */}
-            <div className="space-y-2">
-              <Label>Value *</Label>
+            {/* Dynamic Category Fields */}
+            {selectedCategory?.fields?.length > 0 ? (
+              <div className="space-y-3">
+                <p className="text-sm font-medium text-text-primary">Category Fields</p>
+                {selectedCategory.fields.map(field => (
+                  <DynamicFieldRenderer
+                    key={field.field_key}
+                    field={field}
+                    value={editData.field_values?.[field.field_key]}
+                    onChange={(val) => setEditData(prev => ({
+                      ...prev,
+                      field_values: { ...prev.field_values, [field.field_key]: val }
+                    }))}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-stone-500 italic">No configured fields for this category.</p>
+            )}
+
+            {/* Source of Information */}
+            <div className="space-y-2 pt-3 border-t">
+              <Label>Source of Information</Label>
               <Input
-                type="number"
-                value={editData.value}
-                onChange={(e) => setEditData(prev => ({ ...prev, value: e.target.value }))}
-                placeholder="Enter value"
+                value={editData.source_of_information || ''}
+                onChange={(e) => setEditData(prev => ({ ...prev, source_of_information: e.target.value }))}
+                placeholder="e.g., Utility Bill, Vendor Invoice..."
               />
-            </div>
-
-            {/* Unit */}
-            <div className="space-y-2">
-              <Label>Unit</Label>
-              <Input
-                value={editData.unit}
-                onChange={(e) => setEditData(prev => ({ ...prev, unit: e.target.value }))}
-                placeholder="e.g., kWh, kg, liters"
-              />
-            </div>
-
-            {/* Year */}
-            <div className="space-y-2">
-              <Label>Year</Label>
-              <Select 
-                value={String(editData.reporting_year)} 
-                onValueChange={(v) => setEditData(prev => ({ ...prev, reporting_year: parseInt(v) }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i + 1).map(year => (
-                    <SelectItem key={year} value={String(year)}>{year}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Month */}
-            <div className="space-y-2">
-              <Label>Month</Label>
-              <Select 
-                value={String(editData.reporting_month || '')} 
-                onValueChange={(v) => setEditData(prev => ({ ...prev, reporting_month: v }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select month" />
-                </SelectTrigger>
-                <SelectContent>
-                  {MONTHS.map((month, idx) => (
-                    <SelectItem key={month} value={String(idx + 1)}>{month}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
 
             {/* Notes */}
             <div className="space-y-2">
               <Label>Notes</Label>
               <Textarea
-                value={editData.notes}
+                value={editData.notes || ''}
                 onChange={(e) => setEditData(prev => ({ ...prev, notes: e.target.value }))}
                 placeholder="Additional notes..."
                 rows={3}
@@ -971,7 +964,7 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
             </Button>
             <Button
               onClick={() => handleSaveEdit(false)}
-              disabled={saving.edit || !editData.value}
+              disabled={saving.edit}
               className="bg-emerald-600 hover:bg-emerald-700"
             >
               {saving.edit ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
@@ -981,61 +974,12 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
         </DialogContent>
       </Dialog>
 
-      {/* Imported Record View Modal */}
-      <Dialog open={showImportedModal} onOpenChange={setShowImportedModal}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Eye className="w-5 h-5 text-emerald-600" />
-              Imported Record Details
-            </DialogTitle>
-            <DialogDescription>
-              This record was imported from the GHG module and is read-only.
-            </DialogDescription>
-          </DialogHeader>
-          {selectedRecord && (
-            <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-xs text-stone-500">Category</Label>
-                  <p className="font-medium">{selectedRecord.category}</p>
-                </div>
-                <div>
-                  <Label className="text-xs text-stone-500">Subcategory</Label>
-                  <p className="font-medium">{selectedRecord.subcategory || '-'}</p>
-                </div>
-                <div>
-                  <Label className="text-xs text-stone-500">Value</Label>
-                  <p className="font-medium">{selectedRecord.value} {selectedRecord.unit}</p>
-                </div>
-                <div>
-                  <Label className="text-xs text-stone-500">Period</Label>
-                  <p className="font-medium">{selectedRecord.reporting_month || ''} {selectedRecord.reporting_year}</p>
-                </div>
-                <div>
-                  <Label className="text-xs text-stone-500">Source</Label>
-                  <p className="font-medium text-emerald-600">{selectedRecord.source || 'GHG Module'}</p>
-                </div>
-                <div>
-                  <Label className="text-xs text-stone-500">Status</Label>
-                  {getStatusBadge(selectedRecord.status)}
-                </div>
-              </div>
-              {selectedRecord.notes && (
-                <div>
-                  <Label className="text-xs text-stone-500">Notes</Label>
-                  <p className="text-sm text-stone-600 bg-stone-50 p-2 rounded">{selectedRecord.notes}</p>
-                </div>
-              )}
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowImportedModal(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Imported Record Modal (from ESGRecords) */}
+      <ImportedRecordModal
+        open={showImportedModal}
+        onClose={() => setShowImportedModal(false)}
+        record={selectedRecord}
+      />
     </div>
   );
 }
