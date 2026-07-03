@@ -45,6 +45,8 @@ import HRWorkforce from './pages/HRWorkforce';
 import Governance from './pages/Governance';
 import ESGConfig from './pages/ESGConfig';
 import Reporting from './pages/Reporting';
+import BRSRModule from './components/BRSRModule';
+import GRIModule from './components/GRIModule';
 import Layout from './components/Layout';
 import PasswordChangeModal from './components/PasswordChangeModal';
 import ApproverQueue from './components/ApproverQueue';
@@ -251,6 +253,8 @@ const AppRoutes = () => {
                   <Route path="hr-workforce" element={<HRWorkforce />} />
           <Route path="governance" element={<Governance />} />
           <Route path="reporting" element={<Reporting />} />
+          <Route path="reporting/brsr" element={<BRSRModule />} />
+          <Route path="reporting/gri" element={<GRIModule />} />
           <Route path="my-assignments" element={<MyAssignments />} />
           <Route path="approver-queue" element={<ApproverQueue />} />
           <Route path="reports" element={<Reports />} />

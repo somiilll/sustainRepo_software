@@ -4,7 +4,7 @@ import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Building, UserCog, Flame, Globe, User, Calculator, Layers, Database, Ruler, Settings2, TreeDeciduous, Thermometer, FileCode2, CalendarClock, FolderTree, Beaker, Variable, Code2, GitFork, Scale, FormInput, Link2, ChevronDown, ChevronRight, FlaskConical, HardDrive, History, FileSpreadsheet, Upload, DollarSign, ClipboardCheck, Leaf, Sprout, Users2, Shield, Cog, Inbox, ScrollText } from 'lucide-react';
+import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Building, UserCog, Flame, Globe, User, Calculator, Layers, Database, Ruler, Settings2, TreeDeciduous, Thermometer, FileCode2, CalendarClock, FolderTree, Beaker, Variable, Code2, GitFork, Scale, FormInput, Link2, ChevronDown, ChevronRight, FlaskConical, HardDrive, History, FileSpreadsheet, Upload, DollarSign, ClipboardCheck, Leaf, Sprout, Users2, Shield, Cog, Inbox, ScrollText, BookOpen } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -22,6 +22,7 @@ export default function Sidebar() {
     adminGhg: false,  // Parent GHG menu for admin/user
     superAdminGhg: false,  // Parent GHG menu for super admin
     esg: false,  // ESG parent menu containing Environment, Social, Governance
+    reporting: false,  // Reporting parent menu containing BRSR, GRI
   });
   const [enabledAccess, setEnabledAccess] = useState([]);
   const [approvalEnabled, setApprovalEnabled] = useState(false);
@@ -175,6 +176,12 @@ export default function Sidebar() {
     location.pathname === '/governance' ||
     location.pathname === '/approver-queue';
 
+  // Check if any Reporting item is active
+  const isReportingActive = 
+    location.pathname === '/reporting' ||
+    location.pathname === '/reporting/brsr' ||
+    location.pathname === '/reporting/gri';
+
   // ESG sub-items (Environment, Social, Governance)
   // Dynamically add Approver Queue for admins when approval workflow is enabled
   const esgSubItems = [
@@ -219,9 +226,31 @@ export default function Sidebar() {
       });
     }
     
-    // Add Reporting if frameworks are enabled
+    // Add Reporting if frameworks are enabled - as parent menu with sub-items
     if (enabledFrameworks.length > 0) {
-      items.push({ path: '/reporting', label: 'Reporting', icon: ScrollText });
+      // Build reporting sub-items based on enabled frameworks
+      const reportingSubItems = [];
+      if (enabledFrameworks.includes('BRSR')) {
+        reportingSubItems.push({ path: '/reporting/brsr', label: 'BRSR', icon: ScrollText });
+      }
+      if (enabledFrameworks.includes('GRI')) {
+        reportingSubItems.push({ path: '/reporting/gri', label: 'GRI', icon: BookOpen });
+      }
+      // Add any other frameworks as they become available
+      enabledFrameworks.forEach(fw => {
+        if (fw !== 'BRSR' && fw !== 'GRI') {
+          reportingSubItems.push({ path: `/reporting/${fw.toLowerCase()}`, label: fw, icon: FileText });
+        }
+      });
+      
+      items.push({ 
+        type: 'parent', 
+        key: 'reporting', 
+        label: 'Reporting', 
+        icon: ScrollText, 
+        items: reportingSubItems,
+        isActive: isReportingActive
+      });
     }
     
     // Add remaining items
@@ -265,9 +294,31 @@ export default function Sidebar() {
       });
     }
     
-    // Add Reporting if frameworks are enabled
+    // Add Reporting if frameworks are enabled - as parent menu with sub-items
     if (enabledFrameworks.length > 0) {
-      items.push({ path: '/reporting', label: 'Reporting', icon: ScrollText });
+      // Build reporting sub-items based on enabled frameworks
+      const reportingSubItems = [];
+      if (enabledFrameworks.includes('BRSR')) {
+        reportingSubItems.push({ path: '/reporting/brsr', label: 'BRSR', icon: ScrollText });
+      }
+      if (enabledFrameworks.includes('GRI')) {
+        reportingSubItems.push({ path: '/reporting/gri', label: 'GRI', icon: BookOpen });
+      }
+      // Add any other frameworks as they become available
+      enabledFrameworks.forEach(fw => {
+        if (fw !== 'BRSR' && fw !== 'GRI') {
+          reportingSubItems.push({ path: `/reporting/${fw.toLowerCase()}`, label: fw, icon: FileText });
+        }
+      });
+      
+      items.push({ 
+        type: 'parent', 
+        key: 'reporting', 
+        label: 'Reporting', 
+        icon: ScrollText, 
+        items: reportingSubItems,
+        isActive: isReportingActive
+      });
     }
     
     // Add Reports and Approver Queue (available to all users who might be approvers)

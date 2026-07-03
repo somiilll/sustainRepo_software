@@ -1454,6 +1454,28 @@ Five phases executed end-to-end with **37/37 regression tests PASS** (iteration_
 - Integrate extracted hooks into EmissionEntryForm.js (useEmissionFormState, useEmissionFormEffects)
 - EmissionEntryForm.js: Current 4479 lines → target ~800 lines via hook integration
 
+## Recent Updates (July 3, 2026)
+
+### Reporting Module Restructure - COMPLETED
+- **Sidebar Structure**: "Reporting" is now a parent menu with "BRSR" and "GRI" as sub-items
+- **Routes**: `/reporting/brsr` and `/reporting/gri` are separate pages
+- **Internal Tabs**: Each framework module (BRSR/GRI) has internal tabs for: Tracking, Environment, Social, Governance
+
+### Tracking Module Enhancements - COMPLETED
+- **Framework-specific Tracking**: BRSR and GRI modules now pass `framework` prop to TrackingModule
+- **Domain Tabs**: When framework is specified, Tracker tab shows Environment/Social/Governance domain tabs
+- **Framework Filtering**: ESGTrackingTab accepts `frameworkFilter` prop to filter frameworks
+- **MyTasks Filtering**: MyTasks component now supports `framework` prop for filtering assignments
+
+### Files Modified
+- `/app/frontend/src/App.js` - Added routes for `/reporting/brsr` and `/reporting/gri`
+- `/app/frontend/src/components/Sidebar.js` - Reporting now a parent menu with framework sub-items
+- `/app/frontend/src/components/TrackingModule.js` - Added framework prop and domain tabs for Tracker
+- `/app/frontend/src/components/ESGTrackingTab.js` - Added frameworkFilter prop
+- `/app/frontend/src/components/MyTasks.js` - Added framework prop
+- `/app/frontend/src/components/BRSRModule.js` - Passes framework="BRSR" to TrackingModule
+- `/app/frontend/src/components/GRIModule.js` - Passes framework="GRI" to TrackingModule
+
 ## Technical Notes
 - Reporting periods: Monthly (YYYY-MM), Financial Year (FY YYYY-YYYY), Calendar Year (CYYYYY or CY YYYY)
 - Dashboard applies proration for CY/FY entries based on date filter overlap

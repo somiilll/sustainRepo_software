@@ -37,8 +37,9 @@ const API = process.env.REACT_APP_BACKEND_URL;
  * @param {string} entityType - 'record' for Metrics, 'question' for Disclosures, 'all' for both
  * @param {string} reportingPeriod - Current reporting period
  * @param {string} domain - 'environment' | 'social' | 'governance'
+ * @param {string} framework - Optional framework filter (e.g., 'BRSR', 'GRI')
  */
-export default function MyTasks({ entityType = 'all', reportingPeriod, domain }) {
+export default function MyTasks({ entityType = 'all', reportingPeriod, domain, framework = null }) {
   const { token, user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -62,18 +63,29 @@ export default function MyTasks({ entityType = 'all', reportingPeriod, domain })
       if (domain && domain !== 'all') {
         params.domain = domain;
       }
+      if (framework) {
+        params.framework = framework;
+      }
       
       const res = await axios.get(`${API}/api/tracking/my-disclosures`, {
         headers,
         params
       });
       
+      // Apply framework filter client-side if needed (backup)
+      let questions = res.data.questions || [];
+      if (framework && questions.length > 0) {
+        questions = questions.filter(
+          q => q.framework?.toLowerCase() === framework.toLowerCase()
+        );
+      }
+      
       setAssignments({
-        questions: res.data.questions || [],
+        questions,
         records: res.data.records || []
       });
       setStats({
-        total_questions: res.data.total_questions || 0,
+        total_questions: framework ? questions.length : (res.data.total_questions || 0),
         total_records: res.data.total_records || 0,
         overdue_count: res.data.overdue_count || 0,
         pending_count: res.data.pending_count || 0,
@@ -85,7 +97,7 @@ export default function MyTasks({ entityType = 'all', reportingPeriod, domain })
     } finally {
       setLoading(false);
     }
-  }, [reportingPeriod, domain, token]);
+  }, [reportingPeriod, domain, framework, token]);
 
   useEffect(() => {
     fetchAssignments();

@@ -226,11 +226,13 @@ const ExpandableText = ({ text, maxLength = 150 }) => {
  * @param {string} domain - 'environment' | 'social' | 'governance'
  * @param {string} reportingPeriodOverride - If provided, use this instead of internal state
  * @param {boolean} hideReportingPeriodSelector - Hide the period selector (when used in TrackingModule)
+ * @param {string} frameworkFilter - Optional framework to filter by (e.g., 'BRSR', 'GRI')
  */
 export default function ESGTrackingTab({ 
   domain = 'environment',
   reportingPeriodOverride = null,
-  hideReportingPeriodSelector = false
+  hideReportingPeriodSelector = false,
+  frameworkFilter = null
 }) {
   const { getAuthHeader, user } = useAuth();
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
@@ -290,13 +292,21 @@ export default function ESGTrackingTab({
         `${API}/tracking/${domain}/frameworks?reporting_period=${encodeURIComponent(reportingPeriod)}`,
         { headers: getAuthHeader() }
       );
-      setFrameworkSummary(res.data);
       
-      // Auto-select first framework if only one
-      if (res.data.frameworks?.length === 1) {
-        setSelectedFramework(res.data.frameworks[0]);
-      } else if (res.data.frameworks?.length > 0 && !selectedFramework) {
-        setSelectedFramework(res.data.frameworks[0]);
+      let frameworks = res.data.frameworks || [];
+      
+      // If frameworkFilter is provided, filter to only that framework
+      if (frameworkFilter) {
+        frameworks = frameworks.filter(
+          fw => fw.framework_id?.toLowerCase() === frameworkFilter.toLowerCase()
+        );
+      }
+      
+      setFrameworkSummary({ ...res.data, frameworks });
+      
+      // Auto-select first (or only) matching framework
+      if (frameworks.length >= 1) {
+        setSelectedFramework(frameworks[0]);
       }
     } catch (error) {
       console.error('Failed to fetch framework summary:', error);
@@ -304,7 +314,7 @@ export default function ESGTrackingTab({
     } finally {
       setLoading(false);
     }
-  }, [domain, reportingPeriod, getAuthHeader]);
+  }, [domain, reportingPeriod, getAuthHeader, frameworkFilter]);
   
   // Fetch sections for selected framework
   const fetchSections = useCallback(async (framework) => {

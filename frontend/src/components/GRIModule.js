@@ -2,9 +2,8 @@
  * GRI Module Component
  * 
  * Global Reporting Initiative Standards module.
- * Contains:
- * - My Tasks: User's assigned disclosure tasks
- * - Tracker: Disclosure assignment management  
+ * Tabs:
+ * - Tracking: My Tasks + Admin Tracker for disclosures
  * - Environment: GRI 300 series
  * - Social: GRI 400 series
  * - Governance: GRI 200 series
@@ -17,24 +16,21 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Label } from './ui/label';
 import { 
-  ClipboardList, 
   BarChart3,
   Leaf,
   Users,
   Shield
 } from 'lucide-react';
 import { generateReportingYears, getCurrentReportingYear } from '../utils/reportingYearUtils';
-import MyTasks from './MyTasks';
-import ESGTrackingTab from './ESGTrackingTab';
+import TrackingModule from './TrackingModule';
 import GRIQuestionnaire from './GRIQuestionnaire';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
 export default function GRIModule() {
-  const { token, user } = useAuth();
-  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+  const { token } = useAuth();
   
-  const [activeTab, setActiveTab] = useState('my-tasks');
+  const [activeTab, setActiveTab] = useState('tracking');
   const [reportingPeriod, setReportingPeriod] = useState('');
   const [reportingYears, setReportingYears] = useState([]);
 
@@ -66,8 +62,8 @@ export default function GRIModule() {
       {/* Header with Reporting Period */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-text-primary">GRI Framework</h2>
-          <p className="text-sm text-text-muted">Global Reporting Initiative Standards</p>
+          <h1 className="text-2xl font-bold text-text-primary">GRI Framework</h1>
+          <p className="text-text-muted mt-1">Global Reporting Initiative Standards</p>
         </div>
         
         <div className="flex items-center gap-2">
@@ -87,17 +83,11 @@ export default function GRIModule() {
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="bg-white border">
-          <TabsTrigger value="my-tasks" className="gap-2" data-testid="gri-my-tasks-tab">
-            <ClipboardList className="w-4 h-4" />
-            My Tasks
+        <TabsList className="bg-stone-100 p-1 rounded-lg">
+          <TabsTrigger value="tracking" className="gap-2" data-testid="gri-tracking-tab">
+            <BarChart3 className="w-4 h-4" />
+            Tracking
           </TabsTrigger>
-          {isAdmin && (
-            <TabsTrigger value="tracker" className="gap-2" data-testid="gri-tracker-tab">
-              <BarChart3 className="w-4 h-4" />
-              Tracker
-            </TabsTrigger>
-          )}
           <TabsTrigger value="environment" className="gap-2" data-testid="gri-environment-tab">
             <Leaf className="w-4 h-4" />
             Environment
@@ -112,31 +102,18 @@ export default function GRIModule() {
           </TabsTrigger>
         </TabsList>
 
-        {/* My Tasks */}
-        <TabsContent value="my-tasks" className="mt-6">
-          <MyTasks 
+        {/* Tracking Tab - My Tasks + Tracker for disclosures */}
+        <TabsContent value="tracking" className="mt-6">
+          <TrackingModule 
             entityType="question"
-            reportingPeriod={reportingPeriod}
-            domain="all"
+            framework="GRI"
           />
         </TabsContent>
-
-        {/* Tracker (Admin) */}
-        {isAdmin && (
-          <TabsContent value="tracker" className="mt-6">
-            <ESGTrackingTab 
-              domain="all"
-              reportingPeriodOverride={reportingPeriod}
-              hideReportingPeriodSelector={true}
-            />
-          </TabsContent>
-        )}
 
         {/* Environment - GRI 300 */}
         <TabsContent value="environment" className="mt-6">
           <GRIQuestionnaire 
             section="environment"
-            reportingPeriod={reportingPeriod}
           />
         </TabsContent>
 
@@ -144,7 +121,6 @@ export default function GRIModule() {
         <TabsContent value="social" className="mt-6">
           <GRIQuestionnaire 
             section="social"
-            reportingPeriod={reportingPeriod}
           />
         </TabsContent>
 
@@ -152,7 +128,6 @@ export default function GRIModule() {
         <TabsContent value="governance" className="mt-6">
           <GRIQuestionnaire 
             section="governance"
-            reportingPeriod={reportingPeriod}
           />
         </TabsContent>
       </Tabs>
