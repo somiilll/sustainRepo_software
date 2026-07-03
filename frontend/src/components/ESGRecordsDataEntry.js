@@ -62,7 +62,10 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
   
   // Modal states
   const [showVersionsModal, setShowVersionsModal] = useState(false);
+  const [showImportedModal, setShowImportedModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
+  const [editData, setEditData] = useState({});
   const [versions, setVersions] = useState([]);
   const [saving, setSaving] = useState({});
   
@@ -282,6 +285,60 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
     setSelectedRecord(record);
     await fetchVersions(record.id);
     setShowVersionsModal(true);
+  };
+
+  // View imported record details
+  const viewImportedRecord = (record) => {
+    setSelectedRecord(record);
+    setShowImportedModal(true);
+  };
+
+  // Open edit modal
+  const openEditModal = (record) => {
+    setSelectedRecord(record);
+    setEditData({
+      value: record.value || '',
+      unit: record.unit || '',
+      notes: record.notes || '',
+      reporting_month: record.reporting_month || '',
+      reporting_year: record.reporting_year || new Date().getFullYear(),
+    });
+    setShowEditModal(true);
+  };
+
+  // Save edited record
+  const handleSaveEdit = async (asDraft = false) => {
+    if (!selectedRecord) return;
+    
+    setSaving(prev => ({ ...prev, edit: true }));
+    try {
+      await axios.put(
+        `${API}/api/esg-records/records/${section}/${selectedRecord.id}`,
+        {
+          ...editData,
+          status: asDraft ? 'draft' : 'submitted',
+        },
+        { headers }
+      );
+      
+      toast.success(asDraft ? 'Saved as draft' : 'Record updated');
+      setShowEditModal(false);
+      setSelectedRecord(null);
+      fetchRecords();
+      fetchDrafts();
+    } catch (error) {
+      console.error('Failed to update record:', error);
+      toast.error(error.response?.data?.detail || 'Failed to update record');
+    } finally {
+      setSaving(prev => ({ ...prev, edit: false }));
+    }
+  };
+
+  // Discard edit (close modal without saving)
+  const discardEdit = () => {
+    setShowEditModal(false);
+    setSelectedRecord(null);
+    setEditData({});
   };
 
   // Get status badge
@@ -663,7 +720,7 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => viewVersions(record)}
+                            onClick={() => viewImportedRecord(record)}
                             title="View Details"
                           >
                             <Eye className="w-4 h-4" />
@@ -678,42 +735,19 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
                           <Button
                             variant="ghost"
                             size="sm"
+                            onClick={() => openEditModal(record)}
+                            title="Edit Record"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => viewVersions(record)}
                             title="Version History"
                           >
                             <History className="w-4 h-4" />
                           </Button>
-                          {hasDraft ? (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => discardDraft(record.id)}
-                              disabled={saving[`discard_${record.id}`]}
-                              title="Discard Draft"
-                              className="text-red-600 hover:text-red-700"
-                            >
-                              {saving[`discard_${record.id}`] ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <X className="w-4 h-4" />
-                              )}
-                            </Button>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => saveAsDraft(record)}
-                              disabled={saving[record.id]}
-                              title="Save as Draft"
-                              className="text-yellow-600 hover:text-yellow-700"
-                            >
-                              {saving[record.id] ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <FileEdit className="w-4 h-4" />
-                              )}
-                            </Button>
-                          )}
                           <Button
                             variant="ghost"
                             size="sm"
@@ -821,6 +855,120 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Record Modal */}
+      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit2 className="w-5 h-5 text-emerald-600" />
+              Edit Record
+            </DialogTitle>
+            <DialogDescription>
+              {selectedRecord?.category}
+              {selectedRecord?.subcategory && ` → ${selectedRecord.subcategory}`}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {/* Value */}
+            <div className="space-y-2">
+              <Label>Value *</Label>
+              <Input
+                type="number"
+                value={editData.value}
+                onChange={(e) => setEditData(prev => ({ ...prev, value: e.target.value }))}
+                placeholder="Enter value"
+              />
+            </div>
+
+            {/* Unit */}
+            <div className="space-y-2">
+              <Label>Unit</Label>
+              <Input
+                value={editData.unit}
+                onChange={(e) => setEditData(prev => ({ ...prev, unit: e.target.value }))}
+                placeholder="e.g., kWh, kg, liters"
+              />
+            </div>
+
+            {/* Year */}
+            <div className="space-y-2">
+              <Label>Year</Label>
+              <Select 
+                value={String(editData.reporting_year)} 
+                onValueChange={(v) => setEditData(prev => ({ ...prev, reporting_year: parseInt(v) }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i + 1).map(year => (
+                    <SelectItem key={year} value={String(year)}>{year}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Month */}
+            <div className="space-y-2">
+              <Label>Month</Label>
+              <Select 
+                value={String(editData.reporting_month || '')} 
+                onValueChange={(v) => setEditData(prev => ({ ...prev, reporting_month: v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select month" />
+                </SelectTrigger>
+                <SelectContent>
+                  {MONTHS.map((month, idx) => (
+                    <SelectItem key={month} value={String(idx + 1)}>{month}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Notes */}
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Textarea
+                value={editData.notes}
+                onChange={(e) => setEditData(prev => ({ ...prev, notes: e.target.value }))}
+                placeholder="Additional notes..."
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={discardEdit}
+              className="border-red-200 text-red-600 hover:bg-red-50"
+            >
+              <X className="w-4 h-4 mr-2" />
+              Discard
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => handleSaveEdit(true)}
+              disabled={saving.edit}
+              className="border-yellow-300 text-yellow-700 hover:bg-yellow-50"
+            >
+              {saving.edit ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileEdit className="w-4 h-4 mr-2" />}
+              Save as Draft
+            </Button>
+            <Button
+              onClick={() => handleSaveEdit(false)}
+              disabled={saving.edit || !editData.value}
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              {saving.edit ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+              Save
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
