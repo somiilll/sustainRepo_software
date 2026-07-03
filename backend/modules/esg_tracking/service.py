@@ -616,152 +616,194 @@ class TrackingService:
         
         for config in configs:
             q_key = config.get("question_key")
-            response = response_map.get(q_key)
-            assignment = assignment_map.get(q_key)
-            approval = approval_map.get(q_key)
+            sub_questions = config.get("sub_questions", [])
             
-            total += 1
-            
-            # Determine completion status
-            is_completed = response is not None and response.get("value") is not None
-            resp_updated = None
-            days_since = None
-            is_stale = False
-            
-            if is_completed:
-                completed += 1
-                resp_updated = response.get("updated_at")
-                if resp_updated:
-                    if isinstance(resp_updated, str):
-                        try:
-                            resp_updated = datetime.fromisoformat(resp_updated.replace("Z", "+00:00"))
-                        except (ValueError, TypeError):
-                            resp_updated = None
-                    
-                    # Normalize naive datetime to UTC for comparison
-                    if resp_updated and resp_updated.tzinfo is None:
-                        resp_updated = resp_updated.replace(tzinfo=timezone.utc)
-                    
+            # Helper function to build a disclosure item
+            def build_disclosure_item(
+                item_key, display_name, item_type, 
+                response, assignment, approval,
+                parent_key=None, sub_key=None
+            ):
+                nonlocal total, completed, pending, assigned, unassigned, overdue, due_soon, stale, last_updated, assigned_user_ids
+                
+                total += 1
+                
+                # Determine completion status
+                is_completed = response is not None and response.get("value") is not None
+                resp_updated = None
+                days_since = None
+                is_stale = False
+                
+                if is_completed:
+                    completed += 1
+                    resp_updated = response.get("updated_at")
                     if resp_updated:
-                        days_since = (now - resp_updated).days
-                        is_stale = resp_updated < stale_cutoff
-                        if is_stale:
-                            stale += 1
+                        if isinstance(resp_updated, str):
+                            try:
+                                resp_updated = datetime.fromisoformat(resp_updated.replace("Z", "+00:00"))
+                            except (ValueError, TypeError):
+                                resp_updated = None
                         
-                        if last_updated is None or resp_updated > last_updated:
-                            last_updated = resp_updated
-                
-                completion_status = CompletionStatus.STALE if is_stale else CompletionStatus.COMPLETED
-            elif response is not None:
-                pending += 1
-                completion_status = CompletionStatus.IN_PROGRESS
-            else:
-                pending += 1
-                completion_status = CompletionStatus.NOT_STARTED
-            
-            # Assignment details
-            is_assigned = assignment is not None
-            assigned_to_user_id = None
-            assigned_by_user_id = None
-            assignment_id = None
-            assignment_role = None
-            due_date = None
-            is_overdue = False
-            is_due_soon_item = False
-            days_until_due = None
-            last_reminder = None
-            filling_frequency = None
-            requires_approval = False
-            
-            if assignment:
-                assigned += 1
-                assigned_to_user_id = assignment.get("assigned_to_user_id")
-                assigned_by_user_id = assignment.get("assigned_by_user_id")
-                assignment_id = assignment.get("id")
-                assignment_role = assignment.get("role")
-                filling_frequency = assignment.get("filling_frequency")
-                requires_approval = assignment.get("requires_approval", False)
-                last_reminder = assignment.get("last_reminder_sent_at")
-                
-                if assigned_to_user_id:
-                    assigned_user_ids.add(assigned_to_user_id)
-                
-                due_date = assignment.get("due_date")
-                if due_date:
-                    if isinstance(due_date, str):
-                        try:
-                            due_date = datetime.fromisoformat(due_date.replace("Z", "+00:00"))
-                        except (ValueError, TypeError):
-                            due_date = None
+                        if resp_updated and resp_updated.tzinfo is None:
+                            resp_updated = resp_updated.replace(tzinfo=timezone.utc)
+                        
+                        if resp_updated:
+                            days_since = (now - resp_updated).days
+                            is_stale = resp_updated < stale_cutoff
+                            if is_stale:
+                                stale += 1
+                            
+                            if last_updated is None or resp_updated > last_updated:
+                                last_updated = resp_updated
                     
-                    # Normalize naive datetime to UTC for comparison
-                    if due_date and due_date.tzinfo is None:
-                        due_date = due_date.replace(tzinfo=timezone.utc)
+                    comp_status = CompletionStatus.STALE if is_stale else CompletionStatus.COMPLETED
+                elif response is not None:
+                    pending += 1
+                    comp_status = CompletionStatus.IN_PROGRESS
+                else:
+                    pending += 1
+                    comp_status = CompletionStatus.NOT_STARTED
+                
+                # Assignment details
+                is_assigned = assignment is not None
+                assigned_to_user_id = None
+                assigned_by_user_id = None
+                assignment_id = None
+                assignment_role = None
+                due_date_val = None
+                is_overdue_item = False
+                is_due_soon_flag = False
+                days_until_due = None
+                last_reminder = None
+                filling_freq = None
+                requires_appr = False
+                
+                if assignment:
+                    assigned += 1
+                    assigned_to_user_id = assignment.get("assigned_to_user_id")
+                    assigned_by_user_id = assignment.get("assigned_by_user_id")
+                    assignment_id = assignment.get("id")
+                    assignment_role = assignment.get("role")
+                    filling_freq = assignment.get("filling_frequency")
+                    requires_appr = assignment.get("requires_approval", False)
+                    last_reminder = assignment.get("last_reminder_sent_at")
                     
-                    if due_date:
-                        days_until_due = (due_date - now).days
-                        if due_date < now and not is_completed:
-                            is_overdue = True
-                            overdue += 1
-                        elif due_date < due_soon_cutoff and not is_completed:
-                            is_due_soon_item = True
-                            due_soon += 1
+                    if assigned_to_user_id:
+                        assigned_user_ids.add(assigned_to_user_id)
+                    
+                    due_date_val = assignment.get("due_date")
+                    if due_date_val:
+                        if isinstance(due_date_val, str):
+                            try:
+                                due_date_val = datetime.fromisoformat(due_date_val.replace("Z", "+00:00"))
+                            except (ValueError, TypeError):
+                                due_date_val = None
+                        
+                        if due_date_val and due_date_val.tzinfo is None:
+                            due_date_val = due_date_val.replace(tzinfo=timezone.utc)
+                        
+                        if due_date_val:
+                            days_until_due = (due_date_val - now).days
+                            if due_date_val < now and not is_completed:
+                                is_overdue_item = True
+                                overdue += 1
+                            elif due_date_val < due_soon_cutoff and not is_completed:
+                                is_due_soon_flag = True
+                                due_soon += 1
+                else:
+                    unassigned += 1
+                
+                # Approval status
+                appr_status = None
+                if approval:
+                    appr_status = approval.get("status")
+                
+                # Apply filters
+                if filters:
+                    if filters.is_overdue is True and not is_overdue_item:
+                        return None
+                    if filters.is_unassigned is True and is_assigned:
+                        return None
+                    if filters.is_stale is True and not is_stale:
+                        return None
+                    if filters.is_due_soon is True and not is_due_soon_flag:
+                        return None
+                    if filters.assigned_to_user_id and assigned_to_user_id != filters.assigned_to_user_id:
+                        return None
+                    if filters.status:
+                        if filters.status == "completed" and not is_completed:
+                            return None
+                        if filters.status == "pending" and is_completed:
+                            return None
+                
+                return DisclosureTrackingItem(
+                    disclosure_id=item_key,
+                    disclosure_name=display_name,
+                    disclosure_type=item_type,
+                    section_id=section_id,
+                    section_name=section_id.replace("_", " ").title(),
+                    framework_id=framework_id,
+                    is_completed=is_completed,
+                    completion_status=comp_status,
+                    response_data=response.get("value") if response else None,
+                    last_response_updated_at=resp_updated,
+                    is_assigned=is_assigned,
+                    assigned_to_user_id=assigned_to_user_id,
+                    assigned_to_user_name=None,
+                    assigned_to_user_email=None,
+                    assigned_by_user_id=assigned_by_user_id,
+                    assigned_by_user_name=None,
+                    assignment_id=assignment_id,
+                    assignment_role=assignment_role,
+                    due_date=due_date_val,
+                    is_overdue=is_overdue_item,
+                    is_due_soon=is_due_soon_flag,
+                    days_until_due=days_until_due,
+                    last_reminder_sent_at=last_reminder,
+                    is_stale=is_stale,
+                    days_since_update=days_since,
+                    requires_approval=requires_appr,
+                    approval_status=appr_status,
+                    filling_frequency=filling_freq,
+                )
+            
+            # If question has sub_questions, create tracking items for each sub-question
+            if sub_questions and len(sub_questions) > 0:
+                for sub_q in sub_questions:
+                    sub_key = sub_q.get("sub_key", "")
+                    sub_label = sub_q.get("label", "")
+                    full_sub_key = f"{q_key}_{sub_key}"
+                    
+                    # Try to find response/assignment for sub-question first, fallback to parent
+                    response = response_map.get(full_sub_key) or response_map.get(q_key)
+                    assignment = assignment_map.get(full_sub_key) or assignment_map.get(q_key)
+                    approval = approval_map.get(full_sub_key) or approval_map.get(q_key)
+                    
+                    # Create display name
+                    parent_desc = config.get("description", q_key)
+                    if len(parent_desc) > 80:
+                        parent_desc = parent_desc[:80] + "..."
+                    display_name = f"{parent_desc} → {sub_label}"
+                    
+                    item = build_disclosure_item(
+                        full_sub_key, display_name, "sub_question",
+                        response, assignment, approval,
+                        parent_key=q_key, sub_key=sub_key
+                    )
+                    if item:
+                        disclosures.append(item)
             else:
-                unassigned += 1
-            
-            # Approval status
-            approval_status = None
-            if approval:
-                approval_status = approval.get("status")
-            
-            # Apply filters
-            if filters:
-                if filters.is_overdue is True and not is_overdue:
-                    continue
-                if filters.is_unassigned is True and is_assigned:
-                    continue
-                if filters.is_stale is True and not is_stale:
-                    continue
-                if filters.is_due_soon is True and not is_due_soon_item:
-                    continue
-                if filters.assigned_to_user_id and assigned_to_user_id != filters.assigned_to_user_id:
-                    continue
-                if filters.status:
-                    if filters.status == "completed" and not is_completed:
-                        continue
-                    if filters.status == "pending" and is_completed:
-                        continue
-            
-            disclosures.append(DisclosureTrackingItem(
-                disclosure_id=q_key,
-                disclosure_name=self._get_display_name(config, q_key),
-                disclosure_type="question",
-                section_id=section_id,
-                section_name=section_id.replace("_", " ").title(),
-                framework_id=framework_id,
-                is_completed=is_completed,
-                completion_status=completion_status,
-                response_data=response.get("value") if response else None,
-                last_response_updated_at=resp_updated,
-                is_assigned=is_assigned,
-                assigned_to_user_id=assigned_to_user_id,
-                assigned_to_user_name=None,  # Will populate below
-                assigned_to_user_email=None,
-                assigned_by_user_id=assigned_by_user_id,
-                assigned_by_user_name=None,
-                assignment_id=assignment_id,
-                assignment_role=assignment_role,
-                due_date=due_date,
-                is_overdue=is_overdue,
-                is_due_soon=is_due_soon_item,
-                days_until_due=days_until_due,
-                last_reminder_sent_at=last_reminder,
-                is_stale=is_stale,
-                days_since_update=days_since,
-                requires_approval=requires_approval,
-                approval_status=approval_status,
-                filling_frequency=filling_frequency,
-            ))
+                # No sub-questions - treat as single trackable item
+                response = response_map.get(q_key)
+                assignment = assignment_map.get(q_key)
+                approval = approval_map.get(q_key)
+                
+                item = build_disclosure_item(
+                    q_key, self._get_display_name(config, q_key), "question",
+                    response, assignment, approval
+                )
+                if item:
+                    disclosures.append(item)
         
         # Populate user names
         if assigned_user_ids:
