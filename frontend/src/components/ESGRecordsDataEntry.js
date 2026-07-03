@@ -342,13 +342,21 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
   };
 
   // Get status badge
-  const getStatusBadge = (status) => {
+  const getStatusBadge = (status, isLocked = false) => {
+    if (isLocked) {
+      return (
+        <Badge className="bg-emerald-100 text-emerald-700 gap-1">
+          <CheckCircle2 className="w-3 h-3" />
+          Imported from GHG Module
+        </Badge>
+      );
+    }
     const config = {
-      draft: { class: 'bg-yellow-100 text-yellow-700', icon: FileEdit, label: 'Saved as Draft (Pending)' },
+      draft: { class: 'bg-yellow-100 text-yellow-700', icon: FileEdit, label: 'Saved as Draft' },
       submitted: { class: 'bg-blue-100 text-blue-700', icon: Clock, label: 'Pending for Approval' },
       rejected: { class: 'bg-red-100 text-red-700', icon: X, label: 'Rejected' },
-      approved: { class: 'bg-green-100 text-green-700', icon: CheckCircle2, label: 'Approved (Complete)' },
-      saved: { class: 'bg-emerald-100 text-emerald-700', icon: CheckCircle2, label: 'Saved (Complete)' },
+      approved: { class: 'bg-green-100 text-green-700', icon: CheckCircle2, label: 'Approved' },
+      saved: { class: 'bg-emerald-100 text-emerald-700', icon: CheckCircle2, label: 'Saved' },
     };
     const cfg = config[status] || config.draft;
     const Icon = cfg.icon;
@@ -703,7 +711,7 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        {getStatusBadge(record.status)}
+                        {getStatusBadge(record.status, isLocked)}
                         {hasDraft && (
                           <Badge className="bg-yellow-100 text-yellow-700 text-xs">
                             Has Draft
