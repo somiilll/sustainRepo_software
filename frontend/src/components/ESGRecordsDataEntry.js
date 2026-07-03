@@ -26,7 +26,7 @@ import {
   Plus, Search, Filter, History, FileText, Upload, 
   ChevronLeft, ChevronRight, Loader2, Building2, Calendar,
   Trash2, Edit2, Eye, X, Save, FileEdit, RefreshCw,
-  CheckCircle2, Clock, AlertTriangle
+  CheckCircle2, Clock, AlertTriangle, Lock, Link2
 } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -609,14 +609,25 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
             ) : (
               records.map(record => {
                 const hasDraft = drafts.some(d => d.record_id === record.id);
+                const isImported = record.source_type === 'ghg_import';
+                const isLocked = record.is_locked || isImported;
+                
                 return (
-                  <TableRow key={record.id} className={hasDraft ? 'bg-yellow-50' : ''}>
+                  <TableRow key={record.id} className={`${hasDraft ? 'bg-yellow-50' : ''} ${isImported ? 'bg-emerald-50/30' : ''}`}>
                     <TableCell>
-                      <div>
-                        <div className="font-medium">{record.category}</div>
-                        {record.subcategory && (
-                          <div className="text-xs text-text-muted">{record.subcategory}</div>
+                      <div className="flex items-center gap-2">
+                        {isImported && (
+                          <Badge className="bg-emerald-100 text-emerald-700 text-xs flex items-center gap-1">
+                            <Link2 className="w-3 h-3" />
+                            GHG
+                          </Badge>
                         )}
+                        <div>
+                          <div className="font-medium">{record.category}</div>
+                          {record.subcategory && (
+                            <div className="text-xs text-text-muted">{record.subcategory}</div>
+                          )}
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -629,7 +640,7 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
                       {record.reporting_year}
                     </TableCell>
                     <TableCell>
-                      <span className="font-mono">{record.value}</span>
+                      <span className={`font-mono ${isImported ? 'text-emerald-700' : ''}`}>{record.value}</span>
                       {record.unit && <span className="text-text-muted ml-1">{record.unit}</span>}
                     </TableCell>
                     <TableCell>
@@ -646,61 +657,79 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
                       {record.updated_at ? new Date(record.updated_at).toLocaleDateString() : '-'}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => viewVersions(record)}
-                          title="Version History"
-                        >
-                          <History className="w-4 h-4" />
-                        </Button>
-                        {hasDraft ? (
+                      {isLocked ? (
+                        /* Locked record - only view allowed */
+                        <div className="flex justify-end gap-1">
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => discardDraft(record.id)}
-                            disabled={saving[`discard_${record.id}`]}
-                            title="Discard Draft"
+                            onClick={() => viewVersions(record)}
+                            title="View Details"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <div className="flex items-center text-emerald-600 px-2" title="Record locked - imported from GHG module">
+                            <Lock className="w-4 h-4" />
+                          </div>
+                        </div>
+                      ) : (
+                        /* Editable record */
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => viewVersions(record)}
+                            title="Version History"
+                          >
+                            <History className="w-4 h-4" />
+                          </Button>
+                          {hasDraft ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => discardDraft(record.id)}
+                              disabled={saving[`discard_${record.id}`]}
+                              title="Discard Draft"
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              {saving[`discard_${record.id}`] ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <X className="w-4 h-4" />
+                              )}
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => saveAsDraft(record)}
+                              disabled={saving[record.id]}
+                              title="Save as Draft"
+                              className="text-yellow-600 hover:text-yellow-700"
+                            >
+                              {saving[record.id] ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <FileEdit className="w-4 h-4" />
+                              )}
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(record)}
+                            disabled={saving[`delete_${record.id}`]}
+                            title="Delete"
                             className="text-red-600 hover:text-red-700"
                           >
-                            {saving[`discard_${record.id}`] ? (
+                            {saving[`delete_${record.id}`] ? (
                               <Loader2 className="w-4 h-4 animate-spin" />
                             ) : (
-                              <X className="w-4 h-4" />
+                              <Trash2 className="w-4 h-4" />
                             )}
                           </Button>
-                        ) : (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => saveAsDraft(record)}
-                            disabled={saving[record.id]}
-                            title="Save as Draft"
-                            className="text-yellow-600 hover:text-yellow-700"
-                          >
-                            {saving[record.id] ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <FileEdit className="w-4 h-4" />
-                            )}
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDelete(record)}
-                          disabled={saving[`delete_${record.id}`]}
-                          title="Delete"
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          {saving[`delete_${record.id}`] ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="w-4 h-4" />
-                          )}
-                        </Button>
-                      </div>
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 );
