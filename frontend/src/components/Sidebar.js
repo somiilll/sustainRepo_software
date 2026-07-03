@@ -4,7 +4,7 @@ import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Building, UserCog, Flame, Globe, User, Calculator, Layers, Database, Ruler, Settings2, TreeDeciduous, Thermometer, FileCode2, CalendarClock, FolderTree, Beaker, Variable, Code2, GitFork, Scale, FormInput, Link2, ChevronDown, ChevronRight, FlaskConical, HardDrive, History, FileSpreadsheet, Upload, DollarSign, ClipboardCheck, Leaf, Sprout, Users2, Shield, Cog, Inbox } from 'lucide-react';
+import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Building, UserCog, Flame, Globe, User, Calculator, Layers, Database, Ruler, Settings2, TreeDeciduous, Thermometer, FileCode2, CalendarClock, FolderTree, Beaker, Variable, Code2, GitFork, Scale, FormInput, Link2, ChevronDown, ChevronRight, FlaskConical, HardDrive, History, FileSpreadsheet, Upload, DollarSign, ClipboardCheck, Leaf, Sprout, Users2, Shield, Cog, Inbox, ScrollText } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -27,6 +27,7 @@ export default function Sidebar() {
   const [approvalEnabled, setApprovalEnabled] = useState(false);
   const [moduleConfig, setModuleConfig] = useState({ has_ghg: true, has_esg: true });
   const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
+  const [enabledFrameworks, setEnabledFrameworks] = useState([]);
 
   // Pull the current org's scope-access + approval flag + module config once on mount
   useEffect(() => {
@@ -34,11 +35,12 @@ export default function Sidebar() {
     if (!user || user.role === 'super_admin' || !user.organization_id) return;
     (async () => {
       try {
-        // Fetch org details for enabled_access and approval
+        // Fetch org details for enabled_access, approval, and frameworks
         const { data } = await axios.get(`${API}/organizations/my`, { headers: getAuthHeader() });
         if (cancelled) return;
         setEnabledAccess(data?.enabled_access || []);
         setApprovalEnabled(!!data?.approval_workflow_enabled);
+        setEnabledFrameworks(data?.esg_frameworks_enabled || []);
         
         // Fetch module config for sidebar visibility
         const configRes = await axios.get(`${API}/organization/module-config`, { headers: getAuthHeader() });
@@ -217,6 +219,11 @@ export default function Sidebar() {
       });
     }
     
+    // Add Reporting if frameworks are enabled
+    if (enabledFrameworks.length > 0) {
+      items.push({ path: '/reporting', label: 'Reporting', icon: ScrollText });
+    }
+    
     // Add remaining items
     items.push({ path: '/reports', label: 'Reports', icon: FileText });
     items.push({ path: '/approver-queue', label: 'Approval Queue', icon: Inbox, badge: pendingApprovalCount });
@@ -256,6 +263,11 @@ export default function Sidebar() {
         items: esgSubItems,
         isActive: isEsgActive
       });
+    }
+    
+    // Add Reporting if frameworks are enabled
+    if (enabledFrameworks.length > 0) {
+      items.push({ path: '/reporting', label: 'Reporting', icon: ScrollText });
     }
     
     // Add Reports and Approver Queue (available to all users who might be approvers)

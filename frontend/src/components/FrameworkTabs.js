@@ -1,80 +1,33 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
-import { Badge } from './ui/badge';
-import { Loader2, FileText, ClipboardList, BarChart3 } from 'lucide-react';
+import { FileText, BarChart3 } from 'lucide-react';
 import TrackingModule from './TrackingModule';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-
-// Framework metadata for UI display
-const FRAMEWORK_META = {
-  BRSR: { label: 'BRSR', icon: ClipboardList, color: 'emerald' },
-  GRI: { label: 'GRI', icon: FileText, color: 'blue' },
-  SBTi: { label: 'SBTi', icon: FileText, color: 'violet' },
-  CDP: { label: 'CDP', icon: FileText, color: 'orange' },
-  TCFD: { label: 'TCFD', icon: FileText, color: 'cyan' },
-};
-
 /**
- * Reusable FrameworkTabs component for ESG modules
+ * ESG Module Tabs Component
+ * 
+ * Provides tabs for ESG sections (Environment, Social, Governance):
+ * - Metrics: ESG operational data management
+ * - Tracking: Task management and workflow tracking
+ * 
+ * Note: Framework-specific content (BRSR, GRI, etc.) is now in the Reporting module.
  * 
  * @param {string} moduleType - 'environment' | 'social' | 'governance'
  * @param {React.ReactNode} metricsContent - Content for Metrics tab
- * @param {function} renderFrameworkContent - Function to render framework-specific content (framework) => ReactNode
  */
 export default function FrameworkTabs({ 
   moduleType, 
   metricsContent,
   recordsContent, // Keep for backward compatibility
-  renderFrameworkContent 
 }) {
-  const { token, user } = useAuth();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('metrics');
-  const [enabledFrameworks, setEnabledFrameworks] = useState([]);
-  const [loading, setLoading] = useState(true);
-  
-  // Check if user is admin
-  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
 
-  useEffect(() => {
-    fetchEnabledFrameworks();
-  }, []);
-
-  const fetchEnabledFrameworks = async () => {
-    try {
-      const res = await axios.get(`${BACKEND_URL}/api/organizations/my/framework-details`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setEnabledFrameworks(res.data.enabled_frameworks || []);
-    } catch (error) {
-      console.error('Failed to fetch enabled frameworks:', error);
-      setEnabledFrameworks([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
-      </div>
-    );
-  }
-
-  // Build tabs: Metrics + Tracking (for all users) + enabled frameworks
+  // Build tabs: Metrics + Tracking
   const tabs = [
     { key: 'metrics', label: 'Metrics', icon: FileText },
-    // Tracking tab for all users (My Tasks for everyone, Tracker admin-only inside)
-    { key: 'tracking', label: 'Tracking', icon: BarChart3, isTracking: true },
-    ...enabledFrameworks.map(fw => ({
-      key: fw.toLowerCase(),
-      label: FRAMEWORK_META[fw]?.label || fw,
-      icon: FRAMEWORK_META[fw]?.icon || FileText,
-      framework: fw
-    }))
+    { key: 'tracking', label: 'Tracking', icon: BarChart3 },
   ];
 
   return (
@@ -87,19 +40,10 @@ export default function FrameworkTabs({
               key={tab.key}
               value={tab.key}
               className="flex items-center gap-2 px-4 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+              data-testid={`esg-tab-${tab.key}`}
             >
               <Icon className="w-4 h-4" />
               {tab.label}
-              {tab.framework && (
-                <Badge variant="outline" className="ml-1 text-[10px] px-1.5 py-0">
-                  Framework
-                </Badge>
-              )}
-              {tab.isTracking && (
-                <Badge variant="outline" className="ml-1 text-[10px] px-1.5 py-0 border-emerald-300 text-emerald-600">
-                  Admin
-                </Badge>
-              )}
             </TabsTrigger>
           );
         })}
@@ -110,17 +54,10 @@ export default function FrameworkTabs({
         {metricsContent || recordsContent}
       </TabsContent>
       
-      {/* Tracking Tab - Available for all users (My Tasks + Tracker for admins) */}
+      {/* Tracking Tab - My Tasks + Tracker for metrics */}
       <TabsContent value="tracking" className="mt-0">
         <TrackingModule domain={moduleType} entityType="record" />
       </TabsContent>
-
-      {/* Framework Tabs */}
-      {enabledFrameworks.map(fw => (
-        <TabsContent key={fw.toLowerCase()} value={fw.toLowerCase()} className="mt-0">
-          {renderFrameworkContent(fw)}
-        </TabsContent>
-      ))}
     </Tabs>
   );
 }
