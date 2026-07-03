@@ -344,17 +344,18 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
   // Get status badge
   const getStatusBadge = (status) => {
     const config = {
-      draft: { class: 'bg-yellow-100 text-yellow-700', icon: FileEdit },
-      submitted: { class: 'bg-blue-100 text-blue-700', icon: Clock },
-      reviewed: { class: 'bg-purple-100 text-purple-700', icon: Eye },
-      approved: { class: 'bg-green-100 text-green-700', icon: CheckCircle2 },
+      draft: { class: 'bg-yellow-100 text-yellow-700', icon: FileEdit, label: 'Saved as Draft (Pending)' },
+      submitted: { class: 'bg-blue-100 text-blue-700', icon: Clock, label: 'Pending for Approval' },
+      rejected: { class: 'bg-red-100 text-red-700', icon: X, label: 'Rejected' },
+      approved: { class: 'bg-green-100 text-green-700', icon: CheckCircle2, label: 'Approved (Complete)' },
+      saved: { class: 'bg-emerald-100 text-emerald-700', icon: CheckCircle2, label: 'Saved (Complete)' },
     };
     const cfg = config[status] || config.draft;
     const Icon = cfg.icon;
     return (
       <Badge className={`${cfg.class} gap-1`}>
         <Icon className="w-3 h-3" />
-        {status}
+        {cfg.label}
       </Badge>
     );
   };
@@ -967,6 +968,62 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
             >
               {saving.edit ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
               Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Imported Record View Modal */}
+      <Dialog open={showImportedModal} onOpenChange={setShowImportedModal}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="w-5 h-5 text-emerald-600" />
+              Imported Record Details
+            </DialogTitle>
+            <DialogDescription>
+              This record was imported from the GHG module and is read-only.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedRecord && (
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-xs text-stone-500">Category</Label>
+                  <p className="font-medium">{selectedRecord.category}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-stone-500">Subcategory</Label>
+                  <p className="font-medium">{selectedRecord.subcategory || '-'}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-stone-500">Value</Label>
+                  <p className="font-medium">{selectedRecord.value} {selectedRecord.unit}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-stone-500">Period</Label>
+                  <p className="font-medium">{selectedRecord.reporting_month || ''} {selectedRecord.reporting_year}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-stone-500">Source</Label>
+                  <p className="font-medium text-emerald-600">{selectedRecord.source || 'GHG Module'}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-stone-500">Status</Label>
+                  {getStatusBadge(selectedRecord.status)}
+                </div>
+              </div>
+              {selectedRecord.notes && (
+                <div>
+                  <Label className="text-xs text-stone-500">Notes</Label>
+                  <p className="text-sm text-stone-600 bg-stone-50 p-2 rounded">{selectedRecord.notes}</p>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowImportedModal(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
