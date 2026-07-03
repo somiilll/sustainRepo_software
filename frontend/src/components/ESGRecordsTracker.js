@@ -2,7 +2,7 @@
  * ESG Records Tracker Component
  * 
  * Operational workflow management for ESG records.
- * Reuses patterns from ESGTrackingTab but for record assignments.
+ * Shows all users their task status (approved, pending, rejected, due dates, frequency).
  * 
  * Features:
  * - Category/Subcategory/Sub-subcategory hierarchy
@@ -10,6 +10,12 @@
  * - Staleness detection based on last record entry
  * - Filling frequency & reminder configuration
  * - Multi-user assignment support
+ * - All users can view their task status
+ * 
+ * @param {string} section - 'environment' | 'social' | 'governance'
+ * @param {string} framework - 'BRSR' | 'GRI' etc.
+ * @param {string} reportingPeriodOverride - If provided, use this instead of internal state
+ * @param {boolean} hideReportingPeriodSelector - Hide the period selector (when managed by parent)
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -110,7 +116,12 @@ const REMINDER_FREQUENCIES = [
   { value: 'monthly', label: 'Monthly' },
 ];
 
-export default function ESGRecordsTracker({ section, framework }) {
+export default function ESGRecordsTracker({ 
+  section, 
+  framework,
+  reportingPeriodOverride = null,
+  hideReportingPeriodSelector = false
+}) {
   const { token, user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -122,7 +133,7 @@ export default function ESGRecordsTracker({ section, framework }) {
   const [organization, setOrganization] = useState(null);
   
   // Filters
-  const [reportingPeriod, setReportingPeriod] = useState(null);
+  const [internalReportingPeriod, setInternalReportingPeriod] = useState(null);
   const [reportingYears, setReportingYears] = useState([]);
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [facilityFilter, setFacilityFilter] = useState('all');
@@ -130,6 +141,10 @@ export default function ESGRecordsTracker({ section, framework }) {
   const [statusFilter, setStatusFilter] = useState('all');
   const [stalenessFilter, setStalenessFilter] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
+  
+  // Use override if provided, otherwise use internal state
+  const reportingPeriod = reportingPeriodOverride || internalReportingPeriod;
+  const setReportingPeriod = reportingPeriodOverride ? () => {} : setInternalReportingPeriod;
   
   // Expanded categories
   const [expandedCategories, setExpandedCategories] = useState({});
@@ -150,7 +165,7 @@ export default function ESGRecordsTracker({ section, framework }) {
 
   const headers = { Authorization: `Bearer ${token}` };
 
-  // Fetch organization and set reporting period
+  // Fetch organization and set reporting period (only if not overridden)
   useEffect(() => {
     const fetchOrg = async () => {
       try {
@@ -159,16 +174,20 @@ export default function ESGRecordsTracker({ section, framework }) {
         const yearType = res.data.reporting_year_type || 'financial_year';
         const years = generateReportingYears(yearType, 5);
         setReportingYears(years);
-        setReportingPeriod(getCurrentReportingYear(yearType));
+        if (!reportingPeriodOverride) {
+          setInternalReportingPeriod(getCurrentReportingYear(yearType));
+        }
       } catch (error) {
         console.error('Failed to fetch organization:', error);
         const years = generateReportingYears('financial_year', 5);
         setReportingYears(years);
-        setReportingPeriod(getCurrentReportingYear('financial_year'));
+        if (!reportingPeriodOverride) {
+          setInternalReportingPeriod(getCurrentReportingYear('financial_year'));
+        }
       }
     };
     fetchOrg();
-  }, [token]);
+  }, [token, reportingPeriodOverride]);
 
   // Fetch categories, facilities, users
   useEffect(() => {
@@ -450,17 +469,19 @@ export default function ESGRecordsTracker({ section, framework }) {
             <span className="text-sm font-medium">Filters:</span>
           </div>
           
-          {/* Reporting Period */}
-          <Select value={reportingPeriod} onValueChange={setReportingPeriod}>
-            <SelectTrigger className="w-[160px]">
-              <SelectValue placeholder="Period" />
-            </SelectTrigger>
-            <SelectContent>
-              {reportingYears.map(year => (
-                <SelectItem key={year} value={year}>{year}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Reporting Period - only show if not managed by parent */}
+          {!hideReportingPeriodSelector && (
+            <Select value={reportingPeriod} onValueChange={setReportingPeriod}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Period" />
+              </SelectTrigger>
+              <SelectContent>
+                {reportingYears.map(year => (
+                  <SelectItem key={year} value={year}>{year}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
 
           {/* Category */}
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>

@@ -1,5 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { useAuth } from '../contexts/AuthContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Label } from './ui/label';
 import { 
   BarChart3, 
   FileText, 
@@ -7,24 +11,56 @@ import {
   Plus,
   ClipboardList
 } from 'lucide-react';
+import { generateReportingYears, getCurrentReportingYear } from '../utils/reportingYearUtils';
 import ESGRecordsTracker from './ESGRecordsTracker';
 import ESGRecordsDataEntry from './ESGRecordsDataEntry';
+import MyTasks from './MyTasks';
+
+const API = process.env.REACT_APP_BACKEND_URL;
 
 /**
  * ESG Metrics Module - Enterprise ESG Operational Data Management
  * 
  * Subtabs:
- * - Tracker: Assignment & workflow management (like tracking)
+ * - My Tasks: User's assigned metric tasks
+ * - Tracker: Assignment & workflow management (all users can see their status)
  * - Data Entry: Metrics listing with draft support
  * - Targets: ESG reduction/performance targets (placeholder)
  * - Add Metric: Metric creation with save as draft
  */
 export default function ESGRecordsModule({ section = 'environment', framework = 'BRSR' }) {
-  const [activeTab, setActiveTab] = useState('tracker');
+  const { token } = useAuth();
+  const [activeTab, setActiveTab] = useState('my-tasks');
+  const [reportingPeriod, setReportingPeriod] = useState('');
+  const [reportingYears, setReportingYears] = useState([]);
+
+  // Initialize reporting years from org config
+  useEffect(() => {
+    const fetchOrgAndSetYears = async () => {
+      try {
+        const res = await axios.get(`${API}/api/organizations/my`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const yearType = res.data.reporting_year_type || 'financial_year';
+        const years = generateReportingYears(yearType, 5);
+        setReportingYears(years);
+        setReportingPeriod(getCurrentReportingYear(yearType));
+      } catch (error) {
+        // Fallback to financial year
+        const years = generateReportingYears('financial_year', 5);
+        setReportingYears(years);
+        setReportingPeriod(getCurrentReportingYear('financial_year'));
+      }
+    };
+    
+    if (token) {
+      fetchOrgAndSetYears();
+    }
+  }, [token]);
 
   return (
     <div className="space-y-6">
-      {/* Module Header */}
+      {/* Module Header with Reporting Period */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-text-primary flex items-center gap-2">
@@ -35,11 +71,30 @@ export default function ESGRecordsModule({ section = 'environment', framework = 
             Enterprise sustainability data collection & compliance tracking
           </p>
         </div>
+        
+        {/* Reporting Period Selector */}
+        <div className="flex items-center gap-2">
+          <Label className="text-sm whitespace-nowrap">Reporting Period:</Label>
+          <Select value={reportingPeriod} onValueChange={setReportingPeriod}>
+            <SelectTrigger className="w-40 bg-white">
+              <SelectValue placeholder="Select period" />
+            </SelectTrigger>
+            <SelectContent>
+              {reportingYears.map(year => (
+                <SelectItem key={year} value={year}>{year}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Subtabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 lg:w-[600px]">
+        <TabsList className="grid w-full grid-cols-5 lg:w-[750px]">
+          <TabsTrigger value="my-tasks" className="gap-2" data-testid="metrics-my-tasks-tab">
+            <ClipboardList className="w-4 h-4" />
+            <span className="hidden sm:inline">My Tasks</span>
+          </TabsTrigger>
           <TabsTrigger value="tracker" className="gap-2" data-testid="metrics-tracker-tab">
             <BarChart3 className="w-4 h-4" />
             <span className="hidden sm:inline">Tracker</span>
@@ -58,9 +113,23 @@ export default function ESGRecordsModule({ section = 'environment', framework = 
           </TabsTrigger>
         </TabsList>
 
-        {/* Tracker Tab */}
+        {/* My Tasks Tab */}
+        <TabsContent value="my-tasks" className="mt-6">
+          <MyTasks 
+            entityType="record"
+            reportingPeriod={reportingPeriod}
+            domain={section}
+          />
+        </TabsContent>
+
+        {/* Tracker Tab - Visible to all users */}
         <TabsContent value="tracker" className="mt-6">
-          <ESGRecordsTracker section={section} framework={framework} />
+          <ESGRecordsTracker 
+            section={section} 
+            framework={framework}
+            reportingPeriodOverride={reportingPeriod}
+            hideReportingPeriodSelector={true}
+          />
         </TabsContent>
 
         {/* Data Entry Tab */}
