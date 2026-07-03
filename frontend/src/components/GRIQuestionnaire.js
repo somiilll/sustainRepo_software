@@ -576,7 +576,7 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
         <div className="flex items-start justify-between gap-4">
           <Label className="text-sm font-medium text-text-primary flex items-start gap-2 flex-1">
             <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded font-mono shrink-0">
-              Q{qIndex + 1}
+              {String.fromCharCode(97 + qIndex)}.
             </span>
             <span className="leading-relaxed">{question.description}</span>
             {question.is_required && (
