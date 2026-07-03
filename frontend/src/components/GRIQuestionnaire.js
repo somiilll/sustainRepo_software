@@ -239,6 +239,41 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
     }
   };
 
+  // Save single question as draft (per-user draft system)
+  const saveQuestionDraft = async (disclosureId, responseKey) => {
+    const draftKey = `draft_${responseKey}`;
+    setSaving(prev => ({ ...prev, [draftKey]: true }));
+    try {
+      // Get existing draft data or create new
+      const existingDraft = userDrafts[disclosureId];
+      const draftData = existingDraft?.draft_data ? { ...existingDraft.draft_data } : {};
+      
+      // Add/update this question's response
+      draftData[responseKey] = responses[responseKey] || '';
+      
+      await axios.post(
+        `${API}/api/esg-questionnaire/draft`,
+        {
+          framework_id: 'gri',
+          disclosure_id: disclosureId,
+          reporting_period: reportingPeriod,
+          draft_data: draftData,
+          draft_status: 'draft',
+        },
+        { headers: getAuthHeader() }
+      );
+      
+      toast.success('Saved as draft');
+      // Refresh to get updated draft status
+      await fetchDisclosures();
+    } catch (error) {
+      console.error('Failed to save draft:', error);
+      toast.error('Failed to save draft');
+    } finally {
+      setSaving(prev => ({ ...prev, [draftKey]: false }));
+    }
+  };
+
   // Save disclosure draft (per-user draft system)
   const saveDraft = async (disclosure, draftStatus = 'draft') => {
     setSaving(prev => ({ ...prev, [disclosure.disclosure_id]: true }));
@@ -530,19 +565,36 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
                       <span className="text-xs text-text-muted">
                         {(responses[sub.response_key] || '').length} / {question.validation_rules?.max_length || 10000} characters
                       </span>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => saveResponse(sub.response_key)}
-                        disabled={saving[sub.response_key]}
-                        className="h-7 text-xs"
-                      >
-                        {saving[sub.response_key] ? (
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : (
-                          <><Save className="w-3 h-3 mr-1" /> Save</>
-                        )}
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => saveQuestionDraft(question.disclosure_id, sub.response_key)}
+                          disabled={saving[`draft_${sub.response_key}`]}
+                          className="h-7 text-xs border-yellow-300 text-yellow-700 hover:bg-yellow-50"
+                          data-testid={`save-draft-${sub.response_key}`}
+                        >
+                          {saving[`draft_${sub.response_key}`] ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <><FileEdit className="w-3 h-3 mr-1" /> Save as Draft</>
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => saveResponse(sub.response_key)}
+                          disabled={saving[sub.response_key]}
+                          className="h-7 text-xs"
+                          data-testid={`save-${sub.response_key}`}
+                        >
+                          {saving[sub.response_key] ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <><Save className="w-3 h-3 mr-1" /> Save</>
+                          )}
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ) : (
@@ -575,18 +627,35 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
                 <span className="text-xs text-text-muted">
                   {(responses[question.question_key] || '').length} / {question.validation_rules?.max_length || 10000} characters
                 </span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => saveResponse(question.question_key)}
-                  disabled={saving[question.question_key]}
-                >
-                  {saving[question.question_key] ? (
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                  ) : (
-                    <><Save className="w-3 h-3 mr-1" /> Save</>
-                  )}
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => saveQuestionDraft(question.disclosure_id, question.question_key)}
+                    disabled={saving[`draft_${question.question_key}`]}
+                    className="border-yellow-300 text-yellow-700 hover:bg-yellow-50"
+                    data-testid={`save-draft-${question.question_key}`}
+                  >
+                    {saving[`draft_${question.question_key}`] ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <><FileEdit className="w-3 h-3 mr-1" /> Save as Draft</>
+                    )}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => saveResponse(question.question_key)}
+                    disabled={saving[question.question_key]}
+                    data-testid={`save-${question.question_key}`}
+                  >
+                    {saving[question.question_key] ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <><Save className="w-3 h-3 mr-1" /> Save</>
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
           ) : (

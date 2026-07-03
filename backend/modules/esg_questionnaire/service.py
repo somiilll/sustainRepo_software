@@ -276,6 +276,12 @@ class ESGQuestionnaireService:
         previous_status = previous_response.get("status") if previous_response else None
         is_new = previous_response is None
         
+        # If value is empty, set status to "pending" regardless of requested status
+        # An empty response should not be marked as "saved" or "draft"
+        value_is_empty = value is None or (isinstance(value, str) and value.strip() == "")
+        if value_is_empty:
+            status = "pending"
+        
         # Upsert the response in esg_responses collection
         result = await db.esg_responses.update_one(
             {
@@ -303,8 +309,8 @@ class ESGQuestionnaireService:
             upsert=True
         )
         
-        # Log to audit trail for version history
-        if result.acknowledged:
+        # Log to audit trail for version history (only if value is not empty)
+        if result.acknowledged and not value_is_empty:
             # Determine the action type
             if is_new:
                 action = "created"

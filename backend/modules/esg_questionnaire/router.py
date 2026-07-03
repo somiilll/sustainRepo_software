@@ -166,6 +166,11 @@ async def save_gri_response(
     if not question_key or not reporting_period:
         raise HTTPException(status_code=400, detail="question_key and reporting_period are required")
     
+    # Determine the actual status that will be saved
+    # Empty values should be marked as "pending", not "saved" or "draft"
+    value_is_empty = value is None or (isinstance(value, str) and value.strip() == "")
+    actual_status = "pending" if value_is_empty else status
+    
     result = await esg_questionnaire_service.save_gri_response(
         org_id=org_id,
         question_key=question_key,
@@ -177,10 +182,18 @@ async def save_gri_response(
         status=status
     )
     
+    # Return the actual status (pending if empty, otherwise the requested status)
+    if actual_status == "pending":
+        message = "Response cleared (pending)"
+    elif actual_status == "draft":
+        message = "Response saved as draft"
+    else:
+        message = "Response saved"
+    
     return {
-        "message": f"Response {'saved as draft' if status == 'draft' else 'saved'}",
+        "message": message,
         "question_key": question_key,
-        "status": status,
+        "status": actual_status,
         "success": result
     }
 
