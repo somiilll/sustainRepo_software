@@ -952,23 +952,6 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
                         )}
                       </Button>
                       
-                      {/* Submit for Approval - If draft exists */}
-                      {userDrafts[disclosure.disclosure_id]?.draft_status === 'draft' && (
-                        <Button
-                          variant="outline"
-                          onClick={() => submitForApproval(disclosure)}
-                          disabled={saving[disclosure.disclosure_id]}
-                          className="border-blue-300 text-blue-700 hover:bg-blue-50"
-                          data-testid={`submit-${disclosure.disclosure_id}`}
-                        >
-                          {saving[disclosure.disclosure_id] ? (
-                            <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting...</>
-                          ) : (
-                            <><Send className="w-4 h-4 mr-2" /> Submit for Approval</>
-                          )}
-                        </Button>
-                      )}
-                      
                       {/* Direct Save - For admins or final save */}
                       <Button
                         onClick={() => saveDisclosure(disclosure, 'saved')}
