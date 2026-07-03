@@ -242,6 +242,142 @@ class ESGQuestionnaireService:
             "total": len(questions)
         }
 
+    async def _has_approval_workflow_enabled(self, org_id: str) -> bool:
+        """Check if organization has approval workflow enabled for ESG responses."""
+        try:
+            from modules.approval_workflow.service import ApprovalWorkflowService
+            workflow = await ApprovalWorkflowService.get_workflow_for_entity(
+                org_id, "esg_response", None
+            )
+            return workflow is not None
+        except Exception:
+            return False
+    
+    async def _has_approver_assigned(
+        self, 
+        org_id: str, 
+        question_key: str, 
+        reporting_period: str
+    ) -> bool:
+        """
+        Check if there's an approver assigned to this question or its section.
+        Returns True if approval workflow is enabled AND approver is assigned.
+        """
+        # Check if there's an assignment with requires_approval=True for this question
+        assignment = await db.esg_assignments.find_one({
+            "organization_id": org_id,
+            "entity_id": question_key,
+            "entity_type": "question",
+            "reporting_period": reporting_period,
+            "requires_approval": True,
+        }, {"_id": 0, "id": 1})
+        
+        if assignment:
+            return True
+        
+        # Also check section-level assignment
+        # Extract section from question_key (e.g., "gri_302_1_a" -> get section from config)
+        config = await self._configs.find_one(
+            {"question_key": question_key},
+            {"_id": 0, "section": 1}
+        )
+        
+        if config and config.get("section"):
+            section_assignment = await db.esg_assignments.find_one({
+                "organization_id": org_id,
+                "entity_id": config["section"],
+                "entity_type": "section",
+                "reporting_period": reporting_period,
+                "requires_approval": True,
+            }, {"_id": 0, "id": 1})
+            
+            if section_assignment:
+                return True
+        
+        return False
+
+    async def _should_use_first_save_wins(
+        self,
+        org_id: str,
+        question_key: str,
+        reporting_period: str
+    ) -> bool:
+        """
+        Determine if "first save wins" logic should apply.
+        
+        First save wins applies when:
+        - Approval workflow is OFF for org, OR
+        - Approval workflow is ON but NO approver is assigned to question/section
+        
+        Returns True if first-save-wins should be enforced.
+        """
+        has_approval = await self._has_approval_workflow_enabled(org_id)
+        
+        if not has_approval:
+            # No approval workflow → first save wins
+            return True
+        
+        has_approver = await self._has_approver_assigned(org_id, question_key, reporting_period)
+        
+        if not has_approver:
+            # Approval ON but no approver assigned → first save wins
+            return True
+        
+        # Approval ON and approver assigned → submissions go to approver (Phase 2)
+        return False
+
+    async def _clear_other_users_drafts(
+        self,
+        org_id: str,
+        question_key: str,
+        reporting_period: str,
+        saved_by_user_id: str
+    ) -> int:
+        """
+        Delete all drafts for this question except from the user who saved.
+        Called after a successful "Save" to clean up other users' drafts.
+        
+        Returns the number of drafts deleted.
+        """
+        # The question_key might be a sub-question key like "gri_302_1_a_i"
+        # We need to find the parent disclosure_id to delete related drafts
+        
+        # For individual question drafts in esg_response_drafts
+        # These are stored with draft_data containing multiple question_keys
+        # We need to remove this specific question_key from all other users' draft_data
+        
+        # Find all drafts that contain this question_key (from other users)
+        drafts_cursor = db[self.DRAFTS_COLLECTION].find({
+            "organization_id": org_id,
+            "reporting_period": reporting_period,
+            "user_id": {"$ne": saved_by_user_id},
+            f"draft_data.{question_key}": {"$exists": True},
+            "is_latest": True,
+        })
+        
+        drafts = await drafts_cursor.to_list(100)
+        deleted_count = 0
+        
+        for draft in drafts:
+            draft_data = draft.get("draft_data", {})
+            if question_key in draft_data:
+                # Remove this question from the draft
+                del draft_data[question_key]
+                
+                if draft_data:
+                    # Update the draft with the question removed
+                    await db[self.DRAFTS_COLLECTION].update_one(
+                        {"id": draft["id"]},
+                        {"$set": {"draft_data": draft_data}}
+                    )
+                else:
+                    # No more questions in draft, delete entirely
+                    await db[self.DRAFTS_COLLECTION].delete_one({"id": draft["id"]})
+                
+                deleted_count += 1
+        
+        return deleted_count
+
     async def save_gri_response(
         self,
         org_id: str,
@@ -252,37 +388,71 @@ class ESGQuestionnaireService:
         changed_by_user_name: Optional[str] = None,
         changed_by_user_email: Optional[str] = None,
         status: str = "saved",  # "draft" or "saved"
-    ) -> bool:
+    ) -> dict:
         """
         Save a single GRI disclosure response.
-        Uses upsert to create or update the response.
-        Supports draft and saved status.
-        Logs changes to audit trail for version history.
+        
+        Implements "first save wins" logic:
+        - If no approval workflow OR no approver assigned:
+          - First user to Save wins
+          - Other users' drafts are cleared
+          - Subsequent saves by other users are blocked
+        - If approval workflow ON and approver assigned:
+          - (Phase 2: submissions go to approver queue)
+        
+        Returns dict with:
+          - success: bool
+          - blocked: bool (True if blocked by first-save-wins)
+          - blocked_by: str (name of user who saved first, if blocked)
+          - status: str (actual status saved)
         """
         now = datetime.now(timezone.utc)
         now_iso = now.isoformat()
         
-        # Get previous response for audit logging
+        # If value is empty, set status to "pending" regardless of requested status
+        value_is_empty = value is None or (isinstance(value, str) and value.strip() == "")
+        if value_is_empty:
+            status = "pending"
+        
+        # Get previous response
         previous_response = await db.esg_responses.find_one(
             {
                 "organization_id": org_id,
                 "question_key": question_key,
                 "reporting_period": reporting_period,
             },
-            {"_id": 0, "value": 1, "status": 1, "updated_by": 1}
+            {"_id": 0, "value": 1, "status": 1, "updated_by": 1, "updated_by_name": 1}
         )
         
         previous_value = previous_response.get("value") if previous_response else None
         previous_status = previous_response.get("status") if previous_response else None
+        previous_user_id = previous_response.get("updated_by") if previous_response else None
+        previous_user_name = previous_response.get("updated_by_name") if previous_response else None
         is_new = previous_response is None
         
-        # If value is empty, set status to "pending" regardless of requested status
-        # An empty response should not be marked as "saved" or "draft"
-        value_is_empty = value is None or (isinstance(value, str) and value.strip() == "")
-        if value_is_empty:
-            status = "pending"
+        # Check if "first save wins" applies (only for actual "saved" status, not drafts)
+        if status == "saved" and not value_is_empty:
+            use_first_save_wins = await self._should_use_first_save_wins(
+                org_id, question_key, reporting_period
+            )
+            
+            if use_first_save_wins:
+                # Check if already saved by a different user
+                if (previous_response 
+                    and previous_status == "saved" 
+                    and previous_user_id 
+                    and previous_user_id != changed_by_user_id):
+                    # Blocked! First save wins - another user already saved
+                    return {
+                        "success": False,
+                        "blocked": True,
+                        "blocked_by": previous_user_name or "another user",
+                        "blocked_by_user_id": previous_user_id,
+                        "status": previous_status,
+                        "message": f"Already saved by {previous_user_name or 'another user'}. First save wins."
+                    }
         
-        # Upsert the response in esg_responses collection
+        # Proceed with save
         result = await db.esg_responses.update_one(
             {
                 "organization_id": org_id,
@@ -308,6 +478,13 @@ class ESGQuestionnaireService:
             },
             upsert=True
         )
+        
+        # If this was a successful "saved" (not draft), clear other users' drafts
+        drafts_cleared = 0
+        if result.acknowledged and status == "saved" and not value_is_empty:
+            drafts_cleared = await self._clear_other_users_drafts(
+                org_id, question_key, reporting_period, changed_by_user_id
+            )
         
         # Log to audit trail for version history (only if value is not empty)
         if result.acknowledged and not value_is_empty:
@@ -340,11 +517,19 @@ class ESGQuestionnaireService:
                     "old_status": previous_status,
                     "new_status": status,
                 },
+                "drafts_cleared": drafts_cleared,
             }
             
             await db.question_audit_log.insert_one(audit_entry)
         
-        return result.acknowledged
+        return {
+            "success": result.acknowledged,
+            "blocked": False,
+            "blocked_by": None,
+            "status": status,
+            "drafts_cleared": drafts_cleared,
+            "message": "Response saved successfully"
+        }
     
     async def get_question_history(
         self,

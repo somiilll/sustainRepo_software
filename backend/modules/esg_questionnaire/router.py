@@ -150,6 +150,12 @@ async def save_gri_response(
     Save a single GRI disclosure response.
     Expects: { question_key, value, reporting_period, status? }
     status: "draft" (saves as draft, shown as pending) or "saved" (final save)
+    
+    Implements "first save wins" logic:
+    - If no approval workflow OR no approver assigned to question:
+      - First user to Save wins
+      - Other users' drafts are cleared
+      - Subsequent saves by other users return 409 Conflict
     """
     org_id = current_user.get("organization_id")
     if not org_id:
@@ -182,10 +188,24 @@ async def save_gri_response(
         status=status
     )
     
-    # Return the actual status (pending if empty, otherwise the requested status)
-    if actual_status == "pending":
+    # Handle blocked response (first save wins)
+    if result.get("blocked"):
+        raise HTTPException(
+            status_code=409,  # Conflict
+            detail={
+                "message": result.get("message"),
+                "blocked_by": result.get("blocked_by"),
+                "blocked_by_user_id": result.get("blocked_by_user_id"),
+                "status": result.get("status"),
+            }
+        )
+    
+    # Return the actual status from the service
+    final_status = result.get("status", actual_status)
+    
+    if final_status == "pending":
         message = "Response cleared (pending)"
-    elif actual_status == "draft":
+    elif final_status == "draft":
         message = "Response saved as draft"
     else:
         message = "Response saved"
@@ -193,8 +213,9 @@ async def save_gri_response(
     return {
         "message": message,
         "question_key": question_key,
-        "status": actual_status,
-        "success": result
+        "status": final_status,
+        "success": result.get("success", True),
+        "drafts_cleared": result.get("drafts_cleared", 0)
     }
 
 

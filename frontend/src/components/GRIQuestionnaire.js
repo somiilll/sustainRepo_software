@@ -218,7 +218,7 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
   const saveResponse = async (responseKey, status = 'saved') => {
     setSaving(prev => ({ ...prev, [responseKey]: true }));
     try {
-      await axios.post(
+      const response = await axios.post(
         `${API}/api/esg-questionnaire/response`,
         {
           question_key: responseKey,
@@ -228,12 +228,30 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
         },
         { headers: getAuthHeader() }
       );
-      toast.success(status === 'draft' ? 'Saved as draft' : 'Response saved');
+      
+      // Check if any drafts were cleared (first save wins)
+      if (response.data.drafts_cleared > 0) {
+        toast.success(`Response saved. ${response.data.drafts_cleared} other draft(s) cleared.`);
+      } else {
+        toast.success(status === 'draft' ? 'Saved as draft' : 'Response saved');
+      }
       // Refresh to get updated status
       await fetchDisclosures();
     } catch (error) {
       console.error('Failed to save response:', error);
-      toast.error('Failed to save response');
+      
+      // Handle "first save wins" conflict (409)
+      if (error.response?.status === 409) {
+        const detail = error.response.data?.detail;
+        const blockedBy = detail?.blocked_by || 'another user';
+        toast.error(`Cannot save: Already saved by ${blockedBy}. First save wins.`, {
+          duration: 5000,
+        });
+        // Refresh to show the saved value from the other user
+        await fetchDisclosures();
+      } else {
+        toast.error('Failed to save response');
+      }
     } finally {
       setSaving(prev => ({ ...prev, [responseKey]: false }));
     }
@@ -344,10 +362,13 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
     setSaving(prev => ({ ...prev, [disclosure.disclosure_id]: true }));
     try {
       const savePromises = [];
+      const questionKeys = [];
+      
       disclosure.questions.forEach(q => {
         if (q.sub_questions && q.sub_questions.length > 0) {
           // Save each sub-question response
           q.sub_questions.forEach(sub => {
+            questionKeys.push(sub.response_key);
             savePromises.push(
               axios.post(
                 `${API}/api/esg-questionnaire/response`,
@@ -363,6 +384,7 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
           });
         } else {
           // Save simple question response
+          questionKeys.push(q.question_key);
           savePromises.push(
             axios.post(
               `${API}/api/esg-questionnaire/response`,
@@ -377,11 +399,44 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
           );
         }
       });
-      await Promise.all(savePromises);
-      toast.success(status === 'draft' 
-        ? `${disclosure.disclosure_id} saved as draft` 
-        : `Saved ${disclosure.disclosure_id} responses`
-      );
+      
+      // Use allSettled to capture both successes and failures
+      const results = await Promise.allSettled(savePromises);
+      
+      // Check for any 409 conflicts (first save wins)
+      const conflicts = [];
+      const successes = [];
+      
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          const error = result.reason;
+          if (error.response?.status === 409) {
+            const detail = error.response.data?.detail;
+            conflicts.push({
+              questionKey: questionKeys[index],
+              blockedBy: detail?.blocked_by || 'another user'
+            });
+          }
+        } else {
+          successes.push(questionKeys[index]);
+        }
+      });
+      
+      if (conflicts.length > 0) {
+        const blockedByUser = conflicts[0].blockedBy;
+        toast.error(
+          `${conflicts.length} question(s) already saved by ${blockedByUser}. First save wins.`,
+          { duration: 5000 }
+        );
+      }
+      
+      if (successes.length > 0) {
+        toast.success(status === 'draft' 
+          ? `${successes.length} response(s) saved as draft` 
+          : `${successes.length} response(s) saved`
+        );
+      }
+      
       // Refresh to get updated statuses
       await fetchDisclosures();
     } catch (error) {
