@@ -152,8 +152,10 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
             }
           });
         } else {
-          // Simple question
-          if (disclosureDraft?.draft_data?.[q.question_key] !== undefined) {
+          // Simple question - use user_draft_value from API if available
+          if (q.user_draft_value !== undefined && q.user_draft_value !== null) {
+            initialResponses[q.question_key] = q.user_draft_value;
+          } else if (disclosureDraft?.draft_data?.[q.question_key] !== undefined) {
             initialResponses[q.question_key] = disclosureDraft.draft_data[q.question_key];
           } else if (q.response_value !== undefined && q.response_value !== null) {
             initialResponses[q.question_key] = q.response_value;
@@ -712,10 +714,36 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
                 data-testid={`input-${question.question_key}`}
               />
               <div className="flex justify-between items-center">
-                <span className="text-xs text-text-muted">
-                  {(responses[question.question_key] || '').length} / {question.validation_rules?.max_length || 10000} characters
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-text-muted">
+                    {(responses[question.question_key] || '').length} / {question.validation_rules?.max_length || 10000} characters
+                  </span>
+                  {/* Show if user has a draft (different from saved value) */}
+                  {question.has_user_draft && question.saved_status === 'saved' && (
+                    <Badge className="text-xs bg-yellow-100 text-yellow-700">
+                      You have unsaved changes
+                    </Badge>
+                  )}
+                </div>
                 <div className="flex gap-2">
+                  {/* Discard Draft button - only show if user has draft and there's a saved value */}
+                  {question.has_user_draft && question.saved_status === 'saved' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => discardDraft(question.question_key)}
+                      disabled={saving[`discard_${question.question_key}`]}
+                      className="border-red-200 text-red-600 hover:bg-red-50"
+                      data-testid={`discard-draft-${question.question_key}`}
+                      title="Discard your draft and revert to saved answer"
+                    >
+                      {saving[`discard_${question.question_key}`] ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <><Trash2 className="w-3 h-3 mr-1" /> Discard</>
+                      )}
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="outline"

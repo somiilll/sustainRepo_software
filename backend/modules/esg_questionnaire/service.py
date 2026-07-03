@@ -301,10 +301,18 @@ class ESGQuestionnaireService:
                 response = responses_map.get(q_key, {})
                 pending_submissions = submissions_map.get(q_key, [])
                 user_has_pending = any(s["submitted_by_user_id"] == user_id for s in pending_submissions) if user_id else False
+                user_draft_value = user_drafts_map.get(q_key)
+                user_has_draft = user_draft_value is not None
                 
                 question_data["response_value"] = response.get("value")
+                question_data["user_draft_value"] = user_draft_value
+                question_data["has_user_draft"] = user_has_draft
+                question_data["saved_status"] = response.get("status")
                 
-                if user_has_pending:
+                # Determine display status
+                if user_has_draft:
+                    question_data["status"] = "draft"
+                elif user_has_pending:
                     question_data["status"] = "pending_approval"
                 else:
                     question_data["status"] = response.get("status", "pending") if response else "pending"

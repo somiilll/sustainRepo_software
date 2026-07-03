@@ -525,6 +525,13 @@ class TrackingService:
                     ]}
                 ]
             }
+        elif framework_id.upper() == "GRI":
+            # For GRI, section_id is the disclosure_id
+            config_query = {
+                "section": section,
+                "framework": {"$regex": f"^{framework_id}$", "$options": "i"},
+                "disclosure_id": section_id,
+            }
         else:
             config_query = {
                 "section": section,
