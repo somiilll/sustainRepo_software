@@ -371,7 +371,7 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
                 <SelectValue placeholder="Organization level" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Organization Level</SelectItem>
+                <SelectItem value="org_level">Organization Level</SelectItem>
                 {facilities.map(fac => (
                   <SelectItem key={fac.id} value={fac.id}>{fac.name}</SelectItem>
                 ))}
@@ -532,7 +532,7 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
               <SelectValue placeholder="Category" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Categories</SelectItem>
+              <SelectItem value="all">All Categories</SelectItem>
               {[...new Set(categories.map(c => c.category))].map(cat => (
                 <SelectItem key={cat} value={cat}>{cat}</SelectItem>
               ))}
@@ -544,7 +544,7 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Status</SelectItem>
+              <SelectItem value="all">All Status</SelectItem>
               <SelectItem value="draft">Draft</SelectItem>
               <SelectItem value="submitted">Submitted</SelectItem>
               <SelectItem value="approved">Approved</SelectItem>
@@ -556,7 +556,7 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
               <SelectValue placeholder="Facility" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Facilities</SelectItem>
+              <SelectItem value="all">All Facilities</SelectItem>
               {facilities.map(fac => (
                 <SelectItem key={fac.id} value={fac.id}>{fac.name}</SelectItem>
               ))}

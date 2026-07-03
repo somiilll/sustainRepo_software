@@ -4,7 +4,7 @@ import { Button } from '../components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Users2, Edit2, Eye, Info } from 'lucide-react';
 import ESGQuestionnaire from '../components/ESGQuestionnaire';
-import ESGRecords from '../components/ESGRecords';
+import ESGRecordsModule from '../components/ESGRecordsModule';
 import HRWorkforce from './HRWorkforce';
 import FrameworkTabs from '../components/FrameworkTabs';
 import GRIQuestionnaire from '../components/GRIQuestionnaire';
@@ -13,7 +13,7 @@ export default function Social() {
   const [isEditing, setIsEditing] = useState(false);
 
   const RecordsContent = () => (
-    <ESGRecords section="social" framework="BRSR" />
+    <ESGRecordsModule section="social" framework="BRSR" />
   );
 
   const renderFrameworkContent = (framework) => {

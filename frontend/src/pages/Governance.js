@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Shield, Edit2, Eye, Info, Save, Loader2 } from 'lucide-react';
 import ESGQuestionnaire from '../components/ESGQuestionnaire';
-import ESGRecords from '../components/ESGRecords';
+import ESGRecordsModule from '../components/ESGRecordsModule';
 import FrameworkTabs from '../components/FrameworkTabs';
 import GRIQuestionnaire from '../components/GRIQuestionnaire';
 import { toast } from 'sonner';
@@ -124,7 +124,7 @@ export default function Governance() {
     </div>
   );
 
-  const RecordsContent = () => <ESGRecords section="governance" framework="BRSR" />;
+  const RecordsContent = () => <ESGRecordsModule section="governance" framework="BRSR" />;
 
   const renderFrameworkContent = (framework) => {
     if (framework === 'BRSR') {
