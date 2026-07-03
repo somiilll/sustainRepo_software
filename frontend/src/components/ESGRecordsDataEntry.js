@@ -79,11 +79,12 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
     reporting_type: 'monthly',
     reporting_year: new Date().getFullYear(),
     reporting_month: '',
-    value: '',
-    unit: '',
+    field_values: {},
+    source_of_information: '',
     notes: '',
   });
   const [formErrors, setFormErrors] = useState({});
+  const [addFormCategory, setAddFormCategory] = useState(null);
 
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -183,12 +184,27 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
     }
   };
 
+  // Fetch category config for add form when category+subcategory selected
+  const fetchAddFormCategory = async (category, subcategory) => {
+    const cat = categories.find(c => c.category === category && (!subcategory || c.subcategory === subcategory));
+    if (cat?.id) {
+      try {
+        const res = await axios.get(`${API}/api/esg-records/categories/${section}/${cat.id}`, { headers });
+        setAddFormCategory(res.data);
+      } catch (err) {
+        console.error('Failed to fetch category config:', err);
+        setAddFormCategory(null);
+      }
+    } else {
+      setAddFormCategory(null);
+    }
+  };
+
   // Save record (final save)
   const handleSaveRecord = async (asDraft = false) => {
     // Validate
     const errors = {};
     if (!formData.category) errors.category = 'Required';
-    if (!formData.value) errors.value = 'Required';
     
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
@@ -197,8 +213,20 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
 
     setSaving(prev => ({ ...prev, form: true }));
     try {
+      // Find category_id
+      const cat = categories.find(c => c.category === formData.category && (!formData.subcategory || c.subcategory === formData.subcategory));
+      
       const payload = {
-        ...formData,
+        category: formData.category,
+        subcategory: formData.subcategory,
+        category_id: cat?.id,
+        facility_id: formData.facility_id === 'org_level' ? null : formData.facility_id,
+        reporting_type: formData.reporting_type,
+        reporting_year: formData.reporting_year,
+        reporting_month: formData.reporting_month,
+        field_values: formData.field_values,
+        source_of_information: formData.source_of_information,
+        notes: formData.notes,
         status: asDraft ? 'draft' : 'submitted',
         section,
         framework,
@@ -216,11 +244,12 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
         reporting_type: 'monthly',
         reporting_year: new Date().getFullYear(),
         reporting_month: '',
-        value: '',
-        unit: '',
+        field_values: {},
+        source_of_information: '',
         notes: '',
       });
       setFormErrors({});
+      setAddFormCategory(null);
       
       if (onRecordAdded) onRecordAdded();
     } catch (error) {
@@ -413,7 +442,10 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
             <Label>Category *</Label>
             <Select 
               value={formData.category} 
-              onValueChange={(v) => setFormData(prev => ({ ...prev, category: v, subcategory: '' }))}
+              onValueChange={(v) => {
+                setFormData(prev => ({ ...prev, category: v, subcategory: '', field_values: {} }));
+                fetchAddFormCategory(v, '');
+              }}
             >
               <SelectTrigger className={formErrors.category ? 'border-red-500' : ''}>
                 <SelectValue placeholder="Select category" />
@@ -432,7 +464,10 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
             <Label>Subcategory</Label>
             <Select 
               value={formData.subcategory} 
-              onValueChange={(v) => setFormData(prev => ({ ...prev, subcategory: v }))}
+              onValueChange={(v) => {
+                setFormData(prev => ({ ...prev, subcategory: v, field_values: {} }));
+                fetchAddFormCategory(formData.category, v);
+              }}
               disabled={!formData.category}
             >
               <SelectTrigger>
@@ -520,27 +555,37 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
               </Select>
             </div>
           )}
+        </div>
 
-          {/* Value */}
-          <div className="space-y-2">
-            <Label>Value *</Label>
-            <Input
-              type="number"
-              value={formData.value}
-              onChange={(e) => setFormData(prev => ({ ...prev, value: e.target.value }))}
-              placeholder="Enter value"
-              className={formErrors.value ? 'border-red-500' : ''}
-            />
-            {formErrors.value && <p className="text-xs text-red-500">{formErrors.value}</p>}
+        {/* Dynamic Category Fields */}
+        {addFormCategory?.fields?.length > 0 && (
+          <div className="mt-6 pt-4 border-t space-y-4">
+            <p className="text-sm font-medium text-text-primary">Category Fields</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {addFormCategory.fields.map(field => (
+                <DynamicFieldRenderer
+                  key={field.field_key}
+                  field={field}
+                  value={formData.field_values?.[field.field_key]}
+                  onChange={(val) => setFormData(prev => ({
+                    ...prev,
+                    field_values: { ...prev.field_values, [field.field_key]: val }
+                  }))}
+                />
+              ))}
+            </div>
           </div>
+        )}
 
-          {/* Unit */}
+        {/* Common Fields */}
+        <div className="mt-6 pt-4 border-t grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Source of Information */}
           <div className="space-y-2">
-            <Label>Unit</Label>
+            <Label>Source of Information</Label>
             <Input
-              value={formData.unit}
-              onChange={(e) => setFormData(prev => ({ ...prev, unit: e.target.value }))}
-              placeholder="e.g., kWh, kg, liters"
+              value={formData.source_of_information}
+              onChange={(e) => setFormData(prev => ({ ...prev, source_of_information: e.target.value }))}
+              placeholder="e.g., Utility Bill, Vendor Invoice..."
             />
           </div>
 
