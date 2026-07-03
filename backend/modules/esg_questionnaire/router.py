@@ -214,6 +214,319 @@ async def get_question_history(
 
 
 # =============================================================================
+# Draft Management Endpoints (Per-User Drafts)
+# =============================================================================
+
+@router.post("/draft")
+async def save_draft(
+    data: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Save a user's draft for a disclosure.
+    
+    Expects: {
+        framework_id: "gri",
+        disclosure_id: "101-2",
+        reporting_period: "CY 2026",
+        draft_data: { "gri_101_2_a_i": "value", "gri_101_2_a_ii": "value", ... },
+        draft_status: "editing" | "draft" | "submitted",
+        assignment_id: "optional-uuid"
+    }
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    framework_id = data.get("framework_id")
+    disclosure_id = data.get("disclosure_id")
+    reporting_period = data.get("reporting_period")
+    draft_data = data.get("draft_data", {})
+    draft_status = data.get("draft_status", "draft")
+    assignment_id = data.get("assignment_id")
+    
+    if not framework_id or not disclosure_id or not reporting_period:
+        raise HTTPException(
+            status_code=400, 
+            detail="framework_id, disclosure_id, and reporting_period are required"
+        )
+    
+    if draft_status not in ["editing", "draft", "submitted"]:
+        raise HTTPException(
+            status_code=400, 
+            detail="draft_status must be 'editing', 'draft', or 'submitted'"
+        )
+    
+    result = await esg_questionnaire_service.save_user_draft(
+        org_id=org_id,
+        framework_id=framework_id,
+        disclosure_id=disclosure_id,
+        reporting_period=reporting_period,
+        user_id=current_user.get("id"),
+        user_name=current_user.get("full_name") or current_user.get("name") or current_user.get("email"),
+        user_email=current_user.get("email"),
+        draft_data=draft_data,
+        draft_status=draft_status,
+        assignment_id=assignment_id,
+    )
+    
+    return {
+        "message": f"Draft saved ({draft_status})",
+        "draft": result
+    }
+
+
+@router.get("/draft/{framework_id}/{disclosure_id}")
+async def get_draft(
+    framework_id: str,
+    disclosure_id: str,
+    reporting_period: str = Query(..., description="Reporting period"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get the current user's latest draft for a disclosure.
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    draft = await esg_questionnaire_service.get_user_draft(
+        org_id=org_id,
+        framework_id=framework_id,
+        disclosure_id=disclosure_id,
+        reporting_period=reporting_period,
+        user_id=current_user.get("id"),
+    )
+    
+    return {
+        "draft": draft,
+        "has_draft": draft is not None
+    }
+
+
+@router.get("/drafts/{framework_id}/{section}")
+async def get_user_drafts_for_section(
+    framework_id: str,
+    section: str,
+    reporting_period: str = Query(..., description="Reporting period"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get all of the current user's drafts for a section.
+    Returns drafts keyed by disclosure_id for easy lookup.
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    drafts = await esg_questionnaire_service.get_user_drafts_for_section(
+        org_id=org_id,
+        framework_id=framework_id,
+        section=section,
+        reporting_period=reporting_period,
+        user_id=current_user.get("id"),
+    )
+    
+    # Key by disclosure_id for easier frontend lookup
+    drafts_by_disclosure = {d["disclosure_id"]: d for d in drafts}
+    
+    return {
+        "drafts": drafts_by_disclosure,
+        "total": len(drafts)
+    }
+
+
+@router.get("/drafts/all/{framework_id}/{disclosure_id}")
+async def get_all_drafts_for_disclosure(
+    framework_id: str,
+    disclosure_id: str,
+    reporting_period: str = Query(..., description="Reporting period"),
+    current_user: dict = Depends(get_admin_user)  # Admin only
+):
+    """
+    Get all users' drafts for a disclosure (admin only).
+    Used for reviewing/approving drafts.
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    drafts = await esg_questionnaire_service.get_all_drafts_for_disclosure(
+        org_id=org_id,
+        framework_id=framework_id,
+        disclosure_id=disclosure_id,
+        reporting_period=reporting_period,
+    )
+    
+    return {
+        "disclosure_id": disclosure_id,
+        "drafts": drafts,
+        "total": len(drafts)
+    }
+
+
+@router.post("/draft/submit")
+async def submit_draft_for_approval(
+    data: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Submit a draft for approval.
+    Changes status from 'draft' to 'submitted'.
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    framework_id = data.get("framework_id")
+    disclosure_id = data.get("disclosure_id")
+    reporting_period = data.get("reporting_period")
+    
+    if not framework_id or not disclosure_id or not reporting_period:
+        raise HTTPException(
+            status_code=400, 
+            detail="framework_id, disclosure_id, and reporting_period are required"
+        )
+    
+    result = await esg_questionnaire_service.submit_draft_for_approval(
+        org_id=org_id,
+        framework_id=framework_id,
+        disclosure_id=disclosure_id,
+        reporting_period=reporting_period,
+        user_id=current_user.get("id"),
+        user_name=current_user.get("full_name") or current_user.get("name") or current_user.get("email"),
+        user_email=current_user.get("email"),
+    )
+    
+    if not result:
+        raise HTTPException(status_code=404, detail="No draft found to submit")
+    
+    return {
+        "message": "Draft submitted for approval",
+        "draft": result
+    }
+
+
+@router.post("/draft/approve")
+async def approve_draft(
+    data: dict,
+    current_user: dict = Depends(get_admin_user)  # Admin only
+):
+    """
+    Approve a submitted draft (admin only).
+    Saves the draft data to final esg_responses.
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    framework_id = data.get("framework_id")
+    disclosure_id = data.get("disclosure_id")
+    reporting_period = data.get("reporting_period")
+    draft_user_id = data.get("draft_user_id")
+    
+    if not all([framework_id, disclosure_id, reporting_period, draft_user_id]):
+        raise HTTPException(
+            status_code=400, 
+            detail="framework_id, disclosure_id, reporting_period, and draft_user_id are required"
+        )
+    
+    success = await esg_questionnaire_service.approve_draft(
+        org_id=org_id,
+        framework_id=framework_id,
+        disclosure_id=disclosure_id,
+        reporting_period=reporting_period,
+        draft_user_id=draft_user_id,
+        approver_user_id=current_user.get("id"),
+        approver_name=current_user.get("full_name") or current_user.get("name") or current_user.get("email"),
+        approver_email=current_user.get("email"),
+    )
+    
+    if not success:
+        raise HTTPException(status_code=404, detail="No submitted draft found to approve")
+    
+    return {"message": "Draft approved and saved to final responses"}
+
+
+@router.post("/draft/reject")
+async def reject_draft(
+    data: dict,
+    current_user: dict = Depends(get_admin_user)  # Admin only
+):
+    """
+    Reject a submitted draft (admin only).
+    Returns it to 'draft' status for revision.
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    framework_id = data.get("framework_id")
+    disclosure_id = data.get("disclosure_id")
+    reporting_period = data.get("reporting_period")
+    draft_user_id = data.get("draft_user_id")
+    rejection_reason = data.get("rejection_reason")
+    
+    if not all([framework_id, disclosure_id, reporting_period, draft_user_id]):
+        raise HTTPException(
+            status_code=400, 
+            detail="framework_id, disclosure_id, reporting_period, and draft_user_id are required"
+        )
+    
+    success = await esg_questionnaire_service.reject_draft(
+        org_id=org_id,
+        framework_id=framework_id,
+        disclosure_id=disclosure_id,
+        reporting_period=reporting_period,
+        draft_user_id=draft_user_id,
+        rejector_user_id=current_user.get("id"),
+        rejector_name=current_user.get("full_name") or current_user.get("name") or current_user.get("email"),
+        rejector_email=current_user.get("email"),
+        rejection_reason=rejection_reason,
+    )
+    
+    if not success:
+        raise HTTPException(status_code=404, detail="No submitted draft found to reject")
+    
+    return {"message": "Draft rejected and returned for revision"}
+
+
+@router.get("/draft/history/{framework_id}/{disclosure_id}")
+async def get_draft_history(
+    framework_id: str,
+    disclosure_id: str,
+    reporting_period: str = Query(..., description="Reporting period"),
+    user_id: Optional[str] = Query(None, description="Filter by user ID"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get draft history for a disclosure.
+    Shows all versions of drafts (optionally filtered by user).
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    # If not admin and user_id is provided and doesn't match current user, deny
+    if user_id and user_id != current_user.get("id") and current_user.get("role") not in ["admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Cannot view other users' draft history")
+    
+    history = await esg_questionnaire_service.get_draft_history(
+        org_id=org_id,
+        framework_id=framework_id,
+        disclosure_id=disclosure_id,
+        reporting_period=reporting_period,
+        user_id=user_id,
+    )
+    
+    return {
+        "disclosure_id": disclosure_id,
+        "history": history,
+        "total": len(history)
+    }
+
+
+# =============================================================================
 # Response Endpoints
 # =============================================================================
 

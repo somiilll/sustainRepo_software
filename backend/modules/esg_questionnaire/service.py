@@ -362,8 +362,433 @@ class ESGQuestionnaireService:
         return await cursor.to_list(100)
 
     # =========================================================================
-    # Response Methods
+    # Draft Management Methods (Per-User Drafts)
     # =========================================================================
+    
+    DRAFTS_COLLECTION = "esg_response_drafts"
+
+    async def save_user_draft(
+        self,
+        org_id: str,
+        framework_id: str,
+        disclosure_id: str,
+        reporting_period: str,
+        user_id: str,
+        user_name: str,
+        user_email: str,
+        draft_data: Dict[str, Any],
+        draft_status: str = "draft",  # editing | draft | submitted
+        assignment_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Save or update a user's draft for a specific disclosure.
+        Each user has their own draft per disclosure.
+        
+        draft_data format: { "question_key": "response_value", ... }
+        """
+        now = datetime.now(timezone.utc)
+        
+        # Mark any existing drafts for this user+disclosure as not latest
+        await db[self.DRAFTS_COLLECTION].update_many(
+            {
+                "organization_id": org_id,
+                "framework_id": framework_id,
+                "disclosure_id": disclosure_id,
+                "reporting_period": reporting_period,
+                "user_id": user_id,
+            },
+            {"$set": {"is_latest": False, "updated_at": now}}
+        )
+        
+        # Create new draft entry
+        draft_id = str(uuid.uuid4())
+        draft_doc = {
+            "id": draft_id,
+            "organization_id": org_id,
+            "framework_id": framework_id,
+            "disclosure_id": disclosure_id,
+            "reporting_period": reporting_period,
+            "user_id": user_id,
+            "user_name": user_name,
+            "user_email": user_email,
+            "assignment_id": assignment_id,
+            "draft_data": draft_data,
+            "draft_status": draft_status,
+            "is_latest": True,
+            "created_at": now,
+            "updated_at": now,
+        }
+        
+        await db[self.DRAFTS_COLLECTION].insert_one(draft_doc)
+        
+        # Log to audit trail
+        audit_entry = {
+            "id": str(uuid.uuid4()),
+            "organization_id": org_id,
+            "framework_id": framework_id,
+            "disclosure_id": disclosure_id,
+            "reporting_period": reporting_period,
+            "action": f"draft_{draft_status}",
+            "timestamp": now,
+            "performed_by": {
+                "user_id": user_id,
+                "name": user_name,
+                "email": user_email,
+            },
+            "draft_id": draft_id,
+            "change_details": {
+                "draft_status": draft_status,
+                "questions_updated": list(draft_data.keys()),
+            },
+        }
+        await db.question_audit_log.insert_one(audit_entry)
+        
+        # Remove _id for response
+        draft_doc.pop("_id", None)
+        return draft_doc
+
+    async def get_user_draft(
+        self,
+        org_id: str,
+        framework_id: str,
+        disclosure_id: str,
+        reporting_period: str,
+        user_id: str,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get the latest draft for a specific user and disclosure.
+        """
+        draft = await db[self.DRAFTS_COLLECTION].find_one(
+            {
+                "organization_id": org_id,
+                "framework_id": framework_id,
+                "disclosure_id": disclosure_id,
+                "reporting_period": reporting_period,
+                "user_id": user_id,
+                "is_latest": True,
+            },
+            {"_id": 0}
+        )
+        return draft
+
+    async def get_all_drafts_for_disclosure(
+        self,
+        org_id: str,
+        framework_id: str,
+        disclosure_id: str,
+        reporting_period: str,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get all latest drafts from all users for a specific disclosure.
+        Useful for admins to review all drafts before approving.
+        """
+        cursor = db[self.DRAFTS_COLLECTION].find(
+            {
+                "organization_id": org_id,
+                "framework_id": framework_id,
+                "disclosure_id": disclosure_id,
+                "reporting_period": reporting_period,
+                "is_latest": True,
+            },
+            {"_id": 0}
+        ).sort("updated_at", -1)
+        
+        return await cursor.to_list(100)
+
+    async def get_user_drafts_for_section(
+        self,
+        org_id: str,
+        framework_id: str,
+        section: str,
+        reporting_period: str,
+        user_id: str,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get all latest drafts for a user in a specific section.
+        Used to show draft status in the questionnaire UI.
+        """
+        # First get all disclosure IDs for this section
+        configs = await db.esg_question_configs.distinct(
+            "disclosure_id",
+            {
+                "framework": framework_id.upper(),
+                "section": section,
+            }
+        )
+        
+        cursor = db[self.DRAFTS_COLLECTION].find(
+            {
+                "organization_id": org_id,
+                "framework_id": framework_id,
+                "disclosure_id": {"$in": configs},
+                "reporting_period": reporting_period,
+                "user_id": user_id,
+                "is_latest": True,
+            },
+            {"_id": 0}
+        )
+        
+        return await cursor.to_list(500)
+
+    async def submit_draft_for_approval(
+        self,
+        org_id: str,
+        framework_id: str,
+        disclosure_id: str,
+        reporting_period: str,
+        user_id: str,
+        user_name: str,
+        user_email: str,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Submit a user's draft for approval.
+        Changes draft_status from 'draft' to 'submitted'.
+        """
+        now = datetime.now(timezone.utc)
+        
+        # Find the latest draft
+        draft = await self.get_user_draft(
+            org_id, framework_id, disclosure_id, reporting_period, user_id
+        )
+        
+        if not draft:
+            return None
+        
+        # Update the draft status to submitted
+        await db[self.DRAFTS_COLLECTION].update_one(
+            {"id": draft["id"]},
+            {
+                "$set": {
+                    "draft_status": "submitted",
+                    "updated_at": now,
+                }
+            }
+        )
+        
+        # Log to audit trail
+        audit_entry = {
+            "id": str(uuid.uuid4()),
+            "organization_id": org_id,
+            "framework_id": framework_id,
+            "disclosure_id": disclosure_id,
+            "reporting_period": reporting_period,
+            "action": "draft_submitted_for_approval",
+            "timestamp": now,
+            "performed_by": {
+                "user_id": user_id,
+                "name": user_name,
+                "email": user_email,
+            },
+            "draft_id": draft["id"],
+        }
+        await db.question_audit_log.insert_one(audit_entry)
+        
+        draft["draft_status"] = "submitted"
+        draft["updated_at"] = now
+        return draft
+
+    async def approve_draft(
+        self,
+        org_id: str,
+        framework_id: str,
+        disclosure_id: str,
+        reporting_period: str,
+        draft_user_id: str,
+        approver_user_id: str,
+        approver_name: str,
+        approver_email: str,
+    ) -> bool:
+        """
+        Approve a submitted draft and save to final esg_responses.
+        Only drafts with status 'submitted' can be approved.
+        """
+        now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
+        
+        # Find the submitted draft
+        draft = await db[self.DRAFTS_COLLECTION].find_one(
+            {
+                "organization_id": org_id,
+                "framework_id": framework_id,
+                "disclosure_id": disclosure_id,
+                "reporting_period": reporting_period,
+                "user_id": draft_user_id,
+                "is_latest": True,
+                "draft_status": "submitted",
+            }
+        )
+        
+        if not draft:
+            return False
+        
+        # Save each question response to esg_responses (final)
+        draft_data = draft.get("draft_data", {})
+        for question_key, value in draft_data.items():
+            await db.esg_responses.update_one(
+                {
+                    "organization_id": org_id,
+                    "question_key": question_key,
+                    "reporting_period": reporting_period,
+                },
+                {
+                    "$set": {
+                        "value": value,
+                        "status": "approved",
+                        "updated_at": now_iso,
+                        "updated_by": draft_user_id,
+                        "updated_by_name": draft.get("user_name"),
+                        "updated_by_email": draft.get("user_email"),
+                        "approved_by": approver_user_id,
+                        "approved_by_name": approver_name,
+                        "approved_by_email": approver_email,
+                        "approved_at": now_iso,
+                    },
+                    "$setOnInsert": {
+                        "id": str(uuid.uuid4()),
+                        "organization_id": org_id,
+                        "question_key": question_key,
+                        "reporting_period": reporting_period,
+                        "created_at": now_iso,
+                    }
+                },
+                upsert=True
+            )
+        
+        # Update draft status to approved
+        await db[self.DRAFTS_COLLECTION].update_one(
+            {"id": draft["id"]},
+            {
+                "$set": {
+                    "draft_status": "approved",
+                    "updated_at": now,
+                    "approved_by": approver_user_id,
+                    "approved_by_name": approver_name,
+                    "approved_at": now,
+                }
+            }
+        )
+        
+        # Log to audit trail
+        audit_entry = {
+            "id": str(uuid.uuid4()),
+            "organization_id": org_id,
+            "framework_id": framework_id,
+            "disclosure_id": disclosure_id,
+            "reporting_period": reporting_period,
+            "action": "draft_approved",
+            "timestamp": now,
+            "performed_by": {
+                "user_id": approver_user_id,
+                "name": approver_name,
+                "email": approver_email,
+            },
+            "draft_id": draft["id"],
+            "draft_user_id": draft_user_id,
+            "change_details": {
+                "questions_approved": list(draft_data.keys()),
+            },
+        }
+        await db.question_audit_log.insert_one(audit_entry)
+        
+        return True
+
+    async def reject_draft(
+        self,
+        org_id: str,
+        framework_id: str,
+        disclosure_id: str,
+        reporting_period: str,
+        draft_user_id: str,
+        rejector_user_id: str,
+        rejector_name: str,
+        rejector_email: str,
+        rejection_reason: Optional[str] = None,
+    ) -> bool:
+        """
+        Reject a submitted draft. Returns it to 'draft' status for revision.
+        """
+        now = datetime.now(timezone.utc)
+        
+        # Find the submitted draft
+        draft = await db[self.DRAFTS_COLLECTION].find_one(
+            {
+                "organization_id": org_id,
+                "framework_id": framework_id,
+                "disclosure_id": disclosure_id,
+                "reporting_period": reporting_period,
+                "user_id": draft_user_id,
+                "is_latest": True,
+                "draft_status": "submitted",
+            }
+        )
+        
+        if not draft:
+            return False
+        
+        # Update draft status back to draft (for revision)
+        await db[self.DRAFTS_COLLECTION].update_one(
+            {"id": draft["id"]},
+            {
+                "$set": {
+                    "draft_status": "draft",
+                    "updated_at": now,
+                    "rejection_reason": rejection_reason,
+                    "rejected_by": rejector_user_id,
+                    "rejected_by_name": rejector_name,
+                    "rejected_at": now,
+                }
+            }
+        )
+        
+        # Log to audit trail
+        audit_entry = {
+            "id": str(uuid.uuid4()),
+            "organization_id": org_id,
+            "framework_id": framework_id,
+            "disclosure_id": disclosure_id,
+            "reporting_period": reporting_period,
+            "action": "draft_rejected",
+            "timestamp": now,
+            "performed_by": {
+                "user_id": rejector_user_id,
+                "name": rejector_name,
+                "email": rejector_email,
+            },
+            "draft_id": draft["id"],
+            "draft_user_id": draft_user_id,
+            "rejection_reason": rejection_reason,
+        }
+        await db.question_audit_log.insert_one(audit_entry)
+        
+        return True
+
+    async def get_draft_history(
+        self,
+        org_id: str,
+        framework_id: str,
+        disclosure_id: str,
+        reporting_period: str,
+        user_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get all draft versions for a disclosure (optionally filtered by user).
+        Shows the full history of drafts including all versions.
+        """
+        query = {
+            "organization_id": org_id,
+            "framework_id": framework_id,
+            "disclosure_id": disclosure_id,
+            "reporting_period": reporting_period,
+        }
+        if user_id:
+            query["user_id"] = user_id
+        
+        cursor = db[self.DRAFTS_COLLECTION].find(
+            query,
+            {"_id": 0}
+        ).sort("created_at", -1)
+        
+        return await cursor.to_list(100)
 
     async def get_responses(
         self,

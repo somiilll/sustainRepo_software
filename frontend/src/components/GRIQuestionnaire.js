@@ -65,6 +65,7 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
   const [reportingYears, setReportingYears] = useState([]);
   const [historyDialog, setHistoryDialog] = useState({ open: false, questionKey: null, history: [] });
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [userDrafts, setUserDrafts] = useState({});  // Drafts keyed by disclosure_id
 
   // Fetch organization data to get reporting_year_type
   useEffect(() => {
@@ -102,31 +103,54 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
     if (!reportingPeriod) return; // Wait for reporting period to be set
     try {
       setLoading(true);
-      const res = await axios.get(
-        `${API}/api/esg-questionnaire/gri/${section}`,
-        { 
-          headers: getAuthHeader(),
-          params: { reporting_period: reportingPeriod }
-        }
-      );
+      
+      // Fetch disclosures and user drafts in parallel
+      const [disclosuresRes, draftsRes] = await Promise.all([
+        axios.get(
+          `${API}/api/esg-questionnaire/gri/${section}`,
+          { 
+            headers: getAuthHeader(),
+            params: { reporting_period: reportingPeriod }
+          }
+        ),
+        axios.get(
+          `${API}/api/esg-questionnaire/drafts/gri/${section}`,
+          {
+            headers: getAuthHeader(),
+            params: { reporting_period: reportingPeriod }
+          }
+        ).catch(() => ({ data: { drafts: {} } }))  // Don't fail if no drafts
+      ]);
       
       // Group questions by disclosure
-      const grouped = groupByDisclosure(res.data.questions || []);
+      const grouped = groupByDisclosure(disclosuresRes.data.questions || []);
       setDisclosures(grouped);
       
-      // Set responses (including sub-question responses)
+      // Store user drafts keyed by disclosure_id
+      setUserDrafts(draftsRes.data.drafts || {});
+      
+      // Set responses - merge saved responses with draft data
       const initialResponses = {};
-      (res.data.questions || []).forEach(q => {
+      const drafts = draftsRes.data.drafts || {};
+      
+      (disclosuresRes.data.questions || []).forEach(q => {
+        const disclosureDraft = drafts[q.disclosure_id];
+        
         if (q.sub_questions && q.sub_questions.length > 0) {
           // Question has sub-parts
           q.sub_questions.forEach(sub => {
-            if (sub.response_value !== undefined && sub.response_value !== null) {
+            // First check draft, then saved response
+            if (disclosureDraft?.draft_data?.[sub.response_key] !== undefined) {
+              initialResponses[sub.response_key] = disclosureDraft.draft_data[sub.response_key];
+            } else if (sub.response_value !== undefined && sub.response_value !== null) {
               initialResponses[sub.response_key] = sub.response_value;
             }
           });
         } else {
-          // Simple question
-          if (q.response_value !== undefined && q.response_value !== null) {
+          // Simple question - check draft first, then saved response
+          if (disclosureDraft?.draft_data?.[q.question_key] !== undefined) {
+            initialResponses[q.question_key] = disclosureDraft.draft_data[q.question_key];
+          } else if (q.response_value !== undefined && q.response_value !== null) {
             initialResponses[q.question_key] = q.response_value;
           }
         }
@@ -190,7 +214,7 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
     }));
   };
 
-  // Save single response (with status)
+  // Save single response (with status) - Legacy method, kept for backwards compatibility
   const saveResponse = async (responseKey, status = 'saved') => {
     setSaving(prev => ({ ...prev, [responseKey]: true }));
     try {
@@ -215,7 +239,72 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
     }
   };
 
-  // Save all responses for a disclosure (with status)
+  // Save disclosure draft (per-user draft system)
+  const saveDraft = async (disclosure, draftStatus = 'draft') => {
+    setSaving(prev => ({ ...prev, [disclosure.disclosure_id]: true }));
+    try {
+      // Collect all question responses for this disclosure
+      const draftData = {};
+      disclosure.questions.forEach(q => {
+        if (q.sub_questions && q.sub_questions.length > 0) {
+          q.sub_questions.forEach(sub => {
+            const value = responses[sub.response_key];
+            if (value !== undefined && value !== '') {
+              draftData[sub.response_key] = value;
+            }
+          });
+        } else {
+          const value = responses[q.question_key];
+          if (value !== undefined && value !== '') {
+            draftData[q.question_key] = value;
+          }
+        }
+      });
+      
+      await axios.post(
+        `${API}/api/esg-questionnaire/draft`,
+        {
+          framework_id: 'gri',
+          disclosure_id: disclosure.disclosure_id,
+          reporting_period: reportingPeriod,
+          draft_data: draftData,
+          draft_status: draftStatus,
+        },
+        { headers: getAuthHeader() }
+      );
+      
+      const statusMessages = {
+        'editing': 'Auto-saved',
+        'draft': 'Saved as draft',
+        'submitted': 'Submitted for approval',
+      };
+      toast.success(`${disclosure.disclosure_id} ${statusMessages[draftStatus] || 'saved'}`);
+      
+      // Refresh to get updated statuses
+      await fetchDisclosures();
+    } catch (error) {
+      console.error('Failed to save draft:', error);
+      toast.error('Failed to save draft');
+    } finally {
+      setSaving(prev => ({ ...prev, [disclosure.disclosure_id]: false }));
+    }
+  };
+
+  // Submit draft for approval
+  const submitForApproval = async (disclosure) => {
+    setSaving(prev => ({ ...prev, [disclosure.disclosure_id]: true }));
+    try {
+      // First save the current state as submitted
+      await saveDraft(disclosure, 'submitted');
+    } catch (error) {
+      console.error('Failed to submit for approval:', error);
+      toast.error('Failed to submit for approval');
+    } finally {
+      setSaving(prev => ({ ...prev, [disclosure.disclosure_id]: false }));
+    }
+  };
+
+  // Legacy saveDisclosure for backwards compatibility (still saves to esg_responses)
   const saveDisclosure = async (disclosure, status = 'saved') => {
     setSaving(prev => ({ ...prev, [disclosure.disclosure_id]: true }));
     try {
@@ -289,16 +378,42 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
     }
   };
 
-  // Get status badge for a question
+  // Get status badge for a question or disclosure
   const getStatusBadge = (status) => {
     switch (status) {
+      case 'approved':
+        return <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle2 className="w-3 h-3 mr-1" />Approved</Badge>;
       case 'saved':
         return <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle2 className="w-3 h-3 mr-1" />Saved</Badge>;
+      case 'submitted':
+        return <Badge className="bg-blue-100 text-blue-800 border-blue-200"><Send className="w-3 h-3 mr-1" />Submitted</Badge>;
       case 'draft':
         return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200"><FileEdit className="w-3 h-3 mr-1" />Draft</Badge>;
+      case 'editing':
+        return <Badge className="bg-orange-100 text-orange-800 border-orange-200"><Clock className="w-3 h-3 mr-1" />Editing</Badge>;
       default:
         return <Badge className="bg-gray-100 text-gray-600 border-gray-200"><Circle className="w-3 h-3 mr-1" />Pending</Badge>;
     }
+  };
+
+  // Get disclosure status from user draft
+  const getDisclosureStatus = (disclosureId) => {
+    const draft = userDrafts[disclosureId];
+    if (draft) {
+      return draft.draft_status;
+    }
+    // Check if any questions have saved responses
+    const disclosure = disclosures.find(d => d.disclosure_id === disclosureId);
+    if (disclosure) {
+      const hasAnyResponse = disclosure.questions.some(q => {
+        if (q.sub_questions?.length > 0) {
+          return q.sub_questions.some(sub => sub.response_status === 'saved' || sub.response_status === 'approved');
+        }
+        return q.status === 'saved' || q.status === 'approved';
+      });
+      if (hasAnyResponse) return 'saved';
+    }
+    return 'pending';
   };
 
   // Format date for display
@@ -616,14 +731,31 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
               {/* Disclosure Content */}
               <CollapsibleContent>
                 <div className="border-t border-stone-100 p-4 space-y-6 bg-stone-50/50">
+                  {/* Draft Status Banner */}
+                  {userDrafts[disclosure.disclosure_id] && (
+                    <div className={`p-3 rounded-lg flex items-center justify-between ${
+                      userDrafts[disclosure.disclosure_id].draft_status === 'submitted' 
+                        ? 'bg-blue-50 border border-blue-200'
+                        : 'bg-yellow-50 border border-yellow-200'
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        {getStatusBadge(userDrafts[disclosure.disclosure_id].draft_status)}
+                        <span className="text-sm text-text-secondary">
+                          Last updated: {formatDate(userDrafts[disclosure.disclosure_id].updated_at)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  
                   {disclosure.questions.map((question, qIndex) => renderQuestion(question, qIndex))}
 
                   {/* Save Buttons */}
                   {isEditing && (
                     <div className="pt-4 border-t border-stone-200 flex justify-end gap-3">
+                      {/* Save as Draft - Uses new per-user draft system */}
                       <Button
                         variant="outline"
-                        onClick={() => saveDisclosure(disclosure, 'draft')}
+                        onClick={() => saveDraft(disclosure, 'draft')}
                         disabled={saving[disclosure.disclosure_id]}
                         className="border-yellow-300 text-yellow-700 hover:bg-yellow-50"
                         data-testid={`save-draft-${disclosure.disclosure_id}`}
@@ -634,16 +766,35 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
                           <><FileEdit className="w-4 h-4 mr-2" /> Save as Draft</>
                         )}
                       </Button>
+                      
+                      {/* Submit for Approval - If draft exists */}
+                      {userDrafts[disclosure.disclosure_id]?.draft_status === 'draft' && (
+                        <Button
+                          variant="outline"
+                          onClick={() => submitForApproval(disclosure)}
+                          disabled={saving[disclosure.disclosure_id]}
+                          className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                          data-testid={`submit-${disclosure.disclosure_id}`}
+                        >
+                          {saving[disclosure.disclosure_id] ? (
+                            <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting...</>
+                          ) : (
+                            <><Send className="w-4 h-4 mr-2" /> Submit for Approval</>
+                          )}
+                        </Button>
+                      )}
+                      
+                      {/* Direct Save - For admins or final save */}
                       <Button
                         onClick={() => saveDisclosure(disclosure, 'saved')}
                         disabled={saving[disclosure.disclosure_id]}
-                        className="bg-blue-600 hover:bg-blue-700"
+                        className="bg-green-600 hover:bg-green-700"
                         data-testid={`save-${disclosure.disclosure_id}`}
                       >
                         {saving[disclosure.disclosure_id] ? (
                           <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</>
                         ) : (
-                          <><Save className="w-4 h-4 mr-2" /> Save</>
+                          <><Save className="w-4 h-4 mr-2" /> Save Final</>
                         )}
                       </Button>
                     </div>
