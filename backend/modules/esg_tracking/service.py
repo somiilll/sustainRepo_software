@@ -357,11 +357,14 @@ class TrackingService:
         stale_cutoff = now - timedelta(days=stale_threshold)
         due_soon_cutoff = now + timedelta(days=DUE_SOON_DAYS)
         
-        # Group configs by section (brsr_principle, brsr_section, or topic)
+        # Group configs by section (brsr_principle, brsr_section, topic, or disclosure_id for GRI)
         section_configs: Dict[str, List[dict]] = {}
         for config in configs:
-            # Use brsr_principle first, then brsr_section, then topic
-            sec_id = config.get("brsr_principle") or config.get("brsr_section") or config.get("topic") or "Other"
+            # For GRI framework, group by disclosure_id; for BRSR use brsr_principle/brsr_section
+            if framework_id and framework_id.upper() == "GRI":
+                sec_id = config.get("disclosure_id") or config.get("topic") or "Other"
+            else:
+                sec_id = config.get("brsr_principle") or config.get("brsr_section") or config.get("topic") or "Other"
             if sec_id not in section_configs:
                 section_configs[sec_id] = []
             section_configs[sec_id].append(config)

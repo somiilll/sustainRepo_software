@@ -516,7 +516,7 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
     }
   };
 
-  // Calculate completion status for a disclosure
+  // Calculate completion status for a disclosure (only count saved/approved, not drafts)
   const getDisclosureCompletion = (disclosure) => {
     let total = 0;
     let completed = 0;
@@ -525,11 +525,11 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
       if (q.sub_questions && q.sub_questions.length > 0) {
         total += q.sub_questions.length;
         completed += q.sub_questions.filter(sub => 
-          responses[sub.response_key] && responses[sub.response_key].trim() !== ''
+          sub.response_status === 'saved' || sub.response_status === 'approved'
         ).length;
       } else {
         total += 1;
-        if (responses[q.question_key] && responses[q.question_key].trim() !== '') {
+        if (q.status === 'saved' || q.status === 'approved') {
           completed += 1;
         }
       }
