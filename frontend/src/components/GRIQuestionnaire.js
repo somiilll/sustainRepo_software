@@ -229,6 +229,15 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
         { headers: getAuthHeader() }
       );
       
+      // Check if submitted for approval (Phase 2)
+      if (response.data.submitted_for_approval) {
+        toast.info('Submitted for approval. Awaiting approver review.', {
+          duration: 4000,
+        });
+        await fetchDisclosures();
+        return;
+      }
+      
       // Check if any drafts were cleared (first save wins)
       if (response.data.drafts_cleared > 0) {
         toast.success(`Response saved. ${response.data.drafts_cleared} other draft(s) cleared.`);
@@ -475,12 +484,18 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
         return <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle2 className="w-3 h-3 mr-1" />Approved</Badge>;
       case 'saved':
         return <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle2 className="w-3 h-3 mr-1" />Saved</Badge>;
+      case 'pending_approval':
+        return <Badge className="bg-purple-100 text-purple-800 border-purple-200"><Clock className="w-3 h-3 mr-1" />Pending Approval</Badge>;
       case 'submitted':
         return <Badge className="bg-blue-100 text-blue-800 border-blue-200"><Send className="w-3 h-3 mr-1" />Submitted</Badge>;
       case 'draft':
         return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200"><FileEdit className="w-3 h-3 mr-1" />Draft</Badge>;
       case 'editing':
         return <Badge className="bg-orange-100 text-orange-800 border-orange-200"><Clock className="w-3 h-3 mr-1" />Editing</Badge>;
+      case 'rejected':
+        return <Badge className="bg-red-100 text-red-800 border-red-200"><Circle className="w-3 h-3 mr-1" />Rejected</Badge>;
+      case 'superseded':
+        return <Badge className="bg-gray-100 text-gray-500 border-gray-200"><Circle className="w-3 h-3 mr-1" />Superseded</Badge>;
       default:
         return <Badge className="bg-gray-100 text-gray-600 border-gray-200"><Circle className="w-3 h-3 mr-1" />Pending</Badge>;
     }

@@ -127,6 +127,7 @@ async def get_gri_disclosures(
     """
     Get GRI disclosures with responses for a section.
     Returns questions grouped by disclosure with completion status.
+    Also includes pending submission status for the current user.
     """
     org_id = current_user.get("organization_id")
     if not org_id:
@@ -135,7 +136,8 @@ async def get_gri_disclosures(
     result = await esg_questionnaire_service.get_gri_disclosures(
         org_id=org_id,
         section=section,
-        reporting_period=reporting_period
+        reporting_period=reporting_period,
+        user_id=current_user.get("id")
     )
     
     return result
@@ -200,6 +202,18 @@ async def save_gri_response(
             }
         )
     
+    # Handle submitted for approval response
+    if result.get("submitted_for_approval"):
+        return {
+            "message": result.get("message", "Submitted for approval"),
+            "question_key": question_key,
+            "status": "pending_approval",
+            "submitted_for_approval": True,
+            "submission_id": result.get("submission_id"),
+            "success": True,
+            "drafts_cleared": 0
+        }
+    
     # Return the actual status from the service
     final_status = result.get("status", actual_status)
     
@@ -214,9 +228,175 @@ async def save_gri_response(
         "message": message,
         "question_key": question_key,
         "status": final_status,
+        "submitted_for_approval": False,
         "success": result.get("success", True),
         "drafts_cleared": result.get("drafts_cleared", 0)
     }
+
+
+# =============================================================================
+# Submission Management Endpoints (Phase 2: Approval Queue)
+# =============================================================================
+
+@router.get("/submissions/pending")
+async def get_pending_submissions(
+    reporting_period: Optional[str] = Query(None, description="Filter by reporting period"),
+    section: Optional[str] = Query(None, description="Filter by section (environment, social, governance)"),
+    current_user: dict = Depends(get_admin_user)
+):
+    """
+    Get all pending submissions for the organization.
+    Used by approvers to see their approval queue.
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    submissions = await esg_questionnaire_service.get_all_pending_submissions_for_org(
+        org_id=org_id,
+        reporting_period=reporting_period,
+        section=section,
+    )
+    
+    return {
+        "submissions": submissions,
+        "total": len(submissions),
+        "filters": {
+            "reporting_period": reporting_period,
+            "section": section,
+        }
+    }
+
+
+@router.get("/submissions/{question_key}")
+async def get_question_submissions(
+    question_key: str,
+    reporting_period: str = Query(..., description="Reporting period"),
+    current_user: dict = Depends(get_admin_user)
+):
+    """
+    Get all pending submissions for a specific question.
+    Used by approvers to compare submissions and select/merge.
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    submissions = await esg_questionnaire_service.get_pending_submissions(
+        org_id=org_id,
+        question_key=question_key,
+        reporting_period=reporting_period,
+    )
+    
+    return {
+        "question_key": question_key,
+        "reporting_period": reporting_period,
+        "submissions": submissions,
+        "total": len(submissions)
+    }
+
+
+@router.get("/submissions/status/{question_key}")
+async def get_user_submission_status(
+    question_key: str,
+    reporting_period: str = Query(..., description="Reporting period"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get the current user's submission status for a question.
+    Shows if user has a pending/approved/rejected submission.
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    submission = await esg_questionnaire_service.get_user_submission_status(
+        org_id=org_id,
+        question_key=question_key,
+        reporting_period=reporting_period,
+        user_id=current_user.get("id"),
+    )
+    
+    return {
+        "question_key": question_key,
+        "has_submission": submission is not None,
+        "submission": submission,
+    }
+
+
+@router.post("/submissions/approve")
+async def approve_submission(
+    data: dict,
+    current_user: dict = Depends(get_admin_user)
+):
+    """
+    Approve a submission and save to final esg_responses.
+    
+    Expects: {
+        submission_id: "uuid",
+        merged_value: "optional - use this instead of submission value"
+    }
+    
+    If merged_value is provided, the approver has edited/merged the content.
+    All other pending submissions for the same question are superseded.
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    submission_id = data.get("submission_id")
+    merged_value = data.get("merged_value")
+    
+    if not submission_id:
+        raise HTTPException(status_code=400, detail="submission_id is required")
+    
+    result = await esg_questionnaire_service.approve_submission(
+        org_id=org_id,
+        submission_id=submission_id,
+        approver_user_id=current_user.get("id"),
+        approver_user_name=current_user.get("full_name") or current_user.get("name") or current_user.get("email"),
+        approver_user_email=current_user.get("email"),
+        merged_value=merged_value,
+    )
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=404, detail=result.get("message"))
+    
+    return result
+
+
+@router.post("/submissions/reject/{submission_id}")
+async def reject_submission(
+    submission_id: str,
+    data: dict = None,
+    current_user: dict = Depends(get_admin_user)
+):
+    """
+    Reject a specific submission.
+    The user can revise and resubmit.
+    
+    Expects: { rejection_reason: "optional reason" }
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    data = data or {}
+    rejection_reason = data.get("rejection_reason")
+    
+    result = await esg_questionnaire_service.reject_submission(
+        org_id=org_id,
+        submission_id=submission_id,
+        rejector_user_id=current_user.get("id"),
+        rejector_user_name=current_user.get("full_name") or current_user.get("name") or current_user.get("email"),
+        rejector_user_email=current_user.get("email"),
+        rejection_reason=rejection_reason,
+    )
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=404, detail=result.get("message"))
+    
+    return result
 
 
 @router.get("/history/{question_key}")

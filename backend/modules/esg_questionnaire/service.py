@@ -130,11 +130,13 @@ class ESGQuestionnaireService:
         org_id: str,
         section: str,
         reporting_period: str,
+        user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Get GRI disclosures with responses for a section.
         Returns questions with their current responses.
         Supports sub_questions with individual response fields.
+        Also includes pending submission status for the user.
         """
         # Fetch GRI question configs for this section
         configs = await self._configs.find(
@@ -177,6 +179,25 @@ class ESGQuestionnaireService:
         responses_list = await responses_cursor.to_list(1000)
         responses_map = {r["question_key"]: r for r in responses_list}
         
+        # Fetch pending submissions for all questions (to show pending_approval status)
+        submissions_cursor = db[self.SUBMISSIONS_COLLECTION].find(
+            {
+                "organization_id": org_id,
+                "question_key": {"$in": all_response_keys},
+                "reporting_period": reporting_period,
+                "status": "pending_approval",
+            },
+            {"_id": 0, "question_key": 1, "submitted_by_user_id": 1, "status": 1}
+        )
+        submissions_list = await submissions_cursor.to_list(1000)
+        # Map: question_key -> list of pending submissions
+        submissions_map = {}
+        for sub in submissions_list:
+            qk = sub["question_key"]
+            if qk not in submissions_map:
+                submissions_map[qk] = []
+            submissions_map[qk].append(sub)
+        
         # Build questions list with responses
         questions = []
         for config in configs:
@@ -203,35 +224,63 @@ class ESGQuestionnaireService:
                 question_data["sub_questions"] = []
                 has_any_saved = False
                 has_any_draft = False
+                has_any_pending_approval = False
                 for sub in sub_questions:
                     sub_response_key = f"{q_key}_{sub['sub_key']}"
                     sub_response = responses_map.get(sub_response_key, {})
+                    sub_submissions = submissions_map.get(sub_response_key, [])
+                    
+                    # Determine status: pending_approval takes precedence if user has a pending submission
                     sub_status = sub_response.get("status")
-                    if sub_status == "saved":
+                    user_has_pending = any(s["submitted_by_user_id"] == user_id for s in sub_submissions) if user_id else False
+                    
+                    if user_has_pending:
+                        sub_status = "pending_approval"
+                        has_any_pending_approval = True
+                    elif sub_status == "saved":
                         has_any_saved = True
                     elif sub_status == "draft":
                         has_any_draft = True
+                    
                     question_data["sub_questions"].append({
                         "sub_key": sub["sub_key"],
                         "label": sub["label"],
                         "response_key": sub_response_key,
                         "response_value": sub_response.get("value"),
                         "response_status": sub_status,
+                        "pending_submissions_count": len(sub_submissions),
                     })
+                
                 # Overall status for the parent question
-                if has_any_saved:
+                if has_any_pending_approval:
+                    question_data["status"] = "pending_approval"
+                elif has_any_saved:
                     question_data["status"] = "saved"
                 elif has_any_draft:
                     question_data["status"] = "draft"
                 else:
                     question_data["status"] = "pending"
+                    
+                question_data["pending_submissions_count"] = sum(
+                    len(submissions_map.get(f"{q_key}_{sub['sub_key']}", []))
+                    for sub in sub_questions
+                )
             else:
                 # Simple question with single response
                 response = responses_map.get(q_key, {})
+                pending_submissions = submissions_map.get(q_key, [])
+                user_has_pending = any(s["submitted_by_user_id"] == user_id for s in pending_submissions) if user_id else False
+                
                 question_data["response_value"] = response.get("value")
-                question_data["status"] = response.get("status", "pending") if response else "pending"
+                
+                if user_has_pending:
+                    question_data["status"] = "pending_approval"
+                else:
+                    question_data["status"] = response.get("status", "pending") if response else "pending"
+                
                 question_data["updated_at"] = response.get("updated_at")
                 question_data["updated_by_name"] = response.get("updated_by_name")
+                question_data["pending_submissions_count"] = len(pending_submissions)
             
             questions.append(question_data)
         
@@ -378,6 +427,413 @@ class ESGQuestionnaireService:
         
         return deleted_count
 
+    # =========================================================================
+    # Submission Management (Phase 2: Approval Queue)
+    # =========================================================================
+    
+    SUBMISSIONS_COLLECTION = "esg_response_submissions"
+
+    async def _create_submission_for_approval(
+        self,
+        org_id: str,
+        question_key: str,
+        value: Any,
+        reporting_period: str,
+        user_id: str,
+        user_name: str,
+        user_email: str,
+    ) -> dict:
+        """
+        Create a submission entry for approver review.
+        Called when approval workflow is ON and approver is assigned.
+        
+        Multiple users can submit - all submissions go to the queue.
+        """
+        now = datetime.now(timezone.utc)
+        submission_id = str(uuid.uuid4())
+        
+        # Check if user already has a pending submission for this question
+        existing_submission = await db[self.SUBMISSIONS_COLLECTION].find_one({
+            "organization_id": org_id,
+            "question_key": question_key,
+            "reporting_period": reporting_period,
+            "submitted_by_user_id": user_id,
+            "status": "pending_approval",
+        })
+        
+        if existing_submission:
+            # Update existing submission
+            await db[self.SUBMISSIONS_COLLECTION].update_one(
+                {"id": existing_submission["id"]},
+                {
+                    "$set": {
+                        "value": value,
+                        "updated_at": now,
+                    }
+                }
+            )
+            submission_id = existing_submission["id"]
+        else:
+            # Create new submission
+            submission_doc = {
+                "id": submission_id,
+                "organization_id": org_id,
+                "question_key": question_key,
+                "reporting_period": reporting_period,
+                "submitted_by_user_id": user_id,
+                "submitted_by_user_name": user_name,
+                "submitted_by_user_email": user_email,
+                "submitted_at": now,
+                "value": value,
+                "status": "pending_approval",
+                "approval_request_id": None,
+                "approved_by_user_id": None,
+                "approved_by_user_name": None,
+                "approved_at": None,
+                "rejection_reason": None,
+                "created_at": now,
+                "updated_at": now,
+            }
+            await db[self.SUBMISSIONS_COLLECTION].insert_one(submission_doc)
+        
+        # Log to audit trail
+        audit_entry = {
+            "id": str(uuid.uuid4()),
+            "question_key": question_key,
+            "reporting_period": reporting_period,
+            "organization_id": org_id,
+            "action": "submitted_for_approval",
+            "timestamp": now,
+            "performed_by": {
+                "user_id": user_id,
+                "name": user_name,
+                "email": user_email,
+            },
+            "change_details": {
+                "submission_id": submission_id,
+                "value": value,
+            },
+        }
+        await db.question_audit_log.insert_one(audit_entry)
+        
+        return {
+            "submission_id": submission_id,
+            "status": "pending_approval",
+            "is_update": existing_submission is not None,
+        }
+
+    async def get_pending_submissions(
+        self,
+        org_id: str,
+        question_key: str,
+        reporting_period: str,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get all pending submissions for a question.
+        Used by approvers to review and select/merge submissions.
+        """
+        cursor = db[self.SUBMISSIONS_COLLECTION].find(
+            {
+                "organization_id": org_id,
+                "question_key": question_key,
+                "reporting_period": reporting_period,
+                "status": "pending_approval",
+            },
+            {"_id": 0}
+        ).sort("submitted_at", -1)
+        
+        return await cursor.to_list(100)
+
+    async def get_all_pending_submissions_for_org(
+        self,
+        org_id: str,
+        reporting_period: Optional[str] = None,
+        section: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get all pending submissions for an organization.
+        Optionally filter by reporting period and section.
+        Used by approvers to see their approval queue.
+        """
+        query = {
+            "organization_id": org_id,
+            "status": "pending_approval",
+        }
+        
+        if reporting_period:
+            query["reporting_period"] = reporting_period
+        
+        cursor = db[self.SUBMISSIONS_COLLECTION].find(query, {"_id": 0}).sort("submitted_at", -1)
+        submissions = await cursor.to_list(500)
+        
+        # If section filter, get question configs and filter
+        if section:
+            # Get all question keys for this section
+            configs = await self._configs.find(
+                {"section": section},
+                {"_id": 0, "question_key": 1}
+            ).to_list(500)
+            section_question_keys = {c["question_key"] for c in configs}
+            
+            # Also include sub-question keys (question_key + "_" + sub_key)
+            submissions = [
+                s for s in submissions 
+                if s["question_key"] in section_question_keys or 
+                   any(s["question_key"].startswith(qk + "_") for qk in section_question_keys)
+            ]
+        
+        # Group by question_key for easier display
+        grouped = {}
+        for sub in submissions:
+            qk = sub["question_key"]
+            if qk not in grouped:
+                grouped[qk] = {
+                    "question_key": qk,
+                    "reporting_period": sub["reporting_period"],
+                    "submissions": []
+                }
+            grouped[qk]["submissions"].append(sub)
+        
+        return list(grouped.values())
+
+    async def approve_submission(
+        self,
+        org_id: str,
+        submission_id: str,
+        approver_user_id: str,
+        approver_user_name: str,
+        approver_user_email: str,
+        merged_value: Optional[str] = None,
+    ) -> dict:
+        """
+        Approve a submission and save to final esg_responses.
+        
+        If merged_value is provided, use that instead of the submission's value.
+        This supports:
+        - Approving a single submission as-is
+        - Approving with a merged/edited value
+        
+        Also rejects all other pending submissions for the same question.
+        """
+        now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
+        
+        # Find the submission
+        submission = await db[self.SUBMISSIONS_COLLECTION].find_one(
+            {
+                "id": submission_id,
+                "organization_id": org_id,
+                "status": "pending_approval",
+            },
+            {"_id": 0}
+        )
+        
+        if not submission:
+            return {
+                "success": False,
+                "message": "Submission not found or already processed"
+            }
+        
+        question_key = submission["question_key"]
+        reporting_period = submission["reporting_period"]
+        final_value = merged_value if merged_value is not None else submission["value"]
+        
+        # Save to final esg_responses
+        await db.esg_responses.update_one(
+            {
+                "organization_id": org_id,
+                "question_key": question_key,
+                "reporting_period": reporting_period,
+            },
+            {
+                "$set": {
+                    "value": final_value,
+                    "status": "approved",
+                    "updated_at": now_iso,
+                    "updated_by": submission["submitted_by_user_id"],
+                    "updated_by_name": submission["submitted_by_user_name"],
+                    "updated_by_email": submission["submitted_by_user_email"],
+                    "approved_by": approver_user_id,
+                    "approved_by_name": approver_user_name,
+                    "approved_at": now_iso,
+                },
+                "$setOnInsert": {
+                    "id": str(uuid.uuid4()),
+                    "organization_id": org_id,
+                    "question_key": question_key,
+                    "reporting_period": reporting_period,
+                    "created_at": now_iso,
+                }
+            },
+            upsert=True
+        )
+        
+        # Mark this submission as approved
+        await db[self.SUBMISSIONS_COLLECTION].update_one(
+            {"id": submission_id},
+            {
+                "$set": {
+                    "status": "approved",
+                    "approved_by_user_id": approver_user_id,
+                    "approved_by_user_name": approver_user_name,
+                    "approved_at": now,
+                    "final_value": final_value,
+                    "updated_at": now,
+                }
+            }
+        )
+        
+        # Reject all other pending submissions for this question
+        other_submissions = await db[self.SUBMISSIONS_COLLECTION].update_many(
+            {
+                "organization_id": org_id,
+                "question_key": question_key,
+                "reporting_period": reporting_period,
+                "status": "pending_approval",
+                "id": {"$ne": submission_id},
+            },
+            {
+                "$set": {
+                    "status": "superseded",
+                    "rejection_reason": f"Another submission was approved by {approver_user_name}",
+                    "updated_at": now,
+                }
+            }
+        )
+        
+        # Clear all drafts for this question
+        await self._clear_other_users_drafts(
+            org_id, question_key, reporting_period, submission["submitted_by_user_id"]
+        )
+        
+        # Log to audit trail
+        audit_entry = {
+            "id": str(uuid.uuid4()),
+            "question_key": question_key,
+            "reporting_period": reporting_period,
+            "organization_id": org_id,
+            "action": "submission_approved",
+            "timestamp": now,
+            "performed_by": {
+                "user_id": approver_user_id,
+                "name": approver_user_name,
+                "email": approver_user_email,
+            },
+            "change_details": {
+                "submission_id": submission_id,
+                "submitted_by": submission["submitted_by_user_name"],
+                "original_value": submission["value"],
+                "final_value": final_value,
+                "was_merged": merged_value is not None,
+                "other_submissions_superseded": other_submissions.modified_count,
+            },
+        }
+        await db.question_audit_log.insert_one(audit_entry)
+        
+        return {
+            "success": True,
+            "message": "Submission approved",
+            "question_key": question_key,
+            "final_value": final_value,
+            "other_submissions_superseded": other_submissions.modified_count,
+        }
+
+    async def reject_submission(
+        self,
+        org_id: str,
+        submission_id: str,
+        rejector_user_id: str,
+        rejector_user_name: str,
+        rejector_user_email: str,
+        rejection_reason: Optional[str] = None,
+    ) -> dict:
+        """
+        Reject a single submission.
+        The user can revise and resubmit.
+        """
+        now = datetime.now(timezone.utc)
+        
+        # Find the submission
+        submission = await db[self.SUBMISSIONS_COLLECTION].find_one(
+            {
+                "id": submission_id,
+                "organization_id": org_id,
+                "status": "pending_approval",
+            },
+            {"_id": 0}
+        )
+        
+        if not submission:
+            return {
+                "success": False,
+                "message": "Submission not found or already processed"
+            }
+        
+        # Mark as rejected
+        await db[self.SUBMISSIONS_COLLECTION].update_one(
+            {"id": submission_id},
+            {
+                "$set": {
+                    "status": "rejected",
+                    "rejection_reason": rejection_reason,
+                    "rejected_by_user_id": rejector_user_id,
+                    "rejected_by_user_name": rejector_user_name,
+                    "rejected_at": now,
+                    "updated_at": now,
+                }
+            }
+        )
+        
+        # Log to audit trail
+        audit_entry = {
+            "id": str(uuid.uuid4()),
+            "question_key": submission["question_key"],
+            "reporting_period": submission["reporting_period"],
+            "organization_id": org_id,
+            "action": "submission_rejected",
+            "timestamp": now,
+            "performed_by": {
+                "user_id": rejector_user_id,
+                "name": rejector_user_name,
+                "email": rejector_user_email,
+            },
+            "change_details": {
+                "submission_id": submission_id,
+                "submitted_by": submission["submitted_by_user_name"],
+                "rejection_reason": rejection_reason,
+            },
+        }
+        await db.question_audit_log.insert_one(audit_entry)
+        
+        return {
+            "success": True,
+            "message": "Submission rejected",
+            "submission_id": submission_id,
+        }
+
+    async def get_user_submission_status(
+        self,
+        org_id: str,
+        question_key: str,
+        reporting_period: str,
+        user_id: str,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get the current user's submission status for a question.
+        Returns the latest submission by this user if any.
+        """
+        submission = await db[self.SUBMISSIONS_COLLECTION].find_one(
+            {
+                "organization_id": org_id,
+                "question_key": question_key,
+                "reporting_period": reporting_period,
+                "submitted_by_user_id": user_id,
+            },
+            {"_id": 0},
+            sort=[("submitted_at", -1)]
+        )
+        return submission
+
     async def save_gri_response(
         self,
         org_id: str,
@@ -392,19 +848,22 @@ class ESGQuestionnaireService:
         """
         Save a single GRI disclosure response.
         
-        Implements "first save wins" logic:
-        - If no approval workflow OR no approver assigned:
-          - First user to Save wins
-          - Other users' drafts are cleared
-          - Subsequent saves by other users are blocked
-        - If approval workflow ON and approver assigned:
-          - (Phase 2: submissions go to approver queue)
+        Workflow logic:
+        1. If no approval workflow OR no approver assigned → "first save wins"
+           - First user to Save wins
+           - Other users' drafts are cleared
+           - Subsequent saves by other users are blocked
+        2. If approval workflow ON and approver assigned → submissions go to approver queue
+           - All saves create/update submissions in pending_approval state
+           - Approver reviews and approves one (or merges)
+           - Only approved submission goes to esg_responses
         
         Returns dict with:
           - success: bool
           - blocked: bool (True if blocked by first-save-wins)
           - blocked_by: str (name of user who saved first, if blocked)
-          - status: str (actual status saved)
+          - submitted_for_approval: bool (True if went to approval queue)
+          - status: str (actual status)
         """
         now = datetime.now(timezone.utc)
         now_iso = now.isoformat()
@@ -430,13 +889,14 @@ class ESGQuestionnaireService:
         previous_user_name = previous_response.get("updated_by_name") if previous_response else None
         is_new = previous_response is None
         
-        # Check if "first save wins" applies (only for actual "saved" status, not drafts)
+        # Check workflow logic (only for actual "saved" status, not drafts or empty)
         if status == "saved" and not value_is_empty:
             use_first_save_wins = await self._should_use_first_save_wins(
                 org_id, question_key, reporting_period
             )
             
             if use_first_save_wins:
+                # FIRST SAVE WINS LOGIC
                 # Check if already saved by a different user
                 if (previous_response 
                     and previous_status == "saved" 
@@ -448,11 +908,35 @@ class ESGQuestionnaireService:
                         "blocked": True,
                         "blocked_by": previous_user_name or "another user",
                         "blocked_by_user_id": previous_user_id,
+                        "submitted_for_approval": False,
                         "status": previous_status,
                         "message": f"Already saved by {previous_user_name or 'another user'}. First save wins."
                     }
+            else:
+                # APPROVAL WORKFLOW LOGIC (Phase 2)
+                # Route to submission queue instead of direct save
+                submission_result = await self._create_submission_for_approval(
+                    org_id=org_id,
+                    question_key=question_key,
+                    value=value,
+                    reporting_period=reporting_period,
+                    user_id=changed_by_user_id,
+                    user_name=changed_by_user_name,
+                    user_email=changed_by_user_email,
+                )
+                
+                return {
+                    "success": True,
+                    "blocked": False,
+                    "blocked_by": None,
+                    "submitted_for_approval": True,
+                    "submission_id": submission_result["submission_id"],
+                    "status": "pending_approval",
+                    "drafts_cleared": 0,
+                    "message": "Submitted for approval" if not submission_result["is_update"] else "Submission updated"
+                }
         
-        # Proceed with save
+        # Direct save to esg_responses (for first-save-wins winners, drafts, or empty values)
         result = await db.esg_responses.update_one(
             {
                 "organization_id": org_id,
@@ -526,6 +1010,7 @@ class ESGQuestionnaireService:
             "success": result.acknowledged,
             "blocked": False,
             "blocked_by": None,
+            "submitted_for_approval": False,
             "status": status,
             "drafts_cleared": drafts_cleared,
             "message": "Response saved successfully"
