@@ -399,7 +399,7 @@ async def get_dashboard_metrics(
             start_month = int(start_date[5:7])
             fy_start = start_year if start_month >= 4 else start_year - 1
             financial_year = f"FY {fy_start}-{str(fy_start + 1)[-2:]}"
-        except:
+        except (ValueError, IndexError):
             pass
     
     # Get metrics from service
@@ -407,3 +407,173 @@ async def get_dashboard_metrics(
     metrics = await service.get_dashboard_metrics(org_id, fac_list, financial_year, start_date, end_date)
     
     return metrics
+
+
+# =============================================================================
+# Tracker Endpoints (Records Assignment & Workflow)
+# =============================================================================
+
+@router.get("/tracker/{section}")
+async def get_tracker_assignments(
+    section: ESG_SECTION,
+    reporting_period: Optional[str] = None,
+    framework: Optional[str] = None,
+    category: Optional[str] = None,
+    facility_id: Optional[str] = None,
+    assigned_to: Optional[str] = None,
+    status: Optional[str] = None,
+    staleness: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get tracker data for record assignments.
+    Shows category assignments with completion, staleness, and workflow status.
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    assignments = await esg_records_service.get_tracker_assignments(
+        org_id=org_id,
+        section=section,
+        reporting_period=reporting_period,
+        framework=framework,
+        category=category,
+        facility_id=facility_id,
+        assigned_to=assigned_to,
+        status=status,
+        staleness=staleness,
+    )
+    
+    return {"assignments": assignments, "total": len(assignments)}
+
+
+@router.get("/tracker/{section}/stats")
+async def get_tracker_stats(
+    section: ESG_SECTION,
+    reporting_period: Optional[str] = None,
+    framework: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get tracker statistics for a section."""
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    stats = await esg_records_service.get_tracker_stats(
+        org_id=org_id,
+        section=section,
+        reporting_period=reporting_period,
+        framework=framework,
+    )
+    
+    return stats
+
+
+@router.post("/assignments")
+async def create_record_assignment(
+    data: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Create or update a record category assignment.
+    Supports multiple assignments per category (multi-user).
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    user_id = current_user.get("id")
+    
+    assignment = await esg_records_service.create_assignment(
+        org_id=org_id,
+        assigned_by_user_id=user_id,
+        data=data,
+    )
+    
+    return {"message": "Assignment saved", "assignment": assignment}
+
+
+@router.post("/assignments/{assignment_id}/remind")
+async def send_assignment_reminder(
+    assignment_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Send a reminder for an assignment."""
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    # TODO: Implement reminder sending (email/notification)
+    return {"message": "Reminder sent", "assignment_id": assignment_id}
+
+
+# =============================================================================
+# Draft Endpoints
+# =============================================================================
+
+@router.get("/drafts/{section}")
+async def get_user_drafts(
+    section: ESG_SECTION,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get current user's drafts for a section."""
+    org_id = current_user.get("organization_id")
+    user_id = current_user.get("id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    drafts = await esg_records_service.get_user_drafts(
+        org_id=org_id,
+        section=section,
+        user_id=user_id,
+    )
+    
+    return {"drafts": drafts, "total": len(drafts)}
+
+
+@router.post("/records/{section}/{record_id}/draft")
+async def save_record_as_draft(
+    section: ESG_SECTION,
+    record_id: str,
+    data: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """Save a record as draft for the current user."""
+    org_id = current_user.get("organization_id")
+    user_id = current_user.get("id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    draft = await esg_records_service.save_as_draft(
+        org_id=org_id,
+        section=section,
+        record_id=record_id,
+        user_id=user_id,
+        data=data,
+    )
+    
+    return {"message": "Saved as draft", "draft": draft}
+
+
+@router.delete("/drafts/{section}/{record_id}")
+async def discard_record_draft(
+    section: ESG_SECTION,
+    record_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Discard the current user's draft for a record."""
+    org_id = current_user.get("organization_id")
+    user_id = current_user.get("id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    await esg_records_service.discard_draft(
+        org_id=org_id,
+        section=section,
+        record_id=record_id,
+        user_id=user_id,
+    )
+    
+    return {"message": "Draft discarded"}
+

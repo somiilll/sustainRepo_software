@@ -463,6 +463,327 @@ class ESGRecordsService:
             "records": record_counts
         }
 
+    # =========================================================================
+    # Tracker & Assignment Methods
+    # =========================================================================
+
+    async def get_tracker_assignments(
+        self,
+        org_id: str,
+        section: str,
+        reporting_period: Optional[str] = None,
+        framework: Optional[str] = None,
+        category: Optional[str] = None,
+        facility_id: Optional[str] = None,
+        assigned_to: Optional[str] = None,
+        status: Optional[str] = None,
+        staleness: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get tracker assignments for record categories.
+        Uses esg_assignments collection with entity_type='record_category'.
+        """
+        # Build query for assignments
+        query = {
+            "organization_id": org_id,
+            "entity_type": "record_category",
+        }
+        if reporting_period:
+            query["reporting_period"] = reporting_period
+        if category:
+            query["category"] = category
+        if facility_id:
+            query["facility_id"] = facility_id
+        if assigned_to:
+            query["assigned_to_user_id"] = assigned_to
+        if status:
+            query["status"] = status
+
+        assignments_cursor = db.esg_assignments.find(query, {"_id": 0})
+        assignments = await assignments_cursor.to_list(500)
+
+        # Enrich with user names and staleness calculation
+        for assignment in assignments:
+            # Get assigned user name
+            if assignment.get("assigned_to_user_id"):
+                user = await db.users.find_one(
+                    {"id": assignment["assigned_to_user_id"]},
+                    {"_id": 0, "full_name": 1, "name": 1, "email": 1}
+                )
+                if user:
+                    assignment["assigned_to_name"] = user.get("full_name") or user.get("name") or user.get("email")
+            
+            # Get facility name
+            if assignment.get("facility_id"):
+                facility = await db.facilities.find_one(
+                    {"id": assignment["facility_id"]},
+                    {"_id": 0, "name": 1}
+                )
+                if facility:
+                    assignment["facility_name"] = facility.get("name")
+            
+            # Calculate staleness based on last record entry
+            last_entry = await self._get_last_record_entry(
+                org_id, section, assignment.get("category"), assignment.get("facility_id")
+            )
+            if last_entry:
+                assignment["last_entry_at"] = last_entry.get("updated_at") or last_entry.get("created_at")
+                days_since = (datetime.now(timezone.utc) - last_entry.get("updated_at", datetime.now(timezone.utc))).days
+                if days_since <= 30:
+                    assignment["staleness"] = "fresh"
+                elif days_since <= 60:
+                    assignment["staleness"] = "aging"
+                elif days_since <= 90:
+                    assignment["staleness"] = "stale"
+                else:
+                    assignment["staleness"] = "critical"
+            else:
+                assignment["staleness"] = "critical"
+                assignment["last_entry_at"] = None
+
+        # Filter by staleness if requested
+        if staleness:
+            assignments = [a for a in assignments if a.get("staleness") == staleness]
+
+        return assignments
+
+    async def _get_last_record_entry(
+        self,
+        org_id: str,
+        section: str,
+        category: Optional[str],
+        facility_id: Optional[str]
+    ) -> Optional[Dict[str, Any]]:
+        """Get the most recent record entry for a category."""
+        collection = self._get_records_collection(section)
+        query = {
+            "organization_id": org_id,
+            "is_current": True,
+        }
+        if category:
+            query["category"] = category
+        if facility_id:
+            query["facility_id"] = facility_id
+        
+        record = await collection.find_one(
+            query,
+            {"_id": 0, "updated_at": 1, "created_at": 1},
+            sort=[("updated_at", -1)]
+        )
+        return record
+
+    async def get_tracker_stats(
+        self,
+        org_id: str,
+        section: str,
+        reporting_period: Optional[str] = None,
+        framework: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Get tracker statistics."""
+        # Get total categories
+        cat_query = {"section": section, "is_active": True}
+        if framework:
+            cat_query["frameworks"] = framework
+        total_categories = await self._categories.count_documents(cat_query)
+
+        # Get assignment counts
+        assign_query = {
+            "organization_id": org_id,
+            "entity_type": "record_category",
+        }
+        if reporting_period:
+            assign_query["reporting_period"] = reporting_period
+
+        assigned = await db.esg_assignments.count_documents(assign_query)
+        
+        # Status counts
+        completed = await db.esg_assignments.count_documents({**assign_query, "status": "completed"})
+        in_progress = await db.esg_assignments.count_documents({**assign_query, "status": "in_progress"})
+        
+        # Overdue count
+        now = datetime.now(timezone.utc)
+        overdue = await db.esg_assignments.count_documents({
+            **assign_query,
+            "due_date": {"$lt": now},
+            "status": {"$nin": ["completed", "approved"]}
+        })
+
+        return {
+            "total_categories": total_categories,
+            "assigned": assigned,
+            "unassigned": max(0, total_categories - assigned),
+            "completed": completed,
+            "in_progress": in_progress,
+            "overdue": overdue,
+            "stale": 0,  # Would need to calculate based on last entries
+        }
+
+    async def create_assignment(
+        self,
+        org_id: str,
+        assigned_by_user_id: str,
+        data: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Create or update a record category assignment.
+        Uses esg_assignments collection.
+        """
+        now = datetime.now(timezone.utc)
+        assignment_id = str(uuid.uuid4())
+
+        # Check for existing assignment with same params
+        existing = await db.esg_assignments.find_one({
+            "organization_id": org_id,
+            "entity_type": "record_category",
+            "entity_id": data.get("entity_id"),
+            "category": data.get("category"),
+            "subcategory": data.get("subcategory"),
+            "sub_subcategory": data.get("sub_subcategory"),
+            "facility_id": data.get("facility_id"),
+            "assigned_to_user_id": data.get("assigned_to_user_id"),
+            "reporting_period": data.get("reporting_period"),
+        })
+
+        if existing:
+            # Update existing assignment
+            await db.esg_assignments.update_one(
+                {"id": existing["id"]},
+                {
+                    "$set": {
+                        "due_date": data.get("due_date"),
+                        "filling_frequency": data.get("filling_frequency"),
+                        "reminder_config": data.get("reminder_config"),
+                        "role": data.get("role"),
+                        "updated_at": now,
+                    }
+                }
+            )
+            assignment_id = existing["id"]
+        else:
+            # Create new assignment
+            assignment_doc = {
+                "id": assignment_id,
+                "organization_id": org_id,
+                "entity_type": "record_category",
+                "entity_id": data.get("entity_id") or f"{data.get('category')}_{data.get('subcategory', '')}_{data.get('sub_subcategory', '')}".strip("_"),
+                "category": data.get("category"),
+                "subcategory": data.get("subcategory"),
+                "sub_subcategory": data.get("sub_subcategory"),
+                "assignment_level": data.get("assignment_level", "organization"),
+                "facility_id": data.get("facility_id"),
+                "assigned_to_user_id": data.get("assigned_to_user_id"),
+                "assigned_by_user_id": assigned_by_user_id,
+                "reporting_period": data.get("reporting_period"),
+                "role": data.get("role", "editor"),
+                "status": "pending",
+                "due_date": data.get("due_date"),
+                "filling_frequency": data.get("filling_frequency"),
+                "reminder_config": data.get("reminder_config"),
+                "requires_approval": False,
+                "created_at": now,
+                "updated_at": now,
+            }
+            await db.esg_assignments.insert_one(assignment_doc)
+
+            # Log to assignment history
+            history_doc = {
+                "id": str(uuid.uuid4()),
+                "assignment_id": assignment_id,
+                "action": "created",
+                "previous_value": None,
+                "new_value": {
+                    "assigned_to": data.get("assigned_to_user_id"),
+                    "role": data.get("role"),
+                },
+                "changed_by_user_id": assigned_by_user_id,
+                "created_at": now,
+            }
+            await db.esg_record_assignment_history.insert_one(history_doc)
+
+        return {"id": assignment_id, "status": "saved"}
+
+    # =========================================================================
+    # Draft Methods
+    # =========================================================================
+
+    async def get_user_drafts(
+        self,
+        org_id: str,
+        section: str,
+        user_id: str,
+    ) -> List[Dict[str, Any]]:
+        """Get user's drafts for a section."""
+        cursor = db.esg_record_drafts.find(
+            {
+                "organization_id": org_id,
+                "section": section,
+                "user_id": user_id,
+            },
+            {"_id": 0}
+        )
+        return await cursor.to_list(100)
+
+    async def save_as_draft(
+        self,
+        org_id: str,
+        section: str,
+        record_id: str,
+        user_id: str,
+        data: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Save a record as draft for the current user."""
+        now = datetime.now(timezone.utc)
+        
+        # Check for existing draft
+        existing = await db.esg_record_drafts.find_one({
+            "organization_id": org_id,
+            "section": section,
+            "record_id": record_id,
+            "user_id": user_id,
+        })
+
+        if existing:
+            await db.esg_record_drafts.update_one(
+                {"id": existing["id"]},
+                {
+                    "$set": {
+                        "draft_data": data,
+                        "updated_at": now,
+                    }
+                }
+            )
+            return {"id": existing["id"], "status": "updated"}
+        else:
+            draft_doc = {
+                "id": str(uuid.uuid4()),
+                "organization_id": org_id,
+                "section": section,
+                "record_id": record_id,
+                "user_id": user_id,
+                "draft_data": data,
+                "status": "draft",
+                "created_at": now,
+                "updated_at": now,
+            }
+            await db.esg_record_drafts.insert_one(draft_doc)
+            return {"id": draft_doc["id"], "status": "created"}
+
+    async def discard_draft(
+        self,
+        org_id: str,
+        section: str,
+        record_id: str,
+        user_id: str,
+    ) -> bool:
+        """Discard a user's draft."""
+        result = await db.esg_record_drafts.delete_one({
+            "organization_id": org_id,
+            "section": section,
+            "record_id": record_id,
+            "user_id": user_id,
+        })
+        return result.deleted_count > 0
+
 
 # Singleton instance
 esg_records_service = ESGRecordsService()

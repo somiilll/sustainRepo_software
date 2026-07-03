@@ -6,15 +6,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Sprout, Edit2, Eye, Info, Database } from 'lucide-react';
 import ESGQuestionnaire from '../components/ESGQuestionnaire';
 import FrameworkTabs from '../components/FrameworkTabs';
-import ESGRecords from '../components/ESGRecords';
+import ESGRecordsModule from '../components/ESGRecordsModule';
 import GRIQuestionnaire from '../components/GRIQuestionnaire';
 
 export default function Environment() {
   const [isEditing, setIsEditing] = useState(false);
 
-  // Records tab content - ESG Records module
+  // Records tab content - ESG Records Module (with Tracker, Data Entry, Targets, Add)
   const RecordsContent = () => (
-    <ESGRecords section="environment" framework="BRSR" />
+    <ESGRecordsModule section="environment" framework="BRSR" />
   );
 
   // Framework content renderer
