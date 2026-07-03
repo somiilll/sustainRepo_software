@@ -21,16 +21,17 @@ const FRAMEWORK_META = {
  * Reusable FrameworkTabs component for ESG modules
  * 
  * @param {string} moduleType - 'environment' | 'social' | 'governance'
- * @param {React.ReactNode} recordsContent - Content for Records tab
+ * @param {React.ReactNode} metricsContent - Content for Metrics tab
  * @param {function} renderFrameworkContent - Function to render framework-specific content (framework) => ReactNode
  */
 export default function FrameworkTabs({ 
   moduleType, 
-  recordsContent, 
+  metricsContent,
+  recordsContent, // Keep for backward compatibility
   renderFrameworkContent 
 }) {
   const { token, user } = useAuth();
-  const [activeTab, setActiveTab] = useState('records');
+  const [activeTab, setActiveTab] = useState('metrics');
   const [enabledFrameworks, setEnabledFrameworks] = useState([]);
   const [loading, setLoading] = useState(true);
   
@@ -63,9 +64,9 @@ export default function FrameworkTabs({
     );
   }
 
-  // Build tabs: Records + Tracking (admin only) + enabled frameworks
+  // Build tabs: Metrics + Tracking (admin only) + enabled frameworks
   const tabs = [
-    { key: 'records', label: 'Records', icon: FileText },
+    { key: 'metrics', label: 'Metrics', icon: FileText },
     // Add Tracking tab for admins only
     ...(isAdmin ? [{ key: 'tracking', label: 'Tracking', icon: BarChart3, isTracking: true }] : []),
     ...enabledFrameworks.map(fw => ({
@@ -104,9 +105,9 @@ export default function FrameworkTabs({
         })}
       </TabsList>
 
-      {/* Records Tab */}
-      <TabsContent value="records" className="mt-0">
-        {recordsContent}
+      {/* Metrics Tab */}
+      <TabsContent value="metrics" className="mt-0">
+        {metricsContent || recordsContent}
       </TabsContent>
       
       {/* Tracking Tab (Admin Only) */}

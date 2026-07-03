@@ -234,7 +234,7 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
 
       await axios.post(`${API}/api/esg-records/records/${section}`, payload, { headers });
       
-      toast.success(asDraft ? 'Saved as draft' : 'Record saved');
+      toast.success(asDraft ? 'Saved as draft' : 'Metric saved');
       
       // Reset form
       setFormData({
@@ -254,7 +254,7 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
       if (onRecordAdded) onRecordAdded();
     } catch (error) {
       console.error('Failed to save record:', error);
-      toast.error(error.response?.data?.detail || 'Failed to save record');
+      toast.error(error.response?.data?.detail || 'Failed to save metric');
     } finally {
       setSaving(prev => ({ ...prev, form: false }));
     }
@@ -368,7 +368,7 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
         { headers }
       );
       
-      toast.success(asDraft ? 'Saved as draft' : 'Record updated');
+      toast.success(asDraft ? 'Saved as draft' : 'Metric updated');
       setShowEditModal(false);
       setSelectedRecord(null);
       setSelectedCategory(null);
@@ -427,13 +427,13 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
     )];
   };
 
-  // Render Add Record Form
+  // Render Add Metric Form
   if (mode === 'add') {
     return (
       <Card className="p-6">
         <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
           <Plus className="w-5 h-5 text-emerald-600" />
-          Add New Record
+          Add New Metric
         </h3>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -618,7 +618,7 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
             className="bg-emerald-600 hover:bg-emerald-700"
           >
             {saving.form ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-            Save Record
+            Save Metric
           </Button>
         </div>
       </Card>
@@ -633,7 +633,7 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card className="p-4">
             <div className="text-2xl font-bold text-text-primary">{stats.total || 0}</div>
-            <div className="text-sm text-text-muted">Total Records</div>
+            <div className="text-sm text-text-muted">Total Metrics</div>
           </Card>
           <Card className="p-4">
             <div className="text-2xl font-bold text-yellow-600">{drafts.length}</div>
@@ -734,7 +734,7 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
             ) : records.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-8 text-text-muted">
-                  No records found
+                  No metrics found
                 </TableCell>
               </TableRow>
             ) : (
@@ -810,7 +810,7 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
                             variant="ghost"
                             size="sm"
                             onClick={() => openEditModal(record)}
-                            title="Edit Record"
+                            title="Edit Metric"
                           >
                             <Edit2 className="w-4 h-4" />
                           </Button>
@@ -932,13 +932,13 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
         </DialogContent>
       </Dialog>
 
-      {/* Edit Record Modal */}
+      {/* Edit Metric Modal */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
         <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Edit2 className="w-5 h-5 text-emerald-600" />
-              Edit Record
+              Edit Metric
             </DialogTitle>
             <DialogDescription>
               {selectedRecord?.category}

@@ -11,13 +11,13 @@ import ESGRecordsTracker from './ESGRecordsTracker';
 import ESGRecordsDataEntry from './ESGRecordsDataEntry';
 
 /**
- * ESG Records Module - Enterprise ESG Operational Data Management
+ * ESG Metrics Module - Enterprise ESG Operational Data Management
  * 
  * Subtabs:
  * - Tracker: Assignment & workflow management (like tracking)
- * - Data Entry: Records listing with draft support
+ * - Data Entry: Metrics listing with draft support
  * - Targets: ESG reduction/performance targets (placeholder)
- * - Add Records: Record creation with save as draft
+ * - Add Metric: Metric creation with save as draft
  */
 export default function ESGRecordsModule({ section = 'environment', framework = 'BRSR' }) {
   const [activeTab, setActiveTab] = useState('tracker');
@@ -29,7 +29,7 @@ export default function ESGRecordsModule({ section = 'environment', framework = 
         <div>
           <h2 className="text-2xl font-bold text-text-primary flex items-center gap-2">
             <ClipboardList className="w-6 h-6 text-emerald-600" />
-            ESG Records Management
+            ESG Metrics Management
           </h2>
           <p className="text-text-muted mt-1">
             Enterprise sustainability data collection & compliance tracking
@@ -40,21 +40,21 @@ export default function ESGRecordsModule({ section = 'environment', framework = 
       {/* Subtabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-4 lg:w-[600px]">
-          <TabsTrigger value="tracker" className="gap-2" data-testid="records-tracker-tab">
+          <TabsTrigger value="tracker" className="gap-2" data-testid="metrics-tracker-tab">
             <BarChart3 className="w-4 h-4" />
             <span className="hidden sm:inline">Tracker</span>
           </TabsTrigger>
-          <TabsTrigger value="data-entry" className="gap-2" data-testid="records-data-entry-tab">
+          <TabsTrigger value="data-entry" className="gap-2" data-testid="metrics-data-entry-tab">
             <FileText className="w-4 h-4" />
             <span className="hidden sm:inline">Data Entry</span>
           </TabsTrigger>
-          <TabsTrigger value="targets" className="gap-2" data-testid="records-targets-tab">
+          <TabsTrigger value="targets" className="gap-2" data-testid="metrics-targets-tab">
             <Target className="w-4 h-4" />
             <span className="hidden sm:inline">Targets</span>
           </TabsTrigger>
-          <TabsTrigger value="add-record" className="gap-2" data-testid="records-add-tab">
+          <TabsTrigger value="add-metric" className="gap-2" data-testid="metrics-add-tab">
             <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">Add Record</span>
+            <span className="hidden sm:inline">Add Metric</span>
           </TabsTrigger>
         </TabsList>
 
@@ -86,8 +86,8 @@ export default function ESGRecordsModule({ section = 'environment', framework = 
           </div>
         </TabsContent>
 
-        {/* Add Record Tab */}
-        <TabsContent value="add-record" className="mt-6">
+        {/* Add Metric Tab */}
+        <TabsContent value="add-metric" className="mt-6">
           <ESGRecordsDataEntry 
             section={section} 
             framework={framework} 
