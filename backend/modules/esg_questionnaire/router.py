@@ -153,11 +153,12 @@ async def save_gri_response(
     Expects: { question_key, value, reporting_period, status? }
     status: "draft" (saves as draft, shown as pending) or "saved" (final save)
     
-    Implements "first save wins" logic:
+    Implements "last save wins" logic:
     - If no approval workflow OR no approver assigned to question:
-      - First user to Save wins
+      - Latest save overwrites previous value
       - Other users' drafts are cleared
-      - Subsequent saves by other users return 409 Conflict
+    - If approval workflow ON and approver assigned:
+      - Submission goes to approval queue for approver review
     """
     org_id = current_user.get("organization_id")
     if not org_id:
@@ -190,18 +191,6 @@ async def save_gri_response(
         status=status
     )
     
-    # Handle blocked response (first save wins)
-    if result.get("blocked"):
-        raise HTTPException(
-            status_code=409,  # Conflict
-            detail={
-                "message": result.get("message"),
-                "blocked_by": result.get("blocked_by"),
-                "blocked_by_user_id": result.get("blocked_by_user_id"),
-                "status": result.get("status"),
-            }
-        )
-    
     # Handle submitted for approval response
     if result.get("submitted_for_approval"):
         return {
@@ -214,7 +203,7 @@ async def save_gri_response(
             "drafts_cleared": 0
         }
     
-    # Return the actual status from the service
+    # Return the actual status from the service (last save wins)
     final_status = result.get("status", actual_status)
     
     if final_status == "pending":

@@ -214,7 +214,7 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
     }));
   };
 
-  // Save single response (with status) - Legacy method, kept for backwards compatibility
+  // Save single response (with status) - Last save wins logic
   const saveResponse = async (responseKey, status = 'saved') => {
     setSaving(prev => ({ ...prev, [responseKey]: true }));
     try {
@@ -229,7 +229,7 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
         { headers: getAuthHeader() }
       );
       
-      // Check if submitted for approval (Phase 2)
+      // Check if submitted for approval (approval workflow active)
       if (response.data.submitted_for_approval) {
         toast.info('Submitted for approval. Awaiting approver review.', {
           duration: 4000,
@@ -238,7 +238,7 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
         return;
       }
       
-      // Check if any drafts were cleared (first save wins)
+      // Check if any drafts were cleared (last save wins)
       if (response.data.drafts_cleared > 0) {
         toast.success(`Response saved. ${response.data.drafts_cleared} other draft(s) cleared.`);
       } else {
@@ -248,19 +248,7 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
       await fetchDisclosures();
     } catch (error) {
       console.error('Failed to save response:', error);
-      
-      // Handle "first save wins" conflict (409)
-      if (error.response?.status === 409) {
-        const detail = error.response.data?.detail;
-        const blockedBy = detail?.blocked_by || 'another user';
-        toast.error(`Cannot save: Already saved by ${blockedBy}. First save wins.`, {
-          duration: 5000,
-        });
-        // Refresh to show the saved value from the other user
-        await fetchDisclosures();
-      } else {
-        toast.error('Failed to save response');
-      }
+      toast.error('Failed to save response');
     } finally {
       setSaving(prev => ({ ...prev, [responseKey]: false }));
     }
@@ -366,18 +354,16 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
     }
   };
 
-  // Legacy saveDisclosure for backwards compatibility (still saves to esg_responses)
+  // Save all responses for a disclosure - Last save wins logic
   const saveDisclosure = async (disclosure, status = 'saved') => {
     setSaving(prev => ({ ...prev, [disclosure.disclosure_id]: true }));
     try {
       const savePromises = [];
-      const questionKeys = [];
       
       disclosure.questions.forEach(q => {
         if (q.sub_questions && q.sub_questions.length > 0) {
           // Save each sub-question response
           q.sub_questions.forEach(sub => {
-            questionKeys.push(sub.response_key);
             savePromises.push(
               axios.post(
                 `${API}/api/esg-questionnaire/response`,
@@ -393,7 +379,6 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
           });
         } else {
           // Save simple question response
-          questionKeys.push(q.question_key);
           savePromises.push(
             axios.post(
               `${API}/api/esg-questionnaire/response`,
@@ -409,37 +394,18 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
         }
       });
       
-      // Use allSettled to capture both successes and failures
+      // Execute all saves (last save wins - no conflicts)
       const results = await Promise.allSettled(savePromises);
       
-      // Check for any 409 conflicts (first save wins)
-      const conflicts = [];
-      const successes = [];
+      // Count successes and check for approval submissions
+      const successes = results.filter(r => r.status === 'fulfilled');
+      const approvalSubmissions = successes.filter(
+        r => r.value?.data?.submitted_for_approval
+      );
       
-      results.forEach((result, index) => {
-        if (result.status === 'rejected') {
-          const error = result.reason;
-          if (error.response?.status === 409) {
-            const detail = error.response.data?.detail;
-            conflicts.push({
-              questionKey: questionKeys[index],
-              blockedBy: detail?.blocked_by || 'another user'
-            });
-          }
-        } else {
-          successes.push(questionKeys[index]);
-        }
-      });
-      
-      if (conflicts.length > 0) {
-        const blockedByUser = conflicts[0].blockedBy;
-        toast.error(
-          `${conflicts.length} question(s) already saved by ${blockedByUser}. First save wins.`,
-          { duration: 5000 }
-        );
-      }
-      
-      if (successes.length > 0) {
+      if (approvalSubmissions.length > 0) {
+        toast.info(`${approvalSubmissions.length} response(s) submitted for approval`);
+      } else if (successes.length > 0) {
         toast.success(status === 'draft' 
           ? `${successes.length} response(s) saved as draft` 
           : `${successes.length} response(s) saved`

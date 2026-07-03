@@ -345,34 +345,35 @@ class ESGQuestionnaireService:
         
         return False
 
-    async def _should_use_first_save_wins(
+    async def _should_use_direct_save(
         self,
         org_id: str,
         question_key: str,
         reporting_period: str
     ) -> bool:
         """
-        Determine if "first save wins" logic should apply.
+        Determine if direct save (last save wins) should be used.
         
-        First save wins applies when:
+        Direct save (last save wins) applies when:
         - Approval workflow is OFF for org, OR
         - Approval workflow is ON but NO approver is assigned to question/section
         
-        Returns True if first-save-wins should be enforced.
+        Returns True if direct save should be used (last save wins).
+        Returns False if submissions should go to approver queue.
         """
         has_approval = await self._has_approval_workflow_enabled(org_id)
         
         if not has_approval:
-            # No approval workflow → first save wins
+            # No approval workflow → direct save (last save wins)
             return True
         
         has_approver = await self._has_approver_assigned(org_id, question_key, reporting_period)
         
         if not has_approver:
-            # Approval ON but no approver assigned → first save wins
+            # Approval ON but no approver assigned → direct save (last save wins)
             return True
         
-        # Approval ON and approver assigned → submissions go to approver (Phase 2)
+        # Approval ON and approver assigned → submissions go to approver queue
         return False
 
     async def _clear_other_users_drafts(
@@ -849,10 +850,9 @@ class ESGQuestionnaireService:
         Save a single GRI disclosure response.
         
         Workflow logic:
-        1. If no approval workflow OR no approver assigned → "first save wins"
-           - First user to Save wins
+        1. If no approval workflow OR no approver assigned → "last save wins"
+           - Latest save overwrites previous value
            - Other users' drafts are cleared
-           - Subsequent saves by other users are blocked
         2. If approval workflow ON and approver assigned → submissions go to approver queue
            - All saves create/update submissions in pending_approval state
            - Approver reviews and approves one (or merges)
@@ -860,10 +860,9 @@ class ESGQuestionnaireService:
         
         Returns dict with:
           - success: bool
-          - blocked: bool (True if blocked by first-save-wins)
-          - blocked_by: str (name of user who saved first, if blocked)
           - submitted_for_approval: bool (True if went to approval queue)
           - status: str (actual status)
+          - drafts_cleared: int (number of other users' drafts cleared)
         """
         now = datetime.now(timezone.utc)
         now_iso = now.isoformat()
@@ -885,35 +884,16 @@ class ESGQuestionnaireService:
         
         previous_value = previous_response.get("value") if previous_response else None
         previous_status = previous_response.get("status") if previous_response else None
-        previous_user_id = previous_response.get("updated_by") if previous_response else None
-        previous_user_name = previous_response.get("updated_by_name") if previous_response else None
         is_new = previous_response is None
         
         # Check workflow logic (only for actual "saved" status, not drafts or empty)
         if status == "saved" and not value_is_empty:
-            use_first_save_wins = await self._should_use_first_save_wins(
+            use_direct_save = await self._should_use_direct_save(
                 org_id, question_key, reporting_period
             )
             
-            if use_first_save_wins:
-                # FIRST SAVE WINS LOGIC
-                # Check if already saved by a different user
-                if (previous_response 
-                    and previous_status == "saved" 
-                    and previous_user_id 
-                    and previous_user_id != changed_by_user_id):
-                    # Blocked! First save wins - another user already saved
-                    return {
-                        "success": False,
-                        "blocked": True,
-                        "blocked_by": previous_user_name or "another user",
-                        "blocked_by_user_id": previous_user_id,
-                        "submitted_for_approval": False,
-                        "status": previous_status,
-                        "message": f"Already saved by {previous_user_name or 'another user'}. First save wins."
-                    }
-            else:
-                # APPROVAL WORKFLOW LOGIC (Phase 2)
+            if not use_direct_save:
+                # APPROVAL WORKFLOW LOGIC
                 # Route to submission queue instead of direct save
                 submission_result = await self._create_submission_for_approval(
                     org_id=org_id,
@@ -927,16 +907,15 @@ class ESGQuestionnaireService:
                 
                 return {
                     "success": True,
-                    "blocked": False,
-                    "blocked_by": None,
                     "submitted_for_approval": True,
                     "submission_id": submission_result["submission_id"],
                     "status": "pending_approval",
                     "drafts_cleared": 0,
                     "message": "Submitted for approval" if not submission_result["is_update"] else "Submission updated"
                 }
+            # else: use direct save (last save wins) - continue to save below
         
-        # Direct save to esg_responses (for first-save-wins winners, drafts, or empty values)
+        # Direct save to esg_responses (last save wins, drafts, or empty values)
         result = await db.esg_responses.update_one(
             {
                 "organization_id": org_id,
@@ -1008,8 +987,6 @@ class ESGQuestionnaireService:
         
         return {
             "success": result.acknowledged,
-            "blocked": False,
-            "blocked_by": None,
             "submitted_for_approval": False,
             "status": status,
             "drafts_cleared": drafts_cleared,
