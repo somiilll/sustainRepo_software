@@ -159,7 +159,6 @@ export default function Sidebar() {
   const buildAdminItems = () => {
     const items = [
       { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { path: '/my-assignments', label: 'My Assignments', icon: ClipboardCheck },
       { path: '/organization', label: 'Organization', icon: Building },
       { path: '/facilities', label: 'Facilities', icon: Building2 },
     ];
@@ -200,7 +199,6 @@ export default function Sidebar() {
   const buildUserItems = () => {
     const items = [
       { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { path: '/my-assignments', label: 'My Assignments', icon: ClipboardCheck },
       { path: '/organization', label: 'Organization', icon: Building },
       { path: '/facilities', label: 'Facilities', icon: Building2 },
     ];

@@ -37,6 +37,12 @@ import {
   DialogFooter,
 } from './ui/dialog';
 import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from './ui/tabs';
+import {
   Table,
   TableBody,
   TableCell,
@@ -64,11 +70,14 @@ import {
   AlertCircle,
   XCircle,
   X,
+  ClipboardList,
+  BarChart3,
 } from 'lucide-react';
 import { 
   generateReportingYears, 
   getCurrentReportingYear 
 } from '../utils/reportingYearUtils';
+import MyTasks from './MyTasks';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -213,20 +222,32 @@ const ExpandableText = ({ text, maxLength = 150 }) => {
 
 /**
  * Main ESG Tracking Tab Component
+ * 
+ * @param {string} domain - 'environment' | 'social' | 'governance'
+ * @param {string} reportingPeriodOverride - If provided, use this instead of internal state
+ * @param {boolean} hideReportingPeriodSelector - Hide the period selector (when used in TrackingModule)
  */
-export default function ESGTrackingTab({ domain = 'environment' }) {
+export default function ESGTrackingTab({ 
+  domain = 'environment',
+  reportingPeriodOverride = null,
+  hideReportingPeriodSelector = false
+}) {
   const { getAuthHeader, user } = useAuth();
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   
   // State
   const [loading, setLoading] = useState(true);
-  const [reportingPeriod, setReportingPeriod] = useState(() => getCurrentReportingYear('financial_year'));
+  const [internalReportingPeriod, setInternalReportingPeriod] = useState(() => getCurrentReportingYear('financial_year'));
   const [frameworkSummary, setFrameworkSummary] = useState(null);
   const [selectedFramework, setSelectedFramework] = useState(null);
   const [sections, setSections] = useState([]);
   const [selectedSection, setSelectedSection] = useState(null);
   const [disclosures, setDisclosures] = useState([]);
   const [sectionSummary, setSectionSummary] = useState(null);
+  
+  // Use override if provided, otherwise use internal state
+  const reportingPeriod = reportingPeriodOverride || internalReportingPeriod;
+  const setReportingPeriod = reportingPeriodOverride ? () => {} : setInternalReportingPeriod;
   
   // Feature flags
   const [multiLevelApprovalEnabled, setMultiLevelApprovalEnabled] = useState(false);
@@ -539,23 +560,25 @@ export default function ESGTrackingTab({ domain = 'environment' }) {
   
   return (
     <div className="space-y-6">
-      {/* Header Controls */}
+      {/* Header Controls - Hide period selector if managed by parent */}
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <Label className="text-sm whitespace-nowrap">Reporting Period:</Label>
-            <Select value={reportingPeriod} onValueChange={setReportingPeriod}>
-              <SelectTrigger className="w-40 bg-white">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {yearOptions.map(year => (
-                  <SelectItem key={year} value={year}>{year}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        {!hideReportingPeriodSelector && (
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Label className="text-sm whitespace-nowrap">Reporting Period:</Label>
+              <Select value={reportingPeriod} onValueChange={setReportingPeriod}>
+                <SelectTrigger className="w-40 bg-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {yearOptions.map(year => (
+                    <SelectItem key={year} value={year}>{year}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </div>
+        )}
         
         <Button 
           variant="outline" 

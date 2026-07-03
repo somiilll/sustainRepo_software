@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 import { Badge } from './ui/badge';
 import { Loader2, FileText, ClipboardList, BarChart3 } from 'lucide-react';
-import ESGTrackingTab from './ESGTrackingTab';
+import TrackingModule from './TrackingModule';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -64,11 +64,11 @@ export default function FrameworkTabs({
     );
   }
 
-  // Build tabs: Metrics + Tracking (admin only) + enabled frameworks
+  // Build tabs: Metrics + Tracking (for all users) + enabled frameworks
   const tabs = [
     { key: 'metrics', label: 'Metrics', icon: FileText },
-    // Add Tracking tab for admins only
-    ...(isAdmin ? [{ key: 'tracking', label: 'Tracking', icon: BarChart3, isTracking: true }] : []),
+    // Tracking tab for all users (My Tasks for everyone, Tracker admin-only inside)
+    { key: 'tracking', label: 'Tracking', icon: BarChart3, isTracking: true },
     ...enabledFrameworks.map(fw => ({
       key: fw.toLowerCase(),
       label: FRAMEWORK_META[fw]?.label || fw,
@@ -110,12 +110,10 @@ export default function FrameworkTabs({
         {metricsContent || recordsContent}
       </TabsContent>
       
-      {/* Tracking Tab (Admin Only) */}
-      {isAdmin && (
-        <TabsContent value="tracking" className="mt-0">
-          <ESGTrackingTab domain={moduleType} />
-        </TabsContent>
-      )}
+      {/* Tracking Tab - Available for all users (My Tasks + Tracker for admins) */}
+      <TabsContent value="tracking" className="mt-0">
+        <TrackingModule domain={moduleType} entityType="record" />
+      </TabsContent>
 
       {/* Framework Tabs */}
       {enabledFrameworks.map(fw => (
