@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
+import { Badge } from './ui/badge';
 import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Building, UserCog, Flame, Globe, User, Calculator, Layers, Database, Ruler, Settings2, TreeDeciduous, Thermometer, FileCode2, CalendarClock, FolderTree, Beaker, Variable, Code2, GitFork, Scale, FormInput, Link2, ChevronDown, ChevronRight, FlaskConical, HardDrive, History, FileSpreadsheet, Upload, DollarSign, ClipboardCheck, Leaf, Sprout, Users2, Shield, Cog, Inbox } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -25,6 +26,7 @@ export default function Sidebar() {
   const [enabledAccess, setEnabledAccess] = useState([]);
   const [approvalEnabled, setApprovalEnabled] = useState(false);
   const [moduleConfig, setModuleConfig] = useState({ has_ghg: true, has_esg: true });
+  const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
 
   // Pull the current org's scope-access + approval flag + module config once on mount
   useEffect(() => {
@@ -45,11 +47,39 @@ export default function Sidebar() {
           has_ghg: configRes.data?.has_ghg ?? true,
           has_esg: configRes.data?.has_esg ?? true,
         });
+        
+        // Fetch pending approval count for badge
+        try {
+          const approvalRes = await axios.get(`${API}/esg-questionnaire/submissions/count`, { headers: getAuthHeader() });
+          if (!cancelled) {
+            setPendingApprovalCount(approvalRes.data?.count || 0);
+          }
+        } catch {
+          // Ignore - approvals might not be available
+        }
       } catch {
         /* ignore — fall back to showing all */
       }
     })();
     return () => { cancelled = true; };
+  }, [user?.id, user?.organization_id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Refresh pending approval count periodically
+  useEffect(() => {
+    if (!user || user.role === 'super_admin' || !user.organization_id) return;
+    
+    const refreshCount = async () => {
+      try {
+        const res = await axios.get(`${API}/esg-questionnaire/submissions/count`, { headers: getAuthHeader() });
+        setPendingApprovalCount(res.data?.count || 0);
+      } catch {
+        // Ignore
+      }
+    };
+    
+    // Refresh every 60 seconds
+    const interval = setInterval(refreshCount, 60000);
+    return () => clearInterval(interval);
   }, [user?.id, user?.organization_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleMenu = (menu) => {
@@ -189,6 +219,7 @@ export default function Sidebar() {
     
     // Add remaining items
     items.push({ path: '/reports', label: 'Reports', icon: FileText });
+    items.push({ path: '/approver-queue', label: 'Approval Queue', icon: Inbox, badge: pendingApprovalCount });
     items.push({ path: '/users', label: 'Users', icon: Users });
     items.push({ path: '/audit-trails', label: 'Audit Trails', icon: History });
     
@@ -227,8 +258,9 @@ export default function Sidebar() {
       });
     }
     
-    // Add Reports
+    // Add Reports and Approver Queue (available to all users who might be approvers)
     items.push({ path: '/reports', label: 'Reports', icon: FileText });
+    items.push({ path: '/approver-queue', label: 'Approval Queue', icon: Inbox, badge: pendingApprovalCount });
     
     return items;
   };
@@ -260,7 +292,12 @@ export default function Sidebar() {
               }`}
             >
               <Icon className="w-4 h-4" />
-              <span className="font-medium">{item.label}</span>
+              <span className="font-medium flex-1">{item.label}</span>
+              {item.badge > 0 && (
+                <Badge className={`text-xs px-1.5 py-0.5 ${isActive ? 'bg-white text-primary' : 'bg-purple-100 text-purple-700'}`}>
+                  {item.badge}
+                </Badge>
+              )}
             </Link>
           );
         })}
@@ -548,7 +585,12 @@ export default function Sidebar() {
               }`}
             >
               <Icon className="w-5 h-5 flex-shrink-0" />
-              <span className="font-medium">{item.label}</span>
+              <span className="font-medium flex-1">{item.label}</span>
+              {item.badge > 0 && (
+                <Badge className={`text-xs px-1.5 py-0.5 ${isActive ? 'bg-white text-primary' : 'bg-purple-100 text-purple-700'}`}>
+                  {item.badge}
+                </Badge>
+              )}
             </Link>
           );
         })}

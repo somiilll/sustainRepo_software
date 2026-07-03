@@ -250,11 +250,7 @@ const AppRoutes = () => {
                   <Route path="hr-workforce" element={<HRWorkforce />} />
           <Route path="governance" element={<Governance />} />
           <Route path="my-assignments" element={<MyAssignments />} />
-          <Route path="approver-queue" element={
-            <AdminRoute>
-              <ApproverQueue />
-            </AdminRoute>
-          } />
+          <Route path="approver-queue" element={<ApproverQueue />} />
           <Route path="reports" element={<Reports />} />
           <Route path="users" element={
             <AdminRoute>

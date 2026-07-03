@@ -7,7 +7,7 @@ API endpoints for config-driven ESG questionnaire system.
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from modules.auth.dependencies import get_current_user, get_admin_user
+from modules.auth.dependencies import get_current_user, get_admin_user, get_approver_user
 from modules.esg_questionnaire.contracts import (
     QuestionConfigCreate,
     QuestionConfigUpdate,
@@ -231,20 +231,30 @@ async def save_gri_response(
 async def get_pending_submissions(
     reporting_period: Optional[str] = Query(None, description="Filter by reporting period"),
     section: Optional[str] = Query(None, description="Filter by section (environment, social, governance)"),
-    current_user: dict = Depends(get_admin_user)
+    current_user: dict = Depends(get_approver_user)
 ):
     """
     Get all pending submissions for the organization.
     Used by approvers to see their approval queue.
+    
+    - Admins see all pending submissions for their org
+    - Regular users see submissions where they are assigned as approver
     """
     org_id = current_user.get("organization_id")
+    user_id = current_user.get("id")
+    role = current_user.get("role", "user")
+    
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    # For admins, get all submissions; for users, filter by approver assignment
+    approver_user_id = None if role in ["admin", "super_admin"] else user_id
     
     submissions = await esg_questionnaire_service.get_all_pending_submissions_for_org(
         org_id=org_id,
         reporting_period=reporting_period,
         section=section,
+        approver_user_id=approver_user_id,
     )
     
     return {
@@ -257,11 +267,38 @@ async def get_pending_submissions(
     }
 
 
+@router.get("/submissions/count")
+async def get_pending_submissions_count(
+    current_user: dict = Depends(get_approver_user)
+):
+    """
+    Get count of pending submissions for the current user.
+    Used for sidebar badge.
+    """
+    org_id = current_user.get("organization_id")
+    user_id = current_user.get("id")
+    role = current_user.get("role", "user")
+    
+    if not org_id:
+        return {"count": 0}
+    
+    # For admins, get all submissions; for users, filter by approver assignment
+    approver_user_id = None if role in ["admin", "super_admin"] else user_id
+    
+    submissions = await esg_questionnaire_service.get_all_pending_submissions_for_org(
+        org_id=org_id,
+        approver_user_id=approver_user_id,
+    )
+    
+    total = sum(len(s.get("submissions", [])) for s in submissions)
+    return {"count": total}
+
+
 @router.get("/submissions/{question_key}")
 async def get_question_submissions(
     question_key: str,
     reporting_period: str = Query(..., description="Reporting period"),
-    current_user: dict = Depends(get_admin_user)
+    current_user: dict = Depends(get_approver_user)
 ):
     """
     Get all pending submissions for a specific question.
@@ -316,7 +353,7 @@ async def get_user_submission_status(
 @router.post("/submissions/approve")
 async def approve_submission(
     data: dict,
-    current_user: dict = Depends(get_admin_user)
+    current_user: dict = Depends(get_approver_user)
 ):
     """
     Approve a submission and save to final esg_responses.
@@ -358,7 +395,7 @@ async def approve_submission(
 async def reject_submission(
     submission_id: str,
     data: dict = None,
-    current_user: dict = Depends(get_admin_user)
+    current_user: dict = Depends(get_approver_user)
 ):
     """
     Reject a specific submission.

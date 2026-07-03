@@ -589,11 +589,15 @@ class ESGQuestionnaireService:
         org_id: str,
         reporting_period: Optional[str] = None,
         section: Optional[str] = None,
+        approver_user_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Get all pending submissions for an organization.
-        Optionally filter by reporting period and section.
+        Optionally filter by reporting period, section, and approver assignment.
         Used by approvers to see their approval queue.
+        
+        If approver_user_id is provided, only return submissions where:
+        - The user is assigned as approver for that question/section
         """
         query = {
             "organization_id": org_id,
@@ -621,6 +625,34 @@ class ESGQuestionnaireService:
                 if s["question_key"] in section_question_keys or 
                    any(s["question_key"].startswith(qk + "_") for qk in section_question_keys)
             ]
+        
+        # If approver_user_id filter, check assignments
+        if approver_user_id:
+            # Get all assignments where this user is an approver
+            assignments = await db["esg_assignments"].find(
+                {
+                    "organization_id": org_id,
+                    "approver_ids": approver_user_id,
+                },
+                {"_id": 0, "entity_id": 1, "section": 1}
+            ).to_list(500)
+            
+            # Create set of question keys this user can approve
+            approver_question_keys = {a["entity_id"] for a in assignments}
+            approver_sections = {a["section"] for a in assignments if a.get("section")}
+            
+            # Filter submissions to only those the user can approve
+            filtered_submissions = []
+            for sub in submissions:
+                qk = sub["question_key"]
+                # Check if user is approver for this specific question
+                if qk in approver_question_keys:
+                    filtered_submissions.append(sub)
+                # Or check if user is approver for any question in this section
+                elif any(qk.startswith(aqk) for aqk in approver_question_keys):
+                    filtered_submissions.append(sub)
+            
+            submissions = filtered_submissions
         
         # Group by question_key for easier display
         grouped = {}

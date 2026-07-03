@@ -88,3 +88,25 @@ async def get_admin_user(current_user: dict = Depends(get_current_user)) -> dict
     if current_user.get("role") not in ["super_admin", "admin"]:
         raise HTTPException(status_code=403, detail="Admin access required")
     return current_user
+
+
+async def get_approver_user(current_user: dict = Depends(get_current_user)) -> dict:
+    """
+    Allow access for:
+    - Admins/Super Admins (can approve anything in their org)
+    - Users with approver role or is_approver flag
+    - Users who are assigned as approvers for specific questions/sections
+    """
+    role = current_user.get("role", "user")
+    
+    # Admins and super admins can always approve
+    if role in ["super_admin", "admin"]:
+        return current_user
+    
+    # Check if user has approver flag
+    if current_user.get("is_approver"):
+        return current_user
+    
+    # For regular users, we allow access - the service layer will filter
+    # to only show submissions where they are assigned as approver
+    return current_user
