@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
-import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Building, UserCog, Flame, Globe, User, Calculator, Layers, Database, Ruler, Settings2, TreeDeciduous, Thermometer, FileCode2, CalendarClock, FolderTree, Beaker, Variable, Code2, GitFork, Scale, FormInput, Link2, ChevronDown, ChevronRight, FlaskConical, HardDrive, History, FileSpreadsheet, Upload, DollarSign, ClipboardCheck, Leaf, Sprout, Users2, Shield, Cog } from 'lucide-react';
+import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Building, UserCog, Flame, Globe, User, Calculator, Layers, Database, Ruler, Settings2, TreeDeciduous, Thermometer, FileCode2, CalendarClock, FolderTree, Beaker, Variable, Code2, GitFork, Scale, FormInput, Link2, ChevronDown, ChevronRight, FlaskConical, HardDrive, History, FileSpreadsheet, Upload, DollarSign, ClipboardCheck, Leaf, Sprout, Users2, Shield, Cog, Inbox } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -140,13 +140,19 @@ export default function Sidebar() {
   const isEsgActive = 
     location.pathname === '/environment' ||
     location.pathname === '/social' ||
-    location.pathname === '/governance';
+    location.pathname === '/governance' ||
+    location.pathname === '/approver-queue';
 
   // ESG sub-items (Environment, Social, Governance)
+  // Dynamically add Approver Queue for admins when approval workflow is enabled
   const esgSubItems = [
     { path: '/environment', label: 'Environment', icon: Sprout },
     { path: '/social', label: 'Social', icon: Users2 },
     { path: '/governance', label: 'Governance', icon: Shield },
+    // Add Approver Queue for admins when approval is enabled
+    ...(approvalEnabled && user?.role === 'admin' ? [
+      { path: '/approver-queue', label: 'Approver Queue', icon: Inbox }
+    ] : []),
   ];
 
   // Build admin items dynamically based on module config

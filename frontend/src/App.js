@@ -46,6 +46,7 @@ import Governance from './pages/Governance';
 import ESGConfig from './pages/ESGConfig';
 import Layout from './components/Layout';
 import PasswordChangeModal from './components/PasswordChangeModal';
+import ApproverQueue from './components/ApproverQueue';
 import { initializeCategoryModules } from './modules/emissions';
 
 // Initialize the emissions Category Registry once at app boot.
@@ -247,6 +248,11 @@ const AppRoutes = () => {
           <Route path="social" element={<Social />} />
                   <Route path="hr-workforce" element={<HRWorkforce />} />
           <Route path="governance" element={<Governance />} />
+          <Route path="approver-queue" element={
+            <AdminRoute>
+              <ApproverQueue />
+            </AdminRoute>
+          } />
           <Route path="reports" element={<Reports />} />
           <Route path="users" element={
             <AdminRoute>
