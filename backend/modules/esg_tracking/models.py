@@ -15,6 +15,7 @@ class TrackingDomain(str, Enum):
     ENVIRONMENT = "environment"
     SOCIAL = "social"
     GOVERNANCE = "governance"
+    ALL = "all"  # All domains combined
 
 
 class CompletionStatus(str, Enum):

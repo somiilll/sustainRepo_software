@@ -139,18 +139,26 @@ class TrackingService:
         enabled_frameworks = [fw.lower() for fw in enabled_frameworks]
         stale_threshold = org.get("stale_threshold_days", DEFAULT_STALE_THRESHOLD_DAYS)
         
-        # Get all question configs for this domain
+        # Get all question configs for this domain (or all domains if "all")
         domain_section_map = {
             TrackingDomain.ENVIRONMENT: "environment",
             TrackingDomain.SOCIAL: "social",
             TrackingDomain.GOVERNANCE: "governance",
         }
-        section = domain_section_map.get(domain)
         
-        configs = await self._configs.find(
-            {"section": section},
-            {"_id": 0}
-        ).to_list(1000)
+        # Build query based on domain
+        if domain == TrackingDomain.ALL:
+            # Fetch all sections
+            configs = await self._configs.find(
+                {"section": {"$in": ["environment", "social", "governance"]}},
+                {"_id": 0}
+            ).to_list(5000)
+        else:
+            section = domain_section_map.get(domain)
+            configs = await self._configs.find(
+                {"section": section},
+                {"_id": 0}
+            ).to_list(1000)
         
         # Group configs by framework
         # Note: Configs without framework field are treated as BRSR
@@ -264,10 +272,13 @@ class TrackingService:
             )
             fw_name = fw_doc.get("name") if fw_doc else fw_id.upper()
             
+            # Get domain string for response
+            domain_str = domain.value if domain else "all"
+            
             summaries.append(FrameworkSummary(
                 framework_id=fw_id,
                 framework_name=fw_name,
-                domain=section,
+                domain=domain_str,
                 total_disclosures=total,
                 completed_disclosures=completed,
                 pending_disclosures=pending,
@@ -303,7 +314,6 @@ class TrackingService:
             TrackingDomain.SOCIAL: "social",
             TrackingDomain.GOVERNANCE: "governance",
         }
-        section = domain_section_map.get(domain)
         
         # Get org settings
         org = await self._organizations.find_one(
@@ -312,10 +322,16 @@ class TrackingService:
         )
         stale_threshold = org.get("stale_threshold_days", DEFAULT_STALE_THRESHOLD_DAYS) if org else DEFAULT_STALE_THRESHOLD_DAYS
         
+        # Build section filter based on domain
+        if domain == TrackingDomain.ALL:
+            section_filter = {"$in": ["environment", "social", "governance"]}
+        else:
+            section_filter = domain_section_map.get(domain)
+        
         # Get all configs for this framework and domain
         # Note: Some configs may not have 'framework' field - treat them as BRSR by default
         config_query = {
-            "section": section,
+            "section": section_filter,
             "$or": [
                 {"framework": {"$regex": f"^{framework_id}$", "$options": "i"}},
                 {"framework": None},  # Legacy configs without framework field
@@ -326,11 +342,11 @@ class TrackingService:
         # If not BRSR, only get configs with explicit framework match
         if framework_id.lower() != "brsr":
             config_query = {
-                "section": section,
+                "section": section_filter,
                 "framework": {"$regex": f"^{framework_id}$", "$options": "i"},
             }
         
-        configs = await self._configs.find(config_query, {"_id": 0}).to_list(1000)
+        configs = await self._configs.find(config_query, {"_id": 0}).to_list(5000)
         
         # Get responses
         responses = await self._responses.find(
@@ -499,7 +515,12 @@ class TrackingService:
             TrackingDomain.SOCIAL: "social",
             TrackingDomain.GOVERNANCE: "governance",
         }
-        section = domain_section_map.get(domain)
+        
+        # Build section filter based on domain
+        if domain == TrackingDomain.ALL:
+            section_filter = {"$in": ["environment", "social", "governance"]}
+        else:
+            section_filter = domain_section_map.get(domain)
         
         # Get org settings
         org = await self._organizations.find_one(
@@ -511,7 +532,7 @@ class TrackingService:
         # Build config query - handle missing framework field for BRSR
         if framework_id.lower() == "brsr":
             config_query = {
-                "section": section,
+                "section": section_filter,
                 "$or": [
                     {"framework": {"$regex": f"^{framework_id}$", "$options": "i"}},
                     {"framework": None},
@@ -528,13 +549,13 @@ class TrackingService:
         elif framework_id.upper() == "GRI":
             # For GRI, section_id is the disclosure_id
             config_query = {
-                "section": section,
+                "section": section_filter,
                 "framework": {"$regex": f"^{framework_id}$", "$options": "i"},
                 "disclosure_id": section_id,
             }
         else:
             config_query = {
-                "section": section,
+                "section": section_filter,
                 "framework": {"$regex": f"^{framework_id}$", "$options": "i"},
                 "$or": [
                     {"brsr_section": section_id},
