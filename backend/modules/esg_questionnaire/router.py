@@ -507,6 +507,33 @@ async def get_draft(
     }
 
 
+@router.delete("/draft/{question_key}")
+async def discard_draft(
+    question_key: str,
+    reporting_period: str = Query(..., description="Reporting period"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Discard the current user's draft for a specific question.
+    Allows user to revert to the saved answer.
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    result = await esg_questionnaire_service.discard_user_draft(
+        org_id=org_id,
+        question_key=question_key,
+        reporting_period=reporting_period,
+        user_id=current_user.get("id"),
+    )
+    
+    return {
+        "message": "Draft discarded",
+        "success": result
+    }
+
+
 @router.get("/drafts/{framework_id}/{section}")
 async def get_user_drafts_for_section(
     framework_id: str,

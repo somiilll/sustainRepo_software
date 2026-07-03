@@ -38,7 +38,8 @@ import {
   History,
   Clock,
   FileEdit,
-  Send
+  Send,
+  Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getCurrentReportingYear, generateReportingYears } from '../utils/reportingYearUtils';
@@ -104,7 +105,7 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
     try {
       setLoading(true);
       
-      // Fetch disclosures and user drafts in parallel
+      // Fetch disclosures (now includes user draft info directly)
       const [disclosuresRes, draftsRes] = await Promise.all([
         axios.get(
           `${API}/api/esg-questionnaire/gri/${section}`,
@@ -129,7 +130,7 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
       // Store user drafts keyed by disclosure_id
       setUserDrafts(draftsRes.data.drafts || {});
       
-      // Set responses - merge saved responses with draft data
+      // Set responses - use user_draft_value from API if available, else saved response
       const initialResponses = {};
       const drafts = draftsRes.data.drafts || {};
       
@@ -137,17 +138,21 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
         const disclosureDraft = drafts[q.disclosure_id];
         
         if (q.sub_questions && q.sub_questions.length > 0) {
-          // Question has sub-parts
+          // Question has sub-parts - use user_draft_value from API if available
           q.sub_questions.forEach(sub => {
-            // First check draft, then saved response
-            if (disclosureDraft?.draft_data?.[sub.response_key] !== undefined) {
+            if (sub.user_draft_value !== undefined && sub.user_draft_value !== null) {
+              // User has a draft for this question
+              initialResponses[sub.response_key] = sub.user_draft_value;
+            } else if (disclosureDraft?.draft_data?.[sub.response_key] !== undefined) {
+              // Fallback to disclosure-level draft
               initialResponses[sub.response_key] = disclosureDraft.draft_data[sub.response_key];
             } else if (sub.response_value !== undefined && sub.response_value !== null) {
+              // Use saved response
               initialResponses[sub.response_key] = sub.response_value;
             }
           });
         } else {
-          // Simple question - check draft first, then saved response
+          // Simple question
           if (disclosureDraft?.draft_data?.[q.question_key] !== undefined) {
             initialResponses[q.question_key] = disclosureDraft.draft_data[q.question_key];
           } else if (q.response_value !== undefined && q.response_value !== null) {
@@ -286,6 +291,27 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
       toast.error('Failed to save draft');
     } finally {
       setSaving(prev => ({ ...prev, [draftKey]: false }));
+    }
+  };
+
+  // Discard user's draft for a question - reverts to saved value
+  const discardDraft = async (questionKey) => {
+    setSaving(prev => ({ ...prev, [`discard_${questionKey}`]: true }));
+    try {
+      await axios.delete(
+        `${API}/api/esg-questionnaire/draft/${questionKey}`,
+        {
+          headers: getAuthHeader(),
+          params: { reporting_period: reportingPeriod }
+        }
+      );
+      toast.success('Draft discarded');
+      await fetchDisclosures();
+    } catch (error) {
+      console.error('Failed to discard draft:', error);
+      toast.error('Failed to discard draft');
+    } finally {
+      setSaving(prev => ({ ...prev, [`discard_${questionKey}`]: false }));
     }
   };
 
@@ -598,10 +624,36 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
                       data-testid={`input-${sub.response_key}`}
                     />
                     <div className="flex justify-between items-center">
-                      <span className="text-xs text-text-muted">
-                        {(responses[sub.response_key] || '').length} / {question.validation_rules?.max_length || 10000} characters
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-text-muted">
+                          {(responses[sub.response_key] || '').length} / {question.validation_rules?.max_length || 10000} characters
+                        </span>
+                        {/* Show if user has a draft (different from saved value) */}
+                        {sub.has_user_draft && sub.saved_status === 'saved' && (
+                          <Badge className="text-xs bg-yellow-100 text-yellow-700">
+                            You have unsaved changes
+                          </Badge>
+                        )}
+                      </div>
                       <div className="flex gap-2">
+                        {/* Discard Draft button - only show if user has draft and there's a saved value */}
+                        {sub.has_user_draft && sub.saved_status === 'saved' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => discardDraft(sub.response_key)}
+                            disabled={saving[`discard_${sub.response_key}`]}
+                            className="h-7 text-xs border-red-200 text-red-600 hover:bg-red-50"
+                            data-testid={`discard-draft-${sub.response_key}`}
+                            title="Discard your draft and revert to saved answer"
+                          >
+                            {saving[`discard_${sub.response_key}`] ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <><Trash2 className="w-3 h-3 mr-1" /> Discard</>
+                            )}
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="outline"

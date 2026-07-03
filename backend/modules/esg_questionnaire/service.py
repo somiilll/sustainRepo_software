@@ -179,6 +179,24 @@ class ESGQuestionnaireService:
         responses_list = await responses_cursor.to_list(1000)
         responses_map = {r["question_key"]: r for r in responses_list}
         
+        # Fetch user's drafts from esg_response_drafts
+        user_drafts_map = {}
+        if user_id:
+            drafts_cursor = db[self.DRAFTS_COLLECTION].find(
+                {
+                    "organization_id": org_id,
+                    "reporting_period": reporting_period,
+                    "user_id": user_id,
+                    "is_latest": True,
+                },
+                {"_id": 0, "draft_data": 1}
+            )
+            drafts_list = await drafts_cursor.to_list(100)
+            for draft in drafts_list:
+                draft_data = draft.get("draft_data", {})
+                for qk, val in draft_data.items():
+                    user_drafts_map[qk] = val
+        
         # Fetch pending submissions for all questions (to show pending_approval status)
         submissions_cursor = db[self.SUBMISSIONS_COLLECTION].find(
             {
@@ -225,17 +243,25 @@ class ESGQuestionnaireService:
                 has_any_saved = False
                 has_any_draft = False
                 has_any_pending_approval = False
+                has_any_user_draft = False
                 for sub in sub_questions:
                     sub_response_key = f"{q_key}_{sub['sub_key']}"
                     sub_response = responses_map.get(sub_response_key, {})
                     sub_submissions = submissions_map.get(sub_response_key, [])
+                    user_draft_value = user_drafts_map.get(sub_response_key)
                     
-                    # Determine status: pending_approval takes precedence if user has a pending submission
+                    # Determine status: user draft > pending_approval > saved status
                     sub_status = sub_response.get("status")
                     user_has_pending = any(s["submitted_by_user_id"] == user_id for s in sub_submissions) if user_id else False
+                    user_has_draft = user_draft_value is not None
                     
-                    if user_has_pending:
-                        sub_status = "pending_approval"
+                    # For display: if user has draft, show as "draft" for this user
+                    display_status = sub_status
+                    if user_has_draft:
+                        display_status = "draft"
+                        has_any_user_draft = True
+                    elif user_has_pending:
+                        display_status = "pending_approval"
                         has_any_pending_approval = True
                     elif sub_status == "saved":
                         has_any_saved = True
@@ -247,12 +273,17 @@ class ESGQuestionnaireService:
                         "label": sub["label"],
                         "response_key": sub_response_key,
                         "response_value": sub_response.get("value"),
-                        "response_status": sub_status,
+                        "response_status": display_status,
+                        "saved_status": sub_status,  # Original saved status
+                        "user_draft_value": user_draft_value,  # User's draft if any
+                        "has_user_draft": user_has_draft,
                         "pending_submissions_count": len(sub_submissions),
                     })
                 
                 # Overall status for the parent question
-                if has_any_pending_approval:
+                if has_any_user_draft:
+                    question_data["status"] = "draft"
+                elif has_any_pending_approval:
                     question_data["status"] = "pending_approval"
                 elif has_any_saved:
                     question_data["status"] = "saved"
@@ -1123,6 +1154,45 @@ class ESGQuestionnaireService:
             {"_id": 0}
         )
         return draft
+
+    async def discard_user_draft(
+        self,
+        org_id: str,
+        question_key: str,
+        reporting_period: str,
+        user_id: str,
+    ) -> bool:
+        """
+        Discard a user's draft for a specific question.
+        Removes the question_key from all of the user's draft_data.
+        """
+        # Find all user drafts that contain this question_key
+        drafts_cursor = db[self.DRAFTS_COLLECTION].find({
+            "organization_id": org_id,
+            "reporting_period": reporting_period,
+            "user_id": user_id,
+            f"draft_data.{question_key}": {"$exists": True},
+            "is_latest": True,
+        })
+        
+        drafts = await drafts_cursor.to_list(100)
+        
+        for draft in drafts:
+            draft_data = draft.get("draft_data", {})
+            if question_key in draft_data:
+                del draft_data[question_key]
+                
+                if draft_data:
+                    # Update the draft with the question removed
+                    await db[self.DRAFTS_COLLECTION].update_one(
+                        {"id": draft["id"]},
+                        {"$set": {"draft_data": draft_data}}
+                    )
+                else:
+                    # No more questions in draft, delete entirely
+                    await db[self.DRAFTS_COLLECTION].delete_one({"id": draft["id"]})
+        
+        return True
 
     async def get_all_drafts_for_disclosure(
         self,
