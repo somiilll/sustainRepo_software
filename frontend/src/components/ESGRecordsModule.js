@@ -127,8 +127,6 @@ export default function ESGRecordsModule({ section = 'environment', framework = 
           <ESGRecordsTracker 
             section={section} 
             framework={framework}
-            reportingPeriodOverride={reportingPeriod}
-            hideReportingPeriodSelector={true}
           />
         </TabsContent>
 
