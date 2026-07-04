@@ -411,7 +411,9 @@ export default function ESGRecordsTracker({
       toast.success(`Assignment saved for ${assignForm.assigned_user_ids.length} user(s)`);
       setShowAssignModal(false);
       resetAssignForm();
-      fetchTrackerData(true);
+      // Force refresh by clearing and refetching
+      setAssignments([]);
+      setTimeout(() => fetchTrackerData(true), 100);
     } catch (error) {
       console.error('Failed to save assignment:', error);
       toast.error(error.response?.data?.detail || 'Failed to save assignment');
