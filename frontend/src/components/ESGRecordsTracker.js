@@ -376,13 +376,20 @@ export default function ESGRecordsTracker({
 
     setAssigning(true);
     try {
+      // Build entity_id from category hierarchy (not from existing assignment id)
+      const entityId = [
+        assigningItem.category,
+        assigningItem.subcategory,
+        assigningItem.sub_subcategory
+      ].filter(Boolean).join('_') || assigningItem.category;
+
       // Create assignment for each selected user
       const promises = assignForm.assigned_user_ids.map(userId => 
         axios.post(
           `${API}/api/esg-records/assignments`,
           {
             entity_type: 'record_category',
-            entity_id: assigningItem.category_key || assigningItem.id,
+            entity_id: entityId,
             category: assigningItem.category,
             subcategory: assigningItem.subcategory || null,
             sub_subcategory: assigningItem.sub_subcategory || null,

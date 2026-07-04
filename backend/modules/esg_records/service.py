@@ -631,11 +631,10 @@ class ESGRecordsService:
         now = datetime.now(timezone.utc)
         assignment_id = str(uuid.uuid4())
 
-        # Check for existing assignment with same params
+        # Check for existing assignment with same params (exclude entity_id as it may vary)
         existing = await db.esg_assignments.find_one({
             "organization_id": org_id,
             "entity_type": "record_category",
-            "entity_id": data.get("entity_id"),
             "category": data.get("category"),
             "subcategory": data.get("subcategory"),
             "sub_subcategory": data.get("sub_subcategory"),
@@ -650,9 +649,12 @@ class ESGRecordsService:
                 {"id": existing["id"]},
                 {
                     "$set": {
+                        "assignment_level": data.get("assignment_level", existing.get("assignment_level")),
+                        "facility_id": data.get("facility_id"),
                         "due_date": data.get("due_date"),
                         "filling_frequency": data.get("filling_frequency"),
                         "reminder_config": data.get("reminder_config"),
+                        "requires_approval": data.get("requires_approval", False),
                         "role": data.get("role"),
                         "updated_at": now,
                     }
