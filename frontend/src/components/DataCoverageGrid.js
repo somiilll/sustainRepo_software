@@ -178,8 +178,11 @@ export default function DataCoverageGrid({
                             `}
                           >
                             <Icon className={`w-4 h-4 ${config.text}`} />
-                            <span className={`text-[10px] font-medium mt-0.5 ${config.text} truncate max-w-full px-1`}>
-                              {period.period_label?.split(' ')[0] || period.period_key}
+                            <span className={`text-[10px] font-medium mt-0.5 ${config.text} truncate max-w-full px-1 text-center`}>
+                              {/* Show "04 Jul" for daily, "Jan" for monthly, "Q1" for quarterly */}
+                              {period.period_label?.includes(' ') 
+                                ? period.period_label.split(' ').slice(0, 2).join(' ')
+                                : period.period_label || period.period_key}
                             </span>
                           </div>
                         </TooltipTrigger>
