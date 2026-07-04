@@ -1035,25 +1035,6 @@ export default function ESGTrackingTab({
               />
             </div>
             
-            <div className="space-y-2">
-              <Label>Filling Frequency</Label>
-              <Select 
-                value={assignForm.filling_frequency} 
-                onValueChange={(v) => setAssignForm({...assignForm, filling_frequency: v})}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select frequency" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="one_time">One Time</SelectItem>
-                  <SelectItem value="monthly">Monthly</SelectItem>
-                  <SelectItem value="quarterly">Quarterly</SelectItem>
-                  <SelectItem value="half_yearly">Half Yearly</SelectItem>
-                  <SelectItem value="yearly">Yearly</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
             {/* Reminder Settings */}
             <div className="space-y-3 p-3 border rounded-lg bg-stone-50">
               <div className="flex items-center gap-2">
