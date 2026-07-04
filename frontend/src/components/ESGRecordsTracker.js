@@ -543,20 +543,6 @@ export default function ESGRecordsTracker({
             </SelectContent>
           </Select>
 
-          {/* Staleness */}
-          <Select value={stalenessFilter} onValueChange={setStalenessFilter}>
-            <SelectTrigger className="w-[130px]">
-              <SelectValue placeholder="Staleness" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="fresh">Fresh</SelectItem>
-              <SelectItem value="aging">Aging</SelectItem>
-              <SelectItem value="stale">Stale</SelectItem>
-              <SelectItem value="critical">Critical</SelectItem>
-            </SelectContent>
-          </Select>
-
           <Button
             variant="outline"
             size="sm"
@@ -582,7 +568,6 @@ export default function ESGRecordsTracker({
               <TableHead>Frequency</TableHead>
               <TableHead>Due Date</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Staleness</TableHead>
               <TableHead>Last Entry</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -590,7 +575,7 @@ export default function ESGRecordsTracker({
           <TableBody>
             {categoryHierarchy.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="text-center py-8 text-text-muted">
+                <TableCell colSpan={9} className="text-center py-8 text-text-muted">
                   No categories found for this section
                 </TableCell>
               </TableRow>
@@ -626,7 +611,14 @@ export default function ESGRecordsTracker({
                       {cat.assignment?.facility_name || '-'}
                     </TableCell>
                     <TableCell>
-                      {cat.assignment?.assigned_to_name || (
+                      {cat.assignment?.assigned_to_name ? (
+                        <div className="flex flex-col">
+                          <span>{cat.assignment.assigned_to_name}</span>
+                          {cat.assignment.assigned_to_email && (
+                            <span className="text-xs text-text-muted">{cat.assignment.assigned_to_email}</span>
+                          )}
+                        </div>
+                      ) : (
                         <span className="text-text-muted italic">Unassigned</span>
                       )}
                     </TableCell>
@@ -642,9 +634,6 @@ export default function ESGRecordsTracker({
                       )}
                     </TableCell>
                     <TableCell>
-                      {cat.assignment?.staleness ? getStalenessLabel(cat.assignment.staleness) : '-'}
-                    </TableCell>
-                    <TableCell>
                       {cat.assignment?.last_entry_at ? new Date(cat.assignment.last_entry_at).toLocaleDateString() : '-'}
                     </TableCell>
                     <TableCell className="text-right">
@@ -652,8 +641,8 @@ export default function ESGRecordsTracker({
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => openAssignModal({ category: cat.category })}
-                          title="Assign"
+                          onClick={() => openAssignModal({ category: cat.category, assignChildren: true })}
+                          title="Assign (includes all subcategories)"
                         >
                           <UserPlus className="w-4 h-4" />
                         </Button>
@@ -672,7 +661,12 @@ export default function ESGRecordsTracker({
                   </TableRow>
 
                   {/* Subcategories */}
-                  {expandedCategories[cat.category] && Object.values(cat.subcategories).map(subcat => (
+                  {expandedCategories[cat.category] && Object.values(cat.subcategories).map(subcat => {
+                    // Use parent category assignment if subcategory doesn't have its own
+                    const effectiveAssignment = subcat.assignment || cat.assignment;
+                    const isInherited = !subcat.assignment && cat.assignment;
+                    
+                    return (
                     <React.Fragment key={`${cat.category}-${subcat.subcategory}`}>
                       <TableRow className="bg-white hover:bg-stone-50">
                         <TableCell className="pl-12">
@@ -692,31 +686,40 @@ export default function ESGRecordsTracker({
                               </Button>
                             )}
                             <span className="text-text-secondary">{subcat.subcategory}</span>
+                            {isInherited && (
+                              <Badge variant="outline" className="text-xs bg-blue-50 text-blue-600 border-blue-200">
+                                Inherited
+                              </Badge>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-xs">
-                            {subcat.assignment?.assignment_level === 'facility' ? 'Facility' : 'Org'}
+                            {effectiveAssignment?.assignment_level === 'facility' ? 'Facility' : 'Org'}
                           </Badge>
                         </TableCell>
-                        <TableCell>{subcat.assignment?.facility_name || '-'}</TableCell>
+                        <TableCell>{effectiveAssignment?.facility_name || '-'}</TableCell>
                         <TableCell>
-                          {subcat.assignment?.assigned_to_name || (
+                          {effectiveAssignment?.assigned_to_name ? (
+                            <div className="flex flex-col">
+                              <span className="text-sm">{effectiveAssignment.assigned_to_name}</span>
+                              {effectiveAssignment.assigned_to_email && (
+                                <span className="text-xs text-text-muted">{effectiveAssignment.assigned_to_email}</span>
+                              )}
+                            </div>
+                          ) : (
                             <span className="text-text-muted italic text-sm">Unassigned</span>
                           )}
                         </TableCell>
-                        <TableCell>{subcat.assignment?.filling_frequency || '-'}</TableCell>
+                        <TableCell>{effectiveAssignment?.filling_frequency || '-'}</TableCell>
                         <TableCell>
-                          {subcat.assignment?.due_date ? new Date(subcat.assignment.due_date).toLocaleDateString() : '-'}
+                          {effectiveAssignment?.due_date ? new Date(effectiveAssignment.due_date).toLocaleDateString() : '-'}
                         </TableCell>
                         <TableCell>
-                          {subcat.assignment?.status ? getStatusBadge(subcat.assignment.status) : '-'}
+                          {effectiveAssignment?.status ? getStatusBadge(effectiveAssignment.status) : '-'}
                         </TableCell>
                         <TableCell>
-                          {subcat.assignment?.staleness ? getStalenessLabel(subcat.assignment.staleness) : '-'}
-                        </TableCell>
-                        <TableCell>
-                          {subcat.assignment?.last_entry_at ? new Date(subcat.assignment.last_entry_at).toLocaleDateString() : '-'}
+                          {effectiveAssignment?.last_entry_at ? new Date(effectiveAssignment.last_entry_at).toLocaleDateString() : '-'}
                         </TableCell>
                         <TableCell className="text-right">
                           <Button
@@ -724,8 +727,10 @@ export default function ESGRecordsTracker({
                             size="sm"
                             onClick={() => openAssignModal({ 
                               category: cat.category, 
-                              subcategory: subcat.subcategory 
+                              subcategory: subcat.subcategory,
+                              assignChildren: true
                             })}
+                            title="Assign (includes all sub-subcategories)"
                           >
                             <UserPlus className="w-4 h-4" />
                           </Button>
@@ -734,34 +739,50 @@ export default function ESGRecordsTracker({
 
                       {/* Sub-subcategories */}
                       {expandedCategories[`${cat.category}-${subcat.subcategory}`] && 
-                        subcat.sub_subcategories.map(subsub => (
+                        subcat.sub_subcategories.map(subsub => {
+                          // Use parent assignment chain: sub_sub -> subcategory -> category
+                          const subsubEffectiveAssignment = subsub.assignment || subcat.assignment || cat.assignment;
+                          const subsubIsInherited = !subsub.assignment && (subcat.assignment || cat.assignment);
+                          
+                          return (
                           <TableRow key={`${cat.category}-${subcat.subcategory}-${subsub.sub_subcategory}`} className="bg-stone-25">
                             <TableCell className="pl-20">
-                              <span className="text-sm text-text-muted">{subsub.sub_subcategory}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-text-muted">{subsub.sub_subcategory}</span>
+                                {subsubIsInherited && (
+                                  <Badge variant="outline" className="text-xs bg-blue-50 text-blue-600 border-blue-200">
+                                    Inherited
+                                  </Badge>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell>
                               <Badge variant="outline" className="text-xs">
-                                {subsub.assignment?.assignment_level === 'facility' ? 'Facility' : 'Org'}
+                                {subsubEffectiveAssignment?.assignment_level === 'facility' ? 'Facility' : 'Org'}
                               </Badge>
                             </TableCell>
-                            <TableCell>{subsub.assignment?.facility_name || '-'}</TableCell>
+                            <TableCell>{subsubEffectiveAssignment?.facility_name || '-'}</TableCell>
                             <TableCell>
-                              {subsub.assignment?.assigned_to_name || (
+                              {subsubEffectiveAssignment?.assigned_to_name ? (
+                                <div className="flex flex-col">
+                                  <span className="text-xs">{subsubEffectiveAssignment.assigned_to_name}</span>
+                                  {subsubEffectiveAssignment.assigned_to_email && (
+                                    <span className="text-xs text-text-muted">{subsubEffectiveAssignment.assigned_to_email}</span>
+                                  )}
+                                </div>
+                              ) : (
                                 <span className="text-text-muted italic text-xs">-</span>
                               )}
                             </TableCell>
-                            <TableCell>{subsub.assignment?.filling_frequency || '-'}</TableCell>
+                            <TableCell>{subsubEffectiveAssignment?.filling_frequency || '-'}</TableCell>
                             <TableCell>
-                              {subsub.assignment?.due_date ? new Date(subsub.assignment.due_date).toLocaleDateString() : '-'}
+                              {subsubEffectiveAssignment?.due_date ? new Date(subsubEffectiveAssignment.due_date).toLocaleDateString() : '-'}
                             </TableCell>
                             <TableCell>
-                              {subsub.assignment?.status ? getStatusBadge(subsub.assignment.status) : '-'}
+                              {subsubEffectiveAssignment?.status ? getStatusBadge(subsubEffectiveAssignment.status) : '-'}
                             </TableCell>
                             <TableCell>
-                              {subsub.assignment?.staleness ? getStalenessLabel(subsub.assignment.staleness) : '-'}
-                            </TableCell>
-                            <TableCell>
-                              {subsub.assignment?.last_entry_at ? new Date(subsub.assignment.last_entry_at).toLocaleDateString() : '-'}
+                              {subsubEffectiveAssignment?.last_entry_at ? new Date(subsubEffectiveAssignment.last_entry_at).toLocaleDateString() : '-'}
                             </TableCell>
                             <TableCell className="text-right">
                               <Button
@@ -777,10 +798,10 @@ export default function ESGRecordsTracker({
                               </Button>
                             </TableCell>
                           </TableRow>
-                        ))
+                        )})
                       }
                     </React.Fragment>
-                  ))}
+                  )})}
                 </React.Fragment>
               ))
             )}
@@ -854,12 +875,26 @@ export default function ESGRecordsTracker({
                 <SelectContent>
                   {users.map(u => (
                     <SelectItem key={u.id} value={u.id}>
-                      {u.full_name || u.name || u.email}
+                      <div className="flex flex-col">
+                        <span>{u.full_name || u.name || u.email}</span>
+                        {u.email && (u.full_name || u.name) && (
+                          <span className="text-xs text-muted-foreground">{u.email}</span>
+                        )}
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Cascade info */}
+            {assigningItem?.assignChildren && !assigningItem?.sub_subcategory && (
+              <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-700">
+                <strong>Note:</strong> This assignment will automatically apply to all 
+                {assigningItem?.subcategory ? ' sub-subcategories' : ' subcategories and sub-subcategories'} 
+                under this {assigningItem?.subcategory ? 'subcategory' : 'category'}.
+              </div>
+            )}
 
             {/* Role */}
             <div className="space-y-2">
