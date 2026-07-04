@@ -193,19 +193,39 @@ export default function ESGRecordsTracker({
   useEffect(() => {
     const fetchBaseData = async () => {
       try {
-        const [catRes, facRes, usersRes] = await Promise.all([
-          axios.get(`${API}/api/esg-records/categories/${section}`, { 
-            headers, 
-            params: { framework } 
-          }),
-          axios.get(`${API}/api/facilities`, { headers }),
-          axios.get(`${API}/api/users`, { headers }),
-        ]);
+        // Fetch categories (required)
+        const catRes = await axios.get(`${API}/api/esg-records/categories/${section}`, { 
+          headers, 
+          params: { framework } 
+        });
         setCategories(catRes.data.categories || []);
-        setFacilities(facRes.data.facilities || facRes.data || []);
-        setUsers(usersRes.data.users || usersRes.data || []);
+        
+        // Fetch facilities (optional - don't fail if not available)
+        try {
+          const facRes = await axios.get(`${API}/api/facilities`, { headers });
+          setFacilities(facRes.data.facilities || facRes.data || []);
+        } catch (e) {
+          console.warn('Failed to fetch facilities:', e);
+          setFacilities([]);
+        }
+        
+        // Fetch users - use tracking/users endpoint which is available to all authenticated users
+        try {
+          const usersRes = await axios.get(`${API}/api/tracking/users`, { headers });
+          setUsers(usersRes.data.users || usersRes.data || []);
+        } catch (e) {
+          // Fallback to admin endpoint if user is admin
+          try {
+            const usersRes = await axios.get(`${API}/api/admin/users`, { headers });
+            setUsers(usersRes.data || []);
+          } catch (e2) {
+            console.warn('Failed to fetch users:', e2);
+            setUsers([]);
+          }
+        }
       } catch (error) {
-        console.error('Failed to fetch base data:', error);
+        console.error('Failed to fetch categories:', error);
+        setCategories([]);
       }
     };
     fetchBaseData();
