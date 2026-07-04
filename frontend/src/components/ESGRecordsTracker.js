@@ -149,21 +149,45 @@ export default function ESGRecordsTracker({
   // Expanded categories
   const [expandedCategories, setExpandedCategories] = useState({});
   
+  // Feature flags (fetch from org)
+  const [multiLevelApprovalEnabled, setMultiLevelApprovalEnabled] = useState(false);
+  const [approvalWorkflowEnabled, setApprovalWorkflowEnabled] = useState(false);
+  
   // Assignment modal
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [assigningItem, setAssigningItem] = useState(null);
-  const [assignmentData, setAssignmentData] = useState({
-    assigned_to_user_id: '',
+  const [assignForm, setAssignForm] = useState({
+    assigned_user_ids: [],
     assignment_level: 'organization',
     facility_id: '',
     due_date: '',
-    filling_frequency: 'monthly',
-    reminder_frequency: 'weekly',
-    role: 'editor',
+    filling_frequency: '',
+    reminder_enabled: false,
+    reminder_frequency: '',
+    requires_approval: false,
+    approver_id: '',
+    approval_chain: [],
   });
   const [assigning, setAssigning] = useState(false);
 
   const headers = { Authorization: `Bearer ${token}` };
+  
+  // Reset assignment form
+  const resetAssignForm = () => {
+    setAssignForm({
+      assigned_user_ids: [],
+      assignment_level: 'organization',
+      facility_id: '',
+      due_date: '',
+      filling_frequency: '',
+      reminder_enabled: false,
+      reminder_frequency: '',
+      requires_approval: false,
+      approver_id: '',
+      approval_chain: [],
+    });
+    setAssigningItem(null);
+  };
 
   // Fetch organization and set reporting period (only if not overridden)
   useEffect(() => {
@@ -177,6 +201,10 @@ export default function ESGRecordsTracker({
         if (!reportingPeriodOverride) {
           setInternalReportingPeriod(getCurrentReportingYear(yearType));
         }
+        
+        // Set feature flags
+        setMultiLevelApprovalEnabled(res.data.multi_level_approval_enabled || false);
+        setApprovalWorkflowEnabled(res.data.approval_workflow_enabled || false);
       } catch (error) {
         console.error('Failed to fetch organization:', error);
         const years = generateReportingYears('financial_year', 5);
@@ -292,53 +320,82 @@ export default function ESGRecordsTracker({
   // Open assignment modal
   const openAssignModal = (item) => {
     setAssigningItem(item);
-    setAssignmentData({
-      assigned_to_user_id: item.assigned_to_user_id || '',
+    // Reset form with any existing assignment data if available
+    setAssignForm({
+      assigned_user_ids: item.assigned_to_user_id ? [item.assigned_to_user_id] : [],
       assignment_level: item.assignment_level || 'organization',
       facility_id: item.facility_id || '',
       due_date: item.due_date || '',
-      filling_frequency: item.filling_frequency || 'monthly',
-      reminder_frequency: item.reminder_config?.frequency || 'weekly',
-      role: item.role || 'editor',
+      filling_frequency: item.filling_frequency || '',
+      reminder_enabled: item.reminder_config?.frequency ? true : false,
+      reminder_frequency: item.reminder_config?.frequency || '',
+      requires_approval: item.requires_approval || false,
+      approver_id: item.approver_id || '',
+      approval_chain: item.approval_chain || [],
     });
     setShowAssignModal(true);
   };
 
-  // Handle assignment
+  // Handle assignment - supports multi-user
   const handleAssign = async () => {
-    if (!assignmentData.assigned_to_user_id) {
-      toast.error('Please select a user');
+    if (assignForm.assigned_user_ids.length === 0) {
+      toast.error('Please select at least one user');
       return;
+    }
+
+    if (assignForm.assignment_level === 'facility' && !assignForm.facility_id) {
+      toast.error('Please select a facility');
+      return;
+    }
+
+    if (assignForm.requires_approval) {
+      if (multiLevelApprovalEnabled && assignForm.approval_chain.length === 0) {
+        toast.error('Please add at least one approver to the approval chain');
+        return;
+      }
+      if (!multiLevelApprovalEnabled && approvalWorkflowEnabled && !assignForm.approver_id) {
+        toast.error('Please select an approver');
+        return;
+      }
     }
 
     setAssigning(true);
     try {
-      await axios.post(
-        `${API}/api/esg-records/assignments`,
-        {
-          entity_type: 'record_category',
-          entity_id: assigningItem.category_key || assigningItem.id,
-          category: assigningItem.category,
-          subcategory: assigningItem.subcategory,
-          sub_subcategory: assigningItem.sub_subcategory,
-          assignment_level: assignmentData.assignment_level,
-          facility_id: assignmentData.assignment_level === 'facility' ? assignmentData.facility_id : null,
-          assigned_to_user_id: assignmentData.assigned_to_user_id,
-          reporting_period: reportingPeriod,
-          due_date: assignmentData.due_date || null,
-          filling_frequency: assignmentData.filling_frequency,
-          reminder_config: {
-            frequency: assignmentData.reminder_frequency,
-            days_before_due: [7, 3, 1],
-            repeat_overdue: true,
+      // Create assignment for each selected user
+      const promises = assignForm.assigned_user_ids.map(userId => 
+        axios.post(
+          `${API}/api/esg-records/assignments`,
+          {
+            entity_type: 'record_category',
+            entity_id: assigningItem.category_key || assigningItem.id,
+            category: assigningItem.category,
+            subcategory: assigningItem.subcategory || null,
+            sub_subcategory: assigningItem.sub_subcategory || null,
+            assign_children: assigningItem.assignChildren || false,
+            assignment_level: assignForm.assignment_level,
+            facility_id: assignForm.assignment_level === 'facility' ? assignForm.facility_id : null,
+            assigned_to_user_id: userId,
+            reporting_period: reportingPeriod,
+            due_date: assignForm.due_date || null,
+            filling_frequency: assignForm.filling_frequency || null,
+            reminder_enabled: assignForm.reminder_enabled,
+            reminder_config: assignForm.reminder_enabled ? {
+              frequency: assignForm.reminder_frequency,
+              days_before_due: [7, 3, 1],
+              repeat_overdue: true,
+            } : null,
+            requires_approval: assignForm.requires_approval,
+            approver_id: assignForm.requires_approval && !multiLevelApprovalEnabled ? assignForm.approver_id : null,
+            approval_chain: assignForm.requires_approval && multiLevelApprovalEnabled ? assignForm.approval_chain : [],
           },
-          role: assignmentData.role,
-        },
-        { headers }
+          { headers }
+        )
       );
 
-      toast.success('Assignment saved');
+      await Promise.all(promises);
+      toast.success(`Assignment saved for ${assignForm.assigned_user_ids.length} user(s)`);
       setShowAssignModal(false);
+      resetAssignForm();
       fetchTrackerData(true);
     } catch (error) {
       console.error('Failed to save assignment:', error);
@@ -686,11 +743,6 @@ export default function ESGRecordsTracker({
                               </Button>
                             )}
                             <span className="text-text-secondary">{subcat.subcategory}</span>
-                            {isInherited && (
-                              <Badge variant="outline" className="text-xs bg-blue-50 text-blue-600 border-blue-200">
-                                Inherited
-                              </Badge>
-                            )}
                           </div>
                         </TableCell>
                         <TableCell>
@@ -749,11 +801,6 @@ export default function ESGRecordsTracker({
                             <TableCell className="pl-20">
                               <div className="flex items-center gap-2">
                                 <span className="text-sm text-text-muted">{subsub.sub_subcategory}</span>
-                                {subsubIsInherited && (
-                                  <Badge variant="outline" className="text-xs bg-blue-50 text-blue-600 border-blue-200">
-                                    Inherited
-                                  </Badge>
-                                )}
                               </div>
                             </TableCell>
                             <TableCell>
@@ -810,27 +857,34 @@ export default function ESGRecordsTracker({
       </Card>
 
       {/* Assignment Modal */}
-      <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
-        <DialogContent className="max-w-lg">
+      <Dialog open={showAssignModal} onOpenChange={(open) => {
+        setShowAssignModal(open);
+        if (!open) resetAssignForm();
+      }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserPlus className="w-5 h-5 text-emerald-600" />
               Assign Metric Category
             </DialogTitle>
-            <DialogDescription>
-              {assigningItem?.category}
-              {assigningItem?.subcategory && ` → ${assigningItem.subcategory}`}
-              {assigningItem?.sub_subcategory && ` → ${assigningItem.sub_subcategory}`}
+            <DialogDescription asChild>
+              <div className="text-sm text-text-muted">
+                <div className="p-3 bg-stone-50 rounded-lg border text-text-primary mt-2">
+                  <span className="font-medium">{assigningItem?.category}</span>
+                  {assigningItem?.subcategory && <span> → {assigningItem.subcategory}</span>}
+                  {assigningItem?.sub_subcategory && <span> → {assigningItem.sub_subcategory}</span>}
+                </div>
+              </div>
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
             {/* Assignment Level */}
             <div className="space-y-2">
-              <Label>Assignment Level</Label>
+              <Label>Assignment Level *</Label>
               <Select 
-                value={assignmentData.assignment_level} 
-                onValueChange={(v) => setAssignmentData(prev => ({ ...prev, assignment_level: v }))}
+                value={assignForm.assignment_level} 
+                onValueChange={(v) => setAssignForm(prev => ({ ...prev, assignment_level: v, facility_id: '' }))}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -843,12 +897,12 @@ export default function ESGRecordsTracker({
             </div>
 
             {/* Facility (if facility level) */}
-            {assignmentData.assignment_level === 'facility' && (
+            {assignForm.assignment_level === 'facility' && (
               <div className="space-y-2">
-                <Label>Facility</Label>
+                <Label>Facility *</Label>
                 <Select 
-                  value={assignmentData.facility_id} 
-                  onValueChange={(v) => setAssignmentData(prev => ({ ...prev, facility_id: v }))}
+                  value={assignForm.facility_id} 
+                  onValueChange={(v) => setAssignForm(prev => ({ ...prev, facility_id: v }))}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select facility" />
@@ -862,112 +916,291 @@ export default function ESGRecordsTracker({
               </div>
             )}
 
-            {/* Assigned User */}
+            {/* Multi-user selection */}
             <div className="space-y-2">
-              <Label>Assign To</Label>
-              <Select 
-                value={assignmentData.assigned_to_user_id} 
-                onValueChange={(v) => setAssignmentData(prev => ({ ...prev, assigned_to_user_id: v }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select user" />
-                </SelectTrigger>
-                <SelectContent>
-                  {users.map(u => (
-                    <SelectItem key={u.id} value={u.id}>
-                      <div className="flex flex-col">
-                        <span>{u.full_name || u.name || u.email}</span>
-                        {u.email && (u.full_name || u.name) && (
-                          <span className="text-xs text-muted-foreground">{u.email}</span>
-                        )}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Assign To *</Label>
+              <div className="border rounded-lg max-h-48 overflow-y-auto">
+                {users.map(u => (
+                  <div 
+                    key={u.id}
+                    className="flex items-center gap-3 p-2 hover:bg-stone-50 cursor-pointer border-b last:border-b-0"
+                    onClick={() => {
+                      const ids = assignForm.assigned_user_ids;
+                      if (ids.includes(u.id)) {
+                        setAssignForm(prev => ({ ...prev, assigned_user_ids: ids.filter(id => id !== u.id) }));
+                      } else {
+                        setAssignForm(prev => ({ ...prev, assigned_user_ids: [...ids, u.id] }));
+                      }
+                    }}
+                  >
+                    <Checkbox 
+                      checked={assignForm.assigned_user_ids.includes(u.id)}
+                      onCheckedChange={() => {
+                        const ids = assignForm.assigned_user_ids;
+                        if (ids.includes(u.id)) {
+                          setAssignForm(prev => ({ ...prev, assigned_user_ids: ids.filter(id => id !== u.id) }));
+                        } else {
+                          setAssignForm(prev => ({ ...prev, assigned_user_ids: [...ids, u.id] }));
+                        }
+                      }}
+                    />
+                    <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-sm font-medium text-emerald-700">
+                      {(u.full_name || u.name || u.email)?.charAt(0) || '?'}
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium text-sm">{u.full_name || u.name || 'No Name'}</div>
+                      <div className="text-xs text-text-muted">{u.email}</div>
+                    </div>
+                    <Badge variant="outline" className="text-xs">{u.role}</Badge>
+                  </div>
+                ))}
+              </div>
+              {assignForm.assigned_user_ids.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {assignForm.assigned_user_ids.map(id => {
+                    const u = users.find(user => user.id === id);
+                    return u ? (
+                      <Badge key={id} variant="secondary" className="text-xs flex items-center gap-1">
+                        {u.full_name || u.name || u.email}
+                        <X 
+                          className="w-3 h-3 cursor-pointer hover:text-red-500" 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setAssignForm(prev => ({ ...prev, assigned_user_ids: prev.assigned_user_ids.filter(uid => uid !== id) }));
+                          }}
+                        />
+                      </Badge>
+                    ) : null;
+                  })}
+                </div>
+              )}
             </div>
 
-            {/* Cascade info */}
-            {assigningItem?.assignChildren && !assigningItem?.sub_subcategory && (
-              <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-700">
-                <strong>Note:</strong> This assignment will automatically apply to all 
-                {assigningItem?.subcategory ? ' sub-subcategories' : ' subcategories and sub-subcategories'} 
-                under this {assigningItem?.subcategory ? 'subcategory' : 'category'}.
-              </div>
-            )}
-
-            {/* Role */}
+            {/* Due Date */}
             <div className="space-y-2">
-              <Label>Role</Label>
-              <Select 
-                value={assignmentData.role} 
-                onValueChange={(v) => setAssignmentData(prev => ({ ...prev, role: v }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="editor">Editor</SelectItem>
-                  <SelectItem value="reviewer">Reviewer</SelectItem>
-                  <SelectItem value="approver">Approver</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label>Due Date</Label>
+              <Input
+                type="date"
+                value={assignForm.due_date}
+                onChange={(e) => setAssignForm(prev => ({ ...prev, due_date: e.target.value }))}
+              />
             </div>
 
             {/* Filling Frequency */}
             <div className="space-y-2">
               <Label>Filling Frequency</Label>
               <Select 
-                value={assignmentData.filling_frequency} 
-                onValueChange={(v) => setAssignmentData(prev => ({ ...prev, filling_frequency: v }))}
+                value={assignForm.filling_frequency} 
+                onValueChange={(v) => setAssignForm(prev => ({ ...prev, filling_frequency: v }))}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Select frequency" />
                 </SelectTrigger>
                 <SelectContent>
-                  {FILLING_FREQUENCIES.map(f => (
-                    <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
-                  ))}
+                  <SelectItem value="one_time">One Time</SelectItem>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                  <SelectItem value="quarterly">Quarterly</SelectItem>
+                  <SelectItem value="half_yearly">Half Yearly</SelectItem>
+                  <SelectItem value="yearly">Yearly</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Due Date */}
-            <div className="space-y-2">
-              <Label>Due Date (Optional)</Label>
-              <Input
-                type="date"
-                value={assignmentData.due_date}
-                onChange={(e) => setAssignmentData(prev => ({ ...prev, due_date: e.target.value }))}
-              />
+            {/* Reminder Settings */}
+            <div className="space-y-3 p-3 border rounded-lg bg-stone-50">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="reminder_enabled"
+                  checked={assignForm.reminder_enabled}
+                  onCheckedChange={(checked) => setAssignForm(prev => ({
+                    ...prev, 
+                    reminder_enabled: checked,
+                    reminder_frequency: checked ? prev.reminder_frequency : ''
+                  }))}
+                />
+                <Label htmlFor="reminder_enabled" className="text-sm cursor-pointer">
+                  Enable reminders
+                </Label>
+              </div>
+              
+              {assignForm.reminder_enabled && (
+                <div className="space-y-2 mt-2">
+                  <Label className="text-sm">Reminder Frequency *</Label>
+                  <Select 
+                    value={assignForm.reminder_frequency} 
+                    onValueChange={(v) => setAssignForm(prev => ({ ...prev, reminder_frequency: v }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select reminder frequency" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="daily">Daily</SelectItem>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
 
-            {/* Reminder Frequency */}
-            <div className="space-y-2">
-              <Label>Reminder Frequency</Label>
-              <Select 
-                value={assignmentData.reminder_frequency} 
-                onValueChange={(v) => setAssignmentData(prev => ({ ...prev, reminder_frequency: v }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {REMINDER_FREQUENCIES.map(f => (
-                    <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Approval Settings */}
+            {(approvalWorkflowEnabled || multiLevelApprovalEnabled) && (
+              <div className="space-y-3 p-3 border rounded-lg bg-violet-50">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="requires_approval"
+                    checked={assignForm.requires_approval}
+                    onCheckedChange={(checked) => setAssignForm(prev => ({
+                      ...prev, 
+                      requires_approval: checked,
+                      approver_id: checked ? prev.approver_id : '',
+                      approval_chain: checked ? prev.approval_chain : []
+                    }))}
+                  />
+                  <Label htmlFor="requires_approval" className="text-sm cursor-pointer">
+                    {multiLevelApprovalEnabled 
+                      ? 'Requires multi-level approval before finalization'
+                      : 'Requires approval before finalization'
+                    }
+                  </Label>
+                </div>
+                
+                {/* Single-level approval */}
+                {assignForm.requires_approval && !multiLevelApprovalEnabled && approvalWorkflowEnabled && (
+                  <div className="space-y-2 mt-3">
+                    <Label className="text-sm">Select Approver *</Label>
+                    <Select 
+                      value={assignForm.approver_id} 
+                      onValueChange={(v) => setAssignForm(prev => ({ ...prev, approver_id: v }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select approver" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {users.map(u => (
+                          <SelectItem key={u.id} value={u.id}>
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 rounded-full bg-violet-100 flex items-center justify-center text-xs font-medium text-violet-700">
+                                {(u.full_name || u.name || u.email)?.charAt(0) || '?'}
+                              </div>
+                              <div>
+                                <span className="font-medium">{u.full_name || u.name || u.email}</span>
+                                <span className="text-xs text-text-muted ml-2">({u.role})</span>
+                              </div>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                
+                {/* Multi-level approval chain builder */}
+                {assignForm.requires_approval && multiLevelApprovalEnabled && (
+                  <div className="space-y-3 mt-3">
+                    <Label className="text-sm">Approval Chain * <span className="text-xs text-text-muted">(in order)</span></Label>
+                    
+                    {/* Current approval chain */}
+                    {assignForm.approval_chain.length > 0 && (
+                      <div className="space-y-2">
+                        {assignForm.approval_chain.map((approverId, index) => {
+                          const approver = users.find(u => u.id === approverId);
+                          return (
+                            <div key={approverId} className="flex items-center gap-2 p-2 bg-white rounded border">
+                              <Badge variant="outline" className="bg-violet-100 text-violet-700">
+                                Level {index + 1}
+                              </Badge>
+                              <div className="flex-1 flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full bg-violet-200 flex items-center justify-center text-xs font-medium text-violet-700">
+                                  {(approver?.full_name || approver?.name)?.charAt(0) || '?'}
+                                </div>
+                                <span className="text-sm font-medium">{approver?.full_name || approver?.name || approver?.email || 'Unknown'}</span>
+                                <span className="text-xs text-text-muted">({approver?.role})</span>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  const newChain = assignForm.approval_chain.filter((_, i) => i !== index);
+                                  setAssignForm(prev => ({ ...prev, approval_chain: newChain }));
+                                }}
+                              >
+                                <X className="w-4 h-4 text-red-500" />
+                              </Button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    
+                    {/* Add approver dropdown */}
+                    <Select 
+                      value="" 
+                      onValueChange={(userId) => {
+                        if (userId && !assignForm.approval_chain.includes(userId)) {
+                          setAssignForm(prev => ({
+                            ...prev, 
+                            approval_chain: [...prev.approval_chain, userId]
+                          }));
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={`Add Level ${assignForm.approval_chain.length + 1} Approver`} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {users
+                          .filter(u => !assignForm.approval_chain.includes(u.id))
+                          .map(u => (
+                            <SelectItem key={u.id} value={u.id}>
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full bg-stone-100 flex items-center justify-center text-xs font-medium">
+                                  {(u.full_name || u.name || u.email)?.charAt(0) || '?'}
+                                </div>
+                                <div>
+                                  <span className="font-medium">{u.full_name || u.name || u.email}</span>
+                                  <span className="text-xs text-text-muted ml-2">({u.role})</span>
+                                </div>
+                              </div>
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                    
+                    {assignForm.approval_chain.length === 0 && (
+                      <p className="text-xs text-text-muted">Add approvers in the order they should review (e.g., Manager → Director → VP)</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAssignModal(false)}>
+            <Button variant="outline" onClick={() => {
+              setShowAssignModal(false);
+              resetAssignForm();
+            }}>
               Cancel
             </Button>
-            <Button onClick={handleAssign} disabled={assigning}>
-              {assigning ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              Save Assignment
+            <Button 
+              onClick={handleAssign}
+              disabled={
+                assigning || 
+                assignForm.assigned_user_ids.length === 0 || 
+                (assignForm.assignment_level === 'facility' && !assignForm.facility_id) ||
+                (assignForm.requires_approval && multiLevelApprovalEnabled && assignForm.approval_chain.length === 0) ||
+                (assignForm.requires_approval && !multiLevelApprovalEnabled && approvalWorkflowEnabled && !assignForm.approver_id) ||
+                (assignForm.reminder_enabled && !assignForm.reminder_frequency)
+              }
+            >
+              {assigning ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Assigning...</>
+              ) : (
+                <><UserPlus className="w-4 h-4 mr-2" /> Assign to {assignForm.assigned_user_ids.length} User{assignForm.assigned_user_ids.length !== 1 ? 's' : ''}</>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
