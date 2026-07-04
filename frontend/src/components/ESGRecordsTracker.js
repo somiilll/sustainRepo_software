@@ -75,6 +75,7 @@ import {
   generateReportingYears, 
   getCurrentReportingYear 
 } from '../utils/reportingYearUtils';
+import DataCoverageGrid from './DataCoverageGrid';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -716,6 +717,21 @@ export default function ESGRecordsTracker({
                       </div>
                     </TableCell>
                   </TableRow>
+
+                  {/* Data Coverage Grid for this category */}
+                  {expandedCategories[cat.category] && cat.assignment?.filling_frequency && (
+                    <TableRow className="bg-stone-25">
+                      <TableCell colSpan={9} className="py-2">
+                        <DataCoverageGrid
+                          category={cat.category}
+                          fillingFrequency={cat.assignment.filling_frequency}
+                          reportingYear={reportingPeriod}
+                          facilityId={cat.assignment?.facility_id}
+                          expanded={true}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  )}
 
                   {/* Subcategories */}
                   {expandedCategories[cat.category] && Object.values(cat.subcategories).map(subcat => {

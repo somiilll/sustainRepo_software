@@ -577,3 +577,60 @@ async def discard_record_draft(
     
     return {"message": "Draft discarded"}
 
+
+
+# =============================================================================
+# Data Coverage Endpoint
+# =============================================================================
+
+@router.get("/coverage")
+async def get_data_coverage(
+    category: str,
+    filling_frequency: str,
+    reporting_year: str,
+    subcategory: Optional[str] = None,
+    sub_subcategory: Optional[str] = None,
+    facility_id: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+    db = Depends(get_database)
+):
+    """
+    Get data coverage for a category based on filling frequency.
+    
+    Shows which periods have data submitted vs missing.
+    
+    Args:
+        category: Category name (e.g., "Water")
+        filling_frequency: monthly, quarterly, yearly, etc.
+        reporting_year: e.g., "FY 2025-2026", "CY 2026"
+        subcategory: Optional subcategory filter
+        sub_subcategory: Optional sub-subcategory filter
+        facility_id: Optional facility filter
+    
+    Returns:
+        List of periods with status (complete, missing, overdue, upcoming)
+    """
+    from .coverage import get_data_coverage as get_coverage
+    
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    # Get org's year type
+    org = await db["organizations"].find_one({"id": org_id}, {"_id": 0, "reporting_year_type": 1})
+    year_type = org.get("reporting_year_type", "financial_year") if org else "financial_year"
+    
+    coverage = await get_coverage(
+        db=db,
+        organization_id=org_id,
+        category=category,
+        subcategory=subcategory,
+        sub_subcategory=sub_subcategory,
+        filling_frequency=filling_frequency,
+        reporting_year=reporting_year,
+        year_type=year_type,
+        facility_id=facility_id,
+    )
+    
+    return coverage
+
