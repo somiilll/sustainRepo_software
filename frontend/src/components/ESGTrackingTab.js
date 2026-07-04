@@ -547,6 +547,43 @@ export default function ESGTrackingTab({
   // Open assign modal for section
   const openAssignSectionModal = (section) => {
     setAssigningItem({ ...section, isSection: true });
+    prefillAssignForm(section);
+    setAssignModalOpen(true);
+  };
+  
+  // Pre-fill form with existing assignment data
+  const prefillAssignForm = (item) => {
+    if (!item) return;
+    
+    // Format due date for input field (needs YYYY-MM-DD format)
+    let formattedDueDate = '';
+    if (item.due_date) {
+      try {
+        const date = new Date(item.due_date);
+        if (!isNaN(date.getTime())) {
+          formattedDueDate = date.toISOString().split('T')[0];
+        }
+      } catch (e) {
+        formattedDueDate = '';
+      }
+    }
+    
+    setAssignForm({
+      assigned_user_ids: item.assigned_to_user_id ? [item.assigned_to_user_id] : [],
+      due_date: formattedDueDate,
+      filling_frequency: item.filling_frequency || '',
+      reminder_enabled: !!(item.reminder_enabled || item.last_reminder_sent_at),
+      reminder_frequency: item.reminder_frequency || '',
+      requires_approval: item.requires_approval || false,
+      approver_id: item.approver_id || '',
+      approval_chain: item.approval_chain || [],
+    });
+  };
+  
+  // Open assign modal for disclosure with pre-fill
+  const openAssignDisclosureModal = (disc) => {
+    setAssigningItem(disc);
+    prefillAssignForm(disc);
     setAssignModalOpen(true);
   };
   
@@ -918,10 +955,7 @@ export default function ESGTrackingTab({
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => {
-                                  setAssigningItem(disc);
-                                  setAssignModalOpen(true);
-                                }}
+                                onClick={() => openAssignDisclosureModal(disc)}
                                 title="Reassign"
                               >
                                 <Users className="w-4 h-4" />
@@ -931,10 +965,7 @@ export default function ESGTrackingTab({
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => {
-                                setAssigningItem(disc);
-                                setAssignModalOpen(true);
-                              }}
+                              onClick={() => openAssignDisclosureModal(disc)}
                             >
                               <UserPlus className="w-4 h-4 mr-1" /> Assign
                             </Button>

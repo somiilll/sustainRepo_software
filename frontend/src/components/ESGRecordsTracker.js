@@ -321,15 +321,29 @@ export default function ESGRecordsTracker({
   // Open assignment modal
   const openAssignModal = (item) => {
     setAssigningItem(item);
-    // Reset form with any existing assignment data if available
+    
+    // Format due date for input field (needs YYYY-MM-DD format)
+    let formattedDueDate = '';
+    if (item.due_date) {
+      try {
+        const date = new Date(item.due_date);
+        if (!isNaN(date.getTime())) {
+          formattedDueDate = date.toISOString().split('T')[0];
+        }
+      } catch (e) {
+        formattedDueDate = '';
+      }
+    }
+    
+    // Pre-fill form with existing assignment data
     setAssignForm({
       assigned_user_ids: item.assigned_to_user_id ? [item.assigned_to_user_id] : [],
       assignment_level: item.assignment_level || 'organization',
       facility_id: item.facility_id || '',
-      due_date: item.due_date || '',
+      due_date: formattedDueDate,
       filling_frequency: item.filling_frequency || '',
-      reminder_enabled: item.reminder_config?.frequency ? true : false,
-      reminder_frequency: item.reminder_config?.frequency || '',
+      reminder_enabled: !!(item.reminder_enabled || item.reminder_config?.frequency),
+      reminder_frequency: item.reminder_config?.frequency || item.reminder_frequency || '',
       requires_approval: item.requires_approval || false,
       approver_id: item.approver_id || '',
       approval_chain: item.approval_chain || [],
@@ -699,8 +713,13 @@ export default function ESGRecordsTracker({
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => openAssignModal({ category: cat.category, assignChildren: true })}
-                          title="Assign (includes all subcategories)"
+                          onClick={() => openAssignModal({ 
+                            category: cat.category, 
+                            assignChildren: true,
+                            // Pass existing assignment for pre-fill
+                            ...cat.assignment
+                          })}
+                          title={cat.assignment ? "Edit Assignment" : "Assign (includes all subcategories)"}
                         >
                           <UserPlus className="w-4 h-4" />
                         </Button>
@@ -796,9 +815,11 @@ export default function ESGRecordsTracker({
                             onClick={() => openAssignModal({ 
                               category: cat.category, 
                               subcategory: subcat.subcategory,
-                              assignChildren: true
+                              assignChildren: true,
+                              // Pass existing assignment for pre-fill (use own or inherited)
+                              ...(subcat.assignment || {})
                             })}
-                            title="Assign (includes all sub-subcategories)"
+                            title={subcat.assignment ? "Edit Assignment" : "Assign (includes all sub-subcategories)"}
                           >
                             <UserPlus className="w-4 h-4" />
                           </Button>
@@ -854,8 +875,11 @@ export default function ESGRecordsTracker({
                                 onClick={() => openAssignModal({ 
                                   category: cat.category, 
                                   subcategory: subcat.subcategory,
-                                  sub_subcategory: subsub.sub_subcategory
+                                  sub_subcategory: subsub.sub_subcategory,
+                                  // Pass existing assignment for pre-fill
+                                  ...(subsub.assignment || {})
                                 })}
+                                title={subsub.assignment ? "Edit Assignment" : "Assign"}
                               >
                                 <UserPlus className="w-4 h-4" />
                               </Button>
