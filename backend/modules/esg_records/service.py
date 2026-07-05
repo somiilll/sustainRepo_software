@@ -527,14 +527,29 @@ class ESGRecordsService:
                 org_id, section, assignment.get("category"), assignment.get("facility_id")
             )
             if last_entry:
-                assignment["last_entry_at"] = last_entry.get("updated_at") or last_entry.get("created_at")
-                days_since = (datetime.now(timezone.utc) - last_entry.get("updated_at", datetime.now(timezone.utc))).days
-                if days_since <= 30:
-                    assignment["staleness"] = "fresh"
-                elif days_since <= 60:
-                    assignment["staleness"] = "aging"
-                elif days_since <= 90:
-                    assignment["staleness"] = "stale"
+                last_updated = last_entry.get("updated_at") or last_entry.get("created_at")
+                assignment["last_entry_at"] = last_updated
+                if last_updated:
+                    # Ensure timezone awareness
+                    if isinstance(last_updated, str):
+                        try:
+                            last_updated = datetime.fromisoformat(last_updated.replace('Z', '+00:00'))
+                        except:
+                            last_updated = None
+                    if last_updated and last_updated.tzinfo is None:
+                        last_updated = last_updated.replace(tzinfo=timezone.utc)
+                    if last_updated:
+                        days_since = (datetime.now(timezone.utc) - last_updated).days
+                        if days_since <= 30:
+                            assignment["staleness"] = "fresh"
+                        elif days_since <= 60:
+                            assignment["staleness"] = "aging"
+                        elif days_since <= 90:
+                            assignment["staleness"] = "stale"
+                        else:
+                            assignment["staleness"] = "critical"
+                    else:
+                        assignment["staleness"] = "critical"
                 else:
                     assignment["staleness"] = "critical"
             else:

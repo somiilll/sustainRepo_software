@@ -73,6 +73,12 @@ class AssignmentService:
             # Framework context
             "framework_id": request.framework_id,
             
+            # New scheduling fields
+            "start_date": request.start_date,
+            "end_date": request.end_date,
+            "timezone": request.timezone,
+            "due_config": request.due_config,
+            
             # Approval configuration
             "requires_approval": request.requires_approval,
             "approval_chain": request.approval_chain,  # Direct from request, not metadata
@@ -101,6 +107,21 @@ class AssignmentService:
         }
         
         await self._assignments.insert_one(assignment)
+        
+        # Auto-generate tasks if start_date and filling_frequency are provided
+        if request.start_date and request.filling_frequency:
+            try:
+                from modules.esg_records.task_engine import generate_tasks_for_assignment as gen_tasks
+                # Pass assignment with category info for disclosure tasks
+                task_assignment = {
+                    **assignment,
+                    "category": f"Disclosure: {request.entity_id}",
+                    "subcategory": request.framework_id,
+                }
+                await gen_tasks(db, task_assignment)
+            except Exception as e:
+                # Log but don't fail the assignment creation
+                print(f"Task generation warning for disclosure: {e}")
         
         # Log history
         await self._log_history(

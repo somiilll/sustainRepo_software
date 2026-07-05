@@ -124,8 +124,14 @@ class BulkAssignRequest(BaseModel):
     disclosure_ids: Optional[List[str]] = None  # If None, assign all unassigned
     assigned_to_user_id: str
     role: str = "owner"
-    due_date: Optional[datetime] = None
+    # New scheduling fields
+    start_date: Optional[str] = None  # ISO date string
+    end_date: Optional[str] = None  # ISO date string
+    timezone: str = "UTC"
     filling_frequency: Optional[str] = None
+    due_config: Optional[Dict[str, Any]] = None  # {type, time, day_of_month, etc.}
+    # Legacy fields (kept for backwards compatibility)
+    due_date: Optional[datetime] = None
     reminder_enabled: bool = False
     reminder_frequency: Optional[str] = None  # daily, weekly, monthly, etc.
     reminder_config: Optional[Dict[str, Any]] = None

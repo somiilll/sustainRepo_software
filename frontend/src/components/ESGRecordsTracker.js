@@ -76,6 +76,7 @@ import {
   getCurrentReportingYear 
 } from '../utils/reportingYearUtils';
 import DataCoverageGrid from './DataCoverageGrid';
+import TaskCalendarGrid from './TaskCalendarGrid';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -827,19 +828,30 @@ export default function ESGRecordsTracker({
                     </TableCell>
                   </TableRow>
 
-                  {/* Data Coverage Grid for this category */}
+                  {/* Task Calendar Grid or Data Coverage Grid for this category */}
                   {expandedCategories[cat.category] && cat.assignment?.filling_frequency && (
                     <TableRow className="bg-stone-25">
                       <TableCell colSpan={9} className="py-2">
-                        <DataCoverageGrid
-                          category={cat.category}
-                          fillingFrequency={cat.assignment.filling_frequency}
-                          reportingYear={reportingPeriod}
-                          facilityId={cat.assignment?.facility_id}
-                          startDate={cat.assignment?.start_date}
-                          endDate={cat.assignment?.end_date}
-                          expanded={true}
-                        />
+                        {/* Show Task Calendar if assignment has start_date (tasks generated) */}
+                        {cat.assignment?.start_date ? (
+                          <TaskCalendarGrid
+                            assignmentId={cat.assignment?.id}
+                            category={cat.category}
+                            subcategory={null}
+                            onTaskUpdate={() => fetchTrackerData(true)}
+                            expanded={true}
+                          />
+                        ) : (
+                          <DataCoverageGrid
+                            category={cat.category}
+                            fillingFrequency={cat.assignment.filling_frequency}
+                            reportingYear={reportingPeriod}
+                            facilityId={cat.assignment?.facility_id}
+                            startDate={cat.assignment?.start_date}
+                            endDate={cat.assignment?.end_date}
+                            expanded={true}
+                          />
+                        )}
                       </TableCell>
                     </TableRow>
                   )}

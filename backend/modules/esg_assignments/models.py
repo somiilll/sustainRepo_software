@@ -99,6 +99,12 @@ class CreateAssignmentRequest(BaseModel):
     # Framework context
     framework_id: Optional[str] = None  # "brsr", "gri", "csrd", etc.
     
+    # New scheduling fields
+    start_date: Optional[str] = None  # ISO date string
+    end_date: Optional[str] = None  # ISO date string
+    timezone: str = "UTC"
+    due_config: Optional[dict] = None  # {type, time, day_of_month, day_of_week, etc.}
+    
     # Approval configuration (only works if org-level approval enabled)
     requires_approval: bool = False
     approval_workflow_id: Optional[str] = None  # Links to approval_workflows collection
