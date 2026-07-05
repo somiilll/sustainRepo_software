@@ -303,7 +303,15 @@ export default function ESGRecordsDataEntry({
       if (onRecordAdded) onRecordAdded();
     } catch (error) {
       console.error('Failed to save record:', error);
-      toast.error(error.response?.data?.detail || 'Failed to save metric');
+      // Handle Pydantic validation errors (array of objects) or string detail
+      const detail = error.response?.data?.detail;
+      let errorMsg = 'Failed to save metric';
+      if (typeof detail === 'string') {
+        errorMsg = detail;
+      } else if (Array.isArray(detail) && detail.length > 0) {
+        errorMsg = detail.map(e => e.msg || e.message || JSON.stringify(e)).join(', ');
+      }
+      toast.error(errorMsg);
     } finally {
       setSaving(prev => ({ ...prev, form: false }));
     }
