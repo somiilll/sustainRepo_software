@@ -124,7 +124,7 @@ export default function Governance() {
     </div>
   );
 
-  const RecordsContent = () => <ESGRecordsModule section="governance" framework="BRSR" />;
+  const RecordsContent = () => <ESGRecordsModule section="governance" />;
 
   const renderFrameworkContent = (framework) => {
     if (framework === 'BRSR') {

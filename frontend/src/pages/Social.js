@@ -13,7 +13,7 @@ export default function Social() {
   const [isEditing, setIsEditing] = useState(false);
 
   const RecordsContent = () => (
-    <ESGRecordsModule section="social" framework="BRSR" />
+    <ESGRecordsModule section="social" />
   );
 
   const renderFrameworkContent = (framework) => {
