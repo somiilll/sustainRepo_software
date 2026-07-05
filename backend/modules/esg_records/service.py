@@ -341,6 +341,10 @@ class ESGRecordsService:
             update_data["notes"] = data.notes
             changed_fields.append("notes")
         
+        if data.status is not None:
+            update_data["status"] = data.status
+            changed_fields.append("status")
+        
         # Increment version
         new_version = current["version"] + 1
         update_data["version"] = new_version
@@ -358,6 +362,18 @@ class ESGRecordsService:
             {"id": record_id, "is_current": True},
             {"_id": 0}
         )
+        
+        # If status changed to submitted, mark the task as submitted
+        if data.status == "submitted" and current.get("status") in ["rejected", "draft"]:
+            await self._mark_task_submitted(
+                org_id=current.get("org_id"),
+                user_id=user_id,
+                category=current.get("category"),
+                subcategory=current.get("subcategory"),
+                sub_subcategory=current.get("sub_subcategory"),
+                facility_id=current.get("facility_id"),
+                reporting_period=current.get("reporting_period"),
+            )
         
         # Create version snapshot
         await self._create_version_snapshot(

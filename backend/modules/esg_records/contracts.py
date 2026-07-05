@@ -181,6 +181,7 @@ class UpdateRecordRequest(BaseModel):
     source_of_information: Optional[str] = None
     notes: Optional[str] = None
     change_reason: Optional[str] = None
+    status: Optional[str] = None  # For resubmitting rejected records
 
 
 class RecordListFilters(BaseModel):

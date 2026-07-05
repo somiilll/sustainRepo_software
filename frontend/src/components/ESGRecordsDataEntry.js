@@ -882,6 +882,28 @@ export default function ESGRecordsDataEntry({
                             <Lock className="w-4 h-4" />
                           </div>
                         </div>
+                      ) : record.status === 'rejected' ? (
+                        /* Rejected record - show Edit & Resubmit */
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => openEditModal(record)}
+                            className="bg-amber-600 hover:bg-amber-700 gap-1"
+                            title="Edit & Resubmit"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                            Resubmit
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => viewVersions(record)}
+                            title="Version History"
+                          >
+                            <History className="w-4 h-4" />
+                          </Button>
+                        </div>
                       ) : (
                         /* Editable record */
                         <div className="flex justify-end gap-1">
