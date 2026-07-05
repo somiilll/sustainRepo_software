@@ -292,7 +292,6 @@ export default function ESGRecordsDataEntry({
         field_values: formData.field_values,
         source_of_information: formData.source_of_information,
         notes: formData.notes,
-        frameworks: [framework || 'BRSR'],
       };
 
       await axios.post(`${API}/api/esg-records/records/${section}`, payload, { headers });
