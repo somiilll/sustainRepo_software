@@ -54,36 +54,45 @@ export default function MyTasks({ entityType = 'all', reportingPeriod, domain, f
   const [filters, setFilters] = useState({
     search: '',
     status: 'all',
-    priority: 'all'
+    taskType: 'all' // 'all', 'backfill', 'current', 'future'
   });
 
   const headers = { Authorization: `Bearer ${token}` };
 
-  // Group records by category for grouped view
+  // Group records by category with task type subgroups
   const groupedRecords = useMemo(() => {
     const groups = {};
+    const now = new Date();
+    
     for (const record of (assignments.records || [])) {
-      const key = [record.category, record.subcategory, record.sub_subcategory].filter(Boolean).join(' / ');
+      const key = [record.category, record.subcategory].filter(Boolean).join(' › ');
       if (!groups[key]) {
         groups[key] = {
           category: record.category,
           subcategory: record.subcategory,
-          sub_subcategory: record.sub_subcategory,
-          items: [],
+          backfill: [],
+          current: [],
+          future: [],
           total: 0,
           completed: 0,
           overdue: 0,
-          pending: 0,
         };
       }
-      groups[key].items.push(record);
+      
+      // Categorize by task type
+      if (record.is_backfill || record.task_type === 'backfill') {
+        groups[key].backfill.push(record);
+      } else if (record.task_type === 'future' || (record.period_start && new Date(record.period_start) > now)) {
+        groups[key].future.push(record);
+      } else {
+        groups[key].current.push(record);
+      }
+      
       groups[key].total++;
       if (record.status === 'submitted' || record.status === 'approved') {
         groups[key].completed++;
-      } else if (record.status === 'overdue') {
+      } else if (record.due_at && new Date(record.due_at) < now && !['submitted', 'approved'].includes(record.status)) {
         groups[key].overdue++;
-      } else {
-        groups[key].pending++;
       }
     }
     return Object.values(groups);
@@ -166,14 +175,16 @@ export default function MyTasks({ entityType = 'all', reportingPeriod, domain, f
       items = [...items, ...assignments.questions];
     }
     
+    const now = new Date();
+    
     // Apply search and status filters
     return items.filter(item => {
       if (filters.search) {
         const searchLower = filters.search.toLowerCase();
         const matchesSearch = 
-          item.entity_id?.toLowerCase().includes(searchLower) ||
-          item.framework?.toLowerCase().includes(searchLower) ||
-          item.domain?.toLowerCase().includes(searchLower);
+          item.category?.toLowerCase().includes(searchLower) ||
+          item.subcategory?.toLowerCase().includes(searchLower) ||
+          item.entity_id?.toLowerCase().includes(searchLower);
         if (!matchesSearch) return false;
       }
       
@@ -181,8 +192,14 @@ export default function MyTasks({ entityType = 'all', reportingPeriod, domain, f
         return false;
       }
       
-      if (filters.priority !== 'all' && item.priority !== filters.priority) {
-        return false;
+      // Task type filter
+      if (filters.taskType !== 'all') {
+        const isBackfill = item.is_backfill || item.task_type === 'backfill';
+        const isFuture = item.task_type === 'future' || (item.period_start && new Date(item.period_start) > now);
+        
+        if (filters.taskType === 'backfill' && !isBackfill) return false;
+        if (filters.taskType === 'future' && !isFuture) return false;
+        if (filters.taskType === 'current' && (isBackfill || isFuture)) return false;
       }
       
       return true;
@@ -394,6 +411,43 @@ export default function MyTasks({ entityType = 'all', reportingPeriod, domain, f
     );
   };
 
+  // Compact task row for collapsible grouped view
+  const renderCompactTaskRow = (task) => {
+    const dueAt = task.due_at;
+    const isOverdue = dueAt && new Date(dueAt) < now && !['submitted', 'approved'].includes(task.status);
+    
+    return (
+      <div 
+        key={task.id} 
+        className={`px-4 py-3 flex items-center justify-between hover:bg-stone-50 ${isOverdue ? 'bg-red-50/50' : ''}`}
+      >
+        <div className="flex items-center gap-4">
+          <div className="min-w-[100px]">
+            <span className="text-sm font-medium">{task.period_label || 'N/A'}</span>
+          </div>
+          <div className="text-sm text-text-muted">
+            Due: {dueAt ? new Date(dueAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '-'}
+          </div>
+          {isOverdue && (
+            <Badge className="bg-red-100 text-red-700 text-xs">Overdue</Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          {getStatusBadge(task.status)}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleFillItem(task)}
+            className="gap-1"
+          >
+            Fill
+            <ArrowRight className="w-3 h-3" />
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -454,15 +508,15 @@ export default function MyTasks({ entityType = 'all', reportingPeriod, domain, f
             </SelectContent>
           </Select>
           
-          <Select value={filters.priority} onValueChange={(v) => setFilters(prev => ({ ...prev, priority: v }))}>
+          <Select value={filters.taskType} onValueChange={(v) => setFilters(prev => ({ ...prev, taskType: v }))}>
             <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Priority" />
+              <SelectValue placeholder="Task Type" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Priority</SelectItem>
-              <SelectItem value="high">High</SelectItem>
-              <SelectItem value="medium">Medium</SelectItem>
-              <SelectItem value="low">Low</SelectItem>
+              <SelectItem value="all">All Tasks</SelectItem>
+              <SelectItem value="current">Current</SelectItem>
+              <SelectItem value="backfill">Backfill</SelectItem>
+              <SelectItem value="future">Future</SelectItem>
             </SelectContent>
           </Select>
           
@@ -476,7 +530,133 @@ export default function MyTasks({ entityType = 'all', reportingPeriod, domain, f
         </div>
       </Card>
 
-      {/* Task List */}
+      {/* Grouped View - Collapsible Categories */}
+      {viewMode === 'grouped' && entityType === 'record' && (
+        <div className="space-y-3">
+          {groupedRecords.length === 0 ? (
+            <Card className="p-8 text-center">
+              <ClipboardList className="w-12 h-12 text-stone-300 mx-auto mb-3" />
+              <h3 className="text-lg font-medium text-text-primary">No metric tasks found</h3>
+              <p className="text-text-muted">You do not have any metric tasks assigned.</p>
+            </Card>
+          ) : (
+            groupedRecords.map((group) => {
+              const key = [group.category, group.subcategory].filter(Boolean).join(' › ');
+              const isExpanded = expandedCategories[key];
+              const progress = group.total > 0 ? Math.round((group.completed / group.total) * 100) : 0;
+              
+              // Filter tasks based on taskType filter
+              let tasksToShow = [];
+              if (filters.taskType === 'all') {
+                tasksToShow = [...group.backfill, ...group.current, ...group.future];
+              } else if (filters.taskType === 'backfill') {
+                tasksToShow = group.backfill;
+              } else if (filters.taskType === 'current') {
+                tasksToShow = group.current;
+              } else if (filters.taskType === 'future') {
+                tasksToShow = group.future;
+              }
+              
+              // Apply search filter
+              if (filters.search) {
+                const searchLower = filters.search.toLowerCase();
+                if (!group.category?.toLowerCase().includes(searchLower) && 
+                    !group.subcategory?.toLowerCase().includes(searchLower)) {
+                  tasksToShow = tasksToShow.filter(t => 
+                    t.period_label?.toLowerCase().includes(searchLower)
+                  );
+                  if (tasksToShow.length === 0) return null;
+                }
+              }
+              
+              if (tasksToShow.length === 0) return null;
+              
+              return (
+                <Card key={key} className="overflow-hidden">
+                  {/* Category Header - Collapsible */}
+                  <div 
+                    className="p-4 flex items-center justify-between cursor-pointer hover:bg-stone-50 transition-colors"
+                    onClick={() => toggleCategory(key)}
+                  >
+                    <div className="flex items-center gap-3">
+                      {isExpanded ? (
+                        <ChevronDown className="w-5 h-5 text-stone-400" />
+                      ) : (
+                        <ChevronRight className="w-5 h-5 text-stone-400" />
+                      )}
+                      <div>
+                        <h3 className="font-medium text-text-primary">{key}</h3>
+                        <div className="flex items-center gap-3 text-sm text-text-muted mt-1">
+                          <span>{tasksToShow.length} tasks</span>
+                          {group.backfill.length > 0 && (
+                            <Badge className="bg-amber-100 text-amber-700 text-xs">{group.backfill.length} backfill</Badge>
+                          )}
+                          {group.overdue > 0 && (
+                            <Badge className="bg-red-100 text-red-700 text-xs">{group.overdue} overdue</Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="w-32">
+                        <div className="flex justify-between text-xs text-text-muted mb-1">
+                          <span>Progress</span>
+                          <span>{progress}%</span>
+                        </div>
+                        <Progress value={progress} className="h-2" />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Expanded Tasks */}
+                  {isExpanded && (
+                    <div className="border-t border-stone-100">
+                      {/* Backfill Tasks */}
+                      {group.backfill.length > 0 && (filters.taskType === 'all' || filters.taskType === 'backfill') && (
+                        <div className="bg-amber-50/50">
+                          <div className="px-4 py-2 text-xs font-medium text-amber-700 border-b border-amber-100">
+                            Backfill Tasks ({group.backfill.length})
+                          </div>
+                          <div className="divide-y divide-stone-100">
+                            {group.backfill.map(task => renderCompactTaskRow(task))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Current Tasks */}
+                      {group.current.length > 0 && (filters.taskType === 'all' || filters.taskType === 'current') && (
+                        <div>
+                          <div className="px-4 py-2 text-xs font-medium text-emerald-700 border-b border-stone-100 bg-emerald-50/50">
+                            Current Tasks ({group.current.length})
+                          </div>
+                          <div className="divide-y divide-stone-100">
+                            {group.current.map(task => renderCompactTaskRow(task))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Future Tasks */}
+                      {group.future.length > 0 && (filters.taskType === 'all' || filters.taskType === 'future') && (
+                        <div className="bg-blue-50/30">
+                          <div className="px-4 py-2 text-xs font-medium text-blue-700 border-b border-blue-100">
+                            Future Tasks ({group.future.length})
+                          </div>
+                          <div className="divide-y divide-stone-100">
+                            {group.future.map(task => renderCompactTaskRow(task))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </Card>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {/* Flat View - Original Card Layout */}
+      {(viewMode === 'flat' || entityType !== 'record') && (
       <div className="space-y-3">
         {filteredItems.length === 0 ? (
           <Card className="p-8 text-center">
@@ -494,6 +674,7 @@ export default function MyTasks({ entityType = 'all', reportingPeriod, domain, f
           filteredItems.map(renderAssignmentCard)
         )}
       </div>
+      )}
     </div>
   );
 }

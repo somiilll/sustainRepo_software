@@ -560,6 +560,8 @@ export default function ESGRecordsDataEntry({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="daily">Daily</SelectItem>
+                <SelectItem value="weekly">Weekly</SelectItem>
                 <SelectItem value="monthly">Monthly</SelectItem>
                 <SelectItem value="quarterly">Quarterly</SelectItem>
                 <SelectItem value="yearly">Yearly</SelectItem>
@@ -567,7 +569,8 @@ export default function ESGRecordsDataEntry({
             </Select>
           </div>
 
-          {/* Year */}
+          {/* Year (for monthly, quarterly, yearly) */}
+          {['monthly', 'quarterly', 'yearly'].includes(formData.reporting_type) && (
           <div className="space-y-2">
             <Label>Year</Label>
             <Select 
@@ -584,6 +587,19 @@ export default function ESGRecordsDataEntry({
               </SelectContent>
             </Select>
           </div>
+          )}
+
+          {/* Date picker for daily/weekly */}
+          {['daily', 'weekly'].includes(formData.reporting_type) && (
+            <div className="space-y-2">
+              <Label>Date</Label>
+              <Input 
+                type="date" 
+                value={formData.reporting_date || ''} 
+                onChange={(e) => setFormData(prev => ({ ...prev, reporting_date: e.target.value }))}
+              />
+            </div>
+          )}
 
           {/* Month (if monthly) */}
           {formData.reporting_type === 'monthly' && (
