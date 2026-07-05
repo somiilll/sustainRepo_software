@@ -717,6 +717,7 @@ async def get_assignment_tasks(
 
 @router.get("/tasks/my-tasks")
 async def get_my_tasks(
+    domain: Optional[str] = None,
     status: Optional[str] = None,
     include_backfill: bool = False,
     current_user: dict = Depends(get_current_user),
@@ -738,6 +739,7 @@ async def get_my_tasks(
         organization_id=org_id,
         status_filter=status_filter,
         include_backfill=include_backfill,
+        domain=domain,
     )
     
     return {"tasks": tasks, "total": len(tasks)}

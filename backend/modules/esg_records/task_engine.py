@@ -492,6 +492,7 @@ async def get_tasks_for_user(
     organization_id: str,
     status_filter: Optional[List[str]] = None,
     include_backfill: bool = False,
+    domain: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Get all tasks assigned to a user with assignment details."""
     query = {
@@ -509,6 +510,28 @@ async def get_tasks_for_user(
         query,
         {"_id": 0}
     ).sort("due_at", 1).to_list(500)
+    
+    # If domain filter is specified, we need to filter based on category's section
+    if domain and domain != 'all':
+        # Get all categories for this section/domain
+        domain_categories = await db["esg_record_categories"].find(
+            {"section": domain},
+            {"category": 1, "subcategory": 1}
+        ).to_list(500)
+        
+        # Create a set of valid category combinations for this domain
+        valid_cats = set()
+        for cat in domain_categories:
+            valid_cats.add((cat.get("category"), cat.get("subcategory")))
+            # Also add just the category for tasks that might not have subcategory
+            valid_cats.add((cat.get("category"), None))
+        
+        # Filter tasks
+        tasks = [
+            t for t in tasks 
+            if (t.get("category"), t.get("subcategory")) in valid_cats or
+               (t.get("category"), None) in valid_cats
+        ]
     
     # Enrich tasks with assignment details (filling_frequency, start_date, end_date)
     assignment_ids = list(set(t.get("assignment_id") for t in tasks if t.get("assignment_id")))
