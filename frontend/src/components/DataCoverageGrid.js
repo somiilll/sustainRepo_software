@@ -77,6 +77,8 @@ export default function DataCoverageGrid({
   fillingFrequency,
   reportingYear,
   facilityId,
+  startDate,
+  endDate,
   expanded = false,
   onToggle
 }) {
@@ -103,6 +105,8 @@ export default function DataCoverageGrid({
         if (subcategory) params.append('subcategory', subcategory);
         if (sub_subcategory) params.append('sub_subcategory', sub_subcategory);
         if (facilityId) params.append('facility_id', facilityId);
+        if (startDate) params.append('start_date', startDate);
+        if (endDate) params.append('end_date', endDate);
 
         const res = await axios.get(`${API}/api/esg-records/coverage?${params}`, { headers });
         setCoverage(res.data);
@@ -114,7 +118,7 @@ export default function DataCoverageGrid({
     };
 
     fetchCoverage();
-  }, [category, subcategory, sub_subcategory, fillingFrequency, reportingYear, facilityId, isExpanded, token]);
+  }, [category, subcategory, sub_subcategory, fillingFrequency, reportingYear, facilityId, startDate, endDate, isExpanded, token]);
 
   const handleToggle = () => {
     setIsExpanded(!isExpanded);

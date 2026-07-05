@@ -117,6 +117,20 @@ const REMINDER_FREQUENCIES = [
   { value: 'monthly', label: 'Monthly' },
 ];
 
+// Common timezones for ESG reporting
+const TIMEZONES = [
+  { value: 'Asia/Kolkata', label: 'IST (India)' },
+  { value: 'UTC', label: 'UTC' },
+  { value: 'America/New_York', label: 'EST (US Eastern)' },
+  { value: 'America/Los_Angeles', label: 'PST (US Pacific)' },
+  { value: 'Europe/London', label: 'GMT (UK)' },
+  { value: 'Europe/Berlin', label: 'CET (Central Europe)' },
+  { value: 'Asia/Singapore', label: 'SGT (Singapore)' },
+  { value: 'Asia/Tokyo', label: 'JST (Japan)' },
+  { value: 'Australia/Sydney', label: 'AEST (Sydney)' },
+  { value: 'Asia/Dubai', label: 'GST (Dubai)' },
+];
+
 export default function ESGRecordsTracker({ 
   section, 
   framework,
@@ -161,8 +175,15 @@ export default function ESGRecordsTracker({
     assigned_user_ids: [],
     assignment_level: 'organization',
     facility_id: '',
-    due_date: '',
+    // New scheduling fields
+    start_date: '',
+    end_date: '',
+    timezone: 'Asia/Kolkata',
     filling_frequency: '',
+    due_time: '17:00', // Default 5 PM
+    due_day_of_month: 1,
+    due_day_of_week: 'monday',
+    // Legacy/reminder fields
     reminder_enabled: false,
     reminder_frequency: '',
     requires_approval: false,
@@ -179,8 +200,13 @@ export default function ESGRecordsTracker({
       assigned_user_ids: [],
       assignment_level: 'organization',
       facility_id: '',
-      due_date: '',
+      start_date: '',
+      end_date: '',
+      timezone: 'Asia/Kolkata',
       filling_frequency: '',
+      due_time: '17:00',
+      due_day_of_month: 1,
+      due_day_of_week: 'monday',
       reminder_enabled: false,
       reminder_frequency: '',
       requires_approval: false,
@@ -322,42 +348,55 @@ export default function ESGRecordsTracker({
   const openAssignModal = (item) => {
     setAssigningItem(item);
     
-    // Format due date for input field (needs YYYY-MM-DD format)
-    let formattedDueDate = '';
-    if (item.due_date) {
+    // Format dates for input fields (needs YYYY-MM-DD format)
+    const formatDateForInput = (dateVal) => {
+      if (!dateVal) return '';
       try {
-        const date = new Date(item.due_date);
+        const date = new Date(dateVal);
         if (!isNaN(date.getTime())) {
-          formattedDueDate = date.toISOString().split('T')[0];
+          return date.toISOString().split('T')[0];
         }
-      } catch (e) {
-        formattedDueDate = '';
-      }
-    }
+      } catch (e) {}
+      return '';
+    };
     
     // Find ALL users already assigned to this category/subcategory/sub_subcategory
-    const existingUserIds = assignments
-      .filter(a => 
-        a.category === item.category &&
-        a.subcategory === (item.subcategory || null) &&
-        a.sub_subcategory === (item.sub_subcategory || null) &&
-        a.facility_id === (item.facility_id || null)
-      )
+    const categoryAssignments = assignments.filter(a => 
+      a.category === item.category &&
+      a.subcategory === (item.subcategory || null) &&
+      a.sub_subcategory === (item.sub_subcategory || null) &&
+      a.facility_id === (item.facility_id || null)
+    );
+    
+    const existingUserIds = categoryAssignments
       .map(a => a.assigned_to_user_id)
       .filter(Boolean);
+    
+    // Get first assignment for other field defaults
+    const firstAssignment = categoryAssignments[0] || item;
+    
+    // Parse due_config if exists
+    const dueConfig = firstAssignment.due_config || {};
     
     // Pre-fill form with existing assignment data
     setAssignForm({
       assigned_user_ids: existingUserIds.length > 0 ? existingUserIds : (item.assigned_to_user_id ? [item.assigned_to_user_id] : []),
-      assignment_level: item.assignment_level || 'organization',
-      facility_id: item.facility_id || '',
-      due_date: formattedDueDate,
-      filling_frequency: item.filling_frequency || '',
-      reminder_enabled: !!(item.reminder_enabled || item.reminder_config?.frequency),
-      reminder_frequency: item.reminder_config?.frequency || item.reminder_frequency || '',
-      requires_approval: item.requires_approval || false,
-      approver_id: item.approver_id || '',
-      approval_chain: item.approval_chain || [],
+      assignment_level: firstAssignment.assignment_level || 'organization',
+      facility_id: firstAssignment.facility_id || '',
+      // New scheduling fields
+      start_date: formatDateForInput(firstAssignment.start_date),
+      end_date: formatDateForInput(firstAssignment.end_date),
+      timezone: firstAssignment.timezone || 'Asia/Kolkata',
+      filling_frequency: firstAssignment.filling_frequency || '',
+      due_time: dueConfig.time || '17:00',
+      due_day_of_month: dueConfig.day_of_month || 1,
+      due_day_of_week: dueConfig.day_of_week || 'monday',
+      // Legacy fields
+      reminder_enabled: !!(firstAssignment.reminder_enabled || firstAssignment.reminder_config?.frequency),
+      reminder_frequency: firstAssignment.reminder_config?.frequency || firstAssignment.reminder_frequency || '',
+      requires_approval: firstAssignment.requires_approval || false,
+      approver_id: firstAssignment.approver_id || '',
+      approval_chain: firstAssignment.approval_chain || [],
     });
     setShowAssignModal(true);
   };
@@ -394,6 +433,27 @@ export default function ESGRecordsTracker({
         assigningItem.sub_subcategory
       ].filter(Boolean).join('_') || assigningItem.category;
 
+      // Build due_config based on frequency
+      const buildDueConfig = () => {
+        const freq = assignForm.filling_frequency;
+        if (!freq) return null;
+        
+        const config = {
+          type: freq,
+          time: assignForm.due_time || '17:00',
+          timezone: assignForm.timezone || 'Asia/Kolkata',
+        };
+        
+        if (freq === 'monthly' || freq === 'quarterly' || freq === 'half_yearly' || freq === 'yearly') {
+          config.day_of_month = parseInt(assignForm.due_day_of_month) || 1;
+        }
+        if (freq === 'weekly') {
+          config.day_of_week = assignForm.due_day_of_week || 'monday';
+        }
+        
+        return config;
+      };
+
       // Create assignment for each selected user
       // First request includes replace_existing=true to clear old assignments
       const promises = assignForm.assigned_user_ids.map((userId, index) => 
@@ -410,8 +470,13 @@ export default function ESGRecordsTracker({
             facility_id: assignForm.assignment_level === 'facility' ? assignForm.facility_id : null,
             assigned_to_user_id: userId,
             reporting_period: reportingPeriod,
-            due_date: assignForm.due_date || null,
+            // New scheduling fields
+            start_date: assignForm.start_date || null,
+            end_date: assignForm.end_date || null,
+            timezone: assignForm.timezone || 'Asia/Kolkata',
             filling_frequency: assignForm.filling_frequency || null,
+            due_config: buildDueConfig(),
+            // Legacy fields
             reminder_enabled: assignForm.reminder_enabled,
             reminder_config: assignForm.reminder_enabled ? {
               frequency: assignForm.reminder_frequency,
@@ -771,6 +836,8 @@ export default function ESGRecordsTracker({
                           fillingFrequency={cat.assignment.filling_frequency}
                           reportingYear={reportingPeriod}
                           facilityId={cat.assignment?.facility_id}
+                          startDate={cat.assignment?.start_date}
+                          endDate={cat.assignment?.end_date}
                           expanded={true}
                         />
                       </TableCell>
@@ -1041,19 +1108,37 @@ export default function ESGRecordsTracker({
               )}
             </div>
 
-            {/* Due Date */}
-            <div className="space-y-2">
-              <Label>Due Date</Label>
-              <Input
-                type="date"
-                value={assignForm.due_date}
-                onChange={(e) => setAssignForm(prev => ({ ...prev, due_date: e.target.value }))}
-              />
+            {/* Reporting Period Info */}
+            <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="text-xs text-blue-600 font-medium mb-1">Reporting Period</div>
+              <div className="text-sm font-medium text-blue-800">{reportingPeriod}</div>
+            </div>
+
+            {/* Start Date & End Date */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Start Date *</Label>
+                <Input
+                  type="date"
+                  value={assignForm.start_date}
+                  onChange={(e) => setAssignForm(prev => ({ ...prev, start_date: e.target.value }))}
+                />
+                <p className="text-xs text-text-muted">First day data is expected</p>
+              </div>
+              <div className="space-y-2">
+                <Label>End Date</Label>
+                <Input
+                  type="date"
+                  value={assignForm.end_date}
+                  onChange={(e) => setAssignForm(prev => ({ ...prev, end_date: e.target.value }))}
+                />
+                <p className="text-xs text-text-muted">Cannot exceed reporting year</p>
+              </div>
             </div>
 
             {/* Filling Frequency */}
             <div className="space-y-2">
-              <Label>Filling Frequency</Label>
+              <Label>Filling Frequency *</Label>
               <Select 
                 value={assignForm.filling_frequency} 
                 onValueChange={(v) => setAssignForm(prev => ({ ...prev, filling_frequency: v }))}
@@ -1062,7 +1147,6 @@ export default function ESGRecordsTracker({
                   <SelectValue placeholder="Select frequency" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="one_time">One Time</SelectItem>
                   <SelectItem value="daily">Daily</SelectItem>
                   <SelectItem value="weekly">Weekly</SelectItem>
                   <SelectItem value="monthly">Monthly</SelectItem>
@@ -1072,6 +1156,85 @@ export default function ESGRecordsTracker({
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Due Time & Timezone (show when frequency selected) */}
+            {assignForm.filling_frequency && (
+              <div className="space-y-3 p-3 border rounded-lg bg-amber-50">
+                <Label className="text-sm font-medium text-amber-800">Due Schedule Configuration</Label>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label className="text-xs">Due Time</Label>
+                    <Input
+                      type="time"
+                      value={assignForm.due_time}
+                      onChange={(e) => setAssignForm(prev => ({ ...prev, due_time: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Timezone</Label>
+                    <Select 
+                      value={assignForm.timezone} 
+                      onValueChange={(v) => setAssignForm(prev => ({ ...prev, timezone: v }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TIMEZONES.map(tz => (
+                          <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Weekly: Day of Week */}
+                {assignForm.filling_frequency === 'weekly' && (
+                  <div className="space-y-2">
+                    <Label className="text-xs">Due Day of Week</Label>
+                    <Select 
+                      value={assignForm.due_day_of_week} 
+                      onValueChange={(v) => setAssignForm(prev => ({ ...prev, due_day_of_week: v }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="monday">Monday</SelectItem>
+                        <SelectItem value="tuesday">Tuesday</SelectItem>
+                        <SelectItem value="wednesday">Wednesday</SelectItem>
+                        <SelectItem value="thursday">Thursday</SelectItem>
+                        <SelectItem value="friday">Friday</SelectItem>
+                        <SelectItem value="saturday">Saturday</SelectItem>
+                        <SelectItem value="sunday">Sunday</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Monthly/Quarterly/Half-Yearly/Yearly: Day of Month */}
+                {['monthly', 'quarterly', 'half_yearly', 'yearly'].includes(assignForm.filling_frequency) && (
+                  <div className="space-y-2">
+                    <Label className="text-xs">Due Day of Month</Label>
+                    <Select 
+                      value={String(assignForm.due_day_of_month)} 
+                      onValueChange={(v) => setAssignForm(prev => ({ ...prev, due_day_of_month: parseInt(v) }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[...Array(31)].map((_, i) => (
+                          <SelectItem key={i+1} value={String(i+1)}>{i+1}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-amber-700">Auto-adjusts for shorter months (e.g., 31 → 28 for Feb)</p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Reminder Settings */}
             <div className="space-y-3 p-3 border rounded-lg bg-stone-50">

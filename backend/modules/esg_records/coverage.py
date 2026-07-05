@@ -33,7 +33,9 @@ class PeriodStatus(str, Enum):
 def generate_periods_for_frequency(
     frequency: str,
     reporting_year: str,
-    year_type: str = "financial_year"
+    year_type: str = "financial_year",
+    assignment_start_date: Optional[datetime] = None,
+    assignment_end_date: Optional[datetime] = None,
 ) -> List[Dict[str, Any]]:
     """
     Generate list of periods based on filling frequency for a reporting year.
@@ -42,6 +44,8 @@ def generate_periods_for_frequency(
         frequency: daily, weekly, monthly, quarterly, half_yearly, yearly
         reporting_year: e.g., "FY 2025-2026", "CY 2026", "2026"
         year_type: financial_year or calendar_year
+        assignment_start_date: Optional custom start date (overrides reporting year start)
+        assignment_end_date: Optional custom end date (must not exceed reporting year end)
     
     Returns:
         List of period dicts with: period_key, period_label, start_date, end_date, due_date
@@ -53,18 +57,42 @@ def generate_periods_for_frequency(
         # Financial Year: FY 2025-2026 -> Apr 2025 to Mar 2026
         parts = reporting_year.replace("FY ", "").split("-")
         start_year = int(parts[0])
-        start_date = datetime(start_year, 4, 1)  # April 1
-        end_date = datetime(start_year + 1, 3, 31)  # March 31
+        ry_start_date = datetime(start_year, 4, 1)  # April 1
+        ry_end_date = datetime(start_year + 1, 3, 31)  # March 31
     elif reporting_year.startswith("CY"):
         # Calendar Year: CY 2026 -> Jan 2026 to Dec 2026
         year = int(reporting_year.replace("CY ", "").replace("CY", ""))
-        start_date = datetime(year, 1, 1)
-        end_date = datetime(year, 12, 31)
+        ry_start_date = datetime(year, 1, 1)
+        ry_end_date = datetime(year, 12, 31)
     else:
         # Assume calendar year
         year = int(reporting_year)
-        start_date = datetime(year, 1, 1)
-        end_date = datetime(year, 12, 31)
+        ry_start_date = datetime(year, 1, 1)
+        ry_end_date = datetime(year, 12, 31)
+    
+    # Apply custom start/end dates if provided
+    start_date = ry_start_date
+    end_date = ry_end_date
+    
+    if assignment_start_date:
+        # Use assignment start date but not before reporting year start
+        if isinstance(assignment_start_date, str):
+            try:
+                assignment_start_date = datetime.fromisoformat(assignment_start_date.replace('Z', '+00:00')).replace(tzinfo=None)
+            except:
+                assignment_start_date = None
+        if assignment_start_date:
+            start_date = max(ry_start_date, assignment_start_date)
+    
+    if assignment_end_date:
+        # Use assignment end date but not after reporting year end
+        if isinstance(assignment_end_date, str):
+            try:
+                assignment_end_date = datetime.fromisoformat(assignment_end_date.replace('Z', '+00:00')).replace(tzinfo=None)
+            except:
+                assignment_end_date = None
+        if assignment_end_date:
+            end_date = min(ry_end_date, assignment_end_date)
     
     if frequency == FillingFrequency.YEARLY or frequency == FillingFrequency.ONE_TIME:
         periods.append({
@@ -207,18 +235,21 @@ def generate_periods_for_frequency(
             week_num += 1
     
     elif frequency == FillingFrequency.DAILY:
-        # Generate last 60 days only (too many otherwise)
+        # Generate daily periods from start_date to min(end_date, today)
         today = datetime.now()
-        for i in range(60, -1, -1):
-            day = today - timedelta(days=i)
-            if start_date <= day <= end_date:
-                periods.append({
-                    "period_key": day.strftime("%Y-%m-%d"),
-                    "period_label": day.strftime("%d %b %Y"),
-                    "start_date": day,
-                    "end_date": day,
-                    "due_date": day + timedelta(days=1),
-                })
+        current = start_date
+        # Limit to today (don't show future days as overdue)
+        effective_end = min(end_date, today)
+        
+        while current <= effective_end:
+            periods.append({
+                "period_key": current.strftime("%Y-%m-%d"),
+                "period_label": current.strftime("%d %b"),
+                "start_date": current,
+                "end_date": current,
+                "due_date": current + timedelta(days=1),
+            })
+            current += timedelta(days=1)
     
     return periods
 
@@ -233,14 +264,26 @@ async def get_data_coverage(
     reporting_year: str,
     year_type: str = "financial_year",
     facility_id: Optional[str] = None,
+    assignment_start_date: Optional[str] = None,
+    assignment_end_date: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Get data coverage for a category assignment.
     
     Returns which periods have data submitted vs missing.
+    
+    Args:
+        assignment_start_date: Custom start date for period generation (ISO format)
+        assignment_end_date: Custom end date for period generation (ISO format)
     """
-    # Generate expected periods
-    periods = generate_periods_for_frequency(filling_frequency, reporting_year, year_type)
+    # Generate expected periods with custom date range if provided
+    periods = generate_periods_for_frequency(
+        filling_frequency, 
+        reporting_year, 
+        year_type,
+        assignment_start_date=assignment_start_date,
+        assignment_end_date=assignment_end_date,
+    )
     
     if not periods:
         return {

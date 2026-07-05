@@ -591,6 +591,8 @@ async def get_data_coverage(
     subcategory: Optional[str] = None,
     sub_subcategory: Optional[str] = None,
     facility_id: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
     db = Depends(get_database)
 ):
@@ -606,6 +608,8 @@ async def get_data_coverage(
         subcategory: Optional subcategory filter
         sub_subcategory: Optional sub-subcategory filter
         facility_id: Optional facility filter
+        start_date: Optional custom start date (ISO format)
+        end_date: Optional custom end date (ISO format)
     
     Returns:
         List of periods with status (complete, missing, overdue, upcoming)
@@ -630,6 +634,8 @@ async def get_data_coverage(
         reporting_year=reporting_year,
         year_type=year_type,
         facility_id=facility_id,
+        assignment_start_date=start_date,
+        assignment_end_date=end_date,
     )
     
     return coverage

@@ -675,11 +675,15 @@ class ESGRecordsService:
                     "$set": {
                         "assignment_level": data.get("assignment_level", existing.get("assignment_level")),
                         "facility_id": data.get("facility_id"),
-                        "due_date": data.get("due_date"),
                         "filling_frequency": data.get("filling_frequency"),
                         "reminder_config": data.get("reminder_config"),
                         "requires_approval": data.get("requires_approval", False),
                         "role": data.get("role"),
+                        # New scheduling fields
+                        "start_date": data.get("start_date"),
+                        "end_date": data.get("end_date"),
+                        "timezone": data.get("timezone", "UTC"),
+                        "due_config": data.get("due_config"),
                         "updated_at": now,
                     }
                 }
@@ -702,10 +706,14 @@ class ESGRecordsService:
                 "reporting_period": data.get("reporting_period"),
                 "role": data.get("role", "editor"),
                 "status": "pending",
-                "due_date": data.get("due_date"),
                 "filling_frequency": data.get("filling_frequency"),
                 "reminder_config": data.get("reminder_config"),
                 "requires_approval": False,
+                # New scheduling fields
+                "start_date": data.get("start_date"),
+                "end_date": data.get("end_date"),
+                "timezone": data.get("timezone", "UTC"),
+                "due_config": data.get("due_config"),
                 "created_at": now,
                 "updated_at": now,
             }
