@@ -586,10 +586,11 @@ export default function ESGRecordsTracker({
       );
       
       const isPartiallyAssigned = assignedSubcats.length > 0 && assignedSubcats.length < subcats.length;
+      const isFullyAssigned = assignedSubcats.length === subcats.length;
       
       // Get all unique assignees across all subcategories
       const allAssignees = assignments.filter(a => 
-        a.category === category && (a.subcategory || !hasSubcategories)
+        a.category === category && a.subcategory
       );
       const uniqueAssignees = [];
       const seenIds = new Set();
@@ -604,7 +605,14 @@ export default function ESGRecordsTracker({
         }
       });
       
-      return { isPartiallyAssigned, assignees: uniqueAssignees, hasSubcategories };
+      return { 
+        isPartiallyAssigned, 
+        isFullyAssigned,
+        assignees: uniqueAssignees, 
+        hasSubcategories,
+        totalSubcats: subcats.length,
+        assignedSubcatsCount: assignedSubcats.length
+      };
     } else {
       // This is a subcategory or category without subcategories
       const categoryAssignments = assignments.filter(a => 
@@ -625,15 +633,71 @@ export default function ESGRecordsTracker({
         }
       });
       
-      return { isPartiallyAssigned: false, assignees: uniqueAssignees, hasSubcategories: false };
+      return { 
+        isPartiallyAssigned: false, 
+        isFullyAssigned: uniqueAssignees.length > 0,
+        assignees: uniqueAssignees, 
+        hasSubcategories: false 
+      };
     }
+  };
+
+  // Get category status based on assignment and completion
+  const getCategoryStatus = (category, completionStats) => {
+    const info = getAssignmentInfo(category);
+    const { completed, total } = completionStats || { completed: 0, total: 0 };
+    
+    if (!info.hasSubcategories) {
+      // Category without subcategories - use regular status logic
+      if (info.assignees.length === 0) return 'unassigned';
+      if (total > 0 && completed === total) return 'completed';
+      if (completed > 0) return 'in_progress';
+      return 'assigned';
+    }
+    
+    // Category with subcategories
+    if (info.isPartiallyAssigned) {
+      return 'partially_assigned';
+    }
+    
+    if (!info.isFullyAssigned) {
+      return 'unassigned';
+    }
+    
+    // All subcategories are assigned - check completion
+    if (total > 0 && completed === total) {
+      return 'completed';
+    }
+    
+    if (completed > 0) {
+      return 'in_progress';
+    }
+    
+    return 'assigned';
+  };
+
+  // Render status badge for categories
+  const renderCategoryStatusBadge = (category, completionStats) => {
+    const status = getCategoryStatus(category, completionStats);
+    
+    const config = {
+      unassigned: { class: 'bg-stone-100 text-stone-500', label: 'Unassigned' },
+      partially_assigned: { class: 'bg-amber-100 text-amber-700', label: 'Partially Assigned' },
+      assigned: { class: 'bg-blue-100 text-blue-700', label: 'Assigned' },
+      in_progress: { class: 'bg-purple-100 text-purple-700', label: 'In Progress' },
+      completed: { class: 'bg-green-100 text-green-700', label: 'Completed' },
+    };
+    
+    const cfg = config[status] || config.unassigned;
+    return <Badge className={cfg.class}>{cfg.label}</Badge>;
   };
 
   // Render assignee display
   const renderAssigneeDisplay = (category, subcategory = null) => {
     const info = getAssignmentInfo(category, subcategory);
     
-    if (info.isPartiallyAssigned) {
+    // For parent category with partial assignment, show "Partially Assigned"
+    if (info.isPartiallyAssigned && !subcategory) {
       return (
         <span className="text-amber-600 italic">Partially Assigned</span>
       );
@@ -906,9 +970,7 @@ export default function ESGRecordsTracker({
                       )}
                     </TableCell>
                     <TableCell>
-                      {cat.assignment?.status ? getStatusBadge(cat.assignment.status) : (
-                        <Badge className="bg-stone-100 text-stone-500">Unassigned</Badge>
-                      )}
+                      {renderCategoryStatusBadge(cat.category, { completed: completedTasks, total: totalTasks })}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
