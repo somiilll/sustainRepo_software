@@ -265,20 +265,34 @@ export default function ESGRecordsDataEntry({
       // Find category_id
       const cat = categories.find(c => c.category === formData.category && (!formData.subcategory || c.subcategory === formData.subcategory));
       
+      // Build reporting_period object based on type
+      const reportingPeriod = {
+        reporting_type: formData.reporting_type,
+      };
+      
+      if (formData.reporting_type === 'daily' || formData.reporting_type === 'weekly') {
+        reportingPeriod.date = formData.reporting_date;
+      } else if (formData.reporting_type === 'monthly') {
+        reportingPeriod.year = formData.reporting_year;
+        reportingPeriod.month = formData.reporting_month;
+      } else if (formData.reporting_type === 'quarterly') {
+        reportingPeriod.year = formData.reporting_year;
+        reportingPeriod.quarter = formData.reporting_quarter;
+      } else if (formData.reporting_type === 'yearly') {
+        reportingPeriod.year = formData.reporting_year;
+      }
+      
       const payload = {
         category: formData.category,
         subcategory: formData.subcategory,
         category_id: cat?.id,
-        facility_id: formData.facility_id === 'org_level' ? null : formData.facility_id,
-        reporting_type: formData.reporting_type,
-        reporting_year: formData.reporting_year,
-        reporting_month: formData.reporting_month,
+        facility_id: formData.facility_id === 'org_level' ? null : (formData.facility_id || null),
+        record_level: formData.facility_id && formData.facility_id !== 'org_level' ? 'facility' : 'organization',
+        reporting_period: reportingPeriod,
         field_values: formData.field_values,
         source_of_information: formData.source_of_information,
         notes: formData.notes,
-        status: asDraft ? 'draft' : 'submitted',
-        section,
-        framework,
+        frameworks: [framework || 'BRSR'],
       };
 
       await axios.post(`${API}/api/esg-records/records/${section}`, payload, { headers });
