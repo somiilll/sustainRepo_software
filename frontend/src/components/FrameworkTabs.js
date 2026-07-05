@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 import { FileText, BarChart3 } from 'lucide-react';
@@ -22,7 +23,16 @@ export default function FrameworkTabs({
   recordsContent, // Keep for backward compatibility
 }) {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('metrics');
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'metrics');
+
+  // Sync tab from URL
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab && (tab === 'metrics' || tab === 'tracking')) {
+      setActiveTab(tab);
+    }
+  }, [searchParams.toString()]);
 
   // Build tabs: Metrics + Tracking
   const tabs = [

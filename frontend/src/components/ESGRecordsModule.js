@@ -29,10 +29,10 @@ const API = process.env.REACT_APP_BACKEND_URL;
  * - Targets: ESG reduction/performance targets (placeholder)
  * - Add Metric: Metric creation with save as draft
  */
-export default function ESGRecordsModule({ section = 'environment', framework = 'BRSR' }) {
+export default function ESGRecordsModule({ section = 'environment', framework = null }) {
   const { token } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'my-tasks');
+  const [activeTab, setActiveTab] = useState(searchParams.get('subtab') || 'my-tasks');
   const [reportingPeriod, setReportingPeriod] = useState('');
   const [reportingYears, setReportingYears] = useState([]);
   
@@ -42,11 +42,11 @@ export default function ESGRecordsModule({ section = 'environment', framework = 
 
   // Handle URL params changes
   useEffect(() => {
-    const tab = searchParams.get('tab');
+    const subtab = searchParams.get('subtab');
     const category = searchParams.get('category');
     const subcategory = searchParams.get('subcategory');
     
-    if (tab) setActiveTab(tab);
+    if (subtab) setActiveTab(subtab);
     if (category) setPreFilterCategory(category);
     if (subcategory) setPreFilterSubcategory(subcategory);
   }, [searchParams.toString()]);

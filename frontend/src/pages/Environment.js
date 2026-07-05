@@ -14,7 +14,7 @@ export default function Environment() {
 
   // Records tab content - ESG Records Module (with Tracker, Data Entry, Targets, Add)
   const RecordsContent = () => (
-    <ESGRecordsModule section="environment" framework="BRSR" />
+    <ESGRecordsModule section="environment" />
   );
 
   // Framework content renderer
