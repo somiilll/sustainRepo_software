@@ -100,19 +100,25 @@ export default function ESGRecordsDataEntry({
   const getPeriodFieldsFromDate = (periodStart, frequency) => {
     if (!periodStart) return {};
     
-    const date = new Date(periodStart);
-    if (isNaN(date.getTime())) return {};
+    // Extract date parts directly from string to avoid timezone issues
+    // period_start can be "2026-01-02" or "2026-01-02T00:00:00" or "2026-01-02 00:00:00"
+    const dateStr = periodStart.split('T')[0].split(' ')[0]; // Get just YYYY-MM-DD
+    const parts = dateStr.split('-');
+    if (parts.length < 3) return {};
     
-    const year = date.getFullYear();
-    const month = date.getMonth(); // 0-indexed
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1; // 0-indexed for monthNames array
+    const day = parseInt(parts[2], 10);
+    
+    if (isNaN(year) || isNaN(month) || isNaN(day)) return {};
+    
     const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
                         'July', 'August', 'September', 'October', 'November', 'December'];
     
     const freq = frequency?.toLowerCase();
     
     if (freq === 'daily' || freq === 'weekly') {
-      // Format as YYYY-MM-DD for date input
-      const dateStr = date.toISOString().split('T')[0];
+      // Return the date string directly in YYYY-MM-DD format
       return { reporting_date: dateStr };
     } else if (freq === 'monthly') {
       return { reporting_year: year, reporting_month: monthNames[month] };
