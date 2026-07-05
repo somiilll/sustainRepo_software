@@ -268,8 +268,11 @@ export default function MyTasks({ entityType = 'all', reportingPeriod, domain, f
       if (assignment.category) params.set('category', assignment.category);
       if (assignment.subcategory) params.set('subcategory', assignment.subcategory);
       if (assignment.filling_frequency) params.set('frequency', assignment.filling_frequency);
-      // Pass period info for pre-filling the date
-      if (assignment.period_start) params.set('period_start', assignment.period_start);
+      // Pass period info for pre-filling the date - extract just YYYY-MM-DD
+      if (assignment.period_start) {
+        const dateOnly = assignment.period_start.split('T')[0].split(' ')[0];
+        params.set('period_start', dateOnly);
+      }
       navigate(`/${itemDomain}?${params.toString()}`);
     }
   };

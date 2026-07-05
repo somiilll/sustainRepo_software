@@ -50,6 +50,8 @@ export default function ESGRecordsModule({ section = 'environment', framework = 
     const frequency = searchParams.get('frequency');
     const periodStart = searchParams.get('period_start');
     
+    console.log('ESGRecordsModule URL params:', { subtab, category, subcategory, frequency, periodStart });
+    
     if (subtab) setActiveTab(subtab);
     if (category) setPreFilterCategory(category);
     if (subcategory) setPreFilterSubcategory(subcategory);

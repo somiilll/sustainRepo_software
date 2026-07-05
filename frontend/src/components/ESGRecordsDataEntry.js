@@ -156,6 +156,7 @@ export default function ESGRecordsDataEntry({
   useEffect(() => {
     if (mode === 'add' && preFilterCategory) {
       const periodFields = getPeriodFieldsFromDate(preFilterPeriodStart, preFilterFrequency);
+      console.log('ESGRecordsDataEntry - preFilterPeriodStart:', preFilterPeriodStart, 'preFilterFrequency:', preFilterFrequency, 'periodFields:', periodFields);
       setFormData(prev => ({
         ...prev,
         category: preFilterCategory,
