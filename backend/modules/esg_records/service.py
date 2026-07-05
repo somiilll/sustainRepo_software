@@ -788,61 +788,31 @@ class ESGRecordsService:
         """
         Cascade a parent category assignment to all child subcategories.
         
-        When assigning "Emissions" at parent level, this creates individual
-        assignments for:
-        - Emissions / GHG Emissions / Scope 1 (from scopes collection)
-        - Emissions / GHG Emissions / Scope 2 (from scopes collection)
-        - Emissions / GHG Emissions / Scope 3 (from scopes collection)
-        - Emissions / GHG Emissions / Biogenic (from scopes collection)
-        - Emissions / Air Emissions
+        When assigning a parent category (e.g., "Emissions"), this creates individual
+        assignments for ALL subcategories defined in esg_record_categories by Super Admin.
         
-        GHG scopes are dynamically pulled from the Super Admin-managed `scopes` collection.
+        Source: esg_record_categories (Super Admin managed via /api/super-admin/esg-config/categories)
+        
+        Example: Assigning "Emissions" cascades to:
+        - Emissions / Air Emissions (if defined by Super Admin)
+        - Emissions / GHG Emissions (if defined by Super Admin)
+        
         Each child gets its own task generation.
         """
         now = datetime.now(timezone.utc)
         parent_category = data.get("category")
         results = []
         
-        # Find all child categories (subcategories and sub_subcategories)
+        # Find all child categories from Super Admin-managed esg_record_categories
+        # Only get active categories
         child_categories = await db.esg_record_categories.find(
             {
                 "category": parent_category,
                 "subcategory": {"$exists": True, "$ne": None, "$ne": ""},
+                "is_active": {"$ne": False},  # Include active (default) categories
             },
             {"_id": 0, "category": 1, "subcategory": 1, "sub_subcategory": 1}
         ).to_list(100)
-        
-        # DYNAMIC SCOPE INJECTION: For GHG Emissions, pull scopes from Super Admin config
-        if parent_category == "Emissions":
-            # Get active scopes from Super Admin-managed collection
-            active_scopes = await db.scopes.find(
-                {"is_active": {"$ne": False}},  # Include active scopes (default is active)
-                {"_id": 0, "name": 1, "code": 1, "display_order": 1}
-            ).sort("display_order", 1).to_list(20)
-            
-            # Check if GHG Emissions subcategory exists
-            has_ghg = any(c.get("subcategory") == "GHG Emissions" for c in child_categories)
-            
-            if active_scopes:
-                # Add dynamic GHG scope entries
-                for scope in active_scopes:
-                    scope_name = scope.get("name")  # "Scope 1", "Scope 2", "Biogenic"
-                    
-                    # Check if this scope already exists in child_categories
-                    exists = any(
-                        c.get("subcategory") == "GHG Emissions" and 
-                        c.get("sub_subcategory") == scope_name 
-                        for c in child_categories
-                    )
-                    
-                    if not exists:
-                        # Add dynamic entry for this scope
-                        child_categories.append({
-                            "category": "Emissions",
-                            "subcategory": "GHG Emissions",
-                            "sub_subcategory": scope_name,
-                            "_dynamic": True,  # Mark as dynamically added
-                        })
         
         if not child_categories:
             return results
