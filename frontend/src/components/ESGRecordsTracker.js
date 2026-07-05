@@ -573,6 +573,100 @@ export default function ESGRecordsTracker({
     );
   };
 
+  // Get assignment info for a category (checks if partially assigned and gets all assignees)
+  const getAssignmentInfo = (category, subcategory = null) => {
+    // Get all subcategories for this category
+    const subcats = categories.filter(c => c.category === category && c.subcategory);
+    const hasSubcategories = subcats.length > 0;
+    
+    if (!subcategory && hasSubcategories) {
+      // This is a parent category - check if all subcategories are assigned
+      const assignedSubcats = subcats.filter(sc => 
+        assignments.some(a => a.category === category && a.subcategory === sc.subcategory)
+      );
+      
+      const isPartiallyAssigned = assignedSubcats.length > 0 && assignedSubcats.length < subcats.length;
+      
+      // Get all unique assignees across all subcategories
+      const allAssignees = assignments.filter(a => 
+        a.category === category && (a.subcategory || !hasSubcategories)
+      );
+      const uniqueAssignees = [];
+      const seenIds = new Set();
+      allAssignees.forEach(a => {
+        if (a.assigned_to_user_id && !seenIds.has(a.assigned_to_user_id)) {
+          seenIds.add(a.assigned_to_user_id);
+          uniqueAssignees.push({
+            id: a.assigned_to_user_id,
+            name: a.assigned_to_name,
+            email: a.assigned_to_email
+          });
+        }
+      });
+      
+      return { isPartiallyAssigned, assignees: uniqueAssignees, hasSubcategories };
+    } else {
+      // This is a subcategory or category without subcategories
+      const categoryAssignments = assignments.filter(a => 
+        a.category === category && 
+        (subcategory ? a.subcategory === subcategory : !a.subcategory)
+      );
+      
+      const uniqueAssignees = [];
+      const seenIds = new Set();
+      categoryAssignments.forEach(a => {
+        if (a.assigned_to_user_id && !seenIds.has(a.assigned_to_user_id)) {
+          seenIds.add(a.assigned_to_user_id);
+          uniqueAssignees.push({
+            id: a.assigned_to_user_id,
+            name: a.assigned_to_name,
+            email: a.assigned_to_email
+          });
+        }
+      });
+      
+      return { isPartiallyAssigned: false, assignees: uniqueAssignees, hasSubcategories: false };
+    }
+  };
+
+  // Render assignee display
+  const renderAssigneeDisplay = (category, subcategory = null) => {
+    const info = getAssignmentInfo(category, subcategory);
+    
+    if (info.isPartiallyAssigned) {
+      return (
+        <span className="text-amber-600 italic">Partially Assigned</span>
+      );
+    }
+    
+    if (info.assignees.length === 0) {
+      return (
+        <span className="text-text-muted italic">Unassigned</span>
+      );
+    }
+    
+    if (info.assignees.length === 1) {
+      return (
+        <div className="flex flex-col">
+          <span>{info.assignees[0].name}</span>
+          {info.assignees[0].email && (
+            <span className="text-xs text-text-muted">{info.assignees[0].email}</span>
+          )}
+        </div>
+      );
+    }
+    
+    // Multiple assignees
+    const othersCount = info.assignees.length - 1;
+    return (
+      <div className="flex flex-col">
+        <span>
+          {info.assignees[0].name} <span className="text-text-muted">+ {othersCount} other{othersCount > 1 ? 's' : ''}</span>
+        </span>
+      </div>
+    );
+  };
+
   // Build hierarchical category view
   const buildCategoryHierarchy = () => {
     const hierarchy = {};
@@ -793,16 +887,7 @@ export default function ESGRecordsTracker({
                       {cat.assignment?.facility_name || '-'}
                     </TableCell>
                     <TableCell>
-                      {cat.assignment?.assigned_to_name ? (
-                        <div className="flex flex-col">
-                          <span>{cat.assignment.assigned_to_name}</span>
-                          {cat.assignment.assigned_to_email && (
-                            <span className="text-xs text-text-muted">{cat.assignment.assigned_to_email}</span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-text-muted italic">Unassigned</span>
-                      )}
+                      {renderAssigneeDisplay(cat.category)}
                     </TableCell>
                     <TableCell>
                       {cat.assignment?.filling_frequency || '-'}
@@ -924,16 +1009,7 @@ export default function ESGRecordsTracker({
                         </TableCell>
                         <TableCell>{effectiveAssignment?.facility_name || '-'}</TableCell>
                         <TableCell>
-                          {effectiveAssignment?.assigned_to_name ? (
-                            <div className="flex flex-col">
-                              <span className="text-sm">{effectiveAssignment.assigned_to_name}</span>
-                              {effectiveAssignment.assigned_to_email && (
-                                <span className="text-xs text-text-muted">{effectiveAssignment.assigned_to_email}</span>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-text-muted italic text-sm">Unassigned</span>
-                          )}
+                          {renderAssigneeDisplay(cat.category, subcat.subcategory)}
                         </TableCell>
                         <TableCell>{effectiveAssignment?.filling_frequency || '-'}</TableCell>
                         <TableCell>
