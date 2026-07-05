@@ -111,22 +111,15 @@ export default function ESGRecordsDataEntry({
 
   const headers = { Authorization: `Bearer ${token}` };
 
-  // Update filters when preFilter props change (from URL)
+  // Update filters when preFilter props change (from URL) - ONLY for add mode
   useEffect(() => {
-    if (preFilterCategory) {
-      setFilters(prev => ({ 
-        ...prev, 
+    if (mode === 'add' && preFilterCategory) {
+      setFormData(prev => ({
+        ...prev,
         category: preFilterCategory,
+        subcategory: preFilterSubcategory || '',
+        reporting_type: preFilterFrequency ? getReportingTypeFromFrequency(preFilterFrequency) : prev.reporting_type,
       }));
-      // Also update formData for add mode
-      if (mode === 'add') {
-        setFormData(prev => ({
-          ...prev,
-          category: preFilterCategory,
-          subcategory: preFilterSubcategory || '',
-          reporting_type: preFilterFrequency ? getReportingTypeFromFrequency(preFilterFrequency) : prev.reporting_type,
-        }));
-      }
     }
   }, [preFilterCategory, preFilterSubcategory, preFilterFrequency, mode]);
 

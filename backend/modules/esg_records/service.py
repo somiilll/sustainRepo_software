@@ -92,6 +92,9 @@ class ESGRecordsService:
         now_iso = now.isoformat()
         
         # ACCESS CONTROL: Check if user has valid assignment
+        assignment = None
+        requires_approval = False
+        
         if not skip_assignment_check:
             assignment = await self._validate_user_assignment(
                 org_id=org_id,
@@ -107,6 +110,11 @@ class ESGRecordsService:
                     f"No active assignment found for {data.category}/{data.subcategory or ''} "
                     f"at {'facility' if data.facility_id else 'organization'} level"
                 )
+            # Check if this assignment requires approval
+            requires_approval = assignment.get("requires_approval", False)
+        
+        # Determine status based on approval requirement
+        record_status = "submitted" if requires_approval else "saved"
         
         record = {
             "id": str(uuid.uuid4()),
@@ -124,7 +132,7 @@ class ESGRecordsService:
             "evidence_files": data.evidence_files,
             "source_of_information": data.source_of_information,
             "notes": data.notes,
-            "status": "submitted",
+            "status": record_status,
             "version": 1,
             "is_current": True,
             "created_by": user_id,
