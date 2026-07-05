@@ -271,24 +271,13 @@ export default function Governance() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-end">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-violet-100 flex items-center justify-center">
             <Shield className="w-5 h-5 text-violet-600" />
           </div>
-          <div>
-            <h1 className="text-2xl font-heading font-bold text-text-primary">Governance</h1>
-            <p className="text-text-muted text-sm">Governance Disclosures & Records</p>
-          </div>
+          <h1 className="text-2xl font-heading font-bold text-text-primary">Governance</h1>
         </div>
-        <Button
-          variant={isEditing ? "default" : "outline"}
-          onClick={() => setIsEditing(!isEditing)}
-          className={isEditing ? "bg-violet-600 hover:bg-violet-700" : ""}
-          data-testid="governance-edit-toggle"
-        >
-          {isEditing ? <><Eye className="w-4 h-4 mr-2" /> View Mode</> : <><Edit2 className="w-4 h-4 mr-2" /> Edit Mode</>}
-        </Button>
       </div>
       <FrameworkTabs moduleType="governance" recordsContent={<RecordsContent />} renderFrameworkContent={renderFrameworkContent} />
     </div>

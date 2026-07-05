@@ -104,31 +104,12 @@ export default function Environment() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
-              <Sprout className="w-5 h-5 text-emerald-600" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-heading font-bold text-text-primary">Environment</h1>
-              <p className="text-text-muted text-sm">Environmental Disclosures & Records</p>
-            </div>
-          </div>
-        </div>
+      <div className="flex items-center justify-end">
         <div className="flex items-center gap-3">
-          <Button
-            variant={isEditing ? "default" : "outline"}
-            onClick={() => setIsEditing(!isEditing)}
-            className={isEditing ? "bg-emerald-600 hover:bg-emerald-700" : ""}
-            data-testid="environment-edit-toggle"
-          >
-            {isEditing ? (
-              <><Eye className="w-4 h-4 mr-2" /> View Mode</>
-            ) : (
-              <><Edit2 className="w-4 h-4 mr-2" /> Edit Mode</>
-            )}
-          </Button>
+          <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
+            <Sprout className="w-5 h-5 text-emerald-600" />
+          </div>
+          <h1 className="text-2xl font-heading font-bold text-text-primary">Environment</h1>
         </div>
       </div>
 
