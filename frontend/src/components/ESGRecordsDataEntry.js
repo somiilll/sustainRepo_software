@@ -126,13 +126,16 @@ export default function ESGRecordsDataEntry({
           subcategory: preFilterSubcategory || '',
           reporting_type: preFilterFrequency ? getReportingTypeFromFrequency(preFilterFrequency) : prev.reporting_type,
         }));
-        // Fetch category config for dynamic fields
-        if (preFilterCategory) {
-          fetchAddFormCategory(preFilterCategory, preFilterSubcategory || '');
-        }
       }
     }
   }, [preFilterCategory, preFilterSubcategory, preFilterFrequency, mode]);
+
+  // Fetch category config when categories are loaded and preFilter is set (for add mode)
+  useEffect(() => {
+    if (mode === 'add' && preFilterCategory && categories.length > 0) {
+      fetchAddFormCategory(preFilterCategory, preFilterSubcategory || '');
+    }
+  }, [preFilterCategory, preFilterSubcategory, categories, mode]);
 
   // Fetch base data
   useEffect(() => {

@@ -93,51 +93,64 @@ export default function MyTasks({ entityType = 'all', reportingPeriod, domain, f
     setExpandedCategories(prev => ({ ...prev, [key]: !prev[key] }))
   };
 
-  // Fetch assignments
+  // Fetch tasks (metric tasks from task engine)
   const fetchAssignments = useCallback(async () => {
-    if (!reportingPeriod) return;
-    
     setLoading(true);
     try {
-      const params = { reporting_period: reportingPeriod };
-      if (domain && domain !== 'all') {
-        params.domain = domain;
-      }
-      if (framework) {
-        params.framework = framework;
-      }
-      
-      const res = await axios.get(`${API}/api/tracking/my-disclosures`, {
+      // Fetch metric tasks
+      const tasksRes = await axios.get(`${API}/api/esg-records/tasks/my-tasks`, {
         headers,
-        params
+        params: { domain, include_backfill: true }
       });
       
-      // Apply framework filter client-side if needed (backup)
-      let questions = res.data.questions || [];
-      if (framework && questions.length > 0) {
-        questions = questions.filter(
-          q => q.framework?.toLowerCase() === framework.toLowerCase()
-        );
+      // Fetch question assignments (disclosures)
+      let questions = [];
+      if (entityType === 'question' || entityType === 'all') {
+        try {
+          const params = { reporting_period: reportingPeriod };
+          if (domain && domain !== 'all') params.domain = domain;
+          if (framework) params.framework = framework;
+          
+          const disclosuresRes = await axios.get(`${API}/api/tracking/my-disclosures`, {
+            headers, params
+          });
+          questions = disclosuresRes.data.questions || [];
+          if (framework && questions.length > 0) {
+            questions = questions.filter(
+              q => q.framework?.toLowerCase() === framework.toLowerCase()
+            );
+          }
+        } catch (e) {
+          console.error('Failed to fetch disclosures:', e);
+        }
       }
+      
+      const tasks = tasksRes.data.tasks || [];
       
       setAssignments({
         questions,
-        records: res.data.records || []
+        records: tasks
       });
+      
+      // Calculate stats from tasks
+      const pending = tasks.filter(t => t.status === 'pending' || t.status === 'backfill_pending').length;
+      const overdue = tasks.filter(t => t.due_at && new Date(t.due_at) < new Date() && !['submitted', 'approved'].includes(t.status)).length;
+      const inProgress = tasks.filter(t => t.status === 'in_progress').length;
+      
       setStats({
-        total_questions: framework ? questions.length : (res.data.total_questions || 0),
-        total_records: res.data.total_records || 0,
-        overdue_count: res.data.overdue_count || 0,
-        pending_count: res.data.pending_count || 0,
-        in_progress_count: res.data.in_progress_count || 0
+        total_questions: questions.length,
+        total_records: tasks.length,
+        overdue_count: overdue,
+        pending_count: pending,
+        in_progress_count: inProgress
       });
     } catch (error) {
-      console.error('Failed to fetch assignments:', error);
+      console.error('Failed to fetch tasks:', error);
       toast.error('Failed to load tasks');
     } finally {
       setLoading(false);
     }
-  }, [reportingPeriod, domain, framework, token]);
+  }, [domain, framework, entityType, reportingPeriod, token]);
 
   useEffect(() => {
     fetchAssignments();
