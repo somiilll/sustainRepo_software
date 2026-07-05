@@ -79,10 +79,14 @@ export default function MyTasks({ entityType = 'all', reportingPeriod, domain, f
         };
       }
       
-      // Categorize by task type
-      if (record.is_backfill || record.task_type === 'backfill') {
+      // Categorize by task type based on period_start date
+      const periodStart = record.period_start ? new Date(record.period_start.split('T')[0]) : null;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      if (record.is_backfill || record.status === 'backfill_pending') {
         groups[key].backfill.push(record);
-      } else if (record.task_type === 'future' || (record.period_start && new Date(record.period_start) > now)) {
+      } else if (periodStart && periodStart > today) {
         groups[key].future.push(record);
       } else {
         groups[key].current.push(record);
@@ -504,6 +508,7 @@ export default function MyTasks({ entityType = 'all', reportingPeriod, domain, f
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
               <SelectItem value="submitted">Submitted</SelectItem>
               <SelectItem value="approved">Completed</SelectItem>
               <SelectItem value="overdue">Overdue</SelectItem>
