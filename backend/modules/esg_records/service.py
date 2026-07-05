@@ -234,15 +234,30 @@ class ESGRecordsService:
             else:
                 rp = reporting_period if isinstance(reporting_period, dict) else {}
             
-            rp_type = rp.get("type")
+            rp_type = rp.get("reporting_type") or rp.get("type")
             if rp_type == "yearly":
                 period_key = str(rp.get("year"))
             elif rp_type == "monthly":
-                period_key = f"{rp.get('year')}-{str(rp.get('month')).zfill(2)}"
+                # Month could be name like "January" or number
+                month = rp.get("month")
+                if isinstance(month, str) and not month.isdigit():
+                    # Convert month name to number
+                    month_names = ["January", "February", "March", "April", "May", "June",
+                                   "July", "August", "September", "October", "November", "December"]
+                    try:
+                        month_num = month_names.index(month) + 1
+                    except ValueError:
+                        month_num = 1
+                else:
+                    month_num = int(month) if month else 1
+                period_key = f"{rp.get('year')}-{str(month_num).zfill(2)}"
             elif rp_type == "quarterly":
-                period_key = f"{rp.get('year')}-Q{rp.get('quarter')}"
+                quarter = rp.get("quarter", "").replace("Q", "") if rp.get("quarter") else "1"
+                period_key = f"{rp.get('year')}-Q{quarter}"
             elif rp_type == "daily":
                 period_key = rp.get("date")  # Expected format: YYYY-MM-DD
+            elif rp_type == "weekly":
+                period_key = rp.get("date")  # Use date for weekly as well
             
             if not period_key:
                 return
