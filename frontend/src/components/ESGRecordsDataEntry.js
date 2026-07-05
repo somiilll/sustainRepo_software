@@ -107,13 +107,10 @@ export default function ESGRecordsDataEntry({
     if (parts.length < 3) return {};
     
     const year = parseInt(parts[0], 10);
-    const month = parseInt(parts[1], 10) - 1; // 0-indexed for monthNames array
+    const month = parseInt(parts[1], 10); // 1-indexed (1=Jan, 2=Feb, etc.)
     const day = parseInt(parts[2], 10);
     
     if (isNaN(year) || isNaN(month) || isNaN(day)) return {};
-    
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-                        'July', 'August', 'September', 'October', 'November', 'December'];
     
     const freq = frequency?.toLowerCase();
     
@@ -121,9 +118,10 @@ export default function ESGRecordsDataEntry({
       // Return the date string directly in YYYY-MM-DD format
       return { reporting_date: dateStr };
     } else if (freq === 'monthly') {
-      return { reporting_year: year, reporting_month: monthNames[month] };
+      // Return month as string number to match dropdown value
+      return { reporting_year: year, reporting_month: String(month) };
     } else if (freq === 'quarterly') {
-      const quarter = Math.floor(month / 3) + 1;
+      const quarter = Math.ceil(month / 3);
       return { reporting_year: year, reporting_quarter: `Q${quarter}` };
     } else if (freq === 'yearly' || freq === 'annually') {
       return { reporting_year: year };
