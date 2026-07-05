@@ -49,7 +49,7 @@ export default function ESGRecordsModule({ section = 'environment', framework = 
     if (tab) setActiveTab(tab);
     if (category) setPreFilterCategory(category);
     if (subcategory) setPreFilterSubcategory(subcategory);
-  }, [searchParams]);
+  }, [searchParams.toString()]);
 
   // Initialize reporting years from org config
   useEffect(() => {
