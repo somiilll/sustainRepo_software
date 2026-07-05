@@ -268,7 +268,7 @@ class ESGRecordsService:
                 "assigned_to_user_id": user_id,
                 "category": category,
                 "period_key": period_key,
-                "status": {"$in": ["pending", "backfill_pending", "overdue", "in_progress"]},
+                "status": {"$in": ["pending", "backfill_pending", "overdue", "in_progress", "rejected"]},
             }
             if subcategory:
                 query["subcategory"] = subcategory
