@@ -734,6 +734,18 @@ class ESGRecordsService:
             }
             await db.esg_record_assignment_history.insert_one(history_doc)
 
+        # Auto-generate tasks if start_date and filling_frequency are provided
+        if data.get("start_date") and data.get("filling_frequency"):
+            try:
+                from .task_engine import generate_tasks_for_assignment as gen_tasks
+                # Fetch the created/updated assignment
+                assignment = await db.esg_assignments.find_one({"id": assignment_id}, {"_id": 0})
+                if assignment:
+                    await gen_tasks(db, assignment)
+            except Exception as e:
+                # Log but don't fail the assignment creation
+                print(f"Task generation warning: {e}")
+
         return {"id": assignment_id, "status": "saved"}
 
     # =========================================================================

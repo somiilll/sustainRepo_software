@@ -640,3 +640,175 @@ async def get_data_coverage(
     
     return coverage
 
+
+
+# =============================================================================
+# Task Engine Endpoints
+# =============================================================================
+
+@router.post("/assignments/{assignment_id}/generate-tasks")
+async def generate_tasks_for_assignment(
+    assignment_id: str,
+    current_user: dict = Depends(get_current_user),
+    db = Depends(get_database)
+):
+    """
+    Generate reporting tasks for an assignment.
+    
+    Creates individual trackable tasks based on the assignment's
+    frequency, start_date, end_date, and due_config.
+    """
+    from .task_engine import generate_tasks_for_assignment as gen_tasks
+    
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    # Get the assignment
+    assignment = await db["esg_assignments"].find_one({
+        "id": assignment_id,
+        "organization_id": org_id,
+    }, {"_id": 0})
+    
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    
+    # Generate tasks
+    result = await gen_tasks(db, assignment)
+    
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    
+    return result
+
+
+@router.get("/assignments/{assignment_id}/tasks")
+async def get_assignment_tasks(
+    assignment_id: str,
+    status: Optional[str] = None,
+    task_type: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+    db = Depends(get_database)
+):
+    """Get all tasks for an assignment."""
+    from .task_engine import get_tasks_for_assignment
+    
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    tasks = await get_tasks_for_assignment(
+        db=db,
+        assignment_id=assignment_id,
+        status_filter=status,
+        task_type_filter=task_type,
+    )
+    
+    return {"tasks": tasks, "total": len(tasks)}
+
+
+@router.get("/tasks/my-tasks")
+async def get_my_tasks(
+    status: Optional[str] = None,
+    include_backfill: bool = False,
+    current_user: dict = Depends(get_current_user),
+    db = Depends(get_database)
+):
+    """Get current user's assigned tasks."""
+    from .task_engine import get_tasks_for_user
+    
+    user_id = current_user.get("id")
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    status_filter = [status] if status else None
+    
+    tasks = await get_tasks_for_user(
+        db=db,
+        user_id=user_id,
+        organization_id=org_id,
+        status_filter=status_filter,
+        include_backfill=include_backfill,
+    )
+    
+    return {"tasks": tasks, "total": len(tasks)}
+
+
+@router.get("/tasks/summary")
+async def get_tasks_summary(
+    user_id: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+    db = Depends(get_database)
+):
+    """Get task summary statistics."""
+    from .task_engine import get_task_summary
+    
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    # If no user_id specified and not admin, use current user
+    if not user_id and current_user.get("role") != "admin":
+        user_id = current_user.get("id")
+    
+    summary = await get_task_summary(
+        db=db,
+        organization_id=org_id,
+        user_id=user_id,
+    )
+    
+    return summary
+
+
+@router.patch("/tasks/{task_id}/status")
+async def update_task_status(
+    task_id: str,
+    status: str,
+    reason: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+    db = Depends(get_database)
+):
+    """Update a task's status."""
+    from .task_engine import update_task_status as update_status, TaskStatus
+    
+    # Validate status
+    valid_statuses = [s.value for s in TaskStatus]
+    if status not in valid_statuses:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid status. Must be one of: {valid_statuses}"
+        )
+    
+    result = await update_status(
+        db=db,
+        task_id=task_id,
+        new_status=status,
+        user_id=current_user.get("id"),
+        reason=reason,
+    )
+    
+    return result
+
+
+@router.post("/tasks/refresh-overdue")
+async def refresh_overdue_tasks(
+    current_user: dict = Depends(get_current_user),
+    db = Depends(get_database)
+):
+    """
+    Mark pending tasks as overdue if past due date.
+    This is typically called by a cron job.
+    """
+    from .task_engine import refresh_overdue_tasks as refresh_tasks
+    
+    # Only admins can trigger this
+    if current_user.get("role") not in ["admin", "super_admin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    org_id = current_user.get("organization_id")
+    
+    result = await refresh_tasks(db=db, organization_id=org_id)
+    
+    return result
+
