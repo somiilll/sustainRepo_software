@@ -52,7 +52,8 @@ export default function ESGRecordsDataEntry({
   onRecordAdded,
   preFilterCategory = '',
   preFilterSubcategory = '',
-  preFilterFrequency = ''
+  preFilterFrequency = '',
+  preFilterPeriodStart = ''
 }) {
   const { token, user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -95,13 +96,47 @@ export default function ESGRecordsDataEntry({
     return map[freq?.toLowerCase()] || 'monthly';
   };
 
+  // Parse period_start to extract date components based on frequency
+  const getPeriodFieldsFromDate = (periodStart, frequency) => {
+    if (!periodStart) return {};
+    
+    const date = new Date(periodStart);
+    if (isNaN(date.getTime())) return {};
+    
+    const year = date.getFullYear();
+    const month = date.getMonth(); // 0-indexed
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                        'July', 'August', 'September', 'October', 'November', 'December'];
+    
+    const freq = frequency?.toLowerCase();
+    
+    if (freq === 'daily' || freq === 'weekly') {
+      // Format as YYYY-MM-DD for date input
+      const dateStr = date.toISOString().split('T')[0];
+      return { reporting_date: dateStr };
+    } else if (freq === 'monthly') {
+      return { reporting_year: year, reporting_month: monthNames[month] };
+    } else if (freq === 'quarterly') {
+      const quarter = Math.floor(month / 3) + 1;
+      return { reporting_year: year, reporting_quarter: `Q${quarter}` };
+    } else if (freq === 'yearly' || freq === 'annually') {
+      return { reporting_year: year };
+    }
+    
+    return { reporting_year: year };
+  };
+
+  const initialPeriodFields = getPeriodFieldsFromDate(preFilterPeriodStart, preFilterFrequency);
+
   const [formData, setFormData] = useState({
     category: preFilterCategory || '',
     subcategory: preFilterSubcategory || '',
     facility_id: '',
     reporting_type: preFilterFrequency ? getReportingTypeFromFrequency(preFilterFrequency) : 'monthly',
-    reporting_year: new Date().getFullYear(),
-    reporting_month: '',
+    reporting_year: initialPeriodFields.reporting_year || new Date().getFullYear(),
+    reporting_month: initialPeriodFields.reporting_month || '',
+    reporting_quarter: initialPeriodFields.reporting_quarter || '',
+    reporting_date: initialPeriodFields.reporting_date || '',
     field_values: {},
     source_of_information: '',
     notes: '',
@@ -114,14 +149,16 @@ export default function ESGRecordsDataEntry({
   // Update filters when preFilter props change (from URL) - ONLY for add mode
   useEffect(() => {
     if (mode === 'add' && preFilterCategory) {
+      const periodFields = getPeriodFieldsFromDate(preFilterPeriodStart, preFilterFrequency);
       setFormData(prev => ({
         ...prev,
         category: preFilterCategory,
         subcategory: preFilterSubcategory || '',
         reporting_type: preFilterFrequency ? getReportingTypeFromFrequency(preFilterFrequency) : prev.reporting_type,
+        ...periodFields,
       }));
     }
-  }, [preFilterCategory, preFilterSubcategory, preFilterFrequency, mode]);
+  }, [preFilterCategory, preFilterSubcategory, preFilterFrequency, preFilterPeriodStart, mode]);
 
   // Fetch category config when categories are loaded and preFilter is set (for add mode)
   useEffect(() => {

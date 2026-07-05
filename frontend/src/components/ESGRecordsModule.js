@@ -40,6 +40,7 @@ export default function ESGRecordsModule({ section = 'environment', framework = 
   const [preFilterCategory, setPreFilterCategory] = useState(searchParams.get('category') || '');
   const [preFilterSubcategory, setPreFilterSubcategory] = useState(searchParams.get('subcategory') || '');
   const [preFilterFrequency, setPreFilterFrequency] = useState(searchParams.get('frequency') || '');
+  const [preFilterPeriodStart, setPreFilterPeriodStart] = useState(searchParams.get('period_start') || '');
 
   // Handle URL params changes
   useEffect(() => {
@@ -47,11 +48,13 @@ export default function ESGRecordsModule({ section = 'environment', framework = 
     const category = searchParams.get('category');
     const subcategory = searchParams.get('subcategory');
     const frequency = searchParams.get('frequency');
+    const periodStart = searchParams.get('period_start');
     
     if (subtab) setActiveTab(subtab);
     if (category) setPreFilterCategory(category);
     if (subcategory) setPreFilterSubcategory(subcategory);
     if (frequency) setPreFilterFrequency(frequency);
+    if (periodStart) setPreFilterPeriodStart(periodStart);
   }, [searchParams.toString()]);
 
   // Initialize reporting years from org config
@@ -184,6 +187,7 @@ export default function ESGRecordsModule({ section = 'environment', framework = 
             preFilterCategory={preFilterCategory}
             preFilterSubcategory={preFilterSubcategory}
             preFilterFrequency={preFilterFrequency}
+            preFilterPeriodStart={preFilterPeriodStart}
             onRecordAdded={() => setActiveTab('data-entry')}
           />
         </TabsContent>
