@@ -403,8 +403,18 @@ class AssignmentService:
             
             # Check overdue
             due_date = doc.get("due_date")
-            if due_date and due_date < now and status not in [AssignmentStatus.APPROVED.value, AssignmentStatus.SUBMITTED.value]:
-                overdue_count += 1
+            if due_date:
+                # Parse due_date if it's a string
+                if isinstance(due_date, str):
+                    try:
+                        due_date = datetime.fromisoformat(due_date.replace('Z', '+00:00'))
+                    except (ValueError, TypeError):
+                        due_date = None
+                # Ensure due_date is timezone-aware for comparison
+                if due_date and due_date.tzinfo is None:
+                    due_date = due_date.replace(tzinfo=timezone.utc)
+                if due_date and due_date < now and status not in [AssignmentStatus.APPROVED.value, AssignmentStatus.SUBMITTED.value]:
+                    overdue_count += 1
         
         return {
             "questions": questions,

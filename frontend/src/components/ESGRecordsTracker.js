@@ -395,7 +395,8 @@ export default function ESGRecordsTracker({
       ].filter(Boolean).join('_') || assigningItem.category;
 
       // Create assignment for each selected user
-      const promises = assignForm.assigned_user_ids.map(userId => 
+      // First request includes replace_existing=true to clear old assignments
+      const promises = assignForm.assigned_user_ids.map((userId, index) => 
         axios.post(
           `${API}/api/esg-records/assignments`,
           {
@@ -420,12 +421,16 @@ export default function ESGRecordsTracker({
             requires_approval: assignForm.requires_approval,
             approver_id: assignForm.requires_approval && !multiLevelApprovalEnabled ? assignForm.approver_id : null,
             approval_chain: assignForm.requires_approval && multiLevelApprovalEnabled ? assignForm.approval_chain : [],
+            replace_existing: index === 0, // Only first request clears existing assignments
           },
           { headers }
         )
       );
 
-      await Promise.all(promises);
+      // Execute sequentially to ensure replace_existing runs first
+      for (const promise of promises) {
+        await promise;
+      }
       toast.success(`Assignment saved for ${assignForm.assigned_user_ids.length} user(s)`);
       setShowAssignModal(false);
       resetAssignForm();

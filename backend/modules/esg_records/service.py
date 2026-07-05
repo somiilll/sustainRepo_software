@@ -627,20 +627,44 @@ class ESGRecordsService:
         """
         Create or update a record category assignment.
         Uses esg_assignments collection.
+        
+        If `replace_existing` is True in data, deletes all existing assignments
+        for the same category/subcategory/facility/reporting_period before creating new ones.
         """
         now = datetime.now(timezone.utc)
         assignment_id = str(uuid.uuid4())
-
-        # Check for existing assignment with same params (exclude entity_id as it may vary)
-        existing = await db.esg_assignments.find_one({
+        
+        # Base query for finding existing assignments (without user_id - matches all users)
+        base_query = {
             "organization_id": org_id,
             "entity_type": "record_category",
             "category": data.get("category"),
             "subcategory": data.get("subcategory"),
             "sub_subcategory": data.get("sub_subcategory"),
             "facility_id": data.get("facility_id"),
-            "assigned_to_user_id": data.get("assigned_to_user_id"),
             "reporting_period": data.get("reporting_period"),
+        }
+        
+        # If replace_existing flag is set, delete all existing assignments for this category combo
+        if data.get("replace_existing"):
+            deleted = await db.esg_assignments.delete_many(base_query)
+            # Log deletion if any were removed
+            if deleted.deleted_count > 0:
+                history_doc = {
+                    "id": str(uuid.uuid4()),
+                    "assignment_id": None,
+                    "action": "bulk_replaced",
+                    "previous_value": {"deleted_count": deleted.deleted_count},
+                    "new_value": {"category": data.get("category"), "subcategory": data.get("subcategory")},
+                    "changed_by_user_id": assigned_by_user_id,
+                    "created_at": now,
+                }
+                await db.esg_record_assignment_history.insert_one(history_doc)
+
+        # Check for existing assignment with same params INCLUDING user_id
+        existing = await db.esg_assignments.find_one({
+            **base_query,
+            "assigned_to_user_id": data.get("assigned_to_user_id"),
         })
 
         if existing:
