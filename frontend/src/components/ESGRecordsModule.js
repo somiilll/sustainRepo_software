@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
@@ -30,9 +31,25 @@ const API = process.env.REACT_APP_BACKEND_URL;
  */
 export default function ESGRecordsModule({ section = 'environment', framework = 'BRSR' }) {
   const { token } = useAuth();
-  const [activeTab, setActiveTab] = useState('my-tasks');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'my-tasks');
   const [reportingPeriod, setReportingPeriod] = useState('');
   const [reportingYears, setReportingYears] = useState([]);
+  
+  // Pre-filter from URL params (for Fill Now redirect)
+  const [preFilterCategory, setPreFilterCategory] = useState(searchParams.get('category') || '');
+  const [preFilterSubcategory, setPreFilterSubcategory] = useState(searchParams.get('subcategory') || '');
+
+  // Handle URL params changes
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    const category = searchParams.get('category');
+    const subcategory = searchParams.get('subcategory');
+    
+    if (tab) setActiveTab(tab);
+    if (category) setPreFilterCategory(category);
+    if (subcategory) setPreFilterSubcategory(subcategory);
+  }, [searchParams]);
 
   // Initialize reporting years from org config
   useEffect(() => {
@@ -136,6 +153,8 @@ export default function ESGRecordsModule({ section = 'environment', framework = 
             section={section} 
             framework={framework} 
             mode="list"
+            preFilterCategory={preFilterCategory}
+            preFilterSubcategory={preFilterSubcategory}
           />
         </TabsContent>
 

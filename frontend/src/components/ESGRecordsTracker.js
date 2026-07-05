@@ -457,6 +457,8 @@ export default function ESGRecordsTracker({
 
       // Create assignment for each selected user
       // First request includes replace_existing=true to clear old assignments
+      // assign_children defaults to true for parent categories (no subcategory)
+      const isParentCategory = !assigningItem.subcategory;
       const promises = assignForm.assigned_user_ids.map((userId, index) => 
         axios.post(
           `${API}/api/esg-records/assignments`,
@@ -466,7 +468,7 @@ export default function ESGRecordsTracker({
             category: assigningItem.category,
             subcategory: assigningItem.subcategory || null,
             sub_subcategory: assigningItem.sub_subcategory || null,
-            assign_children: assigningItem.assignChildren || false,
+            assign_children: isParentCategory, // Auto-cascade for parent categories
             assignment_level: assignForm.assignment_level,
             facility_id: assignForm.assignment_level === 'facility' ? assignForm.facility_id : null,
             assigned_to_user_id: userId,

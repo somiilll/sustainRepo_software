@@ -42,8 +42,17 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
  * @param {string} framework - 'BRSR' | 'GRI' etc.
  * @param {string} mode - 'list' | 'add'
  * @param {function} onRecordAdded - Callback when record is added
+ * @param {string} preFilterCategory - Pre-selected category from URL
+ * @param {string} preFilterSubcategory - Pre-selected subcategory from URL
  */
-export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode = 'list', onRecordAdded }) {
+export default function ESGRecordsDataEntry({ 
+  section, 
+  framework = 'BRSR', 
+  mode = 'list', 
+  onRecordAdded,
+  preFilterCategory = '',
+  preFilterSubcategory = ''
+}) {
   const { token, user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [records, setRecords] = useState([]);
@@ -53,9 +62,9 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
   const [stats, setStats] = useState(null);
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, total_pages: 0 });
   
-  // Filters
+  // Filters - Initialize from URL params if provided
   const [filters, setFilters] = useState({
-    category: '',
+    category: preFilterCategory || '',
     status: '',
     facility_id: '',
     search: ''
@@ -87,6 +96,16 @@ export default function ESGRecordsDataEntry({ section, framework = 'BRSR', mode 
   const [addFormCategory, setAddFormCategory] = useState(null);
 
   const headers = { Authorization: `Bearer ${token}` };
+
+  // Update filters when preFilter props change (from URL)
+  useEffect(() => {
+    if (preFilterCategory) {
+      setFilters(prev => ({ 
+        ...prev, 
+        category: preFilterCategory,
+      }));
+    }
+  }, [preFilterCategory, preFilterSubcategory]);
 
   // Fetch base data
   useEffect(() => {

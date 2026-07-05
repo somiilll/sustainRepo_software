@@ -761,7 +761,166 @@ class ESGRecordsService:
                 # Log but don't fail the assignment creation
                 print(f"Task generation warning: {e}")
 
-        return {"id": assignment_id, "status": "saved"}
+        # CASCADE: If assigning parent category (no subcategory), create child assignments
+        cascade_results = []
+        if data.get("assign_children") and not data.get("subcategory"):
+            cascade_results = await self._cascade_assignment_to_children(
+                org_id=org_id,
+                assigned_by_user_id=assigned_by_user_id,
+                parent_assignment_id=assignment_id,
+                data=data,
+            )
+
+        return {
+            "id": assignment_id, 
+            "status": "saved",
+            "cascaded_assignments": len(cascade_results),
+            "cascade_details": cascade_results,
+        }
+
+    async def _cascade_assignment_to_children(
+        self,
+        org_id: str,
+        assigned_by_user_id: str,
+        parent_assignment_id: str,
+        data: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        """
+        Cascade a parent category assignment to all child subcategories.
+        
+        When assigning "Emissions" at parent level, this creates individual
+        assignments for:
+        - Emissions / GHG Emissions / Scope 1
+        - Emissions / GHG Emissions / Scope 2
+        - Emissions / GHG Emissions / Scope 3
+        - Emissions / Air Emissions
+        
+        Each child gets its own task generation.
+        """
+        now = datetime.now(timezone.utc)
+        parent_category = data.get("category")
+        results = []
+        
+        # Find all child categories (subcategories and sub_subcategories)
+        child_categories = await db.esg_record_categories.find(
+            {
+                "category": parent_category,
+                "subcategory": {"$exists": True, "$ne": None, "$ne": ""},
+            },
+            {"_id": 0, "category": 1, "subcategory": 1, "sub_subcategory": 1}
+        ).to_list(100)
+        
+        if not child_categories:
+            return results
+        
+        # Group by subcategory to handle sub_subcategories
+        seen = set()
+        
+        for child in child_categories:
+            subcat = child.get("subcategory")
+            sub_subcat = child.get("sub_subcategory")
+            
+            # Create unique key to avoid duplicates
+            unique_key = f"{parent_category}|{subcat}|{sub_subcat or ''}"
+            if unique_key in seen:
+                continue
+            seen.add(unique_key)
+            
+            # Build child assignment data
+            child_data = {
+                **data,
+                "subcategory": subcat,
+                "sub_subcategory": sub_subcat if sub_subcat else None,
+                "entity_id": f"{parent_category}_{subcat}_{sub_subcat or ''}".strip("_"),
+                "parent_assignment_id": parent_assignment_id,
+                "assign_children": False,  # Don't cascade recursively
+                "replace_existing": False,  # Don't replace on cascade
+            }
+            
+            # Check if assignment already exists
+            existing = await db.esg_assignments.find_one({
+                "organization_id": org_id,
+                "entity_type": "record_category",
+                "category": parent_category,
+                "subcategory": subcat,
+                "sub_subcategory": sub_subcat if sub_subcat else None,
+                "facility_id": data.get("facility_id"),
+                "assigned_to_user_id": data.get("assigned_to_user_id"),
+                "reporting_period": data.get("reporting_period"),
+            })
+            
+            if existing:
+                # Update existing
+                await db.esg_assignments.update_one(
+                    {"id": existing["id"]},
+                    {"$set": {
+                        "start_date": data.get("start_date"),
+                        "end_date": data.get("end_date"),
+                        "timezone": data.get("timezone", "UTC"),
+                        "due_config": data.get("due_config"),
+                        "filling_frequency": data.get("filling_frequency"),
+                        "parent_assignment_id": parent_assignment_id,
+                        "updated_at": now,
+                    }}
+                )
+                child_assignment_id = existing["id"]
+                results.append({
+                    "id": child_assignment_id,
+                    "category": parent_category,
+                    "subcategory": subcat,
+                    "sub_subcategory": sub_subcat,
+                    "action": "updated",
+                })
+            else:
+                # Create new child assignment
+                child_assignment_id = str(uuid.uuid4())
+                child_doc = {
+                    "id": child_assignment_id,
+                    "organization_id": org_id,
+                    "entity_type": "record_category",
+                    "entity_id": child_data["entity_id"],
+                    "category": parent_category,
+                    "subcategory": subcat,
+                    "sub_subcategory": sub_subcat if sub_subcat else None,
+                    "parent_assignment_id": parent_assignment_id,
+                    "assignment_level": data.get("assignment_level", "organization"),
+                    "facility_id": data.get("facility_id"),
+                    "assigned_to_user_id": data.get("assigned_to_user_id"),
+                    "assigned_by_user_id": assigned_by_user_id,
+                    "reporting_period": data.get("reporting_period"),
+                    "role": data.get("role", "editor"),
+                    "status": "pending",
+                    "filling_frequency": data.get("filling_frequency"),
+                    "reminder_config": data.get("reminder_config"),
+                    "requires_approval": False,
+                    "start_date": data.get("start_date"),
+                    "end_date": data.get("end_date"),
+                    "timezone": data.get("timezone", "UTC"),
+                    "due_config": data.get("due_config"),
+                    "created_at": now,
+                    "updated_at": now,
+                }
+                await db.esg_assignments.insert_one(child_doc)
+                
+                results.append({
+                    "id": child_assignment_id,
+                    "category": parent_category,
+                    "subcategory": subcat,
+                    "sub_subcategory": sub_subcat,
+                    "action": "created",
+                })
+            
+            # Generate tasks for child assignment
+            if data.get("start_date") and data.get("filling_frequency"):
+                try:
+                    from .task_engine import generate_tasks_for_assignment as gen_tasks
+                    assignment = await db.esg_assignments.find_one({"id": child_assignment_id}, {"_id": 0})
+                    if assignment:
+                        await gen_tasks(db, assignment)
+                except Exception as e:
+                    print(f"Task generation warning for child {subcat}/{sub_subcat}: {e}")
+        
+        return results
 
     # =========================================================================
     # Draft Methods
