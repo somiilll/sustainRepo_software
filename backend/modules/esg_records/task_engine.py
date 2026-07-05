@@ -526,7 +526,21 @@ async def get_tasks_for_user(
             task["assignment_start_date"] = assignment.get("start_date")
             task["assignment_end_date"] = assignment.get("end_date")
     
-    return tasks
+    # Filter out parent category tasks if that category has subcategories
+    # Get categories that have subcategories defined
+    categories_with_subs = await db["esg_record_categories"].distinct(
+        "category",
+        {"subcategory": {"$ne": None, "$ne": ""}}
+    )
+    categories_with_subs_set = set(categories_with_subs)
+    
+    # Filter: exclude tasks where category has subcategories but task.subcategory is null/empty
+    filtered_tasks = [
+        t for t in tasks
+        if not (t.get("category") in categories_with_subs_set and not t.get("subcategory"))
+    ]
+    
+    return filtered_tasks
 
 
 async def update_task_status(
