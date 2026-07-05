@@ -63,19 +63,27 @@ async def create_record(
     data: CreateRecordRequest,
     current_user: dict = Depends(get_current_user)
 ):
-    """Create a new ESG record."""
+    """Create a new ESG record. Validates user has active assignment."""
     org_id = current_user.get("organization_id")
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization assigned")
     
     user_id = current_user.get("id") or current_user.get("user_id")
+    user_role = current_user.get("role", "")
     
-    record = await esg_records_service.create_record(
-        section=section,
-        org_id=org_id,
-        user_id=user_id,
-        data=data
-    )
+    # Admin can skip assignment check
+    skip_check = user_role in ["admin", "super_admin"]
+    
+    try:
+        record = await esg_records_service.create_record(
+            section=section,
+            org_id=org_id,
+            user_id=user_id,
+            data=data,
+            skip_assignment_check=skip_check,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     
     return {"message": "Record created", "record": record}
 
@@ -811,4 +819,76 @@ async def refresh_overdue_tasks(
     result = await refresh_tasks(db=db, organization_id=org_id)
     
     return result
+
+
+
+@router.get("/tasks/completion-by-category")
+async def get_completion_by_category(
+    reporting_period: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+    db = Depends(get_database)
+):
+    """
+    Get task completion statistics grouped by category/subcategory.
+    Used for Enhanced Tracker Table to show completion % per row.
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    # Aggregation pipeline to group tasks by category
+    match_query = {"organization_id": org_id}
+    if reporting_period:
+        match_query["reporting_period"] = reporting_period
+    
+    pipeline = [
+        {"$match": match_query},
+        {"$group": {
+            "_id": {
+                "category": "$category",
+                "subcategory": "$subcategory",
+                "sub_subcategory": "$sub_subcategory",
+                "facility_id": "$facility_id",
+            },
+            "total": {"$sum": 1},
+            "backfill_pending": {"$sum": {"$cond": [{"$eq": ["$status", "backfill_pending"]}, 1, 0]}},
+            "pending": {"$sum": {"$cond": [{"$eq": ["$status", "pending"]}, 1, 0]}},
+            "in_progress": {"$sum": {"$cond": [{"$eq": ["$status", "in_progress"]}, 1, 0]}},
+            "submitted": {"$sum": {"$cond": [{"$eq": ["$status", "submitted"]}, 1, 0]}},
+            "approved": {"$sum": {"$cond": [{"$eq": ["$status", "approved"]}, 1, 0]}},
+            "overdue": {"$sum": {"$cond": [{"$eq": ["$status", "overdue"]}, 1, 0]}},
+            "skipped": {"$sum": {"$cond": [{"$eq": ["$status", "skipped"]}, 1, 0]}},
+        }},
+        {"$project": {
+            "_id": 0,
+            "category": "$_id.category",
+            "subcategory": "$_id.subcategory",
+            "sub_subcategory": "$_id.sub_subcategory",
+            "facility_id": "$_id.facility_id",
+            "total": 1,
+            "backfill_pending": 1,
+            "pending": 1,
+            "in_progress": 1,
+            "submitted": 1,
+            "approved": 1,
+            "overdue": 1,
+            "skipped": 1,
+            "completed": {"$add": ["$submitted", "$approved", "$skipped"]},
+            "completion_pct": {
+                "$cond": [
+                    {"$eq": ["$total", 0]},
+                    0,
+                    {"$multiply": [
+                        {"$divide": [{"$add": ["$submitted", "$approved", "$skipped"]}, "$total"]},
+                        100
+                    ]}
+                ]
+            }
+        }},
+        {"$sort": {"category": 1, "subcategory": 1, "sub_subcategory": 1}}
+    ]
+    
+    results = await db["esg_reporting_tasks"].aggregate(pipeline).to_list(500)
+    
+    return {"completion_stats": results}
 

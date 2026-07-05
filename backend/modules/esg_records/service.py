@@ -78,11 +78,35 @@ class ESGRecordsService:
         section: ESG_SECTION,
         org_id: str,
         user_id: str,
-        data: CreateRecordRequest
+        data: CreateRecordRequest,
+        skip_assignment_check: bool = False,  # For admin override
     ) -> Dict[str, Any]:
-        """Create a new ESG record."""
+        """
+        Create a new ESG record.
+        
+        Validates user has an active assignment for the category/subcategory
+        at the correct level (org vs facility).
+        """
         collection = self._get_records_collection(section)
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
+        
+        # ACCESS CONTROL: Check if user has valid assignment
+        if not skip_assignment_check:
+            assignment = await self._validate_user_assignment(
+                org_id=org_id,
+                user_id=user_id,
+                category=data.category,
+                subcategory=data.subcategory,
+                sub_subcategory=data.sub_subcategory,
+                facility_id=data.facility_id,
+                record_level=data.record_level,
+            )
+            if not assignment:
+                raise ValueError(
+                    f"No active assignment found for {data.category}/{data.subcategory or ''} "
+                    f"at {'facility' if data.facility_id else 'organization'} level"
+                )
         
         record = {
             "id": str(uuid.uuid4()),
@@ -103,7 +127,7 @@ class ESGRecordsService:
             "version": 1,
             "is_current": True,
             "created_by": user_id,
-            "created_at": now,
+            "created_at": now_iso,
             "updated_by": None,
             "updated_at": None
         }
@@ -120,9 +144,127 @@ class ESGRecordsService:
             user_id=user_id
         )
         
+        # LINK TASK TO RECORD: Mark corresponding task as submitted
+        await self._mark_task_submitted(
+            org_id=org_id,
+            user_id=user_id,
+            category=data.category,
+            subcategory=data.subcategory,
+            sub_subcategory=data.sub_subcategory,
+            facility_id=data.facility_id,
+            reporting_period=data.reporting_period,
+        )
+        
         # Remove MongoDB _id before returning
         record.pop("_id", None)
         return record
+    
+    async def _validate_user_assignment(
+        self,
+        org_id: str,
+        user_id: str,
+        category: str,
+        subcategory: Optional[str],
+        sub_subcategory: Optional[str],
+        facility_id: Optional[str],
+        record_level: str,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Check if user has an active assignment for the category at the correct level.
+        
+        Returns the assignment if valid, None otherwise.
+        """
+        # Build query to find matching assignment
+        query = {
+            "organization_id": org_id,
+            "assigned_to_user_id": user_id,
+            "entity_type": "record_category",
+            "status": {"$nin": ["completed", "cancelled"]},
+            "$or": [
+                # Exact match
+                {"category": category, "subcategory": subcategory, "sub_subcategory": sub_subcategory},
+                # Parent category match (assigned to parent, filling child)
+                {"category": category, "subcategory": None, "sub_subcategory": None},
+                {"category": category, "subcategory": subcategory, "sub_subcategory": None},
+            ]
+        }
+        
+        # Check facility level match
+        if record_level == "facility" and facility_id:
+            query["$and"] = [
+                {"$or": [
+                    {"facility_id": facility_id},  # Exact facility match
+                    {"assignment_level": "organization"},  # Org-level can add to any facility
+                ]}
+            ]
+        elif record_level == "organization":
+            # Org-level record: user must have org-level assignment
+            query["assignment_level"] = "organization"
+        
+        assignment = await db.esg_assignments.find_one(query, {"_id": 0})
+        return assignment
+    
+    async def _mark_task_submitted(
+        self,
+        org_id: str,
+        user_id: str,
+        category: str,
+        subcategory: Optional[str],
+        sub_subcategory: Optional[str],
+        facility_id: Optional[str],
+        reporting_period: Any,
+    ):
+        """
+        Mark the corresponding reporting task as submitted when a record is added.
+        """
+        try:
+            # Determine period_key from reporting_period
+            period_key = None
+            if hasattr(reporting_period, 'model_dump'):
+                rp = reporting_period.model_dump()
+            else:
+                rp = reporting_period if isinstance(reporting_period, dict) else {}
+            
+            rp_type = rp.get("type")
+            if rp_type == "yearly":
+                period_key = str(rp.get("year"))
+            elif rp_type == "monthly":
+                period_key = f"{rp.get('year')}-{str(rp.get('month')).zfill(2)}"
+            elif rp_type == "quarterly":
+                period_key = f"{rp.get('year')}-Q{rp.get('quarter')}"
+            elif rp_type == "daily":
+                period_key = rp.get("date")  # Expected format: YYYY-MM-DD
+            
+            if not period_key:
+                return
+            
+            # Find and update the matching task
+            query = {
+                "organization_id": org_id,
+                "assigned_to_user_id": user_id,
+                "category": category,
+                "period_key": period_key,
+                "status": {"$in": ["pending", "backfill_pending", "overdue", "in_progress"]},
+            }
+            if subcategory:
+                query["subcategory"] = subcategory
+            if sub_subcategory:
+                query["sub_subcategory"] = sub_subcategory
+            if facility_id:
+                query["facility_id"] = facility_id
+            
+            now = datetime.now(timezone.utc)
+            await db.esg_reporting_tasks.update_one(
+                query,
+                {"$set": {
+                    "status": "submitted",
+                    "submitted_at": now,
+                    "updated_at": now,
+                }}
+            )
+        except Exception as e:
+            # Don't fail record creation if task update fails
+            print(f"Warning: Failed to mark task as submitted: {e}")
     
     async def update_record(
         self,

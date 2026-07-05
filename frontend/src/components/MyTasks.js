@@ -5,7 +5,7 @@
  * Can filter by entity type: 'record' (Metrics) or 'question' (Disclosures)
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -14,6 +14,7 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
+import { Progress } from './ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { 
   ClipboardList, 
@@ -27,7 +28,10 @@ import {
   Loader2,
   FileText,
   BarChart3,
-  RefreshCw
+  RefreshCw,
+  ChevronDown,
+  ChevronRight,
+  Layers
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -45,6 +49,8 @@ export default function MyTasks({ entityType = 'all', reportingPeriod, domain, f
   const [loading, setLoading] = useState(true);
   const [assignments, setAssignments] = useState({ questions: [], records: [] });
   const [stats, setStats] = useState({});
+  const [expandedCategories, setExpandedCategories] = useState({});
+  const [viewMode, setViewMode] = useState('grouped'); // 'grouped' or 'flat'
   const [filters, setFilters] = useState({
     search: '',
     status: 'all',
@@ -52,6 +58,40 @@ export default function MyTasks({ entityType = 'all', reportingPeriod, domain, f
   });
 
   const headers = { Authorization: `Bearer ${token}` };
+
+  // Group records by category for grouped view
+  const groupedRecords = useMemo(() => {
+    const groups = {};
+    for (const record of (assignments.records || [])) {
+      const key = [record.category, record.subcategory, record.sub_subcategory].filter(Boolean).join(' / ');
+      if (!groups[key]) {
+        groups[key] = {
+          category: record.category,
+          subcategory: record.subcategory,
+          sub_subcategory: record.sub_subcategory,
+          items: [],
+          total: 0,
+          completed: 0,
+          overdue: 0,
+          pending: 0,
+        };
+      }
+      groups[key].items.push(record);
+      groups[key].total++;
+      if (record.status === 'submitted' || record.status === 'approved') {
+        groups[key].completed++;
+      } else if (record.status === 'overdue') {
+        groups[key].overdue++;
+      } else {
+        groups[key].pending++;
+      }
+    }
+    return Object.values(groups);
+  }, [assignments.records]);
+
+  const toggleCategory = (key) => {
+    setExpandedCategories(prev => ({ ...prev, [key]: !prev[key] }))
+  };
 
   // Fetch assignments
   const fetchAssignments = useCallback(async () => {

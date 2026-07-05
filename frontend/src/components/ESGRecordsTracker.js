@@ -147,6 +147,7 @@ export default function ESGRecordsTracker({
   const [assignments, setAssignments] = useState([]);
   const [stats, setStats] = useState(null);
   const [organization, setOrganization] = useState(null);
+  const [completionStats, setCompletionStats] = useState({}); // Task completion by category
   
   // Filters
   const [internalReportingPeriod, setInternalReportingPeriod] = useState(null);
@@ -307,13 +308,22 @@ export default function ESGRecordsTracker({
       if (statusFilter !== 'all') params.status = statusFilter;
       if (stalenessFilter !== 'all') params.staleness = stalenessFilter;
 
-      const [assignRes, statsRes] = await Promise.all([
+      const [assignRes, statsRes, completionRes] = await Promise.all([
         axios.get(`${API}/api/esg-records/tracker/${section}`, { headers, params }),
         axios.get(`${API}/api/esg-records/tracker/${section}/stats`, { headers, params }),
+        axios.get(`${API}/api/esg-records/tasks/completion-by-category`, { headers, params: { reporting_period: reportingPeriod } }).catch(() => ({ data: { completion_stats: [] } })),
       ]);
 
       setAssignments(assignRes.data.assignments || []);
       setStats(statsRes.data);
+      
+      // Build completion stats lookup by category key
+      const completionMap = {};
+      for (const stat of (completionRes.data.completion_stats || [])) {
+        const key = [stat.category, stat.subcategory, stat.sub_subcategory].filter(Boolean).join('|');
+        completionMap[key] = stat;
+      }
+      setCompletionStats(completionMap);
     } catch (error) {
       console.error('Failed to fetch tracker data:', error);
       // Use mock data if endpoint doesn't exist yet
@@ -731,21 +741,28 @@ export default function ESGRecordsTracker({
               <TableHead>Facility</TableHead>
               <TableHead>Assigned To</TableHead>
               <TableHead>Frequency</TableHead>
-              <TableHead>Due Date</TableHead>
+              <TableHead>Completion</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Last Entry</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {categoryHierarchy.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-text-muted">
+                <TableCell colSpan={8} className="text-center py-8 text-text-muted">
                   No categories found for this section
                 </TableCell>
               </TableRow>
             ) : (
-              categoryHierarchy.map(cat => (
+              categoryHierarchy.map(cat => {
+                // Get completion stats for this category
+                const catCompletionKey = cat.category;
+                const catCompletion = completionStats[catCompletionKey] || {};
+                const completionPct = Math.round(catCompletion.completion_pct || 0);
+                const totalTasks = catCompletion.total || 0;
+                const completedTasks = catCompletion.completed || 0;
+                
+                return (
                 <React.Fragment key={cat.category}>
                   {/* Category Row */}
                   <TableRow className="bg-stone-50 hover:bg-stone-100">
@@ -791,15 +808,22 @@ export default function ESGRecordsTracker({
                       {cat.assignment?.filling_frequency || '-'}
                     </TableCell>
                     <TableCell>
-                      {cat.assignment?.due_date ? new Date(cat.assignment.due_date).toLocaleDateString() : '-'}
+                      {/* Completion Progress */}
+                      {totalTasks > 0 ? (
+                        <div className="flex items-center gap-2 min-w-[120px]">
+                          <Progress value={completionPct} className="h-2 flex-1" />
+                          <span className="text-xs text-text-muted whitespace-nowrap">
+                            {completedTasks}/{totalTasks}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-text-muted">-</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       {cat.assignment?.status ? getStatusBadge(cat.assignment.status) : (
                         <Badge className="bg-stone-100 text-stone-500">Unassigned</Badge>
                       )}
-                    </TableCell>
-                    <TableCell>
-                      {cat.assignment?.last_entry_at ? new Date(cat.assignment.last_entry_at).toLocaleDateString() : '-'}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
@@ -833,7 +857,7 @@ export default function ESGRecordsTracker({
                   {/* Task Calendar Grid or Data Coverage Grid for this category */}
                   {expandedCategories[cat.category] && cat.assignment?.filling_frequency && (
                     <TableRow className="bg-stone-25">
-                      <TableCell colSpan={9} className="py-2">
+                      <TableCell colSpan={8} className="py-2">
                         {/* Show Task Calendar if assignment has start_date (tasks generated) */}
                         {cat.assignment?.start_date ? (
                           <TaskCalendarGrid
@@ -860,6 +884,13 @@ export default function ESGRecordsTracker({
 
                   {/* Subcategories */}
                   {expandedCategories[cat.category] && Object.values(cat.subcategories).map(subcat => {
+                    // Get completion for subcategory
+                    const subCompletionKey = [cat.category, subcat.subcategory].filter(Boolean).join('|');
+                    const subCompletion = completionStats[subCompletionKey] || {};
+                    const subCompletionPct = Math.round(subCompletion.completion_pct || 0);
+                    const subTotalTasks = subCompletion.total || 0;
+                    const subCompletedTasks = subCompletion.completed || 0;
+                    
                     // Use parent category assignment if subcategory doesn't have its own
                     const effectiveAssignment = subcat.assignment || cat.assignment;
                     const isInherited = !subcat.assignment && cat.assignment;
@@ -906,13 +937,20 @@ export default function ESGRecordsTracker({
                         </TableCell>
                         <TableCell>{effectiveAssignment?.filling_frequency || '-'}</TableCell>
                         <TableCell>
-                          {effectiveAssignment?.due_date ? new Date(effectiveAssignment.due_date).toLocaleDateString() : '-'}
+                          {/* Subcategory Completion Progress */}
+                          {subTotalTasks > 0 ? (
+                            <div className="flex items-center gap-2 min-w-[120px]">
+                              <Progress value={subCompletionPct} className="h-2 flex-1" />
+                              <span className="text-xs text-text-muted whitespace-nowrap">
+                                {subCompletedTasks}/{subTotalTasks}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-text-muted">-</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           {effectiveAssignment?.status ? getStatusBadge(effectiveAssignment.status) : '-'}
-                        </TableCell>
-                        <TableCell>
-                          {effectiveAssignment?.last_entry_at ? new Date(effectiveAssignment.last_entry_at).toLocaleDateString() : '-'}
                         </TableCell>
                         <TableCell className="text-right">
                           <Button
@@ -938,6 +976,13 @@ export default function ESGRecordsTracker({
                           // Use parent assignment chain: sub_sub -> subcategory -> category
                           const subsubEffectiveAssignment = subsub.assignment || subcat.assignment || cat.assignment;
                           const subsubIsInherited = !subsub.assignment && (subcat.assignment || cat.assignment);
+                          
+                          // Get completion for sub-subcategory
+                          const subsubCompletionKey = [cat.category, subcat.subcategory, subsub.sub_subcategory].filter(Boolean).join('|');
+                          const subsubCompletion = completionStats[subsubCompletionKey] || {};
+                          const subsubCompletionPct = Math.round(subsubCompletion.completion_pct || 0);
+                          const subsubTotalTasks = subsubCompletion.total || 0;
+                          const subsubCompletedTasks = subsubCompletion.completed || 0;
                           
                           return (
                           <TableRow key={`${cat.category}-${subcat.subcategory}-${subsub.sub_subcategory}`} className="bg-stone-25">
@@ -966,13 +1011,20 @@ export default function ESGRecordsTracker({
                             </TableCell>
                             <TableCell>{subsubEffectiveAssignment?.filling_frequency || '-'}</TableCell>
                             <TableCell>
-                              {subsubEffectiveAssignment?.due_date ? new Date(subsubEffectiveAssignment.due_date).toLocaleDateString() : '-'}
+                              {/* Sub-subcategory Completion Progress */}
+                              {subsubTotalTasks > 0 ? (
+                                <div className="flex items-center gap-2 min-w-[100px]">
+                                  <Progress value={subsubCompletionPct} className="h-2 flex-1" />
+                                  <span className="text-xs text-text-muted whitespace-nowrap">
+                                    {subsubCompletedTasks}/{subsubTotalTasks}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-text-muted">-</span>
+                              )}
                             </TableCell>
                             <TableCell>
                               {subsubEffectiveAssignment?.status ? getStatusBadge(subsubEffectiveAssignment.status) : '-'}
-                            </TableCell>
-                            <TableCell>
-                              {subsubEffectiveAssignment?.last_entry_at ? new Date(subsubEffectiveAssignment.last_entry_at).toLocaleDateString() : '-'}
                             </TableCell>
                             <TableCell className="text-right">
                               <Button
@@ -996,7 +1048,7 @@ export default function ESGRecordsTracker({
                     </React.Fragment>
                   )})}
                 </React.Fragment>
-              ))
+              )})
             )}
           </TableBody>
         </Table>

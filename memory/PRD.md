@@ -1476,6 +1476,41 @@ Five phases executed end-to-end with **37/37 regression tests PASS** (iteration_
 - `/app/frontend/src/components/BRSRModule.js` - Passes framework="BRSR" to TrackingModule
 - `/app/frontend/src/components/GRIModule.js` - Passes framework="GRI" to TrackingModule
 
+## Recent Updates (July 5, 2026)
+
+### ESG Record Access Control & Task Linking - COMPLETED
+
+**Backend Access Control on `create_record` endpoint:**
+- Implemented in `/app/backend/modules/esg_records/service.py`
+- `_validate_user_assignment()` method (lines 162-205) validates:
+  - User has active assignment for the category/subcategory
+  - Assignment level matches (org vs facility)
+  - Facility_id matches (if facility-level)
+- Returns `HTTP 403` if no valid assignment found
+- Admin/Super Admin bypass the check (by design)
+
+**Link Tasks to Records:**
+- `_mark_task_submitted()` method (lines 207-267) automatically:
+  - Finds matching `esg_reporting_task` by period_key
+  - Updates task status to "submitted" when record is created
+  - Handles daily/monthly/quarterly/yearly period formats
+
+**UI Completion Tracking:**
+- `ESGRecordsTracker.js` - Shows completion % per category/subcategory row with Progress bars
+- `MyTasks.js` - Groups tasks by category with progress statistics
+- Uses `/api/esg-records/tasks/completion-by-category` endpoint
+
+### Files Modified
+- `/app/backend/modules/esg_records/service.py` - Added access control and task linking
+- `/app/backend/modules/esg_records/router.py` - 403 error handling for unauthorized access
+- `/app/frontend/src/components/ESGRecordsTracker.js` - Completion stats display
+- `/app/frontend/src/components/MyTasks.js` - Grouped task view
+
+### API Behavior
+- Regular users (role="user"): Must have active assignment to create records
+- Admin/Super Admin: Bypass assignment check
+- Task status auto-updates to "submitted" when matching record is created
+
 ## Technical Notes
 - Reporting periods: Monthly (YYYY-MM), Financial Year (FY YYYY-YYYY), Calendar Year (CYYYYY or CY YYYY)
 - Dashboard applies proration for CY/FY entries based on date filter overlap
