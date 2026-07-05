@@ -493,7 +493,7 @@ async def get_tasks_for_user(
     status_filter: Optional[List[str]] = None,
     include_backfill: bool = False,
 ) -> List[Dict[str, Any]]:
-    """Get all tasks assigned to a user."""
+    """Get all tasks assigned to a user with assignment details."""
     query = {
         "assigned_to_user_id": user_id,
         "organization_id": organization_id,
@@ -509,6 +509,22 @@ async def get_tasks_for_user(
         query,
         {"_id": 0}
     ).sort("due_at", 1).to_list(500)
+    
+    # Enrich tasks with assignment details (filling_frequency, start_date, end_date)
+    assignment_ids = list(set(t.get("assignment_id") for t in tasks if t.get("assignment_id")))
+    if assignment_ids:
+        assignments = await db["esg_assignments"].find(
+            {"id": {"$in": assignment_ids}},
+            {"_id": 0, "id": 1, "filling_frequency": 1, "start_date": 1, "end_date": 1, "due_config": 1}
+        ).to_list(len(assignment_ids))
+        
+        assignment_map = {a["id"]: a for a in assignments}
+        
+        for task in tasks:
+            assignment = assignment_map.get(task.get("assignment_id"), {})
+            task["filling_frequency"] = assignment.get("filling_frequency")
+            task["assignment_start_date"] = assignment.get("start_date")
+            task["assignment_end_date"] = assignment.get("end_date")
     
     return tasks
 

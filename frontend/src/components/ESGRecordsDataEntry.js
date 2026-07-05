@@ -51,7 +51,8 @@ export default function ESGRecordsDataEntry({
   mode = 'list', 
   onRecordAdded,
   preFilterCategory = '',
-  preFilterSubcategory = ''
+  preFilterSubcategory = '',
+  preFilterFrequency = ''
 }) {
   const { token, user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -81,11 +82,24 @@ export default function ESGRecordsDataEntry({
   const [saving, setSaving] = useState({});
   
   // Add/Edit form state
+  // Map filling_frequency to reporting_type
+  const getReportingTypeFromFrequency = (freq) => {
+    const map = {
+      'daily': 'daily',
+      'weekly': 'weekly', 
+      'monthly': 'monthly',
+      'quarterly': 'quarterly',
+      'annually': 'yearly',
+      'yearly': 'yearly'
+    };
+    return map[freq?.toLowerCase()] || 'monthly';
+  };
+
   const [formData, setFormData] = useState({
     category: preFilterCategory || '',
     subcategory: preFilterSubcategory || '',
     facility_id: '',
-    reporting_type: 'monthly',
+    reporting_type: preFilterFrequency ? getReportingTypeFromFrequency(preFilterFrequency) : 'monthly',
     reporting_year: new Date().getFullYear(),
     reporting_month: '',
     field_values: {},
@@ -110,6 +124,7 @@ export default function ESGRecordsDataEntry({
           ...prev,
           category: preFilterCategory,
           subcategory: preFilterSubcategory || '',
+          reporting_type: preFilterFrequency ? getReportingTypeFromFrequency(preFilterFrequency) : prev.reporting_type,
         }));
         // Fetch category config for dynamic fields
         if (preFilterCategory) {
@@ -117,7 +132,7 @@ export default function ESGRecordsDataEntry({
         }
       }
     }
-  }, [preFilterCategory, preFilterSubcategory, mode]);
+  }, [preFilterCategory, preFilterSubcategory, preFilterFrequency, mode]);
 
   // Fetch base data
   useEffect(() => {

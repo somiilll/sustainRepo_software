@@ -237,12 +237,16 @@ export default function MyTasks({ entityType = 'all', reportingPeriod, domain, f
       params.set('subtab', 'add-metric');
       if (assignment.category) params.set('category', assignment.category);
       if (assignment.subcategory) params.set('subcategory', assignment.subcategory);
+      if (assignment.filling_frequency) params.set('frequency', assignment.filling_frequency);
+      // Pass period info for pre-filling the date
+      if (assignment.period_start) params.set('period_start', assignment.period_start);
       navigate(`/${itemDomain}?${params.toString()}`);
     }
   };
 
-  // Format due date
-  const formatDueDate = (dateStr) => {
+  // Format due date - handles both due_date and due_at fields
+  const formatDueDate = (assignment) => {
+    const dateStr = assignment.due_at || assignment.due_date;
     if (!dateStr) return '-';
     const date = new Date(dateStr);
     const diffDays = Math.ceil((date - now) / (1000 * 60 * 60 * 24));
@@ -253,18 +257,37 @@ export default function MyTasks({ entityType = 'all', reportingPeriod, domain, f
       year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
     });
     
+    // Add time if available
+    const time = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    const fullFormatted = `${formatted}, ${time}`;
+    
     if (diffDays < 0) {
-      return <span className="text-red-600 font-medium">{formatted} (Overdue)</span>;
+      return <span className="text-red-600 font-medium">{fullFormatted} (Overdue)</span>;
     } else if (diffDays <= 7) {
-      return <span className="text-orange-600 font-medium">{formatted} ({diffDays}d left)</span>;
+      return <span className="text-orange-600 font-medium">{fullFormatted} ({diffDays}d left)</span>;
     }
-    return formatted;
+    return fullFormatted;
+  };
+
+  // Format period range for display
+  const formatPeriodRange = (assignment) => {
+    if (!assignment.period_start) return null;
+    const start = new Date(assignment.period_start);
+    const end = assignment.period_end ? new Date(assignment.period_end) : start;
+    
+    const formatOpts = { month: 'short', day: 'numeric' };
+    if (start.getTime() === end.getTime()) {
+      return start.toLocaleDateString('en-US', formatOpts);
+    }
+    return `${start.toLocaleDateString('en-US', formatOpts)} - ${end.toLocaleDateString('en-US', formatOpts)}`;
   };
 
   // Render assignment card
   const renderAssignmentCard = (assignment) => {
-    const isOverdue = assignment.due_date && new Date(assignment.due_date) < now && 
+    const dueAt = assignment.due_at || assignment.due_date;
+    const isOverdue = dueAt && new Date(dueAt) < now && 
                       !['approved', 'submitted'].includes(assignment.status);
+    const periodRange = formatPeriodRange(assignment);
     
     return (
       <Card 
@@ -273,8 +296,8 @@ export default function MyTasks({ entityType = 'all', reportingPeriod, domain, f
       >
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
-            {/* Header */}
-            <div className="flex items-center gap-2 mb-2">
+            {/* Header - Badges */}
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
               {assignment.entity_type === 'question' ? (
                 <>
                   <Badge variant="outline" className="text-xs">
@@ -289,32 +312,57 @@ export default function MyTasks({ entityType = 'all', reportingPeriod, domain, f
                   <BarChart3 className="w-3 h-3 mr-1" /> Metric
                 </Badge>
               )}
+              {/* Backfill badge */}
+              {assignment.is_backfill && (
+                <Badge className="text-xs bg-amber-100 text-amber-700">
+                  Backfill
+                </Badge>
+              )}
+              {/* Frequency badge */}
+              {assignment.filling_frequency && (
+                <Badge variant="outline" className="text-xs">
+                  {assignment.filling_frequency}
+                </Badge>
+              )}
             </div>
             
-            {/* Entity ID / Question Key */}
-            <h4 className="font-medium text-text-primary truncate mb-1">
-              {assignment.entity_id}
+            {/* Category/Subcategory or Question Key */}
+            <h4 className="font-medium text-text-primary mb-1">
+              {assignment.category ? (
+                <span>{assignment.category} {assignment.subcategory && `› ${assignment.subcategory}`}</span>
+              ) : (
+                assignment.entity_id
+              )}
             </h4>
             
-            {/* Meta info */}
+            {/* Period info */}
+            {periodRange && (
+              <div className="text-sm text-text-muted mb-1">
+                <span className="font-medium">Period:</span> {periodRange}
+              </div>
+            )}
+            
+            {/* Meta info - Due date */}
             <div className="flex flex-wrap items-center gap-3 text-sm text-text-muted">
               <div className="flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5" />
-                <span>Due: {formatDueDate(assignment.due_date)}</span>
+                <span>Due: {formatDueDate(assignment)}</span>
               </div>
-              {assignment.filling_frequency && (
-                <div className="flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>{assignment.filling_frequency}</span>
-                </div>
-              )}
             </div>
+            
+            {/* Assignment duration info */}
+            {(assignment.assignment_start_date || assignment.assignment_end_date) && (
+              <div className="text-xs text-text-muted mt-1">
+                Assignment: {assignment.assignment_start_date ? new Date(assignment.assignment_start_date).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'}) : '?'} 
+                {' → '} 
+                {assignment.assignment_end_date ? new Date(assignment.assignment_end_date).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'}) : 'Ongoing'}
+              </div>
+            )}
           </div>
           
           {/* Right side - Status & Actions */}
           <div className="flex flex-col items-end gap-2">
             <div className="flex items-center gap-2">
-              {getPriorityBadge(assignment.priority)}
               {getStatusBadge(assignment.status)}
             </div>
             
