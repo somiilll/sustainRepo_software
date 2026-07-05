@@ -82,8 +82,8 @@ export default function ESGRecordsDataEntry({
   
   // Add/Edit form state
   const [formData, setFormData] = useState({
-    category: '',
-    subcategory: '',
+    category: preFilterCategory || '',
+    subcategory: preFilterSubcategory || '',
     facility_id: '',
     reporting_type: 'monthly',
     reporting_year: new Date().getFullYear(),
@@ -104,8 +104,20 @@ export default function ESGRecordsDataEntry({
         ...prev, 
         category: preFilterCategory,
       }));
+      // Also update formData for add mode
+      if (mode === 'add') {
+        setFormData(prev => ({
+          ...prev,
+          category: preFilterCategory,
+          subcategory: preFilterSubcategory || '',
+        }));
+        // Fetch category config for dynamic fields
+        if (preFilterCategory) {
+          fetchAddFormCategory(preFilterCategory, preFilterSubcategory || '');
+        }
+      }
     }
-  }, [preFilterCategory, preFilterSubcategory]);
+  }, [preFilterCategory, preFilterSubcategory, mode]);
 
   // Fetch base data
   useEffect(() => {

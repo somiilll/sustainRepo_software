@@ -178,6 +178,8 @@ export default function ESGRecordsModule({ section = 'environment', framework = 
             section={section} 
             framework={framework} 
             mode="add"
+            preFilterCategory={preFilterCategory}
+            preFilterSubcategory={preFilterSubcategory}
             onRecordAdded={() => setActiveTab('data-entry')}
           />
         </TabsContent>

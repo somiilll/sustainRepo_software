@@ -231,11 +231,12 @@ export default function MyTasks({ entityType = 'all', reportingPeriod, domain, f
       // Navigate to questionnaire
       navigate(`/esg/${itemDomain}?framework=${framework}&question=${assignment.entity_id}`);
     } else {
-      // Navigate to metrics data entry with category info
+      // Navigate to Add Metric form with category pre-selected
       const params = new URLSearchParams();
+      params.set('tab', 'add-metric');
       if (assignment.category) params.set('category', assignment.category);
       if (assignment.subcategory) params.set('subcategory', assignment.subcategory);
-      navigate(`/esg/${itemDomain}/metrics?tab=data-entry&${params.toString()}`);
+      navigate(`/esg/${itemDomain}/metrics?${params.toString()}`);
     }
   };
 
