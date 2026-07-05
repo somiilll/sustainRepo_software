@@ -335,9 +335,20 @@ export default function ESGRecordsTracker({
       }
     }
     
+    // Find ALL users already assigned to this category/subcategory/sub_subcategory
+    const existingUserIds = assignments
+      .filter(a => 
+        a.category === item.category &&
+        a.subcategory === (item.subcategory || null) &&
+        a.sub_subcategory === (item.sub_subcategory || null) &&
+        a.facility_id === (item.facility_id || null)
+      )
+      .map(a => a.assigned_to_user_id)
+      .filter(Boolean);
+    
     // Pre-fill form with existing assignment data
     setAssignForm({
-      assigned_user_ids: item.assigned_to_user_id ? [item.assigned_to_user_id] : [],
+      assigned_user_ids: existingUserIds.length > 0 ? existingUserIds : (item.assigned_to_user_id ? [item.assigned_to_user_id] : []),
       assignment_level: item.assignment_level || 'organization',
       facility_id: item.facility_id || '',
       due_date: formattedDueDate,
