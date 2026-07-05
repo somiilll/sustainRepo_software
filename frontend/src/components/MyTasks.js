@@ -219,16 +219,16 @@ export default function MyTasks({ entityType = 'all', reportingPeriod, domain, f
     overdue: stats.overdue_count || 0
   };
 
-  // Status badge
+  // Status badge - only show for non-pending statuses
   const getStatusBadge = (status) => {
     const config = {
-      pending: { class: 'bg-yellow-100 text-yellow-700', icon: Circle, label: 'Pending' },
-      in_progress: { class: 'bg-blue-100 text-blue-700', icon: Clock, label: 'In Progress' },
       submitted: { class: 'bg-purple-100 text-purple-700', icon: CheckCircle2, label: 'Submitted' },
-      approved: { class: 'bg-green-100 text-green-700', icon: CheckCircle2, label: 'Approved' },
+      approved: { class: 'bg-green-100 text-green-700', icon: CheckCircle2, label: 'Completed' },
       rejected: { class: 'bg-red-100 text-red-700', icon: AlertTriangle, label: 'Rejected' },
+      overdue: { class: 'bg-red-100 text-red-700', icon: AlertTriangle, label: 'Overdue' },
     };
-    const cfg = config[status] || config.pending;
+    const cfg = config[status];
+    if (!cfg) return null; // Don't show badge for pending/backfill_pending
     const Icon = cfg.icon;
     return (
       <Badge className={`${cfg.class} gap-1`}>
@@ -501,9 +501,9 @@ export default function MyTasks({ entityType = 'all', reportingPeriod, domain, f
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="in_progress">In Progress</SelectItem>
               <SelectItem value="submitted">Submitted</SelectItem>
+              <SelectItem value="approved">Completed</SelectItem>
+              <SelectItem value="overdue">Overdue</SelectItem>
               <SelectItem value="rejected">Rejected</SelectItem>
             </SelectContent>
           </Select>
