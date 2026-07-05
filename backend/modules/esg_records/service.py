@@ -124,6 +124,7 @@ class ESGRecordsService:
             "evidence_files": data.evidence_files,
             "source_of_information": data.source_of_information,
             "notes": data.notes,
+            "status": "submitted",
             "version": 1,
             "is_current": True,
             "created_by": user_id,
