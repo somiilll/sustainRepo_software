@@ -191,8 +191,11 @@ export default function MyTasks({ entityType = 'all', reportingPeriod, domain, f
       // Navigate to questionnaire
       navigate(`/esg/${itemDomain}?framework=${framework}&question=${assignment.entity_id}`);
     } else {
-      // Navigate to metrics data entry
-      navigate(`/esg/${itemDomain}?tab=metrics&record=${assignment.entity_id}`);
+      // Navigate to metrics data entry with category info
+      const params = new URLSearchParams();
+      if (assignment.category) params.set('category', assignment.category);
+      if (assignment.subcategory) params.set('subcategory', assignment.subcategory);
+      navigate(`/esg/${itemDomain}/metrics?tab=data-entry&${params.toString()}`);
     }
   };
 
@@ -230,13 +233,15 @@ export default function MyTasks({ entityType = 'all', reportingPeriod, domain, f
           <div className="flex-1 min-w-0">
             {/* Header */}
             <div className="flex items-center gap-2 mb-2">
-              <Badge variant="outline" className="text-xs">
-                {assignment.framework || 'BRSR'}
-              </Badge>
               {assignment.entity_type === 'question' ? (
-                <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">
-                  <FileText className="w-3 h-3 mr-1" /> Disclosure
-                </Badge>
+                <>
+                  <Badge variant="outline" className="text-xs">
+                    {assignment.framework || 'BRSR'}
+                  </Badge>
+                  <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">
+                    <FileText className="w-3 h-3 mr-1" /> Disclosure
+                  </Badge>
+                </>
               ) : (
                 <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700">
                   <BarChart3 className="w-3 h-3 mr-1" /> Metric
