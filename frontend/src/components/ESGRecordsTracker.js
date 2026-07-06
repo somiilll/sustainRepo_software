@@ -445,7 +445,7 @@ export default function ESGRecordsTracker({
       }
     }
 
-    if (assignForm.requires_approval) {
+    if (assignForm.requires_approval && assignForm.assignment_level !== 'facility') {
       if (multiLevelApprovalEnabled && assignForm.approval_chain.length === 0) {
         toast.error('Please add at least one approver to the approval chain');
         return;
@@ -1738,8 +1738,8 @@ export default function ESGRecordsTracker({
                   </Label>
                 </div>
                 
-                {/* Single-level approval */}
-                {assignForm.requires_approval && !multiLevelApprovalEnabled && approvalWorkflowEnabled && (
+                {/* Single-level approval - only show for organization level */}
+                {assignForm.requires_approval && !multiLevelApprovalEnabled && approvalWorkflowEnabled && assignForm.assignment_level !== 'facility' && (
                   <div className="space-y-2 mt-3">
                     <Label className="text-sm">Select Approver *</Label>
                     <Select 
@@ -1768,8 +1768,13 @@ export default function ESGRecordsTracker({
                   </div>
                 )}
                 
-                {/* Multi-level approval chain builder */}
-                {assignForm.requires_approval && multiLevelApprovalEnabled && (
+                {/* Info for facility-level approval */}
+                {assignForm.requires_approval && assignForm.assignment_level === 'facility' && (
+                  <p className="text-xs text-text-muted mt-2">Approvers are configured per-facility above</p>
+                )}
+                
+                {/* Multi-level approval chain builder - only for organization level */}
+                {assignForm.requires_approval && multiLevelApprovalEnabled && assignForm.assignment_level !== 'facility' && (
                   <div className="space-y-3 mt-3">
                     <Label className="text-sm">Approval Chain * <span className="text-xs text-text-muted">(in order)</span></Label>
                     
@@ -1862,13 +1867,15 @@ export default function ESGRecordsTracker({
                 assigning || 
                 assignForm.assigned_user_ids.length === 0 || 
                 (assignForm.assignment_level === 'facility' && !assignForm.facility_id) ||
-                (assignForm.requires_approval && multiLevelApprovalEnabled && assignForm.approval_chain.length === 0) ||
-                (assignForm.requires_approval && !multiLevelApprovalEnabled && approvalWorkflowEnabled && !assignForm.approver_id) ||
+                (assignForm.requires_approval && multiLevelApprovalEnabled && assignForm.assignment_level !== 'facility' && assignForm.approval_chain.length === 0) ||
+                (assignForm.requires_approval && !multiLevelApprovalEnabled && approvalWorkflowEnabled && assignForm.assignment_level !== 'facility' && !assignForm.approver_id) ||
                 (assignForm.reminder_enabled && !assignForm.reminder_frequency)
               }
             >
               {assigning ? (
                 <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Assigning...</>
+              ) : assignForm.assignment_level === 'facility' ? (
+                <><UserPlus className="w-4 h-4 mr-2" /> Save Facility Assignments</>
               ) : (
                 <><UserPlus className="w-4 h-4 mr-2" /> Assign to {assignForm.assigned_user_ids.length} User{assignForm.assigned_user_ids.length !== 1 ? 's' : ''}</>
               )}
