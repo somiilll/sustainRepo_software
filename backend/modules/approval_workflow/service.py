@@ -819,23 +819,69 @@ class ApprovalWorkflowService:
         
         try:
             if entity_type == "esg_record":
-                # Update the ESG record
-                await db.esg_records.update_one(
-                    {"id": entity_id, "org_id": org_id},
-                    {"$set": update_doc}
-                )
-                # Also find and update the corresponding task
-                record = await db.esg_records.find_one({"id": entity_id}, {"_id": 0})
-                if record:
-                    await db.esg_reporting_tasks.update_many(
-                        {
-                            "organization_id": org_id,
-                            "category": record.get("category"),
-                            "subcategory": record.get("subcategory"),
-                            "status": "completed",
-                        },
+                # ESG records are stored in section-specific collections
+                entity_subtype = request.get("entity_subtype")  # environment, social, governance
+                collection_map = {
+                    "environment": "environment_records",
+                    "social": "social_records",
+                    "governance": "governance_records",
+                }
+                collection_name = collection_map.get(entity_subtype)
+                
+                if collection_name:
+                    # Update the ESG record
+                    await db[collection_name].update_one(
+                        {"id": entity_id, "is_current": True},
                         {"$set": update_doc}
                     )
+                    logger.info(f"Updated {collection_name} record {entity_id} approval_status to rejected")
+                    
+                    # Also find and update the corresponding task
+                    record = await db[collection_name].find_one(
+                        {"id": entity_id, "is_current": True}, 
+                        {"_id": 0, "org_id": 1, "category": 1, "subcategory": 1, "facility_id": 1, "reporting_period": 1}
+                    )
+                    if record:
+                        # Build period_key from reporting_period
+                        rp = record.get("reporting_period") or {}
+                        period_key = None
+                        rp_type = rp.get("reporting_type") or rp.get("type")
+                        if rp_type == "yearly":
+                            period_key = str(rp.get("year"))
+                        elif rp_type == "monthly":
+                            month = rp.get("month")
+                            if isinstance(month, str) and not month.isdigit():
+                                month_names = ["January", "February", "March", "April", "May", "June",
+                                               "July", "August", "September", "October", "November", "December"]
+                                try:
+                                    month_num = month_names.index(month) + 1
+                                except ValueError:
+                                    month_num = 1
+                            else:
+                                month_num = int(month) if month else 1
+                            period_key = f"{rp.get('year')}-{str(month_num).zfill(2)}"
+                        elif rp_type == "quarterly":
+                            quarter = rp.get("quarter", "").replace("Q", "") if rp.get("quarter") else "1"
+                            period_key = f"{rp.get('year')}-Q{quarter}"
+                        
+                        task_query = {
+                            "organization_id": record.get("org_id"),
+                            "category": record.get("category"),
+                        }
+                        if period_key:
+                            task_query["period_key"] = period_key
+                        if record.get("subcategory"):
+                            task_query["subcategory"] = record.get("subcategory")
+                        if record.get("facility_id"):
+                            task_query["facility_id"] = record.get("facility_id")
+                        
+                        task_result = await db.esg_reporting_tasks.update_many(
+                            task_query,
+                            {"$set": update_doc}
+                        )
+                        logger.info(f"Updated {task_result.modified_count} task(s) approval_status to rejected")
+                else:
+                    logger.warning(f"Unknown entity_subtype for esg_record: {entity_subtype}")
             elif entity_type == "esg_response":
                 # Update the ESG assignment for the question
                 await db.esg_assignments.update_one(
