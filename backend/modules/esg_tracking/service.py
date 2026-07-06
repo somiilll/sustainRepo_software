@@ -775,6 +775,7 @@ class TrackingService:
                 
                 return DisclosureTrackingItem(
                     disclosure_id=item_key,
+                    question_key=item_key,  # Add question_key for frontend
                     disclosure_name=display_name,
                     disclosure_type=item_type,
                     section_id=section_id,
@@ -956,11 +957,19 @@ class TrackingService:
                     {"brsr_principle": request.section_id},
                 ]
         
-        configs = await self._configs.find(config_query, {"_id": 0, "question_key": 1}).to_list(500)
+        configs = await self._configs.find(config_query, {"_id": 0, "question_key": 1, "disclosure_id": 1}).to_list(500)
         
         # Filter to specific disclosure IDs if provided
+        # Support both question_key and disclosure_id matching
         if request.disclosure_ids:
-            configs = [c for c in configs if c["question_key"] in request.disclosure_ids]
+            filtered_configs = []
+            for c in configs:
+                # Check if it matches question_key OR disclosure_id
+                if c.get("question_key") in request.disclosure_ids:
+                    filtered_configs.append(c)
+                elif c.get("disclosure_id") in request.disclosure_ids:
+                    filtered_configs.append(c)
+            configs = filtered_configs
         
         # Get existing assignments
         existing_assignments = {}

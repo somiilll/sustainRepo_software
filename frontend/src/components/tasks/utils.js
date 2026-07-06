@@ -56,6 +56,7 @@ export const categorizeTask = (task) => {
 
 /**
  * Format due date with relative indicator
+ * Now respects task completion status - completed tasks are NOT marked overdue
  */
 export const formatDueDate = (task, options = {}) => {
   const { showTime = true, showRelative = true } = options;
@@ -79,8 +80,15 @@ export const formatDueDate = (task, options = {}) => {
   let text = time ? `${formatted}, ${time}` : formatted;
   let suffix = '';
   
-  if (showRelative) {
-    if (diffDays < 0) {
+  // Check if task is completed - completed tasks are never overdue
+  const isCompleted = task.status === TASK_STATUS.COMPLETED;
+  
+  // Determine overdue status (only if not completed)
+  const isPastDue = diffDays < 0;
+  const isOverdue = isPastDue && !isCompleted;
+  
+  if (showRelative && !isCompleted) {
+    if (isPastDue) {
       suffix = ' (Overdue)';
     } else if (diffDays <= 7) {
       suffix = ` (${diffDays}d left)`;
@@ -89,8 +97,8 @@ export const formatDueDate = (task, options = {}) => {
   
   return {
     text: text + suffix,
-    isOverdue: diffDays < 0,
-    isUrgent: diffDays >= 0 && diffDays <= 7,
+    isOverdue,
+    isUrgent: !isCompleted && diffDays >= 0 && diffDays <= 7,
     diffDays,
   };
 };

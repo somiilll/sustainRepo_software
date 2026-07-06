@@ -434,12 +434,23 @@ export default function ESGRecordsDataEntry({
   // Open edit modal
   const openEditModal = async (record) => {
     setSelectedRecord(record);
+    
+    // Extract reporting period info
+    const reportingPeriod = record.reporting_period || {};
+    
     setEditData({
       field_values: record.field_values || {},
       notes: record.notes || '',
       source_of_information: record.source_of_information || '',
-      reporting_month: record.reporting_month || '',
-      reporting_year: record.reporting_year || new Date().getFullYear(),
+      // Reporting period fields
+      reporting_type: reportingPeriod.reporting_type || 'monthly',
+      reporting_year: reportingPeriod.year || new Date().getFullYear(),
+      reporting_month: reportingPeriod.month || '',
+      reporting_quarter: reportingPeriod.quarter || '',
+      reporting_date: reportingPeriod.date || '',
+      // Facility/org level
+      facility_id: record.facility_id || '',
+      record_level: record.record_level || 'organization',
     });
     
     // Fetch category config for dynamic fields
@@ -464,13 +475,34 @@ export default function ESGRecordsDataEntry({
     
     setSaving(prev => ({ ...prev, edit: true }));
     try {
+      // Build reporting_period object based on type
+      const reportingPeriod = {
+        reporting_type: editData.reporting_type,
+      };
+      
+      if (editData.reporting_type === 'daily' || editData.reporting_type === 'weekly') {
+        reportingPeriod.date = editData.reporting_date;
+      } else if (editData.reporting_type === 'monthly') {
+        reportingPeriod.year = editData.reporting_year;
+        reportingPeriod.month = editData.reporting_month;
+      } else if (editData.reporting_type === 'quarterly') {
+        reportingPeriod.year = editData.reporting_year;
+        reportingPeriod.quarter = editData.reporting_quarter;
+      } else if (editData.reporting_type === 'yearly') {
+        reportingPeriod.year = editData.reporting_year;
+      }
+      
       await axios.put(
         `${API}/api/esg-records/records/${section}/${selectedRecord.id}`,
         {
           field_values: editData.field_values,
           notes: editData.notes,
           source_of_information: editData.source_of_information,
-          status: asDraft ? 'draft' : 'submitted',
+          status: asDraft ? 'draft' : 'completed',
+          // Include reporting period and facility changes
+          reporting_period: reportingPeriod,
+          facility_id: editData.facility_id === 'org_level' ? null : (editData.facility_id || null),
+          record_level: editData.facility_id && editData.facility_id !== 'org_level' ? 'facility' : 'organization',
         },
         { headers }
       );
@@ -1131,6 +1163,137 @@ export default function ESGRecordsDataEntry({
           </DialogHeader>
           
           <div className="space-y-4 py-4">
+            {/* Reporting Period Section */}
+            <div className="space-y-3 pb-3 border-b">
+              <p className="text-sm font-medium text-text-primary flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
+                Reporting Period
+              </p>
+              
+              <div className="grid grid-cols-2 gap-3">
+                {/* Reporting Type */}
+                <div className="space-y-1">
+                  <Label className="text-xs">Type</Label>
+                  <Select
+                    value={editData.reporting_type || 'monthly'}
+                    onValueChange={(val) => setEditData(prev => ({ ...prev, reporting_type: val }))}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="daily">Daily</SelectItem>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                      <SelectItem value="quarterly">Quarterly</SelectItem>
+                      <SelectItem value="yearly">Yearly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* Year (for monthly, quarterly, yearly) */}
+                {['monthly', 'quarterly', 'yearly'].includes(editData.reporting_type) && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">Year</Label>
+                    <Select
+                      value={String(editData.reporting_year || new Date().getFullYear())}
+                      onValueChange={(val) => setEditData(prev => ({ ...prev, reporting_year: parseInt(val) }))}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - 5 + i).map(year => (
+                          <SelectItem key={year} value={String(year)}>{year}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                
+                {/* Month (for monthly) */}
+                {editData.reporting_type === 'monthly' && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">Month</Label>
+                    <Select
+                      value={editData.reporting_month || ''}
+                      onValueChange={(val) => setEditData(prev => ({ ...prev, reporting_month: val }))}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Select month" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {['January', 'February', 'March', 'April', 'May', 'June', 
+                          'July', 'August', 'September', 'October', 'November', 'December'].map(m => (
+                          <SelectItem key={m} value={m}>{m}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                
+                {/* Quarter (for quarterly) */}
+                {editData.reporting_type === 'quarterly' && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">Quarter</Label>
+                    <Select
+                      value={editData.reporting_quarter || ''}
+                      onValueChange={(val) => setEditData(prev => ({ ...prev, reporting_quarter: val }))}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Select quarter" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Q1">Q1 (Jan-Mar)</SelectItem>
+                        <SelectItem value="Q2">Q2 (Apr-Jun)</SelectItem>
+                        <SelectItem value="Q3">Q3 (Jul-Sep)</SelectItem>
+                        <SelectItem value="Q4">Q4 (Oct-Dec)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                
+                {/* Date (for daily/weekly) */}
+                {['daily', 'weekly'].includes(editData.reporting_type) && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">Date</Label>
+                    <Input
+                      type="date"
+                      className="h-9"
+                      value={editData.reporting_date || ''}
+                      onChange={(e) => setEditData(prev => ({ ...prev, reporting_date: e.target.value }))}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Facility / Organization Level */}
+            <div className="space-y-2 pb-3 border-b">
+              <Label className="flex items-center gap-2">
+                <Building2 className="w-4 h-4" />
+                Data Level
+              </Label>
+              <Select
+                value={editData.facility_id || 'org_level'}
+                onValueChange={(val) => setEditData(prev => ({ 
+                  ...prev, 
+                  facility_id: val,
+                  record_level: val === 'org_level' ? 'organization' : 'facility'
+                }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select level" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="org_level">Organization Level</SelectItem>
+                  {facilities.map(f => (
+                    <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
             {/* Dynamic Category Fields */}
             {selectedCategory?.fields?.length > 0 ? (
               <div className="space-y-3">

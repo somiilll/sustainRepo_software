@@ -64,6 +64,7 @@ class SectionSummary(BaseModel):
 class DisclosureTrackingItem(BaseModel):
     """Individual disclosure/KPI tracking item"""
     disclosure_id: str  # question_key or record category
+    question_key: Optional[str] = None  # For frontend reference (same as disclosure_id for questions)
     disclosure_name: str
     disclosure_type: str  # question, kpi, record
     section_id: str

@@ -494,8 +494,9 @@ export default function ESGTrackingTab({
         };
         
         // If assigning a specific question
-        if (assigningItem?.disclosure_id) {
-          payload.disclosure_ids = [assigningItem.disclosure_id];
+        if (assigningItem?.question_key || assigningItem?.disclosure_id) {
+          // Prefer question_key for precise matching, fallback to disclosure_id
+          payload.disclosure_ids = [assigningItem.question_key || assigningItem.disclosure_id];
           payload.skip_already_assigned = false;
         }
         // If assigning a whole section

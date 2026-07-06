@@ -14,11 +14,12 @@ import { formatDueDate, canUserEdit } from './utils';
 export default function TaskRow({ task, onFill, onView }) {
   const dueInfo = formatDueDate(task);
   const userCanEdit = canUserEdit(task);
+  const isCompleted = task.status === 'completed';
   
   return (
     <div 
       className={`px-4 py-3 flex items-center justify-between hover:bg-stone-50 ${
-        dueInfo.isOverdue ? 'bg-red-50/50' : ''
+        dueInfo.isOverdue && !isCompleted ? 'bg-red-50/50' : ''
       }`}
       data-testid={`task-row-${task.id}`}
     >
@@ -29,7 +30,7 @@ export default function TaskRow({ task, onFill, onView }) {
         </div>
         
         {/* Due Date */}
-        <div className={`text-sm ${dueInfo.isOverdue ? 'text-red-600' : dueInfo.isUrgent ? 'text-orange-600' : 'text-text-muted'}`}>
+        <div className={`text-sm ${dueInfo.isOverdue && !isCompleted ? 'text-red-600' : dueInfo.isUrgent ? 'text-orange-600' : 'text-text-muted'}`}>
           Due: {task.due_at 
             ? new Date(task.due_at).toLocaleString('en-US', { 
                 month: 'short', 
@@ -40,8 +41,8 @@ export default function TaskRow({ task, onFill, onView }) {
             : '-'}
         </div>
         
-        {/* Overdue Badge */}
-        {dueInfo.isOverdue && (
+        {/* Overdue Badge - only show if NOT completed */}
+        {dueInfo.isOverdue && !isCompleted && (
           <Badge className="bg-red-100 text-red-700 text-xs">Overdue</Badge>
         )}
         

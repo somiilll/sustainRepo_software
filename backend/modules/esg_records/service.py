@@ -562,15 +562,126 @@ class ESGRecordsService:
         self,
         section: ESG_SECTION,
         record_id: str,
-        org_id: str
+        org_id: str,
+        user_id: Optional[str] = None,
     ) -> bool:
-        """Soft delete a record (marks as not current)."""
+        """
+        Soft delete a record (marks as not current).
+        Also reverts the associated task status back to 'pending'.
+        """
         collection = self._get_records_collection(section)
+        
+        # First, get the record details to find the associated task
+        record = await collection.find_one(
+            {"id": record_id, "org_id": org_id, "is_current": True},
+            {"_id": 0}
+        )
+        
+        if not record:
+            return False
+        
+        # Soft delete the record
         result = await collection.update_one(
             {"id": record_id, "org_id": org_id, "is_current": True},
             {"$set": {"is_current": False, "deleted_at": datetime.now(timezone.utc).isoformat()}}
         )
+        
+        if result.modified_count > 0:
+            # Revert the associated task status back to pending
+            await self._revert_task_to_pending(
+                org_id=org_id,
+                category=record.get("category"),
+                subcategory=record.get("subcategory"),
+                sub_subcategory=record.get("sub_subcategory"),
+                facility_id=record.get("facility_id"),
+                reporting_period=record.get("reporting_period"),
+            )
+        
         return result.modified_count > 0
+    
+    async def _revert_task_to_pending(
+        self,
+        org_id: str,
+        category: str,
+        subcategory: Optional[str],
+        sub_subcategory: Optional[str],
+        facility_id: Optional[str],
+        reporting_period: Dict[str, Any],
+    ):
+        """
+        Revert a task back to pending when its associated record is deleted.
+        """
+        try:
+            # Determine period_key from reporting_period
+            period_key = None
+            rp = reporting_period if isinstance(reporting_period, dict) else {}
+            
+            rp_type = rp.get("reporting_type") or rp.get("type")
+            if rp_type == "yearly":
+                period_key = str(rp.get("year"))
+            elif rp_type == "monthly":
+                month = rp.get("month")
+                if isinstance(month, str) and not month.isdigit():
+                    month_names = ["January", "February", "March", "April", "May", "June",
+                                   "July", "August", "September", "October", "November", "December"]
+                    try:
+                        month_num = month_names.index(month) + 1
+                    except ValueError:
+                        month_num = 1
+                else:
+                    month_num = int(month) if month else 1
+                period_key = f"{rp.get('year')}-{str(month_num).zfill(2)}"
+            elif rp_type == "quarterly":
+                quarter = rp.get("quarter", "").replace("Q", "") if rp.get("quarter") else "1"
+                period_key = f"{rp.get('year')}-Q{quarter}"
+            elif rp_type == "daily":
+                period_key = rp.get("date")
+            elif rp_type == "weekly":
+                period_key = rp.get("date")
+            
+            if not period_key:
+                return
+            
+            # Find matching completed task
+            task_query = {
+                "organization_id": org_id,
+                "category": category,
+                "period_key": period_key,
+                "status": "completed",  # Only revert completed tasks
+            }
+            if subcategory:
+                task_query["subcategory"] = subcategory
+            if sub_subcategory:
+                task_query["sub_subcategory"] = sub_subcategory
+            if facility_id:
+                task_query["facility_id"] = facility_id
+            
+            task = await db.esg_reporting_tasks.find_one(task_query, {"_id": 0, "id": 1, "is_backfill": 1})
+            if not task:
+                return
+            
+            # Determine what status to revert to
+            # If it was a backfill task, revert to backfill_pending, otherwise pending
+            revert_status = "backfill_pending" if task.get("is_backfill") else "pending"
+            
+            # Update task to pending status
+            now = datetime.now(timezone.utc)
+            update_doc = {
+                "status": revert_status,
+                "approval_status": "not_required",
+                "completed_at": None,
+                "completed_by_user_id": None,
+                "updated_at": now,
+            }
+            
+            await db.esg_reporting_tasks.update_one(
+                {"id": task["id"]},
+                {"$set": update_doc}
+            )
+            
+            print(f"Reverted task {task['id']} to {revert_status} after record deletion")
+        except Exception as e:
+            print(f"Warning: Failed to revert task status after record deletion: {e}")
     
     # =========================================================================
     # Version Management
