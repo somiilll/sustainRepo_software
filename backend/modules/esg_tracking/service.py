@@ -576,8 +576,8 @@ class TrackingService:
         ).to_list(5000)
         response_map = {r["question_key"]: r for r in responses}
         
-        # Get assignments
-        assignments = await self._assignments.find(
+        # Get assignments and aggregate by entity_id for multi-assignee support
+        raw_assignments = await self._assignments.find(
             {
                 "organization_id": organization_id,
                 "reporting_period": reporting_period,
@@ -585,7 +585,38 @@ class TrackingService:
             },
             {"_id": 0}
         ).to_list(5000)
-        assignment_map = {a["entity_id"]: a for a in assignments}
+        
+        # Aggregate assignments by entity_id (question_key) for multi-assignee display
+        assignment_map = {}
+        for a in raw_assignments:
+            entity_id = a.get("entity_id")
+            if entity_id not in assignment_map:
+                assignment_map[entity_id] = {
+                    **a,
+                    "assignees": [],
+                }
+            
+            # Add assignee to the list
+            if a.get("assigned_to_user_id"):
+                user = await db.users.find_one(
+                    {"id": a["assigned_to_user_id"]},
+                    {"_id": 0, "full_name": 1, "name": 1, "email": 1}
+                )
+                assignee_entry = {
+                    "user_id": a["assigned_to_user_id"],
+                    "user_name": user.get("full_name") or user.get("name") if user else None,
+                    "user_email": user.get("email") if user else None,
+                    "role": a.get("role", "editor"),
+                    "assignment_id": a.get("id"),
+                }
+                existing_ids = [x["user_id"] for x in assignment_map[entity_id]["assignees"]]
+                if assignee_entry["user_id"] not in existing_ids:
+                    assignment_map[entity_id]["assignees"].append(assignee_entry)
+        
+        # Set primary assignee name for backward compatibility
+        for entity_id, asgn in assignment_map.items():
+            if asgn["assignees"]:
+                asgn["assigned_to_name"] = asgn["assignees"][0].get("user_name")
         
         # Get approval requests if any
         approval_requests = await self._approval_requests.find(
@@ -677,6 +708,7 @@ class TrackingService:
                 last_reminder = None
                 filling_freq = None
                 requires_appr = False
+                assignees_list = []  # Multi-assignee support
                 
                 if assignment:
                     assigned += 1
@@ -687,6 +719,7 @@ class TrackingService:
                     filling_freq = assignment.get("filling_frequency")
                     requires_appr = assignment.get("requires_approval", False)
                     last_reminder = assignment.get("last_reminder_sent_at")
+                    assignees_list = assignment.get("assignees", [])
                     
                     if assigned_to_user_id:
                         assigned_user_ids.add(assigned_to_user_id)
@@ -755,6 +788,7 @@ class TrackingService:
                     assigned_by_user_name=None,
                     assignment_id=assignment_id,
                     assignment_role=assignment_role,
+                    assignees=assignees_list,  # Multi-assignee support
                     due_date=due_date_val,
                     is_overdue=is_overdue_item,
                     is_due_soon=is_due_soon_flag,

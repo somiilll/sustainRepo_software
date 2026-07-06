@@ -85,6 +85,7 @@ class DisclosureTrackingItem(BaseModel):
     assigned_by_user_name: Optional[str] = None
     assignment_id: Optional[str] = None
     assignment_role: Optional[str] = None
+    assignees: List[Dict[str, Any]] = Field(default_factory=list)  # Multi-assignee support
     
     # Due date & reminders
     due_date: Optional[datetime] = None

@@ -391,7 +391,7 @@ class AssignmentService:
         organization_id: str,
         reporting_period: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Get all assignments for a specific user"""
+        """Get all assignments for a specific user (supports multi-assignee model)"""
         query = {
             "organization_id": organization_id,
             "assigned_to_user_id": user_id,
@@ -413,6 +413,9 @@ class AssignmentService:
         
         for doc in docs:
             doc = await self._populate_user_names(doc)
+            
+            # Add user's role in this assignment
+            doc["user_role"] = doc.get("role", "editor")
             
             if doc.get("entity_type") == EntityType.QUESTION.value:
                 questions.append(doc)
