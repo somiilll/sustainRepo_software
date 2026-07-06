@@ -260,7 +260,7 @@ class AssignmentService:
         organization_id: str,
         deleted_by_user_id: str,
     ) -> bool:
-        """Delete an assignment"""
+        """Delete an assignment and deactivate related task assignees"""
         current = await self._assignments.find_one(
             {"id": assignment_id, "organization_id": organization_id}
         )
@@ -269,6 +269,10 @@ class AssignmentService:
             return False
         
         await self._assignments.delete_one({"id": assignment_id})
+        
+        # Deactivate task assignees linked to this assignment
+        from modules.esg_records.task_engine import remove_assignee_for_assignment
+        await remove_assignee_for_assignment(db, assignment_id)
         
         # Log history
         await self._log_history(

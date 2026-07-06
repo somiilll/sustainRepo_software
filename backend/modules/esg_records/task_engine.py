@@ -54,11 +54,11 @@ def parse_date(date_val) -> Optional[datetime]:
         try:
             # Handle ISO format with timezone
             return datetime.fromisoformat(date_val.replace('Z', '+00:00')).replace(tzinfo=None)
-        except:
+        except (ValueError, TypeError):
             try:
                 # Handle simple date format
                 return datetime.strptime(date_val[:10], "%Y-%m-%d")
-            except:
+            except (ValueError, TypeError):
                 return None
     return None
 
@@ -366,13 +366,25 @@ async def generate_tasks_for_assignment(
     assignment: Dict[str, Any],
 ) -> Dict[str, Any]:
     """
-    Generate reporting tasks for an assignment.
+    Generate reporting tasks for an assignment using SHARED TASK model.
     
-    Deletes existing tasks for the assignment and creates new ones
-    based on the current configuration.
+    NEW ARCHITECTURE:
+    - ONE task per org/facility/category/subcategory/period (organizational obligation)
+    - User assignments are tracked in esg_task_assignees collection
+    - Tasks are NOT duplicated per user
+    
+    This function:
+    1. Generates task periods based on frequency
+    2. Upserts tasks (creates if not exists, skips if exists)
+    3. Creates assignee entries linking user to tasks
     """
     assignment_id = assignment.get("id")
     org_id = assignment.get("organization_id")
+    user_id = assignment.get("assigned_to_user_id")
+    facility_id = assignment.get("facility_id")
+    category = assignment.get("category")
+    subcategory = assignment.get("subcategory")
+    sub_subcategory = assignment.get("sub_subcategory")
     
     # Parse dates
     start_date = parse_date(assignment.get("start_date"))
@@ -408,57 +420,104 @@ async def generate_tasks_for_assignment(
     if not task_periods:
         return {"error": "No task periods generated", "tasks_created": 0}
     
-    # Delete existing tasks for this assignment
-    await db["esg_reporting_tasks"].delete_many({"assignment_id": assignment_id})
-    
-    # Create task documents
     now = datetime.now(tz.utc)
-    tasks_to_insert = []
+    tasks_created = 0
+    tasks_existing = 0
+    assignees_created = 0
     
     for period in task_periods:
-        # Determine initial status
-        if period["is_backfill"]:
-            status = TaskStatus.BACKFILL_PENDING.value
-        elif period["task_type"] == TaskType.FUTURE.value:
-            status = TaskStatus.PENDING.value
-        elif period["due_at"] < datetime.now():
-            status = TaskStatus.OVERDUE.value
-        else:
-            status = TaskStatus.PENDING.value
-        
-        task_doc = {
-            "id": str(uuid.uuid4()),
-            "assignment_id": assignment_id,
+        # Build unique key for this task
+        task_unique_key = {
             "organization_id": org_id,
-            "facility_id": assignment.get("facility_id"),
-            "category": assignment.get("category"),
-            "subcategory": assignment.get("subcategory"),
-            "sub_subcategory": assignment.get("sub_subcategory"),
-            "assigned_to_user_id": assignment.get("assigned_to_user_id"),
+            "facility_id": facility_id,
+            "category": category,
+            "subcategory": subcategory,
+            "sub_subcategory": sub_subcategory,
             "period_key": period["period_key"],
-            "period_label": period["period_label"],
-            "period_start": period["period_start"],
-            "period_end": period["period_end"],
-            "due_at": period["due_at"],
-            "timezone": due_config.get("timezone", "UTC"),
-            "task_type": period["task_type"],
-            "is_backfill": period["is_backfill"],
-            "status": status,
-            "submitted_at": None,
-            "approved_at": None,
-            "skipped_reason": None,
-            "created_at": now,
-            "updated_at": now,
         }
-        tasks_to_insert.append(task_doc)
-    
-    # Bulk insert
-    if tasks_to_insert:
-        await db["esg_reporting_tasks"].insert_many(tasks_to_insert)
+        
+        # Check if task already exists
+        existing_task = await db["esg_reporting_tasks"].find_one(
+            task_unique_key,
+            {"_id": 0, "id": 1, "status": 1}
+        )
+        
+        if existing_task:
+            # Task exists, just ensure assignee is linked
+            task_id = existing_task["id"]
+            tasks_existing += 1
+        else:
+            # Create new task (organizational obligation)
+            task_id = str(uuid.uuid4())
+            
+            # Determine initial status
+            if period["is_backfill"]:
+                status = TaskStatus.BACKFILL_PENDING.value
+            elif period["task_type"] == TaskType.FUTURE.value:
+                status = TaskStatus.PENDING.value
+            elif period["due_at"] < datetime.now():
+                status = TaskStatus.OVERDUE.value
+            else:
+                status = TaskStatus.PENDING.value
+            
+            task_doc = {
+                "id": task_id,
+                "assignment_id": assignment_id,  # Track which assignment first created this
+                "organization_id": org_id,
+                "facility_id": facility_id,
+                "category": category,
+                "subcategory": subcategory,
+                "sub_subcategory": sub_subcategory,
+                "period_key": period["period_key"],
+                "period_label": period["period_label"],
+                "period_start": period["period_start"],
+                "period_end": period["period_end"],
+                "due_at": period["due_at"],
+                "timezone": due_config.get("timezone", "UTC"),
+                "task_type": period["task_type"],
+                "is_backfill": period["is_backfill"],
+                "status": status,
+                "submitted_at": None,
+                "approved_at": None,
+                "skipped_reason": None,
+                "created_at": now,
+                "updated_at": now,
+            }
+            
+            await db["esg_reporting_tasks"].insert_one(task_doc)
+            tasks_created += 1
+        
+        # Create assignee entry (link user to task) - upsert to avoid duplicates
+        if user_id:
+            assignee_exists = await db["esg_task_assignees"].find_one({
+                "task_id": task_id,
+                "user_id": user_id,
+            })
+            
+            if not assignee_exists:
+                assignee_doc = {
+                    "id": str(uuid.uuid4()),
+                    "task_id": task_id,
+                    "assignment_id": assignment_id,
+                    "organization_id": org_id,
+                    "user_id": user_id,
+                    "user_name": assignment.get("user_name"),
+                    "user_email": assignment.get("user_email"),
+                    "role": "editor",
+                    "assigned_by_user_id": assignment.get("assigned_by_user_id"),
+                    "assigned_by_name": assignment.get("assigned_by_name"),
+                    "is_active": True,
+                    "created_at": now,
+                    "updated_at": now,
+                }
+                await db["esg_task_assignees"].insert_one(assignee_doc)
+                assignees_created += 1
     
     return {
         "assignment_id": assignment_id,
-        "tasks_created": len(tasks_to_insert),
+        "tasks_created": tasks_created,
+        "tasks_existing": tasks_existing,
+        "assignees_created": assignees_created,
         "date_range": f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}",
         "frequency": frequency,
     }
@@ -494,22 +553,50 @@ async def get_tasks_for_user(
     include_backfill: bool = False,
     domain: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """Get all tasks assigned to a user with assignment details."""
-    query = {
-        "assigned_to_user_id": user_id,
+    """
+    Get all tasks assigned to a user via esg_task_assignees join.
+    
+    New architecture: Tasks are organizational obligations, users are linked via esg_task_assignees.
+    """
+    # Step 1: Get task IDs this user is assigned to
+    assignee_query = {
+        "user_id": user_id,
+        "organization_id": organization_id,
+        "is_active": True,
+    }
+    
+    user_assignees = await db["esg_task_assignees"].find(
+        assignee_query,
+        {"_id": 0, "task_id": 1, "assignment_id": 1, "role": 1}
+    ).to_list(500)
+    
+    if not user_assignees:
+        return []
+    
+    task_ids = [a["task_id"] for a in user_assignees]
+    assignee_map = {a["task_id"]: a for a in user_assignees}
+    
+    # Step 2: Query tasks by IDs
+    task_query = {
+        "id": {"$in": task_ids},
         "organization_id": organization_id,
     }
     
     if status_filter:
-        query["status"] = {"$in": status_filter}
+        task_query["status"] = {"$in": status_filter}
     
     if not include_backfill:
-        query["is_backfill"] = False
+        task_query["is_backfill"] = False
     
     tasks = await db["esg_reporting_tasks"].find(
-        query,
+        task_query,
         {"_id": 0}
     ).sort("due_at", 1).to_list(500)
+    
+    # Add assignee role info to each task
+    for task in tasks:
+        assignee_info = assignee_map.get(task["id"], {})
+        task["user_role"] = assignee_info.get("role", "editor")
     
     # If domain filter is specified, we need to filter based on category's section
     if domain and domain != 'all':
@@ -553,7 +640,7 @@ async def get_tasks_for_user(
     # Get categories that have subcategories defined
     categories_with_subs = await db["esg_record_categories"].distinct(
         "category",
-        {"subcategory": {"$ne": None, "$ne": ""}}
+        {"subcategory": {"$nin": [None, ""]}}
     )
     categories_with_subs_set = set(categories_with_subs)
     
@@ -601,10 +688,25 @@ async def get_task_summary(
     organization_id: str,
     user_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Get summary statistics for tasks."""
-    match_query = {"organization_id": organization_id}
+    """Get summary statistics for tasks (using esg_task_assignees for user filter)."""
+    
     if user_id:
-        match_query["assigned_to_user_id"] = user_id
+        # Get task IDs assigned to this user
+        user_assignees = await db["esg_task_assignees"].find(
+            {"user_id": user_id, "organization_id": organization_id, "is_active": True},
+            {"task_id": 1}
+        ).to_list(500)
+        task_ids = [a["task_id"] for a in user_assignees]
+        
+        if not task_ids:
+            return {
+                "total": 0, "backfill_pending": 0, "pending": 0, "in_progress": 0,
+                "submitted": 0, "approved": 0, "overdue": 0, "skipped": 0,
+            }
+        
+        match_query = {"id": {"$in": task_ids}, "organization_id": organization_id}
+    else:
+        match_query = {"organization_id": organization_id}
     
     pipeline = [
         {"$match": match_query},
@@ -665,3 +767,38 @@ async def refresh_overdue_tasks(
     )
     
     return {"marked_overdue": result.modified_count}
+
+
+
+async def remove_assignee_for_assignment(
+    db: AsyncIOMotorDatabase,
+    assignment_id: str,
+) -> Dict[str, Any]:
+    """
+    Remove task assignees when an assignment is deleted.
+    
+    This soft-deletes (is_active=False) assignee records linked to the assignment.
+    Tasks themselves are NOT deleted (they may have other assignees).
+    """
+    result = await db["esg_task_assignees"].update_many(
+        {"assignment_id": assignment_id},
+        {"$set": {"is_active": False, "updated_at": datetime.now(tz.utc)}}
+    )
+    return {"deactivated": result.modified_count}
+
+
+async def get_task_assignees(
+    db: AsyncIOMotorDatabase,
+    task_id: str,
+    include_inactive: bool = False,
+) -> List[Dict[str, Any]]:
+    """Get all assignees for a task."""
+    query = {"task_id": task_id}
+    if not include_inactive:
+        query["is_active"] = True
+    
+    assignees = await db["esg_task_assignees"].find(
+        query, {"_id": 0}
+    ).to_list(100)
+    
+    return assignees

@@ -1520,3 +1520,73 @@ Five phases executed end-to-end with **37/37 regression tests PASS** (iteration_
 ## 3rd Party Integrations
 - Cloudflare R2 (Storage) - requires User API Key
 - Resend (Emails) - requires User API Key
+
+
+## ESG Task & Assignment Architecture Refactor (July 2026) - PHASE 1 & 2 COMPLETE
+
+### Problem Statement
+The previous architecture created **duplicate tasks per user**. Each assignment for the same category/period would create a separate task, leading to:
+- Bloated task lists (1508 tasks instead of 413)
+- Orphaned tasks when assignments were deleted/reassigned
+- Inconsistent status across duplicate tasks
+
+### New Architecture: SHARED TASKS WITH MULTIPLE ASSIGNEES
+
+**Principle**: ONE task = ONE organizational reporting obligation (e.g., "Scope 1 Emissions - Jan 2026").
+Users are linked to tasks via a separate mapping table (`esg_task_assignees`).
+
+### Database Schema Changes
+
+**`esg_reporting_tasks`** (Modified):
+- Removed `assigned_to_user_id` field
+- Added unique compound index: `(organization_id, facility_id, category, subcategory, sub_subcategory, period_key)`
+- Tasks are now canonical organizational obligations
+
+**`esg_task_assignees`** (NEW Collection):
+```json
+{
+  "id": "uuid",
+  "task_id": "uuid",           // Reference to esg_reporting_tasks.id
+  "assignment_id": "uuid",     // Reference to esg_assignments.id
+  "organization_id": "uuid",
+  "user_id": "uuid",
+  "user_name": "string",
+  "user_email": "string",
+  "role": "editor|owner|reviewer|approver|viewer",
+  "assigned_by_user_id": "uuid",
+  "is_active": true,           // Soft delete support
+  "created_at": "datetime",
+  "updated_at": "datetime"
+}
+```
+
+### Migration Script
+- Location: `/app/backend/scripts/migrate_tasks_to_shared_model.py`
+- Commands:
+  - Dry run: `python scripts/migrate_tasks_to_shared_model.py`
+  - Execute: `python scripts/migrate_tasks_to_shared_model.py --live`
+  - Verify: `python scripts/migrate_tasks_to_shared_model.py --verify`
+
+**Migration Results**:
+- Before: 1508 tasks (duplicates)
+- After: 413 unique tasks
+- Assignee entries created: 778
+- Zero orphaned records
+
+### Updated Files
+- `/app/backend/modules/esg_records/task_assignees_model.py` - Pydantic schemas
+- `/app/backend/modules/esg_records/task_engine.py` - Complete rewrite:
+  - `generate_tasks_for_assignment()` - Upserts tasks, creates assignee links
+  - `get_tasks_for_user()` - Joins via `esg_task_assignees`
+  - `get_task_summary()` - Uses assignee table for user filtering
+  - `remove_assignee_for_assignment()` - Soft deletes on assignment removal
+- `/app/backend/modules/esg_assignments/service.py` - Calls `remove_assignee_for_assignment` on delete
+
+### API Changes
+- `GET /api/esg-records/tasks/my-tasks` - Now returns tasks via assignee join
+- Response includes `user_role` field showing assignee's role
+
+### Phase 3 & 4 (UPCOMING)
+- Update frontend `MyTasks.js` to display role badges
+- Add multi-assignee display in `ESGRecordsTracker.js`
+- Support role-based permissions (viewer can't edit, approver can approve)
