@@ -623,8 +623,8 @@ class ApprovalWorkflowService:
             }
         )
         
-        # If approved with updated data and this is an ESG record, update the record
-        if new_status == ApprovalStatus.APPROVED.value and updated_data:
+        # If approved and this is an ESG record, update both the record AND the task
+        if new_status == ApprovalStatus.APPROVED.value:
             entity_type = request.get("entity_type")
             entity_id = request.get("entity_id")
             entity_subtype = request.get("entity_subtype")  # This is the section (environment, social, governance)
@@ -640,22 +640,19 @@ class ApprovalWorkflowService:
                     collection_name = collection_map.get(entity_subtype)
                     
                     if collection_name:
-                        # Update the record's field_values with the approver's edits
+                        # Update the record's approval_status and field_values if edited
                         record_update = {
                             "updated_at": _now_iso(),
                             "approval_status": "approved",
                         }
                         
                         # Update field_values if provided
-                        if "field_values" in updated_data:
+                        if updated_data and "field_values" in updated_data:
                             record_update["field_values"] = updated_data["field_values"]
                         
                         # Also update the entity_snapshot in the approval request to reflect changes
-                        snapshot_update = {}
-                        if "field_values" in updated_data:
-                            snapshot_update["entity_snapshot.field_values"] = updated_data["field_values"]
-                        
-                        if snapshot_update:
+                        if updated_data and "field_values" in updated_data:
+                            snapshot_update = {"entity_snapshot.field_values": updated_data["field_values"]}
                             await db[REQUESTS_COLLECTION].update_one(
                                 {"id": request_id},
                                 {"$set": snapshot_update}
@@ -666,9 +663,46 @@ class ApprovalWorkflowService:
                             {"id": entity_id, "is_current": True},
                             {"$set": record_update}
                         )
-                        logger.info(f"Updated ESG record {entity_id} with approver edits")
+                        logger.info(f"Updated ESG record {entity_id} approval_status to approved")
+                        
+                        # Get the record to find the corresponding task
+                        record = await db[collection_name].find_one(
+                            {"id": entity_id, "is_current": True},
+                            {"_id": 0, "org_id": 1, "category": 1, "subcategory": 1, "sub_subcategory": 1, "facility_id": 1, "reporting_period": 1}
+                        )
+                        
+                        if record:
+                            # Update the corresponding task's approval_status
+                            task_query = {
+                                "org_id": record.get("org_id"),
+                                "category": record.get("category"),
+                            }
+                            if record.get("subcategory"):
+                                task_query["subcategory"] = record.get("subcategory")
+                            if record.get("sub_subcategory"):
+                                task_query["sub_subcategory"] = record.get("sub_subcategory")
+                            if record.get("facility_id"):
+                                task_query["facility_id"] = record.get("facility_id")
+                            if record.get("reporting_period"):
+                                rp = record.get("reporting_period")
+                                if isinstance(rp, dict):
+                                    if rp.get("year"):
+                                        task_query["reporting_period.year"] = rp.get("year")
+                                    if rp.get("month"):
+                                        task_query["reporting_period.month"] = rp.get("month")
+                                    if rp.get("quarter"):
+                                        task_query["reporting_period.quarter"] = rp.get("quarter")
+                            
+                            task_update_result = await db.esg_reporting_tasks.update_many(
+                                task_query,
+                                {"$set": {"approval_status": "approved", "updated_at": _now_iso()}}
+                            )
+                            logger.info(f"Updated {task_update_result.modified_count} task(s) approval_status to approved")
+                            
                 except Exception as e:
-                    logger.error(f"Failed to update ESG record with approver edits: {e}")
+                    logger.error(f"Failed to update ESG record/task with approval: {e}")
+                    import traceback
+                    traceback.print_exc()
                     # Don't fail the approval, just log the error
         
         # Record history
