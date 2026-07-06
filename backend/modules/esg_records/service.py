@@ -113,8 +113,9 @@ class ESGRecordsService:
             # Check if this assignment requires approval
             requires_approval = assignment.get("requires_approval", False)
         
-        # Determine status based on approval requirement
-        record_status = "submitted" if requires_approval else "saved"
+        # Determine record status - now uses 'completed' instead of 'submitted'
+        # Note: Record status is separate from task status but follows same pattern
+        record_status = "completed" if not requires_approval else "pending_approval"
         
         record = {
             "id": str(uuid.uuid4()),
@@ -153,8 +154,8 @@ class ESGRecordsService:
             user_id=user_id
         )
         
-        # LINK TASK TO RECORD: Mark corresponding task as submitted
-        await self._mark_task_submitted(
+        # LINK TASK TO RECORD: Mark corresponding task as completed
+        await self._mark_task_completed(
             org_id=org_id,
             user_id=user_id,
             category=data.category,
@@ -162,6 +163,7 @@ class ESGRecordsService:
             sub_subcategory=data.sub_subcategory,
             facility_id=data.facility_id,
             reporting_period=data.reporting_period,
+            requires_approval=requires_approval,
         )
         
         # Remove MongoDB _id before returning
@@ -213,7 +215,7 @@ class ESGRecordsService:
         assignment = await db.esg_assignments.find_one(query, {"_id": 0})
         return assignment
     
-    async def _mark_task_submitted(
+    async def _mark_task_completed(
         self,
         org_id: str,
         user_id: str,
@@ -222,9 +224,14 @@ class ESGRecordsService:
         sub_subcategory: Optional[str],
         facility_id: Optional[str],
         reporting_period: Any,
+        requires_approval: bool = False,
     ):
         """
-        Mark the corresponding reporting task as submitted when a record is added.
+        Mark the corresponding reporting task as completed when a record is saved.
+        
+        New architecture:
+        - status = 'completed' (operational - user finished work)
+        - approval_status = 'pending_approval' if requires_approval else 'not_required'
         """
         try:
             # Determine period_key from reporting_period
@@ -262,29 +269,53 @@ class ESGRecordsService:
             if not period_key:
                 return
             
-            # Find and update the matching task
-            query = {
+            # Find matching task - use task_assignees for new architecture
+            # First find task by category/period, then verify user is assigned via esg_task_assignees
+            task_query = {
                 "organization_id": org_id,
-                "assigned_to_user_id": user_id,
                 "category": category,
                 "period_key": period_key,
-                "status": {"$in": ["pending", "backfill_pending", "overdue", "in_progress", "rejected"]},
+                "status": {"$in": ["pending", "backfill_pending", "overdue", "in_progress", "reopened"]},
             }
             if subcategory:
-                query["subcategory"] = subcategory
+                task_query["subcategory"] = subcategory
             if sub_subcategory:
-                query["sub_subcategory"] = sub_subcategory
+                task_query["sub_subcategory"] = sub_subcategory
             if facility_id:
-                query["facility_id"] = facility_id
+                task_query["facility_id"] = facility_id
             
+            task = await db.esg_reporting_tasks.find_one(task_query, {"_id": 0, "id": 1})
+            if not task:
+                return
+            
+            # Verify user is assigned to this task
+            assignee = await db.esg_task_assignees.find_one({
+                "task_id": task["id"],
+                "user_id": user_id,
+                "is_active": True,
+            })
+            if not assignee:
+                # Fallback: check legacy assigned_to_user_id (for backwards compatibility)
+                legacy_task = await db.esg_reporting_tasks.find_one({
+                    **task_query,
+                    "assigned_to_user_id": user_id,
+                })
+                if not legacy_task:
+                    return
+            
+            # Update task with new status architecture
             now = datetime.now(timezone.utc)
+            update_doc = {
+                "status": "completed",
+                "completed_at": now,
+                "completed_by_user_id": user_id,
+                "updated_at": now,
+                "approval_status": "pending_approval" if requires_approval else "not_required",
+            }
+            
             await db.esg_reporting_tasks.update_one(
-                query,
-                {"$set": {
-                    "status": "submitted",
-                    "submitted_at": now,
-                    "updated_at": now,
-                }}
+                {"id": task["id"]},
+                {"$set": update_doc}
             )
         except Exception as e:
             # Don't fail record creation if task update fails
@@ -363,9 +394,18 @@ class ESGRecordsService:
             {"_id": 0}
         )
         
-        # If status changed to submitted, mark the task as submitted
-        if data.status == "submitted" and current.get("status") in ["rejected", "draft"]:
-            await self._mark_task_submitted(
+        # If status changed to completed/resubmitted, mark the task as completed
+        # Handle both old 'submitted' status and new resubmission flow
+        if data.status in ["submitted", "completed"] and current.get("status") in ["rejected", "draft", "reopened"]:
+            # Check if requires_approval from assignment
+            assignment = await db.esg_assignments.find_one({
+                "organization_id": current.get("org_id"),
+                "category": current.get("category"),
+                "entity_type": "record_category",
+            })
+            requires_approval = assignment.get("requires_approval", False) if assignment else False
+            
+            await self._mark_task_completed(
                 org_id=current.get("org_id"),
                 user_id=user_id,
                 category=current.get("category"),
@@ -373,6 +413,7 @@ class ESGRecordsService:
                 sub_subcategory=current.get("sub_subcategory"),
                 facility_id=current.get("facility_id"),
                 reporting_period=current.get("reporting_period"),
+                requires_approval=requires_approval,
             )
         
         # Create version snapshot

@@ -7,7 +7,7 @@ import React from 'react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { ArrowRight, Eye } from 'lucide-react';
-import StatusBadge from './StatusBadge';
+import { TaskStatusBadges } from './StatusBadge';
 import RoleBadge from './RoleBadge';
 import { formatDueDate, canUserEdit } from './utils';
 
@@ -52,8 +52,8 @@ export default function TaskRow({ task, onFill, onView }) {
       </div>
       
       <div className="flex items-center gap-3">
-        {/* Status Badge */}
-        <StatusBadge status={task.status} />
+        {/* Status Badges (operational + approval) */}
+        <TaskStatusBadges task={task} />
         
         {/* Action Button */}
         {userCanEdit ? (

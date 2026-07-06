@@ -1,18 +1,34 @@
 /**
  * Task Module Utility Functions
+ * 
+ * NEW ARCHITECTURE: Uses separate status (operational) and approval_status (governance)
  */
 
-import { TASK_STATUS, TASK_TYPE } from './constants';
+import { TASK_STATUS, TASK_TYPE, APPROVAL_STATUS } from './constants';
 
 /**
- * Determine if a task is overdue
+ * Check if task is operationally complete
+ */
+export const isTaskCompleted = (task) => {
+  return task.status === TASK_STATUS.COMPLETED;
+};
+
+/**
+ * Check if task needs approval action
+ */
+export const isAwaitingApproval = (task) => {
+  return task.approval_status === APPROVAL_STATUS.PENDING_APPROVAL;
+};
+
+/**
+ * Determine if a task is overdue (not completed and past due date)
  */
 export const isTaskOverdue = (task) => {
   const dueAt = task.due_at || task.due_date;
   if (!dueAt) return false;
   const now = new Date();
-  return new Date(dueAt) < now && 
-    ![TASK_STATUS.SUBMITTED, TASK_STATUS.APPROVED].includes(task.status);
+  // Task is overdue only if not completed and past due
+  return new Date(dueAt) < now && task.status !== TASK_STATUS.COMPLETED;
 };
 
 /**
@@ -102,7 +118,6 @@ export const formatPeriodRange = (task) => {
  */
 export const groupTasksByCategory = (tasks) => {
   const groups = {};
-  const now = new Date();
   
   for (const task of tasks) {
     const key = [task.category, task.subcategory].filter(Boolean).join(' › ');
@@ -118,6 +133,7 @@ export const groupTasksByCategory = (tasks) => {
         total: 0,
         completed: 0,
         overdue: 0,
+        pendingApproval: 0,
       };
     }
     
@@ -127,8 +143,13 @@ export const groupTasksByCategory = (tasks) => {
     
     groups[key].total++;
     
-    if ([TASK_STATUS.SUBMITTED, TASK_STATUS.APPROVED].includes(task.status)) {
+    // Use new status architecture: completed is operational completion
+    if (task.status === TASK_STATUS.COMPLETED) {
       groups[key].completed++;
+      // Track approval separately
+      if (task.approval_status === 'pending_approval') {
+        groups[key].pendingApproval++;
+      }
     } else if (isTaskOverdue(task)) {
       groups[key].overdue++;
     }
@@ -139,6 +160,7 @@ export const groupTasksByCategory = (tasks) => {
 
 /**
  * Calculate stats from tasks
+ * Uses new status architecture: status (operational) + approval_status (governance)
  */
 export const calculateTaskStats = (tasks, questions = []) => {
   const pending = tasks.filter(t => 
@@ -147,8 +169,14 @@ export const calculateTaskStats = (tasks, questions = []) => {
   
   const overdue = tasks.filter(t => isTaskOverdue(t)).length;
   const inProgress = tasks.filter(t => t.status === TASK_STATUS.IN_PROGRESS).length;
-  const submitted = tasks.filter(t => t.status === TASK_STATUS.SUBMITTED).length;
-  const completed = tasks.filter(t => t.status === TASK_STATUS.APPROVED).length;
+  const completed = tasks.filter(t => t.status === TASK_STATUS.COMPLETED).length;
+  const reopened = tasks.filter(t => t.status === TASK_STATUS.REOPENED).length;
+  
+  // Approval breakdown (only for completed tasks)
+  const pendingApproval = tasks.filter(t => 
+    t.status === TASK_STATUS.COMPLETED && t.approval_status === 'pending_approval'
+  ).length;
+  const approved = tasks.filter(t => t.approval_status === 'approved').length;
   
   return {
     total_tasks: tasks.length,
@@ -156,8 +184,10 @@ export const calculateTaskStats = (tasks, questions = []) => {
     pending_count: pending,
     overdue_count: overdue,
     in_progress_count: inProgress,
-    submitted_count: submitted,
     completed_count: completed,
+    reopened_count: reopened,
+    pending_approval_count: pendingApproval,
+    approved_count: approved,
   };
 };
 

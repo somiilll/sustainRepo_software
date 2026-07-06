@@ -1,16 +1,28 @@
 /**
  * Task Module Constants
+ * 
+ * NEW ARCHITECTURE: Separates operational status from approval status
+ * - status: operational completion (pending → completed)
+ * - approval_status: governance state (not_required/pending_approval/approved/rejected)
  */
 
+// Operational status - represents work completion state
 export const TASK_STATUS = {
-  PENDING: 'pending',
   BACKFILL_PENDING: 'backfill_pending',
+  PENDING: 'pending',
   IN_PROGRESS: 'in_progress',
-  SUBMITTED: 'submitted',
-  APPROVED: 'approved',
-  REJECTED: 'rejected',
+  COMPLETED: 'completed',
   OVERDUE: 'overdue',
   SKIPPED: 'skipped',
+  REOPENED: 'reopened',
+};
+
+// Approval/governance status - separate from operational completion
+export const APPROVAL_STATUS = {
+  NOT_REQUIRED: 'not_required',
+  PENDING_APPROVAL: 'pending_approval',
+  APPROVED: 'approved',
+  REJECTED: 'rejected',
 };
 
 export const TASK_TYPE = {
@@ -61,26 +73,55 @@ export const ROLE_CONFIG = {
   },
 };
 
+// Operational status display config
 export const STATUS_CONFIG = {
-  [TASK_STATUS.SUBMITTED]: {
-    label: 'Submitted',
-    className: 'bg-purple-100 text-purple-700',
-  },
-  [TASK_STATUS.APPROVED]: {
+  [TASK_STATUS.COMPLETED]: {
     label: 'Completed',
     className: 'bg-green-100 text-green-700',
+    icon: 'CheckCircle',
   },
-  [TASK_STATUS.REJECTED]: {
-    label: 'Rejected',
-    className: 'bg-red-100 text-red-700',
+  [TASK_STATUS.REOPENED]: {
+    label: 'Reopened',
+    className: 'bg-amber-100 text-amber-700',
+    icon: 'RefreshCw',
   },
   [TASK_STATUS.OVERDUE]: {
     label: 'Overdue',
     className: 'bg-red-100 text-red-700',
+    icon: 'AlertTriangle',
   },
   [TASK_STATUS.IN_PROGRESS]: {
     label: 'In Progress',
     className: 'bg-blue-100 text-blue-700',
+    icon: 'Clock',
+  },
+  [TASK_STATUS.SKIPPED]: {
+    label: 'Skipped',
+    className: 'bg-stone-100 text-stone-600',
+    icon: 'SkipForward',
+  },
+};
+
+// Approval status display config
+export const APPROVAL_STATUS_CONFIG = {
+  [APPROVAL_STATUS.NOT_REQUIRED]: {
+    label: '',  // Don't show badge if not required
+    className: '',
+  },
+  [APPROVAL_STATUS.PENDING_APPROVAL]: {
+    label: 'Awaiting Approval',
+    className: 'bg-amber-100 text-amber-700',
+    icon: 'Clock',
+  },
+  [APPROVAL_STATUS.APPROVED]: {
+    label: 'Approved',
+    className: 'bg-emerald-100 text-emerald-700',
+    icon: 'BadgeCheck',
+  },
+  [APPROVAL_STATUS.REJECTED]: {
+    label: 'Rejected',
+    className: 'bg-red-100 text-red-700',
+    icon: 'XCircle',
   },
 };
 

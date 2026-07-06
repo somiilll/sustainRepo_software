@@ -8,7 +8,7 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Calendar, ArrowRight, FileText, BarChart3, Eye } from 'lucide-react';
-import StatusBadge from './StatusBadge';
+import { TaskStatusBadges } from './StatusBadge';
 import RoleBadge from './RoleBadge';
 import { formatDueDate, formatPeriodRange, canUserEdit } from './utils';
 import { ENTITY_TYPE } from './constants';
@@ -114,7 +114,7 @@ export default function TaskCard({ task, onFill, onView }) {
         
         {/* Right Side - Status & Actions */}
         <div className="flex flex-col items-end gap-2">
-          <StatusBadge status={task.status} />
+          <TaskStatusBadges task={task} />
           
           {userCanEdit ? (
             <Button

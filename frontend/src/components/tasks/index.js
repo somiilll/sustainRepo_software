@@ -8,7 +8,12 @@ export { default as TaskRow } from './TaskRow';
 export { default as TaskFilters } from './TaskFilters';
 export { default as TaskStatsCards } from './TaskStatsCards';
 export { default as TaskGroupedView } from './TaskGroupedView';
-export { default as StatusBadge } from './StatusBadge';
+export { 
+  default as StatusBadge, 
+  OperationalStatusBadge, 
+  ApprovalStatusBadge, 
+  TaskStatusBadges 
+} from './StatusBadge';
 export { default as RoleBadge } from './RoleBadge';
 
 // Hooks
