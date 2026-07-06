@@ -67,8 +67,9 @@ class DisclosureTrackingItem(BaseModel):
     question_key: Optional[str] = None  # For frontend reference (same as disclosure_id for questions)
     disclosure_name: str
     disclosure_type: str  # question, kpi, record
-    section_id: str
+    section_id: str  # The disclosure section (e.g., "101-1", "302-1")
     section_name: str
+    domain: Optional[str] = None  # The ESG domain (environment, social, governance)
     framework_id: str
     
     # Completion status

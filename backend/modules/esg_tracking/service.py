@@ -648,12 +648,14 @@ class TrackingService:
         for config in configs:
             q_key = config.get("question_key")
             sub_questions = config.get("sub_questions", [])
+            config_domain = config.get("section", "")  # The actual ESG domain from config
             
             # Helper function to build a disclosure item
             def build_disclosure_item(
                 item_key, display_name, item_type, 
                 response, assignment, approval,
-                parent_key=None, sub_key=None
+                parent_key=None, sub_key=None,
+                item_domain=None,  # Pass the domain from config
             ):
                 nonlocal total, completed, pending, assigned, unassigned, overdue, due_soon, stale, last_updated, assigned_user_ids
                 
@@ -780,6 +782,7 @@ class TrackingService:
                     disclosure_type=item_type,
                     section_id=section_id,
                     section_name=section_id.replace("_", " ").title(),
+                    domain=item_domain,  # The actual ESG domain (environment/social/governance)
                     framework_id=framework_id,
                     is_completed=is_completed,
                     completion_status=comp_status,
@@ -827,7 +830,8 @@ class TrackingService:
                     item = build_disclosure_item(
                         full_sub_key, display_name, "sub_question",
                         response, assignment, approval,
-                        parent_key=q_key, sub_key=sub_key
+                        parent_key=q_key, sub_key=sub_key,
+                        item_domain=config_domain,
                     )
                     if item:
                         disclosures.append(item)
@@ -839,7 +843,8 @@ class TrackingService:
                 
                 item = build_disclosure_item(
                     q_key, self._get_display_name(config, q_key), "question",
-                    response, assignment, approval
+                    response, assignment, approval,
+                    item_domain=config_domain,
                 )
                 if item:
                     disclosures.append(item)

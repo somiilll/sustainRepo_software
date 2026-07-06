@@ -508,8 +508,11 @@ export default function ESGTrackingTab({
           payload.section_id = selectedSection?.section_id;
         }
         
+        // Use the disclosure's actual domain if available, otherwise use current page domain
+        const targetDomain = assigningItem?.domain || domain;
+        
         const res = await axios.post(
-          `${API}/tracking/${domain}/assign?reporting_period=${encodeURIComponent(reportingPeriod)}`,
+          `${API}/tracking/${targetDomain}/assign?reporting_period=${encodeURIComponent(reportingPeriod)}`,
           payload,
           { headers: getAuthHeader() }
         );
