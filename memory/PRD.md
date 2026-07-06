@@ -1607,8 +1607,33 @@ Users are linked to tasks via a separate mapping table (`esg_task_assignees`).
 - Role-based permission checks (canUserEdit, canUserApprove)
 - "Fill" button for editors, "View" button for viewers
 
-### Phase 4 (UPCOMING)
-- Add multi-assignee display in `ESGRecordsTracker.js`
-- Role badges in tracker assignee column
-- Implement actual role-based edit restrictions in backend
+### Phase 4 - Tracker Multi-Assignee Display (COMPLETE - July 6, 2026)
+
+**New Modular Tracker Components** (`/app/frontend/src/components/tracker/`):
+- `constants.js` - Status colors, staleness colors, category statuses, frequencies, timezones
+- `utils.js` - Utility functions (getAssignmentInfo, extractUniqueAssignees, getCategoryStatus, buildCategoryHierarchy)
+- `AssigneeDisplay.js` - Multi-user display with role badges and tooltip for multiple assignees
+- `CategoryStatusBadge.js` - Status badges (Unassigned, Partially Assigned, Assigned, In Progress, Completed)
+- `TrackerStatsCards.js` - Summary stats cards
+- `TrackerFilters.js` - Filter controls for period, category, facility, status
+- `TrackerTableRow.js` - Reusable table row component
+- `index.js` - Module exports
+
+**Backend Updates**:
+- `get_tracker_assignments()` now returns `assignees` array with all users linked to a category
+- Response includes `user_name`, `user_email`, `role` for each assignee
+- Assignments are aggregated by category/subcategory/facility to prevent duplicates
+
+**ESGRecordsTracker.js Updates**:
+- `getAssignmentInfo()` updated to parse new `assignees` array format
+- `renderAssigneeDisplay()` shows role badges and multi-user display
+- "Partially Assigned" shown for parent categories where some subcategories are assigned
+- Users icon shown when multiple assignees exist
+
+### Upcoming Tasks (P1)
+- Dashboard Scope 1 & 3 emissions deduplication bug
+- Task-to-Draft sync issue
+- Overdue task cron job
+- Carbon Intensity calculation discrepancy
+- "Targets" subtab implementation
 

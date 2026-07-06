@@ -664,6 +664,7 @@ class ESGRecordsService:
         """
         Get tracker assignments for record categories.
         Uses esg_assignments collection with entity_type='record_category'.
+        Now includes multi-assignee data from esg_task_assignees.
         """
         # Build query for assignments
         query = {
@@ -684,16 +685,51 @@ class ESGRecordsService:
         assignments_cursor = db.esg_assignments.find(query, {"_id": 0})
         assignments = await assignments_cursor.to_list(500)
 
-        # Enrich with user names and staleness calculation
+        # Group assignments by category/subcategory to aggregate assignees
+        # Key: (category, subcategory, sub_subcategory, facility_id)
+        grouped = {}
         for assignment in assignments:
-            # Get assigned user name
+            key = (
+                assignment.get("category"),
+                assignment.get("subcategory"),
+                assignment.get("sub_subcategory"),
+                assignment.get("facility_id"),
+            )
+            if key not in grouped:
+                grouped[key] = {
+                    **assignment,
+                    "assignees": [],  # New: list of all assignees
+                }
+            
+            # Add this assignment's user to the assignees list
             if assignment.get("assigned_to_user_id"):
+                # Get user details
                 user = await db.users.find_one(
                     {"id": assignment["assigned_to_user_id"]},
                     {"_id": 0, "full_name": 1, "name": 1, "email": 1}
                 )
-                if user:
-                    assignment["assigned_to_name"] = user.get("full_name") or user.get("name") or user.get("email")
+                assignee_entry = {
+                    "user_id": assignment["assigned_to_user_id"],
+                    "user_name": user.get("full_name") or user.get("name") if user else None,
+                    "user_email": user.get("email") if user else None,
+                    "role": "editor",  # Default role for legacy assignments
+                    "assignment_id": assignment.get("id"),
+                }
+                
+                # Avoid duplicates
+                existing_ids = [a["user_id"] for a in grouped[key]["assignees"]]
+                if assignee_entry["user_id"] not in existing_ids:
+                    grouped[key]["assignees"].append(assignee_entry)
+
+        # Convert grouped dict back to list
+        aggregated_assignments = list(grouped.values())
+
+        # Enrich with facility names and staleness calculation
+        for assignment in aggregated_assignments:
+            # Set assigned_to_name from first assignee for backwards compatibility
+            if assignment["assignees"]:
+                assignment["assigned_to_name"] = assignment["assignees"][0].get("user_name")
+                assignment["assigned_to_email"] = assignment["assignees"][0].get("user_email")
             
             # Get facility name
             if assignment.get("facility_id"):
@@ -716,7 +752,7 @@ class ESGRecordsService:
                     if isinstance(last_updated, str):
                         try:
                             last_updated = datetime.fromisoformat(last_updated.replace('Z', '+00:00'))
-                        except:
+                        except (ValueError, TypeError):
                             last_updated = None
                     if last_updated and last_updated.tzinfo is None:
                         last_updated = last_updated.replace(tzinfo=timezone.utc)
@@ -740,9 +776,9 @@ class ESGRecordsService:
 
         # Filter by staleness if requested
         if staleness:
-            assignments = [a for a in assignments if a.get("staleness") == staleness]
+            aggregated_assignments = [a for a in aggregated_assignments if a.get("staleness") == staleness]
 
-        return assignments
+        return aggregated_assignments
 
     async def _get_last_record_entry(
         self,
@@ -990,7 +1026,7 @@ class ESGRecordsService:
         child_categories = await db.esg_record_categories.find(
             {
                 "category": parent_category,
-                "subcategory": {"$exists": True, "$ne": None, "$ne": ""},
+                "subcategory": {"$exists": True, "$nin": [None, ""]},
                 "is_active": {"$ne": False},  # Include active (default) categories
             },
             {"_id": 0, "category": 1, "subcategory": 1, "sub_subcategory": 1}

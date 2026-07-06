@@ -367,7 +367,9 @@ export default function ESGRecordsTracker({
         if (!isNaN(date.getTime())) {
           return date.toISOString().split('T')[0];
         }
-      } catch (e) {}
+      } catch (e) {
+        // Invalid date format
+      }
       return '';
     };
     
@@ -579,6 +581,41 @@ export default function ESGRecordsTracker({
     const subcats = categories.filter(c => c.category === category && c.subcategory);
     const hasSubcategories = subcats.length > 0;
     
+    // Helper to extract unique assignees from assignments (supports new multi-assignee format)
+    const extractUniqueAssignees = (assignmentsList) => {
+      const uniqueAssignees = [];
+      const seenIds = new Set();
+      
+      assignmentsList.forEach(a => {
+        // Handle new multi-assignee format (assignees array from backend)
+        if (a.assignees && Array.isArray(a.assignees)) {
+          a.assignees.forEach(assignee => {
+            if (assignee.user_id && !seenIds.has(assignee.user_id)) {
+              seenIds.add(assignee.user_id);
+              uniqueAssignees.push({
+                id: assignee.user_id,
+                name: assignee.user_name || assignee.name,
+                email: assignee.user_email || assignee.email,
+                role: assignee.role || 'editor',
+              });
+            }
+          });
+        }
+        // Fallback to legacy single-user format
+        else if (a.assigned_to_user_id && !seenIds.has(a.assigned_to_user_id)) {
+          seenIds.add(a.assigned_to_user_id);
+          uniqueAssignees.push({
+            id: a.assigned_to_user_id,
+            name: a.assigned_to_name,
+            email: a.assigned_to_email,
+            role: 'editor',
+          });
+        }
+      });
+      
+      return uniqueAssignees;
+    };
+    
     if (!subcategory && hasSubcategories) {
       // This is a parent category - check if all subcategories are assigned
       const assignedSubcats = subcats.filter(sc => 
@@ -592,18 +629,7 @@ export default function ESGRecordsTracker({
       const allAssignees = assignments.filter(a => 
         a.category === category && a.subcategory
       );
-      const uniqueAssignees = [];
-      const seenIds = new Set();
-      allAssignees.forEach(a => {
-        if (a.assigned_to_user_id && !seenIds.has(a.assigned_to_user_id)) {
-          seenIds.add(a.assigned_to_user_id);
-          uniqueAssignees.push({
-            id: a.assigned_to_user_id,
-            name: a.assigned_to_name,
-            email: a.assigned_to_email
-          });
-        }
-      });
+      const uniqueAssignees = extractUniqueAssignees(allAssignees);
       
       return { 
         isPartiallyAssigned, 
@@ -620,18 +646,7 @@ export default function ESGRecordsTracker({
         (subcategory ? a.subcategory === subcategory : !a.subcategory)
       );
       
-      const uniqueAssignees = [];
-      const seenIds = new Set();
-      categoryAssignments.forEach(a => {
-        if (a.assigned_to_user_id && !seenIds.has(a.assigned_to_user_id)) {
-          seenIds.add(a.assigned_to_user_id);
-          uniqueAssignees.push({
-            id: a.assigned_to_user_id,
-            name: a.assigned_to_name,
-            email: a.assigned_to_email
-          });
-        }
-      });
+      const uniqueAssignees = extractUniqueAssignees(categoryAssignments);
       
       return { 
         isPartiallyAssigned: false, 
@@ -692,7 +707,16 @@ export default function ESGRecordsTracker({
     return <Badge className={cfg.class}>{cfg.label}</Badge>;
   };
 
-  // Render assignee display
+  // Role badge config
+  const ROLE_CONFIG = {
+    owner: { label: 'Owner', class: 'bg-purple-100 text-purple-700' },
+    editor: { label: 'Editor', class: 'bg-blue-100 text-blue-700' },
+    reviewer: { label: 'Reviewer', class: 'bg-amber-100 text-amber-700' },
+    approver: { label: 'Approver', class: 'bg-green-100 text-green-700' },
+    viewer: { label: 'Viewer', class: 'bg-stone-100 text-stone-600' },
+  };
+
+  // Render assignee display with role badges
   const renderAssigneeDisplay = (category, subcategory = null) => {
     const info = getAssignmentInfo(category, subcategory);
     
@@ -710,23 +734,40 @@ export default function ESGRecordsTracker({
     }
     
     if (info.assignees.length === 1) {
+      const assignee = info.assignees[0];
+      const roleConfig = ROLE_CONFIG[assignee.role] || ROLE_CONFIG.editor;
       return (
         <div className="flex flex-col">
-          <span>{info.assignees[0].name}</span>
-          {info.assignees[0].email && (
-            <span className="text-xs text-text-muted">{info.assignees[0].email}</span>
+          <div className="flex items-center gap-2">
+            <span>{assignee.name || assignee.email || 'Unknown'}</span>
+            {assignee.role && assignee.role !== 'editor' && (
+              <Badge className={`${roleConfig.class} text-xs px-1.5 py-0`}>
+                {roleConfig.label}
+              </Badge>
+            )}
+          </div>
+          {assignee.email && (
+            <span className="text-xs text-text-muted">{assignee.email}</span>
           )}
         </div>
       );
     }
     
-    // Multiple assignees
+    // Multiple assignees - show first with role, then count
+    const firstAssignee = info.assignees[0];
     const othersCount = info.assignees.length - 1;
+    const roleConfig = ROLE_CONFIG[firstAssignee.role] || ROLE_CONFIG.editor;
+    
     return (
       <div className="flex flex-col">
-        <span>
-          {info.assignees[0].name} <span className="text-text-muted">+ {othersCount} other{othersCount > 1 ? 's' : ''}</span>
-        </span>
+        <div className="flex items-center gap-2">
+          <Users className="w-4 h-4 text-text-muted" />
+          <span>
+            {firstAssignee.name || firstAssignee.email} 
+            <span className="text-text-muted ml-1">+ {othersCount} other{othersCount > 1 ? 's' : ''}</span>
+          </span>
+        </div>
+        {/* Show role badges for all assignees on hover/tooltip would be nice, but keep it simple for now */}
       </div>
     );
   };
