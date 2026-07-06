@@ -431,7 +431,7 @@ export default function ESGRecordsTracker({
     // Validation for facility-level assignments
     if (assignForm.assignment_level === 'facility') {
       const facilityAssignments = Object.entries(assignForm.facility_assignments || {})
-        .filter(([_, fa]) => fa?.user_id);
+        .filter(([_, fa]) => fa?.user_ids?.length > 0);
       
       if (facilityAssignments.length === 0) {
         toast.error('Please assign at least one facility to a user');
@@ -486,47 +486,57 @@ export default function ESGRecordsTracker({
         return config;
       };
 
-      // For facility-level, create one assignment per facility
+      // For facility-level, create one assignment per user per facility
       if (assignForm.assignment_level === 'facility') {
         const facilityAssignments = Object.entries(assignForm.facility_assignments || {})
-          .filter(([_, fa]) => fa?.user_id);
+          .filter(([_, fa]) => fa?.user_ids?.length > 0);
+        
+        if (facilityAssignments.length === 0) {
+          toast.error('Please assign at least one facility to a user');
+          setAssigning(false);
+          return;
+        }
         
         let isFirst = true;
         for (const [facilityId, fa] of facilityAssignments) {
-          await axios.post(
-            `${API}/api/esg-records/assignments`,
-            {
-              entity_type: 'record_category',
-              entity_id: `${entityId}_${facilityId}`,
-              category: assigningItem.category,
-              subcategory: assigningItem.subcategory || null,
-              sub_subcategory: assigningItem.sub_subcategory || null,
-              assign_children: !assigningItem.subcategory,
-              assignment_level: 'facility',
-              facility_id: facilityId,
-              assigned_to_user_id: fa.user_id,
-              reporting_period: reportingPeriod,
-              start_date: assignForm.start_date || null,
-              end_date: assignForm.end_date || null,
-              timezone: assignForm.timezone || 'Asia/Kolkata',
-              filling_frequency: assignForm.filling_frequency || null,
-              due_config: buildDueConfig(),
-              reminder_enabled: assignForm.reminder_enabled,
-              reminder_config: assignForm.reminder_enabled ? {
-                frequency: assignForm.reminder_frequency,
-                days_before_due: [7, 3, 1],
-                repeat_overdue: true,
-              } : null,
-              requires_approval: assignForm.requires_approval,
-              approver_id: assignForm.requires_approval && !multiLevelApprovalEnabled ? assignForm.approver_id : null,
-              approval_chain: assignForm.requires_approval && multiLevelApprovalEnabled ? assignForm.approval_chain : [],
-              replace_existing: isFirst,
-            },
-            { headers }
-          );
-          isFirst = false;
+          // Create assignment for each user in this facility
+          for (const userId of fa.user_ids) {
+            await axios.post(
+              `${API}/api/esg-records/assignments`,
+              {
+                entity_type: 'record_category',
+                entity_id: `${entityId}_${facilityId}`,
+                category: assigningItem.category,
+                subcategory: assigningItem.subcategory || null,
+                sub_subcategory: assigningItem.sub_subcategory || null,
+                assign_children: !assigningItem.subcategory,
+                assignment_level: 'facility',
+                facility_id: facilityId,
+                assigned_to_user_id: userId,
+                reporting_period: reportingPeriod,
+                start_date: assignForm.start_date || null,
+                end_date: assignForm.end_date || null,
+                timezone: assignForm.timezone || 'Asia/Kolkata',
+                filling_frequency: assignForm.filling_frequency || null,
+                due_config: buildDueConfig(),
+                reminder_enabled: assignForm.reminder_enabled,
+                reminder_config: assignForm.reminder_enabled ? {
+                  frequency: assignForm.reminder_frequency,
+                  days_before_due: [7, 3, 1],
+                  repeat_overdue: true,
+                } : null,
+                requires_approval: assignForm.requires_approval && !!fa.approver_id,
+                approver_id: fa.approver_id || null,
+                approval_chain: [],
+                replace_existing: isFirst,
+              },
+              { headers }
+            );
+            isFirst = false;
+          }
         }
-        toast.success(`Assignment saved for ${facilityAssignments.length} facility(ies)`);
+        const totalAssignments = facilityAssignments.reduce((sum, [_, fa]) => sum + (fa.user_ids?.length || 0), 0);
+        toast.success(`Created ${totalAssignments} assignment(s) across ${facilityAssignments.length} facility(ies)`);
       } else {
         // Organization level - create assignment for each selected user
         const isParentCategory = !assigningItem.subcategory;
@@ -1356,46 +1366,124 @@ export default function ESGRecordsTracker({
             {assignForm.assignment_level === 'facility' && (
               <div className="space-y-3">
                 <Label>Assign Per Facility *</Label>
-                <p className="text-xs text-text-muted">Select users for each facility. Leave empty to skip a facility.</p>
-                <div className="border rounded-lg max-h-64 overflow-y-auto divide-y">
-                  {facilities.map(fac => (
-                    <div key={fac.id} className="p-3 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium text-sm">{fac.name}</span>
-                        <Badge variant="outline" className="text-xs">{fac.type || 'Facility'}</Badge>
+                <p className="text-xs text-text-muted">Select users and approver for each facility. Leave empty to skip.</p>
+                <div className="border rounded-lg max-h-80 overflow-y-auto divide-y">
+                  {facilities.map(fac => {
+                    const facAssign = assignForm.facility_assignments?.[fac.id] || { user_ids: [], approver_id: '' };
+                    return (
+                      <div key={fac.id} className="p-3 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-sm">{fac.name}</span>
+                          <Badge variant="outline" className="text-xs">{fac.type || 'Facility'}</Badge>
+                        </div>
+                        
+                        {/* Multi-user selection for this facility */}
+                        <div className="space-y-1">
+                          <Label className="text-xs text-text-muted">Assignees</Label>
+                          <div className="flex flex-wrap gap-1 min-h-[32px] p-2 border rounded bg-stone-50">
+                            {(facAssign.user_ids || []).map(uid => {
+                              const u = users.find(user => user.id === uid);
+                              return u ? (
+                                <Badge key={uid} variant="secondary" className="text-xs flex items-center gap-1">
+                                  {u.full_name || u.name || u.email}
+                                  <X 
+                                    className="w-3 h-3 cursor-pointer hover:text-red-500" 
+                                    onClick={() => setAssignForm(prev => ({
+                                      ...prev,
+                                      facility_assignments: {
+                                        ...prev.facility_assignments,
+                                        [fac.id]: {
+                                          ...prev.facility_assignments?.[fac.id],
+                                          user_ids: (prev.facility_assignments?.[fac.id]?.user_ids || []).filter(id => id !== uid),
+                                          facility_name: fac.name
+                                        }
+                                      }
+                                    }))}
+                                  />
+                                </Badge>
+                              ) : null;
+                            })}
+                            {(facAssign.user_ids || []).length === 0 && (
+                              <span className="text-xs text-text-muted">No assignees</span>
+                            )}
+                          </div>
+                          <Select 
+                            value="__select__"
+                            onValueChange={(v) => {
+                              if (v && v !== '__select__') {
+                                setAssignForm(prev => {
+                                  const current = prev.facility_assignments?.[fac.id]?.user_ids || [];
+                                  if (!current.includes(v)) {
+                                    return {
+                                      ...prev,
+                                      facility_assignments: {
+                                        ...prev.facility_assignments,
+                                        [fac.id]: {
+                                          ...prev.facility_assignments?.[fac.id],
+                                          user_ids: [...current, v],
+                                          facility_name: fac.name
+                                        }
+                                      }
+                                    };
+                                  }
+                                  return prev;
+                                });
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="h-8 text-sm">
+                              <SelectValue placeholder="+ Add assignee" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__select__" disabled>Select user...</SelectItem>
+                              {users.filter(u => !(facAssign.user_ids || []).includes(u.id)).map(u => (
+                                <SelectItem key={u.id} value={u.id}>
+                                  {u.full_name || u.name || u.email}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        {/* Approver for this facility */}
+                        {(approvalWorkflowEnabled || multiLevelApprovalEnabled) && assignForm.requires_approval && (
+                          <div className="space-y-1">
+                            <Label className="text-xs text-text-muted">Approver</Label>
+                            <Select 
+                              value={facAssign.approver_id || '__none__'} 
+                              onValueChange={(v) => setAssignForm(prev => ({
+                                ...prev,
+                                facility_assignments: {
+                                  ...prev.facility_assignments,
+                                  [fac.id]: { 
+                                    ...prev.facility_assignments?.[fac.id], 
+                                    approver_id: v === '__none__' ? '' : v,
+                                    facility_name: fac.name 
+                                  }
+                                }
+                              }))}
+                            >
+                              <SelectTrigger className="h-8 text-sm">
+                                <SelectValue placeholder="Select approver" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__none__">No approver</SelectItem>
+                                {users.map(u => (
+                                  <SelectItem key={u.id} value={u.id}>
+                                    {u.full_name || u.name || u.email}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                       </div>
-                      <Select 
-                        value={assignForm.facility_assignments?.[fac.id]?.user_id || '__none__'} 
-                        onValueChange={(v) => setAssignForm(prev => ({
-                          ...prev,
-                          facility_assignments: {
-                            ...prev.facility_assignments,
-                            [fac.id]: { 
-                              ...prev.facility_assignments?.[fac.id], 
-                              user_id: v === '__none__' ? '' : v, 
-                              facility_name: fac.name 
-                            }
-                          }
-                        }))}
-                      >
-                        <SelectTrigger className="h-8 text-sm">
-                          <SelectValue placeholder="Select assignee..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">Not assigned</SelectItem>
-                          {users.map(u => (
-                            <SelectItem key={u.id} value={u.id}>
-                              {u.full_name || u.name || u.email}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
-                {Object.values(assignForm.facility_assignments || {}).filter(fa => fa?.user_id).length > 0 && (
+                {Object.values(assignForm.facility_assignments || {}).filter(fa => fa?.user_ids?.length > 0).length > 0 && (
                   <div className="text-xs text-emerald-600">
-                    {Object.values(assignForm.facility_assignments || {}).filter(fa => fa?.user_id).length} facility assignment(s) configured
+                    {Object.values(assignForm.facility_assignments || {}).filter(fa => fa?.user_ids?.length > 0).length} facility(ies) with assignments
                   </div>
                 )}
               </div>
