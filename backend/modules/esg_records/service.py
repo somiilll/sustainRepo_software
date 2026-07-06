@@ -1256,7 +1256,16 @@ class ESGRecordsService:
         
         # If replace_existing flag is set, delete all existing assignments for this category combo
         if data.get("replace_existing"):
+            # Get assignment IDs before deleting (for cleanup)
+            old_assignments = await db.esg_assignments.find(base_query, {"_id": 0, "id": 1}).to_list(100)
+            old_assignment_ids = [a["id"] for a in old_assignments]
+            
             deleted = await db.esg_assignments.delete_many(base_query)
+            
+            # Clean up task_assignees for deleted assignments
+            if old_assignment_ids:
+                await db.esg_task_assignees.delete_many({"assignment_id": {"$in": old_assignment_ids}})
+            
             # Log deletion if any were removed
             if deleted.deleted_count > 0:
                 history_doc = {
