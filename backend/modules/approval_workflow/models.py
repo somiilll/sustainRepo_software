@@ -309,6 +309,7 @@ class ApprovalDecisionInput(BaseModel):
     action: ApprovalAction
     comment: Optional[str] = None
     delegate_to: Optional[str] = Field(None, description="User ID to delegate to")
+    updated_data: Optional[Dict[str, Any]] = Field(None, description="Updated field values if approver made edits")
     
     class Config:
         use_enum_values = True

@@ -402,22 +402,57 @@ export default function ApproverQueue() {
 
 /**
  * RecordApprovalPanel - Review panel for ESG Record approvals
+ * Allows approvers to view and edit record data before approval
  */
 function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
   const [processing, setProcessing] = useState(false);
   const [comment, setComment] = useState('');
+  const [editedFields, setEditedFields] = useState({});
+  const [hasEdits, setHasEdits] = useState(false);
   
   const snapshot = item.entity_snapshot || {};
+  const originalFieldValues = snapshot.field_values || {};
+  
+  // Initialize edited fields with original values
+  useEffect(() => {
+    setEditedFields({ ...originalFieldValues });
+  }, []);
+  
+  // Track if user made edits
+  const handleFieldChange = (key, value) => {
+    setEditedFields(prev => {
+      const updated = { ...prev, [key]: value };
+      // Check if any field differs from original
+      const isDifferent = Object.keys(updated).some(k => 
+        JSON.stringify(updated[k]) !== JSON.stringify(originalFieldValues[k])
+      );
+      setHasEdits(isDifferent);
+      return updated;
+    });
+  };
   
   const handleApprove = async () => {
     try {
       setProcessing(true);
+      
+      const payload = {
+        action: 'approve',
+        comment: comment || 'Approved'
+      };
+      
+      // Include updated data if approver made edits
+      if (hasEdits) {
+        payload.updated_data = {
+          field_values: editedFields
+        };
+      }
+      
       await axios.post(
-        `${API}/api/approval-workflows/requests/${item._approval_request_id}/approve`,
-        { comment: comment || 'Approved' },
+        `${API}/api/approval-workflows/requests/${item._approval_request_id}/decide`,
+        payload,
         { headers: getAuthHeader() }
       );
-      toast.success('Record approved successfully');
+      toast.success(hasEdits ? 'Record approved with edits' : 'Record approved successfully');
       onApproved();
     } catch (error) {
       console.error('Failed to approve:', error);
@@ -435,8 +470,8 @@ function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
     try {
       setProcessing(true);
       await axios.post(
-        `${API}/api/approval-workflows/requests/${item._approval_request_id}/reject`,
-        { comment },
+        `${API}/api/approval-workflows/requests/${item._approval_request_id}/decide`,
+        { action: 'reject', comment },
         { headers: getAuthHeader() }
       );
       toast.success('Record rejected');
@@ -447,6 +482,72 @@ function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
     } finally {
       setProcessing(false);
     }
+  };
+  
+  // Reset edits
+  const handleResetEdits = () => {
+    setEditedFields({ ...originalFieldValues });
+    setHasEdits(false);
+  };
+  
+  // Render editable field based on value type
+  const renderEditableField = (key, value) => {
+    const currentValue = editedFields[key] ?? value;
+    
+    if (typeof value === 'boolean') {
+      return (
+        <select
+          value={currentValue ? 'true' : 'false'}
+          onChange={(e) => handleFieldChange(key, e.target.value === 'true')}
+          className="w-full px-2 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          disabled={processing}
+        >
+          <option value="true">Yes</option>
+          <option value="false">No</option>
+        </select>
+      );
+    }
+    
+    if (typeof value === 'number') {
+      return (
+        <input
+          type="number"
+          value={currentValue}
+          onChange={(e) => handleFieldChange(key, parseFloat(e.target.value) || 0)}
+          className="w-full px-2 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          disabled={processing}
+        />
+      );
+    }
+    
+    if (typeof value === 'object' && value !== null) {
+      return (
+        <textarea
+          value={JSON.stringify(currentValue, null, 2)}
+          onChange={(e) => {
+            try {
+              handleFieldChange(key, JSON.parse(e.target.value));
+            } catch {
+              // Invalid JSON, keep as string
+            }
+          }}
+          className="w-full px-2 py-1 border rounded text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+          rows={3}
+          disabled={processing}
+        />
+      );
+    }
+    
+    // Default to text input
+    return (
+      <input
+        type="text"
+        value={currentValue ?? ''}
+        onChange={(e) => handleFieldChange(key, e.target.value)}
+        className="w-full px-2 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        disabled={processing}
+      />
+    );
   };
   
   return (
@@ -476,23 +577,56 @@ function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
               {item.submitted_at ? new Date(item.submitted_at).toLocaleString() : 'N/A'}
             </p>
           </div>
+          {snapshot.reporting_period && (
+            <div>
+              <span className="text-text-muted">Reporting Period:</span>
+              <p className="font-medium">
+                {snapshot.reporting_period.year || snapshot.reporting_period}
+              </p>
+            </div>
+          )}
         </div>
       </div>
       
-      {/* Data Fields */}
-      {snapshot.data && Object.keys(snapshot.data).length > 0 && (
-        <div className="border rounded-lg p-4 space-y-3">
-          <h4 className="font-semibold text-text-primary">Submitted Data</h4>
-          <div className="grid gap-2 text-sm">
-            {Object.entries(snapshot.data).map(([key, value]) => (
-              <div key={key} className="flex justify-between py-1 border-b border-stone-100 last:border-0">
-                <span className="text-text-muted capitalize">{key.replace(/_/g, ' ')}:</span>
-                <span className="font-medium text-text-primary">
-                  {typeof value === 'object' ? JSON.stringify(value) : String(value)}
-                </span>
+      {/* Editable Data Fields */}
+      {Object.keys(originalFieldValues).length > 0 ? (
+        <div className="border rounded-lg p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="font-semibold text-text-primary">Submitted Data</h4>
+            {hasEdits && (
+              <div className="flex items-center gap-2">
+                <Badge className="bg-amber-100 text-amber-800">Modified</Badge>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleResetEdits}
+                  disabled={processing}
+                >
+                  Reset
+                </Button>
               </div>
-            ))}
+            )}
           </div>
+          <p className="text-xs text-text-muted">You can edit fields below before approving</p>
+          
+          <div className="space-y-4">
+            {Object.entries(originalFieldValues).map(([key, value]) => {
+              const isModified = hasEdits && JSON.stringify(editedFields[key]) !== JSON.stringify(value);
+              return (
+                <div key={key} className={`space-y-1 ${isModified ? 'bg-amber-50 p-2 rounded -mx-2' : ''}`}>
+                  <label className="text-sm font-medium text-text-secondary capitalize flex items-center gap-2">
+                    {key.replace(/_/g, ' ')}
+                    {isModified && <span className="text-xs text-amber-600">(edited)</span>}
+                  </label>
+                  {renderEditableField(key, value)}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="border rounded-lg p-4 text-center text-text-muted">
+          No field data available for this record
         </div>
       )}
       
@@ -536,7 +670,7 @@ function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
           data-testid="approve-record-btn"
         >
           {processing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
-          Approve
+          {hasEdits ? 'Approve with Edits' : 'Approve'}
         </Button>
       </div>
     </div>

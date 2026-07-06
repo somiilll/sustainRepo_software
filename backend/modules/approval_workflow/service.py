@@ -521,7 +521,7 @@ class ApprovalWorkflowService:
         
         if action == ApprovalAction.APPROVE.value:
             return await ApprovalWorkflowService._process_approve(
-                request, workflow, current_user, decision.comment, previous_status
+                request, workflow, current_user, decision.comment, previous_status, decision.updated_data
             )
         
         elif action == ApprovalAction.REJECT.value:
@@ -548,6 +548,7 @@ class ApprovalWorkflowService:
         approver: dict,
         comment: Optional[str],
         previous_status: str,
+        updated_data: Optional[dict] = None,
     ) -> Tuple[bool, str, Optional[dict]]:
         """Process an approval action."""
         request_id = request["id"]
@@ -612,6 +613,54 @@ class ApprovalWorkflowService:
                 "$push": {"steps_completed": step.dict()},
             }
         )
+        
+        # If approved with updated data and this is an ESG record, update the record
+        if new_status == ApprovalStatus.APPROVED.value and updated_data:
+            entity_type = request.get("entity_type")
+            entity_id = request.get("entity_id")
+            entity_subtype = request.get("entity_subtype")  # This is the section (environment, social, governance)
+            
+            if entity_type == "esg_record" and entity_id and entity_subtype:
+                try:
+                    # Get the appropriate collection based on section
+                    collection_map = {
+                        "environment": "environment_records",
+                        "social": "social_records",
+                        "governance": "governance_records",
+                    }
+                    collection_name = collection_map.get(entity_subtype)
+                    
+                    if collection_name:
+                        # Update the record's field_values with the approver's edits
+                        record_update = {
+                            "updated_at": _now_iso(),
+                            "approval_status": "approved",
+                        }
+                        
+                        # Update field_values if provided
+                        if "field_values" in updated_data:
+                            record_update["field_values"] = updated_data["field_values"]
+                        
+                        # Also update the entity_snapshot in the approval request to reflect changes
+                        snapshot_update = {}
+                        if "field_values" in updated_data:
+                            snapshot_update["entity_snapshot.field_values"] = updated_data["field_values"]
+                        
+                        if snapshot_update:
+                            await db[REQUESTS_COLLECTION].update_one(
+                                {"id": request_id},
+                                {"$set": snapshot_update}
+                            )
+                        
+                        # Update the actual record
+                        await db[collection_name].update_one(
+                            {"id": entity_id, "is_current": True},
+                            {"$set": record_update}
+                        )
+                        logger.info(f"Updated ESG record {entity_id} with approver edits")
+                except Exception as e:
+                    logger.error(f"Failed to update ESG record with approver edits: {e}")
+                    # Don't fail the approval, just log the error
         
         # Record history
         await ApprovalWorkflowService._record_history(
