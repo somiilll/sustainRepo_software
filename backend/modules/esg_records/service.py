@@ -671,9 +671,27 @@ class ESGRecordsService:
         }
         if current.get("facility_id"):
             assignment_query["facility_id"] = current.get("facility_id")
-        assignment = await db.esg_assignments.find_one(assignment_query)
+        if current.get("subcategory"):
+            assignment_query["subcategory"] = current.get("subcategory")
+        
+        assignment = await db.esg_assignments.find_one(assignment_query, {"_id": 0})
+        
+        # If no exact match, try without subcategory (parent category assignment)
+        if not assignment and current.get("subcategory"):
+            parent_query = {
+                "organization_id": current.get("org_id"),
+                "category": current.get("category"),
+                "entity_type": "record_category",
+            }
+            if current.get("facility_id"):
+                parent_query["facility_id"] = current.get("facility_id")
+            assignment = await db.esg_assignments.find_one(parent_query, {"_id": 0})
+        
         if assignment:
             requires_approval = assignment.get("requires_approval", False)
+            print(f"Found assignment {assignment.get('id')} for {current.get('category')}/{current.get('subcategory')}, requires_approval={requires_approval}")
+        else:
+            print(f"No assignment found for {current.get('category')}/{current.get('subcategory')}, facility={current.get('facility_id')}")
         
         # Handle status updates with dual-status architecture
         # Map incoming status values to the correct dual-status fields
@@ -725,13 +743,17 @@ class ESGRecordsService:
         should_create_approval = False
         is_edit_of_approved = False
         
+        print(f"Update record check: new_status={new_status}, old_status={old_status}, old_approval_status={old_approval_status}, changed_fields={changed_fields}")
+        
         if new_status == "completed" and old_status in ["rejected", "draft", "reopened", "pending"]:
             # New submission
             should_create_approval = requires_approval
+            print(f"Case 1: New submission, should_create_approval={should_create_approval}")
         elif old_approval_status == "approved" and "field_values" in changed_fields:
             # Edit of an approved record - needs re-approval
             should_create_approval = requires_approval
             is_edit_of_approved = True
+            print(f"Case 2: Edit of approved record, should_create_approval={should_create_approval}")
             # Update approval_status back to pending
             await collection.update_one(
                 {"id": record_id, "is_current": True},
@@ -754,6 +776,7 @@ class ESGRecordsService:
         
         # Create approval request if needed
         if should_create_approval and assignment:
+            print(f"Creating approval request for edit={is_edit_of_approved}")
             # Calculate changes for edit scenarios
             changes_summary = None
             if is_edit_of_approved:
@@ -761,6 +784,7 @@ class ESGRecordsService:
                     old_values=current.get("field_values", {}),
                     new_values=updated.get("field_values", {})
                 )
+                print(f"Changes summary: {changes_summary}")
             
             await self._create_approval_request(
                 org_id=current.get("org_id"),
@@ -772,6 +796,8 @@ class ESGRecordsService:
                 changes_summary=changes_summary,
                 previous_snapshot=current if is_edit_of_approved else None,
             )
+        elif should_create_approval and not assignment:
+            print(f"WARNING: should_create_approval=True but no assignment found!")
         
         # Create version snapshot
         await self._create_version_snapshot(
