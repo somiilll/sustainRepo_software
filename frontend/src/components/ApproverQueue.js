@@ -824,8 +824,20 @@ function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
             <div>
               <span className="text-text-muted">Reporting Period:</span>
               <p className="font-medium">
-                {snapshot.reporting_period.month && `${snapshot.reporting_period.month} `}
-                {snapshot.reporting_period.year || snapshot.reporting_period}
+                {(() => {
+                  const rp = snapshot.reporting_period;
+                  if (typeof rp === 'string') return rp;
+                  const month = rp.month;
+                  const year = rp.year;
+                  // Convert month number to name if needed
+                  let monthDisplay = month;
+                  if (month && typeof month === 'number') {
+                    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                      'July', 'August', 'September', 'October', 'November', 'December'];
+                    monthDisplay = monthNames[month - 1] || month;
+                  }
+                  return `${monthDisplay ? monthDisplay + ' ' : ''}${year || ''}`;
+                })()}
               </p>
             </div>
           )}
