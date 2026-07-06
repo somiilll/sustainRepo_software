@@ -523,12 +523,16 @@ class ESGRecordsService:
             changed_fields.append("notes")
         
         # Check if this record's assignment requires approval
+        # Must match facility_id to get the correct assignment
         requires_approval = False
-        assignment = await db.esg_assignments.find_one({
+        assignment_query = {
             "organization_id": current.get("org_id"),
             "category": current.get("category"),
             "entity_type": "record_category",
-        })
+        }
+        if current.get("facility_id"):
+            assignment_query["facility_id"] = current.get("facility_id")
+        assignment = await db.esg_assignments.find_one(assignment_query)
         if assignment:
             requires_approval = assignment.get("requires_approval", False)
         

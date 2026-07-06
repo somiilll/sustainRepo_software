@@ -187,6 +187,7 @@ export default function ESGRecordsTracker({
     assigned_user_ids: [],
     assignment_level: 'organization',
     facility_id: '',
+    facility_assignments: {}, // Per-facility assignments: { [facilityId]: { user_id, facility_name } }
     // New scheduling fields
     start_date: '',
     end_date: '',
@@ -212,6 +213,7 @@ export default function ESGRecordsTracker({
       assigned_user_ids: [],
       assignment_level: 'organization',
       facility_id: '',
+      facility_assignments: {},
       start_date: '',
       end_date: '',
       timezone: 'Asia/Kolkata',
@@ -424,16 +426,23 @@ export default function ESGRecordsTracker({
     setShowAssignModal(true);
   };
 
-  // Handle assignment - supports multi-user
+  // Handle assignment - supports multi-user and per-facility assignments
   const handleAssign = async () => {
-    if (assignForm.assigned_user_ids.length === 0) {
-      toast.error('Please select at least one user');
-      return;
-    }
-
-    if (assignForm.assignment_level === 'facility' && !assignForm.facility_id) {
-      toast.error('Please select a facility');
-      return;
+    // Validation for facility-level assignments
+    if (assignForm.assignment_level === 'facility') {
+      const facilityAssignments = Object.entries(assignForm.facility_assignments || {})
+        .filter(([_, fa]) => fa?.user_id);
+      
+      if (facilityAssignments.length === 0) {
+        toast.error('Please assign at least one facility to a user');
+        return;
+      }
+    } else {
+      // Organization level - need assigned_user_ids
+      if (assignForm.assigned_user_ids.length === 0) {
+        toast.error('Please select at least one user');
+        return;
+      }
     }
 
     if (assignForm.requires_approval) {
@@ -477,54 +486,92 @@ export default function ESGRecordsTracker({
         return config;
       };
 
-      // Create assignment for each selected user
-      // First request includes replace_existing=true to clear old assignments
-      // assign_children defaults to true for parent categories (no subcategory)
-      const isParentCategory = !assigningItem.subcategory;
-      const promises = assignForm.assigned_user_ids.map((userId, index) => 
-        axios.post(
-          `${API}/api/esg-records/assignments`,
-          {
-            entity_type: 'record_category',
-            entity_id: entityId,
-            category: assigningItem.category,
-            subcategory: assigningItem.subcategory || null,
-            sub_subcategory: assigningItem.sub_subcategory || null,
-            assign_children: isParentCategory, // Auto-cascade for parent categories
-            assignment_level: assignForm.assignment_level,
-            facility_id: assignForm.assignment_level === 'facility' ? assignForm.facility_id : null,
-            assigned_to_user_id: userId,
-            reporting_period: reportingPeriod,
-            // New scheduling fields
-            start_date: assignForm.start_date || null,
-            end_date: assignForm.end_date || null,
-            timezone: assignForm.timezone || 'Asia/Kolkata',
-            filling_frequency: assignForm.filling_frequency || null,
-            due_config: buildDueConfig(),
-            // Legacy fields
-            reminder_enabled: assignForm.reminder_enabled,
-            reminder_config: assignForm.reminder_enabled ? {
-              frequency: assignForm.reminder_frequency,
-              days_before_due: [7, 3, 1],
-              repeat_overdue: true,
-            } : null,
-            requires_approval: assignForm.requires_approval,
-            approver_id: assignForm.requires_approval && !multiLevelApprovalEnabled ? assignForm.approver_id : null,
-            approval_chain: assignForm.requires_approval && multiLevelApprovalEnabled ? assignForm.approval_chain : [],
-            replace_existing: index === 0, // Only first request clears existing assignments
-          },
-          { headers }
-        )
-      );
+      // For facility-level, create one assignment per facility
+      if (assignForm.assignment_level === 'facility') {
+        const facilityAssignments = Object.entries(assignForm.facility_assignments || {})
+          .filter(([_, fa]) => fa?.user_id);
+        
+        let isFirst = true;
+        for (const [facilityId, fa] of facilityAssignments) {
+          await axios.post(
+            `${API}/api/esg-records/assignments`,
+            {
+              entity_type: 'record_category',
+              entity_id: `${entityId}_${facilityId}`,
+              category: assigningItem.category,
+              subcategory: assigningItem.subcategory || null,
+              sub_subcategory: assigningItem.sub_subcategory || null,
+              assign_children: !assigningItem.subcategory,
+              assignment_level: 'facility',
+              facility_id: facilityId,
+              assigned_to_user_id: fa.user_id,
+              reporting_period: reportingPeriod,
+              start_date: assignForm.start_date || null,
+              end_date: assignForm.end_date || null,
+              timezone: assignForm.timezone || 'Asia/Kolkata',
+              filling_frequency: assignForm.filling_frequency || null,
+              due_config: buildDueConfig(),
+              reminder_enabled: assignForm.reminder_enabled,
+              reminder_config: assignForm.reminder_enabled ? {
+                frequency: assignForm.reminder_frequency,
+                days_before_due: [7, 3, 1],
+                repeat_overdue: true,
+              } : null,
+              requires_approval: assignForm.requires_approval,
+              approver_id: assignForm.requires_approval && !multiLevelApprovalEnabled ? assignForm.approver_id : null,
+              approval_chain: assignForm.requires_approval && multiLevelApprovalEnabled ? assignForm.approval_chain : [],
+              replace_existing: isFirst,
+            },
+            { headers }
+          );
+          isFirst = false;
+        }
+        toast.success(`Assignment saved for ${facilityAssignments.length} facility(ies)`);
+      } else {
+        // Organization level - create assignment for each selected user
+        const isParentCategory = !assigningItem.subcategory;
+        const promises = assignForm.assigned_user_ids.map((userId, index) => 
+          axios.post(
+            `${API}/api/esg-records/assignments`,
+            {
+              entity_type: 'record_category',
+              entity_id: entityId,
+              category: assigningItem.category,
+              subcategory: assigningItem.subcategory || null,
+              sub_subcategory: assigningItem.sub_subcategory || null,
+              assign_children: isParentCategory,
+              assignment_level: assignForm.assignment_level,
+              facility_id: null,
+              assigned_to_user_id: userId,
+              reporting_period: reportingPeriod,
+              start_date: assignForm.start_date || null,
+              end_date: assignForm.end_date || null,
+              timezone: assignForm.timezone || 'Asia/Kolkata',
+              filling_frequency: assignForm.filling_frequency || null,
+              due_config: buildDueConfig(),
+              reminder_enabled: assignForm.reminder_enabled,
+              reminder_config: assignForm.reminder_enabled ? {
+                frequency: assignForm.reminder_frequency,
+                days_before_due: [7, 3, 1],
+                repeat_overdue: true,
+              } : null,
+              requires_approval: assignForm.requires_approval,
+              approver_id: assignForm.requires_approval && !multiLevelApprovalEnabled ? assignForm.approver_id : null,
+              approval_chain: assignForm.requires_approval && multiLevelApprovalEnabled ? assignForm.approval_chain : [],
+              replace_existing: index === 0,
+            },
+            { headers }
+          )
+        );
 
-      // Execute sequentially to ensure replace_existing runs first
-      for (const promise of promises) {
-        await promise;
+        for (const promise of promises) {
+          await promise;
+        }
+        toast.success(`Assignment saved for ${assignForm.assigned_user_ids.length} user(s)`);
       }
-      toast.success(`Assignment saved for ${assignForm.assigned_user_ids.length} user(s)`);
+      
       setShowAssignModal(false);
       resetAssignForm();
-      // Force refresh by clearing and refetching
       setAssignments([]);
       setTimeout(() => fetchTrackerData(true), 100);
     } catch (error) {
@@ -1305,27 +1352,53 @@ export default function ESGRecordsTracker({
               </Select>
             </div>
 
-            {/* Facility (if facility level) */}
+            {/* Facility (if facility level) - Show all facilities with per-facility assignment */}
             {assignForm.assignment_level === 'facility' && (
-              <div className="space-y-2">
-                <Label>Facility *</Label>
-                <Select 
-                  value={assignForm.facility_id} 
-                  onValueChange={(v) => setAssignForm(prev => ({ ...prev, facility_id: v }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select facility" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {facilities.map(fac => (
-                      <SelectItem key={fac.id} value={fac.id}>{fac.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-3">
+                <Label>Assign Per Facility *</Label>
+                <p className="text-xs text-text-muted">Select users for each facility. Leave empty to skip a facility.</p>
+                <div className="border rounded-lg max-h-64 overflow-y-auto divide-y">
+                  {facilities.map(fac => (
+                    <div key={fac.id} className="p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-sm">{fac.name}</span>
+                        <Badge variant="outline" className="text-xs">{fac.type || 'Facility'}</Badge>
+                      </div>
+                      <Select 
+                        value={assignForm.facility_assignments?.[fac.id]?.user_id || ''} 
+                        onValueChange={(v) => setAssignForm(prev => ({
+                          ...prev,
+                          facility_assignments: {
+                            ...prev.facility_assignments,
+                            [fac.id]: { ...prev.facility_assignments?.[fac.id], user_id: v, facility_name: fac.name }
+                          }
+                        }))}
+                      >
+                        <SelectTrigger className="h-8 text-sm">
+                          <SelectValue placeholder="Select assignee..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Not assigned</SelectItem>
+                          {users.map(u => (
+                            <SelectItem key={u.id} value={u.id}>
+                              {u.full_name || u.name || u.email}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ))}
+                </div>
+                {Object.values(assignForm.facility_assignments || {}).filter(fa => fa?.user_id).length > 0 && (
+                  <div className="text-xs text-emerald-600">
+                    {Object.values(assignForm.facility_assignments || {}).filter(fa => fa?.user_id).length} facility assignment(s) configured
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Multi-user selection */}
+            {/* Multi-user selection - only for organization level */}
+            {assignForm.assignment_level !== 'facility' && (
             <div className="space-y-2">
               <Label>Assign To *</Label>
               <div className="border rounded-lg max-h-48 overflow-y-auto">
@@ -1384,6 +1457,7 @@ export default function ESGRecordsTracker({
                 </div>
               )}
             </div>
+            )}
 
             {/* Reporting Period Info */}
             <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">

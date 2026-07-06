@@ -673,35 +673,40 @@ class ApprovalWorkflowService:
                         
                         if record:
                             # Update the corresponding task's approval_status
-                            # Tasks use organization_id and period_key, not org_id and reporting_period
+                            # Build period_key from reporting_period
+                            rp = record.get("reporting_period") or {}
+                            period_key = None
+                            rp_type = rp.get("reporting_type") or rp.get("type")
+                            if rp_type == "yearly":
+                                period_key = str(rp.get("year"))
+                            elif rp_type == "monthly":
+                                month = rp.get("month")
+                                if isinstance(month, str) and not month.isdigit():
+                                    month_names = ["January", "February", "March", "April", "May", "June",
+                                                   "July", "August", "September", "October", "November", "December"]
+                                    try:
+                                        month_num = month_names.index(month) + 1
+                                    except ValueError:
+                                        month_num = 1
+                                else:
+                                    month_num = int(month) if month else 1
+                                period_key = f"{rp.get('year')}-{str(month_num).zfill(2)}"
+                            elif rp_type == "quarterly":
+                                quarter = rp.get("quarter", "").replace("Q", "") if rp.get("quarter") else "1"
+                                period_key = f"{rp.get('year')}-Q{quarter}"
+                            
                             task_query = {
                                 "organization_id": record.get("organization_id") or record.get("org_id"),
                                 "category": record.get("category"),
                             }
+                            if period_key:
+                                task_query["period_key"] = period_key
                             if record.get("subcategory"):
                                 task_query["subcategory"] = record.get("subcategory")
                             if record.get("sub_subcategory"):
                                 task_query["sub_subcategory"] = record.get("sub_subcategory")
                             if record.get("facility_id"):
                                 task_query["facility_id"] = record.get("facility_id")
-                            
-                            # Build period_key from reporting_period (e.g., "2026-06" for monthly)
-                            rp = record.get("reporting_period")
-                            if rp and isinstance(rp, dict):
-                                year = rp.get("year")
-                                month = rp.get("month")
-                                quarter = rp.get("quarter")
-                                if year and month:
-                                    # Convert month name to number
-                                    month_map = {"January": "01", "February": "02", "March": "03", "April": "04",
-                                                 "May": "05", "June": "06", "July": "07", "August": "08",
-                                                 "September": "09", "October": "10", "November": "11", "December": "12"}
-                                    month_num = month_map.get(month, "01")
-                                    task_query["period_key"] = f"{year}-{month_num}"
-                                elif year and quarter:
-                                    task_query["period_key"] = f"{year}-{quarter}"
-                                elif year:
-                                    task_query["period_key"] = str(year)
                             
                             task_update_result = await db.esg_reporting_tasks.update_many(
                                 task_query,
