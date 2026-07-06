@@ -621,9 +621,13 @@ function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
         break;
         
       case 'yes_no':
+        // Handle both boolean (true/false) and string ('yes'/'no') values
+        const yesNoValue = currentValue === true || currentValue === 'yes' ? 'yes' 
+                        : currentValue === false || currentValue === 'no' ? 'no' 
+                        : '';
         input = (
           <select
-            value={currentValue === true ? 'yes' : currentValue === false ? 'no' : ''}
+            value={yesNoValue}
             onChange={(e) => handleFieldChange(key, e.target.value === 'yes' ? true : e.target.value === 'no' ? false : null)}
             className={inputClasses}
             disabled={processing}
