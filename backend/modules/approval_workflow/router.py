@@ -426,3 +426,68 @@ async def list_entity_types():
             for e in EntityType
         ]
     }
+
+
+
+# =============================================================================
+# SIMPLIFIED ESG RECORD APPROVAL ENDPOINTS
+# =============================================================================
+
+class SimpleApprovalInput(BaseModel):
+    """Simple input for ESG record approval/rejection."""
+    comment: Optional[str] = None
+    updated_data: Optional[dict] = None
+
+
+@router.post("/requests/{request_id}/approve")
+async def approve_request_simple(
+    request_id: str,
+    data: SimpleApprovalInput = SimpleApprovalInput(),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Simple approve endpoint for ESG records.
+    Doesn't require a formal workflow document.
+    """
+    decision = ApprovalDecisionInput(
+        action="approve",
+        comment=data.comment or "Approved",
+        updated_data=data.updated_data
+    )
+    
+    success, message, updated = await ApprovalWorkflowService.make_decision(
+        request_id, decision, current_user
+    )
+    
+    if not success:
+        raise HTTPException(status_code=400, detail=message)
+    
+    return {"message": message, "request": updated}
+
+
+@router.post("/requests/{request_id}/reject")
+async def reject_request_simple(
+    request_id: str,
+    data: SimpleApprovalInput = SimpleApprovalInput(),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Simple reject endpoint for ESG records.
+    Doesn't require a formal workflow document.
+    """
+    if not data.comment:
+        raise HTTPException(status_code=400, detail="Comment required when rejecting")
+    
+    decision = ApprovalDecisionInput(
+        action="reject",
+        comment=data.comment
+    )
+    
+    success, message, updated = await ApprovalWorkflowService.make_decision(
+        request_id, decision, current_user
+    )
+    
+    if not success:
+        raise HTTPException(status_code=400, detail=message)
+    
+    return {"message": message, "request": updated}

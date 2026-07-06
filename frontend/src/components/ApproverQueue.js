@@ -415,38 +415,47 @@ function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
   const originalFieldValues = snapshot.field_values || {};
   const fieldDefinitions = snapshot.field_definitions || [];
   
-  // Initialize edited fields with original values
+  // Initialize edited fields with original values or from field definitions
   useEffect(() => {
-    // Initialize all fields from definitions with their values or defaults
     const initialFields = {};
-    fieldDefinitions.forEach(field => {
-      const key = field.field_key;
-      if (originalFieldValues[key] !== undefined) {
-        initialFields[key] = originalFieldValues[key];
-      } else if (field.default_value !== undefined && field.default_value !== null) {
-        initialFields[key] = field.default_value;
-      } else {
-        // Set appropriate empty value based on type
-        switch (field.type) {
-          case 'number':
-            initialFields[key] = '';
-            break;
-          case 'yes_no':
-            initialFields[key] = null;
-            break;
-          case 'checkbox_group':
-            initialFields[key] = [];
-            break;
-          case 'table':
-            initialFields[key] = [];
-            break;
-          default:
-            initialFields[key] = '';
+    
+    if (fieldDefinitions.length > 0) {
+      // Initialize all fields from definitions with their values or defaults
+      fieldDefinitions.forEach(field => {
+        const key = field.field_key;
+        if (originalFieldValues[key] !== undefined) {
+          initialFields[key] = originalFieldValues[key];
+        } else if (field.default_value !== undefined && field.default_value !== null) {
+          initialFields[key] = field.default_value;
+        } else {
+          // Set appropriate empty value based on type
+          switch (field.type) {
+            case 'number':
+              initialFields[key] = '';
+              break;
+            case 'yes_no':
+              initialFields[key] = null;
+              break;
+            case 'checkbox_group':
+              initialFields[key] = [];
+              break;
+            case 'table':
+              initialFields[key] = [];
+              break;
+            default:
+              initialFields[key] = '';
+          }
         }
-      }
-    });
+      });
+    } else {
+      // Fallback: Initialize from originalFieldValues for older requests without field_definitions
+      Object.entries(originalFieldValues).forEach(([key, value]) => {
+        initialFields[key] = value;
+      });
+    }
+    
     setEditedFields(initialFields);
-  }, []);
+  }, [item.id]); // Re-run when item changes
   
   // Track if user made edits
   const handleFieldChange = (key, value) => {
@@ -515,31 +524,40 @@ function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
   // Reset edits
   const handleResetEdits = () => {
     const initialFields = {};
-    fieldDefinitions.forEach(field => {
-      const key = field.field_key;
-      if (originalFieldValues[key] !== undefined) {
-        initialFields[key] = originalFieldValues[key];
-      } else if (field.default_value !== undefined && field.default_value !== null) {
-        initialFields[key] = field.default_value;
-      } else {
-        switch (field.type) {
-          case 'number':
-            initialFields[key] = '';
-            break;
-          case 'yes_no':
-            initialFields[key] = null;
-            break;
-          case 'checkbox_group':
-            initialFields[key] = [];
-            break;
-          case 'table':
-            initialFields[key] = [];
-            break;
-          default:
-            initialFields[key] = '';
+    
+    if (fieldDefinitions.length > 0) {
+      fieldDefinitions.forEach(field => {
+        const key = field.field_key;
+        if (originalFieldValues[key] !== undefined) {
+          initialFields[key] = originalFieldValues[key];
+        } else if (field.default_value !== undefined && field.default_value !== null) {
+          initialFields[key] = field.default_value;
+        } else {
+          switch (field.type) {
+            case 'number':
+              initialFields[key] = '';
+              break;
+            case 'yes_no':
+              initialFields[key] = null;
+              break;
+            case 'checkbox_group':
+              initialFields[key] = [];
+              break;
+            case 'table':
+              initialFields[key] = [];
+              break;
+            default:
+              initialFields[key] = '';
+          }
         }
-      }
-    });
+      });
+    } else {
+      // Fallback for older requests without field_definitions
+      Object.entries(originalFieldValues).forEach(([key, value]) => {
+        initialFields[key] = value;
+      });
+    }
+    
     setEditedFields(initialFields);
     setHasEdits(false);
   };

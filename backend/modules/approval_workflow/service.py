@@ -488,10 +488,19 @@ class ApprovalWorkflowService:
         if current_status not in [ApprovalStatus.PENDING.value, ApprovalStatus.IN_REVIEW.value]:
             return (False, f"Cannot act on request with status: {current_status}", None)
         
-        # Get workflow for validation
+        # Get workflow for validation - use defaults if not found (for ESG record approvals)
         workflow = await ApprovalWorkflowService.get_workflow(request.get("workflow_id"))
         if not workflow:
-            return (False, "Workflow not found", None)
+            # Create a default workflow config for ESG record approvals
+            workflow = {
+                "id": request.get("workflow_id"),
+                "name": request.get("workflow_name", "Default Approval"),
+                "levels": [{"level": 1, "name": "Level 1", "can_delegate": True}],
+                "require_all_levels": True,
+                "require_comments_on_reject": True,
+                "require_comments_on_changes": True,
+                "allow_self_approval": False,
+            }
         
         action = decision.action.value if hasattr(decision.action, 'value') else decision.action
         
