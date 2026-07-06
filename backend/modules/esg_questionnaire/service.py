@@ -2157,6 +2157,8 @@ class ESGQuestionnaireService:
         status: str,
         approval_status: str,
         completed_by_user_id: Optional[str] = None,
+        rejected_by_user_id: Optional[str] = None,
+        rejection_reason: Optional[str] = None,
     ) -> None:
         """
         Update assignment status using new dual-status architecture.
@@ -2166,19 +2168,34 @@ class ESGQuestionnaireService:
             status: Operational status (pending/completed/reopened)
             approval_status: Governance status (not_required/pending_approval/approved/rejected)
             completed_by_user_id: User who completed the work
+            rejected_by_user_id: User who rejected (if rejection)
+            rejection_reason: Reason for rejection
         """
         from shared.database.mongo import db
         from datetime import datetime, timezone
         
+        now = datetime.now(timezone.utc)
+        
+        # Auto-set status=reopened when rejected
+        if approval_status == "rejected":
+            status = "reopened"
+        
         update_doc = {
             "status": status,
             "approval_status": approval_status,
-            "updated_at": datetime.now(timezone.utc),
+            "updated_at": now,
         }
         
         if status == "completed" and completed_by_user_id:
-            update_doc["completed_at"] = datetime.now(timezone.utc)
+            update_doc["completed_at"] = now
             update_doc["completed_by_user_id"] = completed_by_user_id
+        
+        if approval_status == "rejected":
+            update_doc["rejected_at"] = now
+            if rejected_by_user_id:
+                update_doc["rejected_by_user_id"] = rejected_by_user_id
+            if rejection_reason:
+                update_doc["rejection_reason"] = rejection_reason
         
         await db.esg_assignments.update_one(
             {"id": assignment_id},

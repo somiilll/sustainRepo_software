@@ -676,8 +676,74 @@ class ApprovalWorkflowService:
             level=current_level,
         )
         
+        # Update source entity status (task/assignment) to reopened
+        await ApprovalWorkflowService._update_source_entity_on_rejection(
+            request, rejector, comment
+        )
+        
         updated = await db[REQUESTS_COLLECTION].find_one({"id": request_id}, {"_id": 0})
         return (True, "Request rejected", updated)
+
+    @staticmethod
+    async def _update_source_entity_on_rejection(
+        request: dict,
+        rejector: dict,
+        comment: Optional[str],
+    ) -> None:
+        """
+        Update the source entity (task or assignment) status when rejected.
+        Sets status=reopened, approval_status=rejected.
+        """
+        entity_type = request.get("entity_type")
+        entity_id = request.get("entity_id")
+        org_id = request.get("organization_id")
+        rejector_id = rejector.get("id")
+        now = _now_iso()
+        
+        update_doc = {
+            "status": "reopened",
+            "approval_status": "rejected",
+            "rejected_at": now,
+            "rejected_by_user_id": rejector_id,
+            "updated_at": now,
+        }
+        if comment:
+            update_doc["rejection_reason"] = comment
+        
+        try:
+            if entity_type == "esg_record":
+                # Update the ESG record
+                await db.esg_records.update_one(
+                    {"id": entity_id, "org_id": org_id},
+                    {"$set": update_doc}
+                )
+                # Also find and update the corresponding task
+                record = await db.esg_records.find_one({"id": entity_id}, {"_id": 0})
+                if record:
+                    await db.esg_reporting_tasks.update_many(
+                        {
+                            "organization_id": org_id,
+                            "category": record.get("category"),
+                            "subcategory": record.get("subcategory"),
+                            "status": "completed",
+                        },
+                        {"$set": update_doc}
+                    )
+            elif entity_type == "esg_response":
+                # Update the ESG assignment for the question
+                await db.esg_assignments.update_one(
+                    {"id": entity_id, "organization_id": org_id},
+                    {"$set": update_doc}
+                )
+            elif entity_type == "esg_task":
+                # Directly update the task
+                await db.esg_reporting_tasks.update_one(
+                    {"id": entity_id, "organization_id": org_id},
+                    {"$set": update_doc}
+                )
+        except Exception as e:
+            print(f"Warning: Failed to update source entity on rejection: {e}")
+
     
     @staticmethod
     async def _process_request_changes(

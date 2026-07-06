@@ -700,8 +700,9 @@ async def update_task_status(
         if user_id:
             update_doc["approved_by_user_id"] = user_id
     
-    # Track rejection
+    # Track rejection - ALSO set status to reopened
     if approval_status == ApprovalStatus.REJECTED.value:
+        update_doc["status"] = TaskStatus.REOPENED.value  # Auto-reopen on rejection
         update_doc["rejected_at"] = now
         if user_id:
             update_doc["rejected_by_user_id"] = user_id
