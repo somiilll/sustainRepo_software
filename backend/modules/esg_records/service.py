@@ -604,6 +604,77 @@ class ESGRecordsService:
             # Don't fail record creation if task update fails
             print(f"Warning: Failed to mark task as submitted: {e}")
     
+
+    async def _revert_task_to_pending(
+        self,
+        org_id: str,
+        category: str,
+        subcategory: Optional[str],
+        sub_subcategory: Optional[str],
+        facility_id: Optional[str],
+        reporting_period: Any,
+    ):
+        """
+        Revert a task back to pending when the associated record's reporting_period changes.
+        """
+        try:
+            # Determine period_key from reporting_period
+            period_key = None
+            if hasattr(reporting_period, 'model_dump'):
+                rp = reporting_period.model_dump()
+            else:
+                rp = reporting_period if isinstance(reporting_period, dict) else {}
+            
+            rp_type = rp.get("reporting_type") or rp.get("type")
+            if rp_type == "yearly":
+                period_key = str(rp.get("year"))
+            elif rp_type == "monthly":
+                month = rp.get("month")
+                if isinstance(month, str) and not month.isdigit():
+                    month_names = ["January", "February", "March", "April", "May", "June",
+                                   "July", "August", "September", "October", "November", "December"]
+                    try:
+                        month_num = month_names.index(month) + 1
+                    except ValueError:
+                        month_num = 1
+                else:
+                    month_num = int(month) if month else 1
+                period_key = f"{rp.get('year')}-{str(month_num).zfill(2)}"
+            elif rp_type == "quarterly":
+                quarter = rp.get("quarter", "").replace("Q", "") if rp.get("quarter") else "1"
+                period_key = f"{rp.get('year')}-Q{quarter}"
+            
+            if not period_key:
+                return
+            
+            # Find and revert the task
+            task_query = {
+                "organization_id": org_id,
+                "category": category,
+                "period_key": period_key,
+            }
+            if subcategory:
+                task_query["subcategory"] = subcategory
+            if sub_subcategory:
+                task_query["sub_subcategory"] = sub_subcategory
+            if facility_id:
+                task_query["facility_id"] = facility_id
+            
+            now = datetime.now(timezone.utc).isoformat()
+            result = await db.esg_reporting_tasks.update_one(
+                task_query,
+                {"$set": {
+                    "status": "pending",
+                    "approval_status": "not_required",
+                    "updated_at": now,
+                }}
+            )
+            
+            if result.modified_count > 0:
+                print(f"Reverted task to pending for {category}/{subcategory} period={period_key}")
+        except Exception as e:
+            print(f"Warning: Failed to revert task to pending: {e}")
+
     async def update_record(
         self,
         section: ESG_SECTION,
@@ -770,7 +841,37 @@ class ESGRecordsService:
                 subcategory=current.get("subcategory"),
                 sub_subcategory=current.get("sub_subcategory"),
                 facility_id=current.get("facility_id"),
-                reporting_period=current.get("reporting_period"),
+                reporting_period=updated.get("reporting_period"),  # Use NEW period
+                requires_approval=requires_approval,
+            )
+        
+        # Handle reporting_period change on a completed record
+        # If user changes the period, revert OLD task to pending and mark NEW task as completed
+        if "reporting_period" in changed_fields and current.get("status") == "completed":
+            old_period = current.get("reporting_period")
+            new_period = updated.get("reporting_period")
+            
+            print(f"Reporting period changed from {old_period} to {new_period}")
+            
+            # Revert the old task back to pending
+            await self._revert_task_to_pending(
+                org_id=current.get("org_id"),
+                category=current.get("category"),
+                subcategory=current.get("subcategory"),
+                sub_subcategory=current.get("sub_subcategory"),
+                facility_id=current.get("facility_id"),
+                reporting_period=old_period,
+            )
+            
+            # Mark the new task as completed
+            await self._mark_task_completed(
+                org_id=current.get("org_id"),
+                user_id=user_id,
+                category=current.get("category"),
+                subcategory=current.get("subcategory"),
+                sub_subcategory=current.get("sub_subcategory"),
+                facility_id=current.get("facility_id"),
+                reporting_period=new_period,
                 requires_approval=requires_approval,
             )
         
@@ -797,7 +898,7 @@ class ESGRecordsService:
                 previous_snapshot=current if is_edit_of_approved else None,
             )
         elif should_create_approval and not assignment:
-            print(f"WARNING: should_create_approval=True but no assignment found!")
+            print("WARNING: should_create_approval=True but no assignment found!")
         
         # Create version snapshot
         await self._create_version_snapshot(
