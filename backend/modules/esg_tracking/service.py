@@ -709,6 +709,7 @@ class TrackingService:
                 filling_freq = None
                 requires_appr = False
                 assignees_list = []  # Multi-assignee support
+                appr_status_val = None  # Approval status from assignment
                 
                 if assignment:
                     assigned += 1
@@ -720,6 +721,7 @@ class TrackingService:
                     requires_appr = assignment.get("requires_approval", False)
                     last_reminder = assignment.get("last_reminder_sent_at")
                     assignees_list = assignment.get("assignees", [])
+                    appr_status_val = assignment.get("approval_status", "not_required")
                     
                     if assigned_to_user_id:
                         assigned_user_ids.add(assigned_to_user_id)
@@ -746,10 +748,12 @@ class TrackingService:
                 else:
                     unassigned += 1
                 
-                # Approval status
+                # Approval status - prefer from approval_request, fallback to assignment
                 appr_status = None
                 if approval:
                     appr_status = approval.get("status")
+                elif appr_status_val:
+                    appr_status = appr_status_val  # From assignment's approval_status field
                 
                 # Apply filters
                 if filters:

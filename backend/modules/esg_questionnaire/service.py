@@ -2052,28 +2052,44 @@ class ESGQuestionnaireService:
     ) -> None:
         """
         Check if a disclosure requires approval and trigger approval workflow.
+        Also updates assignment status with new dual-status architecture.
         
         This is called after a response is saved. It:
         1. Checks if there's an assignment for this question with requires_approval=True
         2. Checks if the organization has approval workflows enabled
         3. Creates an approval_request if conditions are met
+        4. Updates assignment status accordingly
         """
         try:
             from shared.database.mongo import db
             from modules.approval_workflow.service import ApprovalWorkflowService
             from modules.approval_workflow.models import SubmitForApprovalInput, EntityType
             
-            # Check if there's an assignment with requires_approval=True
+            # Check if there's an assignment for this question
             assignment = await db.esg_assignments.find_one({
                 "organization_id": org_id,
                 "entity_id": question_key,
                 "entity_type": "question",
                 "reporting_period": reporting_year,
-                "requires_approval": True,
             }, {"_id": 0})
             
             if not assignment:
-                return  # No approval required for this disclosure
+                return  # No assignment for this disclosure
+            
+            requires_approval = assignment.get("requires_approval", False)
+            
+            # Update assignment status with new architecture
+            # status=completed (user finished work)
+            # approval_status depends on requires_approval
+            await self._update_assignment_status(
+                assignment_id=assignment.get("id"),
+                status="completed",
+                approval_status="pending_approval" if requires_approval else "not_required",
+                completed_by_user_id=changed_by_user_id,
+            )
+            
+            if not requires_approval:
+                return  # No approval required, we're done
             
             # Check if org has approval workflow enabled for esg_response entity type
             workflow = await ApprovalWorkflowService.get_workflow_for_entity(
@@ -2127,18 +2143,48 @@ class ESGQuestionnaireService:
             
             if success:
                 print(f"Auto-submitted approval request for {question_key}: {request.get('id')}")
-                
-                # Update assignment status to 'submitted'
-                await db.esg_assignments.update_one(
-                    {"id": assignment.get("id")},
-                    {"$set": {"status": "submitted"}}
-                )
+                # Status already updated above via _update_assignment_status
             else:
                 print(f"Warning: Failed to auto-submit approval for {question_key}: {message}")
                 
         except Exception as e:
             # Don't fail the save if approval workflow fails
             print(f"Warning: Approval workflow trigger failed for {question_key}: {e}")
+
+    async def _update_assignment_status(
+        self,
+        assignment_id: str,
+        status: str,
+        approval_status: str,
+        completed_by_user_id: Optional[str] = None,
+    ) -> None:
+        """
+        Update assignment status using new dual-status architecture.
+        
+        Args:
+            assignment_id: Assignment to update
+            status: Operational status (pending/completed/reopened)
+            approval_status: Governance status (not_required/pending_approval/approved/rejected)
+            completed_by_user_id: User who completed the work
+        """
+        from shared.database.mongo import db
+        from datetime import datetime, timezone
+        
+        update_doc = {
+            "status": status,
+            "approval_status": approval_status,
+            "updated_at": datetime.now(timezone.utc),
+        }
+        
+        if status == "completed" and completed_by_user_id:
+            update_doc["completed_at"] = datetime.now(timezone.utc)
+            update_doc["completed_by_user_id"] = completed_by_user_id
+        
+        await db.esg_assignments.update_one(
+            {"id": assignment_id},
+            {"$set": update_doc}
+        )
+
 
     async def get_response_summary(
         self,

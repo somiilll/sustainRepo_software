@@ -81,17 +81,26 @@ import MyTasks from './MyTasks';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
-// Status colors
+// Operational status colors
 const STATUS_COLORS = {
   completed: 'bg-emerald-100 text-emerald-700 border-emerald-200',
   in_progress: 'bg-blue-100 text-blue-700 border-blue-200',
   not_started: 'bg-stone-100 text-stone-600 border-stone-200',
+  reopened: 'bg-amber-100 text-amber-700 border-amber-200',
   stale: 'bg-amber-100 text-amber-700 border-amber-200',
   overdue: 'bg-red-100 text-red-700 border-red-200',
 };
 
-// Get status badge
-const StatusBadge = ({ status, isOverdue, isStale, isDueSoon }) => {
+// Approval status colors
+const APPROVAL_COLORS = {
+  not_required: '',
+  pending_approval: 'bg-amber-100 text-amber-700 border-amber-200',
+  approved: 'bg-green-100 text-green-700 border-green-200',
+  rejected: 'bg-red-100 text-red-700 border-red-200',
+};
+
+// Get status badge - updated for dual status architecture
+const StatusBadge = ({ status, approvalStatus, isOverdue, isStale, isDueSoon }) => {
   if (isOverdue) {
     return (
       <Badge className={`${STATUS_COLORS.overdue} text-xs`}>
@@ -117,16 +126,30 @@ const StatusBadge = ({ status, isOverdue, isStale, isDueSoon }) => {
   const statusMap = {
     completed: { icon: CheckCircle2, label: 'Completed' },
     in_progress: { icon: Clock, label: 'In Progress' },
+    reopened: { icon: AlertCircle, label: 'Reopened' },
     not_started: { icon: Circle, label: 'Not Started' },
+  };
+  
+  const approvalMap = {
+    pending_approval: 'Awaiting Approval',
+    approved: 'Approved',
+    rejected: 'Rejected',
   };
   
   const config = statusMap[status] || statusMap.not_started;
   const Icon = config.icon;
   
   return (
-    <Badge className={`${STATUS_COLORS[status] || STATUS_COLORS.not_started} text-xs`}>
-      <Icon className="w-3 h-3 mr-1" /> {config.label}
-    </Badge>
+    <div className="flex items-center gap-1.5 flex-wrap">
+      <Badge className={`${STATUS_COLORS[status] || STATUS_COLORS.not_started} text-xs`}>
+        <Icon className="w-3 h-3 mr-1" /> {config.label}
+      </Badge>
+      {approvalStatus && approvalStatus !== 'not_required' && (
+        <Badge className={`${APPROVAL_COLORS[approvalStatus]} text-xs`}>
+          {approvalMap[approvalStatus] || approvalStatus}
+        </Badge>
+      )}
+    </div>
   );
 };
 
@@ -899,6 +922,7 @@ export default function ESGTrackingTab({
                       <TableCell>
                         <StatusBadge 
                           status={disc.completion_status}
+                          approvalStatus={disc.approval_status}
                           isOverdue={disc.is_overdue}
                           isStale={disc.is_stale}
                           isDueSoon={disc.is_due_soon}
