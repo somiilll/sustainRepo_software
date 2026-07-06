@@ -7,6 +7,7 @@ Handles business logic for ESG records with versioning support.
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
 import uuid
+from fastapi import HTTPException
 from shared.database.mongo import db
 
 from .contracts import (
@@ -1353,10 +1354,14 @@ class ESGRecordsService:
                 # Fetch the created/updated assignment
                 assignment = await db.esg_assignments.find_one({"id": assignment_id}, {"_id": 0})
                 if assignment:
-                    await gen_tasks(db, assignment)
+                    task_result = await gen_tasks(db, assignment)
+                    print(f"Task generation result for assignment {assignment_id}: {task_result}")
             except Exception as e:
-                # Log but don't fail the assignment creation
-                print(f"Task generation warning: {e}")
+                import traceback
+                error_msg = f"Task generation failed: {str(e)}"
+                print(f"ERROR: {error_msg}")
+                traceback.print_exc()
+                raise HTTPException(status_code=500, detail=error_msg)
 
         # CASCADE: If assigning parent category (no subcategory), create child assignments
         cascade_results = []
@@ -1517,9 +1522,13 @@ class ESGRecordsService:
                     from .task_engine import generate_tasks_for_assignment as gen_tasks
                     assignment = await db.esg_assignments.find_one({"id": child_assignment_id}, {"_id": 0})
                     if assignment:
-                        await gen_tasks(db, assignment)
+                        task_result = await gen_tasks(db, assignment)
+                        print(f"Task generation result for child assignment {child_assignment_id}: {task_result}")
                 except Exception as e:
-                    print(f"Task generation warning for child {subcat}/{sub_subcat}: {e}")
+                    import traceback
+                    print(f"ERROR: Task generation failed for child {subcat}/{sub_subcat}: {e}")
+                    traceback.print_exc()
+                    # Don't fail cascade, but log the error
         
         return results
 
