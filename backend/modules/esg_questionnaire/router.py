@@ -128,16 +128,25 @@ async def get_gri_disclosures(
     Get GRI disclosures with responses for a section.
     Returns questions grouped by disclosure with completion status.
     Also includes pending submission status for the current user.
+    
+    Role-based behavior:
+    - Admin/Super Admin: See ALL questions in the section
+    - Regular User: See ONLY questions they are assigned to
     """
     org_id = current_user.get("organization_id")
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization assigned")
     
+    user_id = current_user.get("id")
+    user_role = current_user.get("role", "user")
+    is_admin = user_role in ["admin", "super_admin"]
+    
     result = await esg_questionnaire_service.get_gri_disclosures(
         org_id=org_id,
         section=section,
         reporting_period=reporting_period,
-        user_id=current_user.get("id")
+        user_id=user_id,
+        filter_by_assignment=not is_admin,  # Regular users only see assigned questions
     )
     
     return result

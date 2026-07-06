@@ -146,6 +146,9 @@ export default function ESGRecordsTracker({
   hideReportingPeriodSelector = false
 }) {
   const { token, user } = useAuth();
+  // Role check - only admins can assign and see org-wide data
+  const isUserAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+  
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [categories, setCategories] = useState([]);
@@ -1035,20 +1038,23 @@ export default function ESGRecordsTracker({
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openAssignModal({ 
-                            category: cat.category, 
-                            assignChildren: true,
-                            // Pass existing assignment for pre-fill
-                            ...cat.assignment
-                          })}
-                          title={cat.assignment ? "Edit Assignment" : "Assign (includes all subcategories)"}
-                        >
-                          <UserPlus className="w-4 h-4" />
-                        </Button>
-                        {cat.assignment && (
+                        {/* Assign button - Admin only */}
+                        {isUserAdmin && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openAssignModal({ 
+                              category: cat.category, 
+                              assignChildren: true,
+                              // Pass existing assignment for pre-fill
+                              ...cat.assignment
+                            })}
+                            title={cat.assignment ? "Edit Assignment" : "Assign (includes all subcategories)"}
+                          >
+                            <UserPlus className="w-4 h-4" />
+                          </Button>
+                        )}
+                        {cat.assignment && isUserAdmin && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -1152,20 +1158,23 @@ export default function ESGRecordsTracker({
                           {effectiveAssignment?.status ? getStatusBadge(effectiveAssignment.status) : '-'}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openAssignModal({ 
-                              category: cat.category, 
-                              subcategory: subcat.subcategory,
-                              assignChildren: true,
-                              // Pass existing assignment for pre-fill (use own or inherited)
-                              ...(subcat.assignment || {})
-                            })}
-                            title={subcat.assignment ? "Edit Assignment" : "Assign (includes all sub-subcategories)"}
-                          >
-                            <UserPlus className="w-4 h-4" />
-                          </Button>
+                          {/* Assign button - Admin only */}
+                          {isUserAdmin && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openAssignModal({ 
+                                category: cat.category, 
+                                subcategory: subcat.subcategory,
+                                assignChildren: true,
+                                // Pass existing assignment for pre-fill (use own or inherited)
+                                ...(subcat.assignment || {})
+                              })}
+                              title={subcat.assignment ? "Edit Assignment" : "Assign (includes all sub-subcategories)"}
+                            >
+                              <UserPlus className="w-4 h-4" />
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
 
@@ -1226,20 +1235,23 @@ export default function ESGRecordsTracker({
                               {subsubEffectiveAssignment?.status ? getStatusBadge(subsubEffectiveAssignment.status) : '-'}
                             </TableCell>
                             <TableCell className="text-right">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => openAssignModal({ 
-                                  category: cat.category, 
-                                  subcategory: subcat.subcategory,
-                                  sub_subcategory: subsub.sub_subcategory,
-                                  // Pass existing assignment for pre-fill
-                                  ...(subsub.assignment || {})
-                                })}
-                                title={subsub.assignment ? "Edit Assignment" : "Assign"}
-                              >
-                                <UserPlus className="w-4 h-4" />
-                              </Button>
+                              {/* Assign button - Admin only */}
+                              {isUserAdmin && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openAssignModal({ 
+                                    category: cat.category, 
+                                    subcategory: subcat.subcategory,
+                                    sub_subcategory: subsub.sub_subcategory,
+                                    // Pass existing assignment for pre-fill
+                                    ...(subsub.assignment || {})
+                                  })}
+                                  title={subsub.assignment ? "Edit Assignment" : "Assign"}
+                                >
+                                  <UserPlus className="w-4 h-4" />
+                                </Button>
+                              )}
                             </TableCell>
                           </TableRow>
                         )})

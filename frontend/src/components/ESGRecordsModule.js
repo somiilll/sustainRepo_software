@@ -13,6 +13,7 @@ import {
   ClipboardList
 } from 'lucide-react';
 import { generateReportingYears, getCurrentReportingYear } from '../utils/reportingYearUtils';
+import { isAdmin } from '../utils/roleUtils';
 import ESGRecordsTracker from './ESGRecordsTracker';
 import ESGRecordsDataEntry from './ESGRecordsDataEntry';
 import MyTasks from './MyTasks';
@@ -30,7 +31,8 @@ const API = process.env.REACT_APP_BACKEND_URL;
  * - Add Metric: Metric creation with save as draft
  */
 export default function ESGRecordsModule({ section = 'environment', framework = null }) {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+  const userIsAdmin = isAdmin(user);
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(searchParams.get('subtab') || 'my-tasks');
   const [reportingPeriod, setReportingPeriod] = useState('');
@@ -113,17 +115,20 @@ export default function ESGRecordsModule({ section = 'environment', framework = 
         </div>
       </div>
 
-      {/* Subtabs */}
+      {/* Subtabs - Different tabs for Admin vs User */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5 lg:w-[750px]">
+        <TabsList className={`grid w-full ${userIsAdmin ? 'grid-cols-5' : 'grid-cols-4'} lg:w-[${userIsAdmin ? '750' : '600'}px]`}>
           <TabsTrigger value="my-tasks" className="gap-2" data-testid="metrics-my-tasks-tab">
             <ClipboardList className="w-4 h-4" />
             <span className="hidden sm:inline">My Tasks</span>
           </TabsTrigger>
-          <TabsTrigger value="tracker" className="gap-2" data-testid="metrics-tracker-tab">
-            <BarChart3 className="w-4 h-4" />
-            <span className="hidden sm:inline">Tracker</span>
-          </TabsTrigger>
+          {/* Tracker Tab - Admin only (org-wide view & assignment) */}
+          {userIsAdmin && (
+            <TabsTrigger value="tracker" className="gap-2" data-testid="metrics-tracker-tab">
+              <BarChart3 className="w-4 h-4" />
+              <span className="hidden sm:inline">Tracker</span>
+            </TabsTrigger>
+          )}
           <TabsTrigger value="data-entry" className="gap-2" data-testid="metrics-data-entry-tab">
             <FileText className="w-4 h-4" />
             <span className="hidden sm:inline">Data Entry</span>
@@ -147,13 +152,15 @@ export default function ESGRecordsModule({ section = 'environment', framework = 
           />
         </TabsContent>
 
-        {/* Tracker Tab - Visible to all users */}
-        <TabsContent value="tracker" className="mt-6">
-          <ESGRecordsTracker 
-            section={section} 
-            framework={framework}
-          />
-        </TabsContent>
+        {/* Tracker Tab - Admin only (org-wide view & assignment) */}
+        {userIsAdmin && (
+          <TabsContent value="tracker" className="mt-6">
+            <ESGRecordsTracker 
+              section={section} 
+              framework={framework}
+            />
+          </TabsContent>
+        )}
 
         {/* Data Entry Tab */}
         <TabsContent value="data-entry" className="mt-6">

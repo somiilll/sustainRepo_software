@@ -131,12 +131,15 @@ class ESGQuestionnaireService:
         section: str,
         reporting_period: str,
         user_id: Optional[str] = None,
+        filter_by_assignment: bool = False,
     ) -> Dict[str, Any]:
         """
         Get GRI disclosures with responses for a section.
         Returns questions with their current responses.
         Supports sub_questions with individual response fields.
         Also includes pending submission status for the user.
+        
+        If filter_by_assignment=True, only returns questions assigned to the user.
         """
         # Fetch GRI question configs for this section
         configs = await self._configs.find(
@@ -154,6 +157,54 @@ class ESGQuestionnaireService:
                 "questions": [],
                 "total": 0
             }
+        
+        # If filtering by assignment, get user's assigned disclosure/question IDs
+        assigned_disclosure_ids = None
+        assigned_question_keys = None
+        if filter_by_assignment and user_id:
+            # Get assignments for this user from esg_assignments
+            assignments_cursor = db.esg_assignments.find(
+                {
+                    "organization_id": org_id,
+                    "assigned_to_user_id": user_id,
+                    "entity_type": {"$in": ["disclosure", "question", "material_topic"]},
+                    "reporting_period": reporting_period,
+                },
+                {"_id": 0, "entity_id": 1, "entity_type": 1, "disclosure_id": 1, "question_key": 1}
+            )
+            assignments = await assignments_cursor.to_list(500)
+            
+            assigned_disclosure_ids = set()
+            assigned_question_keys = set()
+            for a in assignments:
+                if a.get("entity_type") == "disclosure":
+                    assigned_disclosure_ids.add(a.get("entity_id") or a.get("disclosure_id"))
+                elif a.get("entity_type") == "question":
+                    assigned_question_keys.add(a.get("entity_id") or a.get("question_key"))
+                elif a.get("entity_type") == "material_topic":
+                    # If assigned to a material topic, include all disclosures in that topic
+                    topic_id = a.get("entity_id")
+                    if topic_id:
+                        topic_disclosures = [c.get("disclosure_id") for c in configs 
+                                            if c.get("material_topic_id") == topic_id]
+                        assigned_disclosure_ids.update(topic_disclosures)
+            
+            # Filter configs to only include assigned items
+            if assigned_disclosure_ids or assigned_question_keys:
+                configs = [
+                    c for c in configs 
+                    if c.get("disclosure_id") in assigned_disclosure_ids 
+                    or c.get("question_key") in assigned_question_keys
+                ]
+            else:
+                # User has no assignments - return empty
+                return {
+                    "section": section,
+                    "reporting_period": reporting_period,
+                    "questions": [],
+                    "total": 0,
+                    "message": "No disclosures assigned to you in this section"
+                }
         
         # Build list of all response keys (including sub-question keys)
         all_response_keys = []

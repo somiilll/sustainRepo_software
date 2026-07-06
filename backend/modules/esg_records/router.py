@@ -435,11 +435,22 @@ async def get_tracker_assignments(
 ):
     """
     Get tracker data for record assignments.
-    Shows category assignments with completion, staleness, and workflow status.
+    
+    Role-based behavior:
+    - Admin/Super Admin: See ALL assignments in the organization
+    - Regular User: See ONLY assignments where they are the assignee
     """
     org_id = current_user.get("organization_id")
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    user_id = current_user.get("id")
+    user_role = current_user.get("role", "user")
+    is_admin = user_role in ["admin", "super_admin"]
+    
+    # For non-admin users, force filter to their own assignments only
+    if not is_admin:
+        assigned_to = user_id
     
     assignments = await esg_records_service.get_tracker_assignments(
         org_id=org_id,
@@ -453,7 +464,11 @@ async def get_tracker_assignments(
         staleness=staleness,
     )
     
-    return {"assignments": assignments, "total": len(assignments)}
+    return {
+        "assignments": assignments, 
+        "total": len(assignments),
+        "is_admin_view": is_admin,
+    }
 
 
 @router.get("/tracker/{section}/stats")
@@ -486,10 +501,17 @@ async def create_record_assignment(
     """
     Create or update a record category assignment.
     Supports multiple assignments per category (multi-user).
+    
+    Admin only - regular users cannot assign tasks.
     """
     org_id = current_user.get("organization_id")
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    # Check if user is admin
+    user_role = current_user.get("role", "user")
+    if user_role not in ["admin", "super_admin"]:
+        raise HTTPException(status_code=403, detail="Only admins can create assignments")
     
     user_id = current_user.get("id")
     
