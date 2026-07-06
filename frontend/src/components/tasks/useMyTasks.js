@@ -24,6 +24,7 @@ export default function useMyTasks({
   const [questions, setQuestions] = useState([]);
   const [stats, setStats] = useState({});
   const [groupedTasks, setGroupedTasks] = useState([]);
+  const [hasAssignments, setHasAssignments] = useState(false);  // Track if user has any assignments
 
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -37,7 +38,9 @@ export default function useMyTasks({
       });
       
       const fetchedTasks = tasksRes.data.tasks || [];
+      const assignmentCount = tasksRes.data.assignment_count || 0;
       setTasks(fetchedTasks);
+      setHasAssignments(assignmentCount > 0);
       
       // Group tasks by category
       const grouped = groupTasksByCategory(fetchedTasks);
@@ -91,6 +94,7 @@ export default function useMyTasks({
     questions,
     stats,
     groupedTasks,
+    hasAssignments,
     refresh: fetchTasks,
   };
 }

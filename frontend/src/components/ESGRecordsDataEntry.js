@@ -328,6 +328,7 @@ export default function ESGRecordsDataEntry({
         field_values: formData.field_values,
         source_of_information: formData.source_of_information,
         notes: formData.notes,
+        status: asDraft ? 'draft' : 'completed',  // Send status to backend
       };
 
       await axios.post(`${API}/api/esg-records/records/${section}`, payload, { headers });
@@ -500,6 +501,11 @@ export default function ESGRecordsDataEntry({
    * Render dual status badges for a record using the new architecture:
    * - status: operational completion (completed, draft, reopened, etc.)
    * - approval_status: governance state (not_required, pending_approval, approved, rejected)
+   * 
+   * Legacy status mapping:
+   * - 'saved' → completed (no approval needed)
+   * - 'submitted' → completed (check approval_status for whether approval is needed)
+   * - null/undefined → pending
    */
   const renderRecordStatusBadges = (record, isLocked = false) => {
     if (isLocked) {
@@ -511,21 +517,10 @@ export default function ESGRecordsDataEntry({
       );
     }
     
-    // Map record fields to task-style dual badges
-    // For records: status = operational, approval_status = governance
-    const operationalStatus = record.status || 'pending';
-    const approvalStatus = record.approval_status || 'not_required';
+    const operationalStatus = record.status;
+    const approvalStatus = record.approval_status;
     
-    // Handle legacy "submitted" status - map to completed + pending_approval
-    let displayStatus = operationalStatus;
-    let displayApprovalStatus = approvalStatus;
-    
-    if (operationalStatus === 'submitted') {
-      displayStatus = 'completed';
-      displayApprovalStatus = 'pending_approval';
-    }
-    
-    // Draft status handling - show draft badge
+    // Draft status - show draft badge
     if (operationalStatus === 'draft') {
       return (
         <Badge className="bg-yellow-100 text-yellow-700 gap-1">
@@ -533,6 +528,31 @@ export default function ESGRecordsDataEntry({
           Draft
         </Badge>
       );
+    }
+    
+    // Map legacy statuses to new dual-status architecture
+    let displayStatus = operationalStatus;
+    let displayApprovalStatus = approvalStatus;
+    
+    // Legacy 'saved' status = completed with no approval needed
+    if (operationalStatus === 'saved') {
+      displayStatus = 'completed';
+      displayApprovalStatus = 'not_required';
+    }
+    // Legacy 'submitted' status - only show approval if approval_status explicitly says so
+    else if (operationalStatus === 'submitted') {
+      displayStatus = 'completed';
+      // If approval_status is not set, assume no approval workflow (legacy data)
+      displayApprovalStatus = approvalStatus || 'not_required';
+    }
+    // No status (pending/null)
+    else if (!operationalStatus || operationalStatus === 'pending') {
+      displayStatus = 'pending';
+      displayApprovalStatus = 'not_required';
+    }
+    // For new dual-status records, use approval_status as-is
+    else {
+      displayApprovalStatus = approvalStatus || 'not_required';
     }
     
     return (

@@ -114,10 +114,16 @@ class ESGRecordsService:
             requires_approval = assignment.get("requires_approval", False)
         
         # Determine record status using dual-status architecture
-        # status = operational completion (always "completed" when user saves)
-        # approval_status = governance state (pending_approval if requires_approval, else not_required)
-        record_status = "completed"
-        record_approval_status = "pending_approval" if requires_approval else "not_required"
+        # status = operational completion
+        # approval_status = governance state
+        if data.status == 'draft':
+            # Draft: not completed yet, no approval needed
+            record_status = "draft"
+            record_approval_status = "not_required"
+        else:
+            # Completed: mark as completed, check if approval is required
+            record_status = "completed"
+            record_approval_status = "pending_approval" if requires_approval else "not_required"
         
         record = {
             "id": str(uuid.uuid4()),
@@ -157,17 +163,18 @@ class ESGRecordsService:
             user_id=user_id
         )
         
-        # LINK TASK TO RECORD: Mark corresponding task as completed
-        await self._mark_task_completed(
-            org_id=org_id,
-            user_id=user_id,
-            category=data.category,
-            subcategory=data.subcategory,
-            sub_subcategory=data.sub_subcategory,
-            facility_id=data.facility_id,
-            reporting_period=data.reporting_period,
-            requires_approval=requires_approval,
-        )
+        # LINK TASK TO RECORD: Mark corresponding task as completed (only if not draft)
+        if record_status != "draft":
+            await self._mark_task_completed(
+                org_id=org_id,
+                user_id=user_id,
+                category=data.category,
+                subcategory=data.subcategory,
+                sub_subcategory=data.sub_subcategory,
+                facility_id=data.facility_id,
+                reporting_period=data.reporting_period,
+                requires_approval=requires_approval,
+            )
         
         # Remove MongoDB _id before returning
         record.pop("_id", None)
@@ -474,9 +481,15 @@ class ESGRecordsService:
         self,
         section: ESG_SECTION,
         org_id: str,
-        filters: RecordListFilters
+        filters: RecordListFilters,
+        assigned_categories: Optional[List[tuple]] = None,
     ) -> Dict[str, Any]:
-        """List records with filtering and pagination."""
+        """
+        List records with filtering and pagination.
+        
+        If assigned_categories is provided, only returns records matching those categories.
+        assigned_categories is a list of (category, subcategory, sub_subcategory) tuples.
+        """
         collection = self._get_records_collection(section)
         
         # Build query
@@ -503,6 +516,31 @@ class ESGRecordsService:
                 {"notes": {"$regex": filters.search, "$options": "i"}},
                 {"source_of_information": {"$regex": filters.search, "$options": "i"}}
             ]
+        
+        # Filter by assigned categories for non-admin users
+        if assigned_categories:
+            # Build category filter conditions
+            category_conditions = []
+            for cat, subcat, sub_subcat in assigned_categories:
+                condition = {"category": cat}
+                # If subcategory is specified in assignment, filter by it
+                if subcat:
+                    condition["subcategory"] = subcat
+                # If sub_subcategory is specified, add it
+                if sub_subcat:
+                    condition["sub_subcategory"] = sub_subcat
+                category_conditions.append(condition)
+            
+            if category_conditions:
+                # If other $or conditions exist, wrap them together
+                if "$or" in query:
+                    existing_or = query.pop("$or")
+                    query["$and"] = [
+                        {"$or": existing_or},
+                        {"$or": category_conditions}
+                    ]
+                else:
+                    query["$or"] = category_conditions
         
         # Count total
         total = await collection.count_documents(query)

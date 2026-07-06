@@ -16,7 +16,8 @@ export default function TaskGroupedView({
   filters, 
   onFillTask, 
   onViewTask,
-  emptyMessage = 'No metric tasks found'
+  emptyMessage = 'No metric tasks found',
+  hasAssignments = false,  // New prop to indicate if user has assignments
 }) {
   const [expandedCategories, setExpandedCategories] = useState({});
 
@@ -60,7 +61,11 @@ export default function TaskGroupedView({
       <Card className="p-8 text-center">
         <ClipboardList className="w-12 h-12 text-stone-300 mx-auto mb-3" />
         <h3 className="text-lg font-medium text-text-primary">{emptyMessage}</h3>
-        <p className="text-text-muted">You do not have any tasks assigned.</p>
+        <p className="text-text-muted">
+          {hasAssignments 
+            ? 'Tasks will be generated once a schedule (start date & frequency) is set by admin.'
+            : 'You do not have any tasks assigned.'}
+        </p>
       </Card>
     );
   }

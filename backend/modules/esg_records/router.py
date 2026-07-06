@@ -104,10 +104,51 @@ async def list_records(
     limit: int = Query(20, ge=1, le=100),
     current_user: dict = Depends(get_current_user)
 ):
-    """List ESG records with filtering and pagination. Includes GHG-imported records."""
+    """
+    List ESG records with filtering and pagination. Includes GHG-imported records.
+    
+    Role-based behavior:
+    - Admin/Super Admin: See ALL records in the organization
+    - Regular User: See ONLY records for categories/subcategories they are assigned to
+    """
     org_id = current_user.get("organization_id")
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    user_id = current_user.get("id")
+    user_role = current_user.get("role", "user")
+    is_admin = user_role in ["admin", "super_admin"]
+    
+    # For non-admin users, get their assigned categories
+    assigned_categories = None
+    if not is_admin:
+        from shared.database.mongo import db
+        assignments_cursor = db.esg_assignments.find(
+            {
+                "organization_id": org_id,
+                "assigned_to_user_id": user_id,
+                "entity_type": "record_category",
+            },
+            {"_id": 0, "category": 1, "subcategory": 1, "sub_subcategory": 1}
+        )
+        assignments = await assignments_cursor.to_list(500)
+        
+        if assignments:
+            # Build list of (category, subcategory) tuples user is assigned to
+            assigned_categories = [
+                (a.get("category"), a.get("subcategory"), a.get("sub_subcategory"))
+                for a in assignments
+            ]
+        else:
+            # User has no assignments - return empty
+            return {
+                "records": [],
+                "total": 0,
+                "page": page,
+                "limit": limit,
+                "total_pages": 0,
+                "message": "No categories assigned to you"
+            }
     
     filters = RecordListFilters(
         category=category,
@@ -126,7 +167,8 @@ async def list_records(
     result = await esg_records_service.list_records(
         section=section,
         org_id=org_id,
-        filters=filters
+        filters=filters,
+        assigned_categories=assigned_categories,  # Pass filter for non-admin users
     )
     
     # Get GHG-imported records if enabled and section is environment
@@ -157,6 +199,31 @@ async def list_records(
                 r for r in imported_records
                 if r.get("subcategory", "").lower() == subcategory.lower()
             ]
+        
+        # For non-admin users, filter GHG records by assigned categories too
+        if assigned_categories and imported_records:
+            filtered_imported = []
+            for rec in imported_records:
+                rec_cat = rec.get("category", "")
+                rec_subcat = rec.get("subcategory", "")
+                rec_sub_subcat = rec.get("sub_subcategory", "")
+                
+                # Check if record matches any assigned category
+                for assigned_cat, assigned_subcat, assigned_sub_subcat in assigned_categories:
+                    # Match category
+                    if rec_cat != assigned_cat:
+                        continue
+                    # If assignment has subcategory, must match
+                    if assigned_subcat and rec_subcat != assigned_subcat:
+                        continue
+                    # If assignment has sub_subcategory, must match
+                    if assigned_sub_subcat and rec_sub_subcat != assigned_sub_subcat:
+                        continue
+                    # Passed all filters, include this record
+                    filtered_imported.append(rec)
+                    break
+            
+            imported_records = filtered_imported
         
         # Merge with native records
         # For now, append imported at the end; in future could interleave by date
@@ -764,7 +831,14 @@ async def get_my_tasks(
         domain=domain,
     )
     
-    return {"tasks": tasks, "total": len(tasks)}
+    # Get assignment count for this user (to show if they have assignments even without tasks)
+    assignment_count = await db.esg_assignments.count_documents({
+        "organization_id": org_id,
+        "assigned_to_user_id": user_id,
+        "entity_type": "record_category",
+    })
+    
+    return {"tasks": tasks, "total": len(tasks), "assignment_count": assignment_count}
 
 
 @router.get("/tasks/summary")

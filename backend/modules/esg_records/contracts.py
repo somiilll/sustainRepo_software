@@ -169,6 +169,7 @@ class CreateRecordRequest(BaseModel):
     evidence_files: List[Dict[str, Any]] = []
     source_of_information: Optional[str] = None
     notes: Optional[str] = None
+    status: Optional[str] = None  # 'draft' or 'completed' (default completed)
 
 
 class UpdateRecordRequest(BaseModel):

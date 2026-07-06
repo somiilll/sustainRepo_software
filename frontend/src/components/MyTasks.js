@@ -50,7 +50,8 @@ export default function MyTasks({
     tasks, 
     questions, 
     stats, 
-    groupedTasks, 
+    groupedTasks,
+    hasAssignments,
     refresh 
   } = useMyTasks({
     token,
@@ -171,6 +172,7 @@ export default function MyTasks({
           onFillTask={handleFillTask}
           onViewTask={handleViewTask}
           emptyMessage="No metric tasks found"
+          hasAssignments={hasAssignments}
         />
       )}
 
