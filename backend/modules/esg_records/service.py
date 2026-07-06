@@ -120,6 +120,25 @@ class ESGRecordsService:
             # Check if this assignment requires approval
             if assignment:
                 requires_approval = assignment.get("requires_approval", False)
+            
+            # PERIOD VALIDATION: Check if user has a task for this reporting period
+            if not allow_without_assignment and data.reporting_period:
+                period_valid = await self._validate_task_period(
+                    org_id=org_id,
+                    user_id=user_id,
+                    category=data.category,
+                    subcategory=data.subcategory,
+                    sub_subcategory=data.sub_subcategory,
+                    facility_id=data.facility_id,
+                    reporting_period=data.reporting_period,
+                )
+                if not period_valid:
+                    rp = data.reporting_period
+                    period_str = f"{rp.month} {rp.year}" if rp.month else str(rp.year)
+                    raise ValueError(
+                        f"No task assigned for period {period_str}. "
+                        f"You can only submit data for periods assigned to you."
+                    )
         
         # Determine record status using dual-status architecture
         # status = operational completion
@@ -269,6 +288,87 @@ class ESGRecordsService:
                 best_match = assignment
         
         return best_match
+
+    async def _validate_task_period(
+        self,
+        org_id: str,
+        user_id: str,
+        category: str,
+        subcategory: Optional[str],
+        sub_subcategory: Optional[str],
+        facility_id: Optional[str],
+        reporting_period: Any,
+    ) -> bool:
+        """
+        Check if user has an active task for the given reporting period.
+        Returns True if a matching task exists, False otherwise.
+        """
+        # Build period_key from reporting_period
+        if not reporting_period:
+            return True  # No period specified, allow
+        
+        rp = reporting_period
+        rp_type = getattr(rp, 'reporting_type', None) or getattr(rp, 'type', None)
+        year = getattr(rp, 'year', None)
+        month = getattr(rp, 'month', None)
+        quarter = getattr(rp, 'quarter', None)
+        
+        if not year:
+            return True  # Can't validate without year
+        
+        # Build period_key to match task's period_key
+        if rp_type == "monthly" and month:
+            # Convert month name to number
+            month_names = ["January", "February", "March", "April", "May", "June",
+                          "July", "August", "September", "October", "November", "December"]
+            if isinstance(month, str) and month in month_names:
+                month_num = month_names.index(month) + 1
+            elif isinstance(month, int):
+                month_num = month
+            else:
+                month_num = 1
+            period_key = f"{year}-{str(month_num).zfill(2)}"
+        elif rp_type == "quarterly" and quarter:
+            q = quarter.replace("Q", "") if isinstance(quarter, str) else quarter
+            period_key = f"{year}-Q{q}"
+        elif rp_type == "yearly":
+            period_key = str(year)
+        else:
+            # Default to yearly if type not specified
+            period_key = str(year)
+        
+        # Step 1: Find task IDs that match the period_key and category
+        task_query = {
+            "organization_id": org_id,
+            "category": category,
+            "period_key": period_key,
+        }
+        if subcategory:
+            task_query["subcategory"] = subcategory
+        if sub_subcategory:
+            task_query["sub_subcategory"] = sub_subcategory
+        if facility_id:
+            task_query["facility_id"] = facility_id
+        
+        matching_tasks = await db.esg_reporting_tasks.find(
+            task_query,
+            {"_id": 0, "id": 1}
+        ).to_list(100)
+        
+        if not matching_tasks:
+            return False  # No tasks for this period
+        
+        task_ids = [t["id"] for t in matching_tasks]
+        
+        # Step 2: Check if user is assigned to any of these tasks
+        assignee = await db.esg_task_assignees.find_one({
+            "task_id": {"$in": task_ids},
+            "user_id": user_id,
+            "is_active": True,
+        })
+        
+        return assignee is not None
+
 
     async def _create_approval_request(
         self,
