@@ -673,8 +673,9 @@ class ApprovalWorkflowService:
                         
                         if record:
                             # Update the corresponding task's approval_status
+                            # Tasks use organization_id and period_key, not org_id and reporting_period
                             task_query = {
-                                "org_id": record.get("org_id"),
+                                "organization_id": record.get("organization_id") or record.get("org_id"),
                                 "category": record.get("category"),
                             }
                             if record.get("subcategory"):
@@ -683,15 +684,24 @@ class ApprovalWorkflowService:
                                 task_query["sub_subcategory"] = record.get("sub_subcategory")
                             if record.get("facility_id"):
                                 task_query["facility_id"] = record.get("facility_id")
-                            if record.get("reporting_period"):
-                                rp = record.get("reporting_period")
-                                if isinstance(rp, dict):
-                                    if rp.get("year"):
-                                        task_query["reporting_period.year"] = rp.get("year")
-                                    if rp.get("month"):
-                                        task_query["reporting_period.month"] = rp.get("month")
-                                    if rp.get("quarter"):
-                                        task_query["reporting_period.quarter"] = rp.get("quarter")
+                            
+                            # Build period_key from reporting_period (e.g., "2026-06" for monthly)
+                            rp = record.get("reporting_period")
+                            if rp and isinstance(rp, dict):
+                                year = rp.get("year")
+                                month = rp.get("month")
+                                quarter = rp.get("quarter")
+                                if year and month:
+                                    # Convert month name to number
+                                    month_map = {"January": "01", "February": "02", "March": "03", "April": "04",
+                                                 "May": "05", "June": "06", "July": "07", "August": "08",
+                                                 "September": "09", "October": "10", "November": "11", "December": "12"}
+                                    month_num = month_map.get(month, "01")
+                                    task_query["period_key"] = f"{year}-{month_num}"
+                                elif year and quarter:
+                                    task_query["period_key"] = f"{year}-{quarter}"
+                                elif year:
+                                    task_query["period_key"] = str(year)
                             
                             task_update_result = await db.esg_reporting_tasks.update_many(
                                 task_query,
