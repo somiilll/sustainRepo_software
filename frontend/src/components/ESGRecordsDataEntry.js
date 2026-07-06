@@ -23,6 +23,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from './ui/dialog';
 import { toast } from 'sonner';
 import { ImportedRecordModal, DynamicFieldRenderer } from './ESGRecords';
+import { OperationalStatusBadge, ApprovalStatusBadge } from './tasks/StatusBadge';
 import { 
   Plus, Search, Filter, History, FileText, Upload, 
   ChevronLeft, ChevronRight, Loader2, Building2, Calendar,
@@ -495,8 +496,12 @@ export default function ESGRecordsDataEntry({
     setEditData({});
   };
 
-  // Get status badge
-  const getStatusBadge = (status, isLocked = false) => {
+  /**
+   * Render dual status badges for a record using the new architecture:
+   * - status: operational completion (completed, draft, reopened, etc.)
+   * - approval_status: governance state (not_required, pending_approval, approved, rejected)
+   */
+  const renderRecordStatusBadges = (record, isLocked = false) => {
     if (isLocked) {
       return (
         <Badge className="bg-emerald-100 text-emerald-700 gap-1">
@@ -505,20 +510,36 @@ export default function ESGRecordsDataEntry({
         </Badge>
       );
     }
-    const config = {
-      draft: { class: 'bg-yellow-100 text-yellow-700', icon: FileEdit, label: 'Draft' },
-      submitted: { class: 'bg-blue-100 text-blue-700', icon: Clock, label: 'Pending for Approval' },
-      rejected: { class: 'bg-red-100 text-red-700', icon: X, label: 'Rejected' },
-      approved: { class: 'bg-green-100 text-green-700', icon: CheckCircle2, label: 'Approved' },
-      saved: { class: 'bg-emerald-100 text-emerald-700', icon: CheckCircle2, label: 'Saved' },
-    };
-    const cfg = config[status] || config.draft;
-    const Icon = cfg.icon;
+    
+    // Map record fields to task-style dual badges
+    // For records: status = operational, approval_status = governance
+    const operationalStatus = record.status || 'pending';
+    const approvalStatus = record.approval_status || 'not_required';
+    
+    // Handle legacy "submitted" status - map to completed + pending_approval
+    let displayStatus = operationalStatus;
+    let displayApprovalStatus = approvalStatus;
+    
+    if (operationalStatus === 'submitted') {
+      displayStatus = 'completed';
+      displayApprovalStatus = 'pending_approval';
+    }
+    
+    // Draft status handling - show draft badge
+    if (operationalStatus === 'draft') {
+      return (
+        <Badge className="bg-yellow-100 text-yellow-700 gap-1">
+          <FileEdit className="w-3 h-3" />
+          Draft
+        </Badge>
+      );
+    }
+    
     return (
-      <Badge className={`${cfg.class} gap-1`}>
-        <Icon className="w-3 h-3" />
-        {cfg.label}
-      </Badge>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <OperationalStatusBadge status={displayStatus} showIcon={true} />
+        <ApprovalStatusBadge approvalStatus={displayApprovalStatus} showIcon={true} />
+      </div>
     );
   };
 
@@ -897,7 +918,7 @@ export default function ESGRecordsDataEntry({
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        {getStatusBadge(record.status, isLocked)}
+                        {renderRecordStatusBadges(record, isLocked)}
                         {hasDraft && (
                           <Badge className="bg-yellow-100 text-yellow-700 text-xs">
                             Has Draft

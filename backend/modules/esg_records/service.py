@@ -113,9 +113,11 @@ class ESGRecordsService:
             # Check if this assignment requires approval
             requires_approval = assignment.get("requires_approval", False)
         
-        # Determine record status - now uses 'completed' instead of 'submitted'
-        # Note: Record status is separate from task status but follows same pattern
-        record_status = "completed" if not requires_approval else "pending_approval"
+        # Determine record status using dual-status architecture
+        # status = operational completion (always "completed" when user saves)
+        # approval_status = governance state (pending_approval if requires_approval, else not_required)
+        record_status = "completed"
+        record_approval_status = "pending_approval" if requires_approval else "not_required"
         
         record = {
             "id": str(uuid.uuid4()),
@@ -134,6 +136,7 @@ class ESGRecordsService:
             "source_of_information": data.source_of_information,
             "notes": data.notes,
             "status": record_status,
+            "approval_status": record_approval_status,
             "version": 1,
             "is_current": True,
             "created_by": user_id,
@@ -328,7 +331,13 @@ class ESGRecordsService:
         user_id: str,
         data: UpdateRecordRequest
     ) -> Optional[Dict[str, Any]]:
-        """Update a record (creates new version)."""
+        """
+        Update a record (creates new version).
+        
+        Dual-status architecture:
+        - status: operational completion (completed, draft, reopened)
+        - approval_status: governance state (not_required, pending_approval, approved, rejected)
+        """
         collection = self._get_records_collection(section)
         now = datetime.now(timezone.utc).isoformat()
         
@@ -372,9 +381,37 @@ class ESGRecordsService:
             update_data["notes"] = data.notes
             changed_fields.append("notes")
         
+        # Check if this record's assignment requires approval
+        requires_approval = False
+        assignment = await db.esg_assignments.find_one({
+            "organization_id": current.get("org_id"),
+            "category": current.get("category"),
+            "entity_type": "record_category",
+        })
+        if assignment:
+            requires_approval = assignment.get("requires_approval", False)
+        
+        # Handle status updates with dual-status architecture
+        # Map incoming status values to the correct dual-status fields
         if data.status is not None:
-            update_data["status"] = data.status
-            changed_fields.append("status")
+            incoming_status = data.status
+            
+            if incoming_status == "draft":
+                # Draft: operational status is draft, no approval needed
+                update_data["status"] = "draft"
+                update_data["approval_status"] = "not_required"
+                changed_fields.append("status")
+                changed_fields.append("approval_status")
+            elif incoming_status in ["submitted", "completed"]:
+                # Completing the record: status = completed, approval_status based on workflow
+                update_data["status"] = "completed"
+                update_data["approval_status"] = "pending_approval" if requires_approval else "not_required"
+                changed_fields.append("status")
+                changed_fields.append("approval_status")
+            else:
+                # Pass through other statuses directly (reopened, etc.)
+                update_data["status"] = incoming_status
+                changed_fields.append("status")
         
         # Increment version
         new_version = current["version"] + 1
@@ -394,17 +431,8 @@ class ESGRecordsService:
             {"_id": 0}
         )
         
-        # If status changed to completed/resubmitted, mark the task as completed
-        # Handle both old 'submitted' status and new resubmission flow
-        if data.status in ["submitted", "completed"] and current.get("status") in ["rejected", "draft", "reopened"]:
-            # Check if requires_approval from assignment
-            assignment = await db.esg_assignments.find_one({
-                "organization_id": current.get("org_id"),
-                "category": current.get("category"),
-                "entity_type": "record_category",
-            })
-            requires_approval = assignment.get("requires_approval", False) if assignment else False
-            
+        # If status changed to completed (from draft/rejected/reopened), mark the task as completed
+        if update_data.get("status") == "completed" and current.get("status") in ["rejected", "draft", "reopened", "pending"]:
             await self._mark_task_completed(
                 org_id=current.get("org_id"),
                 user_id=user_id,
