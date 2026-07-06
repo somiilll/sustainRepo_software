@@ -1,15 +1,25 @@
 /**
  * Tracker Module Constants
+ * 
+ * NEW ARCHITECTURE: Uses status (operational) + approval_status (governance)
  */
 
+// Operational status colors
 export const STATUS_COLORS = {
   completed: 'bg-emerald-100 text-emerald-700 border-emerald-200',
   in_progress: 'bg-blue-100 text-blue-700 border-blue-200',
   pending: 'bg-stone-100 text-stone-600 border-stone-200',
-  submitted: 'bg-purple-100 text-purple-700 border-purple-200',
-  reviewed: 'bg-cyan-100 text-cyan-700 border-cyan-200',
-  approved: 'bg-green-100 text-green-700 border-green-200',
+  reopened: 'bg-amber-100 text-amber-700 border-amber-200',
   overdue: 'bg-red-100 text-red-700 border-red-200',
+  skipped: 'bg-stone-200 text-stone-600 border-stone-300',
+};
+
+// Approval status colors
+export const APPROVAL_STATUS_COLORS = {
+  not_required: '',  // No badge needed
+  pending_approval: 'bg-amber-100 text-amber-700 border-amber-200',
+  approved: 'bg-green-100 text-green-700 border-green-200',
+  rejected: 'bg-red-100 text-red-700 border-red-200',
 };
 
 export const STALENESS_COLORS = {

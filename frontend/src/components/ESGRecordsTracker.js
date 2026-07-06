@@ -80,15 +80,22 @@ import TaskCalendarGrid from './TaskCalendarGrid';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
-// Status colors
+// Status colors - now uses operational status
 const STATUS_COLORS = {
   completed: 'bg-emerald-100 text-emerald-700 border-emerald-200',
   in_progress: 'bg-blue-100 text-blue-700 border-blue-200',
   pending: 'bg-stone-100 text-stone-600 border-stone-200',
-  submitted: 'bg-purple-100 text-purple-700 border-purple-200',
-  reviewed: 'bg-cyan-100 text-cyan-700 border-cyan-200',
-  approved: 'bg-green-100 text-green-700 border-green-200',
+  reopened: 'bg-amber-100 text-amber-700 border-amber-200',
   overdue: 'bg-red-100 text-red-700 border-red-200',
+  skipped: 'bg-stone-200 text-stone-600 border-stone-300',
+};
+
+// Approval status colors
+const APPROVAL_STATUS_COLORS = {
+  not_required: '',
+  pending_approval: 'bg-amber-100 text-amber-700 border-amber-200',
+  approved: 'bg-green-100 text-green-700 border-green-200',
+  rejected: 'bg-red-100 text-red-700 border-red-200',
 };
 
 // Staleness colors
@@ -557,21 +564,34 @@ export default function ESGRecordsTracker({
     );
   };
 
-  // Get status badge
-  const getStatusBadge = (status) => {
+  // Get status badge - now uses operational status
+  const getStatusBadge = (status, approvalStatus = null) => {
     const labels = {
       pending: 'Pending',
       in_progress: 'In Progress',
-      submitted: 'Submitted',
-      reviewed: 'Reviewed',
-      approved: 'Approved',
       completed: 'Completed',
+      reopened: 'Reopened',
       overdue: 'Overdue',
+      skipped: 'Skipped',
     };
+    
+    const approvalLabels = {
+      pending_approval: 'Awaiting Approval',
+      approved: 'Approved',
+      rejected: 'Rejected',
+    };
+    
     return (
-      <Badge className={STATUS_COLORS[status] || STATUS_COLORS.pending}>
-        {labels[status] || status}
-      </Badge>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <Badge className={STATUS_COLORS[status] || STATUS_COLORS.pending}>
+          {labels[status] || status}
+        </Badge>
+        {approvalStatus && approvalStatus !== 'not_required' && (
+          <Badge className={APPROVAL_STATUS_COLORS[approvalStatus] || ''}>
+            {approvalLabels[approvalStatus] || approvalStatus}
+          </Badge>
+        )}
+      </div>
     );
   };
 

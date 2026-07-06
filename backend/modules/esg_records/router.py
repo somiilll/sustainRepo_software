@@ -856,10 +856,13 @@ async def get_completion_by_category(
             "backfill_pending": {"$sum": {"$cond": [{"$eq": ["$status", "backfill_pending"]}, 1, 0]}},
             "pending": {"$sum": {"$cond": [{"$eq": ["$status", "pending"]}, 1, 0]}},
             "in_progress": {"$sum": {"$cond": [{"$eq": ["$status", "in_progress"]}, 1, 0]}},
-            "submitted": {"$sum": {"$cond": [{"$eq": ["$status", "submitted"]}, 1, 0]}},
-            "approved": {"$sum": {"$cond": [{"$eq": ["$status", "approved"]}, 1, 0]}},
+            "completed": {"$sum": {"$cond": [{"$eq": ["$status", "completed"]}, 1, 0]}},
+            "reopened": {"$sum": {"$cond": [{"$eq": ["$status", "reopened"]}, 1, 0]}},
             "overdue": {"$sum": {"$cond": [{"$eq": ["$status", "overdue"]}, 1, 0]}},
             "skipped": {"$sum": {"$cond": [{"$eq": ["$status", "skipped"]}, 1, 0]}},
+            # Approval status breakdown
+            "pending_approval": {"$sum": {"$cond": [{"$eq": ["$approval_status", "pending_approval"]}, 1, 0]}},
+            "approved": {"$sum": {"$cond": [{"$eq": ["$approval_status", "approved"]}, 1, 0]}},
         }},
         {"$project": {
             "_id": 0,
@@ -871,17 +874,20 @@ async def get_completion_by_category(
             "backfill_pending": 1,
             "pending": 1,
             "in_progress": 1,
-            "submitted": 1,
-            "approved": 1,
+            "completed": 1,
+            "reopened": 1,
             "overdue": 1,
             "skipped": 1,
-            "completed": {"$add": ["$submitted", "$approved", "$skipped"]},
+            "pending_approval": 1,
+            "approved": 1,
+            # Operational completion = completed + skipped (user finished their work)
+            "operational_complete": {"$add": ["$completed", "$skipped"]},
             "completion_pct": {
                 "$cond": [
                     {"$eq": ["$total", 0]},
                     0,
                     {"$multiply": [
-                        {"$divide": [{"$add": ["$submitted", "$approved", "$skipped"]}, "$total"]},
+                        {"$divide": [{"$add": ["$completed", "$skipped"]}, "$total"]},
                         100
                     ]}
                 ]

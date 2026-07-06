@@ -1637,3 +1637,61 @@ Users are linked to tasks via a separate mapping table (`esg_task_assignees`).
 - Carbon Intensity calculation discrepancy
 - "Targets" subtab implementation
 
+
+## Task Status Architecture Refactor (July 2026) - COMPLETE
+
+### Problem
+Old architecture used single `status` field mixing operational completion with governance approval:
+- `submitted` = user finished work
+- `approved` = reviewer approved
+
+This caused bugs: Completed tab filtered by `approved`, so tasks without approval workflow never appeared as "completed".
+
+### New Architecture: Dual Status Fields
+
+**`status`** - Operational completion:
+- `backfill_pending`, `pending`, `in_progress`, `completed`, `overdue`, `skipped`, `reopened`
+
+**`approval_status`** - Governance state:
+- `not_required`, `pending_approval`, `approved`, `rejected`
+
+### Status Flow Examples
+
+| Scenario | status | approval_status |
+|----------|--------|-----------------|
+| No approval required | `completed` | `not_required` |
+| Approval required | `completed` | `pending_approval` |
+| Reviewer approves | `completed` | `approved` |
+| Reviewer rejects | `reopened` | `rejected` |
+
+### Files Updated
+
+**Backend:**
+- `/app/backend/scripts/migrate_task_status_architecture.py` - Migration script
+- `/app/backend/modules/esg_records/task_engine.py` - TaskStatus/ApprovalStatus enums, update_task_status()
+- `/app/backend/modules/esg_records/service.py` - _mark_task_completed() with requires_approval
+- `/app/backend/modules/esg_records/router.py` - completion-by-category aggregation
+- `/app/backend/modules/esg_tracking/service.py` - Overdue query fix
+
+**Frontend:**
+- `/app/frontend/src/components/tasks/constants.js` - APPROVAL_STATUS enum + configs
+- `/app/frontend/src/components/tasks/StatusBadge.js` - OperationalStatusBadge, ApprovalStatusBadge, TaskStatusBadges
+- `/app/frontend/src/components/tasks/utils.js` - isTaskCompleted(), isAwaitingApproval()
+- `/app/frontend/src/components/tracker/constants.js` - STATUS_COLORS, APPROVAL_STATUS_COLORS
+- `/app/frontend/src/components/ESGRecordsTracker.js` - getStatusBadge() with approval
+
+### API Response Changes
+
+**GET /api/esg-records/tasks/completion-by-category**
+```json
+{
+  "category": "Water",
+  "subcategory": "Consumption",
+  "total": 365,
+  "completed": 1,        // Operational completion
+  "operational_complete": 1,  // completed + skipped
+  "pending_approval": 0,
+  "approved": 0,
+  "completion_pct": 0.3
+}
+```

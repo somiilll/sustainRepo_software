@@ -1220,7 +1220,7 @@ class TrackingService:
             "organization_id": organization_id,
             "entity_type": "question",
             "due_date": {"$lt": now},
-            "status": {"$nin": ["approved", "submitted"]},
+            "status": {"$nin": ["completed"]},  # Use new status architecture
         }
         
         assignments = await self._assignments.find(query, {"_id": 0}).to_list(500)
