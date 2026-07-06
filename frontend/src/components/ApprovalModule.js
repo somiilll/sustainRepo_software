@@ -103,7 +103,7 @@ export default function ApprovalModule({
     }
   }, [token, reportingPeriodOverride]);
 
-  // Fetch pending submissions
+  // Fetch pending submissions (questionnaire) AND approval workflow requests (records)
   const fetchSubmissions = useCallback(async (showRefreshIndicator = false) => {
     if (!reportingPeriod) return;
     
@@ -122,15 +122,65 @@ export default function ApprovalModule({
         params.entity_type = entityType;
       }
       
-      const res = await axios.get(
+      // Fetch questionnaire submissions
+      const questionnairePromise = axios.get(
         `${API}/api/esg-questionnaire/submissions/pending`,
         {
           headers: getAuthHeader(),
           params
         }
-      );
+      ).catch(err => {
+        console.warn('Failed to fetch questionnaire submissions:', err);
+        return { data: { submissions: [] } };
+      });
       
-      setSubmissions(res.data.submissions || []);
+      // Fetch ESG record approval requests from approval workflow engine
+      const recordApprovalsPromise = axios.get(
+        `${API}/api/approval-workflows/requests`,
+        {
+          headers: getAuthHeader(),
+          params: { status: 'pending' }
+        }
+      ).catch(err => {
+        console.warn('Failed to fetch record approvals:', err);
+        return { data: { requests: [] } };
+      });
+      
+      const [questionnaireRes, recordApprovalsRes] = await Promise.all([
+        questionnairePromise,
+        recordApprovalsPromise
+      ]);
+      
+      // Transform record approvals to match submission format
+      const recordApprovals = (recordApprovalsRes.data.requests || [])
+        .filter(r => r.entity_type === 'esg_record')
+        .map(r => ({
+          id: r.id,
+          entity_type: 'esg_record',
+          entity_id: r.entity_id,
+          section: r.entity_subtype || 'environment',
+          question_key: r.entity_snapshot?.category,
+          disclosure_name: `${r.entity_snapshot?.category}${r.entity_snapshot?.subcategory ? ' → ' + r.entity_snapshot.subcategory : ''}`,
+          submitted_by: r.submitted_by,
+          submitted_by_name: r.submitted_by_name,
+          submitted_by_email: r.submitted_by_email,
+          submitted_at: r.submitted_at,
+          status: r.status,
+          current_approvers: r.current_approvers,
+          workflow_name: r.workflow_name,
+          entity_snapshot: r.entity_snapshot,
+          // Flag to identify this is from approval workflow
+          _source: 'approval_workflow',
+          _approval_request_id: r.id,
+        }));
+      
+      // Combine both sources
+      const allSubmissions = [
+        ...(questionnaireRes.data.submissions || []),
+        ...recordApprovals
+      ];
+      
+      setSubmissions(allSubmissions);
     } catch (error) {
       console.error('Failed to fetch submissions:', error);
       toast.error('Failed to load approval queue');

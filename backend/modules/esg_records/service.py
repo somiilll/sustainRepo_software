@@ -185,7 +185,6 @@ class ESGRecordsService:
         
         # CREATE APPROVAL REQUEST if requires approval
         if record_status != "draft" and requires_approval and assignment:
-            print(f"DEBUG: Creating approval request - record_status={record_status}, requires_approval={requires_approval}, assignment_id={assignment.get('id')}")
             await self._create_approval_request(
                 org_id=org_id,
                 record=record,
@@ -193,8 +192,6 @@ class ESGRecordsService:
                 user_id=user_id,
                 section=section,
             )
-        else:
-            print(f"DEBUG: NOT creating approval request - record_status={record_status}, requires_approval={requires_approval}, has_assignment={assignment is not None}")
         
         # Remove MongoDB _id before returning
         record.pop("_id", None)
