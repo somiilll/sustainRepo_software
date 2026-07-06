@@ -373,9 +373,12 @@ class ESGRecordsService:
         self,
         old_values: Dict[str, Any],
         new_values: Dict[str, Any],
+        old_record: Optional[Dict[str, Any]] = None,
+        new_record: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Calculate the differences between old and new field values.
+        Also includes changes to reporting_period if records are provided.
         Returns a list of changes with field_key, old_value, new_value.
         """
         changes = []
@@ -391,6 +394,34 @@ class ESGRecordsService:
                     "field_key": key,
                     "old_value": old_val,
                     "new_value": new_val,
+                })
+        
+        # Check reporting_period changes if records provided
+        if old_record and new_record:
+            old_rp = old_record.get("reporting_period", {})
+            new_rp = new_record.get("reporting_period", {})
+            
+            if old_rp != new_rp:
+                # Format period for display
+                def format_period(rp):
+                    if not rp:
+                        return None
+                    if isinstance(rp, dict):
+                        month = rp.get("month", "")
+                        year = rp.get("year", "")
+                        quarter = rp.get("quarter", "")
+                        if month and year:
+                            return f"{month} {year}"
+                        elif quarter and year:
+                            return f"{quarter} {year}"
+                        elif year:
+                            return str(year)
+                    return str(rp)
+                
+                changes.append({
+                    "field_key": "reporting_period",
+                    "old_value": format_period(old_rp),
+                    "new_value": format_period(new_rp),
                 })
         
         return changes
@@ -883,7 +914,9 @@ class ESGRecordsService:
             if is_edit_of_approved:
                 changes_summary = self._calculate_field_changes(
                     old_values=current.get("field_values", {}),
-                    new_values=updated.get("field_values", {})
+                    new_values=updated.get("field_values", {}),
+                    old_record=current,
+                    new_record=updated,
                 )
                 print(f"Changes summary: {changes_summary}")
             
