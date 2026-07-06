@@ -1365,12 +1365,16 @@ export default function ESGRecordsTracker({
                         <Badge variant="outline" className="text-xs">{fac.type || 'Facility'}</Badge>
                       </div>
                       <Select 
-                        value={assignForm.facility_assignments?.[fac.id]?.user_id || ''} 
+                        value={assignForm.facility_assignments?.[fac.id]?.user_id || '__none__'} 
                         onValueChange={(v) => setAssignForm(prev => ({
                           ...prev,
                           facility_assignments: {
                             ...prev.facility_assignments,
-                            [fac.id]: { ...prev.facility_assignments?.[fac.id], user_id: v, facility_name: fac.name }
+                            [fac.id]: { 
+                              ...prev.facility_assignments?.[fac.id], 
+                              user_id: v === '__none__' ? '' : v, 
+                              facility_name: fac.name 
+                            }
                           }
                         }))}
                       >
@@ -1378,7 +1382,7 @@ export default function ESGRecordsTracker({
                           <SelectValue placeholder="Select assignee..." />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Not assigned</SelectItem>
+                          <SelectItem value="__none__">Not assigned</SelectItem>
                           {users.map(u => (
                             <SelectItem key={u.id} value={u.id}>
                               {u.full_name || u.name || u.email}
