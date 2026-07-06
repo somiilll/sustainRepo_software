@@ -659,6 +659,19 @@ async def get_tasks_for_user(
         if not (t.get("category") in categories_with_subs_set and not t.get("subcategory"))
     ]
     
+    # Enrich tasks with facility names
+    facility_ids = list(set(t.get("facility_id") for t in filtered_tasks if t.get("facility_id")))
+    if facility_ids:
+        facilities = await db["facilities"].find(
+            {"id": {"$in": facility_ids}},
+            {"_id": 0, "id": 1, "name": 1}
+        ).to_list(len(facility_ids))
+        facility_map = {f["id"]: f["name"] for f in facilities}
+        
+        for task in filtered_tasks:
+            if task.get("facility_id"):
+                task["facility_name"] = facility_map.get(task["facility_id"], "Unknown Facility")
+    
     return filtered_tasks
 
 

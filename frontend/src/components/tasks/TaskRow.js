@@ -6,7 +6,7 @@
 import React from 'react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { ArrowRight, Eye } from 'lucide-react';
+import { ArrowRight, Eye, Building2 } from 'lucide-react';
 import { TaskStatusBadges } from './StatusBadge';
 import RoleBadge from './RoleBadge';
 import { formatDueDate, canUserEdit } from './utils';
@@ -28,6 +28,14 @@ export default function TaskRow({ task, onFill, onView }) {
         <div className="min-w-[100px]">
           <span className="text-sm font-medium">{task.period_label || 'N/A'}</span>
         </div>
+        
+        {/* Facility Badge */}
+        {task.facility_name && (
+          <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 gap-1">
+            <Building2 className="w-3 h-3" />
+            {task.facility_name}
+          </Badge>
+        )}
         
         {/* Due Date */}
         <div className={`text-sm ${dueInfo.isOverdue && !isCompleted ? 'text-red-600' : dueInfo.isUrgent ? 'text-orange-600' : 'text-text-muted'}`}>

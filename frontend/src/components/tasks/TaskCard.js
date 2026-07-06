@@ -7,7 +7,7 @@ import React from 'react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { Calendar, ArrowRight, FileText, BarChart3, Eye } from 'lucide-react';
+import { Calendar, ArrowRight, FileText, BarChart3, Eye, Building2 } from 'lucide-react';
 import { TaskStatusBadges } from './StatusBadge';
 import RoleBadge from './RoleBadge';
 import { formatDueDate, formatPeriodRange, canUserEdit } from './utils';
@@ -76,6 +76,14 @@ export default function TaskCard({ task, onFill, onView }) {
               task.entity_id
             )}
           </h4>
+          
+          {/* Facility Info */}
+          {task.facility_name && (
+            <div className="flex items-center gap-1.5 text-sm text-blue-600 mb-1">
+              <Building2 className="w-3.5 h-3.5" />
+              <span className="font-medium">{task.facility_name}</span>
+            </div>
+          )}
           
           {/* Period Info */}
           {periodRange && (
