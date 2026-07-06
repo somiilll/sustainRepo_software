@@ -701,8 +701,8 @@ class ESGRecordsService:
         user_id: Optional[str] = None,
     ) -> bool:
         """
-        Soft delete a record (marks as not current).
-        Also reverts the associated task status back to 'pending'.
+        Hard delete a record from database.
+        Also reverts the associated task status back to 'pending' and cancels approval requests.
         """
         collection = self._get_records_collection(section)
         
@@ -715,13 +715,12 @@ class ESGRecordsService:
         if not record:
             return False
         
-        # Soft delete the record
-        result = await collection.update_one(
-            {"id": record_id, "org_id": org_id, "is_current": True},
-            {"$set": {"is_current": False, "deleted_at": datetime.now(timezone.utc).isoformat()}}
+        # Hard delete the record
+        result = await collection.delete_one(
+            {"id": record_id, "org_id": org_id, "is_current": True}
         )
         
-        if result.modified_count > 0:
+        if result.deleted_count > 0:
             # Revert the associated task status back to pending
             await self._revert_task_to_pending(
                 org_id=org_id,
@@ -731,8 +730,18 @@ class ESGRecordsService:
                 facility_id=record.get("facility_id"),
                 reporting_period=record.get("reporting_period"),
             )
+            
+            # Cancel any pending approval requests for this record
+            await db.approval_requests.update_many(
+                {
+                    "entity_type": "esg_record",
+                    "entity_id": record_id,
+                    "status": "pending",
+                },
+                {"$set": {"status": "cancelled", "updated_at": datetime.now(timezone.utc).isoformat()}}
+            )
         
-        return result.modified_count > 0
+        return result.deleted_count > 0
     
     async def _revert_task_to_pending(
         self,
