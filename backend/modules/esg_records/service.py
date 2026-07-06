@@ -1129,6 +1129,8 @@ class ESGRecordsService:
                         "filling_frequency": data.get("filling_frequency"),
                         "reminder_config": data.get("reminder_config"),
                         "requires_approval": data.get("requires_approval", False),
+                        "approver_id": data.get("approver_id"),
+                        "approval_chain": data.get("approval_chain", []),
                         "role": data.get("role"),
                         # New scheduling fields
                         "start_date": data.get("start_date"),
@@ -1159,7 +1161,9 @@ class ESGRecordsService:
                 "status": "pending",
                 "filling_frequency": data.get("filling_frequency"),
                 "reminder_config": data.get("reminder_config"),
-                "requires_approval": False,
+                "requires_approval": data.get("requires_approval", False),
+                "approver_id": data.get("approver_id"),
+                "approval_chain": data.get("approval_chain", []),
                 # New scheduling fields
                 "start_date": data.get("start_date"),
                 "end_date": data.get("end_date"),
