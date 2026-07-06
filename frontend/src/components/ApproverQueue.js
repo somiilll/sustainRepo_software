@@ -371,20 +371,174 @@ export default function ApproverQueue() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5 text-purple-600" />
-              <span className="font-mono">{selectedQuestion?.question_key}</span>
+              <span className="font-mono">
+                {selectedQuestion?._source === 'approval_workflow' 
+                  ? selectedQuestion.disclosure_name 
+                  : selectedQuestion?.question_key}
+              </span>
             </DialogTitle>
           </DialogHeader>
           
-          {selectedQuestion && (
+          {selectedQuestion && selectedQuestion._source === 'approval_workflow' ? (
+            <RecordApprovalPanel
+              item={selectedQuestion}
+              onClose={() => setSelectedQuestion(null)}
+              onApproved={handleApprovalComplete}
+              getAuthHeader={getAuthHeader}
+            />
+          ) : selectedQuestion ? (
             <SubmissionReviewPanel
               questionKey={selectedQuestion.question_key}
               reportingPeriod={selectedQuestion.reporting_period || reportingPeriod}
               onClose={() => setSelectedQuestion(null)}
               onApproved={handleApprovalComplete}
             />
-          )}
+          ) : null}
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+/**
+ * RecordApprovalPanel - Review panel for ESG Record approvals
+ */
+function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
+  const [processing, setProcessing] = useState(false);
+  const [comment, setComment] = useState('');
+  
+  const snapshot = item.entity_snapshot || {};
+  
+  const handleApprove = async () => {
+    try {
+      setProcessing(true);
+      await axios.post(
+        `${API}/api/approval-workflows/requests/${item._approval_request_id}/approve`,
+        { comment: comment || 'Approved' },
+        { headers: getAuthHeader() }
+      );
+      toast.success('Record approved successfully');
+      onApproved();
+    } catch (error) {
+      console.error('Failed to approve:', error);
+      toast.error(error.response?.data?.detail || 'Failed to approve record');
+    } finally {
+      setProcessing(false);
+    }
+  };
+  
+  const handleReject = async () => {
+    if (!comment.trim()) {
+      toast.error('Please provide a reason for rejection');
+      return;
+    }
+    try {
+      setProcessing(true);
+      await axios.post(
+        `${API}/api/approval-workflows/requests/${item._approval_request_id}/reject`,
+        { comment },
+        { headers: getAuthHeader() }
+      );
+      toast.success('Record rejected');
+      onApproved();
+    } catch (error) {
+      console.error('Failed to reject:', error);
+      toast.error(error.response?.data?.detail || 'Failed to reject record');
+    } finally {
+      setProcessing(false);
+    }
+  };
+  
+  return (
+    <div className="space-y-6">
+      {/* Record Info */}
+      <div className="bg-stone-50 rounded-lg p-4 space-y-3">
+        <h4 className="font-semibold text-text-primary">Record Details</h4>
+        
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <span className="text-text-muted">Category:</span>
+            <p className="font-medium">{snapshot.category || 'N/A'}</p>
+          </div>
+          {snapshot.subcategory && (
+            <div>
+              <span className="text-text-muted">Subcategory:</span>
+              <p className="font-medium">{snapshot.subcategory}</p>
+            </div>
+          )}
+          <div>
+            <span className="text-text-muted">Submitted By:</span>
+            <p className="font-medium">{item.submitted_by_name || item.submitted_by_email || 'Unknown'}</p>
+          </div>
+          <div>
+            <span className="text-text-muted">Submitted At:</span>
+            <p className="font-medium">
+              {item.submitted_at ? new Date(item.submitted_at).toLocaleString() : 'N/A'}
+            </p>
+          </div>
+        </div>
+      </div>
+      
+      {/* Data Fields */}
+      {snapshot.data && Object.keys(snapshot.data).length > 0 && (
+        <div className="border rounded-lg p-4 space-y-3">
+          <h4 className="font-semibold text-text-primary">Submitted Data</h4>
+          <div className="grid gap-2 text-sm">
+            {Object.entries(snapshot.data).map(([key, value]) => (
+              <div key={key} className="flex justify-between py-1 border-b border-stone-100 last:border-0">
+                <span className="text-text-muted capitalize">{key.replace(/_/g, ' ')}:</span>
+                <span className="font-medium text-text-primary">
+                  {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      
+      {/* Comment */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-text-primary">
+          Comment {processing ? '' : '(required for rejection)'}
+        </label>
+        <textarea
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          placeholder="Add a comment..."
+          className="w-full px-3 py-2 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+          rows={3}
+          disabled={processing}
+        />
+      </div>
+      
+      {/* Actions */}
+      <div className="flex justify-end gap-3 pt-4 border-t">
+        <Button
+          variant="outline"
+          onClick={onClose}
+          disabled={processing}
+        >
+          Cancel
+        </Button>
+        <Button
+          variant="destructive"
+          onClick={handleReject}
+          disabled={processing}
+          data-testid="reject-record-btn"
+        >
+          {processing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+          Reject
+        </Button>
+        <Button
+          onClick={handleApprove}
+          disabled={processing}
+          className="bg-green-600 hover:bg-green-700"
+          data-testid="approve-record-btn"
+        >
+          {processing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+          Approve
+        </Button>
+      </div>
     </div>
   );
 }
