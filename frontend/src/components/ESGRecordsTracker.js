@@ -385,15 +385,39 @@ export default function ESGRecordsTracker({
       return '';
     };
     
-    // Find ALL users already assigned to this category/subcategory/sub_subcategory
+    // Find ALL assignments for this category/subcategory/sub_subcategory (across all facilities)
     const categoryAssignments = assignments.filter(a => 
       a.category === item.category &&
       a.subcategory === (item.subcategory || null) &&
-      a.sub_subcategory === (item.sub_subcategory || null) &&
-      a.facility_id === (item.facility_id || null)
+      a.sub_subcategory === (item.sub_subcategory || null)
     );
     
-    const existingUserIds = categoryAssignments
+    // Check if any are facility-level
+    const hasFacilityAssignments = categoryAssignments.some(a => a.facility_id);
+    
+    // Build facility_assignments from existing data
+    const facilityAssignmentsData = {};
+    if (hasFacilityAssignments) {
+      categoryAssignments.forEach(a => {
+        if (a.facility_id) {
+          if (!facilityAssignmentsData[a.facility_id]) {
+            facilityAssignmentsData[a.facility_id] = {
+              user_ids: [],
+              approver_id: a.approver_id || '',
+              requires_approval: a.requires_approval || false,
+              facility_name: facilities.find(f => f.id === a.facility_id)?.name || ''
+            };
+          }
+          if (a.assigned_to_user_id && !facilityAssignmentsData[a.facility_id].user_ids.includes(a.assigned_to_user_id)) {
+            facilityAssignmentsData[a.facility_id].user_ids.push(a.assigned_to_user_id);
+          }
+        }
+      });
+    }
+    
+    // For organization-level, get existing user IDs
+    const orgLevelAssignments = categoryAssignments.filter(a => !a.facility_id);
+    const existingUserIds = orgLevelAssignments
       .map(a => a.assigned_to_user_id)
       .filter(Boolean);
     
@@ -406,8 +430,9 @@ export default function ESGRecordsTracker({
     // Pre-fill form with existing assignment data
     setAssignForm({
       assigned_user_ids: existingUserIds.length > 0 ? existingUserIds : (item.assigned_to_user_id ? [item.assigned_to_user_id] : []),
-      assignment_level: firstAssignment.assignment_level || 'organization',
+      assignment_level: hasFacilityAssignments ? 'facility' : (firstAssignment.assignment_level || 'organization'),
       facility_id: firstAssignment.facility_id || '',
+      facility_assignments: facilityAssignmentsData,
       // New scheduling fields
       start_date: formatDateForInput(firstAssignment.start_date),
       end_date: formatDateForInput(firstAssignment.end_date),
@@ -525,8 +550,8 @@ export default function ESGRecordsTracker({
                   days_before_due: [7, 3, 1],
                   repeat_overdue: true,
                 } : null,
-                requires_approval: assignForm.requires_approval && !!fa.approver_id,
-                approver_id: fa.approver_id || null,
+                requires_approval: fa.requires_approval && !!fa.approver_id,
+                approver_id: fa.requires_approval ? fa.approver_id : null,
                 approval_chain: [],
                 replace_existing: isFirst,
               },
@@ -1366,10 +1391,10 @@ export default function ESGRecordsTracker({
             {assignForm.assignment_level === 'facility' && (
               <div className="space-y-3">
                 <Label>Assign Per Facility *</Label>
-                <p className="text-xs text-text-muted">Select users and approver for each facility. Leave empty to skip.</p>
+                <p className="text-xs text-text-muted">Select users, approval settings for each facility. Leave empty to skip.</p>
                 <div className="border rounded-lg max-h-80 overflow-y-auto divide-y">
                   {facilities.map(fac => {
-                    const facAssign = assignForm.facility_assignments?.[fac.id] || { user_ids: [], approver_id: '' };
+                    const facAssign = assignForm.facility_assignments?.[fac.id] || { user_ids: [], approver_id: '', requires_approval: false };
                     return (
                       <div key={fac.id} className="p-3 space-y-3">
                         <div className="flex items-center justify-between">
@@ -1445,10 +1470,27 @@ export default function ESGRecordsTracker({
                           </Select>
                         </div>
                         
-                        {/* Approver for this facility */}
-                        {(approvalWorkflowEnabled || multiLevelApprovalEnabled) && assignForm.requires_approval && (
-                          <div className="space-y-1">
-                            <Label className="text-xs text-text-muted">Approver</Label>
+                        {/* Per-facility approval toggle and approver */}
+                        <div className="flex items-center gap-3 pt-2 border-t">
+                          <Checkbox 
+                            id={`approval-${fac.id}`}
+                            checked={facAssign.requires_approval || false}
+                            onCheckedChange={(checked) => setAssignForm(prev => ({
+                              ...prev,
+                              facility_assignments: {
+                                ...prev.facility_assignments,
+                                [fac.id]: { 
+                                  ...prev.facility_assignments?.[fac.id], 
+                                  requires_approval: checked,
+                                  approver_id: checked ? prev.facility_assignments?.[fac.id]?.approver_id : '',
+                                  facility_name: fac.name 
+                                }
+                              }
+                            }))}
+                          />
+                          <Label htmlFor={`approval-${fac.id}`} className="text-xs cursor-pointer">Requires approval</Label>
+                          
+                          {facAssign.requires_approval && (
                             <Select 
                               value={facAssign.approver_id || '__none__'} 
                               onValueChange={(v) => setAssignForm(prev => ({
@@ -1463,11 +1505,11 @@ export default function ESGRecordsTracker({
                                 }
                               }))}
                             >
-                              <SelectTrigger className="h-8 text-sm">
+                              <SelectTrigger className="h-7 text-xs flex-1">
                                 <SelectValue placeholder="Select approver" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="__none__">No approver</SelectItem>
+                                <SelectItem value="__none__">Select approver...</SelectItem>
                                 {users.map(u => (
                                   <SelectItem key={u.id} value={u.id}>
                                     {u.full_name || u.name || u.email}
@@ -1475,8 +1517,8 @@ export default function ESGRecordsTracker({
                                 ))}
                               </SelectContent>
                             </Select>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
                     );
                   })}
