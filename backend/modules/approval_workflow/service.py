@@ -640,9 +640,10 @@ class ApprovalWorkflowService:
                     collection_name = collection_map.get(entity_subtype)
                     
                     if collection_name:
-                        # Update the record's approval_status and field_values if edited
+                        # Update the record's status and approval_status (and field_values if edited)
                         record_update = {
                             "updated_at": _now_iso(),
+                            "status": "completed",  # Reset status to completed
                             "approval_status": "approved",
                         }
                         
@@ -663,7 +664,7 @@ class ApprovalWorkflowService:
                             {"id": entity_id, "is_current": True},
                             {"$set": record_update}
                         )
-                        logger.info(f"Updated ESG record {entity_id} approval_status to approved")
+                        logger.info(f"Updated ESG record {entity_id} status=completed, approval_status=approved")
                         
                         # Get the record to find the corresponding task
                         record = await db[collection_name].find_one(
@@ -710,9 +711,9 @@ class ApprovalWorkflowService:
                             
                             task_update_result = await db.esg_reporting_tasks.update_many(
                                 task_query,
-                                {"$set": {"approval_status": "approved", "updated_at": _now_iso()}}
+                                {"$set": {"status": "completed", "approval_status": "approved", "updated_at": _now_iso()}}
                             )
-                            logger.info(f"Updated {task_update_result.modified_count} task(s) approval_status to approved")
+                            logger.info(f"Updated {task_update_result.modified_count} task(s) status=completed, approval_status=approved")
                             
                 except Exception as e:
                     logger.error(f"Failed to update ESG record/task with approval: {e}")
