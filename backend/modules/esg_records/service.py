@@ -80,12 +80,18 @@ class ESGRecordsService:
         user_id: str,
         data: CreateRecordRequest,
         skip_assignment_check: bool = False,  # For admin override
+        allow_without_assignment: bool = False,  # Allow if no assignment found (admin)
     ) -> Dict[str, Any]:
         """
         Create a new ESG record.
         
         Validates user has an active assignment for the category/subcategory
         at the correct level (org vs facility).
+        
+        Args:
+            skip_assignment_check: If True, skip assignment lookup entirely
+            allow_without_assignment: If True, allow record creation even without assignment
+                                      (but still look up assignment to get requires_approval)
         """
         collection = self._get_records_collection(section)
         now = datetime.now(timezone.utc)
@@ -105,13 +111,14 @@ class ESGRecordsService:
                 facility_id=data.facility_id,
                 record_level=data.record_level,
             )
-            if not assignment:
+            if not assignment and not allow_without_assignment:
                 raise ValueError(
                     f"No active assignment found for {data.category}/{data.subcategory or ''} "
                     f"at {'facility' if data.facility_id else 'organization'} level"
                 )
             # Check if this assignment requires approval
-            requires_approval = assignment.get("requires_approval", False)
+            if assignment:
+                requires_approval = assignment.get("requires_approval", False)
         
         # Determine record status using dual-status architecture
         # status = operational completion
@@ -176,6 +183,19 @@ class ESGRecordsService:
                 requires_approval=requires_approval,
             )
         
+        # CREATE APPROVAL REQUEST if requires approval
+        if record_status != "draft" and requires_approval and assignment:
+            print(f"DEBUG: Creating approval request - record_status={record_status}, requires_approval={requires_approval}, assignment_id={assignment.get('id')}")
+            await self._create_approval_request(
+                org_id=org_id,
+                record=record,
+                assignment=assignment,
+                user_id=user_id,
+                section=section,
+            )
+        else:
+            print(f"DEBUG: NOT creating approval request - record_status={record_status}, requires_approval={requires_approval}, has_assignment={assignment is not None}")
+        
         # Remove MongoDB _id before returning
         record.pop("_id", None)
         return record
@@ -193,37 +213,145 @@ class ESGRecordsService:
         """
         Check if user has an active assignment for the category at the correct level.
         
-        Returns the assignment if valid, None otherwise.
+        Returns the MOST SPECIFIC matching assignment (prefers exact subcategory match).
+        This ensures we get the correct requires_approval setting.
         """
-        # Build query to find matching assignment
+        # Build query to find matching assignments (get all potential matches)
         query = {
             "organization_id": org_id,
             "assigned_to_user_id": user_id,
             "entity_type": "record_category",
             "status": {"$nin": ["completed", "cancelled"]},
-            "$or": [
-                # Exact match
-                {"category": category, "subcategory": subcategory, "sub_subcategory": sub_subcategory},
-                # Parent category match (assigned to parent, filling child)
-                {"category": category, "subcategory": None, "sub_subcategory": None},
-                {"category": category, "subcategory": subcategory, "sub_subcategory": None},
-            ]
+            "category": category,
         }
         
         # Check facility level match
         if record_level == "facility" and facility_id:
-            query["$and"] = [
-                {"$or": [
-                    {"facility_id": facility_id},  # Exact facility match
-                    {"assignment_level": "organization"},  # Org-level can add to any facility
-                ]}
+            query["$or"] = [
+                {"facility_id": facility_id},  # Exact facility match
+                {"assignment_level": "organization"},  # Org-level can add to any facility
             ]
         elif record_level == "organization":
             # Org-level record: user must have org-level assignment
             query["assignment_level"] = "organization"
         
-        assignment = await db.esg_assignments.find_one(query, {"_id": 0})
-        return assignment
+        # Get all matching assignments for this category
+        assignments = await db.esg_assignments.find(query, {"_id": 0}).to_list(100)
+        
+        if not assignments:
+            return None
+        
+        # Find the most specific matching assignment
+        # Priority: exact match > subcategory match > category-only match
+        best_match = None
+        best_score = -1
+        
+        for assignment in assignments:
+            score = 0
+            a_subcat = assignment.get("subcategory")
+            a_sub_subcat = assignment.get("sub_subcategory")
+            
+            # Exact match on all levels
+            if a_subcat == subcategory and a_sub_subcat == sub_subcategory:
+                score = 3
+            # Subcategory match (sub_subcategory is None in assignment)
+            elif a_subcat == subcategory and a_sub_subcat is None:
+                score = 2
+            # Category-only match (both subcategory and sub_subcategory are None)
+            elif a_subcat is None and a_sub_subcat is None:
+                score = 1
+            # Subcategory matches but we're filling a different sub_subcategory
+            elif a_subcat == subcategory:
+                score = 2
+            else:
+                continue  # No match
+            
+            if score > best_score:
+                best_score = score
+                best_match = assignment
+        
+        return best_match
+
+    async def _create_approval_request(
+        self,
+        org_id: str,
+        record: Dict[str, Any],
+        assignment: Dict[str, Any],
+        user_id: str,
+        section: str,
+    ):
+        """
+        Create an approval request when a record is saved with requires_approval=True.
+        Uses the approver_id from the assignment or approval_chain if multi-level.
+        """
+        try:
+            approver_id = assignment.get("approver_id")
+            approval_chain = assignment.get("approval_chain", [])
+            
+            # Determine approvers - use approval_chain if available, otherwise single approver
+            if approval_chain:
+                current_approvers = [approval_chain[0].get("approver_id")] if approval_chain else []
+                total_levels = len(approval_chain)
+            elif approver_id:
+                current_approvers = [approver_id]
+                total_levels = 1
+            else:
+                print("Warning: Assignment requires approval but no approver_id set")
+                return
+            
+            # Get submitter info
+            submitter = await db.users.find_one({"id": user_id}, {"_id": 0, "email": 1, "full_name": 1})
+            submitter_email = submitter.get("email", "") if submitter else ""
+            submitter_name = submitter.get("full_name", "") if submitter else ""
+            
+            now = datetime.now(timezone.utc).isoformat()
+            
+            # Create approval request document
+            approval_request = {
+                "id": str(uuid.uuid4()),
+                "organization_id": org_id,
+                "workflow_id": f"assignment_{assignment.get('id')}",  # Link to assignment
+                "workflow_name": f"ESG Record Approval - {record.get('category')}",
+                
+                # Entity being approved
+                "entity_type": "esg_record",
+                "entity_id": record.get("id"),
+                "entity_subtype": section,
+                "entity_snapshot": {
+                    "category": record.get("category"),
+                    "subcategory": record.get("subcategory"),
+                    "sub_subcategory": record.get("sub_subcategory"),
+                    "field_values": record.get("field_values"),
+                    "reporting_period": record.get("reporting_period"),
+                    "facility_id": record.get("facility_id"),
+                },
+                
+                # Submission info
+                "submitted_by": user_id,
+                "submitted_by_email": submitter_email,
+                "submitted_by_name": submitter_name,
+                "submitted_at": now,
+                "submission_comment": None,
+                
+                # Current state
+                "status": "pending",
+                "current_level": 1,
+                "current_approvers": current_approvers,
+                "total_levels": total_levels,
+                
+                # Progress tracking
+                "steps_completed": [],
+                
+                # Metadata
+                "created_at": now,
+                "updated_at": now,
+            }
+            
+            await db.approval_requests.insert_one(approval_request)
+            print(f"Created approval request {approval_request['id']} for record {record.get('id')}")
+        except Exception as e:
+            print(f"Warning: Failed to create approval request: {e}")
+
     
     async def _mark_task_completed(
         self,
@@ -450,6 +578,16 @@ class ESGRecordsService:
                 reporting_period=current.get("reporting_period"),
                 requires_approval=requires_approval,
             )
+            
+            # Create approval request if requires approval
+            if requires_approval and assignment:
+                await self._create_approval_request(
+                    org_id=current.get("org_id"),
+                    record=updated,
+                    assignment=assignment,
+                    user_id=user_id,
+                    section=section,
+                )
         
         # Create version snapshot
         await self._create_version_snapshot(

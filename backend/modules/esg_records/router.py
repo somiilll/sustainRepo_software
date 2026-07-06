@@ -71,8 +71,9 @@ async def create_record(
     user_id = current_user.get("id") or current_user.get("user_id")
     user_role = current_user.get("role", "")
     
-    # Admin can skip assignment check
-    skip_check = user_role in ["admin", "super_admin"]
+    # Admin can create records without assignment, but we still look up assignment
+    # to get requires_approval setting
+    is_admin = user_role in ["admin", "super_admin"]
     
     try:
         record = await esg_records_service.create_record(
@@ -80,7 +81,8 @@ async def create_record(
             org_id=org_id,
             user_id=user_id,
             data=data,
-            skip_assignment_check=skip_check,
+            skip_assignment_check=False,  # Always check to get requires_approval
+            allow_without_assignment=is_admin,  # Admins can proceed without assignment
         )
     except ValueError as e:
         raise HTTPException(status_code=403, detail=str(e))
