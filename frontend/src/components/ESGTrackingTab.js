@@ -304,8 +304,8 @@ export default function ESGTrackingTab({
   // Year options
   const yearOptions = generateReportingYears('financial_year', 5);
   
-  // Get admins from org users for approver dropdown
-  const adminUsers = orgUsers.filter(u => u.role === 'admin' || u.role === 'super_admin');
+  // All org users can be approvers (no role restriction)
+  const approverUsers = orgUsers;
   
   // Fetch framework summary
   const fetchFrameworkSummary = useCallback(async () => {
