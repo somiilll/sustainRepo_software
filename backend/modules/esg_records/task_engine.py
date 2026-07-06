@@ -18,13 +18,22 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 
 class TaskStatus(str, Enum):
+    """Operational status - represents work completion state"""
     BACKFILL_PENDING = "backfill_pending"  # Historical, needs data but not urgent
     PENDING = "pending"                     # Active, waiting for submission
     IN_PROGRESS = "in_progress"             # User started working on it
-    SUBMITTED = "submitted"                 # Data submitted, awaiting approval
-    APPROVED = "approved"                   # Approved/finalized
+    COMPLETED = "completed"                 # User finished their work
     OVERDUE = "overdue"                     # Past due date, no submission
     SKIPPED = "skipped"                     # Intentionally skipped (with reason)
+    REOPENED = "reopened"                   # Rejected, needs resubmission
+
+
+class ApprovalStatus(str, Enum):
+    """Approval/governance status - separate from operational completion"""
+    NOT_REQUIRED = "not_required"           # No approval workflow
+    PENDING_APPROVAL = "pending_approval"   # Awaiting reviewer/approver
+    APPROVED = "approved"                   # Approved by reviewer
+    REJECTED = "rejected"                   # Rejected, user must fix
 
 
 class TaskType(str, Enum):
@@ -657,10 +666,17 @@ async def update_task_status(
     db: AsyncIOMotorDatabase,
     task_id: str,
     new_status: str,
+    approval_status: Optional[str] = None,
     user_id: Optional[str] = None,
     reason: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Update a task's status."""
+    """
+    Update a task's operational status and optionally approval status.
+    
+    New architecture separates:
+    - status: operational completion (pending → completed)
+    - approval_status: governance state (not_required/pending_approval/approved/rejected)
+    """
     now = datetime.now(tz.utc)
     
     update_doc = {
@@ -668,11 +684,32 @@ async def update_task_status(
         "updated_at": now,
     }
     
-    if new_status == TaskStatus.SUBMITTED.value:
-        update_doc["submitted_at"] = now
-    elif new_status == TaskStatus.APPROVED.value:
+    # Set approval_status if provided
+    if approval_status:
+        update_doc["approval_status"] = approval_status
+    
+    # Track completion timestamp
+    if new_status == TaskStatus.COMPLETED.value:
+        update_doc["completed_at"] = now
+        if user_id:
+            update_doc["completed_by_user_id"] = user_id
+    
+    # Track approval timestamp
+    if approval_status == ApprovalStatus.APPROVED.value:
         update_doc["approved_at"] = now
-    elif new_status == TaskStatus.SKIPPED.value:
+        if user_id:
+            update_doc["approved_by_user_id"] = user_id
+    
+    # Track rejection
+    if approval_status == ApprovalStatus.REJECTED.value:
+        update_doc["rejected_at"] = now
+        if user_id:
+            update_doc["rejected_by_user_id"] = user_id
+        if reason:
+            update_doc["rejection_reason"] = reason
+    
+    # Track skip reason
+    if new_status == TaskStatus.SKIPPED.value:
         update_doc["skipped_reason"] = reason
     
     result = await db["esg_reporting_tasks"].update_one(
@@ -680,7 +717,12 @@ async def update_task_status(
         {"$set": update_doc}
     )
     
-    return {"updated": result.modified_count > 0, "task_id": task_id, "new_status": new_status}
+    return {
+        "updated": result.modified_count > 0, 
+        "task_id": task_id, 
+        "new_status": new_status,
+        "approval_status": approval_status,
+    }
 
 
 async def get_task_summary(
@@ -723,10 +765,14 @@ async def get_task_summary(
         "backfill_pending": 0,
         "pending": 0,
         "in_progress": 0,
-        "submitted": 0,
-        "approved": 0,
+        "completed": 0,
         "overdue": 0,
         "skipped": 0,
+        "reopened": 0,
+        # Approval breakdown
+        "pending_approval": 0,
+        "approved": 0,
+        "rejected": 0,
     }
     
     for r in results:
@@ -735,6 +781,25 @@ async def get_task_summary(
         summary["total"] += count
         if status in summary:
             summary[status] = count
+    
+    # Also get approval_status breakdown
+    approval_pipeline = [
+        {"$match": match_query},
+        {"$group": {
+            "_id": "$approval_status",
+            "count": {"$sum": 1}
+        }}
+    ]
+    approval_results = await db["esg_reporting_tasks"].aggregate(approval_pipeline).to_list(100)
+    
+    for r in approval_results:
+        approval_status = r["_id"]
+        if approval_status == "pending_approval":
+            summary["pending_approval"] = r["count"]
+        elif approval_status == "approved":
+            summary["approved"] = r["count"]
+        elif approval_status == "rejected":
+            summary["rejected"] = r["count"]
     
     return summary
 
