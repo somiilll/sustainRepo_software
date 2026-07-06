@@ -759,6 +759,42 @@ function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
   
   return (
     <div className="space-y-6">
+      {/* Edit indicator banner */}
+      {snapshot.is_edit && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Badge className="bg-amber-500 text-white">Re-submission</Badge>
+            <span className="font-medium text-amber-800">This record was edited after previous approval</span>
+          </div>
+          {snapshot.changes_summary && snapshot.changes_summary.length > 0 && (
+            <div className="mt-3">
+              <p className="text-sm font-medium text-amber-800 mb-2">Changes made:</p>
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {snapshot.changes_summary.map((change, idx) => (
+                  <div key={idx} className="bg-white rounded p-2 text-sm border border-amber-100">
+                    <span className="font-medium capitalize">{change.field_key?.replace(/_/g, ' ')}</span>
+                    <div className="grid grid-cols-2 gap-2 mt-1 text-xs">
+                      <div className="text-red-600">
+                        <span className="text-text-muted">Old: </span>
+                        {change.old_value !== null && change.old_value !== undefined 
+                          ? (typeof change.old_value === 'object' ? JSON.stringify(change.old_value) : String(change.old_value))
+                          : <em className="text-stone-400">empty</em>}
+                      </div>
+                      <div className="text-green-600">
+                        <span className="text-text-muted">New: </span>
+                        {change.new_value !== null && change.new_value !== undefined 
+                          ? (typeof change.new_value === 'object' ? JSON.stringify(change.new_value) : String(change.new_value))
+                          : <em className="text-stone-400">empty</em>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      
       {/* Record Info */}
       <div className="bg-stone-50 rounded-lg p-4 space-y-3">
         <h4 className="font-semibold text-text-primary">Record Details</h4>
@@ -788,6 +824,7 @@ function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
             <div>
               <span className="text-text-muted">Reporting Period:</span>
               <p className="font-medium">
+                {snapshot.reporting_period.month && `${snapshot.reporting_period.month} `}
                 {snapshot.reporting_period.year || snapshot.reporting_period}
               </p>
             </div>

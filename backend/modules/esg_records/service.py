@@ -369,6 +369,31 @@ class ESGRecordsService:
         
         return assignee is not None
 
+    def _calculate_field_changes(
+        self,
+        old_values: Dict[str, Any],
+        new_values: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        """
+        Calculate the differences between old and new field values.
+        Returns a list of changes with field_key, old_value, new_value.
+        """
+        changes = []
+        all_keys = set(old_values.keys()) | set(new_values.keys())
+        
+        for key in all_keys:
+            old_val = old_values.get(key)
+            new_val = new_values.get(key)
+            
+            # Check if values are different
+            if old_val != new_val:
+                changes.append({
+                    "field_key": key,
+                    "old_value": old_val,
+                    "new_value": new_val,
+                })
+        
+        return changes
 
     async def _create_approval_request(
         self,
@@ -377,6 +402,9 @@ class ESGRecordsService:
         assignment: Dict[str, Any],
         user_id: str,
         section: str,
+        is_edit: bool = False,
+        changes_summary: Optional[List[Dict[str, Any]]] = None,
+        previous_snapshot: Optional[Dict[str, Any]] = None,
     ):
         """
         Create an approval request when a record is saved with requires_approval=True.
@@ -412,33 +440,43 @@ class ESGRecordsService:
             
             now = datetime.now(timezone.utc).isoformat()
             
+            # Build entity_snapshot with edit info if applicable
+            entity_snapshot = {
+                "category": record.get("category"),
+                "subcategory": record.get("subcategory"),
+                "sub_subcategory": record.get("sub_subcategory"),
+                "field_values": record.get("field_values"),
+                "field_definitions": field_definitions,
+                "reporting_period": record.get("reporting_period"),
+                "facility_id": record.get("facility_id"),
+            }
+            
+            # Add edit-specific info if this is a re-approval
+            if is_edit:
+                entity_snapshot["is_edit"] = True
+                entity_snapshot["changes_summary"] = changes_summary or []
+                if previous_snapshot:
+                    entity_snapshot["previous_field_values"] = previous_snapshot.get("field_values", {})
+            
             # Create approval request document
             approval_request = {
                 "id": str(uuid.uuid4()),
                 "organization_id": org_id,
                 "workflow_id": f"assignment_{assignment.get('id')}",  # Link to assignment
-                "workflow_name": f"ESG Record Approval - {record.get('category')}",
+                "workflow_name": f"ESG Record {'Edit' if is_edit else ''} Approval - {record.get('category')}",
                 
                 # Entity being approved
                 "entity_type": "esg_record",
                 "entity_id": record.get("id"),
                 "entity_subtype": section,
-                "entity_snapshot": {
-                    "category": record.get("category"),
-                    "subcategory": record.get("subcategory"),
-                    "sub_subcategory": record.get("sub_subcategory"),
-                    "field_values": record.get("field_values"),
-                    "field_definitions": field_definitions,  # Include all field definitions
-                    "reporting_period": record.get("reporting_period"),
-                    "facility_id": record.get("facility_id"),
-                },
+                "entity_snapshot": entity_snapshot,
                 
                 # Submission info
                 "submitted_by": user_id,
                 "submitted_by_email": submitter_email,
                 "submitted_by_name": submitter_name,
                 "submitted_at": now,
-                "submission_comment": None,
+                "submission_comment": "Edited after approval" if is_edit else None,
                 
                 # Current state
                 "status": "pending",
@@ -455,7 +493,7 @@ class ESGRecordsService:
             }
             
             await db.approval_requests.insert_one(approval_request)
-            print(f"Created approval request {approval_request['id']} for record {record.get('id')}")
+            print(f"Created approval request {approval_request['id']} for record {record.get('id')} (is_edit={is_edit})")
         except Exception as e:
             print(f"Warning: Failed to create approval request: {e}")
 
@@ -677,8 +715,32 @@ class ESGRecordsService:
             {"_id": 0}
         )
         
-        # If status changed to completed (from draft/rejected/reopened), mark the task as completed
-        if update_data.get("status") == "completed" and current.get("status") in ["rejected", "draft", "reopened", "pending"]:
+        # Determine if approval request needs to be created
+        # Case 1: Status changed to completed from draft/rejected/reopened/pending (new submission)
+        # Case 2: Already approved record is edited (re-submission for approval)
+        new_status = update_data.get("status")
+        old_status = current.get("status")
+        old_approval_status = current.get("approval_status")
+        
+        should_create_approval = False
+        is_edit_of_approved = False
+        
+        if new_status == "completed" and old_status in ["rejected", "draft", "reopened", "pending"]:
+            # New submission
+            should_create_approval = requires_approval
+        elif old_approval_status == "approved" and "field_values" in changed_fields:
+            # Edit of an approved record - needs re-approval
+            should_create_approval = requires_approval
+            is_edit_of_approved = True
+            # Update approval_status back to pending
+            await collection.update_one(
+                {"id": record_id, "is_current": True},
+                {"$set": {"approval_status": "pending_approval" if requires_approval else "not_required"}}
+            )
+            updated["approval_status"] = "pending_approval" if requires_approval else "not_required"
+        
+        # If status changed to completed, mark the task as completed
+        if new_status == "completed" and old_status in ["rejected", "draft", "reopened", "pending"]:
             await self._mark_task_completed(
                 org_id=current.get("org_id"),
                 user_id=user_id,
@@ -689,16 +751,27 @@ class ESGRecordsService:
                 reporting_period=current.get("reporting_period"),
                 requires_approval=requires_approval,
             )
-            
-            # Create approval request if requires approval
-            if requires_approval and assignment:
-                await self._create_approval_request(
-                    org_id=current.get("org_id"),
-                    record=updated,
-                    assignment=assignment,
-                    user_id=user_id,
-                    section=section,
+        
+        # Create approval request if needed
+        if should_create_approval and assignment:
+            # Calculate changes for edit scenarios
+            changes_summary = None
+            if is_edit_of_approved:
+                changes_summary = self._calculate_field_changes(
+                    old_values=current.get("field_values", {}),
+                    new_values=updated.get("field_values", {})
                 )
+            
+            await self._create_approval_request(
+                org_id=current.get("org_id"),
+                record=updated,
+                assignment=assignment,
+                user_id=user_id,
+                section=section,
+                is_edit=is_edit_of_approved,
+                changes_summary=changes_summary,
+                previous_snapshot=current if is_edit_of_approved else None,
+            )
         
         # Create version snapshot
         await self._create_version_snapshot(
