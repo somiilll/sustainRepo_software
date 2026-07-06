@@ -139,7 +139,7 @@ export default function ApprovalModule({
         `${API}/api/approval-workflows/requests`,
         {
           headers: getAuthHeader(),
-          params: { status: 'pending' }
+          params: { status: 'pending', my_approvals: true }
         }
       ).catch(err => {
         console.warn('Failed to fetch record approvals:', err);
