@@ -301,6 +301,14 @@ class ESGRecordsService:
             submitter_email = submitter.get("email", "") if submitter else ""
             submitter_name = submitter.get("full_name", "") if submitter else ""
             
+            # Get category config to include field definitions
+            category_config = await self.get_category_by_name(
+                section, 
+                record.get("category"), 
+                record.get("subcategory")
+            )
+            field_definitions = category_config.get("fields", []) if category_config else []
+            
             now = datetime.now(timezone.utc).isoformat()
             
             # Create approval request document
@@ -319,6 +327,7 @@ class ESGRecordsService:
                     "subcategory": record.get("subcategory"),
                     "sub_subcategory": record.get("sub_subcategory"),
                     "field_values": record.get("field_values"),
+                    "field_definitions": field_definitions,  # Include all field definitions
                     "reporting_period": record.get("reporting_period"),
                     "facility_id": record.get("facility_id"),
                 },

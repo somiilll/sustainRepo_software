@@ -403,6 +403,7 @@ export default function ApproverQueue() {
 /**
  * RecordApprovalPanel - Review panel for ESG Record approvals
  * Allows approvers to view and edit record data before approval
+ * Shows ALL fields defined for the category, not just filled ones
  */
 function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
   const [processing, setProcessing] = useState(false);
@@ -412,10 +413,39 @@ function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
   
   const snapshot = item.entity_snapshot || {};
   const originalFieldValues = snapshot.field_values || {};
+  const fieldDefinitions = snapshot.field_definitions || [];
   
   // Initialize edited fields with original values
   useEffect(() => {
-    setEditedFields({ ...originalFieldValues });
+    // Initialize all fields from definitions with their values or defaults
+    const initialFields = {};
+    fieldDefinitions.forEach(field => {
+      const key = field.field_key;
+      if (originalFieldValues[key] !== undefined) {
+        initialFields[key] = originalFieldValues[key];
+      } else if (field.default_value !== undefined && field.default_value !== null) {
+        initialFields[key] = field.default_value;
+      } else {
+        // Set appropriate empty value based on type
+        switch (field.type) {
+          case 'number':
+            initialFields[key] = '';
+            break;
+          case 'yes_no':
+            initialFields[key] = null;
+            break;
+          case 'checkbox_group':
+            initialFields[key] = [];
+            break;
+          case 'table':
+            initialFields[key] = [];
+            break;
+          default:
+            initialFields[key] = '';
+        }
+      }
+    });
+    setEditedFields(initialFields);
   }, []);
   
   // Track if user made edits
@@ -440,12 +470,10 @@ function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
         comment: comment || 'Approved'
       };
       
-      // Include updated data if approver made edits
-      if (hasEdits) {
-        payload.updated_data = {
-          field_values: editedFields
-        };
-      }
+      // Always send updated data with all fields
+      payload.updated_data = {
+        field_values: editedFields
+      };
       
       await axios.post(
         `${API}/api/approval-workflows/requests/${item._approval_request_id}/decide`,
@@ -486,67 +514,228 @@ function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
   
   // Reset edits
   const handleResetEdits = () => {
-    setEditedFields({ ...originalFieldValues });
+    const initialFields = {};
+    fieldDefinitions.forEach(field => {
+      const key = field.field_key;
+      if (originalFieldValues[key] !== undefined) {
+        initialFields[key] = originalFieldValues[key];
+      } else if (field.default_value !== undefined && field.default_value !== null) {
+        initialFields[key] = field.default_value;
+      } else {
+        switch (field.type) {
+          case 'number':
+            initialFields[key] = '';
+            break;
+          case 'yes_no':
+            initialFields[key] = null;
+            break;
+          case 'checkbox_group':
+            initialFields[key] = [];
+            break;
+          case 'table':
+            initialFields[key] = [];
+            break;
+          default:
+            initialFields[key] = '';
+        }
+      }
+    });
+    setEditedFields(initialFields);
     setHasEdits(false);
   };
   
-  // Render editable field based on value type
-  const renderEditableField = (key, value) => {
-    const currentValue = editedFields[key] ?? value;
+  // Render field based on field definition type
+  const renderFieldByDefinition = (field) => {
+    const key = field.field_key;
+    const currentValue = editedFields[key];
+    const originalValue = originalFieldValues[key];
+    const isModified = JSON.stringify(currentValue) !== JSON.stringify(originalValue);
+    const isFilled = originalValue !== undefined && originalValue !== null && originalValue !== '';
     
-    if (typeof value === 'boolean') {
-      return (
-        <select
-          value={currentValue ? 'true' : 'false'}
-          onChange={(e) => handleFieldChange(key, e.target.value === 'true')}
-          className="w-full px-2 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          disabled={processing}
-        >
-          <option value="true">Yes</option>
-          <option value="false">No</option>
-        </select>
-      );
+    const inputClasses = "w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
+    
+    let input;
+    
+    switch (field.type) {
+      case 'number':
+        input = (
+          <input
+            type="number"
+            value={currentValue ?? ''}
+            onChange={(e) => handleFieldChange(key, e.target.value ? parseFloat(e.target.value) : '')}
+            className={inputClasses}
+            placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+            disabled={processing}
+            min={field.validation?.min}
+            max={field.validation?.max}
+          />
+        );
+        break;
+        
+      case 'textarea':
+        input = (
+          <textarea
+            value={currentValue ?? ''}
+            onChange={(e) => handleFieldChange(key, e.target.value)}
+            className={`${inputClasses} resize-none`}
+            placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+            rows={3}
+            disabled={processing}
+          />
+        );
+        break;
+        
+      case 'dropdown':
+      case 'radio':
+        input = (
+          <select
+            value={currentValue ?? ''}
+            onChange={(e) => handleFieldChange(key, e.target.value)}
+            className={inputClasses}
+            disabled={processing}
+          >
+            <option value="">Select {field.label}</option>
+            {(field.options || []).map(opt => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        );
+        break;
+        
+      case 'yes_no':
+        input = (
+          <select
+            value={currentValue === true ? 'yes' : currentValue === false ? 'no' : ''}
+            onChange={(e) => handleFieldChange(key, e.target.value === 'yes' ? true : e.target.value === 'no' ? false : null)}
+            className={inputClasses}
+            disabled={processing}
+          >
+            <option value="">Select</option>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        );
+        break;
+        
+      case 'date':
+        input = (
+          <input
+            type="date"
+            value={currentValue ?? ''}
+            onChange={(e) => handleFieldChange(key, e.target.value)}
+            className={inputClasses}
+            disabled={processing}
+          />
+        );
+        break;
+        
+      case 'unit_selector':
+        input = (
+          <div className="flex gap-2">
+            <input
+              type="number"
+              value={currentValue?.value ?? ''}
+              onChange={(e) => handleFieldChange(key, { ...currentValue, value: e.target.value ? parseFloat(e.target.value) : '' })}
+              className={`${inputClasses} flex-1`}
+              placeholder="Value"
+              disabled={processing}
+            />
+            <select
+              value={currentValue?.unit ?? ''}
+              onChange={(e) => handleFieldChange(key, { ...currentValue, unit: e.target.value })}
+              className={`${inputClasses} w-32`}
+              disabled={processing}
+            >
+              <option value="">Unit</option>
+              {(field.options || []).map(opt => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
+          </div>
+        );
+        break;
+        
+      case 'checkbox_group':
+        input = (
+          <div className="space-y-2">
+            {(field.options || []).map(opt => (
+              <label key={opt} className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={(currentValue || []).includes(opt)}
+                  onChange={(e) => {
+                    const arr = currentValue || [];
+                    if (e.target.checked) {
+                      handleFieldChange(key, [...arr, opt]);
+                    } else {
+                      handleFieldChange(key, arr.filter(v => v !== opt));
+                    }
+                  }}
+                  className="rounded border-gray-300"
+                  disabled={processing}
+                />
+                <span className="text-sm">{opt}</span>
+              </label>
+            ))}
+          </div>
+        );
+        break;
+        
+      case 'file_upload':
+        input = (
+          <div className="text-sm text-text-muted p-2 border rounded-lg bg-stone-50">
+            {currentValue ? (
+              <span>File: {typeof currentValue === 'string' ? currentValue : 'Uploaded'}</span>
+            ) : (
+              <span>No file uploaded</span>
+            )}
+          </div>
+        );
+        break;
+        
+      case 'table':
+        input = (
+          <div className="text-sm text-text-muted p-2 border rounded-lg bg-stone-50">
+            {Array.isArray(currentValue) && currentValue.length > 0 ? (
+              <span>{currentValue.length} row(s) of data</span>
+            ) : (
+              <span>No table data</span>
+            )}
+          </div>
+        );
+        break;
+        
+      default: // text
+        input = (
+          <input
+            type="text"
+            value={currentValue ?? ''}
+            onChange={(e) => handleFieldChange(key, e.target.value)}
+            className={inputClasses}
+            placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+            disabled={processing}
+          />
+        );
     }
     
-    if (typeof value === 'number') {
-      return (
-        <input
-          type="number"
-          value={currentValue}
-          onChange={(e) => handleFieldChange(key, parseFloat(e.target.value) || 0)}
-          className="w-full px-2 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          disabled={processing}
-        />
-      );
-    }
-    
-    if (typeof value === 'object' && value !== null) {
-      return (
-        <textarea
-          value={JSON.stringify(currentValue, null, 2)}
-          onChange={(e) => {
-            try {
-              handleFieldChange(key, JSON.parse(e.target.value));
-            } catch {
-              // Invalid JSON, keep as string
-            }
-          }}
-          className="w-full px-2 py-1 border rounded text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-          rows={3}
-          disabled={processing}
-        />
-      );
-    }
-    
-    // Default to text input
     return (
-      <input
-        type="text"
-        value={currentValue ?? ''}
-        onChange={(e) => handleFieldChange(key, e.target.value)}
-        className="w-full px-2 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        disabled={processing}
-      />
+      <div 
+        key={key} 
+        className={`space-y-1 p-3 rounded-lg ${isModified ? 'bg-amber-50 border border-amber-200' : isFilled ? 'bg-green-50 border border-green-200' : 'bg-stone-50 border border-stone-200'}`}
+      >
+        <div className="flex items-center justify-between">
+          <label className="text-sm font-medium text-text-secondary">
+            {field.label}
+            {field.required && <span className="text-red-500 ml-1">*</span>}
+          </label>
+          <div className="flex items-center gap-2">
+            {isModified && <Badge className="bg-amber-100 text-amber-800 text-xs">Edited</Badge>}
+            {!isModified && isFilled && <Badge className="bg-green-100 text-green-800 text-xs">Filled</Badge>}
+            {!isModified && !isFilled && <Badge className="bg-stone-100 text-stone-600 text-xs">Empty</Badge>}
+          </div>
+        </div>
+        {input}
+      </div>
     );
   };
   
@@ -589,7 +778,36 @@ function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
       </div>
       
       {/* Editable Data Fields */}
-      {Object.keys(originalFieldValues).length > 0 ? (
+      {fieldDefinitions.length > 0 ? (
+        <div className="border rounded-lg p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="font-semibold text-text-primary">
+              Record Fields ({fieldDefinitions.length})
+            </h4>
+            {hasEdits && (
+              <div className="flex items-center gap-2">
+                <Badge className="bg-amber-100 text-amber-800">Modified</Badge>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleResetEdits}
+                  disabled={processing}
+                >
+                  Reset
+                </Button>
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-text-muted">
+            Review and edit all fields for this category. Green = filled by submitter, Gray = empty.
+          </p>
+          
+          <div className="space-y-3">
+            {fieldDefinitions.map(field => renderFieldByDefinition(field))}
+          </div>
+        </div>
+      ) : Object.keys(originalFieldValues).length > 0 ? (
+        // Fallback for older approval requests without field_definitions
         <div className="border rounded-lg p-4 space-y-4">
           <div className="flex items-center justify-between">
             <h4 className="font-semibold text-text-primary">Submitted Data</h4>
@@ -609,16 +827,28 @@ function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
           </div>
           <p className="text-xs text-text-muted">You can edit fields below before approving</p>
           
-          <div className="space-y-4">
+          <div className="space-y-3">
             {Object.entries(originalFieldValues).map(([key, value]) => {
-              const isModified = hasEdits && JSON.stringify(editedFields[key]) !== JSON.stringify(value);
+              const currentValue = editedFields[key];
+              const isModified = JSON.stringify(currentValue) !== JSON.stringify(value);
               return (
-                <div key={key} className={`space-y-1 ${isModified ? 'bg-amber-50 p-2 rounded -mx-2' : ''}`}>
-                  <label className="text-sm font-medium text-text-secondary capitalize flex items-center gap-2">
-                    {key.replace(/_/g, ' ')}
-                    {isModified && <span className="text-xs text-amber-600">(edited)</span>}
-                  </label>
-                  {renderEditableField(key, value)}
+                <div 
+                  key={key} 
+                  className={`space-y-1 p-3 rounded-lg ${isModified ? 'bg-amber-50 border border-amber-200' : 'bg-green-50 border border-green-200'}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-text-secondary capitalize">
+                      {key.replace(/_/g, ' ')}
+                    </label>
+                    {isModified && <Badge className="bg-amber-100 text-amber-800 text-xs">Edited</Badge>}
+                  </div>
+                  <input
+                    type={typeof value === 'number' ? 'number' : 'text'}
+                    value={currentValue ?? ''}
+                    onChange={(e) => handleFieldChange(key, typeof value === 'number' ? parseFloat(e.target.value) || 0 : e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={processing}
+                  />
                 </div>
               );
             })}
@@ -626,7 +856,7 @@ function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
         </div>
       ) : (
         <div className="border rounded-lg p-4 text-center text-text-muted">
-          No field data available for this record
+          No field definitions available for this record category
         </div>
       )}
       
