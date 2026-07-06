@@ -438,6 +438,22 @@ export default function ESGRecordsDataEntry({
     // Extract reporting period info
     const reportingPeriod = record.reporting_period || {};
     
+    // Normalize month value - could be number (8), string number ("8"), or month name ("August")
+    let normalizedMonth = reportingPeriod.month || '';
+    if (normalizedMonth) {
+      // If it's a number or numeric string, keep as string number for dropdown
+      if (typeof normalizedMonth === 'number') {
+        normalizedMonth = String(normalizedMonth);
+      } else if (typeof normalizedMonth === 'string') {
+        // Check if it's a month name and convert to number
+        const monthIndex = MONTHS.indexOf(normalizedMonth);
+        if (monthIndex !== -1) {
+          normalizedMonth = String(monthIndex + 1); // Convert to 1-indexed string
+        }
+        // If it's already a numeric string like "8", keep it as is
+      }
+    }
+    
     setEditData({
       field_values: record.field_values || {},
       notes: record.notes || '',
@@ -445,7 +461,7 @@ export default function ESGRecordsDataEntry({
       // Reporting period fields
       reporting_type: reportingPeriod.reporting_type || 'monthly',
       reporting_year: reportingPeriod.year || new Date().getFullYear(),
-      reporting_month: reportingPeriod.month || '',
+      reporting_month: normalizedMonth,
       reporting_quarter: reportingPeriod.quarter || '',
       reporting_date: reportingPeriod.date || '',
       // Facility/org level

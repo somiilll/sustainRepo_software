@@ -113,9 +113,19 @@ class ESGRecordsService:
                 record_level=data.record_level,
             )
             if not assignment and not allow_without_assignment:
+                # Get facility name if facility_id is provided
+                facility_name = None
+                if data.facility_id:
+                    facility = await db.facilities.find_one(
+                        {"id": data.facility_id},
+                        {"_id": 0, "name": 1}
+                    )
+                    facility_name = facility.get("name") if facility else data.facility_id
+                
+                location_str = f"at {facility_name}" if facility_name else "at organization level"
                 raise ValueError(
                     f"No active assignment found for {data.category}/{data.subcategory or ''} "
-                    f"at {'facility' if data.facility_id else 'organization'} level"
+                    f"{location_str}"
                 )
             # Check if this assignment requires approval
             if assignment:
@@ -134,7 +144,16 @@ class ESGRecordsService:
                 )
                 if not period_valid:
                     rp = data.reporting_period
-                    period_str = f"{rp.month} {rp.year}" if rp.month else str(rp.year)
+                    # Convert month number to name if needed
+                    month_display = rp.month
+                    if month_display:
+                        if isinstance(month_display, int) or (isinstance(month_display, str) and month_display.isdigit()):
+                            month_names = ["January", "February", "March", "April", "May", "June",
+                                          "July", "August", "September", "October", "November", "December"]
+                            month_idx = int(month_display) - 1
+                            if 0 <= month_idx < 12:
+                                month_display = month_names[month_idx]
+                    period_str = f"{month_display} {rp.year}" if month_display else str(rp.year)
                     raise ValueError(
                         f"No task assigned for period {period_str}. "
                         f"You can only submit data for periods assigned to you."
