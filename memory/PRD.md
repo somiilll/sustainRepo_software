@@ -1586,7 +1586,29 @@ Users are linked to tasks via a separate mapping table (`esg_task_assignees`).
 - `GET /api/esg-records/tasks/my-tasks` - Now returns tasks via assignee join
 - Response includes `user_role` field showing assignee's role
 
-### Phase 3 & 4 (UPCOMING)
-- Update frontend `MyTasks.js` to display role badges
+### Phase 3 - Frontend Modular Refactor (COMPLETE - July 6, 2026)
+
+**New Modular Task Components** (`/app/frontend/src/components/tasks/`):
+- `constants.js` - Task statuses, types, roles, and configuration
+- `utils.js` - Utility functions (formatDueDate, categorizeTask, groupTasksByCategory, etc.)
+- `RoleBadge.js` - Displays user's role (Owner, Editor, Reviewer, Approver, Viewer)
+- `StatusBadge.js` - Displays task status with icons
+- `TaskCard.js` - Full task card for flat view
+- `TaskRow.js` - Compact task row for grouped view
+- `TaskFilters.js` - Search and filter controls
+- `TaskStatsCards.js` - Stats display cards
+- `TaskGroupedView.js` - Collapsible category groups
+- `useMyTasks.js` - Custom hook for data fetching
+- `index.js` - Module exports
+
+**Refactored MyTasks.js**:
+- Reduced from 689 lines to ~150 lines (orchestrator only)
+- Uses modular components via clean imports
+- Role-based permission checks (canUserEdit, canUserApprove)
+- "Fill" button for editors, "View" button for viewers
+
+### Phase 4 (UPCOMING)
 - Add multi-assignee display in `ESGRecordsTracker.js`
-- Support role-based permissions (viewer can't edit, approver can approve)
+- Role badges in tracker assignee column
+- Implement actual role-based edit restrictions in backend
+
