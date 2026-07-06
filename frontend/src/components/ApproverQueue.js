@@ -98,15 +98,55 @@ export default function ApproverQueue() {
         params.section = sectionFilter;
       }
       
-      const res = await axios.get(
+      // Fetch questionnaire submissions
+      const questionnairePromise = axios.get(
         `${API}/api/esg-questionnaire/submissions/pending`,
-        {
-          headers: getAuthHeader(),
-          params
-        }
-      );
+        { headers: getAuthHeader(), params }
+      ).catch(err => {
+        console.warn('Failed to fetch questionnaire submissions:', err);
+        return { data: { submissions: [] } };
+      });
       
-      setSubmissions(res.data.submissions || []);
+      // Fetch ESG record approval requests
+      const recordApprovalsPromise = axios.get(
+        `${API}/api/approval-workflows/requests`,
+        { headers: getAuthHeader(), params: { status: 'pending', my_approvals: true } }
+      ).catch(err => {
+        console.warn('Failed to fetch record approvals:', err);
+        return { data: { requests: [] } };
+      });
+      
+      const [questionnaireRes, recordApprovalsRes] = await Promise.all([
+        questionnairePromise,
+        recordApprovalsPromise
+      ]);
+      
+      // Transform record approvals to match submission format
+      const recordApprovals = (recordApprovalsRes.data.requests || [])
+        .filter(r => r.entity_type === 'esg_record')
+        .map(r => ({
+          id: r.id,
+          entity_type: 'esg_record',
+          entity_id: r.entity_id,
+          section: r.entity_subtype || 'environment',
+          question_key: `record_${r.entity_snapshot?.category || 'unknown'}`,
+          disclosure_name: `${r.entity_snapshot?.category}${r.entity_snapshot?.subcategory ? ' → ' + r.entity_snapshot.subcategory : ''}`,
+          submitted_by: r.submitted_by,
+          submitted_by_name: r.submitted_by_name,
+          submitted_by_email: r.submitted_by_email,
+          submitted_at: r.submitted_at,
+          status: r.status,
+          workflow_name: r.workflow_name,
+          entity_snapshot: r.entity_snapshot,
+          _source: 'approval_workflow',
+          _approval_request_id: r.id,
+        }));
+      
+      // Combine both sources
+      setSubmissions([
+        ...(questionnaireRes.data.submissions || []),
+        ...recordApprovals
+      ]);
     } catch (error) {
       console.error('Failed to fetch submissions:', error);
       toast.error('Failed to load approval queue');
