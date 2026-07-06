@@ -19,7 +19,8 @@ import {
 } from './ui/dialog';
 import { 
   Loader2, 
-  Users, 
+  Users,
+  User,
   Clock, 
   CheckCircle2,
   Filter,
@@ -298,62 +299,66 @@ export default function ApproverQueue() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {submissions.map((questionGroup) => (
-            <Card 
-              key={questionGroup.question_key}
-              className="p-4 hover:bg-stone-50 transition-colors cursor-pointer"
-              onClick={() => setSelectedQuestion(questionGroup)}
-              data-testid={`queue-item-${questionGroup.question_key}`}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center shrink-0">
-                    <FileText className="w-5 h-5 text-purple-600" />
+          {submissions.map((item) => {
+            const isRecordApproval = item._source === 'approval_workflow';
+            return (
+              <Card 
+                key={item.id || item.question_key}
+                className="p-4 hover:bg-stone-50 transition-colors cursor-pointer"
+                onClick={() => setSelectedQuestion(item)}
+                data-testid={`queue-item-${item.question_key || item.id}`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-start gap-4">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isRecordApproval ? 'bg-emerald-100' : 'bg-purple-100'}`}>
+                      <FileText className={`w-5 h-5 ${isRecordApproval ? 'text-emerald-600' : 'text-purple-600'}`} />
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-text-primary">
+                          {isRecordApproval ? item.disclosure_name : item.question_key}
+                        </span>
+                        {isRecordApproval ? (
+                          <Badge className="bg-emerald-100 text-emerald-800">Data Record</Badge>
+                        ) : (
+                          getSectionBadge(item.question_key)
+                        )}
+                      </div>
+                      
+                      <div className="flex items-center gap-4 text-sm text-text-muted">
+                        {isRecordApproval ? (
+                          <>
+                            <span className="flex items-center gap-1">
+                              <User className="w-3 h-3" />
+                              {item.submitted_by_name || 'Unknown'}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {formatDate(item.submitted_at)}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="flex items-center gap-1">
+                              <Users className="w-3 h-3" />
+                              {item.submissions?.length || 0} submission{(item.submissions?.length || 0) !== 1 ? 's' : ''}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              Latest: {formatDate(item.submissions?.[0]?.submitted_at)}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
                   </div>
                   
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-sm font-medium text-text-primary">
-                        {questionGroup.question_key}
-                      </span>
-                      {getSectionBadge(questionGroup.question_key)}
-                    </div>
-                    
-                    <div className="flex items-center gap-4 text-sm text-text-muted">
-                      <span className="flex items-center gap-1">
-                        <Users className="w-3 h-3" />
-                        {questionGroup.submissions?.length || 0} submission{(questionGroup.submissions?.length || 0) !== 1 ? 's' : ''}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        Latest: {formatDate(questionGroup.submissions?.[0]?.submitted_at)}
-                      </span>
-                    </div>
-                    
-                    {/* Preview of submitters */}
-                    <div className="flex items-center gap-2 mt-2">
-                      {questionGroup.submissions?.slice(0, 3).map((sub, idx) => (
-                        <Badge 
-                          key={sub.id} 
-                          variant="outline" 
-                          className="text-xs"
-                        >
-                          {sub.submitted_by_user_name?.split(' ')[0] || 'User'}
-                        </Badge>
-                      ))}
-                      {(questionGroup.submissions?.length || 0) > 3 && (
-                        <span className="text-xs text-text-muted">
-                          +{questionGroup.submissions.length - 3} more
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                  <ChevronRight className="w-5 h-5 text-stone-400" />
                 </div>
-                
-                <ChevronRight className="w-5 h-5 text-stone-400" />
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </div>
       )}
 
