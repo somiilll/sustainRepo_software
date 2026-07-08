@@ -101,41 +101,48 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
   const [futureYears, setFutureYears] = useState([]);
   
   // Form data - map initialData fields for compatibility
-  const mappedInitialData = useMemo(() => {
-    if (!initialData) return {};
-    return {
-      ...initialData,
-      // Map reporting_period to target_year for static/monthly/quarterly/half_yearly modes
-      target_year: initialData.target_year || initialData.reporting_period || '',
+  const getInitialFormData = () => {
+    const base = {
+      target_name: '',
+      description: '',
+      category: '',
+      subcategory: '',
+      sub_subcategory: '',
+      metric_key: '',
+      metric_label: '',
+      unit: '',
+      scope_type: 'organization',
+      facility_ids: [],
+      reporting_type: 'FY',
+      target_type: 'absolute',
+      goal_type: 'upper_limit',
+      target_value: '',
+      minimum_value: '',
+      maximum_value: '',
+      baseline: { period: '', value: '' },
+      tracking_mode: 'static',
+      tracking_values: {},
+      target_year: '',
+      start_period: '',
+      end_period: '',
+      thresholds: { green: '', amber: '', red: '' },
     };
-  }, [initialData]);
+    
+    if (!initialData) return base;
+    
+    return {
+      ...base,
+      ...initialData,
+      // Map reporting_period to target_year for backward compatibility
+      target_year: initialData.target_year || initialData.reporting_period || '',
+      baseline: initialData.baseline || { period: '', value: '' },
+      thresholds: initialData.thresholds || { green: '', amber: '', red: '' },
+      tracking_values: initialData.tracking_values || {},
+      facility_ids: initialData.facility_ids || [],
+    };
+  };
 
-  const [formData, setFormData] = useState({
-    target_name: '',
-    description: '',
-    category: '',
-    subcategory: '',
-    sub_subcategory: '',
-    metric_key: '',
-    metric_label: '',
-    unit: '',
-    scope_type: 'organization',
-    facility_ids: [],
-    reporting_type: 'FY',
-    target_type: 'absolute',
-    goal_type: 'upper_limit',
-    target_value: '',
-    minimum_value: '',
-    maximum_value: '',
-    baseline: { period: '', value: '' },
-    tracking_mode: 'static',
-    tracking_values: {},
-    target_year: '',  // For static mode
-    start_period: '', // For yearly mode
-    end_period: '',   // For yearly mode
-    thresholds: { green: '', amber: '', red: '' },
-    ...mappedInitialData
-  });
+  const [formData, setFormData] = useState(getInitialFormData);
 
   // Computed hierarchy from categories
   const hierarchy = useMemo(() => {
