@@ -1230,18 +1230,73 @@ class ESGRecordsService:
         section: ESG_SECTION,
         record_id: str
     ) -> List[Dict[str, Any]]:
-        """Get all versions of a record."""
+        """Get all versions of a record with user names and field changes."""
         collection = self._get_versions_collection(section)
         cursor = collection.find(
             {"record_id": record_id},
             {"_id": 0}
         ).sort("version", -1)
         versions = await cursor.to_list(None)
-        # Strip _id from snapshot to avoid ObjectId serialization errors
-        for v in versions:
+        
+        # Collect user IDs for bulk lookup
+        user_ids = list(set(v.get("created_by") for v in versions if v.get("created_by")))
+        user_map = {}
+        if user_ids:
+            users = await db.users.find({"id": {"$in": user_ids}}, {"_id": 0, "id": 1, "name": 1, "email": 1}).to_list(None)
+            user_map = {u["id"]: u.get("name") or u.get("email", "Unknown") for u in users}
+        
+        # Process versions - compute field changes by comparing consecutive snapshots
+        for i, v in enumerate(versions):
             if "snapshot" in v and isinstance(v["snapshot"], dict):
                 v["snapshot"].pop("_id", None)
+            
+            # Add user name
+            v["changed_by_name"] = user_map.get(v.get("created_by"), "Unknown")
+            
+            # Determine change type
+            v["change_type"] = "created" if v.get("version") == 1 else "updated"
+            
+            # Compute field changes for updates (compare with previous version)
+            if v.get("version", 1) > 1 and i + 1 < len(versions):
+                prev_snapshot = versions[i + 1].get("snapshot", {})
+                curr_snapshot = v.get("snapshot", {})
+                v["field_changes"] = self._compute_field_changes(prev_snapshot, curr_snapshot)
+            else:
+                v["field_changes"] = []
+        
         return versions
+    
+    def _compute_field_changes(self, old: Dict, new: Dict) -> List[Dict]:
+        """Compute field-level changes between two snapshots."""
+        changes = []
+        
+        # Compare field_values (the main data container)
+        old_values = old.get("field_values", {})
+        new_values = new.get("field_values", {})
+        all_keys = set(old_values.keys()) | set(new_values.keys())
+        
+        for key in all_keys:
+            old_val = old_values.get(key)
+            new_val = new_values.get(key)
+            if old_val != new_val:
+                changes.append({
+                    "field": key,
+                    "display_name": key.replace("_", " ").title(),
+                    "old_value": old_val,
+                    "new_value": new_val
+                })
+        
+        # Compare top-level status fields
+        for field in ["status", "approval_status", "notes", "source_of_information"]:
+            if old.get(field) != new.get(field):
+                changes.append({
+                    "field": field,
+                    "display_name": field.replace("_", " ").title(),
+                    "old_value": old.get(field),
+                    "new_value": new.get(field)
+                })
+        
+        return changes
     
     async def get_version(
         self,
