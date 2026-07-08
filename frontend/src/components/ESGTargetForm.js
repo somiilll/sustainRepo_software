@@ -103,6 +103,8 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
   // Computed hierarchy from categories
   const hierarchy = useMemo(() => {
     const h = {};
+    if (!Array.isArray(categories)) return h;
+    
     categories.forEach(cat => {
       const catName = cat.category;
       const subcatName = cat.subcategory;
@@ -129,9 +131,12 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
     const fetchCategories = async () => {
       try {
         const res = await axios.get(`${API}/api/esg-records/categories/${section}`, { headers });
-        setCategories(res.data || []);
+        // API returns {categories: [...], total: N}
+        const data = res.data?.categories || res.data || [];
+        setCategories(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error('Failed to fetch categories:', error);
+        setCategories([]);
       }
     };
     fetchCategories();
