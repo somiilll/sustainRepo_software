@@ -14,6 +14,7 @@ from .contracts import (
     ESG_SECTION, REPORTING_TYPE, CreateRecordRequest, 
     UpdateRecordRequest, RecordListFilters
 )
+from .version_utils import compare_versions, get_changed_field_paths, format_field_display_name
 
 
 class ESGRecordsService:
@@ -952,13 +953,14 @@ class ESGRecordsService:
         elif should_create_approval and not assignment:
             print("WARNING: should_create_approval=True but no assignment found!")
         
-        # Create version snapshot
+        # Create version snapshot with hierarchical field paths
+        field_changes = compare_versions(current, updated) if current else []
         await self._create_version_snapshot(
             section=section,
             record_id=record_id,
             version=new_version,
             snapshot=updated,
-            changed_fields=changed_fields,
+            changed_fields=field_changes,
             change_reason=data.change_reason,
             user_id=user_id
         )
@@ -1256,47 +1258,26 @@ class ESGRecordsService:
             # Determine change type
             v["change_type"] = "created" if v.get("version") == 1 else "updated"
             
-            # Compute field changes for updates (compare with previous version)
-            if v.get("version", 1) > 1 and i + 1 < len(versions):
+            # Use stored changed_fields if available, otherwise compute from snapshots
+            if v.get("changed_fields") and isinstance(v["changed_fields"][0], dict) if v.get("changed_fields") else False:
+                # New format: already has field changes with old/new values
+                v["field_changes"] = [
+                    {"field": c["field"], "display_name": format_field_display_name(c["field"]), "old_value": c.get("old"), "new_value": c.get("new")}
+                    for c in v["changed_fields"]
+                ]
+            elif v.get("version", 1) > 1 and i + 1 < len(versions):
+                # Compute from snapshots using utility
                 prev_snapshot = versions[i + 1].get("snapshot", {})
                 curr_snapshot = v.get("snapshot", {})
-                v["field_changes"] = self._compute_field_changes(prev_snapshot, curr_snapshot)
+                changes = compare_versions(prev_snapshot, curr_snapshot)
+                v["field_changes"] = [
+                    {"field": c["field"], "display_name": format_field_display_name(c["field"]), "old_value": c["old"], "new_value": c["new"]}
+                    for c in changes
+                ]
             else:
                 v["field_changes"] = []
         
         return versions
-    
-    def _compute_field_changes(self, old: Dict, new: Dict) -> List[Dict]:
-        """Compute field-level changes between two snapshots."""
-        changes = []
-        
-        # Compare field_values (the main data container)
-        old_values = old.get("field_values", {})
-        new_values = new.get("field_values", {})
-        all_keys = set(old_values.keys()) | set(new_values.keys())
-        
-        for key in all_keys:
-            old_val = old_values.get(key)
-            new_val = new_values.get(key)
-            if old_val != new_val:
-                changes.append({
-                    "field": key,
-                    "display_name": key.replace("_", " ").title(),
-                    "old_value": old_val,
-                    "new_value": new_val
-                })
-        
-        # Compare top-level status fields
-        for field in ["status", "approval_status", "notes", "source_of_information"]:
-            if old.get(field) != new.get(field):
-                changes.append({
-                    "field": field,
-                    "display_name": field.replace("_", " ").title(),
-                    "old_value": old.get(field),
-                    "new_value": new.get(field)
-                })
-        
-        return changes
     
     async def get_version(
         self,
