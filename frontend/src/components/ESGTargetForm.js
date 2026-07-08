@@ -114,13 +114,19 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
       if (!h[catName][subcatName]) h[catName][subcatName] = {};
       if (!h[catName][subcatName][subSubcatName]) h[catName][subcatName][subSubcatName] = [];
       
-      (cat.field_definitions || []).forEach(field => {
-        h[catName][subcatName][subSubcatName].push({
-          metric_key: field.key,
-          metric_label: field.label,
-          unit: field.unit || cat.unit,
-          category_id: cat.id
-        });
+      // Support both 'fields' and 'field_definitions' for compatibility
+      const fields = cat.fields || cat.field_definitions || [];
+      fields.forEach(field => {
+        // Support both 'field_key' and 'key' for compatibility
+        const fieldKey = field.field_key || field.key;
+        if (fieldKey) {
+          h[catName][subcatName][subSubcatName].push({
+            metric_key: fieldKey,
+            metric_label: field.label,
+            unit: field.unit || cat.unit,
+            category_id: cat.id
+          });
+        }
       });
     });
     return h;
