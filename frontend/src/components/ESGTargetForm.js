@@ -14,10 +14,11 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card } from './ui/card';
+import { Badge } from './ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { 
   ChevronRight, ChevronLeft, Target, Building2, 
-  TrendingUp, Calendar, Check, Save
+  TrendingUp, Calendar, Check, Save, Zap
 } from 'lucide-react';
 import { generateReportingYears } from '../utils/reportingYearUtils';
 
@@ -99,6 +100,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
   const [facilities, setFacilities] = useState([]);
   const [orgReportingType, setOrgReportingType] = useState('FY');
   const [futureYears, setFutureYears] = useState([]);
+  const [baselineFromGHG, setBaselineFromGHG] = useState(false);
   
   // Form data - map initialData fields for compatibility
   const getInitialFormData = () => {
@@ -278,10 +280,14 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
           period: res.data.base_year || '',
           value: res.data.base_value?.toString() || ''
         });
+        setBaselineFromGHG(true);
+      } else {
+        setBaselineFromGHG(false);
       }
       // If not found, just leave baseline empty - user can fill manually
     } catch (error) {
       // Silent fail - user can fill baseline manually
+      setBaselineFromGHG(false);
       console.log('Baseline auto-fetch not available');
     }
   };
@@ -658,14 +664,25 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
             )}
 
             <div className="pt-4 border-t">
-              <Label className="text-sm font-medium">Baseline (Optional)</Label>
+              <div className="flex items-center gap-2 mb-1">
+                <Label className="text-sm font-medium">Baseline (Optional)</Label>
+                {baselineFromGHG && (
+                  <Badge className="bg-emerald-100 text-emerald-700 text-xs gap-1">
+                    <Zap className="w-3 h-3" />
+                    From GHG Module
+                  </Badge>
+                )}
+              </div>
               <p className="text-xs text-text-muted mb-2">Reference point for progress calculations</p>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-xs text-text-muted">Baseline Period</Label>
                   <Select 
                     value={formData.baseline?.period || ''} 
-                    onValueChange={(v) => updateNestedField('baseline', 'period', v)}
+                    onValueChange={(v) => {
+                      updateNestedField('baseline', 'period', v);
+                      setBaselineFromGHG(false); // User modified, no longer from GHG
+                    }}
                   >
                     <SelectTrigger className="mt-1">
                       <SelectValue placeholder="Select period" />
@@ -682,7 +699,10 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                   <Input
                     type="number"
                     value={formData.baseline?.value || ''}
-                    onChange={(e) => updateNestedField('baseline', 'value', e.target.value)}
+                    onChange={(e) => {
+                      updateNestedField('baseline', 'value', e.target.value);
+                      setBaselineFromGHG(false); // User modified, no longer from GHG
+                    }}
                     placeholder="Baseline value"
                     className="mt-1"
                   />
