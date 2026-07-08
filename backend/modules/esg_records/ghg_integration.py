@@ -97,6 +97,19 @@ def get_financial_year(month: int, year: int) -> str:
     return f"FY {start_year}-{str(end_year)[-2:]}"
 
 
+def get_emission_subcategory(scope: str) -> str:
+    """Convert scope to emission subcategory."""
+    mapping = {
+        "scope1": "GHG Emissions - Scope 1",
+        "scope2": "GHG Emissions - Scope 2", 
+        "scope3": "GHG Emissions - Scope 3",
+        "biogenic_direct": "GHG Emissions - Biogenic (Direct)",
+        "biogenic_indirect": "GHG Emissions - Biogenic (Indirect)",
+        "biogenic": "GHG Emissions - Biogenic (Direct)"  # Default biogenic to direct
+    }
+    return mapping.get(scope.lower(), f"GHG Emissions - {scope}")
+
+
 def get_scope_display_name(scope: str) -> str:
     """Convert scope code to display name."""
     mapping = {
@@ -280,7 +293,7 @@ class GHGIntegrationService:
                 "is_locked": True,
                 "section": "environment",
                 "category": "Emissions",
-                "subcategory": "GHG Emissions",
+                "subcategory": get_emission_subcategory(scope),
                 "sub_subcategory": get_scope_display_name(scope),
                 "record_level": "facility",
                 "facility_id": fac_id,
@@ -378,7 +391,7 @@ class GHGIntegrationService:
                 "is_locked": True,
                 "section": "environment",
                 "category": "Emissions",
-                "subcategory": "GHG Emissions",
+                "subcategory": get_emission_subcategory(scope),
                 "sub_subcategory": get_scope_display_name(scope),
                 "record_level": "facility",
                 "facility_id": fac_id,
@@ -750,7 +763,7 @@ class GHGIntegrationService:
             equity_note = f" (Proportionated by {equity_pct:.0f}% equity share)" if equity_pct < 100 else ""
             
             if energy_type == "fuel":
-                subcategory = "Fuel"
+                subcategory = "Fuel Within Organization"
                 field_values = {
                     "total_energy": round(data["total_energy"], 6),
                     "energy_unit": "TJ",
@@ -759,7 +772,7 @@ class GHGIntegrationService:
                 }
                 notes = f"Calculated from {len(data['records'])} Scope 1 fuel records (Energy = Qty × CV){equity_note}"
             elif energy_type == "other_sources":
-                subcategory = "Other Sources"
+                subcategory = "Heating Within Organization"
                 field_values = {
                     "total_energy": round(data["total_energy"], 2),
                     "energy_unit": "MWh",
@@ -767,7 +780,7 @@ class GHGIntegrationService:
                 }
                 notes = f"Aggregated from {len(data['records'])} Scope 2 Purchased Steam/Heat records{equity_note}"
             else:
-                subcategory = "Electricity"
+                subcategory = "Electricity Within Organization"
                 field_values = {
                     "total_energy": round(data["total_energy"], 2),
                     "energy_unit": "MWh",
