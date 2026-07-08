@@ -17,6 +17,7 @@ import { isAdmin } from '../utils/roleUtils';
 import ESGRecordsTracker from './ESGRecordsTracker';
 import ESGRecordsDataEntry from './ESGRecordsDataEntry';
 import MyTasks from './MyTasks';
+import ESGTargetsTab from './ESGTargetsTab';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -133,10 +134,13 @@ export default function ESGRecordsModule({ section = 'environment', framework = 
             <FileText className="w-4 h-4" />
             <span className="hidden sm:inline">Data Entry</span>
           </TabsTrigger>
-          <TabsTrigger value="targets" className="gap-2" data-testid="metrics-targets-tab">
-            <Target className="w-4 h-4" />
-            <span className="hidden sm:inline">Targets</span>
-          </TabsTrigger>
+          {/* Targets Tab - Admin only */}
+          {userIsAdmin && (
+            <TabsTrigger value="targets" className="gap-2" data-testid="metrics-targets-tab">
+              <Target className="w-4 h-4" />
+              <span className="hidden sm:inline">Targets</span>
+            </TabsTrigger>
+          )}
           <TabsTrigger value="add-metric" className="gap-2" data-testid="metrics-add-tab">
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">Add Metric</span>
@@ -173,19 +177,15 @@ export default function ESGRecordsModule({ section = 'environment', framework = 
           />
         </TabsContent>
 
-        {/* Targets Tab - Placeholder */}
-        <TabsContent value="targets" className="mt-6">
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <Target className="w-16 h-16 text-stone-300 mb-4" />
-            <h3 className="text-xl font-semibold text-text-primary mb-2">
-              ESG Targets & Goals
-            </h3>
-            <p className="text-text-muted max-w-md">
-              Track ESG reduction targets, performance goals, and progress metrics.
-              This feature is coming soon.
-            </p>
-          </div>
-        </TabsContent>
+        {/* Targets Tab - Admin only */}
+        {userIsAdmin && (
+          <TabsContent value="targets" className="mt-6">
+            <ESGTargetsTab 
+              section={section}
+              reportingPeriod={reportingPeriod}
+            />
+          </TabsContent>
+        )}
 
         {/* Add Metric Tab */}
         <TabsContent value="add-metric" className="mt-6">
