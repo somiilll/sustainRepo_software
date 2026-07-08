@@ -1236,7 +1236,12 @@ class ESGRecordsService:
             {"record_id": record_id},
             {"_id": 0}
         ).sort("version", -1)
-        return await cursor.to_list(None)
+        versions = await cursor.to_list(None)
+        # Strip _id from snapshot to avoid ObjectId serialization errors
+        for v in versions:
+            if "snapshot" in v and isinstance(v["snapshot"], dict):
+                v["snapshot"].pop("_id", None)
+        return versions
     
     async def get_version(
         self,
