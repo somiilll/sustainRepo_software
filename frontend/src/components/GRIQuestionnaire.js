@@ -1027,14 +1027,38 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
                     <span className="text-text-muted ml-1">({entry.performed_by?.email})</span>
                   </div>
                   
-                  {/* Value changes */}
-                  {entry.change_details && (
+                  {/* Field Diffs - computed from version_utils */}
+                  {entry.field_diffs && entry.field_diffs.length > 0 ? (
+                    <div className="space-y-2">
+                      {entry.field_diffs.map((diff, dIdx) => (
+                        <div key={dIdx} className="bg-white rounded border border-stone-200 p-2">
+                          <p className="text-xs font-medium text-text-primary mb-2">{diff.display_name}</p>
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div className="bg-red-50 p-2 rounded border border-red-100">
+                              <span className="text-red-600 font-medium block mb-1">Old</span>
+                              <span className="text-red-800 break-words">
+                                {diff.old_value === null || diff.old_value === undefined ? '(empty)' : 
+                                 typeof diff.old_value === 'object' ? JSON.stringify(diff.old_value) : String(diff.old_value)}
+                              </span>
+                            </div>
+                            <div className="bg-green-50 p-2 rounded border border-green-100">
+                              <span className="text-green-600 font-medium block mb-1">New</span>
+                              <span className="text-green-800 break-words">
+                                {diff.new_value === null || diff.new_value === undefined ? '(empty)' : 
+                                 typeof diff.new_value === 'object' ? JSON.stringify(diff.new_value) : String(diff.new_value)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : entry.change_details && (
                     <div className="space-y-2">
                       {entry.change_details.old_value && (
                         <div className="text-xs">
                           <span className="text-red-600 font-medium">Previous:</span>
                           <p className="mt-1 p-2 bg-red-50 rounded border border-red-100 text-text-secondary line-clamp-3">
-                            {entry.change_details.old_value}
+                            {typeof entry.change_details.old_value === 'object' ? JSON.stringify(entry.change_details.old_value) : entry.change_details.old_value}
                           </p>
                         </div>
                       )}
@@ -1042,7 +1066,7 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
                         <div className="text-xs">
                           <span className="text-green-600 font-medium">New:</span>
                           <p className="mt-1 p-2 bg-green-50 rounded border border-green-100 text-text-secondary line-clamp-3">
-                            {entry.change_details.new_value}
+                            {typeof entry.change_details.new_value === 'object' ? JSON.stringify(entry.change_details.new_value) : entry.change_details.new_value}
                           </p>
                         </div>
                       )}

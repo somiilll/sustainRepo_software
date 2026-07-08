@@ -15,6 +15,7 @@ from modules.esg_questionnaire.contracts import (
     ESGResponseCreate,
     NGRBC_PRINCIPLES,
 )
+from modules.esg_records.version_utils import compare_versions, format_field_display_name
 
 
 class ESGQuestionnaireService:
@@ -1123,7 +1124,7 @@ class ESGQuestionnaireService:
     ) -> List[Dict[str, Any]]:
         """
         Get version history for a specific question.
-        Returns all audit log entries for the question.
+        Returns all audit log entries with computed field diffs.
         """
         cursor = db.question_audit_log.find(
             {
@@ -1134,7 +1135,33 @@ class ESGQuestionnaireService:
             {"_id": 0}
         ).sort("timestamp", -1)
         
-        return await cursor.to_list(100)
+        entries = await cursor.to_list(100)
+        
+        # Compute field_diffs for each entry that has change_details
+        for entry in entries:
+            change_details = entry.get("change_details", {})
+            old_val = change_details.get("old_value")
+            new_val = change_details.get("new_value")
+            
+            # Compute diffs if both values exist and are dicts
+            if isinstance(old_val, dict) and isinstance(new_val, dict):
+                changes = compare_versions(old_val, new_val)
+                entry["field_diffs"] = [
+                    {"field": c["field"], "display_name": format_field_display_name(c["field"]), "old_value": c["old"], "new_value": c["new"]}
+                    for c in changes
+                ]
+            elif old_val != new_val:
+                # Simple value change
+                entry["field_diffs"] = [{
+                    "field": "value",
+                    "display_name": "Value",
+                    "old_value": old_val,
+                    "new_value": new_val
+                }]
+            else:
+                entry["field_diffs"] = []
+        
+        return entries
 
     # =========================================================================
     # Draft Management Methods (Per-User Drafts)
