@@ -13,6 +13,8 @@ from .contracts import (
     ESGTargetCreate, ESGTargetUpdate, ESGTargetResponse
 )
 from .service import esg_targets_service
+from .baseline_service import baseline_service
+from .baseline_config import get_metric_mapping, get_all_mapped_metrics
 
 router = APIRouter()
 
@@ -234,4 +236,99 @@ async def get_categories_for_targets(
     return {
         "section": section,
         "hierarchy": hierarchy
+    }
+
+
+
+# =============================================================================
+# Baseline Lookup Endpoints (GHG Module Integration)
+# =============================================================================
+
+@router.get("/baseline/lookup")
+async def lookup_baseline_value(
+    metric_key: str = Query(..., description="ESG metric key to lookup baseline for"),
+    facility_id: Optional[str] = Query(None, description="Optional facility ID for facility-level baseline"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Lookup baseline year and value for a metric from GHG module.
+    
+    Automatically maps ESG metrics to GHG scope/category and fetches the baseline.
+    """
+    org_id = _get_org_id(current_user)
+    
+    result = await baseline_service.get_baseline_for_metric(
+        org_id=org_id,
+        metric_key=metric_key,
+        facility_id=facility_id
+    )
+    
+    return result
+
+
+@router.get("/baseline/available-years")
+async def get_available_base_years(
+    facility_id: Optional[str] = Query(None, description="Optional facility ID"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get list of available base years for the organization/facility.
+    """
+    org_id = _get_org_id(current_user)
+    
+    years = await baseline_service.get_available_base_years(
+        org_id=org_id,
+        facility_id=facility_id
+    )
+    
+    return {"years": years}
+
+
+@router.get("/baseline/ghg-access")
+async def check_ghg_module_access(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Check if organization has GHG module access and what data is available.
+    """
+    org_id = _get_org_id(current_user)
+    
+    access = await baseline_service.check_ghg_module_access(org_id)
+    
+    return access
+
+
+@router.get("/baseline/mapped-metrics")
+async def get_mapped_metrics(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get list of all ESG metrics that have GHG baseline mappings.
+    """
+    return {
+        "metrics": get_all_mapped_metrics()
+    }
+
+
+@router.get("/baseline/metric-mapping/{metric_key}")
+async def get_metric_ghg_mapping(
+    metric_key: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get the GHG mapping configuration for a specific metric.
+    """
+    mapping = get_metric_mapping(metric_key)
+    
+    if not mapping:
+        return {
+            "found": False,
+            "metric_key": metric_key,
+            "mapping": None
+        }
+    
+    return {
+        "found": True,
+        "metric_key": metric_key,
+        "mapping": mapping
     }

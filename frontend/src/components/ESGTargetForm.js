@@ -249,13 +249,33 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
     return hierarchy[formData.category]?.[formData.subcategory]?.[subSubKey] || [];
   }, [hierarchy, formData.category, formData.subcategory, formData.sub_subcategory]);
 
-  // Handle metric selection
-  const handleMetricSelect = (metricKey) => {
+  // Handle metric selection - also fetch baseline
+  const handleMetricSelect = async (metricKey) => {
     const metric = availableMetrics.find(m => m.metric_key === metricKey);
     if (metric) {
       updateField('metric_key', metric.metric_key);
       updateField('metric_label', metric.metric_label);
       updateField('unit', metric.unit);
+      
+      // Auto-fetch baseline from GHG module
+      try {
+        const facilityId = formData.scope_type === 'facility' && formData.facility_ids?.[0] 
+          ? formData.facility_ids[0] 
+          : '';
+        const params = new URLSearchParams({ metric_key: metricKey });
+        if (facilityId) params.append('facility_id', facilityId);
+        
+        const res = await axios.get(`${API}/api/esg-targets/baseline/lookup?${params.toString()}`, { headers });
+        
+        if (res.data?.found) {
+          updateField('baseline', {
+            period: res.data.base_year || '',
+            value: res.data.base_value?.toString() || ''
+          });
+        }
+      } catch (error) {
+        console.log('Baseline auto-fetch not available:', error.message);
+      }
     }
   };
 
