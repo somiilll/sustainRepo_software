@@ -3,9 +3,9 @@
  * 
  * Steps:
  * 1. KPI Selection (Section → Category → Subcategory → Metric)
- * 2. Scope & Period (Organization/Facility, FY/CY, Period)
- * 3. Target Definition (Type, Goal, Values, Baseline)
- * 4. Tracking & Thresholds (Mode, Values, Optional thresholds)
+ * 2. Scope (Organization/Facility)
+ * 3. Target Definition (Type, Goal, Baseline)
+ * 4. Tracking (Mode, Values, Thresholds)
  */
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
@@ -13,22 +13,19 @@ import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Textarea } from './ui/textarea';
 import { Card } from './ui/card';
-import { Badge } from './ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Checkbox } from './ui/checkbox';
 import { 
-  ChevronRight, ChevronLeft, Target, Building2, Calendar, 
-  TrendingUp, AlertTriangle, Check
+  ChevronRight, ChevronLeft, Target, Building2, 
+  TrendingUp, Calendar, Check, Save
 } from 'lucide-react';
-import { generateReportingYears, getCurrentReportingYear } from '../utils/reportingYearUtils';
+import { generateReportingYears } from '../utils/reportingYearUtils';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
 const STEPS = [
   { id: 'kpi', title: 'KPI Selection', icon: Target },
-  { id: 'scope', title: 'Scope & Period', icon: Building2 },
+  { id: 'scope', title: 'Scope', icon: Building2 },
   { id: 'target', title: 'Target Definition', icon: TrendingUp },
   { id: 'tracking', title: 'Tracking & Thresholds', icon: Calendar },
 ];
@@ -47,18 +44,51 @@ const GOAL_TYPES = [
 ];
 
 const TRACKING_MODES = [
-  { value: 'static', label: 'Static', description: 'One target for entire period' },
+  { value: 'static', label: 'Static', description: 'One target for a single year' },
   { value: 'monthly', label: 'Monthly', description: 'Monthly target values' },
   { value: 'quarterly', label: 'Quarterly', description: 'Quarterly target values (Q1-Q4)' },
   { value: 'half_yearly', label: 'Half Yearly', description: 'H1 and H2 targets' },
-  { value: 'yearly', label: 'Yearly', description: 'Annual target value' },
+  { value: 'yearly', label: 'Yearly', description: 'Target values for multiple years' },
 ];
 
-const TRAJECTORIES = [
-  { value: 'manual', label: 'Manual', description: 'Set values manually' },
-  { value: 'linear', label: 'Linear', description: 'Linear progression (coming soon)', disabled: true },
-  { value: 'exponential', label: 'Exponential', description: 'Exponential curve (coming soon)', disabled: true },
-];
+// Generate future years only
+const generateFutureYears = (reportingType, count = 10) => {
+  const currentYear = new Date().getFullYear();
+  const years = [];
+  
+  for (let i = 0; i < count; i++) {
+    const year = currentYear + i;
+    if (reportingType === 'FY') {
+      years.push(`FY ${year}-${year + 1}`);
+    } else {
+      years.push(`CY ${year}`);
+    }
+  }
+  return years;
+};
+
+// Generate years between start and end (inclusive)
+const generateYearRange = (startYear, endYear, reportingType) => {
+  const years = [];
+  const extractYear = (period) => {
+    const match = period.match(/\d{4}/);
+    return match ? parseInt(match[0]) : null;
+  };
+  
+  const start = extractYear(startYear);
+  const end = extractYear(endYear);
+  
+  if (!start || !end || start > end) return [];
+  
+  for (let y = start; y <= end; y++) {
+    if (reportingType === 'FY') {
+      years.push(`FY ${y}-${y + 1}`);
+    } else {
+      years.push(`CY ${y}`);
+    }
+  }
+  return years;
+};
 
 export default function ESGTargetForm({ section, initialData, onSubmit, onCancel, busy }) {
   const { token } = useAuth();
@@ -67,8 +97,8 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
   const [currentStep, setCurrentStep] = useState(0);
   const [categories, setCategories] = useState([]);
   const [facilities, setFacilities] = useState([]);
-  const [reportingYears, setReportingYears] = useState([]);
-  const [reportingType, setReportingType] = useState('FY');
+  const [orgReportingType, setOrgReportingType] = useState('FY');
+  const [futureYears, setFutureYears] = useState([]);
   
   // Form data
   const [formData, setFormData] = useState({
@@ -83,7 +113,6 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
     scope_type: 'organization',
     facility_ids: [],
     reporting_type: 'FY',
-    reporting_period: '',
     target_type: 'absolute',
     goal_type: 'upper_limit',
     target_value: '',
@@ -92,11 +121,10 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
     baseline: { period: '', value: '' },
     tracking_mode: 'static',
     tracking_values: {},
-    start_period: '',
-    end_period: '',
-    trajectory: 'manual',
+    target_year: '',  // For static mode
+    start_period: '', // For yearly mode
+    end_period: '',   // For yearly mode
     thresholds: { green: '', amber: '', red: '' },
-    status: 'draft',
     ...initialData
   });
 
@@ -114,10 +142,8 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
       if (!h[catName][subcatName]) h[catName][subcatName] = {};
       if (!h[catName][subcatName][subSubcatName]) h[catName][subcatName][subSubcatName] = [];
       
-      // Support both 'fields' and 'field_definitions' for compatibility
       const fields = cat.fields || cat.field_definitions || [];
       fields.forEach(field => {
-        // Support both 'field_key' and 'key' for compatibility
         const fieldKey = field.field_key || field.key;
         if (fieldKey) {
           h[catName][subcatName][subSubcatName].push({
@@ -137,7 +163,6 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
     const fetchCategories = async () => {
       try {
         const res = await axios.get(`${API}/api/esg-records/categories/${section}`, { headers });
-        // API returns {categories: [...], total: N}
         const data = res.data?.categories || res.data || [];
         setCategories(Array.isArray(data) ? data : []);
       } catch (error) {
@@ -161,14 +186,27 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
     fetchFacilities();
   }, [token]);
 
-  // Initialize reporting years
+  // Fetch org reporting type
   useEffect(() => {
-    const years = generateReportingYears(reportingType === 'FY' ? 'financial_year' : 'calendar_year', 5);
-    setReportingYears(years);
-    if (!formData.reporting_period) {
-      setFormData(f => ({ ...f, reporting_period: getCurrentReportingYear(reportingType === 'FY' ? 'financial_year' : 'calendar_year') }));
-    }
-  }, [reportingType]);
+    const fetchOrgDetails = async () => {
+      try {
+        const res = await axios.get(`${API}/api/organizations/current`, { headers });
+        const org = res.data;
+        const repType = org?.reporting_year_type === 'calendar_year' ? 'CY' : 'FY';
+        setOrgReportingType(repType);
+        setFormData(f => ({ ...f, reporting_type: repType }));
+      } catch (error) {
+        console.error('Failed to fetch org details:', error);
+      }
+    };
+    fetchOrgDetails();
+  }, [token]);
+
+  // Generate future years based on org reporting type
+  useEffect(() => {
+    const years = generateFutureYears(orgReportingType, 10);
+    setFutureYears(years);
+  }, [orgReportingType]);
 
   // Update form field
   const updateField = (field, value) => {
@@ -205,9 +243,17 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
     }
   };
 
-  // Generate tracking period keys
+  // Get years for yearly tracking mode
+  const yearlyTrackingYears = useMemo(() => {
+    if (formData.tracking_mode !== 'yearly' || !formData.start_period || !formData.end_period) {
+      return [];
+    }
+    return generateYearRange(formData.start_period, formData.end_period, orgReportingType);
+  }, [formData.tracking_mode, formData.start_period, formData.end_period, orgReportingType]);
+
+  // Generate tracking period keys for monthly/quarterly/half_yearly
   const getTrackingPeriodKeys = () => {
-    const year = formData.reporting_period?.match(/\d{4}/)?.[0] || new Date().getFullYear();
+    const year = formData.target_year?.match(/\d{4}/)?.[0] || new Date().getFullYear();
     
     switch (formData.tracking_mode) {
       case 'monthly':
@@ -219,8 +265,6 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
         return ['Q1', 'Q2', 'Q3', 'Q4'].map(q => ({ key: `${year}-${q}`, label: q }));
       case 'half_yearly':
         return ['H1', 'H2'].map(h => ({ key: `${year}-${h}`, label: h }));
-      case 'yearly':
-        return [{ key: formData.reporting_period, label: formData.reporting_period }];
       default:
         return [];
     }
@@ -230,24 +274,30 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
   const validateStep = (step) => {
     switch (step) {
       case 0: // KPI Selection
-        // If no metrics available, allow proceeding with just category/subcategory
         const hasMetrics = availableMetrics.length > 0;
         if (hasMetrics) {
           return formData.target_name && formData.category && formData.subcategory && formData.metric_key;
         }
         return formData.target_name && formData.category && formData.subcategory;
-      case 1: // Scope & Period
+      case 1: // Scope
         if (formData.scope_type === 'facility' && (!formData.facility_ids || formData.facility_ids.length === 0)) {
           return false;
         }
-        return formData.reporting_period;
+        return true;
       case 2: // Target Definition
         if (formData.goal_type === 'range') {
-          return formData.minimum_value !== '' && formData.maximum_value !== '';
+          return formData.baseline?.value !== '';
         }
-        return formData.target_value !== '';
+        return true;
       case 3: // Tracking
-        return true; // Tracking values are optional
+        if (formData.tracking_mode === 'static') {
+          return formData.target_year && formData.target_value !== '';
+        }
+        if (formData.tracking_mode === 'yearly') {
+          return formData.start_period && formData.end_period && Object.keys(formData.tracking_values).length > 0;
+        }
+        // For monthly/quarterly/half_yearly, need target_year and at least one value
+        return formData.target_year && Object.keys(formData.tracking_values).length > 0;
       default:
         return true;
     }
@@ -263,10 +313,20 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
     setCurrentStep(prev => Math.max(prev - 1, 0));
   };
 
-  const handleSubmit = () => {
-    // Clean up data before submit
-    const submitData = {
+  const prepareSubmitData = (status) => {
+    // Determine reporting_period based on tracking mode
+    let reportingPeriod = '';
+    if (formData.tracking_mode === 'static') {
+      reportingPeriod = formData.target_year;
+    } else if (formData.tracking_mode === 'yearly') {
+      reportingPeriod = `${formData.start_period} - ${formData.end_period}`;
+    } else {
+      reportingPeriod = formData.target_year;
+    }
+
+    return {
       ...formData,
+      reporting_period: reportingPeriod,
       target_value: formData.target_value ? parseFloat(formData.target_value) : null,
       minimum_value: formData.minimum_value ? parseFloat(formData.minimum_value) : null,
       maximum_value: formData.maximum_value ? parseFloat(formData.maximum_value) : null,
@@ -283,9 +343,17 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
         ? Object.fromEntries(Object.entries(formData.tracking_values).map(([k, v]) => [k, parseFloat(v)]))
         : null,
       facility_ids: formData.scope_type === 'facility' ? formData.facility_ids : null,
+      trajectory: 'manual',
+      status: status,
     };
-    
-    onSubmit(submitData);
+  };
+
+  const handleCreateActive = () => {
+    onSubmit(prepareSubmitData('active'));
+  };
+
+  const handleSaveAsDraft = () => {
+    onSubmit(prepareSubmitData('draft'));
   };
 
   // Render step content
@@ -420,7 +488,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
           </div>
         );
 
-      case 1: // Scope & Period
+      case 1: // Scope
         return (
           <div className="space-y-6">
             <div>
@@ -428,7 +496,10 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
               <div className="grid grid-cols-2 gap-4 mt-2">
                 <Card 
                   className={`p-4 cursor-pointer border-2 transition-colors ${formData.scope_type === 'organization' ? 'border-emerald-500 bg-emerald-50' : 'border-stone-200 hover:border-stone-300'}`}
-                  onClick={() => updateField('scope_type', 'organization')}
+                  onClick={() => {
+                    updateField('scope_type', 'organization');
+                    updateField('facility_ids', []);
+                  }}
                 >
                   <div className="flex items-center gap-3">
                     <Building2 className="w-5 h-5 text-emerald-600" />
@@ -446,7 +517,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                     <Building2 className="w-5 h-5 text-blue-600" />
                     <div>
                       <p className="font-medium">Facility</p>
-                      <p className="text-xs text-text-muted">Applies to selected facilities</p>
+                      <p className="text-xs text-text-muted">Applies to selected facility</p>
                     </div>
                   </div>
                 </Card>
@@ -455,59 +526,28 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
 
             {formData.scope_type === 'facility' && (
               <div>
-                <Label className="text-sm font-medium">Select Facilities *</Label>
-                <div className="grid grid-cols-2 gap-2 mt-2 max-h-48 overflow-y-auto p-2 border rounded-md">
-                  {facilities.map(facility => (
-                    <div key={facility.id} className="flex items-center gap-2">
-                      <Checkbox
-                        id={facility.id}
-                        checked={formData.facility_ids?.includes(facility.id)}
-                        onCheckedChange={(checked) => {
-                          const ids = formData.facility_ids || [];
-                          if (checked) {
-                            updateField('facility_ids', [...ids, facility.id]);
-                          } else {
-                            updateField('facility_ids', ids.filter(id => id !== facility.id));
-                          }
-                        }}
-                      />
-                      <label htmlFor={facility.id} className="text-sm cursor-pointer">{facility.name}</label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label className="text-sm font-medium">Reporting Type</Label>
-                <Select value={formData.reporting_type} onValueChange={(v) => {
-                  updateField('reporting_type', v);
-                  setReportingType(v);
-                }}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue />
+                <Label className="text-sm font-medium">Select Facility *</Label>
+                <Select 
+                  value={formData.facility_ids?.[0] || ''} 
+                  onValueChange={(v) => updateField('facility_ids', [v])}
+                >
+                  <SelectTrigger className="mt-2">
+                    <SelectValue placeholder="Select a facility" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="FY">Financial Year (FY)</SelectItem>
-                    <SelectItem value="CY">Calendar Year (CY)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-sm font-medium">Reporting Period *</Label>
-                <Select value={formData.reporting_period} onValueChange={(v) => updateField('reporting_period', v)}>
-                  <SelectTrigger className="mt-1" data-testid="period-select">
-                    <SelectValue placeholder="Select period" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {reportingYears.map(year => (
-                      <SelectItem key={year} value={year}>{year}</SelectItem>
+                    {facilities.map(facility => (
+                      <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-            </div>
+            )}
+
+            <Card className="p-3 bg-stone-50 border-stone-200">
+              <p className="text-sm text-text-muted">
+                <span className="font-medium">Reporting Type:</span> {orgReportingType === 'FY' ? 'Financial Year' : 'Calendar Year'}
+              </p>
+            </Card>
           </div>
         );
 
@@ -546,9 +586,9 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
               </div>
             </div>
 
-            <div>
-              <Label className="text-sm font-medium">Target Value *</Label>
-              {formData.goal_type === 'range' ? (
+            {formData.goal_type === 'range' && (
+              <div>
+                <Label className="text-sm font-medium">Range Values</Label>
                 <div className="grid grid-cols-2 gap-4 mt-2">
                   <div>
                     <Label className="text-xs text-text-muted">Minimum</Label>
@@ -571,24 +611,8 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                     />
                   </div>
                 </div>
-              ) : (
-                <div className="flex gap-2 mt-2">
-                  <Input
-                    type="number"
-                    value={formData.target_value}
-                    onChange={(e) => updateField('target_value', e.target.value)}
-                    placeholder="Enter target value"
-                    className="flex-1"
-                    data-testid="target-value-input"
-                  />
-                  {formData.unit && (
-                    <div className="px-3 py-2 bg-stone-100 rounded-md text-sm text-text-muted flex items-center">
-                      {formData.unit}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+              </div>
+            )}
 
             <div className="pt-4 border-t">
               <Label className="text-sm font-medium">Baseline (Optional)</Label>
@@ -604,7 +628,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                       <SelectValue placeholder="Select period" />
                     </SelectTrigger>
                     <SelectContent>
-                      {reportingYears.map(year => (
+                      {generateReportingYears(orgReportingType === 'FY' ? 'financial_year' : 'calendar_year', 10).map(year => (
                         <SelectItem key={year} value={year}>{year}</SelectItem>
                       ))}
                     </SelectContent>
@@ -635,7 +659,11 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                   <Card 
                     key={mode.value}
                     className={`p-3 cursor-pointer border-2 transition-colors ${formData.tracking_mode === mode.value ? 'border-emerald-500 bg-emerald-50' : 'border-stone-200 hover:border-stone-300'}`}
-                    onClick={() => updateField('tracking_mode', mode.value)}
+                    onClick={() => {
+                      updateField('tracking_mode', mode.value);
+                      updateField('tracking_values', {});
+                      updateField('target_value', '');
+                    }}
                   >
                     <p className="font-medium text-sm">{mode.label}</p>
                     <p className="text-xs text-text-muted">{mode.description}</p>
@@ -644,70 +672,135 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
               </div>
             </div>
 
-            {formData.tracking_mode === 'static' ? (
-              <div className="grid grid-cols-2 gap-4">
+            {/* Static Mode - Single Year + Target Value */}
+            {formData.tracking_mode === 'static' && (
+              <div className="space-y-4">
                 <div>
-                  <Label className="text-xs text-text-muted">Start Period</Label>
-                  <Select value={formData.start_period || ''} onValueChange={(v) => updateField('start_period', v)}>
+                  <Label className="text-sm font-medium">Target Year *</Label>
+                  <Select value={formData.target_year || ''} onValueChange={(v) => updateField('target_year', v)}>
                     <SelectTrigger className="mt-1">
-                      <SelectValue placeholder="Select start" />
+                      <SelectValue placeholder="Select year" />
                     </SelectTrigger>
                     <SelectContent>
-                      {reportingYears.map(year => (
+                      {futureYears.map(year => (
                         <SelectItem key={year} value={year}>{year}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-xs text-text-muted">End Period</Label>
-                  <Select value={formData.end_period || ''} onValueChange={(v) => updateField('end_period', v)}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue placeholder="Select end" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {reportingYears.map(year => (
-                        <SelectItem key={year} value={year}>{year}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            ) : (
-              <div>
-                <Label className="text-sm font-medium">Tracking Values</Label>
-                <div className="grid grid-cols-4 gap-3 mt-2">
-                  {getTrackingPeriodKeys().map(({ key, label }) => (
-                    <div key={key}>
-                      <Label className="text-xs text-text-muted">{label}</Label>
-                      <Input
-                        type="number"
-                        value={formData.tracking_values?.[key] || ''}
-                        onChange={(e) => updateField('tracking_values', { ...formData.tracking_values, [key]: e.target.value })}
-                        placeholder="Value"
-                        className="mt-1"
-                      />
-                    </div>
-                  ))}
+                  <Label className="text-sm font-medium">Target Value *</Label>
+                  <div className="flex gap-2 mt-1">
+                    <Input
+                      type="number"
+                      value={formData.target_value}
+                      onChange={(e) => updateField('target_value', e.target.value)}
+                      placeholder="Enter target value"
+                      className="flex-1"
+                      data-testid="target-value-input"
+                    />
+                    {formData.unit && (
+                      <div className="px-3 py-2 bg-stone-100 rounded-md text-sm text-text-muted flex items-center">
+                        {formData.unit}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
 
-            <div>
-              <Label className="text-sm font-medium">Trajectory</Label>
-              <Select value={formData.trajectory} onValueChange={(v) => updateField('trajectory', v)}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TRAJECTORIES.map(t => (
-                    <SelectItem key={t.value} value={t.value} disabled={t.disabled}>
-                      {t.label} {t.disabled && '(Coming Soon)'}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Yearly Mode - Start/End Period + Values for each year */}
+            {formData.tracking_mode === 'yearly' && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium">Start Period *</Label>
+                    <Select value={formData.start_period || ''} onValueChange={(v) => updateField('start_period', v)}>
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Select start" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {futureYears.map(year => (
+                          <SelectItem key={year} value={year}>{year}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">End Period *</Label>
+                    <Select value={formData.end_period || ''} onValueChange={(v) => updateField('end_period', v)}>
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Select end" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {futureYears.map(year => (
+                          <SelectItem key={year} value={year}>{year}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                
+                {yearlyTrackingYears.length > 0 && (
+                  <div>
+                    <Label className="text-sm font-medium">Target Values for Each Year *</Label>
+                    <div className="grid grid-cols-3 gap-3 mt-2">
+                      {yearlyTrackingYears.map(year => (
+                        <div key={year}>
+                          <Label className="text-xs text-text-muted">{year}</Label>
+                          <Input
+                            type="number"
+                            value={formData.tracking_values?.[year] || ''}
+                            onChange={(e) => updateField('tracking_values', { ...formData.tracking_values, [year]: e.target.value })}
+                            placeholder="Value"
+                            className="mt-1"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Monthly/Quarterly/Half-Yearly - Year selection + period values */}
+            {['monthly', 'quarterly', 'half_yearly'].includes(formData.tracking_mode) && (
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-sm font-medium">Target Year *</Label>
+                  <Select value={formData.target_year || ''} onValueChange={(v) => updateField('target_year', v)}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Select year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {futureYears.map(year => (
+                        <SelectItem key={year} value={year}>{year}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {formData.target_year && (
+                  <div>
+                    <Label className="text-sm font-medium">Target Values *</Label>
+                    <div className={`grid gap-3 mt-2 ${formData.tracking_mode === 'monthly' ? 'grid-cols-4' : 'grid-cols-2'}`}>
+                      {getTrackingPeriodKeys().map(({ key, label }) => (
+                        <div key={key}>
+                          <Label className="text-xs text-text-muted">{label}</Label>
+                          <Input
+                            type="number"
+                            value={formData.tracking_values?.[key] || ''}
+                            onChange={(e) => updateField('tracking_values', { ...formData.tracking_values, [key]: e.target.value })}
+                            placeholder="Value"
+                            className="mt-1"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="pt-4 border-t">
               <Label className="text-sm font-medium">Warning Thresholds (Optional)</Label>
@@ -744,20 +837,6 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                   />
                 </div>
               </div>
-            </div>
-
-            <div className="pt-4 border-t">
-              <Label className="text-sm font-medium">Status</Label>
-              <Select value={formData.status} onValueChange={(v) => updateField('status', v)}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="draft">Draft</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-text-muted mt-1">New targets default to Draft. Activate when ready.</p>
             </div>
           </div>
         );
@@ -824,14 +903,24 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
             <ChevronRight className="w-4 h-4 ml-1" />
           </Button>
         ) : (
-          <Button
-            onClick={handleSubmit}
-            disabled={busy}
-            className="bg-emerald-600 hover:bg-emerald-700"
-            data-testid="submit-target-btn"
-          >
-            {busy ? 'Saving...' : (initialData?.id ? 'Update Target' : 'Create Target')}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={handleSaveAsDraft}
+              disabled={!validateStep(currentStep) || busy}
+            >
+              <Save className="w-4 h-4 mr-1" />
+              Save as Draft
+            </Button>
+            <Button
+              onClick={handleCreateActive}
+              disabled={!validateStep(currentStep) || busy}
+              className="bg-emerald-600 hover:bg-emerald-700"
+              data-testid="submit-target-btn"
+            >
+              {busy ? 'Creating...' : 'Create Target'}
+            </Button>
+          </div>
         )}
       </div>
     </div>
