@@ -224,7 +224,12 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
   const validateStep = (step) => {
     switch (step) {
       case 0: // KPI Selection
-        return formData.target_name && formData.category && formData.subcategory && formData.metric_key;
+        // If no metrics available, allow proceeding with just category/subcategory
+        const hasMetrics = availableMetrics.length > 0;
+        if (hasMetrics) {
+          return formData.target_name && formData.category && formData.subcategory && formData.metric_key;
+        }
+        return formData.target_name && formData.category && formData.subcategory;
       case 1: // Scope & Period
         if (formData.scope_type === 'facility' && (!formData.facility_ids || formData.facility_ids.length === 0)) {
           return false;
@@ -373,7 +378,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                 </div>
               )}
 
-              {availableMetrics.length > 0 && (
+              {availableMetrics.length > 0 ? (
                 <div>
                   <Label className="text-xs text-text-muted">Metric / KPI *</Label>
                   <Select value={formData.metric_key} onValueChange={handleMetricSelect}>
@@ -389,6 +394,13 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                     </SelectContent>
                   </Select>
                 </div>
+              ) : formData.subcategory && (
+                <Card className="p-3 bg-amber-50 border-amber-200">
+                  <p className="text-sm text-amber-800">
+                    No metrics defined for this subcategory. You can still create a target at the subcategory level, 
+                    or add metrics in ESG Config first.
+                  </p>
+                </Card>
               )}
 
               {formData.metric_key && (
