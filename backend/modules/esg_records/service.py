@@ -1259,24 +1259,18 @@ class ESGRecordsService:
             # Determine change type
             v["change_type"] = "created" if v.get("version") == 1 else "updated"
             
-            # Use stored changed_fields if available, otherwise compute from snapshots
-            if v.get("changed_fields") and isinstance(v["changed_fields"][0], dict) if v.get("changed_fields") else False:
-                # New format: already has field changes with old/new values
-                v["field_changes"] = [
-                    {"field": c["field"], "display_name": format_field_display_name(c["field"]), "old_value": c.get("old"), "new_value": c.get("new")}
-                    for c in v["changed_fields"]
-                ]
-            elif v.get("version", 1) > 1 and i + 1 < len(versions):
+            # Use stored changed_fields paths to compute diffs from snapshots
+            if v.get("version", 1) > 1 and i + 1 < len(versions):
                 # Compute from snapshots using utility
                 prev_snapshot = versions[i + 1].get("snapshot", {})
                 curr_snapshot = v.get("snapshot", {})
                 changes = compare_versions(prev_snapshot, curr_snapshot)
-                v["field_changes"] = [
+                v["field_diffs"] = [
                     {"field": c["field"], "display_name": format_field_display_name(c["field"]), "old_value": c["old"], "new_value": c["new"]}
                     for c in changes
                 ]
             else:
-                v["field_changes"] = []
+                v["field_diffs"] = []
         
         return versions
     

@@ -1145,12 +1145,12 @@ export default function ESGRecordsDataEntry({
                         <p className="text-sm text-text-muted mt-1">Reason: {version.change_reason}</p>
                       )}
                       
-                      {/* Field Changes */}
-                      {version.field_changes && version.field_changes.length > 0 && (
+                      {/* Field Diffs - computed on API, not stored */}
+                      {version.field_diffs && version.field_diffs.length > 0 && (
                         <div className="mt-3 pt-3 border-t border-stone-200">
                           <p className="text-xs font-semibold text-text-muted uppercase mb-2">Changes Made</p>
                           <div className="space-y-2">
-                            {version.field_changes.map((change, cIdx) => (
+                            {version.field_diffs.map((change, cIdx) => (
                               <div key={cIdx} className="bg-stone-50 rounded-lg p-2 text-sm">
                                 <p className="font-medium text-text-primary mb-1">{change.display_name}</p>
                                 <div className="grid grid-cols-2 gap-2 text-xs">
