@@ -50,7 +50,7 @@ import ESGTargetVersionHistory from './ESGTargetVersionHistory';
 const API = process.env.REACT_APP_BACKEND_URL;
 
 const STATUS_CONFIG = {
-  draft: { label: 'Draft', color: 'bg-stone-100 text-stone-700', icon: Clock },
+  draft: { label: 'Draft', color: 'bg-yellow-100 text-yellow-700', icon: Clock },
   active: { label: 'Active', color: 'bg-green-100 text-green-700', icon: CheckCircle2 },
   completed: { label: 'Completed', color: 'bg-blue-100 text-blue-700', icon: CheckCircle2 },
   cancelled: { label: 'Cancelled', color: 'bg-red-100 text-red-700', icon: XCircle },
