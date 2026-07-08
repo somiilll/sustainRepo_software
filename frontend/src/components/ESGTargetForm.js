@@ -560,12 +560,6 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                 </Select>
               </div>
             )}
-
-            <Card className="p-3 bg-stone-50 border-stone-200">
-              <p className="text-sm text-text-muted">
-                <span className="font-medium">Reporting Type:</span> {orgReportingType === 'FY' ? 'Financial Year' : 'Calendar Year'}
-              </p>
-            </Card>
           </div>
         );
 
