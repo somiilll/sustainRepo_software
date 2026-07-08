@@ -249,33 +249,40 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
     return hierarchy[formData.category]?.[formData.subcategory]?.[subSubKey] || [];
   }, [hierarchy, formData.category, formData.subcategory, formData.sub_subcategory]);
 
-  // Handle metric selection - also fetch baseline
-  const handleMetricSelect = async (metricKey) => {
+  // Handle metric selection
+  const handleMetricSelect = (metricKey) => {
     const metric = availableMetrics.find(m => m.metric_key === metricKey);
     if (metric) {
       updateField('metric_key', metric.metric_key);
       updateField('metric_label', metric.metric_label);
       updateField('unit', metric.unit);
+    }
+  };
+
+  // Auto-fetch baseline when entering Target Definition step (step 2 -> 3)
+  // This happens after scope/facility is selected
+  const fetchBaseline = async () => {
+    if (!formData.metric_key) return;
+    
+    try {
+      const facilityId = formData.scope_type === 'facility' && formData.facility_ids?.[0] 
+        ? formData.facility_ids[0] 
+        : '';
+      const params = new URLSearchParams({ metric_key: formData.metric_key });
+      if (facilityId) params.append('facility_id', facilityId);
       
-      // Auto-fetch baseline from GHG module
-      try {
-        const facilityId = formData.scope_type === 'facility' && formData.facility_ids?.[0] 
-          ? formData.facility_ids[0] 
-          : '';
-        const params = new URLSearchParams({ metric_key: metricKey });
-        if (facilityId) params.append('facility_id', facilityId);
-        
-        const res = await axios.get(`${API}/api/esg-targets/baseline/lookup?${params.toString()}`, { headers });
-        
-        if (res.data?.found) {
-          updateField('baseline', {
-            period: res.data.base_year || '',
-            value: res.data.base_value?.toString() || ''
-          });
-        }
-      } catch (error) {
-        console.log('Baseline auto-fetch not available:', error.message);
+      const res = await axios.get(`${API}/api/esg-targets/baseline/lookup?${params.toString()}`, { headers });
+      
+      if (res.data?.found && res.data.base_year && res.data.base_value !== null) {
+        updateField('baseline', {
+          period: res.data.base_year || '',
+          value: res.data.base_value?.toString() || ''
+        });
       }
+      // If not found, just leave baseline empty - user can fill manually
+    } catch (error) {
+      // Silent fail - user can fill baseline manually
+      console.log('Baseline auto-fetch not available');
     }
   };
 
@@ -341,6 +348,10 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
 
   const handleNext = () => {
     if (validateStep(currentStep)) {
+      // Fetch baseline when entering Target Definition step (after scope is selected)
+      if (currentStep === 1) {
+        fetchBaseline();
+      }
       setCurrentStep(prev => Math.min(prev + 1, STEPS.length - 1));
     }
   };
