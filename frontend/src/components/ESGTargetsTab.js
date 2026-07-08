@@ -85,6 +85,7 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
     subcategory: '',
     status: '',
     facility_id: '',
+    reporting_period: '',
   });
   const [showFilters, setShowFilters] = useState(false);
   
@@ -111,7 +112,8 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
       if (filters.subcategory) params.append('subcategory', filters.subcategory);
       if (filters.status) params.append('status', filters.status);
       if (filters.facility_id) params.append('facility_id', filters.facility_id);
-      if (reportingPeriod) params.append('reporting_period', reportingPeriod);
+      // Don't filter by reporting period by default - show all targets
+      if (filters.reporting_period) params.append('reporting_period', filters.reporting_period);
       
       const res = await axios.get(`${API}/api/esg-targets?${params.toString()}`, { headers });
       setTargets(res.data || []);
@@ -359,7 +361,7 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
             
             <Button 
               variant="ghost" 
-              onClick={() => setFilters({ category: '', subcategory: '', status: '', facility_id: '' })}
+              onClick={() => setFilters({ category: '', subcategory: '', status: '', facility_id: '', reporting_period: '' })}
               className="text-stone-500"
             >
               Clear Filters
