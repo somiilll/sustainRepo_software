@@ -33,7 +33,6 @@ class AssignmentService:
     def __init__(self):
         self._assignments = db["esg_assignments"]
         self._assignment_history = db["esg_assignment_history"]
-        self._response_versions = db["esg_response_versions"]
         self._users = db["users"]
         self._question_configs = db["esg_question_configs"]
     
@@ -615,83 +614,6 @@ class AssignmentService:
         }
         
         await self._assignment_history.insert_one(history_entry)
-    
-    # ============================================
-    # RESPONSE VERSION HISTORY
-    # ============================================
-    
-    async def log_response_version(
-        self,
-        organization_id: str,
-        question_key: str,
-        reporting_period: str,
-        previous_value: Optional[Dict],
-        new_value: Optional[Dict],
-        changed_by_user_id: str,
-        change_type: ResponseChangeType,
-    ) -> Dict[str, Any]:
-        """
-        Log a version of a question response.
-        
-        Called when responses are saved/updated.
-        """
-        # Get current version number
-        latest = await self._response_versions.find_one(
-            {
-                "organization_id": organization_id,
-                "question_key": question_key,
-                "reporting_period": reporting_period,
-            },
-            sort=[("version_number", -1)]
-        )
-        
-        version_number = (latest.get("version_number", 0) + 1) if latest else 1
-        
-        version_entry = {
-            "id": str(uuid.uuid4()),
-            "organization_id": organization_id,
-            "question_key": question_key,
-            "reporting_period": reporting_period,
-            "version_number": version_number,
-            "previous_value": previous_value,
-            "new_value": new_value,
-            "changed_by_user_id": changed_by_user_id,
-            "change_type": change_type.value,
-            "created_at": datetime.now(timezone.utc),
-        }
-        
-        await self._response_versions.insert_one(version_entry)
-        
-        return self._sanitize_doc(version_entry)
-    
-    async def get_response_versions(
-        self,
-        organization_id: str,
-        question_key: str,
-        reporting_period: str,
-    ) -> List[Dict[str, Any]]:
-        """Get version history for a question response"""
-        cursor = self._response_versions.find(
-            {
-                "organization_id": organization_id,
-                "question_key": question_key,
-                "reporting_period": reporting_period,
-            },
-            {"_id": 0}
-        ).sort("version_number", -1)
-        
-        docs = await cursor.to_list(100)
-        
-        # Populate user names
-        for doc in docs:
-            user = await self._users.find_one(
-                {"id": doc.get("changed_by_user_id")},
-                {"name": 1, "email": 1}
-            )
-            if user:
-                doc["changed_by_user_name"] = user.get("name") or user.get("email")
-        
-        return docs
     
     # ============================================
     # REMINDER METHODS

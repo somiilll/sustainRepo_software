@@ -1915,9 +1915,6 @@ class ESGQuestionnaireService:
         changed_by_user_id: Optional[str] = None,
     ) -> None:
         """Save or update a single year's document and track version history."""
-        from modules.esg_assignments.service import assignment_service
-        from modules.esg_assignments.models import ResponseChangeType
-        
         existing = await self._responses.find_one({
             "org_id": org_id,
             "framework": framework,
@@ -1940,29 +1937,18 @@ class ESGQuestionnaireService:
                 {"$set": {"responses": merged, "updated_at": now}}
             )
             
-            # Log version history for each changed question
+            # Trigger approval workflow for changed questions if required
             if changed_by_user_id:
                 for question_key, new_value in responses.items():
                     old_value = old_responses.get(question_key)
                     if old_value != new_value:
                         try:
-                            await assignment_service.log_response_version(
-                                organization_id=org_id,
-                                question_key=question_key,
-                                reporting_period=reporting_year,
-                                previous_value=old_value,
-                                new_value=new_value,
-                                changed_by_user_id=changed_by_user_id,
-                                change_type=ResponseChangeType.UPDATED if old_value else ResponseChangeType.CREATED,
-                            )
-                            
                             # Check if this disclosure requires approval and trigger workflow
                             await self._trigger_approval_if_required(
                                 org_id, question_key, reporting_year, new_value, changed_by_user_id
                             )
                         except Exception as e:
-                            # Don't fail save if version tracking fails
-                            print(f"Warning: Failed to log response version for {question_key}: {e}")
+                            print(f"Warning: Failed to trigger approval for {question_key}: {e}")
         else:
             doc = {
                 "id": str(uuid.uuid4()),
@@ -1976,26 +1962,15 @@ class ESGQuestionnaireService:
             }
             await self._responses.insert_one(doc)
             
-            # Log initial version for each question
+            # Trigger approval workflow for new questions if required
             if changed_by_user_id:
                 for question_key, new_value in responses.items():
                     try:
-                        await assignment_service.log_response_version(
-                            organization_id=org_id,
-                            question_key=question_key,
-                            reporting_period=reporting_year,
-                            previous_value=None,
-                            new_value=new_value,
-                            changed_by_user_id=changed_by_user_id,
-                            change_type=ResponseChangeType.CREATED,
-                        )
-                        
-                        # Check if this disclosure requires approval and trigger workflow
                         await self._trigger_approval_if_required(
                             org_id, question_key, reporting_year, new_value, changed_by_user_id
                         )
                     except Exception as e:
-                        print(f"Warning: Failed to log response version for {question_key}: {e}")
+                        print(f"Warning: Failed to trigger approval for {question_key}: {e}")
 
     def _split_responses_by_year(
         self, 

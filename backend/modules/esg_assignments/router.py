@@ -317,28 +317,10 @@ async def get_response_versions(
     current_user: dict = Depends(get_current_user),
 ):
     """
-    Get version history for a question response.
-    
-    Users can view history for questions they have access to.
+    DEPRECATED: Use /api/esg-questionnaire/history/{question_key} instead.
+    This endpoint is kept for backwards compatibility but returns empty.
     """
-    # Check access
-    has_access, _ = await access_control_service.can_access_question(
-        user_id=current_user["id"],
-        organization_id=current_user["organization_id"],
-        question_key=question_key,
-        reporting_period=reporting_period,
-    )
-    
-    if not has_access:
-        raise HTTPException(status_code=403, detail="Access denied")
-    
-    versions = await assignment_service.get_response_versions(
-        organization_id=current_user["organization_id"],
-        question_key=question_key,
-        reporting_period=reporting_period,
-    )
-    
-    return {"versions": versions}
+    return {"versions": [], "deprecated": True, "use": "/api/esg-questionnaire/history/{question_key}"}
 
 
 # ============================================
