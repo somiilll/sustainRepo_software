@@ -953,14 +953,15 @@ class ESGRecordsService:
         elif should_create_approval and not assignment:
             print("WARNING: should_create_approval=True but no assignment found!")
         
-        # Create version snapshot with hierarchical field paths
+        # Create version snapshot with hierarchical field paths (paths only, not values)
         field_changes = compare_versions(current, updated) if current else []
+        changed_field_paths = [c["field"] for c in field_changes]
         await self._create_version_snapshot(
             section=section,
             record_id=record_id,
             version=new_version,
             snapshot=updated,
-            changed_fields=field_changes,
+            changed_fields=changed_field_paths,
             change_reason=data.change_reason,
             user_id=user_id
         )
