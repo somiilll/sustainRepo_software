@@ -51,13 +51,13 @@ const TRACKING_MODES = [
   { value: 'yearly', label: 'Yearly', description: 'Target values for multiple years' },
 ];
 
-// Generate future years only
-const generateFutureYears = (reportingType, count = 10) => {
+// Generate future years only (up to 2060 for long-term targets like Net Zero)
+const generateFutureYears = (reportingType) => {
   const currentYear = new Date().getFullYear();
+  const endYear = 2060;
   const years = [];
   
-  for (let i = 0; i < count; i++) {
-    const year = currentYear + i;
+  for (let year = currentYear; year <= endYear; year++) {
     if (reportingType === 'FY') {
       years.push(`FY ${year}-${year + 1}`);
     } else {
@@ -100,7 +100,16 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
   const [orgReportingType, setOrgReportingType] = useState('FY');
   const [futureYears, setFutureYears] = useState([]);
   
-  // Form data
+  // Form data - map initialData fields for compatibility
+  const mappedInitialData = useMemo(() => {
+    if (!initialData) return {};
+    return {
+      ...initialData,
+      // Map reporting_period to target_year for static/monthly/quarterly/half_yearly modes
+      target_year: initialData.target_year || initialData.reporting_period || '',
+    };
+  }, [initialData]);
+
   const [formData, setFormData] = useState({
     target_name: '',
     description: '',
@@ -125,7 +134,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
     start_period: '', // For yearly mode
     end_period: '',   // For yearly mode
     thresholds: { green: '', amber: '', red: '' },
-    ...initialData
+    ...mappedInitialData
   });
 
   // Computed hierarchy from categories
@@ -204,7 +213,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
 
   // Generate future years based on org reporting type
   useEffect(() => {
-    const years = generateFutureYears(orgReportingType, 10);
+    const years = generateFutureYears(orgReportingType);
     setFutureYears(years);
   }, [orgReportingType]);
 
@@ -355,6 +364,8 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
   const handleSaveAsDraft = () => {
     onSubmit(prepareSubmitData('draft'));
   };
+
+  const isEditMode = !!initialData?.id;
 
   // Render step content
   const renderStepContent = () => {
@@ -918,7 +929,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
               className="bg-emerald-600 hover:bg-emerald-700"
               data-testid="submit-target-btn"
             >
-              {busy ? 'Creating...' : 'Create Target'}
+              {busy ? 'Saving...' : (isEditMode ? 'Update Target' : 'Create Target')}
             </Button>
           </div>
         )}
