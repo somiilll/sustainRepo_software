@@ -266,7 +266,8 @@ class GHGIntegrationService:
                 yearly_grouped[key] = {
                     "emissions": [],
                     "total_co2e": 0,
-                    "categories": set()
+                    "categories": set(),
+                    "category_emissions": {}  # Track emissions per category
                 }
             
             tco2e = float(em.get("total_emissions") or em.get("co2e_emissions") or em.get("calculated_co2e") or 0)
@@ -277,13 +278,19 @@ class GHGIntegrationService:
             yearly_grouped[key]["total_co2e"] += tco2e_proportioned
             yearly_grouped[key]["equity_share"] = equity_factor * 100  # Store for notes
             if em.get("category"):
-                yearly_grouped[key]["categories"].add(em.get("category"))
+                cat_name = em.get("category")
+                yearly_grouped[key]["categories"].add(cat_name)
+                # Accumulate emissions per category
+                yearly_grouped[key]["category_emissions"][cat_name] = yearly_grouped[key]["category_emissions"].get(cat_name, 0) + tco2e_proportioned
         
         # Build yearly aggregated records
         for (fac_id, scope, fy), data in yearly_grouped.items():
             record_id = f"ghg_emission_{fac_id}_{scope}_{fy.replace(' ', '_').replace('-', '_')}"
             equity_pct = data.get("equity_share", 100)
             equity_note = f" (Proportionated by {equity_pct:.0f}% equity share)" if equity_pct < 100 else ""
+            
+            # Build category breakdown with emissions
+            category_breakdown = {cat: round(val, 4) for cat, val in data.get("category_emissions", {}).items()}
             
             records.append({
                 "id": record_id,
@@ -308,7 +315,8 @@ class GHGIntegrationService:
                     "total_emission": round(data["total_co2e"], 4),
                     "emission_unit": "tCO2e",
                     "source_records_count": len(data["emissions"]),
-                    "categories_included": list(data["categories"])
+                    "categories_included": list(data["categories"]),
+                    "category_emissions": category_breakdown
                 },
                 "source_of_information": "GHG Module",
                 "notes": f"Auto-aggregated from {len(data['emissions'])} yearly GHG emission records{equity_note}",
@@ -363,6 +371,7 @@ class GHGIntegrationService:
                     "emissions": [],
                     "total_co2e": 0,
                     "categories": set(),
+                    "category_emissions": {},  # Track emissions per category
                     "month": month,
                     "year": year
                 }
@@ -375,13 +384,19 @@ class GHGIntegrationService:
             monthly_grouped[key]["total_co2e"] += tco2e_proportioned
             monthly_grouped[key]["equity_share"] = equity_factor * 100  # Store for notes
             if em.get("category"):
-                monthly_grouped[key]["categories"].add(em.get("category"))
+                cat_name = em.get("category")
+                monthly_grouped[key]["categories"].add(cat_name)
+                # Accumulate emissions per category
+                monthly_grouped[key]["category_emissions"][cat_name] = monthly_grouped[key]["category_emissions"].get(cat_name, 0) + tco2e_proportioned
         
         # Build monthly aggregated records (grouped by month, not rolled into yearly)
         for (fac_id, scope, month_period), data in monthly_grouped.items():
             record_id = f"ghg_emission_{fac_id}_{scope}_{month_period.replace('-', '_')}"
             equity_pct = data.get("equity_share", 100)
             equity_note = f" (Proportionated by {equity_pct:.0f}% equity share)" if equity_pct < 100 else ""
+            
+            # Build category breakdown with emissions
+            category_breakdown = {cat: round(val, 4) for cat, val in data.get("category_emissions", {}).items()}
             
             records.append({
                 "id": record_id,
@@ -406,7 +421,8 @@ class GHGIntegrationService:
                     "total_emission": round(data["total_co2e"], 4),
                     "emission_unit": "tCO2e",
                     "source_records_count": len(data["emissions"]),
-                    "categories_included": list(data["categories"])
+                    "categories_included": list(data["categories"]),
+                    "category_emissions": category_breakdown
                 },
                 "source_of_information": "GHG Module",
                 "notes": f"Auto-aggregated from {len(data['emissions'])} monthly GHG emission records for {month_period}{equity_note}",
