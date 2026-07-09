@@ -412,7 +412,7 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
                   <tr key={target.id} className="hover:bg-stone-50/50" data-testid={`target-row-${target.id}`}>
                     <td className="px-4 py-3">
                       <div>
-                        <p className="font-medium text-text-primary text-sm">{target.metric_label || target.metric_key}</p>
+                        <p className="font-medium text-text-primary text-sm">{target.kpi_name || target.metric_label || target.metric_key}</p>
                         <p className="text-xs text-text-muted">{target.category} → {target.subcategory}</p>
                       </div>
                     </td>
