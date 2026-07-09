@@ -4,7 +4,7 @@
  */
 import React, { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { WIZARD_STEPS, DEFAULT_VISIBILITY } from './constants';
 import { IdentityStep, SourceStep, QueryStep, UnitsStep, SettingsStep } from './steps';
 import { ChevronLeft, ChevronRight, Check, Loader2 } from 'lucide-react';
@@ -122,6 +122,9 @@ const KPIDefinitionWizard = ({
           <DialogTitle>
             {editData ? 'Edit KPI Definition' : 'Create KPI Definition'}
           </DialogTitle>
+          <DialogDescription>
+            Configure a reusable KPI metric for targets, dashboards, and reports.
+          </DialogDescription>
         </DialogHeader>
 
         {/* Step Indicator */}

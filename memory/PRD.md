@@ -15,12 +15,15 @@ Build a comprehensive ESG (Environmental, Social, Governance) tracking and repor
 │   ├── modules/
 │   │   ├── esg_records/ (Data Entry, Assignments, Task Engine, GHG Integration)
 │   │   ├── esg_tracking/ (Tracker endpoints)
+│   │   ├── esg_targets/ (Target definitions and baseline service)
+│   │   ├── esg_kpi_definitions/ (Reusable KPI metric configurations)
 │   │   ├── approval_workflow/ (Approval queue & request engines)
 ├── frontend/
     └── src/
         ├── components/
         │   ├── tasks/
         │   ├── tracker/
+        │   ├── kpi-definitions/ (5-step KPI wizard components)
         │   ├── ApproverQueue.js
         │   ├── ESGRecordsTracker.js 
         │   ├── ESGRecordsDataEntry.js 
@@ -30,8 +33,23 @@ Build a comprehensive ESG (Environmental, Social, Governance) tracking and repor
 - `approval_requests`: Contains approval tickets with `is_edit`, `changes_summary`, `previous_field_values`
 - `esg_task_assignees`: Junction table linking `task_id` to `user_id`
 - `esg_reporting_tasks`: Holds `status` and `approval_status`
+- `esg_targets`: Generic target definitions (metric_key, tracking values, goal types, scopes)
+- `esg_kpi_definitions`: Reusable KPI metric configurations (source, aggregation, filters, units, visibility)
 
 ## Completed Features
+
+### July 2026
+- **ESG KPI Definition Engine (Super Admin)** - P0 COMPLETE
+  - Backend: `/app/backend/modules/esg_kpi_definitions/` with contracts.py, service.py, router.py
+  - API endpoints: `/api/esg-kpi-definitions` (CRUD, duplicate, archive, lookup)
+  - Frontend: 5-step wizard at `/super-admin/kpi-definitions`
+    - Step 1: Identity (name, description, auto-generated metric_code, section, category hierarchy, tags)
+    - Step 2: Data Source (records/manual source type, records config with section/value_field)
+    - Step 3: Query Builder (aggregation type: sum/count/avg/min/max, filters with operators, dimensions)
+    - Step 4: Units (output type, default unit, supported units, unit conversion, decimal places, display settings)
+    - Step 5: Settings (visibility flags for dashboard/reports/tracking/targets/analytics, supported_scopes, status)
+  - Features: Create, edit, duplicate, archive, delete KPIs; filter by section/status/search; stats cards
+  - Test coverage: Backend pytest 7/7 pass, Frontend Playwright all pass
 
 ### December 2024
 - **Approver Queue ESG Record View**: Added `RecordApprovalPanel` for editable ESG records from queue with `field_definitions`
