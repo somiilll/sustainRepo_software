@@ -81,6 +81,24 @@ Build a comprehensive ESG (Environmental, Social, Governance) tracking and repor
 - Build Targets subtab UI inside Metrics
 - Replace dummy data with actual backend data in Environment visualizations
 
+## KPI Definition Engine - Pending Enhancements (P2)
+Saved for later implementation:
+1. **Version History UI** (MEDIUM)
+   - Create `esg_kpi_definition_versions` collection for snapshots
+   - Add "View Versions" action in dropdown menu
+   - Build version history modal showing field-level changes
+   
+2. **Refresh & Storage Strategy fields** (SMALL)
+   - Add `refresh_strategy`: manual, on_record_update, hourly, daily, monthly
+   - Add `result_storage_strategy`: calculate_live, cache, persist
+   - Add UI controls in Step 5 (Settings)
+   
+3. **Table Columns Enhancement** (SMALL)
+   - Add columns: Category, Subcategory, Aggregation, Dashboard Enabled, Target Enabled
+   
+4. **category_id Storage** (SMALL)
+   - Store `category_id` from esg_record_categories at top level for proper linking
+
 ## Future/Backlog (P2)
 - Dynamic, metadata-driven ESG Disclosure Engine
 - Sentry Error Monitoring Integration
