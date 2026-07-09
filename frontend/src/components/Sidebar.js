@@ -127,6 +127,7 @@ export default function Sidebar() {
     { path: '/super-admin/admins', label: 'Admins', icon: UserCog },
     { path: '/super-admin/sectors', label: 'Sectors', icon: Layers },
     { path: '/super-admin/esg-config', label: 'ESG Config', icon: Cog },
+    { path: '/super-admin/kpi-definitions', label: 'KPI Definitions', icon: Gauge },
   ];
 
   // Visibility flags driven by the org's enabled_access list.
