@@ -44,6 +44,7 @@ import Social from './pages/Social';
 import HRWorkforce from './pages/HRWorkforce';
 import Governance from './pages/Governance';
 import ESGConfig from './pages/ESGConfig';
+import KPIDefinitions from './pages/KPIDefinitions';
 import Reporting from './pages/Reporting';
 import BRSRModule from './components/BRSRModule';
 import GRIModule from './components/GRIModule';
@@ -230,6 +231,11 @@ const AppRoutes = () => {
             <Route path="esg-config" element={
               <SuperAdminRoute>
                 <ESGConfig />
+              </SuperAdminRoute>
+            } />
+            <Route path="kpi-definitions" element={
+              <SuperAdminRoute>
+                <KPIDefinitions />
               </SuperAdminRoute>
             } />
           </Route>

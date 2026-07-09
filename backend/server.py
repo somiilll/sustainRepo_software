@@ -115,6 +115,7 @@ from modules.governance.router import router as governance_router
 from modules.esg_records.admin_router import admin_router as esg_records_admin_router
 from modules.esg_assignments.router import router as esg_assignments_router
 from modules.esg_targets.router import router as esg_targets_router
+from modules.esg_kpi_definitions.router import router as esg_kpi_definitions_router
 
 # Set Playwright browsers path BEFORE any playwright imports
 os.environ['PLAYWRIGHT_BROWSERS_PATH'] = '/app/.playwright'
@@ -181,6 +182,8 @@ api_router.include_router(esg_records_admin_router)
 api_router.include_router(esg_assignments_router)
 # ESG Targets Module (KPI-level targets)
 api_router.include_router(esg_targets_router, prefix="/esg-targets", tags=["ESG Targets"])
+# ESG KPI Definitions Module (Super Admin - reusable metric configurations)
+api_router.include_router(esg_kpi_definitions_router)
 
 # Run module contract verifier at import time. Phase B1: log-only, will be
 # escalated to fail-fast in dev once all modules expose their contracts.
