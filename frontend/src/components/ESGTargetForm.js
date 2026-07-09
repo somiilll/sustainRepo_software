@@ -109,9 +109,8 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
       description: '',
       category: '',
       subcategory: '',
-      sub_subcategory: '',
-      metric_key: '',
-      metric_label: '',
+      kpi_id: '',
+      kpi_name: '',
       unit: '',
       scope_type: 'organization',
       facility_ids: [],
@@ -145,50 +144,23 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
   };
 
   const [formData, setFormData] = useState(getInitialFormData);
+  
+  // Store the raw hierarchy from API
+  const [kpiHierarchy, setKpiHierarchy] = useState({});
 
-  // Computed hierarchy from categories
-  const hierarchy = useMemo(() => {
-    const h = {};
-    if (!Array.isArray(categories)) return h;
-    
-    categories.forEach(cat => {
-      const catName = cat.category;
-      const subcatName = cat.subcategory;
-      const subSubcatName = cat.sub_subcategory || '_root';
-      
-      if (!h[catName]) h[catName] = {};
-      if (!h[catName][subcatName]) h[catName][subcatName] = {};
-      if (!h[catName][subcatName][subSubcatName]) h[catName][subcatName][subSubcatName] = [];
-      
-      const fields = cat.fields || cat.field_definitions || [];
-      fields.forEach(field => {
-        const fieldKey = field.field_key || field.key;
-        if (fieldKey) {
-          h[catName][subcatName][subSubcatName].push({
-            metric_key: fieldKey,
-            metric_label: field.label,
-            unit: field.unit || cat.unit,
-            category_id: cat.id
-          });
-        }
-      });
-    });
-    return h;
-  }, [categories]);
-
-  // Fetch categories
+  // Fetch KPI definitions for targets (from esg_kpi_definitions)
   useEffect(() => {
-    const fetchCategories = async () => {
+    const fetchKPIs = async () => {
       try {
-        const res = await axios.get(`${API}/api/esg-records/categories/${section}`, { headers });
-        const data = res.data?.categories || res.data || [];
-        setCategories(Array.isArray(data) ? data : []);
+        const res = await axios.get(`${API}/api/esg-targets/lookup/categories?section=${section}`, { headers });
+        const data = res.data?.hierarchy || {};
+        setKpiHierarchy(data);
       } catch (error) {
-        console.error('Failed to fetch categories:', error);
-        setCategories([]);
+        console.error('Failed to fetch KPI definitions:', error);
+        setKpiHierarchy({});
       }
     };
-    fetchCategories();
+    fetchKPIs();
   }, [section, token]);
 
   // Fetch facilities
@@ -239,38 +211,40 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
     }));
   };
 
-  // Get available options based on selections
-  const availableCategories = Object.keys(hierarchy);
-  const availableSubcategories = formData.category ? Object.keys(hierarchy[formData.category] || {}) : [];
-  const availableSubSubcategories = formData.subcategory 
-    ? Object.keys(hierarchy[formData.category]?.[formData.subcategory] || {}).filter(k => k !== '_root')
-    : [];
-  const availableMetrics = useMemo(() => {
+  // Get available options based on KPI hierarchy (from esg_kpi_definitions)
+  const availableCategories = Object.keys(kpiHierarchy);
+  const availableSubcategories = formData.category ? Object.keys(kpiHierarchy[formData.category] || {}) : [];
+  
+  // Get KPIs for selected category/subcategory
+  const availableKPIs = useMemo(() => {
     if (!formData.category || !formData.subcategory) return [];
-    const subSubKey = formData.sub_subcategory || '_root';
-    return hierarchy[formData.category]?.[formData.subcategory]?.[subSubKey] || [];
-  }, [hierarchy, formData.category, formData.subcategory, formData.sub_subcategory]);
+    return kpiHierarchy[formData.category]?.[formData.subcategory] || [];
+  }, [kpiHierarchy, formData.category, formData.subcategory]);
 
-  // Handle metric selection
-  const handleMetricSelect = (metricKey) => {
-    const metric = availableMetrics.find(m => m.metric_key === metricKey);
-    if (metric) {
-      updateField('metric_key', metric.metric_key);
-      updateField('metric_label', metric.metric_label);
-      updateField('unit', metric.unit);
+  // Handle KPI selection
+  const handleKPISelect = (kpiId) => {
+    const kpi = availableKPIs.find(k => k.kpi_id === kpiId);
+    if (kpi) {
+      updateField('kpi_id', kpi.kpi_id);
+      updateField('kpi_name', kpi.metric_name);
+      updateField('unit', kpi.unit);
     }
   };
 
   // Auto-fetch baseline when entering Target Definition step (step 2 -> 3)
   // This happens after scope/facility is selected
   const fetchBaseline = async () => {
-    if (!formData.metric_key) return;
+    if (!formData.kpi_id) return;
+    
+    // Get the KPI to find its metric_code for baseline lookup
+    const kpi = availableKPIs.find(k => k.kpi_id === formData.kpi_id);
+    if (!kpi?.metric_code) return;
     
     try {
       const facilityId = formData.scope_type === 'facility' && formData.facility_ids?.[0] 
         ? formData.facility_ids[0] 
         : '';
-      const params = new URLSearchParams({ metric_key: formData.metric_key });
+      const params = new URLSearchParams({ metric_key: kpi.metric_code });
       if (facilityId) params.append('facility_id', facilityId);
       
       const res = await axios.get(`${API}/api/esg-targets/baseline/lookup?${params.toString()}`, { headers });
@@ -323,9 +297,9 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
   const validateStep = (step) => {
     switch (step) {
       case 0: // KPI Selection
-        const hasMetrics = availableMetrics.length > 0;
-        if (hasMetrics) {
-          return formData.target_name && formData.category && formData.subcategory && formData.metric_key;
+        const hasKPIs = availableKPIs.length > 0;
+        if (hasKPIs) {
+          return formData.target_name && formData.category && formData.subcategory && formData.kpi_id;
         }
         return formData.target_name && formData.category && formData.subcategory;
       case 1: // Scope
@@ -448,8 +422,8 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                   <Select value={formData.category} onValueChange={(v) => {
                     updateField('category', v);
                     updateField('subcategory', '');
-                    updateField('sub_subcategory', '');
-                    updateField('metric_key', '');
+                    updateField('kpi_id', '');
+                    updateField('kpi_name', '');
                   }}>
                     <SelectTrigger className="mt-1" data-testid="category-select">
                       <SelectValue placeholder="Select category" />
@@ -468,8 +442,8 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                     value={formData.subcategory} 
                     onValueChange={(v) => {
                       updateField('subcategory', v);
-                      updateField('sub_subcategory', '');
-                      updateField('metric_key', '');
+                      updateField('kpi_id', '');
+                      updateField('kpi_name', '');
                     }}
                     disabled={!formData.category}
                   >
@@ -485,39 +459,17 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                 </div>
               </div>
 
-              {availableSubSubcategories.length > 0 && (
-                <div>
-                  <Label className="text-xs text-text-muted">Sub-subcategory</Label>
-                  <Select 
-                    value={formData.sub_subcategory} 
-                    onValueChange={(v) => {
-                      updateField('sub_subcategory', v);
-                      updateField('metric_key', '');
-                    }}
-                  >
-                    <SelectTrigger className="mt-1">
-                      <SelectValue placeholder="Select sub-subcategory (optional)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableSubSubcategories.map(sub => (
-                        <SelectItem key={sub} value={sub}>{sub}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {availableMetrics.length > 0 ? (
+              {availableKPIs.length > 0 ? (
                 <div>
                   <Label className="text-xs text-text-muted">Metric / KPI *</Label>
-                  <Select value={formData.metric_key} onValueChange={handleMetricSelect}>
+                  <Select value={formData.kpi_id} onValueChange={handleKPISelect}>
                     <SelectTrigger className="mt-1" data-testid="metric-select">
-                      <SelectValue placeholder="Select metric" />
+                      <SelectValue placeholder="Select KPI" />
                     </SelectTrigger>
                     <SelectContent>
-                      {availableMetrics.map(m => (
-                        <SelectItem key={m.metric_key} value={m.metric_key}>
-                          {m.metric_label} {m.unit && `(${m.unit})`}
+                      {availableKPIs.map(kpi => (
+                        <SelectItem key={kpi.kpi_id} value={kpi.kpi_id}>
+                          {kpi.metric_name} {kpi.unit && `(${kpi.unit})`}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -526,16 +478,15 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
               ) : formData.subcategory && (
                 <Card className="p-3 bg-amber-50 border-amber-200">
                   <p className="text-sm text-amber-800">
-                    No metrics defined for this subcategory. You can still create a target at the subcategory level, 
-                    or add metrics in ESG Config first.
+                    No KPIs defined for this subcategory. Please create a KPI in the KPI Definitions first.
                   </p>
                 </Card>
               )}
 
-              {formData.metric_key && (
+              {formData.kpi_id && (
                 <Card className="p-3 bg-emerald-50 border-emerald-200">
-                  <p className="text-sm font-medium text-emerald-800">Selected Metric</p>
-                  <p className="text-sm text-emerald-700">{formData.metric_label}</p>
+                  <p className="text-sm font-medium text-emerald-800">Selected KPI</p>
+                  <p className="text-sm text-emerald-700">{formData.kpi_name}</p>
                   {formData.unit && <p className="text-xs text-emerald-600">Unit: {formData.unit}</p>}
                 </Card>
               )}

@@ -81,13 +81,12 @@ class ESGTargetCreate(BaseModel):
     target_name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
     
-    # KPI Linkage (hierarchical)
+    # KPI Linkage (from esg_kpi_definitions)
     section: str  # environment, social, governance
     category: str
     subcategory: str
-    sub_subcategory: Optional[str] = None
-    metric_key: str  # From field_definitions
-    metric_label: Optional[str] = None  # Display name for convenience
+    kpi_id: str  # UUID from esg_kpi_definitions
+    kpi_name: Optional[str] = None  # Display name for convenience
     
     # Scope
     scope_type: ScopeType = ScopeType.ORGANIZATION
@@ -133,9 +132,8 @@ class ESGTargetUpdate(BaseModel):
     section: Optional[str] = None
     category: Optional[str] = None
     subcategory: Optional[str] = None
-    sub_subcategory: Optional[str] = None
-    metric_key: Optional[str] = None
-    metric_label: Optional[str] = None
+    kpi_id: Optional[str] = None
+    kpi_name: Optional[str] = None
     
     scope_type: Optional[ScopeType] = None
     facility_ids: Optional[List[str]] = None
@@ -176,9 +174,12 @@ class ESGTargetResponse(BaseModel):
     section: str
     category: str
     subcategory: str
-    sub_subcategory: Optional[str] = None
-    metric_key: str
-    metric_label: Optional[str] = None
+    # Support both old metric_key and new kpi_id fields for backward compatibility
+    kpi_id: Optional[str] = None
+    kpi_name: Optional[str] = None
+    metric_key: Optional[str] = None  # Legacy field
+    metric_label: Optional[str] = None  # Legacy field
+    sub_subcategory: Optional[str] = None  # Legacy field
     
     scope_type: str
     facility_ids: Optional[List[str]] = None

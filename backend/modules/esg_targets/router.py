@@ -194,44 +194,51 @@ async def get_categories_for_targets(
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Get categories with their field_definitions for target KPI selection.
-    Returns hierarchical structure for the form selector.
+    Get categories and subcategories with their KPI definitions for target selection.
+    Fetches from esg_kpi_definitions where target_enabled=true and status=active.
+    Returns hierarchical structure: Category → Subcategory → KPIs
     """
     from shared.database.mongo import db
     
     _get_org_id(current_user)  # Validate user has org
     
-    # Get all categories for this section
-    categories = await db.esg_record_categories.find(
-        {"section": section},
-        {"_id": 0, "id": 1, "category": 1, "subcategory": 1, "sub_subcategory": 1, "field_definitions": 1, "unit": 1}
+    # Get all active, target-enabled KPIs for this section
+    kpis = await db.esg_kpi_definitions.find(
+        {
+            "section": section,
+            "status": "active",
+            "visibility.target_enabled": True
+        },
+        {"_id": 0}
     ).to_list(1000)
     
-    # Build hierarchical structure
+    # Build hierarchical structure: category → subcategory → kpis
     hierarchy = {}
-    for cat in categories:
-        cat_name = cat.get("category", "")
-        subcat_name = cat.get("subcategory", "")
-        sub_subcat_name = cat.get("sub_subcategory")
+    
+    for kpi in kpis:
+        cat_name = kpi.get("category_name", "")
+        subcat_name = kpi.get("subcategory", "")
         
+        if not cat_name:
+            continue
+            
         if cat_name not in hierarchy:
             hierarchy[cat_name] = {}
         
         if subcat_name not in hierarchy[cat_name]:
-            hierarchy[cat_name][subcat_name] = {}
+            hierarchy[cat_name][subcat_name] = []
         
-        key = sub_subcat_name or "_root"
-        if key not in hierarchy[cat_name][subcat_name]:
-            hierarchy[cat_name][subcat_name][key] = []
-        
-        # Extract metrics from field_definitions
-        for field in cat.get("field_definitions", []):
-            hierarchy[cat_name][subcat_name][key].append({
-                "metric_key": field.get("key"),
-                "metric_label": field.get("label"),
-                "unit": field.get("unit") or cat.get("unit"),
-                "category_id": cat.get("id")
-            })
+        # Add KPI to the list
+        hierarchy[cat_name][subcat_name].append({
+            "kpi_id": kpi.get("id"),
+            "metric_name": kpi.get("metric_name"),
+            "metric_code": kpi.get("metric_code"),
+            "short_name": kpi.get("short_name"),
+            "unit": kpi.get("unit_config", {}).get("default_unit") if kpi.get("unit_config") else None,
+            "output_type": kpi.get("output_type"),
+            "aggregation_type": kpi.get("aggregation_type"),
+            "description": kpi.get("description")
+        })
     
     return {
         "section": section,

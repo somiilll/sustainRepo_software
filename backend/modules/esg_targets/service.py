@@ -51,9 +51,8 @@ class ESGTargetsService:
             "section": data.section,
             "category": data.category,
             "subcategory": data.subcategory,
-            "sub_subcategory": data.sub_subcategory,
-            "metric_key": data.metric_key,
-            "metric_label": data.metric_label,
+            "kpi_id": data.kpi_id,
+            "kpi_name": data.kpi_name,
             
             "scope_type": data.scope_type.value,
             "facility_ids": data.facility_ids if data.scope_type == ScopeType.FACILITY else None,
