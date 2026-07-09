@@ -1,17 +1,77 @@
 /**
  * Step 1: Identity
- * Metric name, description, section, category hierarchy
+ * Metric name, description, section, category hierarchy (with dynamic dropdowns)
  */
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Input } from '../../ui/input';
 import { Textarea } from '../../ui/textarea';
 import { Label } from '../../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select';
 import { ESG_SECTIONS } from '../constants';
+import { Loader2 } from 'lucide-react';
 
-const IdentityStep = ({ formData, setFormData, errors }) => {
+const API_URL = process.env.REACT_APP_BACKEND_URL;
+
+const IdentityStep = ({ formData, setFormData, errors, categoryData, setCategoryData }) => {
+  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Fetch categories when section changes
+  useEffect(() => {
+    const fetchCategories = async () => {
+      if (!formData.section) {
+        setCategoryData({ categories: [], hierarchy: {} });
+        return;
+      }
+
+      setIsLoadingCategories(true);
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(
+          `${API_URL}/api/esg-kpi-definitions/lookup/categories?section=${formData.section}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setCategoryData(data);
+        }
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+      } finally {
+        setIsLoadingCategories(false);
+      }
+    };
+
+    fetchCategories();
+  }, [formData.section, setCategoryData]);
+
+  // Reset category/subcategory when section changes
+  const handleSectionChange = (value) => {
+    setFormData(prev => ({
+      ...prev,
+      section: value,
+      category_name: '',
+      subcategory: ''
+    }));
+  };
+
+  // Reset subcategory when category changes
+  const handleCategoryChange = (value) => {
+    setFormData(prev => ({
+      ...prev,
+      category_name: value,
+      subcategory: ''
+    }));
+  };
+
+  // Get subcategories for selected category
+  const getSubcategories = () => {
+    if (!formData.category_name || !categoryData?.hierarchy) return [];
+    const categoryHierarchy = categoryData.hierarchy[formData.category_name];
+    return categoryHierarchy ? Object.keys(categoryHierarchy) : [];
   };
 
   return (
@@ -58,7 +118,7 @@ const IdentityStep = ({ formData, setFormData, errors }) => {
           </Label>
           <Select
             value={formData.section || ''}
-            onValueChange={(value) => handleChange('section', value)}
+            onValueChange={handleSectionChange}
           >
             <SelectTrigger 
               className={`mt-1 ${errors?.section ? 'border-red-500' : ''}`}
@@ -77,34 +137,59 @@ const IdentityStep = ({ formData, setFormData, errors }) => {
           )}
         </div>
 
-        {/* Category Name */}
+        {/* Category - Dynamic Dropdown */}
         <div>
           <Label htmlFor="category_name" className="text-sm font-medium">
             Category
           </Label>
-          <Input
-            id="category_name"
+          <Select
             value={formData.category_name || ''}
-            onChange={(e) => handleChange('category_name', e.target.value)}
-            placeholder="e.g., GHG Emissions"
-            className="mt-1"
-            data-testid="kpi-category-name"
-          />
+            onValueChange={handleCategoryChange}
+            disabled={!formData.section || isLoadingCategories}
+          >
+            <SelectTrigger 
+              className="mt-1"
+              data-testid="kpi-category-select"
+            >
+              {isLoadingCategories ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Loading...</span>
+                </div>
+              ) : (
+                <SelectValue placeholder={formData.section ? "Select category" : "Select section first"} />
+              )}
+            </SelectTrigger>
+            <SelectContent>
+              {categoryData?.categories?.map((cat) => (
+                <SelectItem key={cat.name} value={cat.name}>{cat.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
-        {/* Subcategory */}
+        {/* Subcategory - Dynamic Dropdown */}
         <div>
           <Label htmlFor="subcategory" className="text-sm font-medium">
             Subcategory
           </Label>
-          <Input
-            id="subcategory"
+          <Select
             value={formData.subcategory || ''}
-            onChange={(e) => handleChange('subcategory', e.target.value)}
-            placeholder="e.g., Direct Emissions"
-            className="mt-1"
-            data-testid="kpi-subcategory"
-          />
+            onValueChange={(value) => handleChange('subcategory', value)}
+            disabled={!formData.category_name}
+          >
+            <SelectTrigger 
+              className="mt-1"
+              data-testid="kpi-subcategory-select"
+            >
+              <SelectValue placeholder={formData.category_name ? "Select subcategory" : "Select category first"} />
+            </SelectTrigger>
+            <SelectContent>
+              {getSubcategories().map((subcat) => (
+                <SelectItem key={subcat} value={subcat}>{subcat}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Description */}

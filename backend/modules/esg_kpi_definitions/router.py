@@ -93,6 +93,109 @@ async def get_kpis_for_targets(
     return {"kpis": kpis}
 
 
+@router.get("/lookup/categories")
+async def get_categories_by_section(
+    section: str = Query(..., description="ESG section (environment, social, governance)"),
+    current_user: dict = Depends(get_super_admin_user)
+):
+    """
+    Get categories and subcategories for a given ESG section.
+    Returns hierarchical structure with field definitions for dropdown population.
+    """
+    from shared.database.mongo import db
+    
+    # Get all categories for this section
+    categories = await db.esg_record_categories.find(
+        {"section": section},
+        {"_id": 0, "id": 1, "category": 1, "subcategory": 1, "sub_subcategory": 1, "fields": 1, "unit": 1}
+    ).to_list(1000)
+    
+    # Build hierarchical structure: category -> subcategory -> fields
+    hierarchy = {}
+    category_list = []
+    
+    for cat in categories:
+        cat_name = cat.get("category", "")
+        subcat_name = cat.get("subcategory", "")
+        
+        # Build unique category list
+        if cat_name and cat_name not in [c["name"] for c in category_list]:
+            category_list.append({"name": cat_name, "subcategories": []})
+        
+        # Find or create category entry in hierarchy
+        if cat_name not in hierarchy:
+            hierarchy[cat_name] = {}
+        
+        # Add subcategory with its fields
+        if subcat_name not in hierarchy[cat_name]:
+            hierarchy[cat_name][subcat_name] = {
+                "category_id": cat.get("id"),
+                "fields": []
+            }
+        
+        # Extract fields from "fields" array (note: field uses field_key not key)
+        for field in cat.get("fields", []):
+            field_entry = {
+                "key": field.get("field_key"),
+                "label": field.get("label"),
+                "type": field.get("type", "number"),
+                "unit": field.get("unit") or cat.get("unit")
+            }
+            # Avoid duplicates
+            existing_keys = [f["key"] for f in hierarchy[cat_name][subcat_name]["fields"]]
+            if field_entry["key"] and field_entry["key"] not in existing_keys:
+                hierarchy[cat_name][subcat_name]["fields"].append(field_entry)
+    
+    # Build category list with subcategories
+    for cat_entry in category_list:
+        cat_name = cat_entry["name"]
+        if cat_name in hierarchy:
+            cat_entry["subcategories"] = list(hierarchy[cat_name].keys())
+    
+    return {
+        "section": section,
+        "categories": category_list,
+        "hierarchy": hierarchy
+    }
+
+
+@router.get("/lookup/fields")
+async def get_fields_for_subcategory(
+    section: str = Query(..., description="ESG section"),
+    category: str = Query(..., description="Category name"),
+    subcategory: str = Query(..., description="Subcategory name"),
+    current_user: dict = Depends(get_super_admin_user)
+):
+    """
+    Get field definitions for a specific subcategory.
+    Used for populating value_field and filter field dropdowns.
+    """
+    from shared.database.mongo import db
+    
+    # Find the category document
+    cat_doc = await db.esg_record_categories.find_one(
+        {"section": section, "category": category, "subcategory": subcategory},
+        {"_id": 0, "id": 1, "fields": 1, "unit": 1}
+    )
+    
+    if not cat_doc:
+        return {"fields": [], "category_id": None}
+    
+    fields = []
+    for field in cat_doc.get("fields", []):
+        fields.append({
+            "key": field.get("field_key"),
+            "label": field.get("label"),
+            "type": field.get("type", "number"),
+            "unit": field.get("unit") or cat_doc.get("unit")
+        })
+    
+    return {
+        "category_id": cat_doc.get("id"),
+        "fields": fields
+    }
+
+
 @router.get("/{kpi_id}", response_model=KPIDefinitionResponse)
 async def get_kpi_definition(
     kpi_id: str,

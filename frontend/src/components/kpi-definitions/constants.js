@@ -80,6 +80,7 @@ export const DEFAULT_DISPLAY_CONFIG = {
 
 // Common dimension options
 export const DIMENSION_OPTIONS = [
+  { value: 'organization', label: 'Organization' },
   { value: 'facility', label: 'Facility' },
   { value: 'month', label: 'Month' },
   { value: 'quarter', label: 'Quarter' },

@@ -1,6 +1,6 @@
 /**
  * Step 3: Query Builder
- * Filters, dimensions, and aggregation configuration
+ * Filters, dimensions, and aggregation configuration (with dynamic field dropdown)
  */
 import React, { useState } from 'react';
 import { Label } from '../../ui/label';
@@ -11,12 +11,26 @@ import { Checkbox } from '../../ui/checkbox';
 import { AGGREGATION_TYPES, FILTER_OPERATORS, DIMENSION_OPTIONS } from '../constants';
 import { Plus, Trash2, Filter, Layers } from 'lucide-react';
 
-const QueryStep = ({ formData, setFormData, errors }) => {
+const QueryStep = ({ formData, setFormData, errors, categoryData }) => {
   const [newFilter, setNewFilter] = useState({ field_key: '', operator: '=', value: '' });
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
+
+  // Get fields for the selected subcategory from categoryData
+  const getFieldsForSubcategory = () => {
+    if (!categoryData?.hierarchy || !formData.category_name || !formData.subcategory) {
+      return [];
+    }
+    const categoryHierarchy = categoryData.hierarchy[formData.category_name];
+    if (!categoryHierarchy || !categoryHierarchy[formData.subcategory]) {
+      return [];
+    }
+    return categoryHierarchy[formData.subcategory].fields || [];
+  };
+
+  const availableFields = getFieldsForSubcategory();
 
   const addFilter = () => {
     if (!newFilter.field_key || !newFilter.value) return;
@@ -37,6 +51,12 @@ const QueryStep = ({ formData, setFormData, errors }) => {
       ? current.filter(d => d !== dimension)
       : [...current, dimension];
     handleChange('dimensions', updated);
+  };
+
+  // Get field label by key
+  const getFieldLabel = (key) => {
+    const field = availableFields.find(f => f.key === key);
+    return field ? field.label : key;
   };
 
   return (
@@ -95,7 +115,7 @@ const QueryStep = ({ formData, setFormData, errors }) => {
                   className="flex items-center gap-2 bg-white p-2 rounded border"
                 >
                   <code className="text-sm bg-slate-100 px-2 py-1 rounded">
-                    {filter.field_key}
+                    {getFieldLabel(filter.field_key)}
                   </code>
                   <span className="text-gray-500 text-sm">
                     {FILTER_OPERATORS[filter.operator] || filter.operator}
@@ -119,16 +139,34 @@ const QueryStep = ({ formData, setFormData, errors }) => {
 
           {/* Add New Filter */}
           <div className="flex flex-wrap items-end gap-2">
-            <div className="flex-1 min-w-[150px]">
+            {/* Field Dropdown */}
+            <div className="flex-1 min-w-[180px]">
               <Label className="text-xs text-gray-600">Field</Label>
-              <Input
+              <Select
                 value={newFilter.field_key}
-                onChange={(e) => setNewFilter(prev => ({ ...prev, field_key: e.target.value }))}
-                placeholder="e.g., scope"
-                className="mt-1"
-                data-testid="kpi-filter-field"
-              />
+                onValueChange={(value) => setNewFilter(prev => ({ ...prev, field_key: value }))}
+                disabled={availableFields.length === 0}
+              >
+                <SelectTrigger className="mt-1" data-testid="kpi-filter-field-select">
+                  <SelectValue 
+                    placeholder={
+                      availableFields.length === 0 
+                        ? "Select subcategory first" 
+                        : "Select field"
+                    } 
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableFields.map((field) => (
+                    <SelectItem key={field.key} value={field.key}>
+                      {field.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+
+            {/* Operator Dropdown */}
             <div className="w-[140px]">
               <Label className="text-xs text-gray-600">Operator</Label>
               <Select
@@ -145,6 +183,8 @@ const QueryStep = ({ formData, setFormData, errors }) => {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Value Input */}
             <div className="flex-1 min-w-[150px]">
               <Label className="text-xs text-gray-600">Value</Label>
               <Input
@@ -155,6 +195,8 @@ const QueryStep = ({ formData, setFormData, errors }) => {
                 data-testid="kpi-filter-value"
               />
             </div>
+
+            {/* Add Button */}
             <Button
               type="button"
               variant="outline"
@@ -166,6 +208,12 @@ const QueryStep = ({ formData, setFormData, errors }) => {
               <Plus className="w-4 h-4 mr-1" /> Add
             </Button>
           </div>
+
+          {availableFields.length === 0 && (
+            <p className="text-xs text-amber-600">
+              Select a subcategory in Step 1 to enable field-based filtering
+            </p>
+          )}
         </div>
       </div>
 

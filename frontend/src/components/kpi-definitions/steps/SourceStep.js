@@ -1,12 +1,11 @@
 /**
  * Step 2: Data Source
- * Source type selection and configuration
+ * Source type selection and configuration (with dynamic field dropdown)
  */
 import React from 'react';
 import { Label } from '../../ui/label';
-import { Input } from '../../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select';
-import { SOURCE_TYPES, ESG_SECTIONS } from '../constants';
+import { SOURCE_TYPES } from '../constants';
 import { Database, FileQuestion, Edit3, Calculator, Globe } from 'lucide-react';
 
 const SOURCE_ICONS = {
@@ -17,7 +16,7 @@ const SOURCE_ICONS = {
   external_api: Globe,
 };
 
-const SourceStep = ({ formData, setFormData, errors }) => {
+const SourceStep = ({ formData, setFormData, errors, categoryData }) => {
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
@@ -36,6 +35,20 @@ const SourceStep = ({ formData, setFormData, errors }) => {
   };
 
   const selectedSourceType = formData.source_type || 'records';
+
+  // Get fields for the selected subcategory from categoryData
+  const getFieldsForSubcategory = () => {
+    if (!categoryData?.hierarchy || !formData.category_name || !formData.subcategory) {
+      return [];
+    }
+    const categoryHierarchy = categoryData.hierarchy[formData.category_name];
+    if (!categoryHierarchy || !categoryHierarchy[formData.subcategory]) {
+      return [];
+    }
+    return categoryHierarchy[formData.subcategory].fields || [];
+  };
+
+  const availableFields = getFieldsForSubcategory();
 
   return (
     <div className="space-y-6">
@@ -90,58 +103,81 @@ const SourceStep = ({ formData, setFormData, errors }) => {
         <div className="bg-slate-50 border border-slate-200 rounded-lg p-5 space-y-4">
           <h4 className="font-medium text-slate-900">Records Configuration</h4>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Source Section */}
+          {/* Show selected section/category/subcategory from Step 1 */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-3 bg-white rounded border border-slate-200">
             <div>
-              <Label className="text-sm font-medium">Source Section</Label>
-              <Select
-                value={formData.source_config?.records?.section || formData.section || ''}
-                onValueChange={(value) => handleSourceConfigChange('section', value)}
-              >
-                <SelectTrigger className="mt-1" data-testid="kpi-source-section">
-                  <SelectValue placeholder="Select section" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(ESG_SECTIONS).map(([key, { label }]) => (
-                    <SelectItem key={key} value={key}>{label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <p className="text-xs text-gray-500">Section</p>
+              <p className="font-medium text-sm capitalize">{formData.section || '-'}</p>
             </div>
-
-            {/* Value Field */}
             <div>
-              <Label className="text-sm font-medium">Value Field to Aggregate</Label>
-              <Input
-                value={formData.source_config?.records?.value_field || formData.value_field || ''}
-                onChange={(e) => {
-                  handleSourceConfigChange('value_field', e.target.value);
-                  handleChange('value_field', e.target.value);
-                }}
-                placeholder="e.g., quantity, co2e_emissions"
-                className="mt-1"
-                data-testid="kpi-value-field"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Field from records to aggregate (e.g., quantity, total_emissions)
-              </p>
+              <p className="text-xs text-gray-500">Category</p>
+              <p className="font-medium text-sm">{formData.category_name || '-'}</p>
             </div>
-
-            {/* Category ID (optional) */}
-            <div className="md:col-span-2">
-              <Label className="text-sm font-medium">Category ID (Optional)</Label>
-              <Input
-                value={formData.source_config?.records?.category_id || ''}
-                onChange={(e) => handleSourceConfigChange('category_id', e.target.value)}
-                placeholder="Specific category ID to filter by"
-                className="mt-1"
-                data-testid="kpi-category-id"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Leave empty to aggregate across all categories in the section
-              </p>
+            <div>
+              <p className="text-xs text-gray-500">Subcategory</p>
+              <p className="font-medium text-sm">{formData.subcategory || '-'}</p>
             </div>
           </div>
+
+          {/* Value Field Dropdown */}
+          <div>
+            <Label className="text-sm font-medium">Value Field to Aggregate</Label>
+            <Select
+              value={formData.value_field || ''}
+              onValueChange={(value) => {
+                handleChange('value_field', value);
+                handleSourceConfigChange('value_field', value);
+              }}
+              disabled={availableFields.length === 0}
+            >
+              <SelectTrigger 
+                className="mt-1"
+                data-testid="kpi-value-field-select"
+              >
+                <SelectValue 
+                  placeholder={
+                    availableFields.length === 0 
+                      ? "Select subcategory in Step 1 first" 
+                      : "Select field to aggregate"
+                  } 
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {availableFields.map((field) => (
+                  <SelectItem key={field.key} value={field.key}>
+                    <div className="flex items-center justify-between w-full">
+                      <span>{field.label}</span>
+                      {field.unit && (
+                        <span className="text-xs text-gray-400 ml-2">({field.unit})</span>
+                      )}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-gray-500 mt-1">
+              Field from records to aggregate (e.g., quantity, total_emissions)
+            </p>
+          </div>
+
+          {/* Show selected field info */}
+          {formData.value_field && availableFields.length > 0 && (
+            <div className="p-3 bg-blue-50 rounded border border-blue-200">
+              {(() => {
+                const selectedField = availableFields.find(f => f.key === formData.value_field);
+                if (!selectedField) return null;
+                return (
+                  <div className="text-sm">
+                    <p className="font-medium text-blue-900">{selectedField.label}</p>
+                    <p className="text-blue-700 text-xs mt-1">
+                      Field key: <code className="bg-blue-100 px-1 rounded">{selectedField.key}</code>
+                      {selectedField.unit && <span className="ml-2">Unit: {selectedField.unit}</span>}
+                    </p>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
         </div>
       )}
 

@@ -58,6 +58,7 @@ const KPIDefinitionWizard = ({
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState(DEFAULT_FORM_DATA);
   const [errors, setErrors] = useState({});
+  const [categoryData, setCategoryData] = useState({ categories: [], hierarchy: {} });
 
   // Reset form when opening/closing or when editData changes
   useEffect(() => {
@@ -69,6 +70,7 @@ const KPIDefinitionWizard = ({
       }
       setCurrentStep(0);
       setErrors({});
+      setCategoryData({ categories: [], hierarchy: {} });
     }
   }, [isOpen, editData]);
 
@@ -180,6 +182,8 @@ const KPIDefinitionWizard = ({
             formData={formData}
             setFormData={setFormData}
             errors={errors}
+            categoryData={categoryData}
+            setCategoryData={setCategoryData}
           />
         </div>
 
