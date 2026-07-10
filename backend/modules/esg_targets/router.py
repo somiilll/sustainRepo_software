@@ -121,6 +121,13 @@ def _calculate_progress(actual_value, target_value, goal_type, target) -> Option
         return min(100, (actual_value / target_value) * 100)
 
     elif goal_type == "exact":
+        # For static exact targets with baseline: use baseline-aware formula
+        if baseline_value is not None and baseline_value != target_value:
+            reduction_needed = baseline_value - target_value
+            reduction_achieved = baseline_value - actual_value
+            if reduction_needed != 0:
+                progress = (reduction_achieved / reduction_needed) * 100
+                return max(0, min(progress, 100))
         diff_pct = abs(actual_value - target_value) / target_value * 100
         return max(0, 100 - diff_pct)
 
