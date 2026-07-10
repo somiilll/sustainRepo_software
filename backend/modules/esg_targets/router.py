@@ -34,6 +34,63 @@ def _get_org_id(current_user: dict) -> str:
     return org_id
 
 
+def _calculate_progress(actual_value, target_value, goal_type, target) -> Optional[float]:
+    """
+    Calculate progress percentage based on goal_type.
+
+    For upper_limit (reduction targets) with a baseline:
+        progress = (baseline - actual) / (baseline - target) × 100
+    For lower_limit (increase targets like training hours):
+        progress = (actual / target) × 100
+    """
+    if actual_value is None or not target_value or target_value == 0:
+        return None
+
+    baseline = target.get("baseline") or {}
+    baseline_value = baseline.get("value") if isinstance(baseline, dict) else None
+    # Parse baseline_value to float if present
+    if baseline_value is not None:
+        try:
+            baseline_value = float(baseline_value)
+        except (ValueError, TypeError):
+            baseline_value = None
+
+    if goal_type == "upper_limit":
+        # Reduction target: goal is ≤ target_value
+        if baseline_value is not None and baseline_value != target_value:
+            # (baseline - actual) / (baseline - target) × 100
+            reduction_needed = baseline_value - target_value
+            reduction_achieved = baseline_value - actual_value
+            progress = (reduction_achieved / reduction_needed) * 100
+            return max(0, min(progress, 100))
+        else:
+            # No baseline — simple comparison
+            if actual_value <= target_value:
+                return 100.0
+            return max(0, (target_value / actual_value) * 100)
+
+    elif goal_type == "lower_limit":
+        # Increase target: goal is ≥ target_value (e.g., training hours)
+        return min(100, (actual_value / target_value) * 100)
+
+    elif goal_type == "exact":
+        diff_pct = abs(actual_value - target_value) / target_value * 100
+        return max(0, 100 - diff_pct)
+
+    elif goal_type == "range":
+        min_val = target.get("minimum_value", 0)
+        max_val = target.get("maximum_value", target_value)
+        if max_val != min_val:
+            if min_val <= actual_value <= max_val:
+                return 100.0
+            elif actual_value < min_val:
+                return max(0, (actual_value / min_val) * 100)
+            else:
+                return max(0, (max_val / actual_value) * 100)
+
+    return None
+
+
 def _get_current_period_for_tracking_mode(tracking_mode: str) -> dict:
     """
     Get the appropriate period filter based on tracking mode.
@@ -161,36 +218,7 @@ async def list_targets_with_progress(
                 target_value = target.get("target_value")
                 goal_type = target.get("goal_type", "upper_limit")
                 
-                # Calculate progress percentage based on goal_type
-                progress_percentage = None
-                if actual_value is not None and target_value and target_value != 0:
-                    if goal_type == "upper_limit":
-                        # For upper_limit (reduction target): Goal is ≤ target_value
-                        # If actual ≤ target, progress = 100%
-                        # If actual > target, progress decreases
-                        if actual_value <= target_value:
-                            progress_percentage = 100.0
-                        else:
-                            # Overshoot: progress = target/actual * 100 (e.g., target=2000, actual=3000 → 66.7%)
-                            progress_percentage = max(0, (target_value / actual_value) * 100)
-                    elif goal_type == "lower_limit":
-                        # For lower_limit (increase target): Goal is ≥ target_value
-                        # Progress = (actual/target) * 100, capped at 100%
-                        progress_percentage = min(100, (actual_value / target_value) * 100)
-                    elif goal_type == "exact":
-                        # For exact: Progress based on how close to target
-                        diff_pct = abs(actual_value - target_value) / target_value * 100
-                        progress_percentage = max(0, 100 - diff_pct)
-                    elif goal_type == "range":
-                        min_val = target.get("minimum_value", 0)
-                        max_val = target.get("maximum_value", target_value)
-                        if max_val != min_val:
-                            if min_val <= actual_value <= max_val:
-                                progress_percentage = 100.0
-                            elif actual_value < min_val:
-                                progress_percentage = max(0, (actual_value / min_val) * 100)
-                            else:
-                                progress_percentage = max(0, (max_val / actual_value) * 100)
+                progress_percentage = _calculate_progress(actual_value, target_value, goal_type, target)
                 
                 target_with_progress["actual_value"] = actual_value
                 target_with_progress["progress_percentage"] = round(progress_percentage, 1) if progress_percentage is not None else None
@@ -303,32 +331,7 @@ async def get_target_progress(
     target_value = target.get("target_value")
     goal_type = target.get("goal_type", "upper_limit")
     
-    # Calculate progress percentage based on goal_type
-    progress_percentage = None
-    if actual_value is not None and target_value and target_value != 0:
-        if goal_type == "upper_limit":
-            # For upper_limit (reduction target): Goal is ≤ target_value
-            if actual_value <= target_value:
-                progress_percentage = 100.0
-            else:
-                progress_percentage = max(0, (target_value / actual_value) * 100)
-        elif goal_type == "lower_limit":
-            # For lower_limit (increase target): Goal is ≥ target_value
-            progress_percentage = min(100, (actual_value / target_value) * 100)
-        elif goal_type == "exact":
-            # For exact: Progress based on how close to target
-            diff_pct = abs(actual_value - target_value) / target_value * 100
-            progress_percentage = max(0, 100 - diff_pct)
-        elif goal_type == "range":
-            min_val = target.get("minimum_value", 0)
-            max_val = target.get("maximum_value", target_value)
-            if max_val != min_val:
-                if min_val <= actual_value <= max_val:
-                    progress_percentage = 100.0
-                elif actual_value < min_val:
-                    progress_percentage = max(0, (actual_value / min_val) * 100)
-                else:
-                    progress_percentage = max(0, (max_val / actual_value) * 100)
+    progress_percentage = _calculate_progress(actual_value, target_value, goal_type, target)
     
     return {
         "target": target,

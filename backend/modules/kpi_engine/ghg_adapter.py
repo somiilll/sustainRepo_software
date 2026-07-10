@@ -20,17 +20,25 @@ def is_ghg_kpi(kpi: Dict[str, Any]) -> bool:
     return bool(kpi.get("baseline_mapping_key"))
 
 
+async def _get_org_facility_ids(org_id: str) -> List[str]:
+    """Get all facility IDs for an organization."""
+    facilities = await db.facilities.find(
+        {"organization_id": org_id},
+        {"_id": 0, "id": 1}
+    ).to_list(1000)
+    return [f["id"] for f in facilities]
+
+
 def _build_emission_query(
     mapping: Dict[str, Any],
-    org_id: str,
-    scope_type: str = "organization",
-    facility_ids: Optional[List[str]] = None,
+    facility_ids: List[str],
+    scope_filter: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Build a MongoDB query targeting emission_records."""
-    query: Dict[str, Any] = {"organization_id": org_id}
+    """Build a MongoDB query targeting emission_records by facility_ids."""
+    query: Dict[str, Any] = {"facility_id": {"$in": facility_ids}}
 
     # Scope filter
-    target_scope = mapping.get("scope")
+    target_scope = scope_filter or mapping.get("scope")
     if target_scope:
         query["scope"] = target_scope
 
@@ -38,10 +46,6 @@ def _build_emission_query(
     target_category = mapping.get("category")
     if target_category:
         query["category"] = {"$regex": f"^{target_category}(\\s|$|-|:)"}
-
-    # Facility filter
-    if scope_type == "facility" and facility_ids:
-        query["facility_id"] = {"$in": facility_ids}
 
     return query
 
@@ -101,8 +105,22 @@ async def calculate_ghg_kpi(
             metadata={"error": f"No GHG mapping for key: {mapping_key}"},
         )
 
+    # Resolve facility IDs: GHG data is stored per-facility,
+    # so for org-scope we fetch ALL org facilities and sum across them.
+    if scope_type == "facility" and facility_ids:
+        resolved_facility_ids = facility_ids
+    else:
+        resolved_facility_ids = await _get_org_facility_ids(org_id)
+        if not resolved_facility_ids:
+            return format_result(
+                value=None,
+                unit="tCO2e",
+                record_count=0,
+                metadata={"error": "No facilities found for organization"},
+            )
+
     # Build query
-    query = _build_emission_query(mapping, org_id, scope_type, facility_ids)
+    query = _build_emission_query(mapping, resolved_facility_ids)
 
     # Add period filter
     if period:
