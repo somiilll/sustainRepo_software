@@ -6,6 +6,7 @@ Admin-only for write operations, all authenticated users can read.
 """
 
 from typing import List, Optional
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from modules.auth.dependencies import get_current_user
@@ -31,6 +32,31 @@ def _get_org_id(current_user: dict) -> str:
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization assigned")
     return org_id
+
+
+def _get_current_period_for_tracking_mode(tracking_mode: str) -> dict:
+    """
+    Get the appropriate period filter based on tracking mode.
+    - static/yearly → current year
+    - monthly → current month
+    - quarterly → current quarter
+    """
+    now = datetime.now(timezone.utc)
+    current_year = now.year
+    current_month = now.month
+    current_quarter = (current_month - 1) // 3 + 1
+    
+    if tracking_mode in ("static", "yearly"):
+        return {"year": current_year}
+    elif tracking_mode == "monthly":
+        return {"year": current_year, "month": current_month}
+    elif tracking_mode == "quarterly":
+        return {"year": current_year, "quarter": current_quarter}
+    elif tracking_mode == "half_yearly":
+        half = 1 if current_month <= 6 else 2
+        return {"year": current_year, "quarter": half * 2}  # Approximate with Q2 or Q4
+    else:
+        return {"year": current_year}
 
 
 # =============================================================================
@@ -63,6 +89,126 @@ async def list_targets(
     )
     
     return targets
+
+
+@router.get("/with-progress")
+async def list_targets_with_progress(
+    section: Optional[str] = Query(None, description="ESG section filter"),
+    category: Optional[str] = Query(None, description="Category filter"),
+    subcategory: Optional[str] = Query(None, description="Subcategory filter"),
+    facility_id: Optional[str] = Query(None, description="Facility ID filter"),
+    reporting_period: Optional[str] = Query(None, description="Reporting period filter"),
+    status: Optional[str] = Query(None, description="Status filter"),
+    search: Optional[str] = Query(None, description="Search in name/description"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    List all ESG targets with calculated progress.
+    
+    Progress is calculated on-the-fly using the kpi_engine.
+    Period is determined by tracking_mode:
+    - static/yearly → current year
+    - monthly → current month
+    - quarterly → current quarter
+    
+    Returns targets with additional fields:
+    - actual_value: Current calculated value from kpi_engine
+    - progress_percentage: (actual_value / target_value) * 100
+    - calculation_metadata: Debug info from kpi_engine
+    """
+    from modules.kpi_engine import kpi_calculator
+    
+    org_id = _get_org_id(current_user)
+    
+    targets = await esg_targets_service.list_targets(
+        org_id=org_id,
+        section=section,
+        category=category,
+        subcategory=subcategory,
+        facility_id=facility_id,
+        reporting_period=reporting_period,
+        status=status,
+        search=search
+    )
+    
+    # Calculate progress for each target with a kpi_id
+    results = []
+    for target in targets:
+        target_with_progress = dict(target)
+        kpi_id = target.get("kpi_id")
+        
+        if kpi_id:
+            # Determine period based on tracking_mode
+            tracking_mode = target.get("tracking_mode", "static")
+            period = _get_current_period_for_tracking_mode(tracking_mode)
+            
+            # Get facility_ids if scope is facility
+            facility_ids = None
+            if target.get("scope_type") == "facility" and target.get("facility_ids"):
+                facility_ids = target.get("facility_ids")
+            
+            # Calculate actual value using kpi_engine
+            try:
+                calculation = await kpi_calculator.calculate(
+                    kpi_id=kpi_id,
+                    org_id=org_id,
+                    scope_type=target.get("scope_type", "organization"),
+                    facility_ids=facility_ids,
+                    period=period,
+                )
+                
+                actual_value = calculation.get("value")
+                target_value = target.get("target_value")
+                goal_type = target.get("goal_type", "upper_limit")
+                
+                # Calculate progress percentage based on goal_type
+                progress_percentage = None
+                if actual_value is not None and target_value and target_value != 0:
+                    if goal_type == "upper_limit":
+                        # For upper_limit (reduction target): Goal is ≤ target_value
+                        # If actual ≤ target, progress = 100%
+                        # If actual > target, progress decreases
+                        if actual_value <= target_value:
+                            progress_percentage = 100.0
+                        else:
+                            # Overshoot: progress = target/actual * 100 (e.g., target=2000, actual=3000 → 66.7%)
+                            progress_percentage = max(0, (target_value / actual_value) * 100)
+                    elif goal_type == "lower_limit":
+                        # For lower_limit (increase target): Goal is ≥ target_value
+                        # Progress = (actual/target) * 100, capped at 100%
+                        progress_percentage = min(100, (actual_value / target_value) * 100)
+                    elif goal_type == "exact":
+                        # For exact: Progress based on how close to target
+                        diff_pct = abs(actual_value - target_value) / target_value * 100
+                        progress_percentage = max(0, 100 - diff_pct)
+                    elif goal_type == "range":
+                        min_val = target.get("minimum_value", 0)
+                        max_val = target.get("maximum_value", target_value)
+                        if max_val != min_val:
+                            if min_val <= actual_value <= max_val:
+                                progress_percentage = 100.0
+                            elif actual_value < min_val:
+                                progress_percentage = max(0, (actual_value / min_val) * 100)
+                            else:
+                                progress_percentage = max(0, (max_val / actual_value) * 100)
+                
+                target_with_progress["actual_value"] = actual_value
+                target_with_progress["progress_percentage"] = round(progress_percentage, 1) if progress_percentage is not None else None
+                target_with_progress["record_count"] = calculation.get("record_count", 0)
+                target_with_progress["calculation_period"] = period
+                
+            except Exception as e:
+                target_with_progress["actual_value"] = None
+                target_with_progress["progress_percentage"] = None
+                target_with_progress["calculation_error"] = str(e)
+        else:
+            # No kpi_id - legacy target without progress calculation
+            target_with_progress["actual_value"] = None
+            target_with_progress["progress_percentage"] = None
+        
+        results.append(target_with_progress)
+    
+    return results
 
 
 @router.post("", response_model=ESGTargetResponse)
@@ -99,6 +245,103 @@ async def get_target(
         raise HTTPException(status_code=404, detail="Target not found")
     
     return target
+
+
+@router.get("/{target_id}/progress")
+async def get_target_progress(
+    target_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get calculated progress for a single target.
+    
+    Returns:
+    - target: The target details
+    - actual_value: Current calculated value from kpi_engine
+    - target_value: The goal value
+    - progress_percentage: (actual_value / target_value) * 100
+    - calculation_period: The period used for calculation
+    - record_count: Number of records used in calculation
+    """
+    from modules.kpi_engine import kpi_calculator
+    
+    org_id = _get_org_id(current_user)
+    
+    target = await esg_targets_service.get_target(target_id, org_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+    
+    kpi_id = target.get("kpi_id")
+    
+    if not kpi_id:
+        return {
+            "target": target,
+            "actual_value": None,
+            "progress_percentage": None,
+            "message": "No KPI linked to this target"
+        }
+    
+    # Determine period based on tracking_mode
+    tracking_mode = target.get("tracking_mode", "static")
+    period = _get_current_period_for_tracking_mode(tracking_mode)
+    
+    # Get facility_ids if scope is facility
+    facility_ids = None
+    if target.get("scope_type") == "facility" and target.get("facility_ids"):
+        facility_ids = target.get("facility_ids")
+    
+    # Calculate actual value using kpi_engine
+    calculation = await kpi_calculator.calculate(
+        kpi_id=kpi_id,
+        org_id=org_id,
+        scope_type=target.get("scope_type", "organization"),
+        facility_ids=facility_ids,
+        period=period,
+    )
+    
+    actual_value = calculation.get("value")
+    target_value = target.get("target_value")
+    goal_type = target.get("goal_type", "upper_limit")
+    
+    # Calculate progress percentage based on goal_type
+    progress_percentage = None
+    if actual_value is not None and target_value and target_value != 0:
+        if goal_type == "upper_limit":
+            # For upper_limit (reduction target): Goal is ≤ target_value
+            if actual_value <= target_value:
+                progress_percentage = 100.0
+            else:
+                progress_percentage = max(0, (target_value / actual_value) * 100)
+        elif goal_type == "lower_limit":
+            # For lower_limit (increase target): Goal is ≥ target_value
+            progress_percentage = min(100, (actual_value / target_value) * 100)
+        elif goal_type == "exact":
+            # For exact: Progress based on how close to target
+            diff_pct = abs(actual_value - target_value) / target_value * 100
+            progress_percentage = max(0, 100 - diff_pct)
+        elif goal_type == "range":
+            min_val = target.get("minimum_value", 0)
+            max_val = target.get("maximum_value", target_value)
+            if max_val != min_val:
+                if min_val <= actual_value <= max_val:
+                    progress_percentage = 100.0
+                elif actual_value < min_val:
+                    progress_percentage = max(0, (actual_value / min_val) * 100)
+                else:
+                    progress_percentage = max(0, (max_val / actual_value) * 100)
+    
+    return {
+        "target": target,
+        "actual_value": actual_value,
+        "target_value": target_value,
+        "progress_percentage": round(progress_percentage, 1) if progress_percentage is not None else None,
+        "goal_type": goal_type,
+        "calculation_period": period,
+        "record_count": calculation.get("record_count", 0),
+        "unit": target.get("unit"),
+        "kpi_name": target.get("kpi_name"),
+        "calculation_metadata": calculation.get("metadata", {})
+    }
 
 
 @router.put("/{target_id}", response_model=ESGTargetResponse)

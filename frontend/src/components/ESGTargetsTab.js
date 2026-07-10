@@ -115,7 +115,8 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
       // Don't filter by reporting period by default - show all targets
       if (filters.reporting_period) params.append('reporting_period', filters.reporting_period);
       
-      const res = await axios.get(`${API}/api/esg-targets?${params.toString()}`, { headers });
+      // Use with-progress endpoint to get calculated progress
+      const res = await axios.get(`${API}/api/esg-targets/with-progress?${params.toString()}`, { headers });
       setTargets(res.data || []);
     } catch (error) {
       console.error('Failed to fetch targets:', error);
@@ -268,6 +269,53 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
     return `${prefix}${target_value} ${unit || ''}`;
   };
 
+  const getProgressBadge = (target) => {
+    const { progress_percentage, actual_value, kpi_id } = target;
+    
+    // No KPI linked - can't calculate progress
+    if (!kpi_id) {
+      return (
+        <Badge variant="outline" className="text-xs text-stone-400">
+          No KPI
+        </Badge>
+      );
+    }
+    
+    // No progress calculated yet
+    if (progress_percentage === null || progress_percentage === undefined) {
+      return (
+        <Badge variant="outline" className="text-xs text-stone-400">
+          N/A
+        </Badge>
+      );
+    }
+    
+    // Determine color based on progress
+    let colorClass = 'bg-red-100 text-red-700';
+    if (progress_percentage >= 100) {
+      colorClass = 'bg-green-100 text-green-700';
+    } else if (progress_percentage >= 75) {
+      colorClass = 'bg-emerald-100 text-emerald-700';
+    } else if (progress_percentage >= 50) {
+      colorClass = 'bg-yellow-100 text-yellow-700';
+    } else if (progress_percentage >= 25) {
+      colorClass = 'bg-orange-100 text-orange-700';
+    }
+    
+    return (
+      <div className="flex flex-col items-start gap-0.5">
+        <Badge className={`${colorClass} text-xs font-semibold`} data-testid="progress-badge">
+          {progress_percentage.toFixed(0)}%
+        </Badge>
+        {actual_value !== null && (
+          <span className="text-[10px] text-text-muted">
+            Actual: {actual_value.toLocaleString()}
+          </span>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6" data-testid="esg-targets-tab">
       {/* Header */}
@@ -399,6 +447,7 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
                 <tr>
                   <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">KPI / Metric</th>
                   <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">Target</th>
+                  <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">Progress</th>
                   <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">Type</th>
                   <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">Tracking</th>
                   <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">Scope</th>
@@ -421,6 +470,9 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
                         <p className="font-medium text-text-primary text-sm">{target.target_name}</p>
                         <p className="text-xs text-emerald-600 font-mono">{formatTargetValue(target)}</p>
                       </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {getProgressBadge(target)}
                     </td>
                     <td className="px-4 py-3">
                       <Badge variant="outline" className="text-xs">
