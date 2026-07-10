@@ -29,6 +29,6 @@
   "seed_data_creation": "None. No test data mutations.",
   "retest_needed": false,
   "main_agent_can_self_test": true,
-  "context_for_next_testing_agent": "KPI Engine backend is fully working. Endpoints: POST /api/kpi-engine/calculate (kpi_id or metric_code), POST /api/kpi-engine/calculate/batch, POST /api/kpi-engine/calculate/dimension, GET /api/kpi-engine/health. Auth required (Bearer). Water KPI id=dc794426-138a-4fe5-80e8-111a12fcdc2f metric_code='ENV_WATER_CONSUPTION' (typo). For year=2026 returns value=1500 record_count=1. GHG KPI returns 0. Tests: /app/backend/tests/test_kpi_engine.py.",
+  "context_for_next_testing_agent": "KPI Engine backend is fully working. Endpoints: POST /api/kpi-engine/calculate (kpi_id or metric_code), POST /api/kpi-engine/calculate/batch, POST /api/kpi-engine/calculate/dimension, GET /api/kpi-engine/health. Auth required (Bearer). Water KPI id=kpi-config-wizard metric_code='ENV_WATER_CONSUPTION' (typo). For year=2026 returns value=1500 record_count=1. GHG KPI returns 0. Tests: /app/backend/tests/test_kpi_engine.py.",
   "rca of the issue": "N/A - no bugs found in kpi_engine implementation."
 }

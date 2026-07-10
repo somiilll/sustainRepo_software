@@ -180,7 +180,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
   useEffect(() => {
     const fetchOrgDetails = async () => {
       try {
-        const res = await axios.get(`${API}/api/organizations/current`, { headers });
+        const res = await axios.get(`${API}/api/organizations/my`, { headers });
         const org = res.data;
         const repType = org?.reporting_year_type === 'calendar_year' ? 'CY' : 'FY';
         setOrgReportingType(repType);
@@ -309,7 +309,11 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
         return true;
       case 2: // Target Definition
         if (formData.goal_type === 'range') {
-          return formData.baseline?.value !== '';
+          if (!formData.baseline?.value) return false;
+        }
+        // Baseline is mandatory for static tracking mode
+        if (formData.tracking_mode === 'static') {
+          if (!formData.baseline?.value || !formData.baseline?.period) return false;
         }
         return true;
       case 3: // Tracking
@@ -552,16 +556,45 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
         );
 
       case 2: // Target Definition
+        const filteredTargetTypes = formData.tracking_mode === 'static'
+          ? TARGET_TYPES
+          : TARGET_TYPES.filter(t => t.value !== 'percentage');
         return (
           <div className="space-y-6">
             <div>
-              <Label className="text-sm font-medium">Target Type *</Label>
+              <Label className="text-sm font-medium">Tracking Mode *</Label>
               <div className="grid grid-cols-3 gap-3 mt-2">
-                {TARGET_TYPES.map(type => (
+                {TRACKING_MODES.map(mode => (
+                  <Card 
+                    key={mode.value}
+                    className={`p-3 cursor-pointer border-2 transition-colors ${formData.tracking_mode === mode.value ? 'border-emerald-500 bg-emerald-50' : 'border-stone-200 hover:border-stone-300'}`}
+                    onClick={() => {
+                      updateField('tracking_mode', mode.value);
+                      updateField('tracking_values', {});
+                      updateField('target_value', '');
+                      // Reset target_type to absolute if switching away from static and percentage was selected
+                      if (mode.value !== 'static' && formData.target_type === 'percentage') {
+                        updateField('target_type', 'absolute');
+                      }
+                    }}
+                    data-testid={`tracking-mode-${mode.value}`}
+                  >
+                    <p className="font-medium text-sm">{mode.label}</p>
+                    <p className="text-xs text-text-muted">{mode.description}</p>
+                  </Card>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-sm font-medium">Target Type *</Label>
+              <div className={`grid gap-3 mt-2 ${filteredTargetTypes.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                {filteredTargetTypes.map(type => (
                   <Card 
                     key={type.value}
                     className={`p-3 cursor-pointer border-2 transition-colors ${formData.target_type === type.value ? 'border-emerald-500 bg-emerald-50' : 'border-stone-200 hover:border-stone-300'}`}
                     onClick={() => updateField('target_type', type.value)}
+                    data-testid={`target-type-${type.value}`}
                   >
                     <p className="font-medium text-sm">{type.label}</p>
                     <p className="text-xs text-text-muted">{type.description}</p>
@@ -616,7 +649,9 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
 
             <div className="pt-4 border-t">
               <div className="flex items-center gap-2 mb-1">
-                <Label className="text-sm font-medium">Baseline (Optional)</Label>
+                <Label className="text-sm font-medium">
+                  Baseline {formData.tracking_mode === 'static' ? '*' : '(Optional)'}
+                </Label>
                 {baselineFromGHG && (
                   <Badge className="bg-emerald-100 text-emerald-700 text-xs gap-1">
                     <Zap className="w-3 h-3" />
@@ -624,7 +659,11 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                   </Badge>
                 )}
               </div>
-              <p className="text-xs text-text-muted mb-2">Reference point for progress calculations</p>
+              <p className="text-xs text-text-muted mb-2">
+                {formData.tracking_mode === 'static' 
+                  ? 'Required reference point for static target progress calculations'
+                  : 'Reference point for progress calculations'}
+              </p>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-xs text-text-muted">Baseline Period</Label>
@@ -666,24 +705,11 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
       case 3: // Tracking & Thresholds
         return (
           <div className="space-y-6">
-            <div>
-              <Label className="text-sm font-medium">Tracking Mode</Label>
-              <div className="grid grid-cols-3 gap-3 mt-2">
-                {TRACKING_MODES.map(mode => (
-                  <Card 
-                    key={mode.value}
-                    className={`p-3 cursor-pointer border-2 transition-colors ${formData.tracking_mode === mode.value ? 'border-emerald-500 bg-emerald-50' : 'border-stone-200 hover:border-stone-300'}`}
-                    onClick={() => {
-                      updateField('tracking_mode', mode.value);
-                      updateField('tracking_values', {});
-                      updateField('target_value', '');
-                    }}
-                  >
-                    <p className="font-medium text-sm">{mode.label}</p>
-                    <p className="text-xs text-text-muted">{mode.description}</p>
-                  </Card>
-                ))}
-              </div>
+            <div className="flex items-center gap-2">
+              <Label className="text-sm font-medium">Tracking Mode:</Label>
+              <Badge variant="outline" className="text-xs" data-testid="tracking-mode-badge">
+                {TRACKING_MODES.find(m => m.value === formData.tracking_mode)?.label || formData.tracking_mode}
+              </Badge>
             </div>
 
             {/* Static Mode - Single Year + Target Value */}
