@@ -117,6 +117,7 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
       
       // Use with-progress endpoint to get calculated progress
       const res = await axios.get(`${API}/api/esg-targets/with-progress?${params.toString()}`, { headers });
+      console.log("res.data", res.data)
       setTargets(res.data || []);
     } catch (error) {
       console.error('Failed to fetch targets:', error);
