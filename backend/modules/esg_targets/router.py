@@ -34,6 +34,53 @@ def _get_org_id(current_user: dict) -> str:
     return org_id
 
 
+def _resolve_target_value(target: dict, period: dict) -> Optional[float]:
+    """
+    Resolve the effective target value for the current period.
+
+    Static mode → top-level target_value.
+    Monthly/Quarterly/Half-yearly/Yearly → lookup from tracking_values
+    using a period key like "2026-07", "2026-Q2", "2026-H2", "FY 2026-2027".
+    """
+    tracking_mode = target.get("tracking_mode", "static")
+
+    if tracking_mode == "static":
+        tv = target.get("target_value")
+        return float(tv) if tv is not None else None
+
+    tracking_values = target.get("tracking_values") or {}
+    if not tracking_values:
+        return None
+
+    year = period.get("year")
+    month = period.get("month")
+    quarter = period.get("quarter")
+
+    key = None
+    if tracking_mode == "monthly" and year and month:
+        key = f"{year}-{month:02d}"
+    elif tracking_mode == "quarterly" and year and quarter:
+        key = f"{year}-Q{quarter}"
+    elif tracking_mode == "half_yearly" and year and quarter:
+        half = 1 if quarter <= 2 else 2
+        key = f"{year}-H{half}"
+    elif tracking_mode == "yearly" and year:
+        # Try common yearly key formats
+        for fmt in [f"FY {year}-{year+1}", f"CY {year}", str(year)]:
+            if fmt in tracking_values:
+                key = fmt
+                break
+
+    if key and key in tracking_values:
+        try:
+            return float(tracking_values[key])
+        except (ValueError, TypeError):
+            return None
+
+    return None
+
+
+
 def _calculate_progress(actual_value, target_value, goal_type, target) -> Optional[float]:
     """
     Calculate progress percentage based on goal_type.
@@ -215,7 +262,7 @@ async def list_targets_with_progress(
                 )
                 
                 actual_value = calculation.get("value")
-                target_value = target.get("target_value")
+                target_value = _resolve_target_value(target, period)
                 goal_type = target.get("goal_type", "upper_limit")
                 
                 progress_percentage = _calculate_progress(actual_value, target_value, goal_type, target)
@@ -328,7 +375,7 @@ async def get_target_progress(
     )
     
     actual_value = calculation.get("value")
-    target_value = target.get("target_value")
+    target_value = _resolve_target_value(target, period)
     goal_type = target.get("goal_type", "upper_limit")
     
     progress_percentage = _calculate_progress(actual_value, target_value, goal_type, target)
