@@ -46,21 +46,19 @@ def build_period_filter(
     """
     Build a MongoDB filter for reporting period.
     
-    The reporting_period field in records has structure:
-    {
-        "reporting_type": "monthly" | "quarterly" | "yearly" | "daily",
-        "year": 2026,
-        "month": 6,  # for monthly
-        "quarter": 2,  # for quarterly
-        "date": "2026-06-15",  # for daily records
-    }
+    The reporting_period field in records has varying structures:
+    - Monthly: {reporting_type: "monthly", year: 2026, month: "June" (STRING)}
+    - Quarterly: {reporting_type: "quarterly", year: 2026, quarter: 2}
+    - Yearly: {reporting_type: "yearly", year: 2026}
+    - Daily: {reporting_type: "daily", date: "2026-07-05", year: null, month: null}
     
-    Note: Daily records may not have 'year' populated - they store date in 
-    'reporting_period.date'. This function handles both cases.
+    This function handles all variations including:
+    - Daily records that don't populate year/month fields
+    - Monthly records that store month as string name instead of integer
     
     Args:
-        year: Filter by year
-        month: Filter by month (1-12)
+        year: Filter by year (integer)
+        month: Filter by month (1-12 integer)
         quarter: Filter by quarter (1-4)
         start_date: Start date for range filter (ISO format)
         end_date: End date for range filter (ISO format)
@@ -69,6 +67,21 @@ def build_period_filter(
     Returns:
         MongoDB filter dict for reporting_period
     """
+    # Month number to name mapping
+    MONTH_NAMES = {
+        1: "January", 2: "February", 3: "March", 4: "April",
+        5: "May", 6: "June", 7: "July", 8: "August",
+        9: "September", 10: "October", 11: "November", 12: "December"
+    }
+    
+    # Quarter to months mapping
+    QUARTER_MONTHS = {
+        1: [1, 2, 3],
+        2: [4, 5, 6],
+        3: [7, 8, 9],
+        4: [10, 11, 12]
+    }
+    
     filters = {}
     
     # Handle year filter - must also match daily records where year is in date field
@@ -83,21 +96,56 @@ def build_period_filter(
         ]
         
     if month is not None:
-        # For month filter, also handle daily records
+        month_str = f"{month:02d}"  # Pad to 2 digits for date matching
+        month_name = MONTH_NAMES.get(month, "")
+        
         if year is not None:
-            month_str = f"{month:02d}"  # Pad to 2 digits
             year_str = str(year)
-            # Update $or to include month matching
+            # Match:
+            # 1. Monthly records with month as integer
+            # 2. Monthly records with month as string name
+            # 3. Daily records with date matching year-month pattern
             filters["$or"] = [
                 {"reporting_period.year": year, "reporting_period.month": month},
-                # Match daily records: date like "2026-07-*"
+                {"reporting_period.year": year, "reporting_period.month": month_name},
                 {"reporting_period.date": {"$regex": f"^{year_str}-{month_str}"}}
             ]
         else:
-            filters["reporting_period.month"] = month
+            # Match month as integer or string name
+            filters["$or"] = [
+                {"reporting_period.month": month},
+                {"reporting_period.month": month_name}
+            ]
         
     if quarter is not None:
-        filters["reporting_period.quarter"] = quarter
+        if year is not None:
+            year_str = str(year)
+            quarter_months = QUARTER_MONTHS.get(quarter, [])
+            month_names = [MONTH_NAMES[m] for m in quarter_months]
+            month_strs = [f"{m:02d}" for m in quarter_months]
+            
+            # Match:
+            # 1. Quarterly records with quarter number
+            # 2. Monthly records with month in that quarter (integer)
+            # 3. Monthly records with month in that quarter (string name)
+            # 4. Daily records with date in that quarter
+            or_conditions = [
+                {"reporting_period.year": year, "reporting_period.quarter": quarter},
+                {"reporting_period.year": year, "reporting_period.month": {"$in": quarter_months}},
+                {"reporting_period.year": year, "reporting_period.month": {"$in": month_names}},
+            ]
+            # Add daily record patterns for each month in quarter
+            for ms in month_strs:
+                or_conditions.append({"reporting_period.date": {"$regex": f"^{year_str}-{ms}"}})
+            
+            # Merge with existing $or if present
+            if "$or" in filters:
+                # Create an $and to combine year filter with quarter filter
+                filters = {"$and": [{"$or": filters["$or"]}, {"$or": or_conditions}]}
+            else:
+                filters["$or"] = or_conditions
+        else:
+            filters["reporting_period.quarter"] = quarter
         
     if reporting_type is not None:
         filters["reporting_period.reporting_type"] = reporting_type
