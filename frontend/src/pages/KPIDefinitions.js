@@ -84,10 +84,21 @@ const KPIDefinitions = () => {
         throw new Error(errorData.detail || 'Failed to save KPI');
       }
 
+      const savedKpi = await response.json();
+      
+      if (isEdit) {
+        // Update the specific item in state without full refetch
+        setKpiDefinitions(prev => 
+          prev.map(kpi => kpi.id === savedKpi.id ? savedKpi : kpi)
+        );
+      } else {
+        // For new KPI, prepend to list
+        setKpiDefinitions(prev => [savedKpi, ...prev]);
+      }
+
       toast.success(isEdit ? 'KPI updated successfully' : 'KPI created successfully');
       setIsWizardOpen(false);
       setEditingKpi(null);
-      fetchKpiDefinitions();
     } catch (error) {
       console.error('Error saving KPI:', error);
       toast.error(error.message || 'Failed to save KPI');
@@ -116,8 +127,10 @@ const KPIDefinitions = () => {
 
       if (!response.ok) throw new Error('Failed to duplicate KPI');
 
+      const duplicatedKpi = await response.json();
+      // Prepend duplicated KPI to list
+      setKpiDefinitions(prev => [duplicatedKpi, ...prev]);
       toast.success('KPI duplicated successfully');
-      fetchKpiDefinitions();
     } catch (error) {
       console.error('Error duplicating KPI:', error);
       toast.error('Failed to duplicate KPI');
@@ -143,8 +156,12 @@ const KPIDefinitions = () => {
         throw new Error(errorData.detail || 'Failed to archive KPI');
       }
 
+      const archivedKpi = await response.json();
+      // Update the item in state (it will have status: 'archived')
+      setKpiDefinitions(prev => 
+        prev.map(kpi => kpi.id === archivedKpi.id ? archivedKpi : kpi)
+      );
       toast.success('KPI archived successfully');
-      fetchKpiDefinitions();
     } catch (error) {
       console.error('Error archiving KPI:', error);
       toast.error(error.message || 'Failed to archive KPI');
@@ -170,8 +187,9 @@ const KPIDefinitions = () => {
         throw new Error(errorData.detail || 'Failed to delete KPI');
       }
 
+      // Remove from state
+      setKpiDefinitions(prev => prev.filter(kpi => kpi.id !== kpiId));
       toast.success('KPI deleted successfully');
-      fetchKpiDefinitions();
     } catch (error) {
       console.error('Error deleting KPI:', error);
       toast.error(error.message || 'Failed to delete KPI');
