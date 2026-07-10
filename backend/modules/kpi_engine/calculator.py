@@ -43,6 +43,7 @@ from .utils import (
 )
 from .filters import FilterBuilder
 from .aggregators import Aggregator
+from .ghg_adapter import is_ghg_kpi, calculate_ghg_kpi
 
 
 class KPICalculator:
@@ -236,18 +237,20 @@ class KPICalculator:
         """
         Execute the actual calculation for a KPI.
         
-        Args:
-            kpi: KPI definition document
-            org_id: Organization ID
-            scope_type: Scope type
-            facility_ids: Facility IDs
-            period: Period filter
-            additional_filters: Additional runtime filters
-            
-        Returns:
-            Calculation result
+        Routes GHG-linked KPIs to the ghg_adapter (queries emission_records)
+        and all others to the standard ESG records path.
         """
-        # Get collection for this section
+        # Route GHG KPIs to the dedicated adapter
+        if is_ghg_kpi(kpi):
+            return await calculate_ghg_kpi(
+                kpi=kpi,
+                org_id=org_id,
+                scope_type=scope_type,
+                facility_ids=facility_ids,
+                period=period,
+            )
+        
+        # Standard ESG records path
         section = kpi.get("section", "environment")
         try:
             collection_name = get_collection_for_section(section)
