@@ -8,7 +8,7 @@ import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
-import { ESG_SECTIONS, KPI_STATUSES, SOURCE_TYPES } from './constants';
+import { ESG_SECTIONS, KPI_STATUSES } from './constants';
 import { 
   Search, MoreVertical, Edit2, Copy, Archive, Trash2, 
   Filter, RefreshCw, ExternalLink 
@@ -97,9 +97,9 @@ const KPIDefinitionList = ({
           <TableHeader>
             <TableRow className="bg-slate-50">
               <TableHead className="w-[250px]">Metric Name</TableHead>
-              <TableHead className="w-[100px]">Code</TableHead>
+              <TableHead className="w-[150px]">Category</TableHead>
+              <TableHead className="w-[150px]">Subcategory</TableHead>
               <TableHead className="w-[100px]">Section</TableHead>
-              <TableHead className="w-[100px]">Source</TableHead>
               <TableHead className="w-[80px]">Status</TableHead>
               <TableHead className="w-[80px] text-center">Refs</TableHead>
               <TableHead className="w-[50px]"></TableHead>
@@ -123,7 +123,6 @@ const KPIDefinitionList = ({
               filteredKpis.map((kpi) => {
                 const sectionConfig = ESG_SECTIONS[kpi.section] || {};
                 const statusConfig = KPI_STATUSES[kpi.status] || {};
-                const sourceConfig = SOURCE_TYPES[kpi.source_type] || {};
                 const hasRefs = (kpi.target_count || 0) > 0 || (kpi.dashboard_count || 0) > 0;
 
                 return (
@@ -135,15 +134,16 @@ const KPIDefinitionList = ({
                     <TableCell>
                       <div>
                         <p className="font-medium text-gray-900">{kpi.metric_name}</p>
-                        {kpi.short_name && (
+                        {kpi.short_name && kpi.short_name !== kpi.metric_name && (
                           <p className="text-xs text-gray-500">{kpi.short_name}</p>
                         )}
                       </div>
                     </TableCell>
                     <TableCell>
-                      <code className="text-xs bg-slate-100 px-2 py-1 rounded">
-                        {kpi.metric_code}
-                      </code>
+                      <span className="text-sm text-gray-700">{kpi.category_name || '-'}</span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm text-gray-600">{kpi.subcategory || '-'}</span>
                     </TableCell>
                     <TableCell>
                       <span className={`
@@ -151,11 +151,6 @@ const KPIDefinitionList = ({
                         ${sectionConfig.color || 'bg-gray-500'}
                       `}>
                         {sectionConfig.label || kpi.section}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm text-gray-600">
-                        {sourceConfig.label || kpi.source_type}
                       </span>
                     </TableCell>
                     <TableCell>
