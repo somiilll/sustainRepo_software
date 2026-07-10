@@ -476,6 +476,7 @@ async def get_categories_for_targets(
             "kpi_id": kpi.get("id"),
             "metric_name": kpi.get("metric_name"),
             "metric_code": kpi.get("metric_code"),
+            "baseline_mapping_key": kpi.get("baseline_mapping_key"),
             "short_name": kpi.get("short_name"),
             "unit": kpi.get("unit_config", {}).get("default_unit") if kpi.get("unit_config") else None,
             "output_type": kpi.get("output_type"),

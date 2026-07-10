@@ -228,6 +228,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
       updateField('kpi_id', kpi.kpi_id);
       updateField('kpi_name', kpi.metric_name);
       updateField('unit', kpi.unit);
+      updateField('baseline_mapping_key', kpi.baseline_mapping_key || '');
     }
   };
 
@@ -236,15 +237,16 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
   const fetchBaseline = async () => {
     if (!formData.kpi_id) return;
     
-    // Get the KPI to find its metric_code for baseline lookup
+    // Get the KPI to find its baseline_mapping_key (preferred) or metric_code for baseline lookup
     const kpi = availableKPIs.find(k => k.kpi_id === formData.kpi_id);
-    if (!kpi?.metric_code) return;
+    const lookupKey = kpi?.baseline_mapping_key || formData.baseline_mapping_key || kpi?.metric_code;
+    if (!lookupKey) return;
     
     try {
       const facilityId = formData.scope_type === 'facility' && formData.facility_ids?.[0] 
         ? formData.facility_ids[0] 
         : '';
-      const params = new URLSearchParams({ metric_key: kpi.metric_code });
+      const params = new URLSearchParams({ metric_key: lookupKey });
       if (facilityId) params.append('facility_id', facilityId);
       
       const res = await axios.get(`${API}/api/esg-targets/baseline/lookup?${params.toString()}`, { headers });

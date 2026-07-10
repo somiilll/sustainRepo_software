@@ -130,12 +130,20 @@ class BaselineService:
                 if target_scope and em_scope != target_scope:
                     continue
                 
-                # Check category match (partial match supported)
+                # Check category match (exact prefix match for category codes)
                 if target_category:
-                    if target_category not in em_category and em_category not in target_category:
-                        # Try matching just the category code (e.g., "C6" in "C6 - Business Travel")
-                        if not em_category.startswith(target_category):
-                            continue
+                    # For category codes like "C1", "C10" etc, ensure exact code match
+                    # by checking the category starts with the code followed by a separator
+                    cat_code_match = False
+                    if em_category == target_category:
+                        cat_code_match = True
+                    elif em_category.startswith(target_category + " ") or em_category.startswith(target_category + "-"):
+                        cat_code_match = True
+                    elif target_category in em_category and em_category in target_category:
+                        cat_code_match = True
+                    
+                    if not cat_code_match:
+                        continue
                 
                 # Match found - aggregate
                 total_value += float(em_value)
