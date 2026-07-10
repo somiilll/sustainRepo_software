@@ -184,6 +184,9 @@ api_router.include_router(esg_assignments_router)
 api_router.include_router(esg_targets_router, prefix="/esg-targets", tags=["ESG Targets"])
 # ESG KPI Definitions Module (Super Admin - reusable metric configurations)
 api_router.include_router(esg_kpi_definitions_router)
+# KPI Calculation Engine (reusable calculation module)
+from modules.kpi_engine import router as kpi_engine_router
+api_router.include_router(kpi_engine_router)
 
 # Run module contract verifier at import time. Phase B1: log-only, will be
 # escalated to fail-fast in dev once all modules expose their contracts.
