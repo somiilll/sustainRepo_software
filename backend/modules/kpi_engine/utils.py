@@ -48,12 +48,15 @@ def build_period_filter(
     
     The reporting_period field in records has structure:
     {
-        "reporting_type": "monthly" | "quarterly" | "yearly",
+        "reporting_type": "monthly" | "quarterly" | "yearly" | "daily",
         "year": 2026,
         "month": 6,  # for monthly
         "quarter": 2,  # for quarterly
-        "date": "2026-06-15",  # optional specific date
+        "date": "2026-06-15",  # for daily records
     }
+    
+    Note: Daily records may not have 'year' populated - they store date in 
+    'reporting_period.date'. This function handles both cases.
     
     Args:
         year: Filter by year
@@ -68,11 +71,30 @@ def build_period_filter(
     """
     filters = {}
     
+    # Handle year filter - must also match daily records where year is in date field
     if year is not None:
-        filters["reporting_period.year"] = year
+        year_str = str(year)
+        # Match either:
+        # 1. reporting_period.year = 2026 (monthly/quarterly/yearly records)
+        # 2. reporting_period.date starts with "2026" (daily records)
+        filters["$or"] = [
+            {"reporting_period.year": year},
+            {"reporting_period.date": {"$regex": f"^{year_str}"}}
+        ]
         
     if month is not None:
-        filters["reporting_period.month"] = month
+        # For month filter, also handle daily records
+        if year is not None:
+            month_str = f"{month:02d}"  # Pad to 2 digits
+            year_str = str(year)
+            # Update $or to include month matching
+            filters["$or"] = [
+                {"reporting_period.year": year, "reporting_period.month": month},
+                # Match daily records: date like "2026-07-*"
+                {"reporting_period.date": {"$regex": f"^{year_str}-{month_str}"}}
+            ]
+        else:
+            filters["reporting_period.month"] = month
         
     if quarter is not None:
         filters["reporting_period.quarter"] = quarter
