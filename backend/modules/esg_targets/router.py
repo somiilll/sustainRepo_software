@@ -81,21 +81,21 @@ def _resolve_target_value(target: dict, period: dict) -> Optional[float]:
 
 
 
-def _calculate_progress(actual_value, target_value, goal_type, target) -> Optional[float]:
+def _calculate_progress(actual_value, target_value, goal_type, target) -> dict:
     """
     Calculate progress percentage based on goal_type.
 
-    For upper_limit (reduction targets) with a baseline:
-        progress = (baseline - actual) / (baseline - target) × 100
-    For lower_limit (increase targets like training hours):
-        progress = (actual / target) × 100
+    Returns dict: {percentage, over_target, under_target}
+    - over_target: True when actual exceeds the target (bad for upper_limit/exact)
+    - under_target: True when actual is below the target (good progress direction)
     """
+    result = {"percentage": None, "over_target": False, "under_target": False}
+
     if actual_value is None or not target_value or target_value == 0:
-        return None
+        return result
 
     baseline = target.get("baseline") or {}
     baseline_value = baseline.get("value") if isinstance(baseline, dict) else None
-    # Parse baseline_value to float if present
     if baseline_value is not None:
         try:
             baseline_value = float(baseline_value)
@@ -103,46 +103,71 @@ def _calculate_progress(actual_value, target_value, goal_type, target) -> Option
             baseline_value = None
 
     if goal_type == "upper_limit":
-        # Reduction target: goal is ≤ target_value
         if baseline_value is not None and baseline_value != target_value:
-            # (baseline - actual) / (baseline - target) × 100
             reduction_needed = baseline_value - target_value
             reduction_achieved = baseline_value - actual_value
             progress = (reduction_achieved / reduction_needed) * 100
-            return max(0, min(progress, 100))
+            if actual_value > target_value:
+                overshoot = (actual_value - target_value) / target_value * 100
+                result["percentage"] = round(-overshoot, 1)
+                result["over_target"] = True
+            else:
+                result["percentage"] = min(progress, 100)
         else:
-            # No baseline — simple comparison
             if actual_value <= target_value:
-                return 100.0
-            return max(0, (target_value / actual_value) * 100)
+                result["percentage"] = 100.0
+            else:
+                overshoot = (actual_value - target_value) / target_value * 100
+                result["percentage"] = round(-overshoot, 1)
+                result["over_target"] = True
 
     elif goal_type == "lower_limit":
-        # Increase target: goal is ≥ target_value (e.g., training hours)
-        return min(100, (actual_value / target_value) * 100)
+        result["percentage"] = min(100, (actual_value / target_value) * 100)
+        if actual_value < target_value:
+            result["under_target"] = True
 
     elif goal_type == "exact":
-        # For static exact targets with baseline: use baseline-aware formula
         if baseline_value is not None and baseline_value != target_value:
             reduction_needed = baseline_value - target_value
             reduction_achieved = baseline_value - actual_value
             if reduction_needed != 0:
                 progress = (reduction_achieved / reduction_needed) * 100
-                return max(0, min(progress, 100))
-        diff_pct = abs(actual_value - target_value) / target_value * 100
-        return max(0, 100 - diff_pct)
+                if actual_value > target_value:
+                    overshoot = (actual_value - target_value) / target_value * 100
+                    result["percentage"] = round(-overshoot, 1)
+                    result["over_target"] = True
+                elif actual_value == target_value:
+                    result["percentage"] = 100.0
+                else:
+                    result["percentage"] = max(0, min(progress, 100))
+                    result["under_target"] = True
+                return result
+        # No baseline fallback
+        if actual_value == target_value:
+            result["percentage"] = 100.0
+        elif actual_value > target_value:
+            overshoot = (actual_value - target_value) / target_value * 100
+            result["percentage"] = round(-overshoot, 1)
+            result["over_target"] = True
+        else:
+            diff_pct = (target_value - actual_value) / target_value * 100
+            result["percentage"] = max(0, 100 - diff_pct)
+            result["under_target"] = True
 
     elif goal_type == "range":
         min_val = target.get("minimum_value", 0)
         max_val = target.get("maximum_value", target_value)
         if max_val != min_val:
             if min_val <= actual_value <= max_val:
-                return 100.0
+                result["percentage"] = 100.0
             elif actual_value < min_val:
-                return max(0, (actual_value / min_val) * 100)
+                result["percentage"] = max(0, (actual_value / min_val) * 100)
+                result["under_target"] = True
             else:
-                return max(0, (max_val / actual_value) * 100)
+                result["percentage"] = max(0, (max_val / actual_value) * 100)
+                result["over_target"] = True
 
-    return None
+    return result
 
 
 def _get_current_period_for_tracking_mode(tracking_mode: str) -> dict:
@@ -272,10 +297,13 @@ async def list_targets_with_progress(
                 target_value = _resolve_target_value(target, period)
                 goal_type = target.get("goal_type", "upper_limit")
                 
-                progress_percentage = _calculate_progress(actual_value, target_value, goal_type, target)
+                progress_result = _calculate_progress(actual_value, target_value, goal_type, target)
+                progress_percentage = progress_result["percentage"]
                 
                 target_with_progress["actual_value"] = actual_value
                 target_with_progress["progress_percentage"] = round(progress_percentage, 1) if progress_percentage is not None else None
+                target_with_progress["over_target"] = progress_result["over_target"]
+                target_with_progress["under_target"] = progress_result["under_target"]
                 target_with_progress["record_count"] = calculation.get("record_count", 0)
                 target_with_progress["calculation_period"] = period
                 
@@ -385,13 +413,16 @@ async def get_target_progress(
     target_value = _resolve_target_value(target, period)
     goal_type = target.get("goal_type", "upper_limit")
     
-    progress_percentage = _calculate_progress(actual_value, target_value, goal_type, target)
+    progress_result = _calculate_progress(actual_value, target_value, goal_type, target)
+    progress_percentage = progress_result["percentage"]
     
     return {
         "target": target,
         "actual_value": actual_value,
         "target_value": target_value,
         "progress_percentage": round(progress_percentage, 1) if progress_percentage is not None else None,
+        "over_target": progress_result["over_target"],
+        "under_target": progress_result["under_target"],
         "goal_type": goal_type,
         "calculation_period": period,
         "record_count": calculation.get("record_count", 0),

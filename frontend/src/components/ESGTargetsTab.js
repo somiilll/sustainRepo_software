@@ -271,7 +271,7 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
   };
 
   const getProgressBadge = (target) => {
-    const { progress_percentage, actual_value, kpi_id } = target;
+    const { progress_percentage, actual_value, kpi_id, over_target, under_target } = target;
     
     // No KPI linked - can't calculate progress
     if (!kpi_id) {
@@ -291,7 +291,24 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
       );
     }
     
-    // Determine color based on progress
+    // Over target — negative progress
+    if (over_target) {
+      const overshoot = Math.abs(progress_percentage);
+      return (
+        <div className="flex flex-col items-start gap-0.5">
+          <Badge className="bg-red-100 text-red-700 text-xs font-semibold" data-testid="progress-badge">
+            {overshoot.toFixed(0)}% over
+          </Badge>
+          {actual_value !== null && (
+            <span className="text-[10px] text-text-muted">
+              Actual: {actual_value.toLocaleString()}
+            </span>
+          )}
+        </div>
+      );
+    }
+
+    // Under target — positive progress toward goal
     let colorClass = 'bg-red-100 text-red-700';
     if (progress_percentage >= 100) {
       colorClass = 'bg-green-100 text-green-700';
