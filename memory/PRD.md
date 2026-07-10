@@ -17,6 +17,7 @@ Build a comprehensive ESG (Environmental, Social, Governance) tracking and repor
 │   │   ├── esg_tracking/ (Tracker endpoints)
 │   │   ├── esg_targets/ (Target definitions and baseline service)
 │   │   ├── esg_kpi_definitions/ (Reusable KPI metric configurations)
+│   │   ├── kpi_engine/ (Dynamic KPI calculation engine) - NEW
 │   │   ├── approval_workflow/ (Approval queue & request engines)
 ├── frontend/
     └── src/
@@ -35,10 +36,25 @@ Build a comprehensive ESG (Environmental, Social, Governance) tracking and repor
 - `esg_reporting_tasks`: Holds `status` and `approval_status`
 - `esg_targets`: Generic target definitions (metric_key, tracking values, goal types, scopes)
 - `esg_kpi_definitions`: Reusable KPI metric configurations (source, aggregation, filters, units, visibility)
+- `environment_records` / `social_records` / `governance_records`: ESG data collections queried by kpi_engine
 
 ## Completed Features
 
 ### July 2026
+- **KPI Calculation Engine (`kpi_engine`)** - P0 COMPLETE (July 10, 2026)
+  - Backend: `/app/backend/modules/kpi_engine/` with calculator.py, aggregators.py, filters.py, utils.py, router.py
+  - API endpoints: `/api/kpi-engine/calculate`, `/api/kpi-engine/calculate/batch`, `/api/kpi-engine/calculate/dimension`, `/api/kpi-engine/health`
+  - Features:
+    - Dynamic KPI calculation by `kpi_id` or `metric_code`
+    - SUM aggregation when KPI has `value_field`, COUNT when no `value_field`
+    - Auto-selects correct collection based on KPI section (environment_records, social_records, governance_records)
+    - MongoDB query building from KPI filters (supports =, !=, >, <, >=, <=, in, not_in, between, contains, starts_with)
+    - Batch calculation for multiple KPIs
+    - Dimension-based grouping (group by facility_id, subcategory, etc.)
+    - Period filtering (year, month, quarter, date range)
+    - Facility-level scope filtering
+  - Test coverage: 11/11 pytest tests pass (100%)
+
 - **ESG KPI Definition Engine (Super Admin)** - P0 COMPLETE
   - Backend: `/app/backend/modules/esg_kpi_definitions/` with contracts.py, service.py, router.py
   - API endpoints: `/api/esg-kpi-definitions` (CRUD, duplicate, archive, lookup)
@@ -49,7 +65,13 @@ Build a comprehensive ESG (Environmental, Social, Governance) tracking and repor
     - Step 4: Units (output type, default unit, supported units, unit conversion, decimal places, display settings)
     - Step 5: Settings (visibility flags for dashboard/reports/tracking/targets/analytics, supported_scopes, status)
   - Features: Create, edit, duplicate, archive, delete KPIs; filter by section/status/search; stats cards
+  - 320 predefined ESG KPIs seeded across Environment, Social, Governance sections
   - Test coverage: Backend pytest 7/7 pass, Frontend Playwright all pass
+
+- **ESG Targets Module Integration with KPI Definitions** - P0 COMPLETE
+  - Targets now reference `kpi_id` from `esg_kpi_definitions` instead of static `metric_key`
+  - Backward compatibility maintained (`kpi_id` is optional)
+  - Target list UI displays KPI names from definitions
 
 ### December 2024
 - **Approver Queue ESG Record View**: Added `RecordApprovalPanel` for editable ESG records from queue with `field_definitions`
@@ -75,6 +97,10 @@ Build a comprehensive ESG (Environmental, Social, Governance) tracking and repor
 2. **Carbon Intensity Calculation Discrepancy** - P1
    - Location: `reports/router.py` lines 818-830
    - Fix: Check `generate_ghg_inventory_report` logic
+
+3. **Missing filters on seeded Water Withdrawal KPIs** - P0
+   - 6 Water Withdrawal KPIs need `source_type` filters (Ground Water, Surface Water, etc.)
+   - Required for accurate kpi_engine calculations
 
 ## Upcoming Tasks (P1)
 - Implement overdue task cron job for automatic `"overdue"` status
@@ -102,6 +128,8 @@ Saved for later implementation:
 ## Future/Backlog (P2)
 - Dynamic, metadata-driven ESG Disclosure Engine
 - Sentry Error Monitoring Integration
+- kpi_engine scalability: MongoDB server-side aggregation for large datasets
+- kpi_engine cache invalidation on KPI definition updates
 
 ## 3rd Party Integrations
 - Cloudflare R2 (Storage) - requires User API Key
