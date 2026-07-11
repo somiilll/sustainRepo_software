@@ -291,13 +291,35 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
       );
     }
     
-    // Over target — show ratio
-    if (over_target) {
-      const ratio = target.progress_ratio != null ? Math.abs(target.progress_ratio).toFixed(2) : Math.abs(progress_percentage).toFixed(0);
+    const ratio = target.progress_ratio;
+    const goalType = target.goal_type;
+    const trackingMode = target.tracking_mode;
+    const isPeriodicTarget = trackingMode === 'monthly' || trackingMode === 'yearly';
+
+    // Monthly/Yearly targets — color by ratio + goal_type
+    if (isPeriodicTarget && ratio != null) {
+      let colorClass = 'bg-orange-100 text-orange-700'; // close to 1
+      const absRatio = Math.abs(ratio);
+      const displayRatio = absRatio.toFixed(2);
+
+      if (goalType === 'lower_limit') {
+        // Higher is better
+        if (ratio > 1.1) colorClass = 'bg-green-100 text-green-700';
+        else if (ratio >= 0.9) colorClass = 'bg-orange-100 text-orange-700';
+        else colorClass = 'bg-red-100 text-red-700';
+      } else {
+        // upper_limit — lower is better
+        if (ratio > 1.1) colorClass = 'bg-red-100 text-red-700';
+        else if (ratio >= 0.9) colorClass = 'bg-orange-100 text-orange-700';
+        else colorClass = 'bg-green-100 text-green-700';
+      }
+
+      const label = over_target ? `${displayRatio}x over` : `${displayRatio}x`;
+
       return (
         <div className="flex flex-col items-start gap-0.5">
-          <Badge className="bg-red-100 text-red-700 text-xs font-semibold" data-testid="progress-badge">
-            {ratio}x over
+          <Badge className={`${colorClass} text-xs font-semibold`} data-testid="progress-badge">
+            {label}
           </Badge>
           {actual_value !== null && (
             <span className="text-[10px] text-text-muted">
@@ -308,7 +330,24 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
       );
     }
 
-    // Under target — positive progress toward goal
+    // Over target (static/other) — red
+    if (over_target) {
+      const displayRatio = ratio != null ? Math.abs(ratio).toFixed(2) : Math.abs(progress_percentage).toFixed(0);
+      return (
+        <div className="flex flex-col items-start gap-0.5">
+          <Badge className="bg-red-100 text-red-700 text-xs font-semibold" data-testid="progress-badge">
+            {displayRatio}x over
+          </Badge>
+          {actual_value !== null && (
+            <span className="text-[10px] text-text-muted">
+              Actual: {actual_value.toLocaleString()}
+            </span>
+          )}
+        </div>
+      );
+    }
+
+    // Static targets — percentage-based coloring
     let colorClass = 'bg-red-100 text-red-700';
     if (progress_percentage >= 100) {
       colorClass = 'bg-green-100 text-green-700';
