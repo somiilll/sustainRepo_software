@@ -227,7 +227,7 @@ def _get_period_for_target(target: dict) -> dict:
         target_year = current_year
 
     if tracking_mode == "static":
-        return {"year": target_year}
+        return {"year": now.year}
     elif tracking_mode == "monthly":
         # Use current month but clamp to target's year
         # If target year is past, use December (last month)
@@ -326,7 +326,6 @@ async def list_targets_with_progress(
         # Check if target year has passed → mark expired
         if _is_target_year_passed(target) and target.get("status") == "active":
             target_with_progress["status"] = "expired"
-            # Persist status change
             try:
                 await esg_targets_service.update_target(
                     target_id=target.get("id"), org_id=org_id,
@@ -335,14 +334,6 @@ async def list_targets_with_progress(
                 )
             except Exception:
                 pass
-
-        # Skip progress for future targets
-        if _is_target_in_future(target):
-            target_with_progress["actual_value"] = None
-            target_with_progress["progress_percentage"] = None
-            target_with_progress["progress_note"] = "Target year has not started yet"
-            results.append(target_with_progress)
-            continue
 
         if kpi_id:
             # Determine period from target's own reporting_period
