@@ -47,8 +47,6 @@ const GOAL_TYPES = [
 const TRACKING_MODES = [
   { value: 'static', label: 'Static', description: 'One target for a single year' },
   { value: 'monthly', label: 'Monthly', description: 'Monthly target values' },
-  { value: 'quarterly', label: 'Quarterly', description: 'Quarterly target values (Q1-Q4)' },
-  { value: 'half_yearly', label: 'Half Yearly', description: 'H1 and H2 targets' },
   { value: 'yearly', label: 'Yearly', description: 'Target values for multiple years' },
 ];
 
@@ -578,6 +576,12 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                       if (mode.value !== 'static' && formData.target_type === 'percentage') {
                         updateField('target_type', 'absolute');
                       }
+                      // Auto-set goal_type based on tracking mode
+                      if (mode.value === 'static') {
+                        updateField('goal_type', 'exact');
+                      } else if (formData.goal_type === 'exact' || formData.goal_type === 'range') {
+                        updateField('goal_type', 'upper_limit');
+                      }
                     }}
                     data-testid={`tracking-mode-${mode.value}`}
                   >
@@ -608,7 +612,10 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
             <div>
               <Label className="text-sm font-medium">Goal Type *</Label>
               <div className="grid grid-cols-2 gap-3 mt-2">
-                {GOAL_TYPES.map(goal => (
+                {(formData.tracking_mode === 'static'
+                  ? GOAL_TYPES.filter(g => g.value === 'exact')
+                  : GOAL_TYPES.filter(g => g.value === 'upper_limit' || g.value === 'lower_limit')
+                ).map(goal => (
                   <Card 
                     key={goal.value}
                     className={`p-3 cursor-pointer border-2 transition-colors ${formData.goal_type === goal.value ? 'border-emerald-500 bg-emerald-50' : 'border-stone-200 hover:border-stone-300'}`}
