@@ -291,13 +291,13 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
       );
     }
     
-    // Over target — negative progress
+    // Over target — show ratio
     if (over_target) {
-      const overshoot = Math.abs(progress_percentage);
+      const ratio = target.progress_ratio != null ? Math.abs(target.progress_ratio).toFixed(2) : Math.abs(progress_percentage).toFixed(0);
       return (
         <div className="flex flex-col items-start gap-0.5">
           <Badge className="bg-red-100 text-red-700 text-xs font-semibold" data-testid="progress-badge">
-            {overshoot.toFixed(0)}% over
+            {ratio}x over
           </Badge>
           {actual_value !== null && (
             <span className="text-[10px] text-text-muted">
