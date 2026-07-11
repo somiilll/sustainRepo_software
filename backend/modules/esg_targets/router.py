@@ -335,6 +335,14 @@ async def list_targets_with_progress(
             except Exception:
                 pass
 
+        # Expired targets — no progress
+        if target_with_progress.get("status") == "expired":
+            target_with_progress["actual_value"] = None
+            target_with_progress["progress_percentage"] = None
+            target_with_progress["progress_note"] = "Target expired"
+            results.append(target_with_progress)
+            continue
+
         if kpi_id:
             # Determine period from target's own reporting_period
             tracking_mode = target.get("tracking_mode", "static")

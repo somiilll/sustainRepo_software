@@ -55,6 +55,7 @@ const STATUS_CONFIG = {
   completed: { label: 'Completed', color: 'bg-blue-100 text-blue-700', icon: CheckCircle2 },
   cancelled: { label: 'Cancelled', color: 'bg-red-100 text-red-700', icon: XCircle },
   archived: { label: 'Archived', color: 'bg-stone-100 text-stone-500', icon: Archive },
+  expired: { label: 'Expired', color: 'bg-stone-100 text-stone-500', icon: AlertCircle },
 };
 
 const TARGET_TYPE_LABELS = {
@@ -449,6 +450,7 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
                 <SelectItem value="completed">Completed</SelectItem>
                 <SelectItem value="cancelled">Cancelled</SelectItem>
                 <SelectItem value="archived">Archived</SelectItem>
+                <SelectItem value="expired">Expired</SelectItem>
               </SelectContent>
             </Select>
             
