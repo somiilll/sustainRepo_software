@@ -93,7 +93,7 @@ def _calculate_progress(actual_value, target_value, goal_type, target) -> dict:
 
     Returns dict: {percentage, over_target, under_target}
     """
-    result = {"percentage": None, "over_target": False, "under_target": False}
+    result = {"percentage": None, "ratio": None, "over_target": False, "under_target": False}
 
     if actual_value is None or not target_value or target_value == 0:
         return result
@@ -115,24 +115,29 @@ def _calculate_progress(actual_value, target_value, goal_type, target) -> dict:
             numerator = target_value - actual_value
             progress = 100 - (numerator / denominator) * 100
             result["percentage"] = max(0, min(progress, 100))
+            result["ratio"] = round(progress / 100, 4)
         else:
             # No baseline fallback
             if actual_value == target_value:
                 result["percentage"] = 100.0
+                result["ratio"] = 1.0
             else:
                 diff_pct = abs(actual_value - target_value) / target_value * 100
                 result["percentage"] = max(0, 100 - diff_pct)
+                result["ratio"] = round(result["percentage"] / 100, 4)
     else:
         # Monthly / Yearly: actual / target
-        progress = actual_value / target_value
+        ratio = actual_value / target_value
         if actual_value > target_value:
-            overshoot = (actual_value - target_value) / target_value
-            result["percentage"] = round(-overshoot, 4)
+            result["percentage"] = round(ratio * 100, 1)
+            result["ratio"] = round(ratio, 4)
             result["over_target"] = True
         elif actual_value == target_value:
-            result["percentage"] = 1.0
+            result["percentage"] = 100.0
+            result["ratio"] = 1.0
         else:
-            result["percentage"] = round(progress, 4)
+            result["percentage"] = round(ratio * 100, 1)
+            result["ratio"] = round(ratio, 4)
             result["under_target"] = True
 
     return result
@@ -270,6 +275,7 @@ async def list_targets_with_progress(
                 
                 target_with_progress["actual_value"] = actual_value
                 target_with_progress["progress_percentage"] = round(progress_percentage, 1) if progress_percentage is not None else None
+                target_with_progress["progress_ratio"] = progress_result.get("ratio")
                 target_with_progress["over_target"] = progress_result["over_target"]
                 target_with_progress["under_target"] = progress_result["under_target"]
                 target_with_progress["record_count"] = calculation.get("record_count", 0)
@@ -389,6 +395,7 @@ async def get_target_progress(
         "actual_value": actual_value,
         "target_value": target_value,
         "progress_percentage": round(progress_percentage, 1) if progress_percentage is not None else None,
+        "progress_ratio": progress_result.get("ratio"),
         "over_target": progress_result["over_target"],
         "under_target": progress_result["under_target"],
         "goal_type": goal_type,
