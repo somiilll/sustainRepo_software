@@ -143,29 +143,106 @@ def _calculate_progress(actual_value, target_value, goal_type, target) -> dict:
     return result
 
 
-def _get_current_period_for_tracking_mode(tracking_mode: str) -> dict:
-    """
-    Get the appropriate period filter based on tracking mode.
-    - static/yearly → current year
-    - monthly → current month
-    - quarterly → current quarter
-    """
+def _extract_year_from_period(period_str: str) -> Optional[int]:
+    """Extract the primary year from a reporting period string like 'FY 2025-2026', 'CY 2025'."""
+    if not period_str:
+        return None
+    import re
+    match = re.search(r'(\d{4})', period_str)
+    return int(match.group(1)) if match else None
+
+
+def _is_target_year_passed(target: dict) -> bool:
+    """Check if target's reporting year has fully passed."""
     now = datetime.now(timezone.utc)
     current_year = now.year
     current_month = now.month
-    current_quarter = (current_month - 1) // 3 + 1
-    
-    if tracking_mode in ("static", "yearly"):
-        return {"year": current_year}
-    elif tracking_mode == "monthly":
-        return {"year": current_year, "month": current_month}
-    elif tracking_mode == "quarterly":
-        return {"year": current_year, "quarter": current_quarter}
-    elif tracking_mode == "half_yearly":
-        half = 1 if current_month <= 6 else 2
-        return {"year": current_year, "quarter": half * 2}  # Approximate with Q2 or Q4
+    tracking_mode = target.get("tracking_mode", "static")
+
+    if tracking_mode == "static":
+        period = target.get("reporting_period") or ""
+    elif tracking_mode == "yearly":
+        period = target.get("end_period") or target.get("reporting_period") or ""
     else:
-        return {"year": current_year}
+        # monthly — use reporting_period as the target year
+        period = target.get("reporting_period") or ""
+
+    period_lower = period.lower().strip()
+    year = _extract_year_from_period(period)
+    if not year:
+        return False
+
+    if period_lower.startswith("fy"):
+        # FY 2025-2026 ends March 2026 — so the end year is year+1, month 3
+        end_year = year + 1
+        end_month = 3
+    else:
+        # CY 2025 ends Dec 2025
+        end_year = year
+        end_month = 12
+
+    return (current_year > end_year) or (current_year == end_year and current_month > end_month)
+
+
+def _is_target_in_future(target: dict) -> bool:
+    """Check if target's reporting year hasn't started yet."""
+    now = datetime.now(timezone.utc)
+    current_year = now.year
+    current_month = now.month
+
+    period = target.get("reporting_period") or ""
+    period_lower = period.lower().strip()
+    year = _extract_year_from_period(period)
+    if not year:
+        return False
+
+    if period_lower.startswith("fy"):
+        # FY 2025-2026 starts April 2025
+        start_year = year
+        start_month = 4
+    else:
+        # CY 2025 starts Jan 2025
+        start_year = year
+        start_month = 1
+
+    return (current_year < start_year) or (current_year == start_year and current_month < start_month)
+
+
+def _get_period_for_target(target: dict) -> dict:
+    """
+    Get the period filter from the TARGET's own reporting_period (not system clock).
+    For static → the target's year.
+    For monthly → current month but within the target's year.
+    For yearly → the target's year.
+    """
+    tracking_mode = target.get("tracking_mode", "static")
+    period_str = target.get("reporting_period") or ""
+    target_year = _extract_year_from_period(period_str)
+
+    now = datetime.now(timezone.utc)
+    current_year = now.year
+    current_month = now.month
+
+    if not target_year:
+        target_year = current_year
+
+    if tracking_mode == "static":
+        return {"year": target_year}
+    elif tracking_mode == "monthly":
+        # Use current month but clamp to target's year
+        # If target year is past, use December (last month)
+        # If target year is current, use current month
+        # If target year is future, use January (first month)
+        if target_year < current_year:
+            return {"year": target_year, "month": 12}
+        elif target_year == current_year:
+            return {"year": target_year, "month": current_month}
+        else:
+            return {"year": target_year, "month": 1}
+    elif tracking_mode == "yearly":
+        return {"year": target_year}
+    else:
+        return {"year": target_year}
 
 
 # =============================================================================
@@ -246,10 +323,31 @@ async def list_targets_with_progress(
         target_with_progress = dict(target)
         kpi_id = target.get("kpi_id")
         
+        # Check if target year has passed → mark expired
+        if _is_target_year_passed(target) and target.get("status") == "active":
+            target_with_progress["status"] = "expired"
+            # Persist status change
+            try:
+                await esg_targets_service.update_target(
+                    target_id=target.get("id"), org_id=org_id,
+                    data=ESGTargetUpdate(status="expired"),
+                    user_id="system", user_name="system"
+                )
+            except Exception:
+                pass
+
+        # Skip progress for future targets
+        if _is_target_in_future(target):
+            target_with_progress["actual_value"] = None
+            target_with_progress["progress_percentage"] = None
+            target_with_progress["progress_note"] = "Target year has not started yet"
+            results.append(target_with_progress)
+            continue
+
         if kpi_id:
-            # Determine period based on tracking_mode
+            # Determine period from target's own reporting_period
             tracking_mode = target.get("tracking_mode", "static")
-            period = _get_current_period_for_tracking_mode(tracking_mode)
+            period = _get_period_for_target(target)
             
             # Get facility_ids if scope is facility
             facility_ids = None
@@ -365,9 +463,9 @@ async def get_target_progress(
             "message": "No KPI linked to this target"
         }
     
-    # Determine period based on tracking_mode
+    # Determine period from target's own reporting_period
     tracking_mode = target.get("tracking_mode", "static")
-    period = _get_current_period_for_tracking_mode(tracking_mode)
+    period = _get_period_for_target(target)
     
     # Get facility_ids if scope is facility
     facility_ids = None
