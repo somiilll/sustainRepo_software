@@ -556,9 +556,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
         );
 
       case 2: // Target Definition
-        const filteredTargetTypes = formData.tracking_mode === 'static'
-          ? TARGET_TYPES
-          : TARGET_TYPES.filter(t => t.value !== 'percentage');
+        const filteredTargetTypes = TARGET_TYPES;
         return (
           <div className="space-y-6">
             <div>
