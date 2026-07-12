@@ -773,68 +773,86 @@ async def get_target_chart_data(
         }
 
     elif tracking_mode == "yearly":
-        # Cumulative chart — monthly actuals accumulated toward annual target
+        # Yearly chart — X-axis is years, target is per-year value, actual is cumulative per year
         data_points = []
-        cumulative_actual = 0
-        annual_target = target_value or 0
+        tracking_values = target.get("tracking_values") or {}
 
-        for i, m in enumerate(month_order):
+        # Get all years from tracking_values, sorted
+        year_keys = sorted(tracking_values.keys())
+        if not year_keys:
+            return {"target_id": target_id, "chart_type": "yearly", "goal_type": goal_type, "unit": unit, "data": []}
+
+        for yr_key in year_keys:
+            tv = float(tracking_values[yr_key]) if tracking_values.get(yr_key) else None
+            yr_num = _extract_year_from_period(yr_key)
+            if not yr_num:
+                continue
+
+            # Fetch cumulative actual for this year (sum all months)
+            actual_total = 0
+            has_data = False
+
             if reporting_type == "FY":
-                yr = target_year if m >= 4 else target_year + 1
+                months_in_year = [(yr_num, m) for m in range(4, 13)] + [(yr_num + 1, m) for m in range(1, 4)]
             else:
-                yr = target_year
+                months_in_year = [(yr_num, m) for m in range(1, 13)]
 
-            actual = None
-            try:
-                calc = await kpi_calculator.calculate(
-                    kpi_id=kpi_id, org_id=org_id,
-                    scope_type=target.get("scope_type", "organization"),
-                    facility_ids=facility_ids,
-                    period={"year": yr, "month": m},
-                )
-                actual = calc.get("value")
-            except Exception:
-                pass
+            for m_yr, m_num in months_in_year:
+                try:
+                    calc = await kpi_calculator.calculate(
+                        kpi_id=kpi_id, org_id=org_id,
+                        scope_type=target.get("scope_type", "organization"),
+                        facility_ids=facility_ids,
+                        period={"year": m_yr, "month": m_num},
+                    )
+                    val = calc.get("value")
+                    if val is not None:
+                        # Apply intensity division
+                        if target.get("target_type") in ("intensity_revenue", "intensity_production"):
+                            denom = await _get_denominator_for_intensity(target, org_id, {"year": m_yr, "month": m_num})
+                            if denom.get("value"):
+                                val = val / denom["value"]
+                            else:
+                                val = None
+                        if val is not None:
+                            actual_total += val
+                            has_data = True
+                except Exception:
+                    pass
 
-            # Apply intensity division
-            if target.get("target_type") in ("intensity_revenue", "intensity_production") and actual is not None:
-                denom = await _get_denominator_for_intensity(target, org_id, {"year": yr, "month": m})
-                if denom.get("value"):
-                    actual = actual / denom["value"]
-                else:
-                    actual = None
-
-            is_future = (yr > now.year) or (yr == now.year and m > now.month)
-            cumulative_target = round(annual_target * (i + 1) / 12, 2)
-
-            if actual is not None:
-                cumulative_actual += actual
+            is_future = yr_num > now.year or (yr_num == now.year and now.month < 4 and reporting_type == "FY")
 
             status = "no_data"
-            if not is_future and cumulative_actual > 0 and cumulative_target > 0:
-                ratio = cumulative_actual / cumulative_target
+            if has_data and tv and tv > 0:
+                ratio = actual_total / tv
                 if goal_type == "upper_limit":
                     status = "on_track" if ratio < 0.9 else ("at_risk" if ratio <= 1.0 else "breached")
                 else:
                     status = "on_track" if ratio > 1.1 else ("at_risk" if ratio >= 1.0 else "breached")
 
             data_points.append({
-                "month": month_labels[i],
-                "month_num": m,
-                "year": yr,
-                "actual": round(cumulative_actual, 2) if not is_future and cumulative_actual > 0 else None,
-                "target": cumulative_target,
+                "year_label": yr_key,
+                "year": yr_num,
+                "actual": round(actual_total, 2) if has_data else None,
+                "target": tv,
                 "status": status,
-                "is_current": yr == now.year and m == now.month,
+                "is_current": yr_num == now.year,
                 "is_future": is_future,
             })
 
+        # Resolve display unit for intensity
+        display_unit = unit
+        if target.get("target_type") in ("intensity_revenue", "intensity_production"):
+            sample_yr = _extract_year_from_period(year_keys[0]) or now.year
+            sample_denom = await _get_denominator_for_intensity(target, org_id, {"year": sample_yr})
+            if sample_denom.get("unit"):
+                display_unit = f"{unit}/{sample_denom['unit']}"
+
         return {
             "target_id": target_id,
-            "chart_type": "yearly_cumulative",
+            "chart_type": "yearly",
             "goal_type": goal_type,
-            "unit": unit,
-            "annual_target": annual_target,
+            "unit": display_unit,
             "data": data_points,
         }
 

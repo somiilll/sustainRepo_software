@@ -47,7 +47,7 @@ const CustomTooltip = ({ active, payload, unit, goalType }) => {
 
   return (
     <div className="bg-white border border-stone-200 rounded-lg p-3 shadow-lg text-sm" data-testid="chart-tooltip">
-      <p className="font-semibold text-text-primary mb-1">{d.month} {d.year}</p>
+      <p className="font-semibold text-text-primary mb-1">{d.year_label || `${d.month} ${d.year}`}</p>
       <div className="space-y-0.5 text-text-secondary">
         {d.actual != null && <p>Actual: <span className="font-medium">{d.actual.toLocaleString()} {unit}</span></p>}
         {d.target != null && <p>Target: <span className="font-medium">{d.target.toLocaleString()} {unit}</span></p>}
@@ -101,20 +101,20 @@ function MonthlyChart({ data, unit, goalType }) {
   );
 }
 
-// Yearly Cumulative Chart
-function YearlyCumulativeChart({ data, unit, goalType, annualTarget }) {
+// Yearly Chart — X-axis = years, target line per year, actual = cumulative per year
+function YearlyChart({ data, unit, goalType }) {
   return (
     <div>
       <ResponsiveContainer width="100%" height={300}>
         <LineChart data={data} margin={{ top: 10, right: 30, left: 10, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
-          <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="#78716c" />
+          <XAxis dataKey="year_label" tick={{ fontSize: 11 }} stroke="#78716c" />
           <YAxis tick={{ fontSize: 12 }} stroke="#78716c" />
           <Tooltip content={<CustomTooltip unit={unit} goalType={goalType} />} />
-          <Line type="monotone" dataKey="target" stroke="#e11d48" strokeWidth={2} strokeDasharray="6 3" dot={false} name="Target Trajectory" />
-          <Line type="monotone" dataKey="actual" stroke="#0ea5e9" strokeWidth={2.5} dot={<CustomDot />} connectNulls={false} name="Cumulative Actual" />
+          <Line type="monotone" dataKey="target" stroke="#e11d48" strokeWidth={2} dot={{ r: 4, fill: '#e11d48' }} name="Target" />
+          <Line type="monotone" dataKey="actual" stroke="#0ea5e9" strokeWidth={2.5} dot={<CustomDot />} connectNulls={false} name="Actual (Cumulative)" />
           {data.find(d => d.is_current) && (
-            <ReferenceLine x={data.find(d => d.is_current)?.month} stroke="#6366f1" strokeDasharray="4 4" label={{ value: "NOW", position: "top", fontSize: 10, fill: "#6366f1" }} />
+            <ReferenceLine x={data.find(d => d.is_current)?.year_label} stroke="#6366f1" strokeDasharray="4 4" label={{ value: "NOW", position: "top", fontSize: 10, fill: "#6366f1" }} />
           )}
         </LineChart>
       </ResponsiveContainer>
@@ -256,7 +256,7 @@ export default function TargetProgressChart({ targetId }) {
       </div>
 
       {chartData.chart_type === 'monthly' && <MonthlyChart data={data} unit={chartData.unit} goalType={chartData.goal_type} />}
-      {chartData.chart_type === 'yearly_cumulative' && <YearlyCumulativeChart data={data} unit={chartData.unit} goalType={chartData.goal_type} annualTarget={chartData.annual_target} />}
+      {(chartData.chart_type === 'yearly' || chartData.chart_type === 'yearly_cumulative') && <YearlyChart data={data} unit={chartData.unit} goalType={chartData.goal_type} />}
       {chartData.chart_type === 'static' && <StaticProgressChart chartData={chartData} />}
     </div>
   );
