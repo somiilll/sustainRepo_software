@@ -696,6 +696,14 @@ async def get_target_chart_data(
             except Exception:
                 pass
 
+            # Apply intensity division
+            if target.get("target_type") in ("intensity_revenue", "intensity_production") and actual is not None:
+                denom = await _get_denominator_for_intensity(target, org_id, {"year": yr, "month": m})
+                if denom.get("value"):
+                    actual = actual / denom["value"]
+                else:
+                    actual = None
+
             key = f"{yr}-{m:02d}"
             tv = tracking_values.get(key)
             tv = float(tv) if tv is not None else None
@@ -722,11 +730,18 @@ async def get_target_chart_data(
                 "is_future": is_future,
             })
 
+        # Resolve display unit for intensity
+        display_unit = unit
+        if target.get("target_type") in ("intensity_revenue", "intensity_production"):
+            sample_denom = await _get_denominator_for_intensity(target, org_id, {"year": target_year})
+            if sample_denom.get("unit"):
+                display_unit = f"{unit}/{sample_denom['unit']}"
+
         return {
             "target_id": target_id,
             "chart_type": "monthly",
             "goal_type": goal_type,
-            "unit": unit,
+            "unit": display_unit,
             "data": data_points,
         }
 
@@ -753,6 +768,14 @@ async def get_target_chart_data(
                 actual = calc.get("value")
             except Exception:
                 pass
+
+            # Apply intensity division
+            if target.get("target_type") in ("intensity_revenue", "intensity_production") and actual is not None:
+                denom = await _get_denominator_for_intensity(target, org_id, {"year": yr, "month": m})
+                if denom.get("value"):
+                    actual = actual / denom["value"]
+                else:
+                    actual = None
 
             is_future = (yr > now.year) or (yr == now.year and m > now.month)
             cumulative_target = round(annual_target * (i + 1) / 12, 2)
@@ -805,6 +828,14 @@ async def get_target_chart_data(
         except Exception:
             pass
 
+        # Apply intensity division
+        intensity_unit = unit
+        if target.get("target_type") in ("intensity_revenue", "intensity_production") and actual is not None:
+            denom = await _get_denominator_for_intensity(target, org_id, {"year": now.year})
+            if denom.get("value"):
+                actual = actual / denom["value"]
+                intensity_unit = f"{unit}/{denom.get('unit', '')}"
+
         tv = float(target_value) if target_value else 0
         progress_pct = None
         if baseline_value and tv != baseline_value and actual is not None:
@@ -814,7 +845,7 @@ async def get_target_chart_data(
             "target_id": target_id,
             "chart_type": "static",
             "goal_type": goal_type,
-            "unit": unit,
+            "unit": intensity_unit,
             "baseline_value": baseline_value,
             "baseline_period": baseline_period,
             "current_value": round(actual, 2) if actual is not None else None,
