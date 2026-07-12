@@ -683,10 +683,11 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
               </div>
             )}
 
+            {formData.tracking_mode === 'static' && (
             <div className="pt-4 border-t">
               <div className="flex items-center gap-2 mb-1">
                 <Label className="text-sm font-medium">
-                  Baseline {formData.tracking_mode === 'static' ? '*' : '(Optional)'}
+                  Baseline *
                 </Label>
                 {baselineFromGHG && !(formData.target_type === 'intensity_revenue' || formData.target_type === 'intensity_production') && (
                   <Badge className="bg-emerald-100 text-emerald-700 text-xs gap-1">
@@ -737,6 +738,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                 </div>
               </div>
             </div>
+            )}
           </div>
         );
 
