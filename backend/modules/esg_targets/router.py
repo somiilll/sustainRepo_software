@@ -504,6 +504,209 @@ async def get_target_progress(
     }
 
 
+
+@router.get("/{target_id}/chart-data")
+async def get_target_chart_data(
+    target_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get monthly chart data for a target's progress visualization.
+    Returns actual values per month + target values for chart rendering.
+    """
+    from modules.kpi_engine import kpi_calculator
+
+    org_id = _get_org_id(current_user)
+    target = await esg_targets_service.get_target(target_id, org_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+
+    kpi_id = target.get("kpi_id")
+    if not kpi_id:
+        return {"target_id": target_id, "chart_type": "none", "data": [], "message": "No KPI linked"}
+
+    tracking_mode = target.get("tracking_mode", "static")
+    reporting_period = target.get("reporting_period", "")
+    reporting_type = target.get("reporting_type", "FY")
+    tracking_values = target.get("tracking_values") or {}
+    target_value = target.get("target_value")
+    baseline = target.get("baseline") or {}
+    goal_type = target.get("goal_type", "upper_limit")
+    unit = target.get("unit", "")
+
+    # Determine year from reporting_period
+    target_year = _extract_year_from_period(reporting_period)
+    now = datetime.now(timezone.utc)
+    if not target_year:
+        target_year = now.year
+
+    # Determine month order based on org reporting type
+    if reporting_type == "FY":
+        month_order = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3]
+        month_labels = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"]
+    else:
+        month_order = list(range(1, 13))
+        month_labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+    # Resolve facility_ids
+    facility_ids = None
+    if target.get("scope_type") == "facility" and target.get("facility_ids"):
+        facility_ids = target.get("facility_ids")
+
+    if tracking_mode == "monthly":
+        # Fetch actual for each month
+        data_points = []
+        for i, m in enumerate(month_order):
+            # For FY: Apr-Dec = target_year, Jan-Mar = target_year+1
+            if reporting_type == "FY":
+                yr = target_year if m >= 4 else target_year + 1
+            else:
+                yr = target_year
+
+            actual = None
+            try:
+                calc = await kpi_calculator.calculate(
+                    kpi_id=kpi_id, org_id=org_id,
+                    scope_type=target.get("scope_type", "organization"),
+                    facility_ids=facility_ids,
+                    period={"year": yr, "month": m},
+                )
+                actual = calc.get("value")
+            except Exception:
+                pass
+
+            key = f"{yr}-{m:02d}"
+            tv = tracking_values.get(key)
+            tv = float(tv) if tv is not None else None
+
+            # Determine status
+            status = "no_data"
+            if actual is not None and tv is not None:
+                ratio = actual / tv if tv else 0
+                if goal_type == "upper_limit":
+                    status = "on_track" if ratio < 0.9 else ("at_risk" if ratio <= 1.0 else "breached")
+                else:
+                    status = "on_track" if ratio > 1.1 else ("at_risk" if ratio >= 1.0 else "breached")
+
+            is_future = (yr > now.year) or (yr == now.year and m > now.month)
+
+            data_points.append({
+                "month": month_labels[i],
+                "month_num": m,
+                "year": yr,
+                "actual": round(actual, 2) if actual is not None else None,
+                "target": tv,
+                "status": status,
+                "is_current": yr == now.year and m == now.month,
+                "is_future": is_future,
+            })
+
+        return {
+            "target_id": target_id,
+            "chart_type": "monthly",
+            "goal_type": goal_type,
+            "unit": unit,
+            "data": data_points,
+        }
+
+    elif tracking_mode == "yearly":
+        # Cumulative chart — monthly actuals accumulated toward annual target
+        data_points = []
+        cumulative_actual = 0
+        annual_target = target_value or 0
+
+        for i, m in enumerate(month_order):
+            if reporting_type == "FY":
+                yr = target_year if m >= 4 else target_year + 1
+            else:
+                yr = target_year
+
+            actual = None
+            try:
+                calc = await kpi_calculator.calculate(
+                    kpi_id=kpi_id, org_id=org_id,
+                    scope_type=target.get("scope_type", "organization"),
+                    facility_ids=facility_ids,
+                    period={"year": yr, "month": m},
+                )
+                actual = calc.get("value")
+            except Exception:
+                pass
+
+            is_future = (yr > now.year) or (yr == now.year and m > now.month)
+            cumulative_target = round(annual_target * (i + 1) / 12, 2)
+
+            if actual is not None:
+                cumulative_actual += actual
+
+            status = "no_data"
+            if not is_future and cumulative_actual > 0 and cumulative_target > 0:
+                ratio = cumulative_actual / cumulative_target
+                if goal_type == "upper_limit":
+                    status = "on_track" if ratio < 0.9 else ("at_risk" if ratio <= 1.0 else "breached")
+                else:
+                    status = "on_track" if ratio > 1.1 else ("at_risk" if ratio >= 1.0 else "breached")
+
+            data_points.append({
+                "month": month_labels[i],
+                "month_num": m,
+                "year": yr,
+                "actual": round(cumulative_actual, 2) if not is_future and cumulative_actual > 0 else None,
+                "target": cumulative_target,
+                "status": status,
+                "is_current": yr == now.year and m == now.month,
+                "is_future": is_future,
+            })
+
+        return {
+            "target_id": target_id,
+            "chart_type": "yearly_cumulative",
+            "goal_type": goal_type,
+            "unit": unit,
+            "annual_target": annual_target,
+            "data": data_points,
+        }
+
+    elif tracking_mode == "static":
+        # Progress bar data: base → current → target
+        baseline_value = float(baseline.get("value", 0)) if baseline else 0
+        baseline_period = baseline.get("period", "")
+
+        actual = None
+        try:
+            calc = await kpi_calculator.calculate(
+                kpi_id=kpi_id, org_id=org_id,
+                scope_type=target.get("scope_type", "organization"),
+                facility_ids=facility_ids,
+                period={"year": now.year},
+            )
+            actual = calc.get("value")
+        except Exception:
+            pass
+
+        tv = float(target_value) if target_value else 0
+        progress_pct = None
+        if baseline_value and tv != baseline_value and actual is not None:
+            progress_pct = round(100 - ((tv - actual) / (tv - baseline_value)) * 100, 1)
+
+        return {
+            "target_id": target_id,
+            "chart_type": "static",
+            "goal_type": goal_type,
+            "unit": unit,
+            "baseline_value": baseline_value,
+            "baseline_period": baseline_period,
+            "current_value": round(actual, 2) if actual is not None else None,
+            "current_period": f"FY {now.year}-{now.year+1}" if reporting_type == "FY" else f"CY {now.year}",
+            "target_value": tv,
+            "target_period": reporting_period,
+            "progress_percentage": progress_pct,
+        }
+
+    return {"target_id": target_id, "chart_type": "unknown", "data": []}
+
+
+
 @router.put("/{target_id}", response_model=ESGTargetResponse)
 async def update_target(
     target_id: str,

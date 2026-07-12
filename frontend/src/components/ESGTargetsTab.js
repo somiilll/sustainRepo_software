@@ -7,13 +7,13 @@
  * - Version history viewing
  * - Admin-only write access
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
 import { 
   Target, Plus, Search, Filter, History, Copy, Archive, Trash2, 
-  Edit2, ChevronDown, Building2, Calendar, TrendingUp, MoreVertical,
+  Edit2, ChevronDown, ChevronUp, Building2, Calendar, TrendingUp, MoreVertical,
   CheckCircle2, Clock, XCircle, AlertCircle
 } from 'lucide-react';
 import { Button } from './ui/button';
@@ -46,6 +46,8 @@ import {
 import { isAdmin } from '../utils/roleUtils';
 import ESGTargetForm from './ESGTargetForm';
 import ESGTargetVersionHistory from './ESGTargetVersionHistory';
+
+const TargetProgressChart = lazy(() => import('./TargetProgressChart'));
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -97,6 +99,7 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
   const [selectedTargetId, setSelectedTargetId] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [expandedTargets, setExpandedTargets] = useState({});
   
   // Categories for filters
   const [categories, setCategories] = useState([]);
@@ -516,12 +519,20 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
-                {targets.map(target => (
-                  <tr key={target.id} className="hover:bg-stone-50/50" data-testid={`target-row-${target.id}`}>
+                {targets.map(target => {
+                  const isExpanded = expandedTargets[target.id];
+                  return (
+                  <React.Fragment key={target.id}>
+                  <tr className="hover:bg-stone-50/50 cursor-pointer" data-testid={`target-row-${target.id}`}
+                    onClick={() => setExpandedTargets(prev => ({ ...prev, [target.id]: !prev[target.id] }))}
+                  >
                     <td className="px-4 py-3">
-                      <div>
-                        <p className="font-medium text-text-primary text-sm">{target.kpi_name || target.metric_label || target.metric_key}</p>
-                        <p className="text-xs text-text-muted">{target.category} → {target.subcategory}</p>
+                      <div className="flex items-center gap-2">
+                        {isExpanded ? <ChevronUp className="w-4 h-4 text-stone-400 shrink-0" /> : <ChevronDown className="w-4 h-4 text-stone-400 shrink-0" />}
+                        <div>
+                          <p className="font-medium text-text-primary text-sm">{target.kpi_name || target.metric_label || target.metric_key}</p>
+                          <p className="text-xs text-text-muted">{target.category} → {target.subcategory}</p>
+                        </div>
                       </div>
                     </td>
                     <td className="px-4 py-3">
@@ -559,7 +570,7 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
                     <td className="px-4 py-3">
                       {getStatusBadge(target.status)}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -598,7 +609,18 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
                       </DropdownMenu>
                     </td>
                   </tr>
-                ))}
+                  {isExpanded && (
+                    <tr>
+                      <td colSpan={9} className="px-4 py-4 bg-stone-50/30">
+                        <Suspense fallback={<div className="flex justify-center py-6"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-600" /></div>}>
+                          <TargetProgressChart targetId={target.id} />
+                        </Suspense>
+                      </td>
+                    </tr>
+                  )}
+                  </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
