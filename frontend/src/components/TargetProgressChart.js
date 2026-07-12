@@ -21,29 +21,18 @@ const STATUS_COLORS = {
 const CustomDot = ({ cx, cy, payload }) => {
   if (payload.is_future || payload.actual === null || payload.actual === undefined) return null;
   const color = STATUS_COLORS[payload.status] || STATUS_COLORS.no_data;
-  const r = 6;
 
-  if (payload.status === 'breached') {
-    // Red circle with X
-    return (
-      <g>
-        <circle cx={cx} cy={cy} r={r + 2} fill="#fef2f2" stroke={color} strokeWidth={2} />
-        <line x1={cx - 3} y1={cy - 3} x2={cx + 3} y2={cy + 3} stroke={color} strokeWidth={2} />
-        <line x1={cx + 3} y1={cy - 3} x2={cx - 3} y2={cy + 3} stroke={color} strokeWidth={2} />
-      </g>
-    );
-  }
-  if (payload.status === 'at_risk') {
-    // Orange triangle
-    return (
-      <g>
-        <polygon points={`${cx},${cy - r - 1} ${cx - r},${cy + r - 1} ${cx + r},${cy + r - 1}`} fill="#fffbeb" stroke={color} strokeWidth={2} />
-        <text x={cx} y={cy + 3} textAnchor="middle" fontSize={10} fontWeight="bold" fill={color}>!</text>
-      </g>
-    );
-  }
-  // Green dot for on_track
-  return <circle cx={cx} cy={cy} r={r} fill={color} stroke="#fff" strokeWidth={2} />;
+  return (
+    <g>
+      <circle cx={cx} cy={cy} r={5} fill={color} stroke="#fff" strokeWidth={2} />
+      {payload.status === 'breached' && (
+        <text x={cx} y={cy - 14} textAnchor="middle" fontSize={14}>&#10060;</text>
+      )}
+      {payload.status === 'at_risk' && (
+        <text x={cx} y={cy - 14} textAnchor="middle" fontSize={14}>&#9888;</text>
+      )}
+    </g>
+  );
 };
 
 const CustomTooltip = ({ active, payload, unit, goalType }) => {
