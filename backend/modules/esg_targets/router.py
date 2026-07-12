@@ -37,15 +37,18 @@ async def _get_denominator_for_intensity(
     month = period.get("month")
 
     if target_type == "intensity_revenue":
-        # Fetch from organization_financials
-        # Build reporting_year key from year (e.g., "2026-27")
-        fy_key = f"{year}-{str(year + 1)[-2:]}" if year else None
-        if not fy_key:
+        # Fetch from organization_financials — try both key formats
+        if not year:
             return {"value": None, "unit": "", "error": "Revenue data not found. Add in Organization Details."}
-
-        fin = await app_db.organization_financials.find_one(
-            {"org_id": org_id, "reporting_year": fy_key}, {"_id": 0}
-        )
+        
+        keys_to_try = [f"{year}-{str(year + 1)[-2:]}", f"{year}-{year + 1}"]
+        fin = None
+        for fy_key in keys_to_try:
+            fin = await app_db.organization_financials.find_one(
+                {"org_id": org_id, "reporting_year": fy_key}, {"_id": 0}
+            )
+            if fin:
+                break
         if not fin:
             return {"value": None, "unit": "", "error": "Revenue data not found. Add in Organization Details."}
 
@@ -67,21 +70,32 @@ async def _get_denominator_for_intensity(
             return {"value": None, "unit": f"Mn {currency}", "error": "Revenue data not found. Add in Organization Details."}
 
     elif target_type == "intensity_production":
-        # Fetch from production_quantities
+        # Fetch from production_quantities — try both period formats
+        if not year:
+            return {"value": None, "unit": "", "error": "Production data not found."}
+        
+        periods_to_try = [f"FY {year}-{year + 1}", f"FY {year}-{str(year + 1)[-2:]}"]
+        
         if scope_type == "facility" and facility_ids:
             fac_id = facility_ids[0]
-            fy_period = f"FY {year}-{year + 1}" if year else None
-            prod = await app_db.production_quantities.find_one(
-                {"facility_id": fac_id, "reporting_period": fy_period, "is_deleted": {"$ne": True}},
-                {"_id": 0}
-            )
+            prod = None
+            for fy_period in periods_to_try:
+                prod = await app_db.production_quantities.find_one(
+                    {"facility_id": fac_id, "reporting_period": fy_period, "is_deleted": {"$ne": True}},
+                    {"_id": 0}
+                )
+                if prod:
+                    break
             error_msg = "Production data not found. Add in Facility Details."
         else:
-            fy_period = f"FY {year}-{year + 1}" if year else None
-            prod = await app_db.production_quantities.find_one(
-                {"organization_id": org_id, "facility_id": None, "reporting_period": fy_period, "is_deleted": {"$ne": True}},
-                {"_id": 0}
-            )
+            prod = None
+            for fy_period in periods_to_try:
+                prod = await app_db.production_quantities.find_one(
+                    {"organization_id": org_id, "facility_id": None, "reporting_period": fy_period, "is_deleted": {"$ne": True}},
+                    {"_id": 0}
+                )
+                if prod:
+                    break
             error_msg = "Production data not found. Add in Organization Details."
 
         if not prod:
