@@ -64,6 +64,8 @@ const TARGET_TYPE_LABELS = {
   absolute: 'Absolute',
   percentage: 'Percentage',
   intensity: 'Intensity',
+  intensity_revenue: 'Intensity (Revenue)',
+  intensity_production: 'Intensity (Production)',
 };
 
 const TRACKING_MODE_LABELS = {

@@ -34,7 +34,8 @@ const STEPS = [
 const TARGET_TYPES = [
   { value: 'absolute', label: 'Absolute', description: 'Fixed value (e.g., 500 tCO₂e)' },
   { value: 'percentage', label: 'Percentage', description: 'Percentage value (e.g., 20%)' },
-  { value: 'intensity', label: 'Intensity', description: 'Ratio value (e.g., 0.45 tCO₂e/tonne)' },
+  { value: 'intensity_revenue', label: 'Intensity By Revenue', description: 'Per revenue (e.g., tCO₂e/Mn revenue)', scope: 'organization' },
+  { value: 'intensity_production', label: 'Intensity By Production', description: 'Per production unit (e.g., tCO₂e/tonne)', scope: 'all' },
 ];
 
 const GOAL_TYPES = [
@@ -521,7 +522,10 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                 </Card>
                 <Card 
                   className={`p-4 cursor-pointer border-2 transition-colors ${formData.scope_type === 'facility' ? 'border-emerald-500 bg-emerald-50' : 'border-stone-200 hover:border-stone-300'}`}
-                  onClick={() => updateField('scope_type', 'facility')}
+                  onClick={() => {
+                    updateField('scope_type', 'facility');
+                    if (formData.target_type === 'intensity_revenue') updateField('target_type', 'absolute');
+                  }}
                 >
                   <div className="flex items-center gap-3">
                     <Building2 className="w-5 h-5 text-blue-600" />
@@ -556,9 +560,13 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
         );
 
       case 2: // Target Definition
-        const filteredTargetTypes = formData.tracking_mode === 'static'
-          ? TARGET_TYPES
-          : TARGET_TYPES.filter(t => t.value !== 'percentage');
+        const filteredTargetTypes = TARGET_TYPES.filter(t => {
+          // Hide percentage for monthly/yearly
+          if (t.value === 'percentage' && formData.tracking_mode !== 'static') return false;
+          // Intensity by revenue: org only
+          if (t.value === 'intensity_revenue' && formData.scope_type !== 'organization') return false;
+          return true;
+        });
         return (
           <div className="space-y-6">
             <div>
