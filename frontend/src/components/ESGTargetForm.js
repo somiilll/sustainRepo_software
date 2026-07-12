@@ -280,12 +280,21 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
   // Generate tracking period keys for monthly/quarterly/half_yearly
   const getTrackingPeriodKeys = () => {
     const year = formData.target_year?.match(/\d{4}/)?.[0] || new Date().getFullYear();
+    const isFY = orgReportingType === 'FY';
     
     switch (formData.tracking_mode) {
       case 'monthly':
+        if (isFY) {
+          // Apr-Dec = year, Jan-Mar = year+1
+          const fyMonths = [4,5,6,7,8,9,10,11,12,1,2,3];
+          return fyMonths.map(m => {
+            const yr = m >= 4 ? Number(year) : Number(year) + 1;
+            return { key: `${yr}-${String(m).padStart(2,'0')}`, label: new Date(2000, m - 1).toLocaleString('default', { month: 'short' }) };
+          });
+        }
         return Array.from({ length: 12 }, (_, i) => {
           const month = String(i + 1).padStart(2, '0');
-          return { key: `${year}-${month}`, label: new Date(year, i).toLocaleString('default', { month: 'short' }) };
+          return { key: `${year}-${month}`, label: new Date(2000, i).toLocaleString('default', { month: 'short' }) };
         });
       case 'quarterly':
         return ['Q1', 'Q2', 'Q3', 'Q4'].map(q => ({ key: `${year}-${q}`, label: q }));
