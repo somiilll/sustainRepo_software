@@ -367,6 +367,26 @@ async def list_targets_with_progress(
                 target_value = _resolve_target_value(target, period)
                 goal_type = target.get("goal_type", "upper_limit")
                 
+                # Recalculate target_value for percentage targets if baseline changed
+                if target.get("target_type") == "percentage" and target.get("percentage_amount"):
+                    baseline = target.get("baseline") or {}
+                    bv = float(baseline.get("value", 0)) if baseline else 0
+                    pct = float(target.get("percentage_amount", 0))
+                    if bv and pct:
+                        direction = target.get("percentage_direction", "decrease")
+                        new_tv = bv * (1 + pct / 100) if direction == "increase" else bv * (1 - pct / 100)
+                        # If stored target_value doesn't match, update it
+                        if target_value is None or abs((target_value or 0) - new_tv) > 0.01:
+                            target_value = new_tv
+                            try:
+                                await esg_targets_service.update_target(
+                                    target_id=target.get("id"), org_id=org_id,
+                                    data=ESGTargetUpdate(target_value=new_tv),
+                                    user_id="system", user_name="system"
+                                )
+                            except Exception:
+                                pass
+                
                 progress_result = _calculate_progress(actual_value, target_value, goal_type, target)
                 progress_percentage = progress_result["percentage"]
                 

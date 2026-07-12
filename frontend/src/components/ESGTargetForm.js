@@ -120,6 +120,8 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
       minimum_value: '',
       maximum_value: '',
       baseline: { period: '', value: '' },
+      percentage_direction: 'decrease',
+      percentage_amount: '',
       tracking_mode: 'static',
       tracking_values: {},
       target_year: '',
@@ -319,6 +321,9 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
         return true;
       case 3: // Tracking
         if (formData.tracking_mode === 'static') {
+          if (formData.target_type === 'percentage') {
+            return formData.target_year && formData.percentage_amount !== '';
+          }
           return formData.target_year && formData.target_value !== '';
         }
         if (formData.tracking_mode === 'yearly') {
@@ -356,10 +361,24 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
       reportingPeriod = formData.target_year;
     }
 
+    // Compute target_value for percentage type from baseline
+    let computedTargetValue = formData.target_value ? parseFloat(formData.target_value) : null;
+    if (formData.target_type === 'percentage' && formData.baseline?.value && formData.percentage_amount) {
+      const bv = parseFloat(formData.baseline.value);
+      const pct = parseFloat(formData.percentage_amount);
+      if (!isNaN(bv) && !isNaN(pct)) {
+        computedTargetValue = formData.percentage_direction === 'increase' 
+          ? bv * (1 + pct / 100) 
+          : bv * (1 - pct / 100);
+      }
+    }
+
     return {
       ...formData,
       reporting_period: reportingPeriod,
-      target_value: formData.target_value ? parseFloat(formData.target_value) : null,
+      target_value: computedTargetValue,
+      percentage_direction: formData.target_type === 'percentage' ? formData.percentage_direction : null,
+      percentage_amount: formData.target_type === 'percentage' && formData.percentage_amount ? parseFloat(formData.percentage_amount) : null,
       minimum_value: formData.minimum_value ? parseFloat(formData.minimum_value) : null,
       maximum_value: formData.maximum_value ? parseFloat(formData.maximum_value) : null,
       baseline: formData.baseline?.value ? {
@@ -746,22 +765,62 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">Target Value *</Label>
-                  <div className="flex gap-2 mt-1">
-                    <Input
-                      type="number"
-                      value={formData.target_value}
-                      onChange={(e) => updateField('target_value', e.target.value)}
-                      placeholder="Enter target value"
-                      className="flex-1"
-                      data-testid="target-value-input"
-                    />
-                    {formData.unit && (
-                      <div className="px-3 py-2 bg-stone-100 rounded-md text-sm text-text-muted flex items-center">
-                        {formData.unit}
+                  {formData.target_type === 'percentage' ? (
+                    <>
+                      <Label className="text-sm font-medium">Target % Change *</Label>
+                      <div className="flex gap-2 mt-1">
+                        <Select value={formData.percentage_direction} onValueChange={(v) => updateField('percentage_direction', v)}>
+                          <SelectTrigger className="w-36" data-testid="percentage-direction">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="decrease">Decrease by</SelectItem>
+                            <SelectItem value="increase">Increase by</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <div className="relative flex-1">
+                          <Input
+                            type="number"
+                            value={formData.percentage_amount}
+                            onChange={(e) => updateField('percentage_amount', e.target.value)}
+                            placeholder="e.g., 20"
+                            data-testid="percentage-amount-input"
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted text-sm">%</span>
+                        </div>
                       </div>
-                    )}
-                  </div>
+                      {formData.percentage_amount && formData.baseline?.value && (
+                        <p className="text-xs text-emerald-600 mt-1">
+                          Computed target: {(() => {
+                            const bv = parseFloat(formData.baseline.value);
+                            const pct = parseFloat(formData.percentage_amount);
+                            if (isNaN(bv) || isNaN(pct)) return 'N/A';
+                            const tv = formData.percentage_direction === 'increase' ? bv * (1 + pct / 100) : bv * (1 - pct / 100);
+                            return `${tv.toLocaleString()} ${formData.unit || ''}`;
+                          })()}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <Label className="text-sm font-medium">Target Value *</Label>
+                      <div className="flex gap-2 mt-1">
+                        <Input
+                          type="number"
+                          value={formData.target_value}
+                          onChange={(e) => updateField('target_value', e.target.value)}
+                          placeholder="Enter target value"
+                          className="flex-1"
+                          data-testid="target-value-input"
+                        />
+                        {formData.unit && (
+                          <div className="px-3 py-2 bg-stone-100 rounded-md text-sm text-text-muted flex items-center">
+                            {formData.unit}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             )}

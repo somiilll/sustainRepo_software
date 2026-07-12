@@ -15,6 +15,8 @@ class TargetType(str, Enum):
     ABSOLUTE = "absolute"
     PERCENTAGE = "percentage"
     INTENSITY = "intensity"
+    INTENSITY_REVENUE = "intensity_revenue"
+    INTENSITY_PRODUCTION = "intensity_production"
 
 
 class GoalType(str, Enum):
@@ -103,6 +105,8 @@ class ESGTargetCreate(BaseModel):
     minimum_value: Optional[float] = None      # For RANGE
     maximum_value: Optional[float] = None      # For RANGE
     unit: Optional[str] = None                 # Inherited from KPI, stored for display
+    percentage_direction: Optional[str] = None  # "increase" or "decrease" for percentage targets
+    percentage_amount: Optional[float] = None   # The % value (e.g., 20 for 20%)
     
     # Baseline
     baseline: Optional[BaselineConfig] = None
@@ -147,6 +151,8 @@ class ESGTargetUpdate(BaseModel):
     minimum_value: Optional[float] = None
     maximum_value: Optional[float] = None
     unit: Optional[str] = None
+    percentage_direction: Optional[str] = None
+    percentage_amount: Optional[float] = None
     
     baseline: Optional[BaselineConfig] = None
     
