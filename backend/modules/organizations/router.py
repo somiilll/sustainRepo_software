@@ -14,7 +14,11 @@ router = APIRouter()
 
 class YearlyDataCreate(BaseModel):
     turnover: Optional[str] = None
+    turnover_frequency: Optional[str] = "yearly"  # "yearly" or "monthly"
+    turnover_monthly: Optional[dict] = None  # {"Apr": 100, "May": 200, ...}
     production_quantity: Optional[str] = None
+    production_quantity_frequency: Optional[str] = "yearly"
+    production_quantity_monthly: Optional[dict] = None
     production_unit: Optional[str] = "MT"
 
 
@@ -147,7 +151,11 @@ async def get_yearly_data(
     
     return {
         "turnover": financials.get("turnover") if financials else "",
+        "turnover_frequency": financials.get("frequency", "yearly") if financials else "yearly",
+        "turnover_monthly": financials.get("monthly_data") if financials else None,
         "production_quantity": str(production.get("quantity", "")) if production else "",
+        "production_quantity_frequency": production.get("frequency", "yearly") if production else "yearly",
+        "production_quantity_monthly": production.get("monthly_data") if production else None,
         "production_unit": production.get("unit", "MT") if production else "MT"
     }
 
@@ -167,16 +175,23 @@ async def save_yearly_data(
     user_id = current_user.get("id")
     
     # Handle turnover - save if provided, delete if empty/null
-    if data.turnover:
+    if data.turnover or data.turnover_monthly:
+        update_doc = {
+            "org_id": org_id,
+            "reporting_year": reporting_year,
+            "frequency": data.turnover_frequency or "yearly",
+            "updated_at": now,
+            "updated_by": user_id
+        }
+        if data.turnover_frequency == "monthly" and data.turnover_monthly:
+            update_doc["monthly_data"] = data.turnover_monthly
+            update_doc["turnover"] = str(sum(float(v) for v in data.turnover_monthly.values() if v))
+        else:
+            update_doc["turnover"] = data.turnover
+            update_doc["monthly_data"] = None
         await db.organization_financials.update_one(
             {"org_id": org_id, "reporting_year": reporting_year},
-            {"$set": {
-                "org_id": org_id,
-                "reporting_year": reporting_year,
-                "turnover": data.turnover,
-                "updated_at": now,
-                "updated_by": user_id
-            }, "$setOnInsert": {"created_at": now}},
+            {"$set": update_doc, "$setOnInsert": {"created_at": now}},
             upsert=True
         )
     else:
@@ -187,8 +202,17 @@ async def save_yearly_data(
         })
     
     # Handle production quantity - save if provided, delete if empty/null
-    if data.production_quantity:
+    if data.production_quantity or data.production_quantity_monthly:
         import uuid
+        freq = data.production_quantity_frequency or "yearly"
+        qty = 0
+        monthly_data = None
+        if freq == "monthly" and data.production_quantity_monthly:
+            monthly_data = data.production_quantity_monthly
+            qty = sum(float(v) for v in monthly_data.values() if v)
+        elif data.production_quantity:
+            qty = float(data.production_quantity)
+
         existing = await db.production_quantities.find_one({
             "organization_id": org_id,
             "facility_id": None,
@@ -200,8 +224,10 @@ async def save_yearly_data(
             await db.production_quantities.update_one(
                 {"id": existing["id"]},
                 {"$set": {
-                    "quantity": float(data.production_quantity) if data.production_quantity else 0,
+                    "quantity": qty,
                     "unit": data.production_unit or "MT",
+                    "frequency": freq,
+                    "monthly_data": monthly_data,
                     "updated_at": now,
                     "updated_by": user_id
                 }}
@@ -212,8 +238,10 @@ async def save_yearly_data(
                 "organization_id": org_id,
                 "facility_id": None,
                 "reporting_period": f"FY {reporting_year}",
-                "quantity": float(data.production_quantity) if data.production_quantity else 0,
+                "quantity": qty,
                 "unit": data.production_unit or "MT",
+                "frequency": freq,
+                "monthly_data": monthly_data,
                 "notes": "Added from Organization module",
                 "created_at": now,
                 "created_by": user_id,

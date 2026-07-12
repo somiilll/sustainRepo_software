@@ -67,7 +67,11 @@ export default function OrganizationDetails() {
     const year = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
     return `${year}-${String(year + 1).slice(-2)}`;
   });
-  const [yearlyData, setYearlyData] = useState({ turnover: '', production_quantity: '', production_unit: 'MT' });
+  const [yearlyData, setYearlyData] = useState({ 
+    turnover: '', turnover_frequency: 'yearly', turnover_monthly: {},
+    production_quantity: '', production_quantity_frequency: 'yearly', production_quantity_monthly: {},
+    production_unit: 'MT' 
+  });
   const [yearlyDataLoading, setYearlyDataLoading] = useState(false);
   const [yearlyDataSaving, setYearlyDataSaving] = useState(false);
   
@@ -235,15 +239,19 @@ export default function OrganizationDetails() {
       if (response.data) {
         setYearlyData({
           turnover: response.data.turnover || '',
+          turnover_frequency: response.data.turnover_frequency || 'yearly',
+          turnover_monthly: response.data.turnover_monthly || {},
           production_quantity: response.data.production_quantity || '',
+          production_quantity_frequency: response.data.production_quantity_frequency || 'yearly',
+          production_quantity_monthly: response.data.production_quantity_monthly || {},
           production_unit: response.data.production_unit || 'MT'
         });
       } else {
-        setYearlyData({ turnover: '', production_quantity: '', production_unit: 'MT' });
+        setYearlyData({ turnover: '', turnover_frequency: 'yearly', turnover_monthly: {}, production_quantity: '', production_quantity_frequency: 'yearly', production_quantity_monthly: {}, production_unit: 'MT' });
       }
     } catch (error) {
       console.log('No yearly data found for', yearlyDataYear);
-      setYearlyData({ turnover: '', production_quantity: '', production_unit: 'MT' });
+      setYearlyData({ turnover: '', turnover_frequency: 'yearly', turnover_monthly: {}, production_quantity: '', production_quantity_frequency: 'yearly', production_quantity_monthly: {}, production_unit: 'MT' });
     } finally {
       setYearlyDataLoading(false);
     }
@@ -1472,7 +1480,7 @@ export default function OrganizationDetails() {
                 <TrendingUp className="w-5 h-5 text-emerald-600" />
               </div>
               <div>
-                <h3 className="font-semibold text-text-primary">Yearly Organization Data</h3>
+                <h3 className="font-semibold text-text-primary">Organization Data</h3>
                 <p className="text-xs text-text-muted">Financial turnover and production quantity</p>
               </div>
             </div>
@@ -1501,72 +1509,96 @@ export default function OrganizationDetails() {
             </div>
           ) : (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Turnover */}
-                <div className="space-y-2">
+              {/* Turnover */}
+              <div className="space-y-3 p-4 border border-stone-100 rounded-lg">
+                <div className="flex items-center justify-between">
                   <Label className="text-sm font-medium">
                     Annual Turnover (INR)
                     <span className="text-text-muted font-normal ml-1">for FY {yearlyDataYear}</span>
                   </Label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">₹</span>
-                    <Input
-                      type="number"
-                      value={yearlyData.turnover}
-                      onChange={(e) => setYearlyData(prev => ({ ...prev, turnover: e.target.value }))}
-                      placeholder="Enter annual turnover"
-                      className="pl-8"
-                      disabled={subscriptionExpired}
-                    />
-                  </div>
-                  {yearlyData.turnover && (
-                    <p className="text-xs text-text-muted">
-                      ₹{Number(yearlyData.turnover).toLocaleString('en-IN')}
-                    </p>
-                  )}
+                  <Select value={yearlyData.turnover_frequency} onValueChange={(v) => setYearlyData(prev => ({ ...prev, turnover_frequency: v }))} disabled={subscriptionExpired}>
+                    <SelectTrigger className="w-28 h-8 text-xs" data-testid="turnover-frequency">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="yearly">Yearly</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
+                {yearlyData.turnover_frequency === 'yearly' ? (
+                  <div>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">₹</span>
+                      <Input type="number" value={yearlyData.turnover} onChange={(e) => setYearlyData(prev => ({ ...prev, turnover: e.target.value }))} placeholder="Enter annual turnover" className="pl-8" disabled={subscriptionExpired} />
+                    </div>
+                    {yearlyData.turnover && <p className="text-xs text-text-muted">₹{Number(yearlyData.turnover).toLocaleString('en-IN')}</p>}
+                  </div>
+                ) : (
+                  <div>
+                    <div className="grid grid-cols-4 gap-2">
+                      {['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'].map(m => (
+                        <div key={m}>
+                          <Label className="text-[10px] text-text-muted">{m}</Label>
+                          <Input type="number" className="h-8 text-xs" placeholder="0" disabled={subscriptionExpired}
+                            value={yearlyData.turnover_monthly?.[m] || ''}
+                            onChange={(e) => setYearlyData(prev => ({ ...prev, turnover_monthly: { ...prev.turnover_monthly, [m]: e.target.value } }))}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    {Object.values(yearlyData.turnover_monthly || {}).some(v => v) && (
+                      <p className="text-xs text-text-muted mt-1">Total: ₹{Object.values(yearlyData.turnover_monthly || {}).reduce((s, v) => s + (parseFloat(v) || 0), 0).toLocaleString('en-IN')}</p>
+                    )}
+                  </div>
+                )}
+              </div>
 
-                {/* Production Quantity */}
-                <div className="space-y-2">
+              {/* Production Quantity */}
+              <div className="space-y-3 p-4 border border-stone-100 rounded-lg">
+                <div className="flex items-center justify-between">
                   <Label className="text-sm font-medium">
                     Production Quantity
                     <span className="text-text-muted font-normal ml-1">for FY {yearlyDataYear}</span>
                   </Label>
-                  <div className="flex gap-2">
-                    <Input
-                      type="number"
-                      value={yearlyData.production_quantity}
-                      onChange={(e) => setYearlyData(prev => ({ ...prev, production_quantity: e.target.value }))}
-                      placeholder="Enter quantity"
-                      className="flex-1"
-                      disabled={subscriptionExpired}
-                    />
-                    <Input
-                      type="text"
-                      value={yearlyData.production_unit}
-                      onChange={(e) => setYearlyData(prev => ({ ...prev, production_unit: e.target.value }))}
-                      placeholder="Unit"
-                      className="w-24"
-                      disabled={subscriptionExpired}
-                    />
+                  <div className="flex items-center gap-2">
+                    <Input type="text" value={yearlyData.production_unit} onChange={(e) => setYearlyData(prev => ({ ...prev, production_unit: e.target.value }))} placeholder="Unit" className="w-20 h-8 text-xs" disabled={subscriptionExpired} />
+                    <Select value={yearlyData.production_quantity_frequency} onValueChange={(v) => setYearlyData(prev => ({ ...prev, production_quantity_frequency: v }))} disabled={subscriptionExpired}>
+                      <SelectTrigger className="w-28 h-8 text-xs" data-testid="production-frequency">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="yearly">Yearly</SelectItem>
+                        <SelectItem value="monthly">Monthly</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
+                {yearlyData.production_quantity_frequency === 'yearly' ? (
+                  <Input type="number" value={yearlyData.production_quantity} onChange={(e) => setYearlyData(prev => ({ ...prev, production_quantity: e.target.value }))} placeholder="Enter quantity" disabled={subscriptionExpired} />
+                ) : (
+                  <div>
+                    <div className="grid grid-cols-4 gap-2">
+                      {['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'].map(m => (
+                        <div key={m}>
+                          <Label className="text-[10px] text-text-muted">{m}</Label>
+                          <Input type="number" className="h-8 text-xs" placeholder="0" disabled={subscriptionExpired}
+                            value={yearlyData.production_quantity_monthly?.[m] || ''}
+                            onChange={(e) => setYearlyData(prev => ({ ...prev, production_quantity_monthly: { ...prev.production_quantity_monthly, [m]: e.target.value } }))}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    {Object.values(yearlyData.production_quantity_monthly || {}).some(v => v) && (
+                      <p className="text-xs text-text-muted mt-1">Total: {Object.values(yearlyData.production_quantity_monthly || {}).reduce((s, v) => s + (parseFloat(v) || 0), 0).toLocaleString()} {yearlyData.production_unit}</p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end">
-                <Button
-                  onClick={saveYearlyData}
-                  disabled={yearlyDataSaving || subscriptionExpired}
-                  className="bg-primary hover:bg-primary/90"
-                >
-                  {yearlyDataSaving ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    'Save Yearly Data'
-                  )}
+                <Button onClick={saveYearlyData} disabled={yearlyDataSaving || subscriptionExpired} className="bg-primary hover:bg-primary/90">
+                  {yearlyDataSaving ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>) : 'Save Data'}
                 </Button>
               </div>
             </div>
