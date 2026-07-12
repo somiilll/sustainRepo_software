@@ -688,7 +688,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                 <Label className="text-sm font-medium">
                   Baseline {formData.tracking_mode === 'static' ? '*' : '(Optional)'}
                 </Label>
-                {baselineFromGHG && (
+                {baselineFromGHG && !(formData.target_type === 'intensity_revenue' || formData.target_type === 'intensity_production') && (
                   <Badge className="bg-emerald-100 text-emerald-700 text-xs gap-1">
                     <Zap className="w-3 h-3" />
                     From GHG Module
@@ -696,9 +696,11 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                 )}
               </div>
               <p className="text-xs text-text-muted mb-2">
-                {formData.tracking_mode === 'static' 
-                  ? 'Required reference point for static target progress calculations'
-                  : 'Reference point for progress calculations'}
+                {(formData.target_type === 'intensity_revenue' || formData.target_type === 'intensity_production')
+                  ? 'Enter base year intensity value manually (e.g., 0.85 tCO₂e/tonne)'
+                  : formData.tracking_mode === 'static' 
+                    ? 'Required reference point for static target progress calculations'
+                    : 'Reference point for progress calculations'}
               </p>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -803,21 +805,26 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                     </>
                   ) : (
                     <>
-                      <Label className="text-sm font-medium">Target Value *</Label>
+                      <Label className="text-sm font-medium">
+                        {(formData.target_type === 'intensity_revenue' || formData.target_type === 'intensity_production') 
+                          ? 'Target Intensity Value *' : 'Target Value *'}
+                      </Label>
                       <div className="flex gap-2 mt-1">
                         <Input
                           type="number"
                           value={formData.target_value}
                           onChange={(e) => updateField('target_value', e.target.value)}
-                          placeholder="Enter target value"
+                          placeholder={formData.target_type === 'intensity_revenue' ? 'e.g., 0.45' : formData.target_type === 'intensity_production' ? 'e.g., 0.45' : 'Enter target value'}
                           className="flex-1"
                           data-testid="target-value-input"
                         />
-                        {formData.unit && (
-                          <div className="px-3 py-2 bg-stone-100 rounded-md text-sm text-text-muted flex items-center">
-                            {formData.unit}
-                          </div>
-                        )}
+                        <div className="px-3 py-2 bg-stone-100 rounded-md text-sm text-text-muted flex items-center whitespace-nowrap">
+                          {formData.target_type === 'intensity_revenue' 
+                            ? `${formData.unit || 'unit'}/Mn revenue`
+                            : formData.target_type === 'intensity_production'
+                              ? `${formData.unit || 'unit'}/production unit`
+                              : formData.unit || 'unit'}
+                        </div>
                       </div>
                     </>
                   )}

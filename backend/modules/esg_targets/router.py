@@ -16,8 +16,95 @@ from .contracts import (
 from .service import esg_targets_service
 from .baseline_service import baseline_service
 from .baseline_config import get_metric_mapping, get_all_mapped_metrics
+from shared.database.mongo import db as app_db
 
 router = APIRouter()
+
+
+async def _get_denominator_for_intensity(
+    target: dict,
+    org_id: str,
+    period: dict,
+) -> dict:
+    """
+    Fetch production or revenue denominator for intensity targets.
+    Returns {"value": float|None, "unit": str, "error": str|None}
+    """
+    target_type = target.get("target_type", "")
+    scope_type = target.get("scope_type", "organization")
+    facility_ids = target.get("facility_ids") or []
+    year = period.get("year")
+    month = period.get("month")
+
+    if target_type == "intensity_revenue":
+        # Fetch from organization_financials
+        # Build reporting_year key from year (e.g., "2026-27")
+        fy_key = f"{year}-{str(year + 1)[-2:]}" if year else None
+        if not fy_key:
+            return {"value": None, "unit": "", "error": "Revenue data not found. Add in Organization Details."}
+
+        fin = await app_db.organization_financials.find_one(
+            {"org_id": org_id, "reporting_year": fy_key}, {"_id": 0}
+        )
+        if not fin:
+            return {"value": None, "unit": "", "error": "Revenue data not found. Add in Organization Details."}
+
+        freq = fin.get("frequency", "yearly")
+        currency = fin.get("currency", "INR")
+
+        if freq == "monthly" and month:
+            month_names = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+            m_key = month_names[month - 1] if 1 <= month <= 12 else None
+            monthly_data = fin.get("monthly_data") or {}
+            val = monthly_data.get(m_key)
+            if val:
+                return {"value": float(val), "unit": f"Mn {currency}", "error": None}
+            return {"value": None, "unit": f"Mn {currency}", "error": f"Revenue for {m_key} not found. Add in Organization Details."}
+        else:
+            val = fin.get("turnover")
+            if val:
+                return {"value": float(val), "unit": f"Mn {currency}", "error": None}
+            return {"value": None, "unit": f"Mn {currency}", "error": "Revenue data not found. Add in Organization Details."}
+
+    elif target_type == "intensity_production":
+        # Fetch from production_quantities
+        if scope_type == "facility" and facility_ids:
+            fac_id = facility_ids[0]
+            fy_period = f"FY {year}-{year + 1}" if year else None
+            prod = await app_db.production_quantities.find_one(
+                {"facility_id": fac_id, "reporting_period": fy_period, "is_deleted": {"$ne": True}},
+                {"_id": 0}
+            )
+            error_msg = "Production data not found. Add in Facility Details."
+        else:
+            fy_period = f"FY {year}-{year + 1}" if year else None
+            prod = await app_db.production_quantities.find_one(
+                {"organization_id": org_id, "facility_id": None, "reporting_period": fy_period, "is_deleted": {"$ne": True}},
+                {"_id": 0}
+            )
+            error_msg = "Production data not found. Add in Organization Details."
+
+        if not prod:
+            return {"value": None, "unit": "", "error": error_msg}
+
+        unit = prod.get("unit", "MT")
+        freq = prod.get("frequency", "yearly")
+
+        if freq == "monthly" and month:
+            month_names = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+            m_key = month_names[month - 1] if 1 <= month <= 12 else None
+            monthly_data = prod.get("monthly_data") or {}
+            val = monthly_data.get(m_key)
+            if val:
+                return {"value": float(val), "unit": unit, "error": None}
+            return {"value": None, "unit": unit, "error": f"Production for {m_key} not found. Add monthly data."}
+        else:
+            val = prod.get("quantity")
+            if val:
+                return {"value": float(val), "unit": unit, "error": None}
+            return {"value": None, "unit": unit, "error": error_msg}
+
+    return {"value": None, "unit": "", "error": None}
 
 
 def _require_admin(current_user: dict) -> None:
@@ -367,6 +454,18 @@ async def list_targets_with_progress(
                 target_value = _resolve_target_value(target, period)
                 goal_type = target.get("goal_type", "upper_limit")
                 
+                # For intensity targets: compute actual_intensity = emissions / denominator
+                intensity_error = None
+                if target.get("target_type") in ("intensity_revenue", "intensity_production"):
+                    denom = await _get_denominator_for_intensity(target, org_id, period)
+                    if denom.get("error") or not denom.get("value"):
+                        intensity_error = denom.get("error", "Denominator data not found")
+                        actual_value = None
+                    elif actual_value is not None:
+                        actual_value = round(actual_value / denom["value"], 6)
+                    target_with_progress["intensity_denominator"] = denom.get("value")
+                    target_with_progress["intensity_unit"] = f"{target.get('unit', '')}/{denom.get('unit', '')}"
+
                 # Recalculate target_value for percentage targets if baseline changed
                 if target.get("target_type") == "percentage" and target.get("percentage_amount"):
                     baseline = target.get("baseline") or {}
@@ -397,6 +496,8 @@ async def list_targets_with_progress(
                 target_with_progress["under_target"] = progress_result["under_target"]
                 target_with_progress["record_count"] = calculation.get("record_count", 0)
                 target_with_progress["calculation_period"] = period
+                if intensity_error:
+                    target_with_progress["intensity_error"] = intensity_error
                 
             except Exception as e:
                 target_with_progress["actual_value"] = None

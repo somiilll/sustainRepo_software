@@ -290,6 +290,17 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
     
     // No progress calculated yet
     if (progress_percentage === null || progress_percentage === undefined) {
+      // Check for intensity error
+      if (target.intensity_error) {
+        return (
+          <div className="flex flex-col items-start gap-0.5">
+            <Badge className="bg-amber-100 text-amber-700 text-xs font-semibold" data-testid="progress-badge">
+              Data Missing
+            </Badge>
+            <span className="text-[10px] text-amber-600">{target.intensity_error}</span>
+          </div>
+        );
+      }
       return (
         <Badge variant="outline" className="text-xs text-stone-400">
           N/A
