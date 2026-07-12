@@ -129,15 +129,14 @@ async def update_my_organization(org_data: OrganizationCreate, current_user: dic
 
 
 def _normalize_org_year(reporting_year: str) -> tuple:
-    """Returns (fin_key, prod_period) normalized. e.g. ('2026-2027', 'FY 2026-2027')"""
+    """Returns (fin_key, prod_period) both as 'FY YYYY-YYYY'."""
     import re
     m = re.search(r'(\d{4})', reporting_year)
     if not m:
-        return reporting_year, f"FY {reporting_year}"
+        return reporting_year, reporting_year
     start = int(m.group(1))
-    fin_key = f"{start}-{start + 1}"
-    prod_period = f"FY {start}-{start + 1}"
-    return fin_key, prod_period
+    normalized = f"FY {start}-{start + 1}"
+    return normalized, normalized
 
 
 @router.get("/organization/yearly-data/{reporting_year}")
@@ -151,17 +150,24 @@ async def get_yearly_data(
         raise HTTPException(status_code=404, detail="No organization assigned")
     
     fin_key, prod_period = _normalize_org_year(reporting_year)
-    # Also try legacy short format
-    legacy_fin = f"{fin_key[:4]}-{fin_key[-2:]}"
-    legacy_prod = f"FY {legacy_fin}"
+    # Legacy formats: "2026-27", "2026-2027", "FY 2026-27"
+    import re
+    _m = re.search(r'(\d{4})', fin_key)
+    _start = int(_m.group(1)) if _m else 0
+    legacy_variants = [
+        fin_key,                              # FY 2026-2027
+        f"FY {_start}-{str(_start+1)[-2:]}",  # FY 2026-27
+        f"{_start}-{_start+1}",               # 2026-2027
+        f"{_start}-{str(_start+1)[-2:]}",     # 2026-27
+    ]
     
     financials = await db.organization_financials.find_one(
-        {"org_id": org_id, "reporting_year": {"$in": [fin_key, legacy_fin]}},
+        {"org_id": org_id, "reporting_year": {"$in": legacy_variants}},
         {"_id": 0}
     )
     
     production = await db.production_quantities.find_one(
-        {"organization_id": org_id, "facility_id": None, "reporting_period": {"$in": [prod_period, legacy_prod]}, "is_deleted": {"$ne": True}},
+        {"organization_id": org_id, "facility_id": None, "reporting_period": {"$in": legacy_variants}, "is_deleted": {"$ne": True}},
         {"_id": 0}
     )
     
@@ -189,8 +195,12 @@ async def save_yearly_data(
         raise HTTPException(status_code=404, detail="No organization assigned")
     
     fin_key, prod_period = _normalize_org_year(reporting_year)
-    legacy_fin = f"{fin_key[:4]}-{fin_key[-2:]}"
-    legacy_prod = f"FY {legacy_fin}"
+    import re as _re2
+    _m2 = _re2.search(r'(\d{4})', fin_key)
+    _s2 = int(_m2.group(1)) if _m2 else 0
+    legacy_variants = [
+        fin_key, f"FY {_s2}-{str(_s2+1)[-2:]}", f"{_s2}-{_s2+1}", f"{_s2}-{str(_s2+1)[-2:]}"
+    ]
     
     now = datetime.now(timezone.utc)
     user_id = current_user.get("id")
@@ -212,7 +222,7 @@ async def save_yearly_data(
             update_doc["turnover"] = data.turnover
             update_doc["monthly_data"] = None
         await db.organization_financials.update_one(
-            {"org_id": org_id, "reporting_year": {"$in": [fin_key, legacy_fin]}},
+            {"org_id": org_id, "reporting_year": {"$in": legacy_variants}},
             {"$set": update_doc, "$setOnInsert": {"created_at": now}},
             upsert=True
         )
@@ -220,7 +230,7 @@ async def save_yearly_data(
         # Delete turnover record if value is cleared
         await db.organization_financials.delete_one({
             "org_id": org_id, 
-            "reporting_year": {"$in": [fin_key, legacy_fin]}
+            "reporting_year": {"$in": legacy_variants}
         })
     
     # Handle production quantity - save if provided, delete if empty/null
@@ -238,7 +248,7 @@ async def save_yearly_data(
         existing = await db.production_quantities.find_one({
             "organization_id": org_id,
             "facility_id": None,
-            "reporting_period": {"$in": [prod_period, legacy_prod]},
+            "reporting_period": {"$in": legacy_variants},
             "is_deleted": {"$ne": True}
         })
         
@@ -279,7 +289,7 @@ async def save_yearly_data(
             {
                 "organization_id": org_id,
                 "facility_id": None,
-                "reporting_period": {"$in": [prod_period, legacy_prod]},
+                "reporting_period": {"$in": legacy_variants},
                 "is_deleted": {"$ne": True}
             },
             {"$set": {"is_deleted": True, "updated_at": now, "updated_by": user_id}}
