@@ -16,6 +16,7 @@ class YearlyDataCreate(BaseModel):
     turnover: Optional[str] = None
     turnover_frequency: Optional[str] = "yearly"  # "yearly" or "monthly"
     turnover_monthly: Optional[dict] = None  # {"Apr": 100, "May": 200, ...}
+    turnover_currency: Optional[str] = "INR"
     production_quantity: Optional[str] = None
     production_quantity_frequency: Optional[str] = "yearly"
     production_quantity_monthly: Optional[dict] = None
@@ -153,6 +154,7 @@ async def get_yearly_data(
         "turnover": financials.get("turnover") if financials else "",
         "turnover_frequency": financials.get("frequency", "yearly") if financials else "yearly",
         "turnover_monthly": financials.get("monthly_data") if financials else None,
+        "turnover_currency": financials.get("currency", "INR") if financials else "INR",
         "production_quantity": str(production.get("quantity", "")) if production else "",
         "production_quantity_frequency": production.get("frequency", "yearly") if production else "yearly",
         "production_quantity_monthly": production.get("monthly_data") if production else None,
@@ -180,6 +182,7 @@ async def save_yearly_data(
             "org_id": org_id,
             "reporting_year": reporting_year,
             "frequency": data.turnover_frequency or "yearly",
+            "currency": data.turnover_currency or "INR",
             "updated_at": now,
             "updated_by": user_id
         }

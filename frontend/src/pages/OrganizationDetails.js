@@ -68,7 +68,7 @@ export default function OrganizationDetails() {
     return `${year}-${String(year + 1).slice(-2)}`;
   });
   const [yearlyData, setYearlyData] = useState({ 
-    turnover: '', turnover_frequency: 'yearly', turnover_monthly: {},
+    turnover: '', turnover_frequency: 'yearly', turnover_monthly: {}, turnover_currency: 'INR',
     production_quantity: '', production_quantity_frequency: 'yearly', production_quantity_monthly: {},
     production_unit: 'MT' 
   });
@@ -241,17 +241,18 @@ export default function OrganizationDetails() {
           turnover: response.data.turnover || '',
           turnover_frequency: response.data.turnover_frequency || 'yearly',
           turnover_monthly: response.data.turnover_monthly || {},
+          turnover_currency: response.data.turnover_currency || 'INR',
           production_quantity: response.data.production_quantity || '',
           production_quantity_frequency: response.data.production_quantity_frequency || 'yearly',
           production_quantity_monthly: response.data.production_quantity_monthly || {},
           production_unit: response.data.production_unit || 'MT'
         });
       } else {
-        setYearlyData({ turnover: '', turnover_frequency: 'yearly', turnover_monthly: {}, production_quantity: '', production_quantity_frequency: 'yearly', production_quantity_monthly: {}, production_unit: 'MT' });
+        setYearlyData({ turnover: '', turnover_frequency: 'yearly', turnover_monthly: {}, turnover_currency: 'INR', production_quantity: '', production_quantity_frequency: 'yearly', production_quantity_monthly: {}, production_unit: 'MT' });
       }
     } catch (error) {
       console.log('No yearly data found for', yearlyDataYear);
-      setYearlyData({ turnover: '', turnover_frequency: 'yearly', turnover_monthly: {}, production_quantity: '', production_quantity_frequency: 'yearly', production_quantity_monthly: {}, production_unit: 'MT' });
+      setYearlyData({ turnover: '', turnover_frequency: 'yearly', turnover_monthly: {}, turnover_currency: 'INR', production_quantity: '', production_quantity_frequency: 'yearly', production_quantity_monthly: {}, production_unit: 'MT' });
     } finally {
       setYearlyDataLoading(false);
     }
@@ -1509,30 +1510,39 @@ export default function OrganizationDetails() {
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Turnover */}
+              {/* Turnover / Revenue */}
               <div className="space-y-3 p-4 border border-stone-100 rounded-lg">
                 <div className="flex items-center justify-between">
                   <Label className="text-sm font-medium">
-                    Annual Turnover (INR)
+                    Turnover / Revenue
                     <span className="text-text-muted font-normal ml-1">for FY {yearlyDataYear}</span>
                   </Label>
-                  <Select value={yearlyData.turnover_frequency} onValueChange={(v) => setYearlyData(prev => ({ ...prev, turnover_frequency: v }))} disabled={subscriptionExpired}>
-                    <SelectTrigger className="w-28 h-8 text-xs" data-testid="turnover-frequency">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="yearly">Yearly</SelectItem>
-                      <SelectItem value="monthly">Monthly</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center gap-2">
+                    <Select value={yearlyData.turnover_currency} onValueChange={(v) => setYearlyData(prev => ({ ...prev, turnover_currency: v }))} disabled={subscriptionExpired}>
+                      <SelectTrigger className="w-24 h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {['INR','USD','EUR','GBP','JPY','AUD','CAD','SGD','AED','CHF'].map(c => (
+                          <SelectItem key={c} value={c}>{c}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={yearlyData.turnover_frequency} onValueChange={(v) => setYearlyData(prev => ({ ...prev, turnover_frequency: v }))} disabled={subscriptionExpired}>
+                      <SelectTrigger className="w-28 h-8 text-xs" data-testid="turnover-frequency">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="yearly">Yearly</SelectItem>
+                        <SelectItem value="monthly">Monthly</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 {yearlyData.turnover_frequency === 'yearly' ? (
                   <div>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">₹</span>
-                      <Input type="number" value={yearlyData.turnover} onChange={(e) => setYearlyData(prev => ({ ...prev, turnover: e.target.value }))} placeholder="Enter annual turnover" className="pl-8" disabled={subscriptionExpired} />
-                    </div>
-                    {yearlyData.turnover && <p className="text-xs text-text-muted">₹{Number(yearlyData.turnover).toLocaleString('en-IN')}</p>}
+                    <Input type="number" value={yearlyData.turnover} onChange={(e) => setYearlyData(prev => ({ ...prev, turnover: e.target.value }))} placeholder="Enter turnover / revenue" disabled={subscriptionExpired} />
+                    {yearlyData.turnover && <p className="text-xs text-text-muted">{yearlyData.turnover_currency} {Number(yearlyData.turnover).toLocaleString()}</p>}
                   </div>
                 ) : (
                   <div>
@@ -1548,7 +1558,7 @@ export default function OrganizationDetails() {
                       ))}
                     </div>
                     {Object.values(yearlyData.turnover_monthly || {}).some(v => v) && (
-                      <p className="text-xs text-text-muted mt-1">Total: ₹{Object.values(yearlyData.turnover_monthly || {}).reduce((s, v) => s + (parseFloat(v) || 0), 0).toLocaleString('en-IN')}</p>
+                      <p className="text-xs text-text-muted mt-1">Total: {yearlyData.turnover_currency} {Object.values(yearlyData.turnover_monthly || {}).reduce((s, v) => s + (parseFloat(v) || 0), 0).toLocaleString()}</p>
                     )}
                   </div>
                 )}
