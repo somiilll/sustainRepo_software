@@ -21,7 +21,29 @@ const STATUS_COLORS = {
 const CustomDot = ({ cx, cy, payload }) => {
   if (payload.is_future || payload.actual === null || payload.actual === undefined) return null;
   const color = STATUS_COLORS[payload.status] || STATUS_COLORS.no_data;
-  return <circle cx={cx} cy={cy} r={5} fill={color} stroke="#fff" strokeWidth={2} />;
+  const r = 6;
+
+  if (payload.status === 'breached') {
+    // Red circle with X
+    return (
+      <g>
+        <circle cx={cx} cy={cy} r={r + 2} fill="#fef2f2" stroke={color} strokeWidth={2} />
+        <line x1={cx - 3} y1={cy - 3} x2={cx + 3} y2={cy + 3} stroke={color} strokeWidth={2} />
+        <line x1={cx + 3} y1={cy - 3} x2={cx - 3} y2={cy + 3} stroke={color} strokeWidth={2} />
+      </g>
+    );
+  }
+  if (payload.status === 'at_risk') {
+    // Orange triangle
+    return (
+      <g>
+        <polygon points={`${cx},${cy - r - 1} ${cx - r},${cy + r - 1} ${cx + r},${cy + r - 1}`} fill="#fffbeb" stroke={color} strokeWidth={2} />
+        <text x={cx} y={cy + 3} textAnchor="middle" fontSize={10} fontWeight="bold" fill={color}>!</text>
+      </g>
+    );
+  }
+  // Green dot for on_track
+  return <circle cx={cx} cy={cy} r={r} fill={color} stroke="#fff" strokeWidth={2} />;
 };
 
 const CustomTooltip = ({ active, payload, unit, goalType }) => {
@@ -79,7 +101,7 @@ function MonthlyChart({ data, unit, goalType }) {
           <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="#78716c" />
           <YAxis tick={{ fontSize: 12 }} stroke="#78716c" />
           <Tooltip content={<CustomTooltip unit={unit} goalType={goalType} />} />
-          <Line type="monotone" dataKey="target" stroke="#94a3b8" strokeWidth={2} strokeDasharray="6 3" dot={false} name="Target" />
+          <Line type="monotone" dataKey="target" stroke="#e11d48" strokeWidth={2} strokeDasharray="6 3" dot={false} name="Target" />
           <Line type="monotone" dataKey="actual" stroke="#0ea5e9" strokeWidth={2.5} dot={<CustomDot />} connectNulls={false} name="Actual" />
           {data.find(d => d.is_current) && (
             <ReferenceLine x={data.find(d => d.is_current)?.month} stroke="#6366f1" strokeDasharray="4 4" label={{ value: "NOW", position: "top", fontSize: 10, fill: "#6366f1" }} />
@@ -100,7 +122,7 @@ function YearlyCumulativeChart({ data, unit, goalType, annualTarget }) {
           <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="#78716c" />
           <YAxis tick={{ fontSize: 12 }} stroke="#78716c" />
           <Tooltip content={<CustomTooltip unit={unit} goalType={goalType} />} />
-          <Line type="monotone" dataKey="target" stroke="#94a3b8" strokeWidth={2} strokeDasharray="6 3" dot={false} name="Target Trajectory" />
+          <Line type="monotone" dataKey="target" stroke="#e11d48" strokeWidth={2} strokeDasharray="6 3" dot={false} name="Target Trajectory" />
           <Line type="monotone" dataKey="actual" stroke="#0ea5e9" strokeWidth={2.5} dot={<CustomDot />} connectNulls={false} name="Cumulative Actual" />
           {data.find(d => d.is_current) && (
             <ReferenceLine x={data.find(d => d.is_current)?.month} stroke="#6366f1" strokeDasharray="4 4" label={{ value: "NOW", position: "top", fontSize: 10, fill: "#6366f1" }} />
