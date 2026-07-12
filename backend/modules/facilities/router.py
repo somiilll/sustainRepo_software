@@ -282,19 +282,23 @@ async def get_facility_production(
 
     org_id = facility["organization_id"]
     
-    # Check for yearly production record
+    # Check for yearly production record — try both normalized and legacy format
+    import re
+    fy_match = re.search(r'(\d{4})', reporting_year)
+    fy_start = int(fy_match.group(1)) if fy_match else None
+    legacy_period = f"FY {fy_start}-{str(fy_start + 1)[-2:]}" if fy_start else None
+    
     yearly_record = await db.production_quantities.find_one(
         {
             "organization_id": org_id,
             "facility_id": facility_id,
-            "reporting_period": reporting_year,
+            "reporting_period": {"$in": [p for p in [reporting_year, legacy_period] if p]},
             "is_deleted": {"$ne": True}
         },
         {"_id": 0}
     )
     
     # Build list of YYYY-MM periods for this FY
-    fy_start = int(reporting_year.split("-")[0])
     monthly_periods = []
     for month_name in MONTH_ORDER:
         year, month_num = get_calendar_year_month(reporting_year, month_name)
@@ -374,6 +378,13 @@ async def save_facility_production(
     now = datetime.now(timezone.utc)
     user_id = current_user.get("id")
     
+    # Compute legacy format for matching old records
+    import re as _re
+    _fy_m = _re.search(r'(\d{4})', reporting_year)
+    _fy_start = int(_fy_m.group(1)) if _fy_m else 0
+    _legacy_period = f"FY {_fy_start}-{str(_fy_start + 1)[-2:]}"
+    _both_periods = [reporting_year, _legacy_period]
+    
     # Build list of YYYY-MM periods for this FY (for cleanup)
     monthly_periods = []
     for month_name in MONTH_ORDER:
@@ -382,12 +393,12 @@ async def save_facility_production(
             monthly_periods.append(f"{year}-{month_num:02d}")
     
     if data.input_type == "monthly" and data.monthly_data:
-        # Clear any existing yearly record for this FY
+        # Clear any existing yearly record for this FY (both formats)
         await db.production_quantities.update_many(
             {
                 "organization_id": org_id,
                 "facility_id": facility_id,
-                "reporting_period": reporting_year,
+                "reporting_period": {"$in": _both_periods},
                 "is_deleted": {"$ne": True}
             },
             {"$set": {"is_deleted": True, "deleted_at": now}}
@@ -469,11 +480,10 @@ async def save_facility_production(
         )
         
         # Save/update yearly record
-        reporting_period = reporting_year
         existing = await db.production_quantities.find_one({
             "organization_id": org_id,
             "facility_id": facility_id,
-            "reporting_period": reporting_period,
+            "reporting_period": {"$in": _both_periods},
             "is_deleted": {"$ne": True}
         })
         
@@ -483,6 +493,7 @@ async def save_facility_production(
                 {"$set": {
                     "quantity": float(data.quantity) if data.quantity else 0,
                     "unit": data.unit or "MT",
+                    "reporting_period": reporting_year,
                     "updated_at": now,
                     "updated_by": user_id
                 }}
@@ -492,7 +503,7 @@ async def save_facility_production(
                 "id": str(uuid.uuid4()),
                 "organization_id": org_id,
                 "facility_id": facility_id,
-                "reporting_period": reporting_period,
+                "reporting_period": reporting_year,
                 "quantity": float(data.quantity) if data.quantity else 0,
                 "unit": data.unit or "MT",
                 "notes": "Yearly production quantity",

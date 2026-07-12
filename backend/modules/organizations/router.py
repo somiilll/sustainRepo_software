@@ -128,6 +128,18 @@ async def update_my_organization(org_data: OrganizationCreate, current_user: dic
     return OrganizationResponse(**updated)
 
 
+def _normalize_org_year(reporting_year: str) -> tuple:
+    """Returns (fin_key, prod_period) normalized. e.g. ('2026-2027', 'FY 2026-2027')"""
+    import re
+    m = re.search(r'(\d{4})', reporting_year)
+    if not m:
+        return reporting_year, f"FY {reporting_year}"
+    start = int(m.group(1))
+    fin_key = f"{start}-{start + 1}"
+    prod_period = f"FY {start}-{start + 1}"
+    return fin_key, prod_period
+
+
 @router.get("/organization/yearly-data/{reporting_year}")
 async def get_yearly_data(
     reporting_year: str,
@@ -138,15 +150,18 @@ async def get_yearly_data(
     if not org_id:
         raise HTTPException(status_code=404, detail="No organization assigned")
     
-    # Fetch turnover from organization_financials
+    fin_key, prod_period = _normalize_org_year(reporting_year)
+    # Also try legacy short format
+    legacy_fin = f"{fin_key[:4]}-{fin_key[-2:]}"
+    legacy_prod = f"FY {legacy_fin}"
+    
     financials = await db.organization_financials.find_one(
-        {"org_id": org_id, "reporting_year": reporting_year},
+        {"org_id": org_id, "reporting_year": {"$in": [fin_key, legacy_fin]}},
         {"_id": 0}
     )
     
-    # Fetch production quantity from production_quantities (org-level, facility_id=None)
     production = await db.production_quantities.find_one(
-        {"organization_id": org_id, "facility_id": None, "reporting_period": f"FY {reporting_year}", "is_deleted": {"$ne": True}},
+        {"organization_id": org_id, "facility_id": None, "reporting_period": {"$in": [prod_period, legacy_prod]}, "is_deleted": {"$ne": True}},
         {"_id": 0}
     )
     
@@ -173,6 +188,10 @@ async def save_yearly_data(
     if not org_id:
         raise HTTPException(status_code=404, detail="No organization assigned")
     
+    fin_key, prod_period = _normalize_org_year(reporting_year)
+    legacy_fin = f"{fin_key[:4]}-{fin_key[-2:]}"
+    legacy_prod = f"FY {legacy_fin}"
+    
     now = datetime.now(timezone.utc)
     user_id = current_user.get("id")
     
@@ -180,7 +199,7 @@ async def save_yearly_data(
     if data.turnover or data.turnover_monthly:
         update_doc = {
             "org_id": org_id,
-            "reporting_year": reporting_year,
+            "reporting_year": fin_key,
             "frequency": data.turnover_frequency or "yearly",
             "currency": data.turnover_currency or "INR",
             "updated_at": now,
@@ -193,7 +212,7 @@ async def save_yearly_data(
             update_doc["turnover"] = data.turnover
             update_doc["monthly_data"] = None
         await db.organization_financials.update_one(
-            {"org_id": org_id, "reporting_year": reporting_year},
+            {"org_id": org_id, "reporting_year": {"$in": [fin_key, legacy_fin]}},
             {"$set": update_doc, "$setOnInsert": {"created_at": now}},
             upsert=True
         )
@@ -201,7 +220,7 @@ async def save_yearly_data(
         # Delete turnover record if value is cleared
         await db.organization_financials.delete_one({
             "org_id": org_id, 
-            "reporting_year": reporting_year
+            "reporting_year": {"$in": [fin_key, legacy_fin]}
         })
     
     # Handle production quantity - save if provided, delete if empty/null
@@ -219,7 +238,7 @@ async def save_yearly_data(
         existing = await db.production_quantities.find_one({
             "organization_id": org_id,
             "facility_id": None,
-            "reporting_period": f"FY {reporting_year}",
+            "reporting_period": {"$in": [prod_period, legacy_prod]},
             "is_deleted": {"$ne": True}
         })
         
@@ -231,6 +250,7 @@ async def save_yearly_data(
                     "unit": data.production_unit or "MT",
                     "frequency": freq,
                     "monthly_data": monthly_data,
+                    "reporting_period": prod_period,
                     "updated_at": now,
                     "updated_by": user_id
                 }}
@@ -240,7 +260,7 @@ async def save_yearly_data(
                 "id": str(uuid.uuid4()),
                 "organization_id": org_id,
                 "facility_id": None,
-                "reporting_period": f"FY {reporting_year}",
+                "reporting_period": prod_period,
                 "quantity": qty,
                 "unit": data.production_unit or "MT",
                 "frequency": freq,
@@ -259,10 +279,10 @@ async def save_yearly_data(
             {
                 "organization_id": org_id,
                 "facility_id": None,
-                "reporting_period": f"FY {reporting_year}",
+                "reporting_period": {"$in": [prod_period, legacy_prod]},
                 "is_deleted": {"$ne": True}
             },
             {"$set": {"is_deleted": True, "updated_at": now, "updated_by": user_id}}
         )
     
-    return {"success": True, "message": f"Saved yearly data for FY {reporting_year}"}
+    return {"success": True, "message": f"Saved data for {prod_period}"}
