@@ -200,14 +200,17 @@ NUM_TO_MONTH = {4: "Apr", 5: "May", 6: "Jun", 7: "Jul", 8: "Aug", 9: "Sep", 10: 
 def get_calendar_year_month(fy_year: str, month_name: str) -> tuple:
     """
     Convert FY year and month name to calendar year and month number.
-    FY 2024-25: Apr-Dec are in 2024, Jan-Mar are in 2025
+    Handles formats: "FY 2024-2025", "FY 2024-25", "2024-25", "CY 2024"
     Returns (year, month_num) e.g., (2024, 4) for Apr in FY 2024-25
     """
-    fy_start = int(fy_year.split("-")[0])
+    import re
+    match = re.search(r'(\d{4})', fy_year)
+    if not match:
+        return None, None
+    fy_start = int(match.group(1))
     month_num = MONTH_TO_NUM.get(month_name)
     if not month_num:
         return None, None
-    # Apr-Dec belong to FY start year, Jan-Mar belong to FY start year + 1
     if month_num >= 4:
         return fy_start, month_num
     else:
@@ -236,6 +239,29 @@ def get_fy_month_from_period(period: str) -> tuple:
     return fy_year, month_name
 
 
+def _normalize_fy_period(reporting_year: str) -> str:
+    """Normalize any FY format to 'FY YYYY-YYYY' for DB queries. Also handles CY."""
+    import re
+    s = reporting_year.strip()
+    # Already full format "FY 2026-2027"
+    if re.match(r'^FY \d{4}-\d{4}$', s):
+        return s
+    # "FY 2026-27" → "FY 2026-2027"
+    m = re.match(r'^FY (\d{4})-(\d{2})$', s)
+    if m:
+        start = int(m.group(1))
+        return f"FY {start}-{start + 1}"
+    # "2026-27" → "FY 2026-2027"
+    m = re.match(r'^(\d{4})-(\d{2,4})$', s)
+    if m:
+        start = int(m.group(1))
+        return f"FY {start}-{start + 1}"
+    # "CY 2026"
+    if s.startswith("CY"):
+        return s
+    return s
+
+
 @router.get("/facilities/{facility_id}/production/{reporting_year}")
 async def get_facility_production(
     facility_id: str,
@@ -243,6 +269,7 @@ async def get_facility_production(
     current_user: dict = Depends(get_current_user)
 ):
     """Get facility production quantities for a reporting year (monthly or yearly data)."""
+    reporting_year = _normalize_fy_period(reporting_year)
     facility = await db.facilities.find_one({"id": facility_id}, {"_id": 0})
     if not facility:
         raise HTTPException(status_code=404, detail="Facility not found")
@@ -260,7 +287,7 @@ async def get_facility_production(
         {
             "organization_id": org_id,
             "facility_id": facility_id,
-            "reporting_period": f"FY {reporting_year}",
+            "reporting_period": reporting_year,
             "is_deleted": {"$ne": True}
         },
         {"_id": 0}
@@ -332,6 +359,7 @@ async def save_facility_production(
     current_user: dict = Depends(get_current_user)
 ):
     """Save facility production quantities - supports monthly or yearly input."""
+    reporting_year = _normalize_fy_period(reporting_year)
     facility = await db.facilities.find_one({"id": facility_id}, {"_id": 0})
     if not facility:
         raise HTTPException(status_code=404, detail="Facility not found")
@@ -359,7 +387,7 @@ async def save_facility_production(
             {
                 "organization_id": org_id,
                 "facility_id": facility_id,
-                "reporting_period": f"FY {reporting_year}",
+                "reporting_period": reporting_year,
                 "is_deleted": {"$ne": True}
             },
             {"$set": {"is_deleted": True, "deleted_at": now}}
@@ -441,7 +469,7 @@ async def save_facility_production(
         )
         
         # Save/update yearly record
-        reporting_period = f"FY {reporting_year}"
+        reporting_period = reporting_year
         existing = await db.production_quantities.find_one({
             "organization_id": org_id,
             "facility_id": facility_id,
