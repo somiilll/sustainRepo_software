@@ -41,7 +41,7 @@ async def _get_denominator_for_intensity(
         if not year:
             return {"value": None, "unit": "", "error": "Revenue data not found. Add in Organization Details."}
         
-        keys_to_try = [f"{year}-{str(year + 1)[-2:]}", f"{year}-{year + 1}"]
+        keys_to_try = [f"FY {year}-{year + 1}", f"FY {year}-{str(year + 1)[-2:]}", f"{year}-{year + 1}", f"{year}-{str(year + 1)[-2:]}"]
         fin = None
         for fy_key in keys_to_try:
             fin = await app_db.organization_financials.find_one(
@@ -70,18 +70,22 @@ async def _get_denominator_for_intensity(
             return {"value": None, "unit": f"Mn {currency}", "error": "Revenue data not found. Add in Organization Details."}
 
     elif target_type == "intensity_production":
-        # Fetch from production_quantities — try both period formats
+        # Fetch from production_quantities
         if not year:
             return {"value": None, "unit": "", "error": "Production data not found."}
         
+        # Periods to try: FY yearly formats + YYYY-MM monthly format
         periods_to_try = [f"FY {year}-{year + 1}", f"FY {year}-{str(year + 1)[-2:]}"]
+        if month:
+            periods_to_try.append(f"{year}-{month:02d}")
         
         if scope_type == "facility" and facility_ids:
             fac_id = facility_ids[0]
+            # First try: direct YYYY-MM monthly record (facility monthly production)
             prod = None
-            for fy_period in periods_to_try:
+            for period_fmt in periods_to_try:
                 prod = await app_db.production_quantities.find_one(
-                    {"facility_id": fac_id, "reporting_period": fy_period, "is_deleted": {"$ne": True}},
+                    {"facility_id": fac_id, "reporting_period": period_fmt, "is_deleted": {"$ne": True}},
                     {"_id": 0}
                 )
                 if prod:
@@ -89,9 +93,9 @@ async def _get_denominator_for_intensity(
             error_msg = "Production data not found. Add in Facility Details."
         else:
             prod = None
-            for fy_period in periods_to_try:
+            for period_fmt in periods_to_try:
                 prod = await app_db.production_quantities.find_one(
-                    {"organization_id": org_id, "facility_id": None, "reporting_period": fy_period, "is_deleted": {"$ne": True}},
+                    {"organization_id": org_id, "facility_id": None, "reporting_period": period_fmt, "is_deleted": {"$ne": True}},
                     {"_id": 0}
                 )
                 if prod:
@@ -102,8 +106,17 @@ async def _get_denominator_for_intensity(
             return {"value": None, "unit": "", "error": error_msg}
 
         unit = prod.get("unit", "MT")
-        freq = prod.get("frequency", "yearly")
+        period_matched = prod.get("reporting_period", "")
 
+        # If matched a YYYY-MM monthly record, return its quantity directly
+        if month and period_matched == f"{year}-{month:02d}":
+            val = prod.get("quantity")
+            if val:
+                return {"value": float(val), "unit": unit, "error": None}
+            return {"value": None, "unit": unit, "error": f"Production for month {month} not found."}
+
+        # Matched a yearly record — check if it has monthly_data
+        freq = prod.get("frequency", "yearly")
         if freq == "monthly" and month:
             month_names = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
             m_key = month_names[month - 1] if 1 <= month <= 12 else None
