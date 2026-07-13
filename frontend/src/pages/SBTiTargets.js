@@ -12,7 +12,13 @@ import { Progress } from '../components/ui/progress';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { Target, Plus, Edit2, Trash2, TrendingDown, Zap } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts';
+
+const RedDot = ({ cx, cy, payload, dataKey, compareKey }) => {
+  if (payload[dataKey] == null) return null;
+  const isAbove = payload[compareKey] != null && payload[dataKey] > payload[compareKey];
+  return <circle cx={cx} cy={cy} r={4} fill={isAbove ? '#dc2626' : '#0ea5e9'} stroke="#fff" strokeWidth={1.5} />;
+};
 import { generateReportingYears } from '../utils/reportingYearUtils';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -87,14 +93,15 @@ function TargetCard({ target, onEdit, onDelete, token }) {
       {isIntensity && progress?.trajectory && (
         <div className="mt-3">
           <p className="text-xs text-text-muted mb-1">Intensity Pathway</p>
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={progress.trajectory} margin={{ top: 5, right: 20, left: 0, bottom: 0 }}>
+          <ResponsiveContainer width="100%" height={280}>
+            <LineChart data={progress.trajectory} margin={{ top: 5, right: 20, left: 10, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
               <XAxis dataKey="year_label" tick={{ fontSize: 9 }} stroke="#78716c" angle={-30} textAnchor="end" height={50} />
               <YAxis tick={{ fontSize: 10 }} stroke="#78716c" />
               <Tooltip />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
               <Line type="monotone" dataKey="expected" stroke="#e11d48" strokeWidth={2} strokeDasharray="6 3" dot={{ r: 3 }} name="Expected Pathway" />
-              <Line type="monotone" dataKey="actual" stroke="#0ea5e9" strokeWidth={2.5} dot={{ r: 4, fill: '#0ea5e9' }} connectNulls={false} name="Actual Intensity" />
+              <Line type="monotone" dataKey="actual" stroke="#0ea5e9" strokeWidth={2.5} dot={<RedDot dataKey="actual" compareKey="expected" />} connectNulls={false} name="Actual Intensity" />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -104,16 +111,17 @@ function TargetCard({ target, onEdit, onDelete, token }) {
       {!isIntensity && progress?.chart_data && (
         <div className="mt-3">
           <p className="text-xs text-text-muted mb-1">Emissions Trajectory</p>
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={progress.chart_data} margin={{ top: 5, right: 20, left: 0, bottom: 0 }}>
+          <ResponsiveContainer width="100%" height={280}>
+            <LineChart data={progress.chart_data} margin={{ top: 5, right: 20, left: 10, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
               <XAxis dataKey="year_label" tick={{ fontSize: 9 }} stroke="#78716c" angle={-30} textAnchor="end" height={50} />
-              <YAxis tick={{ fontSize: 10 }} stroke="#78716c" />
+              <YAxis tick={{ fontSize: 10 }} stroke="#78716c" domain={['auto', 'auto']} />
               <Tooltip />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
               <Line type="monotone" dataKey="projected" stroke="#f59e0b" strokeWidth={2} strokeDasharray="6 3" dot={{ r: 3 }} name="Projected (no reduction)" />
-              <Line type="monotone" dataKey="actual" stroke="#0ea5e9" strokeWidth={2.5} dot={{ r: 4, fill: '#0ea5e9' }} connectNulls={false} name="Actual Emissions" />
+              <Line type="monotone" dataKey="actual" stroke="#0ea5e9" strokeWidth={2.5} dot={<RedDot dataKey="actual" compareKey="projected" />} connectNulls={false} name="Actual Emissions" />
               {progress.target_line_value != null && (
-                <ReferenceLine y={progress.target_line_value} stroke="#16a34a" strokeDasharray="4 4" label={{ value: `Target: ${progress.target_line_value}`, fontSize: 10, fill: '#16a34a' }} />
+                <ReferenceLine y={progress.target_line_value} stroke="#16a34a" strokeWidth={2} strokeDasharray="4 4" label={{ value: `Target: ${progress.target_line_value}`, fontSize: 10, fill: '#16a34a', position: 'right' }} />
               )}
             </LineChart>
           </ResponsiveContainer>
