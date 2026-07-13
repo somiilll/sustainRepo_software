@@ -62,11 +62,8 @@ export default function OrganizationDetails() {
   const [activeTab, setActiveTab] = useState('organization');
   
   // Yearly Data State (Turnover & Production Quantity)
-  const [yearlyDataYear, setYearlyDataYear] = useState(() => {
-    const now = new Date();
-    const year = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-    return `${year}-${String(year + 1).slice(-2)}`;
-  });
+  const [yearlyDataYear, setYearlyDataYear] = useState('');
+  // Will be set after org loads
   const [yearlyData, setYearlyData] = useState({ 
     turnover: '', turnover_frequency: 'yearly', turnover_monthly: {}, turnover_currency: 'INR',
     production_quantity: '', production_quantity_frequency: 'yearly', production_quantity_monthly: {},
@@ -274,7 +271,7 @@ export default function OrganizationDetails() {
         yearlyData,
         { headers: getAuthHeader() }
       );
-      toast.success(`Saved data for FY ${yearlyDataYear}`);
+      toast.success(`Saved data for ${organization?.reporting_year_type === 'calendar_year' ? 'CY' : 'FY'} ${yearlyDataYear}`);
     } catch (error) {
       toast.error('Failed to save yearly data');
     } finally {
@@ -296,6 +293,18 @@ export default function OrganizationDetails() {
         headers: getAuthHeader()
       });
       setOrganization(response.data);
+      
+      // Set default yearly data year based on org reporting type
+      if (!yearlyDataYear) {
+        const now = new Date();
+        const isCY = response.data.reporting_year_type === 'calendar_year';
+        if (isCY) {
+          setYearlyDataYear(String(now.getFullYear()));
+        } else {
+          const fyStart = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+          setYearlyDataYear(`${fyStart}-${String(fyStart + 1).slice(-2)}`);
+        }
+      }
       
       // Reconstruct control_types from org_boundaries_approach
       let controlTypes = response.data.control_types || [];
@@ -1486,21 +1495,33 @@ export default function OrganizationDetails() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Select value={yearlyDataYear} onValueChange={setYearlyDataYear}>
-                <SelectTrigger className="w-36">
-                  <SelectValue placeholder="Select FY" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 5 }, (_, i) => {
-                    const year = new Date().getFullYear() - i;
-                    return (
-                      <SelectItem key={year} value={`${year}-${String(year + 1).slice(-2)}`}>
-                        FY {year}-{String(year + 1).slice(-2)}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
+              {(() => {
+                const isCY = organization?.reporting_year_type === 'calendar_year';
+                return (
+                  <Select value={yearlyDataYear} onValueChange={setYearlyDataYear}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder={isCY ? "Select CY" : "Select FY"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 5 }, (_, i) => {
+                        const year = new Date().getFullYear() - i;
+                        if (isCY) {
+                          return (
+                            <SelectItem key={year} value={String(year)}>
+                              CY {year}
+                            </SelectItem>
+                          );
+                        }
+                        return (
+                          <SelectItem key={year} value={`${year}-${String(year + 1).slice(-2)}`}>
+                            FY {year}-{String(year + 1).slice(-2)}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                );
+              })()}
             </div>
           </div>
 
@@ -1515,7 +1536,7 @@ export default function OrganizationDetails() {
                 <div className="flex items-center justify-between">
                   <Label className="text-sm font-medium">
                     Turnover / Revenue
-                    <span className="text-text-muted font-normal ml-1">for FY {yearlyDataYear}</span>
+                    <span className="text-text-muted font-normal ml-1">for {organization?.reporting_year_type === 'calendar_year' ? 'CY' : 'FY'} {yearlyDataYear}</span>
                   </Label>
                   <div className="flex items-center gap-2">
                     <Select value={yearlyData.turnover_currency} onValueChange={(v) => setYearlyData(prev => ({ ...prev, turnover_currency: v }))} disabled={subscriptionExpired}>
@@ -1547,7 +1568,10 @@ export default function OrganizationDetails() {
                 ) : (
                   <div>
                     <div className="grid grid-cols-4 gap-2">
-                      {['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'].map(m => (
+                      {(organization?.reporting_year_type === 'calendar_year'
+                        ? ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+                        : ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar']
+                      ).map(m => (
                         <div key={m}>
                           <Label className="text-[10px] text-text-muted">{m}</Label>
                           <Input type="number" className="h-8 text-xs" placeholder="0" disabled={subscriptionExpired}
@@ -1569,7 +1593,7 @@ export default function OrganizationDetails() {
                 <div className="flex items-center justify-between">
                   <Label className="text-sm font-medium">
                     Production Quantity
-                    <span className="text-text-muted font-normal ml-1">for FY {yearlyDataYear}</span>
+                    <span className="text-text-muted font-normal ml-1">for {organization?.reporting_year_type === 'calendar_year' ? 'CY' : 'FY'} {yearlyDataYear}</span>
                   </Label>
                   <div className="flex items-center gap-2">
                     <Input type="text" value={yearlyData.production_unit} onChange={(e) => setYearlyData(prev => ({ ...prev, production_unit: e.target.value }))} placeholder="Unit" className="w-20 h-8 text-xs" disabled={subscriptionExpired} />
@@ -1589,7 +1613,10 @@ export default function OrganizationDetails() {
                 ) : (
                   <div>
                     <div className="grid grid-cols-4 gap-2">
-                      {['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'].map(m => (
+                      {(organization?.reporting_year_type === 'calendar_year'
+                        ? ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+                        : ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar']
+                      ).map(m => (
                         <div key={m}>
                           <Label className="text-[10px] text-text-muted">{m}</Label>
                           <Input type="number" className="h-8 text-xs" placeholder="0" disabled={subscriptionExpired}

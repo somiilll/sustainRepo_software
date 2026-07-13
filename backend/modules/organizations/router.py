@@ -129,13 +129,11 @@ async def update_my_organization(org_data: OrganizationCreate, current_user: dic
 
 
 def _normalize_org_year(reporting_year: str) -> tuple:
-    """Returns (fin_key, prod_period) both as 'FY YYYY-YYYY'."""
-    import re
-    m = re.search(r'(\d{4})', reporting_year)
-    if not m:
-        return reporting_year, reporting_year
-    start = int(m.group(1))
-    normalized = f"FY {start}-{start + 1}"
+    """Returns (fin_key, prod_period) in canonical format.
+    Detects CY vs FY from the input string.
+    """
+    from shared.utils.period_utils import normalize_period
+    normalized = normalize_period(reporting_year)
     return normalized, normalized
 
 
@@ -150,16 +148,10 @@ async def get_yearly_data(
         raise HTTPException(status_code=404, detail="No organization assigned")
     
     fin_key, prod_period = _normalize_org_year(reporting_year)
-    # Legacy formats: "2026-27", "2026-2027", "FY 2026-27"
-    import re
-    _m = re.search(r'(\d{4})', fin_key)
-    _start = int(_m.group(1)) if _m else 0
-    legacy_variants = [
-        fin_key,                              # FY 2026-2027
-        f"FY {_start}-{str(_start+1)[-2:]}",  # FY 2026-27
-        f"{_start}-{_start+1}",               # 2026-2027
-        f"{_start}-{str(_start+1)[-2:]}",     # 2026-27
-    ]
+    from shared.utils.period_utils import extract_year, period_variants, detect_type
+    _year = extract_year(fin_key) or 0
+    _rtype = detect_type(fin_key)
+    legacy_variants = period_variants(_year, _rtype)
     
     financials = await db.organization_financials.find_one(
         {"org_id": org_id, "reporting_year": {"$in": legacy_variants}},
@@ -195,12 +187,10 @@ async def save_yearly_data(
         raise HTTPException(status_code=404, detail="No organization assigned")
     
     fin_key, prod_period = _normalize_org_year(reporting_year)
-    import re as _re2
-    _m2 = _re2.search(r'(\d{4})', fin_key)
-    _s2 = int(_m2.group(1)) if _m2 else 0
-    legacy_variants = [
-        fin_key, f"FY {_s2}-{str(_s2+1)[-2:]}", f"{_s2}-{_s2+1}", f"{_s2}-{str(_s2+1)[-2:]}"
-    ]
+    from shared.utils.period_utils import extract_year, period_variants, detect_type
+    _year2 = extract_year(fin_key) or 0
+    _rtype2 = detect_type(fin_key)
+    legacy_variants = period_variants(_year2, _rtype2)
     
     now = datetime.now(timezone.utc)
     user_id = current_user.get("id")

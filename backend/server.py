@@ -3648,6 +3648,8 @@ logger = logging.getLogger(__name__)
 @app.on_event("startup")
 async def startup_event():
     """Check and deactivate expired organizations on startup"""
+    from shared.database.indexes import ensure_indexes
+    await ensure_indexes(db)
     await check_expired_subscriptions()
     await seed_scopes_and_categories(db)
     await seed_calc_engine(db)

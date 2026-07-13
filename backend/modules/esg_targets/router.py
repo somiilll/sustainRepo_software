@@ -17,8 +17,19 @@ from .service import esg_targets_service
 from .baseline_service import baseline_service
 from .baseline_config import get_metric_mapping, get_all_mapped_metrics
 from shared.database.mongo import db as app_db
+from shared.utils.period_utils import (
+    format_period, extract_year, detect_type, period_variants, normalize_period
+)
 
 router = APIRouter()
+
+
+async def _get_org_reporting_type(org_id: str) -> str:
+    """Get org reporting type: 'FY' or 'CY'."""
+    org = await app_db.organizations.find_one({"id": org_id}, {"_id": 0, "reporting_year_type": 1})
+    if org and org.get("reporting_year_type") == "calendar_year":
+        return "CY"
+    return "FY"
 
 
 async def _get_denominator_for_intensity(
@@ -35,13 +46,13 @@ async def _get_denominator_for_intensity(
     facility_ids = target.get("facility_ids") or []
     year = period.get("year")
     month = period.get("month")
+    rep_type = target.get("_reporting_type", "FY")
 
     if target_type == "intensity_revenue":
-        # Fetch from organization_financials — try both key formats
         if not year:
             return {"value": None, "unit": "", "error": "Revenue data not found. Add in Organization Details."}
         
-        keys_to_try = [f"FY {year}-{year + 1}", f"FY {year}-{str(year + 1)[-2:]}", f"{year}-{year + 1}", f"{year}-{str(year + 1)[-2:]}"]
+        keys_to_try = period_variants(year, rep_type)
         fin = None
         for fy_key in keys_to_try:
             fin = await app_db.organization_financials.find_one(
@@ -75,7 +86,7 @@ async def _get_denominator_for_intensity(
             return {"value": None, "unit": "", "error": "Production data not found."}
         
         # Periods to try: FY yearly formats + YYYY-MM monthly format
-        periods_to_try = [f"FY {year}-{year + 1}", f"FY {year}-{str(year + 1)[-2:]}"]
+        periods_to_try = period_variants(year, rep_type)
         if month:
             periods_to_try.append(f"{year}-{month:02d}")
         
@@ -258,44 +269,33 @@ def _calculate_progress(actual_value, target_value, goal_type, target) -> dict:
 
 
 def _extract_year_from_period(period_str: str) -> Optional[int]:
-    """Extract the primary year from a reporting period string like 'FY 2025-2026', 'CY 2025'."""
-    if not period_str:
-        return None
-    import re
-    match = re.search(r'(\d{4})', period_str)
-    return int(match.group(1)) if match else None
+    """Alias for shared extract_year."""
+    return extract_year(period_str)
 
 
 def _is_target_year_passed(target: dict) -> bool:
     """Check if target's reporting year has fully passed."""
     now = datetime.now(timezone.utc)
-    current_year = now.year
-    current_month = now.month
     tracking_mode = target.get("tracking_mode", "static")
 
-    if tracking_mode == "static":
-        period = target.get("reporting_period") or ""
-    elif tracking_mode == "yearly":
+    if tracking_mode == "yearly":
         period = target.get("end_period") or target.get("reporting_period") or ""
     else:
-        # monthly — use reporting_period as the target year
         period = target.get("reporting_period") or ""
 
-    period_lower = period.lower().strip()
-    year = _extract_year_from_period(period)
+    year = extract_year(period)
     if not year:
         return False
 
-    if period_lower.startswith("fy"):
-        # FY 2025-2026 ends March 2026 — so the end year is year+1, month 3
-        end_year = year + 1
-        end_month = 3
+    rep_type = detect_type(period)
+    if rep_type == "FY":
+        # FY 2025-2026 ends March 2026
+        end_year, end_month = year + 1, 3
     else:
         # CY 2025 ends Dec 2025
-        end_year = year
-        end_month = 12
+        end_year, end_month = year, 12
 
-    return (current_year > end_year) or (current_year == end_year and current_month > end_month)
+    return (now.year > end_year) or (now.year == end_year and now.month > end_month)
 
 
 def _is_target_in_future(target: dict) -> bool:
@@ -324,37 +324,28 @@ def _is_target_in_future(target: dict) -> bool:
 
 def _get_period_for_target(target: dict) -> dict:
     """
-    Get the period filter from the TARGET's own reporting_period (not system clock).
-    For static → the target's year.
-    For monthly → current month but within the target's year.
-    For yearly → the target's year.
+    Get the period filter from the TARGET's own reporting_period.
+    Static → current year (target year is deadline).
+    Monthly → current month of current year.
+    Yearly → target's year.
     """
     tracking_mode = target.get("tracking_mode", "static")
     period_str = target.get("reporting_period") or ""
-    target_year = _extract_year_from_period(period_str)
+    target_year = extract_year(period_str)
 
     now = datetime.now(timezone.utc)
-    current_year = now.year
-    current_month = now.month
-
     if not target_year:
-        target_year = current_year
+        target_year = now.year
 
     if tracking_mode == "static":
         return {"year": now.year}
     elif tracking_mode == "monthly":
-        # Use current month but clamp to target's year
-        # If target year is past, use December (last month)
-        # If target year is current, use current month
-        # If target year is future, use January (first month)
-        if target_year < current_year:
+        if target_year < now.year:
             return {"year": target_year, "month": 12}
-        elif target_year == current_year:
-            return {"year": target_year, "month": current_month}
+        elif target_year == now.year:
+            return {"year": target_year, "month": now.month}
         else:
             return {"year": target_year, "month": 1}
-    elif tracking_mode == "yearly":
-        return {"year": target_year}
     else:
         return {"year": target_year}
 
@@ -432,9 +423,11 @@ async def list_targets_with_progress(
     )
     
     # Calculate progress for each target with a kpi_id
+    org_rep_type = await _get_org_reporting_type(org_id)
     results = []
     for target in targets:
         target_with_progress = dict(target)
+        target["_reporting_type"] = org_rep_type
         kpi_id = target.get("kpi_id")
         
         # Check if target year has passed → mark expired

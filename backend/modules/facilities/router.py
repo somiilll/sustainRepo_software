@@ -240,26 +240,9 @@ def get_fy_month_from_period(period: str) -> tuple:
 
 
 def _normalize_fy_period(reporting_year: str) -> str:
-    """Normalize any FY format to 'FY YYYY-YYYY' for DB queries. Also handles CY."""
-    import re
-    s = reporting_year.strip()
-    # Already full format "FY 2026-2027"
-    if re.match(r'^FY \d{4}-\d{4}$', s):
-        return s
-    # "FY 2026-27" → "FY 2026-2027"
-    m = re.match(r'^FY (\d{4})-(\d{2})$', s)
-    if m:
-        start = int(m.group(1))
-        return f"FY {start}-{start + 1}"
-    # "2026-27" → "FY 2026-2027"
-    m = re.match(r'^(\d{4})-(\d{2,4})$', s)
-    if m:
-        start = int(m.group(1))
-        return f"FY {start}-{start + 1}"
-    # "CY 2026"
-    if s.startswith("CY"):
-        return s
-    return s
+    """Normalize any period format for DB queries."""
+    from shared.utils.period_utils import normalize_period
+    return normalize_period(reporting_year)
 
 
 @router.get("/facilities/{facility_id}/production/{reporting_year}")
