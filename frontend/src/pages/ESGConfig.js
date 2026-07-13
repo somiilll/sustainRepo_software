@@ -35,7 +35,7 @@ const FIELD_TYPES = [
 ];
 
 // Framework options
-const FRAMEWORKS = ['BRSR', 'GRI', 'SBTi', 'CDP', 'TCFD'];
+const FRAMEWORKS = ['BRSR', 'GRI', 'CDP', 'TCFD'];
 
 // Reporting types
 const REPORTING_TYPES = [

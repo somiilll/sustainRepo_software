@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, field_validator
 
 
 # Valid ESG frameworks
-VALID_ESG_FRAMEWORKS = ["BRSR", "GRI", "SBTi"]
+VALID_ESG_FRAMEWORKS = ["BRSR", "GRI"]
 
 
 class OrganizationCreate(BaseModel):
