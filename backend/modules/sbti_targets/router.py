@@ -145,21 +145,48 @@ async def get_sbti_progress(
         except Exception:
             pass
 
+    # Get org reporting type for labels
+    from modules.esg_targets.router import _get_org_reporting_type
+    rep_type = await _get_org_reporting_type(org_id)
+
+    def year_label(yr):
+        return f"FY {yr}-{yr+1}" if rep_type == "FY" else f"CY {yr}"
+
     result = {
         "target": target,
         "current_year": now.year,
         "current_value": round(current_value, 2) if current_value is not None else None,
+        "reporting_type": rep_type,
     }
 
     if target_type == "percentage":
         bv = target.get("base_year_value")
         tv = target.get("target_value")
         gr = target.get("growth_rate", 0)
+        rp = target.get("reduction_percentage", 0)
 
-        # Yearly projections
+        # Build year-by-year chart data: projected (no reduction) + actual emissions
+        chart_data = []
         if bv and gr is not None:
-            projections = service.compute_percentage_target(bv, gr, target.get("reduction_percentage", 0), years)
-            result["yearly_projections"] = projections["yearly_projections"]
+            for i in range(years + 1):
+                yr = base_yr + i
+                projected = round(bv * ((1 + gr / 100) ** i), 2)
+                # Fetch actual for each year
+                actual_yr = None
+                if kpi_id:
+                    try:
+                        calc = await kpi_calculator.calculate(kpi_id=kpi_id, org_id=org_id, scope_type="organization", period={"year": yr})
+                        actual_yr = round(calc.get("value"), 2) if calc.get("value") is not None else None
+                    except Exception:
+                        pass
+                chart_data.append({
+                    "year_label": year_label(yr),
+                    "year": yr,
+                    "projected": projected,
+                    "actual": actual_yr,
+                })
+            result["chart_data"] = chart_data
+            result["target_line_value"] = tv
 
         result["achievement_percentage"] = service.compute_achievement(
             "percentage", target_value=tv, current_value=current_value, base_value=bv
@@ -169,27 +196,39 @@ async def get_sbti_progress(
         bi = target.get("base_year_intensity")
         ti = target.get("target_intensity")
 
-        # Current intensity = emissions / denominator
+        # Build trajectory with actual intensity per year (only where data exists)
+        from modules.esg_targets.router import _get_denominator_for_intensity
+        trajectory = []
         current_intensity = None
-        if current_value is not None:
-            from modules.esg_targets.router import _get_denominator_for_intensity, _get_org_reporting_type
-            rep_type = await _get_org_reporting_type(org_id)
-            denom_target = {"target_type": target_type, "scope_type": "organization", "facility_ids": [], "_reporting_type": rep_type}
-            denom = await _get_denominator_for_intensity(denom_target, org_id, {"year": now.year})
-            if denom.get("value"):
-                current_intensity = round(current_value / denom["value"], 6)
+        if bi is not None and ti is not None:
+            slope = (ti - bi) / years if years > 0 else 0
+            for i in range(years + 1):
+                yr = base_yr + i
+                expected = round(bi + slope * i, 4)
+                # Fetch actual intensity for this year
+                actual_intensity = None
+                if kpi_id:
+                    try:
+                        calc = await kpi_calculator.calculate(kpi_id=kpi_id, org_id=org_id, scope_type="organization", period={"year": yr})
+                        emissions = calc.get("value")
+                        if emissions is not None:
+                            denom_target = {"target_type": target_type, "scope_type": "organization", "facility_ids": [], "_reporting_type": rep_type}
+                            denom = await _get_denominator_for_intensity(denom_target, org_id, {"year": yr})
+                            if denom.get("value"):
+                                actual_intensity = round(emissions / denom["value"], 6)
+                    except Exception:
+                        pass
+                if yr == now.year and actual_intensity is not None:
+                    current_intensity = actual_intensity
+                trajectory.append({
+                    "year_label": year_label(yr),
+                    "year": yr,
+                    "expected": expected,
+                    "actual": actual_intensity,
+                })
+            result["trajectory"] = trajectory
 
         result["current_intensity"] = current_intensity
-
-        # Linear trajectory
-        if bi is not None and ti is not None:
-            trajectory = service.compute_intensity_trajectory(bi, ti, years)
-            # Map year offsets to actual years
-            result["trajectory"] = [
-                {"year": base_yr + t["year_offset"], "intensity": t["intensity"]}
-                for t in trajectory
-            ]
-
         result["achievement_percentage"] = service.compute_achievement(
             "intensity", target_intensity=ti, current_intensity=current_intensity, base_intensity=bi
         )
