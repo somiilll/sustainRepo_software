@@ -200,6 +200,8 @@ class ESGTargetResponse(BaseModel):
     minimum_value: Optional[float] = None
     maximum_value: Optional[float] = None
     unit: Optional[str] = None
+    percentage_direction: Optional[str] = None
+    percentage_amount: Optional[float] = None
     
     baseline: Optional[Dict[str, Any]] = None
     
