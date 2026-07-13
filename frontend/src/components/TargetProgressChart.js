@@ -5,7 +5,7 @@ import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ReferenceLine, Cell, Dot
+  ResponsiveContainer, ReferenceLine, Legend, Cell, Dot
 } from 'recharts';
 import { TrendingUp, TrendingDown, Minus, AlertCircle } from 'lucide-react';
 
@@ -90,6 +90,7 @@ function MonthlyChart({ data, unit, goalType }) {
           <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="#78716c" />
           <YAxis tick={{ fontSize: 12 }} stroke="#78716c" />
           <Tooltip content={<CustomTooltip unit={unit} goalType={goalType} />} />
+          <Legend wrapperStyle={{ fontSize: 12 }} />
           <Line type="monotone" dataKey="target" stroke="#e11d48" strokeWidth={2} strokeDasharray="6 3" dot={false} name="Target" />
           <Line type="monotone" dataKey="actual" stroke="#0ea5e9" strokeWidth={2.5} dot={<CustomDot />} connectNulls={false} name="Actual" />
           {data.find(d => d.is_current) && (
@@ -111,6 +112,7 @@ function YearlyChart({ data, unit, goalType }) {
           <XAxis dataKey="year_label" tick={{ fontSize: 11 }} stroke="#78716c" />
           <YAxis tick={{ fontSize: 12 }} stroke="#78716c" />
           <Tooltip content={<CustomTooltip unit={unit} goalType={goalType} />} />
+          <Legend wrapperStyle={{ fontSize: 12 }} />
           <Line type="monotone" dataKey="target" stroke="#e11d48" strokeWidth={2} dot={{ r: 4, fill: '#e11d48' }} name="Target" />
           <Line type="monotone" dataKey="actual" stroke="#0ea5e9" strokeWidth={2.5} dot={<CustomDot />} connectNulls={false} name="Actual (Cumulative)" />
           {data.find(d => d.is_current) && (
@@ -180,18 +182,7 @@ function StaticProgressChart({ chartData }) {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="flex gap-4 text-xs">
-        {achieved != null && (
-          <>
-            <span className="text-emerald-600 font-medium">{isReduction ? 'Reduction' : 'Progress'}: {achieved}%</span>
-            <span className="text-stone-500">Remaining: {(100 - parseFloat(achieved)).toFixed(1)}%</span>
-          </>
-        )}
-        {progress_percentage != null && (
-          <span className="text-sky-600 font-medium">Achievement: {progress_percentage.toFixed(1)}%</span>
-        )}
-      </div>
+      {/* Stats removed — Achievement shown in header */}
     </div>
   );
 }
@@ -251,7 +242,12 @@ export default function TargetProgressChart({ targetId }) {
   return (
     <div className="space-y-3 pt-2" data-testid="target-progress-chart">
       <div className="flex items-center justify-between">
-        <StatusBadge status={chartData.current_value === null && chartData.chart_type === 'static' ? 'no_data' : overallStatus} />
+        <div className="flex items-center gap-2">
+          <StatusBadge status={chartData.current_value === null && chartData.chart_type === 'static' ? 'no_data' : overallStatus} />
+          {chartData.chart_type === 'static' && chartData.progress_percentage != null && (
+            <span className="text-xs font-medium text-sky-600">Achievement: {chartData.progress_percentage.toFixed(1)}%</span>
+          )}
+        </div>
         {chartData.unit && <span className="text-xs text-text-muted">Unit: {chartData.unit}</span>}
       </div>
 
