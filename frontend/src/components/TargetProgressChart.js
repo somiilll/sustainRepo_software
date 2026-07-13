@@ -114,7 +114,7 @@ function YearlyChart({ data, unit, goalType }) {
           <Tooltip content={<CustomTooltip unit={unit} goalType={goalType} />} />
           <Legend wrapperStyle={{ fontSize: 12 }} />
           <Line type="monotone" dataKey="target" stroke="#e11d48" strokeWidth={2} dot={{ r: 4, fill: '#e11d48' }} name="Target" />
-          <Line type="monotone" dataKey="actual" stroke="#0ea5e9" strokeWidth={2.5} dot={<CustomDot />} connectNulls={false} name="Actual (Cumulative)" />
+          <Line type="monotone" dataKey="actual" stroke="#0ea5e9" strokeWidth={2.5} dot={<CustomDot />} connectNulls={false} name="Actual" />
           {data.find(d => d.is_current) && (
             <ReferenceLine x={data.find(d => d.is_current)?.year_label} stroke="#6366f1" strokeDasharray="4 4" label={{ value: "NOW", position: "top", fontSize: 10, fill: "#6366f1" }} />
           )}

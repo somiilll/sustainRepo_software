@@ -61,13 +61,13 @@ async def _get_denominator_for_intensity(
             monthly_data = fin.get("monthly_data") or {}
             val = monthly_data.get(m_key)
             if val:
-                return {"value": float(val), "unit": f"Mn {currency}", "error": None}
-            return {"value": None, "unit": f"Mn {currency}", "error": f"Revenue for {m_key} not found. Add in Organization Details."}
+                return {"value": float(val), "unit": currency, "error": None}
+            return {"value": None, "unit": currency, "error": f"Revenue for {m_key} not found. Add in Organization Details."}
         else:
             val = fin.get("turnover")
             if val:
-                return {"value": float(val), "unit": f"Mn {currency}", "error": None}
-            return {"value": None, "unit": f"Mn {currency}", "error": "Revenue data not found. Add in Organization Details."}
+                return {"value": float(val), "unit": currency, "error": None}
+            return {"value": None, "unit": currency, "error": "Revenue data not found. Add in Organization Details."}
 
     elif target_type == "intensity_production":
         # Fetch from production_quantities
