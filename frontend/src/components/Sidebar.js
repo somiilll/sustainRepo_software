@@ -4,7 +4,7 @@ import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Building, UserCog, Flame, Globe, User, Calculator, Layers, Database, Ruler, Settings2, TreeDeciduous, Thermometer, FileCode2, CalendarClock, FolderTree, Beaker, Variable, Code2, GitFork, Scale, FormInput, Link2, ChevronDown, ChevronRight, FlaskConical, HardDrive, History, FileSpreadsheet, Upload, DollarSign, ClipboardCheck, Leaf, Sprout, Users2, Shield, Cog, Inbox, ScrollText, BookOpen } from 'lucide-react';
+import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Building, UserCog, Flame, Globe, User, Calculator, Layers, Database, Ruler, Settings2, TreeDeciduous, Thermometer, FileCode2, CalendarClock, FolderTree, Beaker, Variable, Code2, GitFork, Scale, FormInput, Link2, ChevronDown, ChevronRight, FlaskConical, HardDrive, History, FileSpreadsheet, Upload, DollarSign, ClipboardCheck, Leaf, Sprout, Users2, Shield, Cog, Inbox, ScrollText, BookOpen, Target } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -29,6 +29,7 @@ export default function Sidebar() {
   const [moduleConfig, setModuleConfig] = useState({ has_ghg: true, has_esg: true });
   const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
   const [enabledFrameworks, setEnabledFrameworks] = useState([]);
+  const [sbtiEnabled, setSbtiEnabled] = useState(false);
 
   // Pull the current org's scope-access + approval flag + module config once on mount
   useEffect(() => {
@@ -42,6 +43,7 @@ export default function Sidebar() {
         setEnabledAccess(data?.enabled_access || []);
         setApprovalEnabled(!!data?.approval_workflow_enabled);
         setEnabledFrameworks(data?.esg_frameworks_enabled || []);
+        setSbtiEnabled(!!data?.sbti_targets_enabled);
         
         // Fetch module config for sidebar visibility
         const configRes = await axios.get(`${API}/organization/module-config`, { headers: getAuthHeader() });
@@ -227,8 +229,8 @@ export default function Sidebar() {
       });
     }
     
-    // Add Reporting if frameworks are enabled - as parent menu with sub-items
-    if (enabledFrameworks.length > 0) {
+    // Add Reporting if frameworks or SBTi are enabled
+    if (enabledFrameworks.length > 0 || sbtiEnabled) {
       // Build reporting sub-items based on enabled frameworks
       const reportingSubItems = [];
       if (enabledFrameworks.includes('BRSR')) {
@@ -237,9 +239,11 @@ export default function Sidebar() {
       if (enabledFrameworks.includes('GRI')) {
         reportingSubItems.push({ path: '/reporting/gri', label: 'GRI', icon: BookOpen });
       }
-      // Add any other frameworks as they become available
+      if (sbtiEnabled) {
+        reportingSubItems.push({ path: '/reporting/sbti', label: 'SBTi Targets', icon: Target });
+      }
       enabledFrameworks.forEach(fw => {
-        if (fw !== 'BRSR' && fw !== 'GRI') {
+        if (!['BRSR', 'GRI'].includes(fw)) {
           reportingSubItems.push({ path: `/reporting/${fw.toLowerCase()}`, label: fw, icon: FileText });
         }
       });
@@ -295,8 +299,8 @@ export default function Sidebar() {
       });
     }
     
-    // Add Reporting if frameworks are enabled - as parent menu with sub-items
-    if (enabledFrameworks.length > 0) {
+    // Add Reporting if frameworks or SBTi are enabled
+    if (enabledFrameworks.length > 0 || sbtiEnabled) {
       // Build reporting sub-items based on enabled frameworks
       const reportingSubItems = [];
       if (enabledFrameworks.includes('BRSR')) {
@@ -305,9 +309,11 @@ export default function Sidebar() {
       if (enabledFrameworks.includes('GRI')) {
         reportingSubItems.push({ path: '/reporting/gri', label: 'GRI', icon: BookOpen });
       }
-      // Add any other frameworks as they become available
+      if (sbtiEnabled) {
+        reportingSubItems.push({ path: '/reporting/sbti', label: 'SBTi Targets', icon: Target });
+      }
       enabledFrameworks.forEach(fw => {
-        if (fw !== 'BRSR' && fw !== 'GRI') {
+        if (!['BRSR', 'GRI'].includes(fw)) {
           reportingSubItems.push({ path: `/reporting/${fw.toLowerCase()}`, label: fw, icon: FileText });
         }
       });

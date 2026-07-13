@@ -105,6 +105,11 @@ async def ensure_indexes(db: AsyncIOMotorDatabase):
         "notifications": [
             ([("user_id", 1), ("organization_id", 1), ("read", 1), ("created_at", -1)], {}),
         ],
+
+        # SBTi Targets
+        "sbti_targets": [
+            ([("organization_id", 1), ("term_type", 1)], {}),
+        ],
     }
 
     total = 0

@@ -42,6 +42,7 @@ import BulkUpload from './pages/BulkUpload';
 import Environment from './pages/Environment';
 import Social from './pages/Social';
 import HRWorkforce from './pages/HRWorkforce';
+import SBTiTargets from './pages/SBTiTargets';
 import Governance from './pages/Governance';
 import ESGConfig from './pages/ESGConfig';
 import KPIDefinitions from './pages/KPIDefinitions';
@@ -261,6 +262,7 @@ const AppRoutes = () => {
           <Route path="reporting" element={<Reporting />} />
           <Route path="reporting/brsr" element={<BRSRModule />} />
           <Route path="reporting/gri" element={<GRIModule />} />
+          <Route path="reporting/sbti" element={<SBTiTargets />} />
           <Route path="my-assignments" element={<MyAssignments />} />
           <Route path="approver-queue" element={<ApproverQueue />} />
           <Route path="reports" element={<Reports />} />

@@ -239,7 +239,7 @@ framework_registry.register(FrameworkConfig(
     name="Science Based Targets initiative",
     version="2023",
     description="Framework for setting corporate emission reduction targets in line with climate science to meet the goals of the Paris Agreement.",
-    status=FrameworkStatus.COMING_SOON,
+    status=FrameworkStatus.AVAILABLE,
     disclosure_categories=[
         "near_term_targets",  # 5-10 year targets
         "long_term_targets",  # Net-zero targets

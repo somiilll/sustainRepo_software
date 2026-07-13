@@ -133,6 +133,7 @@ export default function OrganizationManagement() {
     approval_workflow_enabled: false,
     multi_level_approval_enabled: false,
     esg_frameworks_enabled: [],
+    sbti_targets_enabled: false,
     has_ghg: true,
     has_esg: true,
     // SuperAdmin Internal Fields
@@ -352,6 +353,7 @@ export default function OrganizationManagement() {
       approval_workflow_enabled: !!org.approval_workflow_enabled,
       multi_level_approval_enabled: !!org.multi_level_approval_enabled,
       esg_frameworks_enabled: org.esg_frameworks_enabled || [],
+      sbti_targets_enabled: !!org.sbti_targets_enabled,
       has_ghg: org.has_ghg !== false,
       has_esg: org.has_esg !== false,
       // SuperAdmin Internal Fields
@@ -395,6 +397,7 @@ export default function OrganizationManagement() {
       approval_workflow_enabled: false,
       multi_level_approval_enabled: false,
       esg_frameworks_enabled: [],
+      sbti_targets_enabled: false,
       has_ghg: true,
       has_esg: true,
       // SuperAdmin Internal Fields
@@ -824,6 +827,27 @@ export default function OrganizationManagement() {
                         ))}
                       </div>
                     )}
+                  </div>
+
+                  {/* SBTi Targets — separate toggle */}
+                  <div className="pt-4 border-t border-stone-200">
+                    <div className="flex items-center gap-3 p-3 border rounded-lg transition-all border-stone-200 bg-white">
+                      <Checkbox
+                        id="sbti-targets-toggle"
+                        checked={!!formData.sbti_targets_enabled}
+                        onCheckedChange={(checked) => setFormData({ ...formData, sbti_targets_enabled: !!checked })}
+                        data-testid="sbti-targets-toggle"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <label htmlFor="sbti-targets-toggle" className="text-sm font-medium cursor-pointer">SBTi Targets</label>
+                          <Badge className="text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+                            <CheckCircle2 className="w-3 h-3 mr-1" />Available
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-text-muted mt-0.5">Science Based Targets initiative — emission reduction targets aligned with Paris Agreement</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
