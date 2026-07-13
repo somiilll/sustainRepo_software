@@ -72,6 +72,7 @@ class OrganizationCreate(BaseModel):
     # Module enablement flags
     has_ghg: Optional[bool] = True  # Enable GHG module
     has_esg: Optional[bool] = True  # Enable ESG module (Environment, Social, Governance records)
+    sbti_targets_enabled: Optional[bool] = False  # Enable SBTi Targets module
 
     @field_validator('pincode')
     @classmethod
@@ -162,4 +163,5 @@ class OrganizationResponse(BaseModel):
     # Module enablement flags
     has_ghg: Optional[bool] = True  # Enable GHG module
     has_esg: Optional[bool] = True  # Enable ESG module (Environment, Social, Governance records)
+    sbti_targets_enabled: Optional[bool] = False  # Enable SBTi Targets module
 
