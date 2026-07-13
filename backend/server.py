@@ -3633,10 +3633,22 @@ api_router.include_router(scope3_bulk_router)
 
 app.include_router(api_router)
 
+from shared.security import limiter, rate_limit_exceeded_handler, SecurityHeadersMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+app.add_middleware(SecurityHeadersMiddleware)
+
+# CORS — restrict to trusted origins in production
+_cors_origins = os.environ.get('CORS_ORIGINS', '').strip()
+_allowed_origins = [o.strip() for o in _cors_origins.split(',') if o.strip()] if _cors_origins and _cors_origins != '*' else ["*"]
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=_allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["Content-Disposition", "Content-Type", "Content-Length"],

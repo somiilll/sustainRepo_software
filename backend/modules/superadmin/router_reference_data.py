@@ -69,14 +69,17 @@ async def get_all_scope3_ef(
     query = {}
     
     if search:
+        from shared.security import safe_regex
+        _s = safe_regex(search)
         query["$or"] = [
-            {"activity": {"$regex": search, "$options": "i"}},
-            {"category": {"$regex": search, "$options": "i"}},
-            {"source": {"$regex": search, "$options": "i"}}
+            {"activity": {"$regex": _s, "$options": "i"}},
+            {"category": {"$regex": _s, "$options": "i"}},
+            {"source": {"$regex": _s, "$options": "i"}}
         ]
     
     if category:
-        query["category"] = {"$regex": category, "$options": "i"}
+        from shared.security import safe_regex as _sr
+        query["category"] = {"$regex": _sr(category), "$options": "i"}
     
     if method:
         query["method"] = method
@@ -223,13 +226,16 @@ async def get_scope3_ef_for_users(
     query = {}
     
     if search:
+        from shared.security import safe_regex
+        _s = safe_regex(search)
         query["$or"] = [
-            {"activity": {"$regex": search, "$options": "i"}},
-            {"category": {"$regex": search, "$options": "i"}}
+            {"activity": {"$regex": _s, "$options": "i"}},
+            {"category": {"$regex": _s, "$options": "i"}}
         ]
     
     if category:
-        query["category"] = {"$regex": category, "$options": "i"}
+        from shared.security import safe_regex as _sr2
+        query["category"] = {"$regex": _sr2(category), "$options": "i"}
     
     if method:
         query["method"] = method

@@ -153,11 +153,13 @@ class ESGKPIDefinitionsService:
         if tags:
             query["tags"] = {"$in": tags}
         if search:
+            from shared.security import safe_regex
+            _s = safe_regex(search)
             query["$or"] = [
-                {"metric_name": {"$regex": search, "$options": "i"}},
-                {"short_name": {"$regex": search, "$options": "i"}},
-                {"metric_code": {"$regex": search, "$options": "i"}},
-                {"description": {"$regex": search, "$options": "i"}}
+                {"metric_name": {"$regex": _s, "$options": "i"}},
+                {"short_name": {"$regex": _s, "$options": "i"}},
+                {"metric_code": {"$regex": _s, "$options": "i"}},
+                {"description": {"$regex": _s, "$options": "i"}}
             ]
         
         cursor = db[self.COLLECTION].find(query, {"_id": 0}).sort([

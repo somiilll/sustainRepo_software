@@ -103,6 +103,17 @@ class R2Storage:
             dict with bucket, key, and file info
         """
         try:
+            # Validate file before upload
+            from shared.security import ALLOWED_EXTENSIONS, MAX_FILE_SIZE, ALLOWED_MIME_PREFIXES
+            import os as _os
+            ext = _os.path.splitext(filename)[1].lower()
+            if ext and ext not in ALLOWED_EXTENSIONS:
+                return {"error": f"File type '{ext}' not allowed"}
+            if len(file_content) > MAX_FILE_SIZE:
+                return {"error": f"File too large. Max {MAX_FILE_SIZE // (1024*1024)}MB"}
+            if content_type and not any(content_type.startswith(p) for p in ALLOWED_MIME_PREFIXES):
+                return {"error": f"Content type '{content_type}' not allowed"}
+
             bucket = self._get_bucket(bucket_type)
             key = self._generate_unique_key(filename, folder, org_name)
             

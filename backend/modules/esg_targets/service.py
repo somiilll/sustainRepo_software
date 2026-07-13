@@ -147,10 +147,12 @@ class ESGTargetsService:
         if status:
             query["status"] = status
         if search:
+            from shared.security import safe_regex
+            _s = safe_regex(search)
             query["$or"] = [
-                {"target_name": {"$regex": search, "$options": "i"}},
-                {"description": {"$regex": search, "$options": "i"}},
-                {"metric_label": {"$regex": search, "$options": "i"}}
+                {"target_name": {"$regex": _s, "$options": "i"}},
+                {"description": {"$regex": _s, "$options": "i"}},
+                {"metric_label": {"$regex": _s, "$options": "i"}}
             ]
         
         cursor = db[self.COLLECTION].find(query, {"_id": 0}).sort("created_at", -1)

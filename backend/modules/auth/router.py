@@ -16,7 +16,8 @@ import os
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 
 from shared.database.mongo import db
 from shared.helpers.email import send_email
@@ -24,7 +25,8 @@ from shared.helpers.passwords import (
     verify_password,
     get_password_hash,
 )
-from shared.helpers.tokens import create_access_token
+from shared.helpers.tokens import create_access_token, create_refresh_token, decode_access_token
+from shared.security import limiter
 
 from modules.auth.contracts import (
     UserCreate,
@@ -64,7 +66,8 @@ def _validate_password_strength(pwd: str) -> None:
 
 
 @router.post("/auth/signup", response_model=TokenResponse)
-async def signup(user_data: UserCreate):
+@limiter.limit("5/minute")
+async def signup(request: Request, user_data: UserCreate):
     existing = await db.users.find_one(
         {"email": user_data.email, "is_deleted": {"$ne": True}}, {"_id": 0}
     )
@@ -88,13 +91,15 @@ async def signup(user_data: UserCreate):
     await db.users.insert_one(user_dict)
 
     access_token = create_access_token(data={"sub": user_dict["id"]})
+    refresh_token = create_refresh_token(data={"sub": user_dict["id"]})
     user_response = UserResponse(**{k: v for k, v in user_dict.items() if k != "password_hash"})
 
-    return TokenResponse(access_token=access_token, token_type="bearer", user=user_response)
+    return TokenResponse(access_token=access_token, refresh_token=refresh_token, token_type="bearer", user=user_response)
 
 
 @router.post("/auth/login", response_model=TokenResponse)
-async def login(credentials: UserLogin):
+@limiter.limit("10/minute")
+async def login(request: Request, credentials: UserLogin):
     logger.info(f"[AUTH_LOGIN] Attempt: email={credentials.email}")
     
     user = await db.users.find_one({"email": credentials.email}, {"_id": 0})
@@ -133,10 +138,11 @@ async def login(credentials: UserLogin):
                 print(f"Subscription date parse error: {e}")
 
     access_token = create_access_token(data={"sub": user["id"]})
+    refresh_token = create_refresh_token(data={"sub": user["id"]})
     user_response = UserResponse(**{k: v for k, v in user.items() if k != "password_hash"})
 
     logger.info(f"[AUTH_LOGIN] Success: email={credentials.email}, user_id={user['id']}, role={user.get('role')}")
-    return TokenResponse(access_token=access_token, token_type="bearer", user=user_response)
+    return TokenResponse(access_token=access_token, refresh_token=refresh_token, token_type="bearer", user=user_response)
 
 
 @router.post("/auth/change-password")
@@ -158,7 +164,8 @@ async def change_password(password_data: PasswordChange, current_user: dict = De
 
 
 @router.post("/auth/forgot-password")
-async def forgot_password(reset_data: PasswordReset):
+@limiter.limit("3/minute")
+async def forgot_password(request: Request, reset_data: PasswordReset):
     user = await db.users.find_one({"email": reset_data.email}, {"_id": 0})
     if not user:
         # Don't reveal if user exists.
@@ -184,7 +191,8 @@ async def forgot_password(reset_data: PasswordReset):
 
 
 @router.post("/auth/reset-password")
-async def reset_password(reset_data: ResetPasswordRequest):
+@limiter.limit("5/minute")
+async def reset_password(request: Request, reset_data: ResetPasswordRequest):
     """Reset password using token from email."""
     reset_record = await db.password_resets.find_one(
         {"id": reset_data.token, "used": False}, {"_id": 0}
@@ -229,3 +237,35 @@ async def update_profile(profile_data: ProfileUpdate, current_user: dict = Depen
 
     updated_user = await db.users.find_one({"id": current_user["id"]}, {"_id": 0})
     return UserResponse(**updated_user)
+
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+@router.post("/auth/refresh", response_model=TokenResponse)
+@limiter.limit("10/minute")
+async def refresh_token(request: Request, data: RefreshRequest):
+    """Exchange a valid refresh token for a new access token."""
+    import jwt as _jwt
+    try:
+        payload = decode_access_token(data.refresh_token)
+    except _jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Refresh token expired. Please login again.")
+    except _jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+    if payload.get("type") != "refresh":
+        raise HTTPException(status_code=401, detail="Invalid token type")
+
+    user_id = payload.get("sub")
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    new_access = create_access_token(data={"sub": user_id})
+    new_refresh = create_refresh_token(data={"sub": user_id})
+    user_response = UserResponse(**{k: v for k, v in user.items() if k != "password_hash"})
+
+    return TokenResponse(access_token=new_access, refresh_token=new_refresh, token_type="bearer", user=user_response)
