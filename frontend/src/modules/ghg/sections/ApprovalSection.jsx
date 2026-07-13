@@ -40,6 +40,8 @@ export default function ApprovalSection() {
 
   const pending = usePendingApprovals({ enabled: perms.canViewApprovals, status: 'pending' });
   const rejected = usePendingApprovals({ enabled: perms.canViewApprovals, status: 'rejected' });
+  const [historyItems, setHistoryItems] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const refetchAll = async () => {
     setSelectedIds([]);
@@ -65,10 +67,26 @@ export default function ApprovalSection() {
   // Reset selection when switching tabs.
   useEffect(() => { setSelectedIds([]); }, [activeTab]);
 
+  // Fetch history when tab is selected
+  useEffect(() => {
+    if (activeTab !== 'history' || !perms.canViewApprovals) return;
+    let cancelled = false;
+    setHistoryLoading(true);
+    (async () => {
+      try {
+        const { data } = await axios.get(`${API}/approval-workflows/requests/history`, { headers: getAuthHeader() });
+        if (!cancelled) setHistoryItems(data?.requests || []);
+      } catch { /* ignore */ }
+      if (!cancelled) setHistoryLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [activeTab, perms.canViewApprovals, getAuthHeader]);
+
   const tabRows = useMemo(() => {
     if (activeTab === 'pending') return pending.items;
+    if (activeTab === 'history') return historyItems;
     return rejected.items;
-  }, [activeTab, pending.items, rejected.items]);
+  }, [activeTab, pending.items, rejected.items, historyItems]);
 
   const onToggleSelect = (id, checked) => {
     setSelectedIds((prev) => (checked ? [...new Set([...prev, id])] : prev.filter((x) => x !== id)));
@@ -90,7 +108,7 @@ export default function ApprovalSection() {
       <div className="p-8">
         <h2 className="text-2xl font-heading font-bold mb-2">Approvals</h2>
         <p className="text-text-muted">
-          Approval workflow is not enabled for your organization, or you don't have permission to view this page.
+          Approval workflow is not enabled for your organization, or you don&apos;t have permission to view this page.
         </p>
       </div>
     );
@@ -115,6 +133,17 @@ export default function ApprovalSection() {
     const scope = getScope(r);
     return (
     <>
+      {activeTab === 'history' && (
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 px-2 text-blue-600 hover:text-blue-700"
+          title="View details"
+          onClick={() => setViewing(r)}
+        >
+          View
+        </Button>
+      )}
       {activeTab === 'pending' && (
         isDeleteRequest ? (
           // For delete requests, show View button instead of Edit
@@ -189,17 +218,19 @@ export default function ApprovalSection() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+        <TabsList className="grid w-full max-w-lg grid-cols-3">
           <TabsTrigger value="pending" data-testid="approvals-tab-pending">
             Pending {pending.count > 0 ? `(${pending.count})` : ''}
           </TabsTrigger>
           <TabsTrigger value="rejected" data-testid="approvals-tab-rejected">Rejected</TabsTrigger>
+          <TabsTrigger value="history" data-testid="approvals-tab-history">History</TabsTrigger>
         </TabsList>
 
         <TabsContent value={activeTab} className="mt-4">
           <ApprovalTable
             activeTab={activeTab}
             rows={tabRows}
+            loading={activeTab === 'history' ? historyLoading : false}
             facilities={facilities}
             selectable={activeTab === 'pending'}
             selectedIds={selectedIds}
@@ -207,7 +238,7 @@ export default function ApprovalSection() {
             onToggleSelectAll={onToggleSelectAll}
             perRowActions={renderRowActions}
             emptyText={
-              activeTab === 'pending' ? 'No pending requests' : 'No rejected requests'
+              activeTab === 'pending' ? 'No pending requests' : activeTab === 'history' ? 'No past approval records' : 'No rejected requests'
             }
             searchValue={search}
             onSearchChange={setSearch}
@@ -228,6 +259,7 @@ export default function ApprovalSection() {
         busy={actions.busy}
         canDecide={activeTab === 'pending' && perms.canApprove}
         defaultMode={viewing?._quickReject ? 'reject' : 'view'}
+        showStatus={activeTab === 'history'}
       />
     </div>
   );
