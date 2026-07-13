@@ -25,7 +25,7 @@ export default function ScopeTargetForm({
         <div className="col-span-3">Scope</div>
         <div className="col-span-3">Target Year</div>
         <div className="col-span-3">Type</div>
-        <div className="col-span-2">Value</div>
+        <div className="col-span-2">Target Value</div>
         <div className="col-span-1" />
       </div>
       {visibleScopes.map((scope) => (

@@ -7,14 +7,14 @@
  */
 
 export const TARGET_MODES = [
-  { value: 'total', label: 'Total Emissions Reduction Target' },
-  { value: 'scope', label: 'Scope Wise Reduction Target' },
-  { value: 'category', label: 'Category Wise Reduction Target' },
+  { value: 'total', label: 'Total Emissions Target' },
+  { value: 'scope', label: 'Scope Wise Target' },
+  { value: 'category', label: 'Category Wise Target' },
 ];
 
 export const TARGET_TYPES = [
   { value: 'absolute', label: 'Absolute (tCO₂e)' },
-  { value: 'percentage', label: 'Percentage (%)' },
+  { value: 'percentage', label: 'Reduction Percentage (%)' },
 ];
 
 // Scopes shown in scope-wise + category-wise modes. Scope 3 visibility is
