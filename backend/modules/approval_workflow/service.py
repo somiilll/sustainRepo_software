@@ -480,6 +480,31 @@ class ApprovalWorkflowService:
             "by_entity_type": by_type,
             "urgent": urgent,
         }
+
+    @staticmethod
+    async def get_approval_history(
+        organization_id: str,
+        user_id: Optional[str] = None,
+        status: Optional[str] = None,
+    ) -> List[dict]:
+        """Get past (completed/rejected/cancelled) approval requests.
+        If user_id provided, only requests where user was an approver."""
+        completed_statuses = [
+            ApprovalStatus.APPROVED.value,
+            ApprovalStatus.REJECTED.value,
+            "cancelled",
+        ]
+        query = {
+            "organization_id": organization_id,
+            "status": {"$in": [status] if status and status in completed_statuses else completed_statuses},
+        }
+        if user_id:
+            query["$or"] = [
+                {"current_approvers": user_id},
+                {"history.actor_id": user_id},
+            ]
+        return await db[REQUESTS_COLLECTION].find(query, {"_id": 0}).sort("submitted_at", -1).to_list(500)
+
     
     # =========================================================================
     # APPROVAL ACTIONS

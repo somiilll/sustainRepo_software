@@ -1001,3 +1001,63 @@ async def get_completion_by_category(
     
     return {"completion_stats": results}
 
+
+
+@router.get("/tasks/period-status/{assignment_id}")
+async def get_period_fill_status(
+    assignment_id: str,
+    current_user: dict = Depends(get_current_user),
+    db = Depends(get_database),
+):
+    """
+    Get per-period fill status for an assignment.
+    Returns each period with its status (filled, overdue, pending, future).
+    Used for the expandable period breakdown in the tracker.
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+
+    assignment = await db["esg_assignments"].find_one(
+        {"id": assignment_id, "organization_id": org_id}, {"_id": 0}
+    )
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+
+    tasks = await db["esg_reporting_tasks"].find(
+        {
+            "organization_id": org_id,
+            "facility_id": assignment.get("facility_id"),
+            "category": assignment.get("category"),
+            "subcategory": assignment.get("subcategory"),
+            "sub_subcategory": assignment.get("sub_subcategory"),
+        },
+        {"_id": 0, "period_key": 1, "period_label": 1, "status": 1, "due_at": 1, "is_backfill": 1}
+    ).sort("period_key", 1).to_list(1000)
+
+    now = datetime.now()
+    periods = []
+    for t in tasks:
+        status = t.get("status", "pending")
+        due_at = t.get("due_at")
+        is_overdue = status not in ("completed", "skipped") and due_at and due_at < now
+
+        periods.append({
+            "period_key": t["period_key"],
+            "period_label": t.get("period_label", t["period_key"]),
+            "status": status,
+            "is_overdue": is_overdue,
+            "due_at": due_at.isoformat() if due_at else None,
+        })
+
+    filled = sum(1 for p in periods if p["status"] in ("completed", "skipped"))
+    overdue = sum(1 for p in periods if p["is_overdue"])
+
+    return {
+        "assignment_id": assignment_id,
+        "total_periods": len(periods),
+        "filled": filled,
+        "overdue": overdue,
+        "pending": len(periods) - filled,
+        "periods": periods,
+    }

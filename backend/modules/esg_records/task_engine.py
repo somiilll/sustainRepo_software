@@ -532,6 +532,67 @@ async def generate_tasks_for_assignment(
     }
 
 
+async def regenerate_tasks_for_assignment(
+    db: AsyncIOMotorDatabase,
+    assignment: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Regenerate tasks when frequency or dates change on an assignment.
+
+    Strategy:
+    - Keep tasks that have data (status = completed, in_progress, skipped)
+    - Delete unfilled tasks (pending, overdue, backfill_pending)
+    - Generate new task periods from current assignment config
+    - Create only tasks for periods that don't already exist
+    """
+    org_id = assignment.get("organization_id")
+    facility_id = assignment.get("facility_id")
+    category = assignment.get("category")
+    subcategory = assignment.get("subcategory")
+    sub_subcategory = assignment.get("sub_subcategory")
+    assignment_id = assignment.get("id")
+
+    # Step 1: Find all existing tasks for this assignment's category/facility
+    task_query = {
+        "organization_id": org_id,
+        "facility_id": facility_id,
+        "category": category,
+        "subcategory": subcategory,
+        "sub_subcategory": sub_subcategory,
+    }
+
+    existing_tasks = await db["esg_reporting_tasks"].find(
+        task_query, {"_id": 0, "id": 1, "period_key": 1, "status": 1}
+    ).to_list(5000)
+
+    # Step 2: Separate filled vs unfilled
+    filled_statuses = {"completed", "in_progress", "skipped"}
+    filled_period_keys = set()
+    unfilled_task_ids = []
+
+    for t in existing_tasks:
+        if t.get("status") in filled_statuses:
+            filled_period_keys.add(t["period_key"])
+        else:
+            unfilled_task_ids.append(t["id"])
+
+    # Step 3: Delete unfilled tasks and their assignees
+    deleted_count = 0
+    if unfilled_task_ids:
+        await db["esg_reporting_tasks"].delete_many({"id": {"$in": unfilled_task_ids}})
+        await db["esg_task_assignees"].delete_many({"task_id": {"$in": unfilled_task_ids}})
+        deleted_count = len(unfilled_task_ids)
+
+    # Step 4: Generate new tasks (will skip periods that already have filled tasks)
+    result = await generate_tasks_for_assignment(db, assignment)
+    result["deleted_unfilled"] = deleted_count
+    result["preserved_filled"] = len(filled_period_keys)
+
+    return result
+
+
+
+
 async def get_tasks_for_assignment(
     db: AsyncIOMotorDatabase,
     assignment_id: str,

@@ -245,6 +245,16 @@ class AssignmentService:
             changed_by_user_id=updated_by_user_id,
         )
         
+        # Regenerate tasks if frequency, dates, or start/end changed
+        needs_regen = any(k in update_fields for k in [
+            "filling_frequency", "start_date", "end_date", "due_date",
+        ])
+        if needs_regen:
+            from modules.esg_records.task_engine import regenerate_tasks_for_assignment
+            updated_assignment = await self._assignments.find_one({"id": assignment_id}, {"_id": 0})
+            if updated_assignment:
+                await regenerate_tasks_for_assignment(db, updated_assignment)
+        
         # Return updated document
         updated = await self._assignments.find_one(
             {"id": assignment_id},
@@ -259,7 +269,7 @@ class AssignmentService:
         organization_id: str,
         deleted_by_user_id: str,
     ) -> bool:
-        """Delete an assignment and deactivate related task assignees"""
+        """Delete an assignment, clean up orphaned tasks and approvals."""
         current = await self._assignments.find_one(
             {"id": assignment_id, "organization_id": organization_id}
         )
@@ -272,6 +282,20 @@ class AssignmentService:
         # Deactivate task assignees linked to this assignment
         from modules.esg_records.task_engine import remove_assignee_for_assignment
         await remove_assignee_for_assignment(db, assignment_id)
+        
+        # Soft-delete unfilled tasks (preserve completed data)
+        filled_statuses = ["completed", "in_progress", "skipped"]
+        await db["esg_reporting_tasks"].delete_many({
+            "assignment_id": assignment_id,
+            "status": {"$nin": filled_statuses},
+        })
+        
+        # Cancel pending approval requests for this assignment's entity
+        entity_id = current.get("entity_id") or current.get("id")
+        await db["approval_requests"].update_many(
+            {"entity_id": entity_id, "status": "pending", "organization_id": organization_id},
+            {"$set": {"status": "cancelled", "updated_at": datetime.now(timezone.utc).isoformat()}},
+        )
         
         # Log history
         await self._log_history(

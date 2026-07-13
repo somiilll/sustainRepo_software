@@ -3,7 +3,9 @@
  * Renders a single category/subcategory row with assignees and actions
  */
 
-import React from 'react';
+import React, { useState } from 'react';
+import axios from 'axios';
+import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Progress } from '../ui/progress';
@@ -13,11 +15,23 @@ import {
   ChevronDown, 
   Layers, 
   UserPlus, 
-  Bell 
+  Bell,
+  CalendarCheck
 } from 'lucide-react';
 import AssigneeDisplay from './AssigneeDisplay';
 import CategoryStatusBadge from './CategoryStatusBadge';
 import { getAssignmentInfo, getCategoryStatus } from './utils';
+
+const API = process.env.REACT_APP_BACKEND_URL;
+
+const PERIOD_STATUS_COLORS = {
+  completed: 'bg-green-500',
+  skipped: 'bg-stone-400',
+  in_progress: 'bg-blue-400',
+  overdue: 'bg-red-500',
+  pending: 'bg-stone-200',
+  backfill_pending: 'bg-amber-300',
+};
 
 export default function TrackerTableRow({
   item,
@@ -32,6 +46,23 @@ export default function TrackerTableRow({
   showExpander = true,
 }) {
   const { category, subcategory, sub_subcategory, assignment } = item;
+  const { token } = useAuth();
+  const [periodExpanded, setPeriodExpanded] = useState(false);
+  const [periodData, setPeriodData] = useState(null);
+  const [periodLoading, setPeriodLoading] = useState(false);
+
+  const loadPeriodData = async () => {
+    if (!assignment?.id || periodData) { setPeriodExpanded(p => !p); return; }
+    setPeriodLoading(true);
+    try {
+      const res = await axios.get(`${API}/api/esg-records/tasks/period-status/${assignment.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setPeriodData(res.data);
+    } catch (e) { /* silent */ }
+    setPeriodLoading(false);
+    setPeriodExpanded(true);
+  };
   
   // Get completion stats key
   const completionKey = [category, subcategory, sub_subcategory].filter(Boolean).join('|');
@@ -52,6 +83,7 @@ export default function TrackerTableRow({
   const bgClass = level === 0 ? 'bg-stone-50 hover:bg-stone-100' : level === 2 ? 'bg-stone-25' : 'bg-white hover:bg-stone-50';
   
   return (
+    <>
     <TableRow className={bgClass}>
       {/* Category Name */}
       <TableCell className={paddingLeft}>
@@ -125,6 +157,17 @@ export default function TrackerTableRow({
       {/* Actions */}
       <TableCell className="text-right">
         <div className="flex justify-end gap-1">
+          {assignment && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={loadPeriodData}
+              title="View period fill status"
+              className={periodExpanded ? 'text-emerald-600' : ''}
+            >
+              {periodLoading ? <div className="w-4 h-4 animate-spin rounded-full border-2 border-stone-300 border-t-emerald-600" /> : <CalendarCheck className="w-4 h-4" />}
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="sm"
@@ -146,5 +189,40 @@ export default function TrackerTableRow({
         </div>
       </TableCell>
     </TableRow>
+    {/* Period Fill Status Expandable */}
+    {periodExpanded && periodData && (
+      <TableRow>
+        <TableCell colSpan={8} className="bg-stone-50/50 px-8 py-3">
+          <div className="space-y-2">
+            <div className="flex items-center gap-4 text-xs text-text-muted">
+              <span>Filled: <strong className="text-green-600">{periodData.filled}</strong></span>
+              <span>Overdue: <strong className="text-red-600">{periodData.overdue}</strong></span>
+              <span>Pending: <strong>{periodData.pending}</strong></span>
+              <span>Total: {periodData.total_periods}</span>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {(periodData.periods || []).map(p => (
+                <div
+                  key={p.period_key}
+                  title={`${p.period_label}: ${p.status}${p.is_overdue ? ' (overdue)' : ''}`}
+                  className={`w-7 h-7 rounded text-[9px] flex items-center justify-center font-medium text-white cursor-default ${
+                    p.is_overdue ? PERIOD_STATUS_COLORS.overdue : PERIOD_STATUS_COLORS[p.status] || PERIOD_STATUS_COLORS.pending
+                  } ${p.status === 'pending' ? '!text-stone-500' : ''}`}
+                >
+                  {p.period_label.split(' ')[0]?.substring(0, 3) || p.period_key.slice(-2)}
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-3 text-[10px] text-text-muted">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-green-500 inline-block" /> Filled</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-red-500 inline-block" /> Overdue</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-stone-200 inline-block" /> Pending</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-amber-300 inline-block" /> Backfill</span>
+            </div>
+          </div>
+        </TableCell>
+      </TableRow>
+    )}
+    </>
   );
 }

@@ -212,6 +212,26 @@ async def list_requests(
     return {"requests": requests, "total": len(requests)}
 
 
+
+@router.get("/requests/history")
+async def get_approval_history(
+    status: Optional[str] = Query(None, description="Filter by status (approved/rejected/cancelled)"),
+    current_user: dict = Depends(get_current_user),
+):
+    """Get past approval requests (approved, rejected, cancelled) for history tab."""
+    org_id = current_user.get("organization_id")
+    user_id = current_user.get("id")
+
+    # Admins see all org history, users see history where they were approver
+    if current_user.get("role") in ("admin", "super_admin"):
+        requests = await ApprovalWorkflowService.get_approval_history(org_id, status=status)
+    else:
+        requests = await ApprovalWorkflowService.get_approval_history(org_id, user_id=user_id, status=status)
+
+    return {"requests": requests, "total": len(requests)}
+
+
+
 @router.get("/requests/count")
 async def get_pending_count(
     my_approvals: bool = Query(False, description="Only count requests I can approve"),

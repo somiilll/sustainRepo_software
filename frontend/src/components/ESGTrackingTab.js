@@ -87,7 +87,7 @@ const STATUS_COLORS = {
   in_progress: 'bg-blue-100 text-blue-700 border-blue-200',
   not_started: 'bg-stone-100 text-stone-600 border-stone-200',
   reopened: 'bg-amber-100 text-amber-700 border-amber-200',
-  stale: 'bg-amber-100 text-amber-700 border-amber-200',
+  stale: 'bg-stone-100 text-stone-500 border-stone-200',
   overdue: 'bg-red-100 text-red-700 border-red-200',
 };
 
@@ -105,13 +105,6 @@ const StatusBadge = ({ status, approvalStatus, isOverdue, isStale, isDueSoon }) 
     return (
       <Badge className={`${STATUS_COLORS.overdue} text-xs`}>
         <XCircle className="w-3 h-3 mr-1" /> Overdue
-      </Badge>
-    );
-  }
-  if (isStale) {
-    return (
-      <Badge className={`${STATUS_COLORS.stale} text-xs`}>
-        <AlertCircle className="w-3 h-3 mr-1" /> Stale
       </Badge>
     );
   }
@@ -364,7 +357,6 @@ export default function ESGTrackingTab({
       // Apply filters
       if (filterStatus !== 'all') {
         if (filterStatus === 'overdue') url += '&is_overdue=true';
-        else if (filterStatus === 'stale') url += '&is_stale=true';
         else if (filterStatus === 'due_soon') url += '&is_due_soon=true';
         else url += `&status=${filterStatus}`;
       }
@@ -856,10 +848,6 @@ export default function ESGTrackingTab({
                 <div className="font-semibold text-lg text-red-600">{sectionSummary.overdue_count}</div>
                 <div className="text-xs text-text-muted">Overdue</div>
               </div>
-              <div className="text-center">
-                <div className="font-semibold text-lg text-amber-600">{sectionSummary.stale_count}</div>
-                <div className="text-xs text-text-muted">Stale</div>
-              </div>
             </div>
           )}
           
@@ -876,7 +864,6 @@ export default function ESGTrackingTab({
                   <SelectItem value="completed">Completed</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="overdue">Overdue</SelectItem>
-                  <SelectItem value="stale">Stale</SelectItem>
                   <SelectItem value="due_soon">Due Soon</SelectItem>
                 </SelectContent>
               </Select>
