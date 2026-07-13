@@ -48,7 +48,7 @@ export default function TargetRow({
         </select>
       </div>
 
-      <div className="col-span-3">
+      <div className="col-span-2">
         <TargetTypeSelector
           value={value.target_type || 'percentage'}
           onChange={(t) => onChange?.('target_type', t)}
@@ -57,7 +57,7 @@ export default function TargetRow({
         />
       </div>
 
-      <div className="col-span-2">
+      <div className="col-span-3">
         <Input
           type="number"
           step="any"
