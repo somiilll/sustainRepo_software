@@ -66,6 +66,8 @@ class ESGTargetsService:
             "minimum_value": data.minimum_value,
             "maximum_value": data.maximum_value,
             "unit": data.unit,
+            "percentage_direction": data.percentage_direction,
+            "percentage_amount": data.percentage_amount,
             
             "baseline": data.baseline.dict() if data.baseline else None,
             
