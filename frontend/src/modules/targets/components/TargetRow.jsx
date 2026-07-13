@@ -33,7 +33,8 @@ export default function TargetRow({
         {label}
       </div>
 
-      <div className="col-span-3">
+      {/* Changed from col-span-3 to col-span-2 */}
+      <div className="col-span-2">
         <select
           value={value.target_year || ''}
           onChange={(e) => onChange?.('target_year', e.target.value)}
@@ -48,7 +49,8 @@ export default function TargetRow({
         </select>
       </div>
 
-      <div className="col-span-2">
+      {/* Changed from col-span-2 to col-span-3 */}
+      <div className="col-span-4">
         <TargetTypeSelector
           value={value.target_type || 'percentage'}
           onChange={(t) => onChange?.('target_type', t)}
@@ -57,7 +59,7 @@ export default function TargetRow({
         />
       </div>
 
-      <div className="col-span-3">
+      <div className="col-span-2">
         <Input
           type="number"
           step="any"

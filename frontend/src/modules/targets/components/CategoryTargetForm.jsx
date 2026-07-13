@@ -76,9 +76,9 @@ export default function CategoryTargetForm({
               <div className="px-3 py-3 space-y-2">
                 <div className="grid grid-cols-12 gap-3 px-3 pb-1 text-[10px] font-semibold text-text-muted uppercase tracking-wider">
                   <div className="col-span-3">Category</div>
-                  <div className="col-span-3">Target Year</div>
-                  <div className="col-span-2">Type</div>
-                  <div className="col-span-3">Target Value</div>
+                  <div className="col-span-2">Target Year</div>
+                  <div className="col-span-4">Type</div>
+                  <div className="col-span-2">Target Value</div>
                   <div className="col-span-1" />
                 </div>
                 {cats.map((cat) => {
