@@ -549,10 +549,7 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <div>
-                        <p className="font-medium text-text-primary text-sm">{target.target_name}</p>
-                        <p className="text-xs text-emerald-600 font-mono">{formatTargetValue(target)}</p>
-                      </div>
+                      <p className="font-medium text-text-primary text-sm">{target.target_name}</p>
                     </td>
                     <td className="px-4 py-3">
                       {getProgressBadge(target)}
