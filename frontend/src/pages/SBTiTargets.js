@@ -112,7 +112,7 @@ function TargetCard({ target, onEdit, onDelete, token }) {
         <div className="mt-3">
           <p className="text-xs text-text-muted mb-1">Emissions Trajectory</p>
           <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={progress.chart_data} margin={{ top: 5, right: 20, left: 10, bottom: 0 }}>
+            <LineChart data={progress.chart_data.map(d => ({ ...d, target: progress.target_line_value }))} margin={{ top: 5, right: 20, left: 10, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
               <XAxis dataKey="year_label" tick={{ fontSize: 9 }} stroke="#78716c" angle={-30} textAnchor="end" height={50} />
               <YAxis tick={{ fontSize: 10 }} stroke="#78716c" domain={['auto', 'auto']} />
@@ -120,9 +120,7 @@ function TargetCard({ target, onEdit, onDelete, token }) {
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <Line type="monotone" dataKey="projected" stroke="#f59e0b" strokeWidth={2} strokeDasharray="6 3" dot={{ r: 3 }} name="Projected (no reduction)" />
               <Line type="monotone" dataKey="actual" stroke="#0ea5e9" strokeWidth={2.5} dot={<RedDot dataKey="actual" compareKey="projected" />} connectNulls={false} name="Actual Emissions" />
-              {progress.target_line_value != null && (
-                <ReferenceLine y={progress.target_line_value} stroke="#16a34a" strokeWidth={2} strokeDasharray="4 4" label={{ value: `Target: ${progress.target_line_value}`, fontSize: 10, fill: '#16a34a', position: 'right' }} />
-              )}
+              <Line type="monotone" dataKey="target" stroke="#16a34a" strokeWidth={2} strokeDasharray="4 4" dot={false} name="Target Value" />
             </LineChart>
           </ResponsiveContainer>
         </div>
