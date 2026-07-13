@@ -16,7 +16,7 @@ async def ensure_indexes(db: AsyncIOMotorDatabase):
 
     index_specs = {
         # Auth
-        "users_esg": [
+        "users": [
             ([("email", 1)], {"unique": True}),
             ([("organization_id", 1)], {}),
         ],
@@ -99,6 +99,11 @@ async def ensure_indexes(db: AsyncIOMotorDatabase):
         # Audit Logs
         "audit_logs": [
             ([("organization_id", 1), ("created_at", -1)], {}),
+        ],
+
+        # Notifications
+        "notifications": [
+            ([("user_id", 1), ("organization_id", 1), ("read", 1), ("created_at", -1)], {}),
         ],
     }
 

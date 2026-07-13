@@ -187,6 +187,9 @@ api_router.include_router(esg_kpi_definitions_router)
 # KPI Calculation Engine (reusable calculation module)
 from modules.kpi_engine import router as kpi_engine_router
 api_router.include_router(kpi_engine_router)
+# Notifications Module
+from modules.notifications.router import router as notifications_router
+api_router.include_router(notifications_router, tags=["Notifications"])
 
 # Run module contract verifier at import time. Phase B1: log-only, will be
 # escalated to fail-fast in dev once all modules expose their contracts.

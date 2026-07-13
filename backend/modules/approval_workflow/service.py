@@ -310,6 +310,35 @@ class ApprovalWorkflowService:
         )
         
         logger.info(f"Created approval request {request.id} for entity {data.entity_id}")
+        
+        # Notify approver(s) via email + in-app
+        try:
+            from shared.helpers.email import send_email
+            from shared.notifications import create_notification
+            
+            submitter_name = current_user.get("full_name") or current_user.get("email", "").split("@")[0]
+            
+            for approver_id in current_approvers:
+                approver = await db.users.find_one({"id": approver_id}, {"_id": 0, "email": 1, "full_name": 1, "name": 1, "id": 1})
+                if approver and approver.get("email"):
+                    approver_name = approver.get("full_name") or approver.get("name") or ""
+                    await send_email(
+                        to_email=approver["email"],
+                        subject=f"Approval Required: {data.entity_id}",
+                        body=f"<p>Hi {approver_name},</p><p><strong>{submitter_name}</strong> has submitted <strong>{data.entity_id}</strong> for your approval.</p><p>Please review it in the Approval Queue.</p>",
+                    )
+                    await create_notification(
+                        user_id=approver["id"],
+                        org_id=organization_id,
+                        title="Approval Required",
+                        message=f"{submitter_name} submitted {data.entity_id} for approval",
+                        notification_type="approval",
+                        link="/approval-queue",
+                        metadata={"request_id": request.id, "entity_id": data.entity_id},
+                    )
+        except Exception as e:
+            logger.error(f"Failed to send approval notifications: {e}")
+        
         return (True, "Submitted for approval", request_dict)
     
     @staticmethod

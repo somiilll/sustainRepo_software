@@ -130,8 +130,8 @@ class AssignmentService:
             changed_by_user_id=assigned_by_user_id,
         )
         
-        # Send email notification to assigned user
-        await self._send_assignment_notification(
+        # Send email + in-app notifications to assigned user AND approver(s)
+        await self._send_assignment_notifications(
             assignment=assignment,
             assigned_by_user_id=assigned_by_user_id,
         )
@@ -742,59 +742,104 @@ class AssignmentService:
         
         return doc
     
-    async def _send_assignment_notification(
+    async def _send_assignment_notifications(
         self,
         assignment: Dict[str, Any],
         assigned_by_user_id: str,
     ):
         """
-        Send email notification when a new assignment is created.
+        Send email + in-app notification to assignee AND approver(s).
         """
         import logging
         from shared.helpers.email import send_email
+        from shared.notifications import create_notification
         from .email_templates import assignment_created_email
-        
+
         try:
-            # Get assigned user details
-            assigned_user = await self._users.find_one(
-                {"id": assignment.get("assigned_to_user_id")},
-                {"email": 1, "name": 1}
-            )
-            
-            if not assigned_user or not assigned_user.get("email"):
-                logging.warning(f"Cannot send assignment notification: user not found or no email")
-                return
-            
-            # Get assigner details
+            org_id = assignment.get("organization_id", "")
+            entity_id = assignment.get("entity_id", "Task")
+
+            # Get assigner name
             assigner = await self._users.find_one(
-                {"id": assigned_by_user_id},
-                {"name": 1, "email": 1}
+                {"id": assigned_by_user_id}, {"name": 1, "email": 1, "full_name": 1}
             )
             assigner_name = "Admin"
             if assigner:
-                assigner_name = assigner.get("name") or assigner.get("email", "").split("@")[0]
-            
-            user_name = assigned_user.get("name") or assigned_user.get("email", "").split("@")[0]
-            
-            email_body = assignment_created_email(
-                user_name=user_name,
-                entity_type=assignment.get("entity_type", ""),
-                entity_id=assignment.get("entity_id", ""),
-                reporting_period=assignment.get("reporting_period", ""),
-                due_date=assignment.get("due_date"),
-                assigned_by=assigner_name,
+                assigner_name = assigner.get("full_name") or assigner.get("name") or assigner.get("email", "").split("@")[0]
+
+            # --- Notify assignee ---
+            assigned_user = await self._users.find_one(
+                {"id": assignment.get("assigned_to_user_id")},
+                {"email": 1, "name": 1, "full_name": 1, "id": 1}
             )
-            
-            await send_email(
-                to_email=assigned_user["email"],
-                subject=f"New ESG Assignment: {assignment.get('entity_id', 'Task')}",
-                body=email_body,
-            )
-            
-            logging.info(f"Assignment notification sent to {assigned_user['email']}")
-            
+            if assigned_user and assigned_user.get("email"):
+                user_name = assigned_user.get("full_name") or assigned_user.get("name") or assigned_user.get("email", "").split("@")[0]
+
+                # Email
+                email_body = assignment_created_email(
+                    user_name=user_name,
+                    entity_type=assignment.get("entity_type", ""),
+                    entity_id=entity_id,
+                    reporting_period=assignment.get("reporting_period", ""),
+                    due_date=assignment.get("due_date"),
+                    assigned_by=assigner_name,
+                )
+                await send_email(
+                    to_email=assigned_user["email"],
+                    subject=f"New ESG Assignment: {entity_id}",
+                    body=email_body,
+                )
+                logging.info(f"Assignment email sent to {assigned_user['email']}")
+
+                # In-app notification
+                await create_notification(
+                    user_id=assigned_user["id"],
+                    org_id=org_id,
+                    title="New Assignment",
+                    message=f"You've been assigned: {entity_id}",
+                    notification_type="assignment",
+                    link="/environment",
+                    metadata={"assignment_id": assignment.get("id"), "entity_id": entity_id},
+                )
+
+            # --- Notify approver(s) ---
+            approval_chain = assignment.get("approval_chain") or []
+            for approver_id in approval_chain:
+                approver = await self._users.find_one(
+                    {"id": approver_id},
+                    {"email": 1, "name": 1, "full_name": 1, "id": 1}
+                )
+                if approver and approver.get("email"):
+                    approver_name = approver.get("full_name") or approver.get("name") or approver.get("email", "").split("@")[0]
+
+                    # Email
+                    await send_email(
+                        to_email=approver["email"],
+                        subject=f"You've been assigned as approver: {entity_id}",
+                        body=assignment_created_email(
+                            user_name=approver_name,
+                            entity_type=assignment.get("entity_type", ""),
+                            entity_id=entity_id,
+                            reporting_period=assignment.get("reporting_period", ""),
+                            due_date=assignment.get("due_date"),
+                            assigned_by=assigner_name,
+                        ),
+                    )
+                    logging.info(f"Approver email sent to {approver['email']}")
+
+                    # In-app notification
+                    await create_notification(
+                        user_id=approver["id"],
+                        org_id=org_id,
+                        title="Assigned as Approver",
+                        message=f"You're the approver for: {entity_id}",
+                        notification_type="approval",
+                        link="/approval-queue",
+                        metadata={"assignment_id": assignment.get("id"), "entity_id": entity_id},
+                    )
+
         except Exception as e:
-            logging.error(f"Failed to send assignment notification: {e}")
+            logging.error(f"Failed to send assignment notifications: {e}")
 
 
 # Singleton instance

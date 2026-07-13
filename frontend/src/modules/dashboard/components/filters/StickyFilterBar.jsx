@@ -7,6 +7,7 @@ import React from 'react';
 import { ChevronDown, ChevronUp, SlidersHorizontal, Sparkles, Download } from 'lucide-react';
 import DashboardFilters from '../../../../pages/dashboard/components/DashboardFilters';
 import PendingApprovalBell from '../../../ghg/components/PendingApprovalBell';
+import NotificationBell from '../../../../components/NotificationBell';
 
 export default function StickyFilterBar({
   title = 'Executive Dashboard',
@@ -85,6 +86,7 @@ export default function StickyFilterBar({
               <option value="governance">Governance</option>
             </select>
           )}
+          <NotificationBell />
           <PendingApprovalBell />
           {showExport && (
             <button
