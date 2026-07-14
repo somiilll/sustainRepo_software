@@ -27,13 +27,13 @@ import {
 
 const WORKFORCE_TABLE_MAP = {
   'Employee Diversity': EMPLOYEE_DIVERSITY_CONFIG,
-  'Worker Diversity': WORKER_DIVERSITY_CONFIG,
+  'Workers Diversity': WORKER_DIVERSITY_CONFIG,
   'Board of Directors Diversity': BOD_DIVERSITY_CONFIG,
   'Key Management Personnel Diversity': KMP_DIVERSITY_CONFIG,
   'Employee Turnover': EMPLOYEE_TURNOVER_CONFIG,
-  'Worker Turnover': WORKER_TURNOVER_CONFIG,
-  'Parental Leave': EMPLOYEE_PARENTAL_LEAVE_CONFIG,
-  'Worker Parental Leave': WORKER_PARENTAL_LEAVE_CONFIG,
+  'Workers Turnover': WORKER_TURNOVER_CONFIG,
+  'Employees Parental Leave': EMPLOYEE_PARENTAL_LEAVE_CONFIG,
+  'Workers Parental Leave': WORKER_PARENTAL_LEAVE_CONFIG,
 };
 import { Button } from './ui/button';
 import { Input } from './ui/input';
