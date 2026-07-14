@@ -11,6 +11,29 @@ from shared.database.mongo import db
 
 router = APIRouter()
 
+# Software asset keys stored in R2 (org_facility bucket, software-images folder)
+SOFTWARE_ASSETS = {
+    "logo": "software-images/logos/20260714/29cd1a4f-c4cb-4cc9-a8dc-7749b0449754.png",
+}
+
+
+@router.get("/software-assets/{asset_name}")
+async def get_software_asset(asset_name: str):
+    """Get presigned URL for a software asset (logo, etc.)."""
+    key = SOFTWARE_ASSETS.get(asset_name)
+    if not key:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    try:
+        from r2_storage import get_r2_storage
+        url = get_r2_storage().generate_presigned_url(
+            bucket_type="org_facility", key=key, expiration=86400
+        )
+        return {"url": url}
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to generate URL")
+
+
+
 
 class YearlyDataCreate(BaseModel):
     turnover: Optional[str] = None
