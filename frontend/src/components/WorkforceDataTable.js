@@ -109,8 +109,6 @@ function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
     }).flat().filter(Boolean);
   }, [tableData, validations, columns, rows]);
 
-  const autoCalcColKeys = new Set(Object.keys(autoCalculate || {}));
-
   return (
     <Card className="p-4 border border-stone-200" data-testid={`workforce-table-${config.key || 'default'}`}>
       {title && <h3 className="font-semibold text-text-primary mb-3">{title}</h3>}
@@ -139,9 +137,8 @@ function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
             <TableRow className="bg-stone-50">
               <TableHead className="text-xs font-semibold sticky left-0 bg-stone-50 z-10 min-w-[180px]">Category</TableHead>
               {columns.map(col => (
-                <TableHead key={col.key} className={`text-xs font-semibold text-center min-w-[100px] ${autoCalcColKeys.has(col.key) ? 'bg-stone-100' : ''}`}>
+                <TableHead key={col.key} className={`text-xs font-semibold text-center min-w-[100px]`}>
                   {col.label}
-                  {autoCalcColKeys.has(col.key) && <span className="block text-[9px] text-text-muted font-normal">(auto where applicable)</span>}
                 </TableHead>
               ))}
             </TableRow>
