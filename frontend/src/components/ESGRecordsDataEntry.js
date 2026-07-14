@@ -9,10 +9,24 @@
  * - Discard draft option
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Card } from './ui/card';
+import WorkforceDataTable from './WorkforceDataTable';
+import {
+  EMPLOYEE_DIVERSITY_CONFIG,
+  GOVERNANCE_DIVERSITY_CONFIG,
+  EMPLOYEE_TURNOVER_CONFIG,
+  PARENTAL_LEAVE_CONFIG,
+} from '../config/workforceTableConfigs';
+
+const WORKFORCE_TABLE_MAP = {
+  'Employee Diversity': EMPLOYEE_DIVERSITY_CONFIG,
+  'Governance Bodies Diversity': GOVERNANCE_DIVERSITY_CONFIG,
+  'Employee Turnover': EMPLOYEE_TURNOVER_CONFIG,
+  'Parental Leave': PARENTAL_LEAVE_CONFIG,
+};
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -767,8 +781,17 @@ export default function ESGRecordsDataEntry({
           )}
         </div>
 
-        {/* Dynamic Category Fields */}
-        {addFormCategory?.fields?.length > 0 && (
+        {/* Dynamic Category Fields — use table for workforce subcategories */}
+        {WORKFORCE_TABLE_MAP[formData.subcategory] ? (
+          <div className="mt-6 pt-4 border-t">
+            <WorkforceDataTable
+              config={WORKFORCE_TABLE_MAP[formData.subcategory]}
+              fieldValues={formData.field_values}
+              onChange={(fv) => setFormData(prev => ({ ...prev, field_values: fv }))}
+              isEditing={true}
+            />
+          </div>
+        ) : addFormCategory?.fields?.length > 0 && (
           <div className="mt-6 pt-4 border-t space-y-4">
             <p className="text-sm font-medium text-text-primary">Category Fields</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1329,8 +1352,15 @@ export default function ESGRecordsDataEntry({
               </Select>
             </div>
             
-            {/* Dynamic Category Fields */}
-            {selectedCategory?.fields?.length > 0 ? (
+            {/* Dynamic Category Fields — table for workforce, individual fields for others */}
+            {WORKFORCE_TABLE_MAP[editData.subcategory] ? (
+              <WorkforceDataTable
+                config={WORKFORCE_TABLE_MAP[editData.subcategory]}
+                fieldValues={editData.field_values}
+                onChange={(fv) => setEditData(prev => ({ ...prev, field_values: fv }))}
+                isEditing={true}
+              />
+            ) : selectedCategory?.fields?.length > 0 ? (
               <div className="space-y-3">
                 <p className="text-sm font-medium text-text-primary">Category Fields</p>
                 {selectedCategory.fields.map(field => (
