@@ -212,6 +212,42 @@ export const WORKER_PARENTAL_LEAVE_CONFIG = {
   ],
 };
 
+
+export const GENERAL_TRAINING_CONFIG = {
+  key: 'general_training',
+  title: 'General Training',
+  columns: [
+    { key: 'count', label: '# Trainings' },
+    { key: 'female', label: 'Female Attendees' },
+    { key: 'male', label: 'Male Attendees' },
+    { key: 'total', label: 'Total Attendees' },
+  ],
+  autoCalculate: { total: ['female', 'male'] },
+  rows: [
+    { key: 'overall', label: 'Overall' },
+    { key: 'health_safety', label: 'Health & Safety' },
+    { key: 'environment', label: 'Environment' },
+    { key: 'human_rights', label: 'Human Right Issues' },
+    { key: 'org_policy', label: 'Organization Policy(ies)' },
+    { key: 'skill_upgrade', label: 'Skill Upgrade / Up-skilling' },
+    { key: 'reskilling', label: 'Re-skilling' },
+    { key: 'anti_corruption', label: 'Anti-corruption' },
+    { key: 'ethical', label: 'Ethical Principles' },
+  ],
+  fieldMap: {
+    overall:        { count: 'no_of_trainings_done', female: 'no_of_female_attendees', male: 'no_of_male_attendees' },
+    health_safety:  { count: 'no_of_trainings_on_health_safety', female: 'no_of_female_attendees_for_training_on_health_safety', male: 'no_of_male_attendees_for_training_on_health_safety' },
+    environment:    { count: 'no_of_trainings_on_environment', female: 'no_of_female_attendees_for_training_on_environment', male: 'no_of_male_attendees_for_training_on_environment' },
+    human_rights:   { count: 'no_of_trainings_on_human_right_issues', female: 'no_of_female_attendees_for_trainings_on_human_right_issues', male: 'no_of_male_attendees_trainings_on_human_right_issues' },
+    org_policy:     { count: 'no_of_trainings_on_organization_policy_ies', female: 'no_of_female_attendees_for_trainings_on_organization_policy_ies', male: 'no_of_male_attendees_for_trainings_on_organization_policy_ies' },
+    skill_upgrade:  { count: 'no_of_trainings_on_skill_upgrade_up_skilling', female: 'no_of_female_attendees_for_trainings_on_skill_upgrade_up_skilling', male: 'no_of_male_attendees_for_trainings_on_skill_upgrade_up_skilling' },
+    reskilling:     { count: 'no_of_trainings_on_re_skilling', female: 'no_of_female_attendees_for_trainings_on_re_skilling', male: 'no_of_male_attendees_for_trainings_on_re_skilling' },
+    anti_corruption:{ count: 'no_of_trainings_on_anti_corruption', female: 'no_of_female_attendees_for_trainings_on_anti_corruption', male: 'no_of_male_attendees_for_trainings_on_anti_corruption' },
+    ethical:        { count: 'no_of_trainings_on_ethical_principles', female: 'no_of_female_attendees_for_trainings_on_ethical_principles', male: 'no_of_male_attendees_for_trainings_on_ethical_principles' },
+  },
+  validations: [],
+};
+
 export const ALL_WORKFORCE_CONFIGS = [
   EMPLOYEE_DIVERSITY_CONFIG,
   WORKER_DIVERSITY_CONFIG,

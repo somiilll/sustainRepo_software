@@ -23,6 +23,7 @@ import {
   WORKER_TURNOVER_CONFIG,
   EMPLOYEE_PARENTAL_LEAVE_CONFIG,
   WORKER_PARENTAL_LEAVE_CONFIG,
+  GENERAL_TRAINING_CONFIG,
 } from '../config/workforceTableConfigs';
 
 const WORKFORCE_TABLE_MAP = {
@@ -34,6 +35,7 @@ const WORKFORCE_TABLE_MAP = {
   'Workers Turnover': WORKER_TURNOVER_CONFIG,
   'Employees Parental Leave': EMPLOYEE_PARENTAL_LEAVE_CONFIG,
   'Workers Parental Leave': WORKER_PARENTAL_LEAVE_CONFIG,
+  'General Training': GENERAL_TRAINING_CONFIG,
 };
 import { Button } from './ui/button';
 import { Input } from './ui/input';
