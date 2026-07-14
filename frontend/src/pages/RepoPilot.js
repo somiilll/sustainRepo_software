@@ -7,8 +7,76 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Send, Upload, FileText, Trash2, Bot, User, Loader2, X } from 'lucide-react';
+import {
+  BarChart, Bar, LineChart, Line, AreaChart, Area, ScatterChart, Scatter,
+  PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+} from 'recharts';
 
 const API = process.env.REACT_APP_BACKEND_URL;
+const CHART_COLORS = ['#0ea5e9', '#e11d48', '#16a34a', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+
+function RenderChart({ chart }) {
+  const { type, title, data, stack } = chart;
+  if (!data) return null;
+
+  // Detect flat vs nested data
+  const isNested = typeof Object.values(data)[0] === 'object';
+  let chartData, keys;
+
+  if (isNested) {
+    keys = [...new Set(Object.values(data).flatMap(v => Object.keys(v)))];
+    chartData = Object.entries(data).map(([label, vals]) => ({ name: label, ...vals }));
+  } else {
+    keys = ['value'];
+    chartData = Object.entries(data).map(([label, val]) => ({ name: label, value: val }));
+  }
+
+  const common = (
+    <>
+      <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
+      <XAxis dataKey="name" tick={{ fontSize: 10 }} stroke="#78716c" angle={-20} textAnchor="end" height={45} />
+      <YAxis tick={{ fontSize: 10 }} stroke="#78716c" />
+      <Tooltip />
+      <Legend wrapperStyle={{ fontSize: 11 }} />
+    </>
+  );
+
+  return (
+    <div className="my-3 p-3 bg-white rounded-lg border border-stone-200">
+      {title && <p className="text-xs font-semibold text-text-primary mb-2">{title}</p>}
+      <ResponsiveContainer width="100%" height={220}>
+        {type === 'pie' ? (
+          <PieChart>
+            <Pie data={chartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+              {chartData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+            </Pie>
+            <Tooltip />
+          </PieChart>
+        ) : type === 'line' ? (
+          <LineChart data={chartData}>
+            {common}
+            {keys.map((k, i) => <Line key={k} type="monotone" dataKey={k} stroke={CHART_COLORS[i % CHART_COLORS.length]} strokeWidth={2} dot={{ r: 3 }} />)}
+          </LineChart>
+        ) : type === 'area' ? (
+          <AreaChart data={chartData}>
+            {common}
+            {keys.map((k, i) => <Area key={k} type="monotone" dataKey={k} fill={CHART_COLORS[i % CHART_COLORS.length]} fillOpacity={0.3} stroke={CHART_COLORS[i % CHART_COLORS.length]} />)}
+          </AreaChart>
+        ) : type === 'scatter' ? (
+          <ScatterChart>
+            {common}
+            <Scatter data={chartData} fill={CHART_COLORS[0]} />
+          </ScatterChart>
+        ) : (
+          <BarChart data={chartData}>
+            {common}
+            {keys.map((k, i) => <Bar key={k} dataKey={k} fill={CHART_COLORS[i % CHART_COLORS.length]} stackId={stack ? 'stack' : undefined} />)}
+          </BarChart>
+        )}
+      </ResponsiveContainer>
+    </div>
+  );
+}
 
 function ChatMessage({ msg, documents }) {
   const isUser = msg.role === 'user';
@@ -32,6 +100,7 @@ function ChatMessage({ msg, documents }) {
         ) : (
           <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: formatMarkdown(msg.content) }} />
         )}
+        {msg.charts?.length > 0 && msg.charts.map((chart, i) => <RenderChart key={i} chart={chart} />)}
         {msg.sources?.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-stone-200/50">
             {msg.sources.map((s, i) => {
@@ -215,6 +284,17 @@ export default function RepoPilotPage() {
       toast.error('Failed to delete');
     }
   };
+
+  // Auto-regenerate images for docs missing them
+  useEffect(() => {
+    documents.forEach(doc => {
+      if (doc.stage === 'COMPLETED' && doc.r2_url && (!doc.image_urls || Object.keys(doc.image_urls).length === 0)) {
+        axios.post(`${API}/api/repo-pilot/documents/${doc.doc_id}/regenerate-images`, {}, { headers })
+          .then(() => { setTimeout(fetchDocs, 15000); })
+          .catch(() => null);
+      }
+    });
+  }, [documents.length]);
 
   const toggleFilter = (docId) => {
     setDocFilter(prev => prev.includes(docId) ? prev.filter(d => d !== docId) : [...prev, docId]);

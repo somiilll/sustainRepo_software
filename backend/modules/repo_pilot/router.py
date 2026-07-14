@@ -223,6 +223,73 @@ async def list_documents(current_user: dict = Depends(get_current_user)):
     return {"documents": docs}
 
 
+@router.post("/documents/{doc_id}/regenerate-images")
+async def regenerate_images(
+    doc_id: str,
+    background_tasks: BackgroundTasks = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """Re-upload page images to R2 for a document whose images are missing."""
+    org_id = _get_org(current_user)
+    await _check_repo_pilot_access(org_id)
+    doc = await db[DOCS_COLLECTION].find_one({"organization_id": org_id, "doc_id": doc_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if not doc.get("r2_url"):
+        raise HTTPException(status_code=400, detail="Original PDF not found in R2")
+
+    background_tasks.add_task(_regenerate_images_async, doc["id"], org_id, doc_id, doc["r2_url"])
+    return {"message": "Image regeneration started"}
+
+
+async def _regenerate_images_async(document_id: str, org_id: str, doc_id: str, r2_url: str):
+    """Download PDF from R2, generate page images, upload to R2."""
+    import asyncio
+    try:
+        # Download PDF from R2
+        import httpx
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(r2_url, timeout=120)
+            pdf_bytes = resp.content
+
+        def _gen_images(pdf_bytes):
+            import fitz
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            images = {}
+            for pg in range(len(doc)):
+                page = doc.load_page(pg)
+                pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+                images[pg + 1] = pix.tobytes("jpeg")
+            doc.close()
+            return images
+
+        page_images = await asyncio.to_thread(_gen_images, pdf_bytes)
+
+        image_urls = {}
+        from r2_storage import r2_storage
+        for page_num, img_bytes in page_images.items():
+            r2_result = await r2_storage.upload_file(
+                file_content=img_bytes,
+                filename=f"page_{page_num}.jpg",
+                bucket_type="org_facility",
+                content_type="image/jpeg",
+                folder=f"repo-pilot/{org_id}/{doc_id}",
+                org_name="repo-pilot-dev",
+            )
+            if r2_result and not r2_result.get("error"):
+                image_urls[str(page_num)] = r2_result.get("url", "")
+
+        await db[DOCS_COLLECTION].update_one(
+            {"id": document_id},
+            {"$set": {"image_urls": image_urls, "updated_at": datetime.now(timezone.utc).isoformat()}}
+        )
+        logger.info(f"Regenerated {len(image_urls)} images for {doc_id}")
+    except Exception as e:
+        logger.error(f"Image regeneration failed for {doc_id}: {e}")
+
+
+
+
 @router.delete("/documents/{doc_id}")
 async def delete_document(doc_id: str, current_user: dict = Depends(get_current_user)):
     org_id = _get_org(current_user)
