@@ -13,7 +13,7 @@ router = APIRouter()
 
 # Software asset keys stored in R2 (org_facility bucket, software-images folder)
 SOFTWARE_ASSETS = {
-    "logo": "software-images/logos/20260714/29cd1a4f-c4cb-4cc9-a8dc-7749b0449754.png",
+    "logo": "logos/sustainrepo_logo.png",
 }
 
 
@@ -26,7 +26,7 @@ async def get_software_asset(asset_name: str):
     try:
         from r2_storage import get_r2_storage
         url = get_r2_storage().generate_presigned_url(
-            bucket_type="org_facility", key=key, expiration=86400
+            bucket_type="software_images", key=key, expiration=86400
         )
         return {"url": url}
     except Exception:
