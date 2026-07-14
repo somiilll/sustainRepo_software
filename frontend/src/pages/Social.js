@@ -1,20 +1,99 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
+import { useAuth } from '../contexts/AuthContext';
+import { toast } from 'sonner';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { Users2, Edit2, Eye, Info } from 'lucide-react';
+import { Users2, Edit2, Eye, Info, Save } from 'lucide-react';
 import ESGQuestionnaire from '../components/ESGQuestionnaire';
 import ESGRecordsModule from '../components/ESGRecordsModule';
 import HRWorkforce from './HRWorkforce';
 import FrameworkTabs from '../components/FrameworkTabs';
 import GRIQuestionnaire from '../components/GRIQuestionnaire';
+import WorkforceDataTable from '../components/WorkforceDataTable';
+import {
+  EMPLOYEE_DIVERSITY_CONFIG,
+  GOVERNANCE_DIVERSITY_CONFIG,
+  EMPLOYEE_TURNOVER_CONFIG,
+  PARENTAL_LEAVE_CONFIG,
+} from '../config/workforceTableConfigs';
+
+const API = process.env.REACT_APP_BACKEND_URL;
+
+function WorkforceTables({ isEditing }) {
+  const { token } = useAuth();
+  const headers = { Authorization: `Bearer ${token}` };
+  const [fieldValues, setFieldValues] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    try {
+      // Fetch latest social records that contain workforce field_values
+      const res = await axios.get(`${API}/api/esg-records?section=social&category=Social&subcategory=Workforce`, { headers });
+      const records = res.data?.records || res.data || [];
+      // Merge all field_values from workforce records
+      const merged = {};
+      (Array.isArray(records) ? records : []).forEach(r => {
+        Object.assign(merged, r.field_values || {});
+      });
+      setFieldValues(merged);
+    } catch (e) {
+      // Try broader fetch
+      try {
+        const res2 = await axios.get(`${API}/api/esg-records?section=social`, { headers });
+        const records2 = res2.data?.records || res2.data || [];
+        const merged2 = {};
+        (Array.isArray(records2) ? records2 : []).forEach(r => {
+          if (r.category === 'Social') Object.assign(merged2, r.field_values || {});
+        });
+        setFieldValues(merged2);
+      } catch (err) { /* silent */ }
+    }
+  }, [token]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await axios.post(`${API}/api/esg-records`, {
+        section: 'social',
+        category: 'Social',
+        subcategory: 'Workforce',
+        field_values: fieldValues,
+      }, { headers });
+      toast.success('Workforce data saved');
+    } catch (e) {
+      toast.error('Failed to save workforce data');
+    }
+    setSaving(false);
+  };
+
+  return (
+    <div className="space-y-4">
+      <WorkforceDataTable config={EMPLOYEE_DIVERSITY_CONFIG} fieldValues={fieldValues} onChange={setFieldValues} isEditing={isEditing} />
+      <WorkforceDataTable config={GOVERNANCE_DIVERSITY_CONFIG} fieldValues={fieldValues} onChange={setFieldValues} isEditing={isEditing} />
+      <WorkforceDataTable config={EMPLOYEE_TURNOVER_CONFIG} fieldValues={fieldValues} onChange={setFieldValues} isEditing={isEditing} />
+      <WorkforceDataTable config={PARENTAL_LEAVE_CONFIG} fieldValues={fieldValues} onChange={setFieldValues} isEditing={isEditing} />
+      {isEditing && (
+        <div className="flex justify-end">
+          <Button onClick={handleSave} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 gap-1">
+            <Save className="w-4 h-4" />
+            {saving ? 'Saving...' : 'Save Workforce Data'}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SocialRecordsContent() {
+  return <ESGRecordsModule section="social" />;
+}
 
 export default function Social() {
   const [isEditing, setIsEditing] = useState(false);
-
-  const RecordsContent = () => (
-    <ESGRecordsModule section="social" />
-  );
 
   const renderFrameworkContent = (framework) => {
     if (framework === 'BRSR') {
@@ -52,13 +131,11 @@ export default function Social() {
               <div className="flex items-start gap-2">
                 <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
                 <p className="text-sm text-blue-800">
-                  <strong>Diversity, Accessibility & Inclusion:</strong> Covers equal opportunity policies, accessibility for differently abled employees, workers and visitors as per the Rights of Persons with Disabilities Act, 2016.
+                  <strong>Diversity, Accessibility & Inclusion:</strong> Enter workforce demographics in the tables below. Totals are auto-calculated. Data maps to individual KPIs for targets and dashboards.
                 </p>
               </div>
             </Card>
-            <Card className="p-6">
-              <ESGQuestionnaire framework="BRSR" section="social" isEditing={isEditing} filterPrinciples={["P_DIVERSITY"]} />
-            </Card>
+            <WorkforceTables isEditing={isEditing} />
           </TabsContent>
 
           <TabsContent value="ohs">
@@ -124,7 +201,7 @@ export default function Social() {
           <h1 className="text-2xl font-heading font-bold text-text-primary">Social</h1>
         </div>
       </div>
-      <FrameworkTabs moduleType="social" recordsContent={<RecordsContent />} renderFrameworkContent={renderFrameworkContent} />
+      <FrameworkTabs moduleType="social" recordsContent={<SocialRecordsContent />} renderFrameworkContent={renderFrameworkContent} />
     </div>
   );
 }
