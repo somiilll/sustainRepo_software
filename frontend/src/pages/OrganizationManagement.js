@@ -134,6 +134,7 @@ export default function OrganizationManagement() {
     multi_level_approval_enabled: false,
     esg_frameworks_enabled: [],
     sbti_targets_enabled: false,
+    repo_pilot_enabled: false,
     has_ghg: true,
     has_esg: true,
     // SuperAdmin Internal Fields
@@ -354,6 +355,7 @@ export default function OrganizationManagement() {
       multi_level_approval_enabled: !!org.multi_level_approval_enabled,
       esg_frameworks_enabled: org.esg_frameworks_enabled || [],
       sbti_targets_enabled: !!org.sbti_targets_enabled,
+      repo_pilot_enabled: !!org.repo_pilot_enabled,
       has_ghg: org.has_ghg !== false,
       has_esg: org.has_esg !== false,
       // SuperAdmin Internal Fields
@@ -849,11 +851,26 @@ export default function OrganizationManagement() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Repo Pilot toggle */}
+                  <div className="flex items-center gap-3 p-3 border rounded-lg transition-all border-stone-200 bg-white">
+                    <Checkbox
+                      id="repo-pilot-toggle"
+                      checked={!!formData.repo_pilot_enabled}
+                      onCheckedChange={(checked) => setFormData({ ...formData, repo_pilot_enabled: !!checked })}
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <label htmlFor="repo-pilot-toggle" className="text-sm font-medium cursor-pointer">Repo Pilot</label>
+                        <Badge className="text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+                          <CheckCircle2 className="w-3 h-3 mr-1" />Available
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-text-muted mt-0.5">AI-powered ESG document assistant — upload reports and ask questions</p>
+                    </div>
+                  </div>
                 </div>
               </div>
-
-              <div className="space-y-2">
-                <Label>Company Logo</Label>
                 <div className="p-4 border border-stone-200 rounded-lg space-y-4 bg-stone-50">
                   {/* Logo Upload Only */}
                   <div className="space-y-2">

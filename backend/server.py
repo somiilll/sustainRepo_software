@@ -193,6 +193,9 @@ api_router.include_router(notifications_router, tags=["Notifications"])
 # SBTi Targets Module
 from modules.sbti_targets.router import router as sbti_targets_router
 api_router.include_router(sbti_targets_router, prefix="/sbti-targets", tags=["SBTi Targets"])
+# Repo Pilot Module
+from modules.repo_pilot.router import router as repo_pilot_router
+api_router.include_router(repo_pilot_router, prefix="/repo-pilot", tags=["Repo Pilot"])
 
 # Run module contract verifier at import time. Phase B1: log-only, will be
 # escalated to fail-fast in dev once all modules expose their contracts.
