@@ -16,16 +16,26 @@ import { Card } from './ui/card';
 import WorkforceDataTable from './WorkforceDataTable';
 import {
   EMPLOYEE_DIVERSITY_CONFIG,
+  WORKER_DIVERSITY_CONFIG,
   GOVERNANCE_DIVERSITY_CONFIG,
+  BOD_DIVERSITY_CONFIG,
+  KMP_DIVERSITY_CONFIG,
   EMPLOYEE_TURNOVER_CONFIG,
-  PARENTAL_LEAVE_CONFIG,
+  WORKER_TURNOVER_CONFIG,
+  EMPLOYEE_PARENTAL_LEAVE_CONFIG,
+  WORKER_PARENTAL_LEAVE_CONFIG,
 } from '../config/workforceTableConfigs';
 
 const WORKFORCE_TABLE_MAP = {
   'Employee Diversity': EMPLOYEE_DIVERSITY_CONFIG,
+  'Worker Diversity': WORKER_DIVERSITY_CONFIG,
   'Governance Bodies Diversity': GOVERNANCE_DIVERSITY_CONFIG,
+  'Board of Directors Diversity': BOD_DIVERSITY_CONFIG,
+  'Key Management Personnel Diversity': KMP_DIVERSITY_CONFIG,
   'Employee Turnover': EMPLOYEE_TURNOVER_CONFIG,
-  'Parental Leave': PARENTAL_LEAVE_CONFIG,
+  'Worker Turnover': WORKER_TURNOVER_CONFIG,
+  'Parental Leave': EMPLOYEE_PARENTAL_LEAVE_CONFIG,
+  'Worker Parental Leave': WORKER_PARENTAL_LEAVE_CONFIG,
 };
 import { Button } from './ui/button';
 import { Input } from './ui/input';

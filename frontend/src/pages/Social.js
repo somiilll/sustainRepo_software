@@ -13,10 +13,7 @@ import FrameworkTabs from '../components/FrameworkTabs';
 import GRIQuestionnaire from '../components/GRIQuestionnaire';
 import WorkforceDataTable from '../components/WorkforceDataTable';
 import {
-  EMPLOYEE_DIVERSITY_CONFIG,
-  GOVERNANCE_DIVERSITY_CONFIG,
-  EMPLOYEE_TURNOVER_CONFIG,
-  PARENTAL_LEAVE_CONFIG,
+  ALL_WORKFORCE_CONFIGS,
 } from '../config/workforceTableConfigs';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -29,17 +26,14 @@ function WorkforceTables({ isEditing }) {
 
   const fetchData = useCallback(async () => {
     try {
-      // Fetch latest social records that contain workforce field_values
       const res = await axios.get(`${API}/api/esg-records?section=social&category=Social&subcategory=Workforce`, { headers });
       const records = res.data?.records || res.data || [];
-      // Merge all field_values from workforce records
       const merged = {};
       (Array.isArray(records) ? records : []).forEach(r => {
         Object.assign(merged, r.field_values || {});
       });
       setFieldValues(merged);
     } catch (e) {
-      // Try broader fetch
       try {
         const res2 = await axios.get(`${API}/api/esg-records?section=social`, { headers });
         const records2 = res2.data?.records || res2.data || [];
@@ -58,29 +52,22 @@ function WorkforceTables({ isEditing }) {
     setSaving(true);
     try {
       await axios.post(`${API}/api/esg-records`, {
-        section: 'social',
-        category: 'Social',
-        subcategory: 'Workforce',
-        field_values: fieldValues,
+        section: 'social', category: 'Social', subcategory: 'Workforce', field_values: fieldValues,
       }, { headers });
       toast.success('Workforce data saved');
-    } catch (e) {
-      toast.error('Failed to save workforce data');
-    }
+    } catch (e) { toast.error('Failed to save'); }
     setSaving(false);
   };
 
   return (
     <div className="space-y-4">
-      <WorkforceDataTable config={EMPLOYEE_DIVERSITY_CONFIG} fieldValues={fieldValues} onChange={setFieldValues} isEditing={isEditing} />
-      <WorkforceDataTable config={GOVERNANCE_DIVERSITY_CONFIG} fieldValues={fieldValues} onChange={setFieldValues} isEditing={isEditing} />
-      <WorkforceDataTable config={EMPLOYEE_TURNOVER_CONFIG} fieldValues={fieldValues} onChange={setFieldValues} isEditing={isEditing} />
-      <WorkforceDataTable config={PARENTAL_LEAVE_CONFIG} fieldValues={fieldValues} onChange={setFieldValues} isEditing={isEditing} />
+      {ALL_WORKFORCE_CONFIGS.map(config => (
+        <WorkforceDataTable key={config.key} config={config} fieldValues={fieldValues} onChange={setFieldValues} isEditing={isEditing} />
+      ))}
       {isEditing && (
         <div className="flex justify-end">
           <Button onClick={handleSave} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 gap-1">
-            <Save className="w-4 h-4" />
-            {saving ? 'Saving...' : 'Save Workforce Data'}
+            <Save className="w-4 h-4" />{saving ? 'Saving...' : 'Save Workforce Data'}
           </Button>
         </div>
       )}

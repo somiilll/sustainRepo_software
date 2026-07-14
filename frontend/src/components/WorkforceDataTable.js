@@ -12,31 +12,41 @@ import { CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
 function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
   const { title, rows, columns, autoCalculate, validations, fieldMap } = config;
 
+  // Determine which cells are auto-calculated vs editable per ROW
+  // A row's "total" is auto-calc only if it has both source columns mapped
+  const isAutoCalcCell = useCallback((rowKey, colKey) => {
+    const sourceCols = autoCalculate?.[colKey];
+    if (!sourceCols) return false;
+    // Auto-calc only if this row has field mappings for ALL source columns
+    return sourceCols.every(sc => fieldMap?.[rowKey]?.[sc]);
+  }, [autoCalculate, fieldMap]);
+
   // Build table data from fieldValues using fieldMap
   const buildData = useCallback(() => {
     const data = {};
     rows.forEach(row => {
       data[row.key] = {};
       columns.forEach(col => {
-        if (autoCalculate?.[col.key]) {
-          // Will be computed
-          data[row.key][col.key] = null;
+        if (isAutoCalcCell(row.key, col.key)) {
+          data[row.key][col.key] = null; // Will be computed
         } else {
           const fk = fieldMap?.[row.key]?.[col.key];
           data[row.key][col.key] = fk && fieldValues?.[fk] != null ? Number(fieldValues[fk]) : null;
         }
       });
     });
-    // Compute auto-calculated columns
+    // Compute auto-calculated cells
     Object.entries(autoCalculate || {}).forEach(([colKey, sourceCols]) => {
       rows.forEach(row => {
-        const sum = sourceCols.reduce((s, sc) => s + (data[row.key]?.[sc] || 0), 0);
-        const hasInput = sourceCols.some(sc => data[row.key]?.[sc] != null);
-        data[row.key][colKey] = hasInput ? sum : null;
+        if (isAutoCalcCell(row.key, colKey)) {
+          const sum = sourceCols.reduce((s, sc) => s + (data[row.key]?.[sc] || 0), 0);
+          const hasInput = sourceCols.some(sc => data[row.key]?.[sc] != null);
+          data[row.key][colKey] = hasInput ? sum : null;
+        }
       });
     });
     return data;
-  }, [fieldValues, rows, columns, autoCalculate, fieldMap]);
+  }, [fieldValues, rows, columns, autoCalculate, fieldMap, isAutoCalcCell]);
 
   const [tableData, setTableData] = useState(buildData);
   useEffect(() => setTableData(buildData()), [buildData]);
@@ -46,11 +56,13 @@ function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
     const newData = { ...tableData };
     newData[rowKey] = { ...newData[rowKey], [colKey]: num };
 
-    // Recompute auto-calculated columns for this row
+    // Recompute auto-calculated columns for this row (only if row has source mappings)
     Object.entries(autoCalculate || {}).forEach(([calcCol, sourceCols]) => {
-      const sum = sourceCols.reduce((s, sc) => s + (newData[rowKey]?.[sc] || 0), 0);
-      const hasInput = sourceCols.some(sc => newData[rowKey]?.[sc] != null);
-      newData[rowKey][calcCol] = hasInput ? sum : null;
+      if (isAutoCalcCell(rowKey, calcCol)) {
+        const sum = sourceCols.reduce((s, sc) => s + (newData[rowKey]?.[sc] || 0), 0);
+        const hasInput = sourceCols.some(sc => newData[rowKey]?.[sc] != null);
+        newData[rowKey][calcCol] = hasInput ? sum : null;
+      }
     });
 
     setTableData(newData);
@@ -95,7 +107,7 @@ function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
     }).flat().filter(Boolean);
   }, [tableData, validations, columns, rows]);
 
-  const autoCalcCols = new Set(Object.keys(autoCalculate || {}));
+  const autoCalcColKeys = new Set(Object.keys(autoCalculate || {}));
 
   return (
     <Card className="p-4 border border-stone-200" data-testid={`workforce-table-${config.key || 'default'}`}>
@@ -106,9 +118,9 @@ function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
             <TableRow className="bg-stone-50">
               <TableHead className="text-xs font-semibold sticky left-0 bg-stone-50 z-10 min-w-[180px]">Category</TableHead>
               {columns.map(col => (
-                <TableHead key={col.key} className={`text-xs font-semibold text-center min-w-[100px] ${autoCalcCols.has(col.key) ? 'bg-stone-100' : ''}`}>
+                <TableHead key={col.key} className={`text-xs font-semibold text-center min-w-[100px] ${autoCalcColKeys.has(col.key) ? 'bg-stone-100' : ''}`}>
                   {col.label}
-                  {autoCalcCols.has(col.key) && <span className="block text-[9px] text-text-muted font-normal">(auto)</span>}
+                  {autoCalcColKeys.has(col.key) && <span className="block text-[9px] text-text-muted font-normal">(auto where applicable)</span>}
                 </TableHead>
               ))}
             </TableRow>
@@ -118,7 +130,7 @@ function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
               <TableRow key={row.key} className="hover:bg-stone-50/50">
                 <TableCell className="text-sm font-medium sticky left-0 bg-white z-10">{row.label}</TableCell>
                 {columns.map(col => {
-                  const isAuto = autoCalcCols.has(col.key);
+                  const isAuto = isAutoCalcCell(row.key, col.key);
                   const val = tableData[row.key]?.[col.key];
                   return (
                     <TableCell key={col.key} className={`text-center ${isAuto ? 'bg-stone-50' : ''}`}>
