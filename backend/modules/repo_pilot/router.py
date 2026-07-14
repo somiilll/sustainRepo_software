@@ -4,7 +4,6 @@ Repo Pilot — REST API endpoints.
 """
 import os
 import uuid
-import asyncio
 import tempfile
 import logging
 from typing import Optional, List
@@ -101,13 +100,13 @@ async def upload_document(
     tmp.close()
 
     # Stage 2 — Start background processing
-    background_tasks.add_task(_process_document_background, document_id, org_id, doc_id, tmp.name, split_2up)
+    background_tasks.add_task(_process_document_async, document_id, org_id, doc_id, tmp.name, split_2up)
 
     return {"document_id": document_id, "doc_id": doc_id, "status": "uploaded"}
 
 
 # =============================================================================
-# Stage 3 — Background worker
+# Stage 3 — Background worker (async, runs on main event loop)
 # =============================================================================
 
 async def _update_doc_status(document_id: str, stage: str, progress: int, **extra):
@@ -116,71 +115,58 @@ async def _update_doc_status(document_id: str, stage: str, progress: int, **extr
     await db[DOCS_COLLECTION].update_one({"id": document_id}, {"$set": update})
 
 
-def _process_document_background(document_id: str, org_id: str, doc_id: str, pdf_path: str, split_2up: bool):
-    """Sync wrapper for async background processing."""
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+async def _process_document_async(document_id: str, org_id: str, doc_id: str, pdf_path: str, split_2up: bool):
+    """Full async processing pipeline. Runs on main event loop via BackgroundTasks."""
     try:
-        loop.run_until_complete(_process_document_async(document_id, org_id, doc_id, pdf_path, split_2up))
+        await _update_doc_status(document_id, "PROCESSING", 10)
+
+        from .ingest import process_pdf
+        result = await process_pdf(pdf_path, org_id, doc_id, split_2up)
+
+        await _update_doc_status(document_id, "PROCESSING", 70)
+
+        # Upload page images to R2
+        page_images = result.get("page_images", {})
+        image_urls = {}
+        try:
+            from r2_storage import r2_storage
+            for page_num, img_bytes in page_images.items():
+                r2_result = await r2_storage.upload_file(
+                    file_content=img_bytes,
+                    filename=f"page_{page_num}.jpg",
+                    bucket_type="org_facility",
+                    content_type="image/jpeg",
+                    folder=f"repo-pilot/{org_id}/{doc_id}",
+                )
+                if r2_result and not r2_result.get("error"):
+                    image_urls[str(page_num)] = r2_result.get("url", "")
+        except Exception as e:
+            logger.warning(f"R2 image upload failed: {e}")
+
+        await _update_doc_status(document_id, "PROCESSING", 90)
+
+        # Update document record with results
+        await db[DOCS_COLLECTION].update_one(
+            {"id": document_id},
+            {"$set": {
+                "status": "completed",
+                "stage": "COMPLETED",
+                "progress": 100,
+                "pages": result.get("pages", 0),
+                "chunks": result.get("chunks", 0),
+                "image_urls": image_urls,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }}
+        )
+        logger.info(f"Document {doc_id} processing completed: {result.get('chunks', 0)} chunks")
     except Exception as e:
         logger.error(f"Background processing failed for {doc_id}: {e}")
-        loop.run_until_complete(_update_doc_status(document_id, "FAILED", 0, error_message=str(e)))
+        await _update_doc_status(document_id, "FAILED", 0, error_message=str(e))
     finally:
-        loop.close()
-        # Cleanup temp file
         try:
             os.unlink(pdf_path)
         except Exception:
             pass
-
-
-async def _process_document_async(document_id: str, org_id: str, doc_id: str, pdf_path: str, split_2up: bool):
-    """Full async processing pipeline."""
-    await _update_doc_status(document_id, "PROCESSING", 10)
-
-    try:
-        from .ingest import process_pdf
-        result = await process_pdf(pdf_path, org_id, doc_id, split_2up)
-    except Exception as e:
-        await _update_doc_status(document_id, "FAILED", 0, error_message=f"Processing failed: {e}")
-        return
-
-    await _update_doc_status(document_id, "PROCESSING", 70)
-
-    # Upload page images to R2
-    page_images = result.get("page_images", {})
-    image_urls = {}
-    try:
-        from r2_storage import r2_storage
-        for page_num, img_bytes in page_images.items():
-            r2_result = await r2_storage.upload_file(
-                file_content=img_bytes,
-                filename=f"page_{page_num}.jpg",
-                bucket_type="org_facility",
-                content_type="image/jpeg",
-                folder=f"repo-pilot/{org_id}/{doc_id}",
-            )
-            if r2_result and not r2_result.get("error"):
-                image_urls[str(page_num)] = r2_result.get("url", "")
-    except Exception as e:
-        logger.warning(f"R2 image upload failed: {e}")
-
-    await _update_doc_status(document_id, "PROCESSING", 90)
-
-    # Update document record with results
-    await db[DOCS_COLLECTION].update_one(
-        {"id": document_id},
-        {"$set": {
-            "status": "completed",
-            "stage": "COMPLETED",
-            "progress": 100,
-            "pages": result.get("pages", 0),
-            "chunks": result.get("chunks", 0),
-            "image_urls": image_urls,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }}
-    )
-    logger.info(f"Document {doc_id} processing completed: {result.get('chunks', 0)} chunks")
 
 
 # =============================================================================
