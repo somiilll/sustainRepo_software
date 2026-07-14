@@ -1,17 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
+import axios from 'axios';
 
-const LOGO_URL = 'https://customer-assets.emergentagent.com/job_d67b5362-a184-47b7-81eb-abb9d39b89dd/artifacts/qllw2r8k_Logo_v3.png';
+const API = process.env.REACT_APP_BACKEND_URL;
+const LOGO_FALLBACK = 'https://customer-assets.emergentagent.com/job_d67b5362-a184-47b7-81eb-abb9d39b89dd/artifacts/qllw2r8k_Logo_v3.png';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [logoUrl, setLogoUrl] = useState(LOGO_FALLBACK);
+
+  useEffect(() => {
+    axios.get(`${API}/api/software-assets/logo`)
+      .then(r => { if (r.data?.url) setLogoUrl(r.data.url); })
+      .catch(() => null);
+  }, []);
   
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -41,7 +50,7 @@ export default function Login() {
         <div className="w-full max-w-md">
           <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl p-8 border border-white/20">
             <div className="flex items-center justify-center mb-6">
-              <img src={LOGO_URL} alt="SustainRepo Logo" className="w-16 h-16 rounded-full" />
+              <img src={logoUrl} alt="SustainRepo Logo" className="w-16 h-16 rounded-full" />
             </div>
             
             <h1 className="text-3xl font-heading font-bold text-center mb-2 text-text-primary">SustainRepo</h1>
