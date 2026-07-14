@@ -871,6 +871,9 @@ export default function OrganizationManagement() {
                   </div>
                 </div>
               </div>
+
+              <div className="space-y-2">
+                <Label>Company Logo</Label>
                 <div className="p-4 border border-stone-200 rounded-lg space-y-4 bg-stone-50">
                   {/* Logo Upload Only */}
                   <div className="space-y-2">
