@@ -57,6 +57,10 @@ async def upload_document(
     document_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
 
+    # Get org name for R2 folder structure
+    org_doc = await db.organizations.find_one({"id": org_id}, {"_id": 0, "name": 1})
+    org_name_safe = (org_doc.get("name", org_id) if org_doc else org_id).replace(" ", "_")
+
     # Upload PDF to R2
     r2_url = ""
     try:
@@ -64,9 +68,9 @@ async def upload_document(
         r2_result = await r2_storage.upload_file(
             file_content=content,
             filename=file.filename,
-            bucket_type="org_facility",
+            bucket_type="repo_pilot",
             content_type="application/pdf",
-            folder=f"repo-pilot/{org_id}/{doc_id}",
+            folder=f"{org_name_safe}/documents",
         )
         if r2_result and not r2_result.get("error"):
             r2_url = r2_result.get("url", "")
@@ -134,10 +138,9 @@ async def _process_document_async(document_id: str, org_id: str, doc_id: str, pd
                 r2_result = await r2_storage.upload_file(
                     file_content=img_bytes,
                     filename=f"page_{page_num}.jpg",
-                    bucket_type="org_facility",
+                    bucket_type="repo_pilot",
                     content_type="image/jpeg",
-                    folder=f"repo-pilot/{org_id}/{doc_id}",
-                    org_name="repo-pilot-dev",
+                    folder=f"{org_id}/{doc_id}/pages",
                 )
                 if r2_result and not r2_result.get("error"):
                     image_urls[str(page_num)] = r2_result.get("url", "")
@@ -267,14 +270,16 @@ async def _regenerate_images_async(document_id: str, org_id: str, doc_id: str, r
 
         image_urls = {}
         from r2_storage import r2_storage
+        # Get org name for folder structure
+        org_doc = await db.organizations.find_one({"id": org_id}, {"_id": 0, "name": 1})
+        org_folder = (org_doc.get("name", org_id) if org_doc else org_id).replace(" ", "_")
         for page_num, img_bytes in page_images.items():
             r2_result = await r2_storage.upload_file(
                 file_content=img_bytes,
                 filename=f"page_{page_num}.jpg",
-                bucket_type="org_facility",
+                bucket_type="repo_pilot",
                 content_type="image/jpeg",
-                folder=f"repo-pilot/{org_id}/{doc_id}",
-                org_name="repo-pilot-dev",
+                folder=f"{org_folder}/{doc_id}/pages",
             )
             if r2_result and not r2_result.get("error"):
                 image_urls[str(page_num)] = r2_result.get("url", "")
