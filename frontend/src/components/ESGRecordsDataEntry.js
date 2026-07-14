@@ -17,7 +17,6 @@ import WorkforceDataTable from './WorkforceDataTable';
 import {
   EMPLOYEE_DIVERSITY_CONFIG,
   WORKER_DIVERSITY_CONFIG,
-  GOVERNANCE_DIVERSITY_CONFIG,
   BOD_DIVERSITY_CONFIG,
   KMP_DIVERSITY_CONFIG,
   EMPLOYEE_TURNOVER_CONFIG,
@@ -29,7 +28,6 @@ import {
 const WORKFORCE_TABLE_MAP = {
   'Employee Diversity': EMPLOYEE_DIVERSITY_CONFIG,
   'Worker Diversity': WORKER_DIVERSITY_CONFIG,
-  'Governance Bodies Diversity': GOVERNANCE_DIVERSITY_CONFIG,
   'Board of Directors Diversity': BOD_DIVERSITY_CONFIG,
   'Key Management Personnel Diversity': KMP_DIVERSITY_CONFIG,
   'Employee Turnover': EMPLOYEE_TURNOVER_CONFIG,
