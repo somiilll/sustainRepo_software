@@ -33,13 +33,13 @@ export default function Sidebar() {
   const [sbtiEnabled, setSbtiEnabled] = useState(false);
 
   useEffect(() => {
-    axios.get(`${API}/api/organizations/software-assets/logo`)
+    axios.get(`${API}/api/software-assets/logo`)
       .then(r => { if (r.data?.url) setLogoUrl(r.data.url); })
       .catch(() => null);
   }, []);
 
   useEffect(() => {
-    axios.get(`${API}/api/organizations/software-assets/logo`)
+    axios.get(`${API}/api/software-assets/logo`)
       .then(r => { if (r.data?.url) setLogoUrl(r.data.url); })
       .catch(() => null);
   }, []);
