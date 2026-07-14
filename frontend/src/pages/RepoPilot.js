@@ -109,6 +109,31 @@ export default function RepoPilotPage() {
     setLoading(false);
   };
 
+  const pollStatus = useCallback(async (documentId) => {
+    const poll = async () => {
+      try {
+        const res = await axios.get(`${API}/api/repo-pilot/documents/${documentId}/status`, { headers });
+        const { stage, progress, error_message } = res.data;
+        if (stage === 'COMPLETED') {
+          toast.success('Document processing completed!');
+          fetchDocs();
+          return;
+        }
+        if (stage === 'FAILED') {
+          toast.error(`Processing failed: ${error_message || 'Unknown error'}`);
+          fetchDocs();
+          return;
+        }
+        // Still processing — poll again
+        setTimeout(poll, 3000);
+      } catch (err) {
+        // Silently retry
+        setTimeout(poll, 5000);
+      }
+    };
+    poll();
+  }, [token]);
+
   const handleUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -119,12 +144,14 @@ export default function RepoPilotPage() {
     try {
       const res = await axios.post(`${API}/api/repo-pilot/upload`, formData, {
         headers: { ...headers, 'Content-Type': 'multipart/form-data' },
-        timeout: 300000,
+        timeout: 60000,
       });
-      toast.success(`Uploaded: ${res.data.doc_id} (${res.data.pages} pages, ${res.data.chunks} chunks)`);
+      toast.success(`Uploaded: ${res.data.doc_id} — processing started`);
       fetchDocs();
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Upload failed');
+      // Start polling for processing status
+      pollStatus(res.data.document_id);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Upload failed');
     }
     setUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -162,11 +189,17 @@ export default function RepoPilotPage() {
             {documents.length === 0 ? (
               <p className="text-xs text-text-muted text-center py-4">No documents uploaded yet</p>
             ) : documents.map(doc => (
-              <div key={doc.doc_id} className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer text-xs group ${docFilter.includes(doc.doc_id) ? 'bg-emerald-50 border border-emerald-200' : 'hover:bg-stone-50'}`} onClick={() => toggleFilter(doc.doc_id)}>
-                <FileText className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+              <div key={doc.doc_id} className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer text-xs group ${docFilter.includes(doc.doc_id) ? 'bg-emerald-50 border border-emerald-200' : 'hover:bg-stone-50'}`} onClick={() => doc.stage === 'COMPLETED' && toggleFilter(doc.doc_id)}>
+                <FileText className={`w-3.5 h-3.5 shrink-0 ${doc.stage === 'COMPLETED' ? 'text-stone-400' : 'text-amber-400'}`} />
                 <div className="flex-1 min-w-0">
                   <p className="truncate font-medium">{doc.filename || doc.doc_id}</p>
-                  <p className="text-text-muted">{doc.pages} pages · {doc.chunks} chunks</p>
+                  {doc.stage === 'COMPLETED' ? (
+                    <p className="text-text-muted">{doc.pages} pages · {doc.chunks} chunks</p>
+                  ) : doc.stage === 'FAILED' ? (
+                    <p className="text-red-500">Failed</p>
+                  ) : (
+                    <p className="text-amber-600">Processing... {doc.progress || 0}%</p>
+                  )}
                 </div>
                 {isAdmin && (
                   <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); handleDelete(doc.doc_id); }}>
