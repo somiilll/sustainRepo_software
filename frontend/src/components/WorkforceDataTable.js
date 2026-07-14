@@ -6,8 +6,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Input } from './ui/input';
+import { Label } from './ui/label';
 import { Card } from './ui/card';
-import { CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { CheckCircle2, AlertTriangle } from 'lucide-react';
 
 function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
   const { title, rows, columns, autoCalculate, validations, fieldMap } = config;
@@ -112,6 +114,25 @@ function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
   return (
     <Card className="p-4 border border-stone-200" data-testid={`workforce-table-${config.key || 'default'}`}>
       {title && <h3 className="font-semibold text-text-primary mb-3">{title}</h3>}
+      {config.dropdownFields?.length > 0 && (
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          {config.dropdownFields.map(df => (
+            <div key={df.key}>
+              <Label className="text-sm">{df.label}</Label>
+              {isEditing ? (
+                <Select value={fieldValues?.[df.key] || ''} onValueChange={v => onChange({ ...fieldValues, [df.key]: v })}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <SelectContent>
+                    {df.options.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <p className="text-sm mt-1 font-medium">{fieldValues?.[df.key] || '—'}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>

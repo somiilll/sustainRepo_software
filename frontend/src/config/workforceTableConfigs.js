@@ -216,6 +216,10 @@ export const WORKER_PARENTAL_LEAVE_CONFIG = {
 export const GENERAL_TRAINING_CONFIG = {
   key: 'general_training',
   title: 'General Training',
+  dropdownFields: [
+    { key: 'training_attendes_type', label: 'Who was the training for?', options: ['Board of Directors', 'Key Management Personal', 'Employees', 'Workers', 'Vendors', 'Contractors'] },
+    { key: 'employee_worker_type', label: 'Employee/Worker Type', options: ['Permanent', 'Other than Permanent'] },
+  ],
   columns: [
     { key: 'count', label: '# Trainings' },
     { key: 'female', label: 'Female Attendees' },
