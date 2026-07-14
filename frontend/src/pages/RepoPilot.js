@@ -10,8 +10,15 @@ import { Send, Upload, FileText, Trash2, Bot, User, Loader2, X } from 'lucide-re
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
-function ChatMessage({ msg }) {
+function ChatMessage({ msg, documents }) {
   const isUser = msg.role === 'user';
+  const [viewSource, setViewSource] = useState(null);
+
+  const getImageUrl = (source) => {
+    const doc = documents.find(d => d.doc_id === source.doc_id);
+    return doc?.image_urls?.[String(source.page_num)] || null;
+  };
+
   return (
     <div className={`flex gap-3 ${isUser ? 'justify-end' : ''}`} data-testid="chat-message">
       {!isUser && (
@@ -27,11 +34,19 @@ function ChatMessage({ msg }) {
         )}
         {msg.sources?.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-stone-200/50">
-            {msg.sources.map((s, i) => (
-              <Badge key={i} variant="outline" className="text-[10px] bg-white/80">
-                [{s.citation_id}] {s.doc_id} p.{s.page_num}
-              </Badge>
-            ))}
+            {msg.sources.map((s, i) => {
+              const imgUrl = getImageUrl(s);
+              return (
+                <Badge
+                  key={i}
+                  variant="outline"
+                  className={`text-[10px] bg-white/80 ${imgUrl ? 'cursor-pointer hover:bg-emerald-50' : ''}`}
+                  onClick={() => imgUrl && setViewSource({ ...s, imgUrl })}
+                >
+                  [{s.citation_id}] {s.doc_id} p.{s.page_num}
+                </Badge>
+              );
+            })}
           </div>
         )}
       </div>
@@ -40,21 +55,54 @@ function ChatMessage({ msg }) {
           <User className="w-4 h-4 text-stone-600" />
         </div>
       )}
+      {viewSource && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center" onClick={() => setViewSource(null)}>
+          <div className="bg-white rounded-lg p-4 max-w-3xl max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-2">
+              <p className="text-sm font-semibold">{viewSource.doc_id} — Page {viewSource.page_num}</p>
+              <Button variant="ghost" size="sm" onClick={() => setViewSource(null)}><X className="w-4 h-4" /></Button>
+            </div>
+            <img src={viewSource.imgUrl} alt={`Page ${viewSource.page_num}`} className="w-full" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 function formatMarkdown(text) {
   if (!text) return '';
-  return text
+  let html = text
     .replace(/### (.*?)$/gm, '<h3 class="font-semibold text-base mt-3 mb-1">$1</h3>')
     .replace(/## (.*?)$/gm, '<h2 class="font-semibold text-lg mt-3 mb-1">$1</h2>')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
     .replace(/^- (.*?)$/gm, '<li class="ml-4">$1</li>')
-    .replace(/(<li.*?<\/li>\n?)+/g, '<ul class="list-disc mb-2">$&</ul>')
-    .replace(/\n\n/g, '<br/>')
-    .replace(/\n/g, '<br/>');
+    .replace(/(<li.*?<\/li>\n?)+/g, '<ul class="list-disc mb-2">$&</ul>');
+
+  // Table rendering
+  const lines = html.split('\n');
+  let inTable = false;
+  const out = [];
+  for (const line of lines) {
+    if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
+      if (!inTable) { out.push('<table class="w-full text-sm border-collapse my-2">'); inTable = true; }
+      const cells = line.split('|').filter(c => c.trim());
+      if (cells.every(c => /^[\s\-:]+$/.test(c))) continue; // skip separator
+      const isHeader = !out.some(o => o.includes('<td'));
+      const tag = isHeader && inTable && !out.some(o => o.includes('</tr>')) ? 'th' : 'td';
+      const cls = tag === 'th' ? 'bg-stone-100 font-semibold px-2 py-1 border border-stone-200 text-left' : 'px-2 py-1 border border-stone-200';
+      out.push('<tr>' + cells.map(c => `<${tag} class="${cls}">${c.trim()}</${tag}>`).join('') + '</tr>');
+    } else {
+      if (inTable) { out.push('</table>'); inTable = false; }
+      out.push(line);
+    }
+  }
+  if (inTable) out.push('</table>');
+  html = out.join('\n');
+
+  html = html.replace(/\n\n/g, '<br/>').replace(/\n/g, '<br/>');
+  return html;
 }
 
 export default function RepoPilotPage() {
@@ -245,7 +293,7 @@ export default function RepoPilotPage() {
                 <p className="text-sm text-text-muted max-w-md">Upload ESG reports, sustainability documents, or annual reports and ask any questions. I will find answers with exact page citations.</p>
               </div>
             )}
-            {messages.map((msg, i) => <ChatMessage key={i} msg={msg} />)}
+            {messages.map((msg, i) => <ChatMessage key={i} msg={msg} documents={documents} />)}
             {loading && (
               <div className="flex gap-3">
                 <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">

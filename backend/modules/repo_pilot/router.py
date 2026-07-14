@@ -137,6 +137,7 @@ async def _process_document_async(document_id: str, org_id: str, doc_id: str, pd
                     bucket_type="org_facility",
                     content_type="image/jpeg",
                     folder=f"repo-pilot/{org_id}/{doc_id}",
+                    org_name="repo-pilot-dev",
                 )
                 if r2_result and not r2_result.get("error"):
                     image_urls[str(page_num)] = r2_result.get("url", "")

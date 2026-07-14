@@ -55,6 +55,12 @@ def reconstruct_page_text(fitz_page):
 
 
 async def process_pdf(pdf_path: str, org_id: str, doc_id: str, split_2up: bool = False):
+    """Process a PDF in a thread pool to avoid blocking the event loop."""
+    import asyncio
+    return await asyncio.to_thread(_process_pdf_sync, pdf_path, org_id, doc_id, split_2up)
+
+
+def _process_pdf_sync(pdf_path: str, org_id: str, doc_id: str, split_2up: bool = False):
     """Process a PDF: parse, chunk, embed, store in MongoDB. Returns page images as bytes dict."""
     logger.info(f"Processing {pdf_path} for org {org_id}, doc {doc_id}")
 
@@ -161,8 +167,22 @@ async def process_pdf(pdf_path: str, org_id: str, doc_id: str, split_2up: bool =
                 logger.error(f"Embedding error: {e}")
 
     if len(embeddings) == len(docs_to_insert):
-        from . import vector_store
-        await vector_store.add_chunks(org_id, doc_id, docs_to_insert, metadatas, embeddings, ids)
+        # Sync insert since we're in a thread pool
+        from pymongo import MongoClient
+        sync_client = MongoClient(os.environ.get("MONGO_URL", "mongodb://localhost:27017"))
+        sync_db = sync_client[os.environ.get("DB_NAME", "test_database")]
+        bulk_docs = []
+        for i, (text, meta, emb, chunk_id) in enumerate(zip(docs_to_insert, metadatas, embeddings, ids)):
+            bulk_docs.append({
+                "chunk_id": chunk_id,
+                "organization_id": org_id,
+                "doc_id": doc_id,
+                "page_num": meta.get("page_num", 1),
+                "text": text,
+                "embedding": emb,
+            })
+        if bulk_docs:
+            sync_db[CHUNK_COLLECTION].insert_many(bulk_docs)
         logger.info(f"Added {len(docs_to_insert)} chunks for {doc_id}")
 
     # 5. Extract GRI index
@@ -181,8 +201,7 @@ If no index found, return {}."""
         )
         gri_index = json.loads(gri_resp.choices[0].message.content)
         if gri_index:
-            # Store GRI index as a special chunk
-            await db[CHUNK_COLLECTION].insert_one({
+            sync_db[CHUNK_COLLECTION].insert_one({
                 "chunk_id": f"{doc_id}_gri_index",
                 "organization_id": org_id,
                 "doc_id": doc_id,
