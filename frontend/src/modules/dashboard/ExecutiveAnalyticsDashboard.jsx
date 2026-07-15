@@ -66,6 +66,8 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
     load();
   }, [dateRange, selectedFacilities, getAuthHeader]);
 
+  console.log("filteredData", filteredData)
+  console.log("metrics", metrics)
   const totals = filteredData?.totals || {};
   const emissionData = metrics?.emissions?.ghg_emissions || {};
   const scope12 = (emissionData.total_scope1 || 0) + (emissionData.total_scope2 || 0);
@@ -77,6 +79,7 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
   const toggleScope = (scope) => setActiveScopes((current) => current.includes(scope) ? current.filter((item) => item !== scope) : [...current, scope]);
   const filterProps = { dateRange, setDateRange, facilities, selectedFacilities, setSelectedFacilities, showFacilityDropdown, setShowFacilityDropdown, facilityDropdownRef, getPreviousFinancialYear };
   const analyticsData = analytics || { emissions: [], energy: [], water: [], waste: [], workforce: [], safety: [], finance: [], breaches: [], governance: {} };
+  console.log("analyticsData", analyticsData)
   const emissionRows = aggregateSeries(analyticsData.emissions, granularity, ['scope1', 'scope2', 'scope3', 'previousTotal']);
   const energyRows = aggregateSeries(analyticsData.energy, granularity, ['renewable', 'nonRenewable']);
   const waterRows = aggregateSeries(analyticsData.water, granularity, ['withdrawn', 'consumed', 'discharged', 'recycled']);

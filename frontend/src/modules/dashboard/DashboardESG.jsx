@@ -162,8 +162,6 @@ function LegacyDashboardESG({ data }) {
 
   // Calculate totals from nested emissions structure
   const totals = filteredData?.totals || {};
-  console.log("totals", totals)
-  console.log("esgMetrics",esgMetrics)
   const ghgEmissionsFallback = (totals.total || 0) - (filteredData?.filteredSinks || 0);
   // Use nested emissions structure from dashboard-metrics endpoint
   const emissionsData = esgMetrics?.emissions || {};
