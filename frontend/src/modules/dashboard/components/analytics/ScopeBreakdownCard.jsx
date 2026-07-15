@@ -3,9 +3,9 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { Expand } from 'lucide-react';
 
 const scopes = [
-  { key: 'scope1', label: 'Scope 1', color: '#15803D' }, 
-  { key: 'scope2', label: 'Scope 2', color: '#2563EB' }, 
-  { key: 'scope3', label: 'Scope 3', color: '#7C3AED' }
+  { key: 'scope1', label: 'Scope 1', color: '#10B981' }, 
+  { key: 'scope2', label: 'Scope 2', color: '#3B82F6' }, 
+  { key: 'scope3', label: 'Scope 3', color: '#8B5CF6' }
 ];
 
 export const ScopeBreakdownCard = ({ 

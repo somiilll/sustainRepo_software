@@ -135,9 +135,12 @@ function DiversityCard({ data }) {
 // ---------------------------------------------------------------------------
 
 const EMISSION_SERIES_BASE = [
-  { key: 'scope1', label: 'Scope 1', color: '#15803D' },
-  { key: 'scope2', label: 'Scope 2', color: '#2563EB' },
-  { key: 'scope3', label: 'Scope 3', color: '#7C3AED' },
+  // { key: 'scope1', label: 'Scope 1', color: '#15803D' },
+  // { key: 'scope2', label: 'Scope 2', color: '#2563EB' },
+  // { key: 'scope3', label: 'Scope 3', color: '#7C3AED' },
+  { key: 'scope1', label: 'Scope 1', color: '#10B981' },
+  { key: 'scope2', label: 'Scope 2', color: '#3B82F6' },
+  { key: 'scope3', label: 'Scope 3', color: '#8B5CF6' },
 ];
 
 const ENERGY_SERIES = [
@@ -353,7 +356,7 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
             subtitle="Scope emissions with previous-year comparison" 
             data={emissionRows} 
             series={emissionSeries} 
-            chartType="line" 
+            chartType="area" 
             accent="#15803D" 
             unit="tCO₂e" 
             testId="ghg-emission-trend" 
