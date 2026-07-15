@@ -1199,6 +1199,7 @@ async def get_esg_summary(
 
     ghg_intensity = round((s1_curr + s2_curr) / prod_val, 4) if prod_val else None
 
+    print("get_social_value", await get_social_value)
     # Social KPIs
     total_employees = await get_social_value("no_of_employees")
     female_employees = await get_social_value("no_of_female")
