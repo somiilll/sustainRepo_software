@@ -93,27 +93,27 @@ class EnergyMetricsService:
                 fv = rec.get("field_values", {})
                 energy_val = float(fv.get("total_energy", 0))
                 unit = fv.get("energy_unit", "MWh")
-                category = (rec.get("category") or "").lower()
-                sub_category = (rec.get("sub_category") or rec.get("subcategory") or "").lower()
+                subcategory = (rec.get("subcategory") or "").lower()
+                sub_sub = (rec.get("sub_subcategory") or "").lower()
                 
                 # Convert TJ to MWh
                 if unit == "TJ":
                     energy_val = energy_val * 277.778
                 
-                # Categorize by type - GHG fuel/scope1 is non-renewable
-                if "fuel" in category or "fuel" in sub_category or "scope 1" in category or "stationary" in category or "stationary" in sub_category or "mobile" in category or "mobile" in sub_category:
+                is_renewable = "renewable" in sub_sub and "non" not in sub_sub
+                
+                if "fuel" in subcategory:
                     result["fuel"]["non_renewable"] += energy_val
                     result["fuel"]["total"] += energy_val
                     result["non_renewable_total"] += energy_val
-                elif "electricity" in category or "electricity" in sub_category or "purchased" in category or "purchased" in sub_category:
-                    if "renewable" in sub_category:
+                elif "electricity" in subcategory:
+                    if is_renewable:
                         result["electricity"]["renewable"] += energy_val
-                        result["electricity"]["total"] += energy_val
                         result["renewable_total"] += energy_val
                     else:
                         result["electricity"]["non_renewable"] += energy_val
-                        result["electricity"]["total"] += energy_val
                         result["non_renewable_total"] += energy_val
+                    result["electricity"]["total"] += energy_val
                 else:
                     result["other_sources"]["non_renewable"] += energy_val
                     result["other_sources"]["total"] += energy_val
