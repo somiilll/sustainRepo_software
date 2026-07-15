@@ -236,7 +236,7 @@ class GovernanceMetricsService:
                         continue
                     conditions.append({
                         "reporting_period.year": year,
-                        "reporting_period.month": months[month_idx - 1]
+                        "reporting_period.month": {"$in": [months[month_idx - 1], str(month_idx)]}
                     })
             
             # Financial year conditions (e.g., "FY 2025-26")
