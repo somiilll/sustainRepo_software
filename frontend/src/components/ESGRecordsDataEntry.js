@@ -1334,9 +1334,8 @@ export default function ESGRecordsDataEntry({
                         <SelectValue placeholder="Select month" />
                       </SelectTrigger>
                       <SelectContent>
-                        {['January', 'February', 'March', 'April', 'May', 'June', 
-                          'July', 'August', 'September', 'October', 'November', 'December'].map(m => (
-                          <SelectItem key={m} value={m}>{m}</SelectItem>
+                        {MONTHS.map((month, idx) => (
+                          <SelectItem key={month} value={String(idx + 1)}>{month}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
