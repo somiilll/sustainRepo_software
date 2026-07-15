@@ -453,65 +453,57 @@ export default function DashboardBRSRGHG({ data }) {
           accentColor="#DC2626"
           loading={esgLoading}
         />
-        {esgSummary?.kpis?.total_employees?.value != null && (
+        {esgSummary && (
+          <>
           <PremiumKpiCard
             title="Total Employees"
-            value={esgSummary.kpis.total_employees.value}
+            value={esgSummary.kpis?.total_employees?.value}
             unit=""
             icon={Users}
             accentColor="#8B5CF6"
             loading={false}
           />
-        )}
-        {esgSummary?.kpis?.diversity_pct?.value != null && (
           <PremiumKpiCard
             title="Female Workforce"
-            value={esgSummary.kpis.diversity_pct.value}
+            value={esgSummary.kpis?.diversity_pct?.value}
             unit="%"
             icon={Heart}
             accentColor="#EC4899"
             loading={false}
           />
-        )}
-        {esgSummary?.kpis?.turnover_pct?.value != null && (
           <PremiumKpiCard
             title="Employee Turnover"
-            value={esgSummary.kpis.turnover_pct.value}
+            value={esgSummary.kpis?.turnover_pct?.value}
             unit="%"
             icon={Repeat}
             accentColor="#F59E0B"
             loading={false}
           />
-        )}
-        {esgSummary?.kpis?.ap_days?.value != null && (
           <PremiumKpiCard
             title="Accounts Payable Days"
-            value={esgSummary.kpis.ap_days.value}
+            value={esgSummary.kpis?.ap_days?.value}
             unit="days"
             icon={CreditCard}
             accentColor="#6366F1"
             loading={false}
           />
-        )}
-        {esgSummary?.kpis?.data_breaches?.value != null && (
           <PremiumKpiCard
             title="Data Breaches"
-            value={esgSummary.kpis.data_breaches.value}
+            value={esgSummary.kpis?.data_breaches?.value}
             unit="incidents"
             icon={ShieldAlert}
             accentColor="#DC2626"
             loading={false}
           />
-        )}
-        {esgSummary?.kpis?.ltifr?.value != null && (
           <PremiumKpiCard
             title="LTIFR"
-            value={esgSummary.kpis.ltifr.value}
+            value={esgSummary.kpis?.ltifr?.value}
             unit=""
             icon={Activity}
             accentColor="#F97316"
             loading={false}
           />
+          </>
         )}
       </div>
 
