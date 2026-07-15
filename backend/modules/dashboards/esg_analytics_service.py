@@ -290,7 +290,7 @@ async def get_esg_analytics(db, org_id: str, start_date: str, end_date: str, fac
     months = month_keys(start_date, end_date)
     previous_months = month_keys(f"{int(start_date[:4]) - 1}-{start_date[5:7]}", f"{int(end_date[:4]) - 1}-{end_date[5:7]}")
     all_months = set(months + previous_months)
-    org_query = {"$or": [{"org_id": org_id}, {"organization_id": org_id}], "is_current": {"$ne": False}, "status": {"$ne": "draft"}}
+    org_query = {"org_id": org_id, "is_current": {"$ne": False}, "status": {"$ne": "draft"}}
     if facility_ids:
         org_query["facility_id"] = {"$in": facility_ids}
 
@@ -317,7 +317,7 @@ async def get_esg_analytics(db, org_id: str, start_date: str, end_date: str, fac
     else:
         facilities = await db.facilities.find({"organization_id": org_id}, {"_id": 0, "id": 1}).to_list(1000)
         emissions_query["facility_id"] = {"$in": [facility["id"] for facility in facilities]}
-    emissions = await db.emission_records.find(emissions_query, {"_id": 0, "scope": 1, "total_emissions": 1, "co2e_emissions": 1, "reporting_period": 1}).to_list(10000)
+    emissions = await db.emission_records.find(emissions_query, {"_id": 0, "scope": 1, "category": 1, "sub_category": 1, "total_emissions": 1, "co2e_emissions": 1, "reporting_period": 1, "dynamic_field_values": 1, "fuel_type": 1, "fuel_database_id": 1}).to_list(10000)
 
     emission_rows = blank_months(months + previous_months, ["scope1", "scope2", "scope3"])
     energy_rows = blank_months(months, ["renewable", "nonRenewable"])
@@ -339,6 +339,31 @@ async def get_esg_analytics(db, org_id: str, start_date: str, end_date: str, fac
         for month_key, fraction in distribution:
             if scope in emission_rows[month_key]:
                 emission_rows[month_key][scope] += value * fraction
+
+    # GHG energy: feed emission_records energy data into energy time series
+    from modules.esg_records.ghg_integration import get_ghg_integration_service
+    try:
+        ghg_service = get_ghg_integration_service(db)
+        ghg_energy_records = await ghg_service.get_energy_from_ghg(
+            org_id=org_id,
+            facility_ids=facility_ids,
+            start_date=start_date,
+            end_date=end_date
+        )
+        months_set = set(months)
+        for rec in ghg_energy_records:
+            sub_sub = (rec.get("sub_subcategory") or "").lower()
+            is_renewable = "renewable" in sub_sub and "non" not in sub_sub
+            fv = rec.get("field_values") or {}
+            energy_val = number(fv.get("total_energy"))
+            unit = fv.get("energy_unit", "MWh")
+            if unit == "TJ":
+                energy_val = energy_val * 277.778
+            distribution = emission_month_distribution(rec, months_set)
+            for month_key, fraction in distribution:
+                energy_rows[month_key]["renewable" if is_renewable else "nonRenewable"] += energy_val * fraction
+    except Exception:
+        pass
 
     for record in environment:
         period = record_month(record)
