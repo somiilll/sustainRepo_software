@@ -260,15 +260,12 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
   const financeRows = aggregateSeries(analyticsData.finance, granularity, ['apDays', 'aging0to30', 'aging31to60', 'aging61to90', 'agingOver90', 'cashConversion']);
   const breachRows = aggregateSeries(analyticsData.breaches, granularity, ['breaches', 'confidentiality', 'integrity', 'availability', 'privacy']);
 
-  console.log("metrics", metrics)
-  console.log("energyRows", energyRows)
   const renewableRows = energyRows.map((row) => ({
     ...row,
     renewablePct: row.renewable + row.nonRenewable
       ? (row.renewable / (row.renewable + row.nonRenewable)) * 100
       : 0,
   }));
-  const recyclingRows = percentageSeries(waterRows, 'recycled', 'withdrawn', 'recyclingPct');
   const intensityRows = energyRows.map((row) => ({
     ...row,
     energyIntensity: productionQty ? (row.renewable + row.nonRenewable) / productionQty : 0,
@@ -403,31 +400,21 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
       </div>
 
       {/* ── Row 4: Water & Waste ── */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <AnalyticsChartCard title="Water Flow" subtitle="Water volumes by operational stage" data={waterRows} series={WATER_SERIES} chartType="bar" stacked accent="#0284C7" unit="KL" testId="water-flow-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
-        <AnalyticsChartCard title="Water Recycling %" subtitle="Recycled water as a share of withdrawal" data={recyclingRows} series={[{ key: 'recyclingPct', label: 'Recycling %', color: '#0284C7' }]} accent="#0284C7" unit="%" testId="water-recycling-trend" loading={analyticsLoading} onDrilldown={openDrilldown} />
         <AnalyticsChartCard title="Waste Management" subtitle="Generated, recovered, and disposed" data={wasteRows} series={WASTE_SERIES} chartType="bar" stacked accent="#57534E" unit="MT" testId="waste-management-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
       </div>
 
       {/* ── Row 5: Workforce ── */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <AnalyticsChartCard title="Workforce Trend" subtitle="Reported employees over time" data={workforceRows} series={[{ key: 'employees', label: 'Employees', color: '#7C3AED' }]} chartType="area" accent="#7C3AED" testId="workforce-trend-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <DiversityCard data={summary?.diversity_breakdown} />
-        <AnalyticsChartCard title="Employee Turnover" subtitle="Reported monthly turnover" data={workforceRows} series={[{ key: 'turnover', label: 'Turnover', color: '#F97316' }]} accent="#F97316" unit="%" testId="employee-turnover-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
+        <AnalyticsChartCard title="LTIFR Trend" subtitle="Lost-time injury frequency rate" data={workforceRows} series={[{ key: 'ltifr', label: 'LTIFR', color: '#DC2626' }]} accent="#DC2626" testId="ltifr-trend-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
       </div>
 
       {/* ── Row 6: Safety ── */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <AnalyticsChartCard title="LTIFR Trend" subtitle="Lost-time injury frequency rate" data={workforceRows} series={[{ key: 'ltifr', label: 'LTIFR', color: '#DC2626' }]} accent="#DC2626" testId="ltifr-trend-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <AnalyticsChartCard title="Health & Safety Incidents" subtitle="Reported incidents by category" data={safetyRows} series={SAFETY_SERIES} chartType="bar" accent="#DC2626" testId="safety-incidents-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
-        <AnalyticsChartCard title="Lost Time Injuries" subtitle="Monthly reported lost time injuries" data={safetyRows} series={[{ key: 'lostTimeInjuries', label: 'Lost Time Injuries', color: '#DC2626' }]} accent="#DC2626" testId="lost-time-injuries-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
-      </div>
-
-      {/* ── Row 7: Finance & AP ── */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <AnalyticsChartCard title="Accounts Payable Days" subtitle="Days payable outstanding" data={financeRows} series={[{ key: 'apDays', label: 'AP Days', color: '#4F46E5' }]} accent="#4F46E5" unit="days" testId="ap-days-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
-        <AnalyticsChartCard title="Payment Aging" subtitle="Outstanding payables by aging bucket" data={financeRows} series={AGING_SERIES} chartType="bar" stacked accent="#4F46E5" testId="payment-aging-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
-        <AnalyticsChartCard title="Cash Conversion Trend" subtitle="Reported cash conversion cycle" data={financeRows} series={[{ key: 'cashConversion', label: 'Cash Conversion', color: '#4F46E5' }]} accent="#4F46E5" unit="days" testId="cash-conversion-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
       </div>
 
       {/* ── Row 8: Data Breaches & Governance ── */}
