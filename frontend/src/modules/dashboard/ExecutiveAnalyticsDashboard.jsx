@@ -346,7 +346,7 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
       </div>
 
       {/* ── Row 2: GHG Emissions + Scope Breakdown ── */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+      {/* <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         <div className="xl:col-span-8">
           <AnalyticsChartCard className="h-full" title="GHG Emission Trend" subtitle="Scope emissions with previous-year comparison" data={emissionRows} series={emissionSeries} chartType="line" accent="#15803D" unit="tCO₂e" testId="ghg-emission-trend" loading={analyticsLoading} onDrilldown={openDrilldown} />
         </div>
@@ -367,6 +367,54 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
             {label}
           </button>
         ))}
+      </div> */}
+
+      {/* ── Row 2: GHG Emissions + Scope Breakdown ── */}
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12 items-stretch">
+        
+        {/* Left Chart (8 columns) */}
+        <div className="xl:col-span-8 flex flex-col">
+          <AnalyticsChartCard 
+            className="h-full flex-1" 
+            title="GHG Emission Trend" 
+            subtitle="Scope emissions with previous-year comparison" 
+            data={emissionRows} 
+            series={emissionSeries} 
+            chartType="line" 
+            accent="#15803D" 
+            unit="tCO₂e" 
+            testId="ghg-emission-trend" 
+            loading={analyticsLoading} 
+            onDrilldown={openDrilldown}
+            // Pass the toggle inside the card using a custom prop
+            headerAction={
+              <div className="flex gap-1" data-testid="emission-granularity-toggle">
+                {[['monthly', 'Monthly'], ['quarterly', 'Quarterly'], ['yearly', 'Yearly']].map(([value, label]) => (
+                  <button
+                    type="button" key={value}
+                    onClick={() => setGranularity(value)}
+                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors duration-200 ${granularity === value ? 'bg-[#1A4D2E] text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+                    data-testid={`emission-granularity-${value}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            }
+          />
+        </div>
+
+        {/* Right Summary (4 columns) */}
+        <div className="xl:col-span-4 flex flex-col">
+          <ScopeBreakdownCard 
+            className="h-full flex-1" 
+            totals={scopeTotals} 
+            activeScopes={activeScopes} 
+            onToggleScope={toggleScope} 
+            onFullscreen={() => openDrilldown(scopeTotals, 'Scope Breakdown')} 
+          />
+        </div>
+
       </div>
 
       {/* ── Row 3: Energy ── */}

@@ -193,6 +193,98 @@ def blank_months(keys: Iterable[str], fields: Iterable[str]) -> Dict[str, dict]:
     return {key: {"period": key, **{field: 0.0 for field in fields}} for key in keys}
 
 
+def emission_month_distribution(record: dict, available: set) -> List[tuple]:
+    """Return list of (month_key, fraction) for proportional distribution.
+
+    Monthly  → [("2026-07", 1.0)]
+    Quarterly → 3 months, 1/3 each
+    Yearly FY → 12 months Apr-Mar, 1/12 each
+    Yearly CY/plain → 12 months Jan-Dec, 1/12 each
+    """
+    period = record.get("reporting_period")
+
+    # String period "2026-07" — existing GHG monthly format
+    if isinstance(period, str):
+        p = period.strip()
+        # Monthly "YYYY-MM"
+        if len(p) >= 7 and p[:4].isdigit() and p[4] == "-" and p[5:7].isdigit():
+            key = p[:7]
+            return [(key, 1.0)] if key in available else []
+        # FY "FY 2025-2026" or "FY 2025-26"
+        if p.upper().startswith("FY"):
+            try:
+                fy_start = int(p.split()[1].split("-")[0])
+                keys = [f"{fy_start}-{m:02d}" for m in range(4, 13)]
+                keys += [f"{fy_start + 1}-{m:02d}" for m in range(1, 4)]
+                matched = [k for k in keys if k in available]
+                return [(k, 1.0 / 12) for k in matched] if matched else []
+            except (IndexError, ValueError):
+                pass
+        # CY "CY 2026"
+        if p.upper().startswith("CY"):
+            try:
+                yr = int(p.replace("CY", "").strip())
+                matched = [f"{yr}-{m:02d}" for m in range(1, 13) if f"{yr}-{m:02d}" in available]
+                return [(k, 1.0 / 12) for k in matched] if matched else []
+            except ValueError:
+                pass
+        # Plain year "2026"
+        if len(p) == 4 and p.isdigit():
+            yr = int(p)
+            matched = [f"{yr}-{m:02d}" for m in range(1, 13) if f"{yr}-{m:02d}" in available]
+            return [(k, 1.0 / 12) for k in matched] if matched else []
+        # Quarterly "2026-Q3" or "Q3 2026"
+        import re
+        qm = re.match(r"(\d{4})-?Q(\d)", p)
+        if not qm:
+            qm = re.match(r"Q(\d)\s*(\d{4})", p)
+            if qm:
+                yr, q = int(qm.group(2)), int(qm.group(1))
+            else:
+                return []
+        else:
+            yr, q = int(qm.group(1)), int(qm.group(2))
+        q_start = (q - 1) * 3 + 1
+        matched = [f"{yr}-{m:02d}" for m in range(q_start, q_start + 3) if f"{yr}-{m:02d}" in available]
+        return [(k, 1.0 / 3) for k in matched] if matched else []
+
+    # Dict period (ESG-style nested reporting_period)
+    if isinstance(period, dict):
+        rp_type = (period.get("reporting_type") or "monthly").lower()
+        year = period.get("year")
+
+        if rp_type in ("daily", "weekly", "monthly"):
+            key = record_month(record)
+            return [(key, 1.0)] if key and key in available else []
+
+        if rp_type == "quarterly" and year:
+            quarter = period.get("quarter")
+            q_months = {"Q1": (1, 2, 3), "Q2": (4, 5, 6), "Q3": (7, 8, 9), "Q4": (10, 11, 12)}
+            if quarter in q_months:
+                matched = [f"{year}-{m:02d}" for m in q_months[quarter] if f"{year}-{m:02d}" in available]
+                return [(k, 1.0 / 3) for k in matched] if matched else []
+
+        if rp_type == "yearly":
+            fy = period.get("financial_year")
+            if fy and isinstance(fy, str):
+                try:
+                    fy_start = int(fy.split()[1].split("-")[0])
+                    keys = [f"{fy_start}-{m:02d}" for m in range(4, 13)]
+                    keys += [f"{fy_start + 1}-{m:02d}" for m in range(1, 4)]
+                    matched = [k for k in keys if k in available]
+                    return [(k, 1.0 / 12) for k in matched] if matched else []
+                except (IndexError, ValueError):
+                    pass
+            if year:
+                matched = [f"{year}-{m:02d}" for m in range(1, 13) if f"{year}-{m:02d}" in available]
+                return [(k, 1.0 / 12) for k in matched] if matched else []
+
+        key = record_month(record)
+        return [(key, 1.0)] if key and key in available else []
+
+    return []
+
+
 async def get_esg_analytics(db, org_id: str, start_date: str, end_date: str, facility_ids: Optional[List[str]] = None) -> dict:
     """Return actual monthly operational, social, and governance series for one organization."""
     months = month_keys(start_date, end_date)
@@ -205,7 +297,21 @@ async def get_esg_analytics(db, org_id: str, start_date: str, end_date: str, fac
     environment = await db.environment_records.find(org_query, {"_id": 0, "category": 1, "subcategory": 1, "field_values": 1, "reporting_period": 1}).to_list(10000)
     social = await db.social_records.find(org_query, {"_id": 0, "field_values": 1, "reporting_period": 1, "created_at": 1}).to_list(10000)
     governance = await db.governance_records.find(org_query, {"_id": 0, "category": 1, "subcategory": 1, "field_values": 1, "reporting_period": 1, "created_at": 1}).to_list(10000)
-    emissions_query = {"reporting_period": {"$gte": min(all_months), "$lte": max(all_months)}}
+    # Emissions query: monthly strings + quarterly/yearly formats
+    min_year = int(min(all_months)[:4])
+    max_year = int(max(all_months)[:4])
+    emissions_query = {"$or": [
+        # Monthly "YYYY-MM" range
+        {"reporting_period": {"$gte": min(all_months), "$lte": max(all_months)}},
+        # Yearly plain "YYYY"
+        {"reporting_period": {"$in": [str(y) for y in range(min_year, max_year + 1)]}},
+        # FY strings
+        {"reporting_period": {"$regex": f"^FY ({min_year - 1}|{'|'.join(str(y) for y in range(min_year, max_year + 1))})-"}},
+        # CY strings
+        {"reporting_period": {"$regex": f"^CY ({min_year}|{'|'.join(str(y) for y in range(min_year + 1, max_year + 1))})$"}},
+        # Quarterly "YYYY-Q*"
+        {"reporting_period": {"$regex": f"^({'|'.join(str(y) for y in range(min_year, max_year + 1))})-?Q[1-4]"}},
+    ]}
     if facility_ids:
         emissions_query["facility_id"] = {"$in": facility_ids}
     else:
@@ -223,13 +329,16 @@ async def get_esg_analytics(db, org_id: str, start_date: str, end_date: str, fac
     breach_rows = blank_months(months, ["breaches", "confidentiality", "integrity", "availability", "privacy"])
     governance_totals = {"dataBreaches": 0.0, "openRisks": 0.0, "compliancePct": None}
 
+    emission_buckets = set(emission_rows.keys())
     for record in emissions:
-        period = record_month(record)
-        if period not in emission_rows:
+        distribution = emission_month_distribution(record, emission_buckets)
+        if not distribution:
             continue
         scope = (record.get("scope") or "").lower()
-        if scope in emission_rows[period]:
-            emission_rows[period][scope] += number(record.get("total_emissions") or record.get("co2e_emissions"))
+        value = number(record.get("total_emissions") or record.get("co2e_emissions"))
+        for month_key, fraction in distribution:
+            if scope in emission_rows[month_key]:
+                emission_rows[month_key][scope] += value * fraction
 
     for record in environment:
         period = record_month(record)
