@@ -254,6 +254,11 @@ export default function DashboardBRSRGHG({ data }) {
     isOrgLevel,
   });
 
+  const scope12Emissions = (emissionsData?.ghg_emissions?.total_scope1 || 0)
+    + (emissionsData?.ghg_emissions?.total_scope2 || 0);
+  const productionGhgIntensity = productionQty ? scope12Emissions / productionQty : null;
+  const productionEnergyIntensity = productionQty ? netEnergy / productionQty : null;
+
   // Build donut data for emissions split
   const donutData = useMemo(() => {
     const t = totals;
@@ -395,116 +400,95 @@ export default function DashboardBRSRGHG({ data }) {
       )} */}
 
       {/* ROW 1: TOP KPI CARDS */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4" data-testid="top-kpi-row">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4" data-testid="top-kpi-row">
         <PremiumKpiCard
-          title={hasIntensityData ? "GHG Emission Intensity" : "GHG Net Emissions"}
+          title="Total Emissions"
           value={netEmissions}
           unit="tCO₂e"
-          intensityValue={intensityCalcs.emissionIntensity}
-          intensityUnit={intensityCalcs.emissionIntensityUnit}
-          showIntensity={hasIntensityData && intensityCalcs.hasEmissionIntensity}
-          yoyChange={hasIntensityData && intensityCalcs.hasEmissionIntensity 
-            ? trendDeltas.emissionsIntensityDelta 
-            : trendDeltas.netEmissionsDelta}
           icon={Leaf}
           accentColor="#10B981"
           loading={esgLoading}
-          actionSlot={intensityDropdown}
         />
         <PremiumKpiCard
-          title={hasIntensityData ? "Energy Intensity" : "Net Energy"}
-          value={netEnergy}
-          unit="MWh"
-          intensityValue={intensityCalcs.energyIntensity}
-          intensityUnit={intensityCalcs.energyIntensityUnit}
-          showIntensity={hasIntensityData && intensityCalcs.hasEnergyIntensity}
-          yoyChange={hasIntensityData && intensityCalcs.hasEnergyIntensity 
-            ? trendDeltas.energyIntensityDelta 
-            : trendDeltas.netEnergyDelta}
+          title="GHG Intensity (Production)"
+          value={productionGhgIntensity}
+          unit={`tCO₂e/${productionUnit || 'unit produced'}`}
+          icon={Zap}
+          accentColor="#0F766E"
+          loading={esgLoading}
+        />
+        <PremiumKpiCard
+          title="Energy Intensity (Production)"
+          value={productionEnergyIntensity}
+          unit={`MWh/${productionUnit || 'unit produced'}`}
           icon={Zap}
           accentColor="#F59E0B"
           loading={esgLoading}
-          actionSlot={intensityDropdown}
         />
         <PremiumKpiCard
-          title="Water Discharged"
-          value={esgMetrics?.water?.discharge || 0}
+          title="Renewable Energy"
+          value={energyData?.renewable_pct || 0}
+          unit="%"
+          icon={Zap}
+          accentColor="#84CC16"
+          loading={esgLoading}
+        />
+        <PremiumKpiCard
+          title="Water Recycled"
+          value={esgMetrics?.water?.recycled || 0}
           unit="KL"
-          yoyChange={trendDeltas.waterDelta}
           icon={Droplets}
           accentColor="#0EA5E9"
           loading={esgLoading}
         />
         <PremiumKpiCard
-          title="Waste Generated"
-          value={esgMetrics?.waste?.generated || 0}
+          title="Waste Recovery"
+          value={esgMetrics?.waste?.recovered || 0}
           unit="MT"
-          yoyChange={trendDeltas.wasteDelta}
           icon={Trash2}
           accentColor="#92400E"
           loading={esgLoading}
         />
         <PremiumKpiCard
-          title="Safety Incidents"
-          value={esgMetrics?.safety_incidents?.total || 0}
-          unit="incidents"
-          yoyChange={trendDeltas.safetyDelta}
-          icon={AlertTriangle}
-          accentColor="#DC2626"
-          loading={esgLoading}
+          title="Employees"
+          value={esgSummary?.kpis?.total_employees?.value}
+          unit=""
+          icon={Users}
+          accentColor="#6366F1"
+          loading={false}
         />
-        {esgSummary && (
-          <>
-          <PremiumKpiCard
-            title="Total Employees"
-            value={esgSummary.kpis?.total_employees?.value}
-            unit=""
-            icon={Users}
-            accentColor="#8B5CF6"
-            loading={false}
-          />
-          <PremiumKpiCard
-            title="Female Workforce"
-            value={esgSummary.kpis?.diversity_pct?.value}
-            unit="%"
-            icon={Heart}
-            accentColor="#EC4899"
-            loading={false}
-          />
-          <PremiumKpiCard
-            title="Employee Turnover"
-            value={esgSummary.kpis?.turnover_pct?.value}
-            unit="%"
-            icon={Repeat}
-            accentColor="#F59E0B"
-            loading={false}
-          />
-          <PremiumKpiCard
-            title="Accounts Payable Days"
-            value={esgSummary.kpis?.ap_days?.value}
-            unit="days"
-            icon={CreditCard}
-            accentColor="#6366F1"
-            loading={false}
-          />
-          <PremiumKpiCard
-            title="Data Breaches"
-            value={esgSummary.kpis?.data_breaches?.value}
-            unit="incidents"
-            icon={ShieldAlert}
-            accentColor="#DC2626"
-            loading={false}
-          />
-          <PremiumKpiCard
-            title="LTIFR"
-            value={esgSummary.kpis?.ltifr?.value}
-            unit=""
-            icon={Activity}
-            accentColor="#F97316"
-            loading={false}
-          />
-          </>
-        )}
+        <PremiumKpiCard
+          title="Female Workforce"
+          value={esgSummary?.kpis?.diversity_pct?.value}
+          unit="%"
+          icon={Heart}
+          accentColor="#EC4899"
+          loading={false}
+        />
+        <PremiumKpiCard
+          title="LTIFR"
+          value={esgSummary?.kpis?.ltifr?.value}
+          unit=""
+          icon={Activity}
+          accentColor="#F97316"
+          loading={false}
+        />
+        <PremiumKpiCard
+          title="Accounts Payable Days"
+          value={esgSummary?.kpis?.ap_days?.value}
+          unit="days"
+          icon={CreditCard}
+          accentColor="#2563EB"
+          loading={false}
+        />
+        <PremiumKpiCard
+          title="Employee Turnover"
+          value={esgSummary?.kpis?.turnover_pct?.value}
+          unit="%"
+          icon={Repeat}
+          accentColor="#F59E0B"
+          loading={false}
+        />
       </div>
 
       {/* ROW 2: EMISSIONS TREND + SCOPE DONUT */}

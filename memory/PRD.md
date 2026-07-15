@@ -60,7 +60,16 @@ Build a comprehensive ESG (Environmental, Social, Governance) Platform with:
 - Frontend `ESGTargetsTab.js` displays dynamic percentage progress badge
 - Progress logic handles `upper_limit`, `lower_limit`, `range`, `exact` goals
 
+### Executive ESG Dashboard KPI Set (Jul 15, 2026)
+- Replaced legacy executive KPI cards with the requested 11-card set: Total Emissions, production-based GHG and Energy Intensity, Renewable Energy, Water Recycled, Waste Recovery, Employees, Female Workforce, LTIFR, Accounts Payable Days, and Employee Turnover.
+- Total Emissions is Scope 1 + Scope 2 + Scope 3; GHG Intensity uses Scope 1 + Scope 2 divided by production quantity; Energy Intensity uses total MWh divided by production quantity.
+- Water dashboard aggregation now returns `water.recycled` in KL from dedicated `Water / Recycle` records, respecting organization, facility, and reporting-period filters.
+
 ## Pending Issues
+
+### P0: Water Withdrawal KPI Source Filters Missing
+- Six seeded Water Withdrawal KPI definitions still need `field_values.source_type` filters injected into `esg_kpi_definitions`.
+- This is required for accurate source-level water calculations.
 
 ### P1: Dashboard Scope 1 & 3 Emissions Deduplication Bug
 - In `dashboards/router.py`, `should_include_emission` filter causing issues
