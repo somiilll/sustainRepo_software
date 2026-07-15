@@ -4,6 +4,7 @@ Subcategories: Consumption, Withdrawal, Discharge
 """
 from typing import Optional, List, Dict, Any
 from .date_utils import build_date_filter
+from .unit_utils import to_kilolitres
 
 
 class WaterMetricsService:
@@ -32,15 +33,12 @@ class WaterMetricsService:
         # if total_input > 0 and discharge < total_input:
         #     recycling_pct = ((total_input - discharge) / total_input) * 100
         
-        # hardcoded to kL, need to expand it in future
-
         return {
-            "consumption": round(consumption / 1000, 2),
-            "withdrawal": round(withdrawal / 1000, 2),
-            "discharge": round(discharge / 1000, 2),
-            "totalinput": round((consumption + withdrawal) / 1000, 2),
+            "consumption": round(consumption, 2),
+            "withdrawal": round(withdrawal, 2),
+            "discharge": round(discharge, 2),
+            "totalinput": round(consumption + withdrawal, 2),
             "recycled": round(recycled, 2),
-            # "recycling_pct": round(recycling_pct, 2),
         }
 
     async def _get_recycled_total(
@@ -80,14 +78,7 @@ class WaterMetricsService:
                 amount = float(value or 0)
             except (TypeError, ValueError):
                 continue
-
-            unit = str(field_values.get("unit") or "litres").lower()
-            if "mega" in unit:
-                total_kl += amount * 1000
-            elif "kilo" in unit or unit == "kl":
-                total_kl += amount
-            else:
-                total_kl += amount / 1000
+            total_kl += to_kilolitres(amount, field_values.get("unit"))
 
         return total_kl
     
@@ -99,7 +90,7 @@ class WaterMetricsService:
         start_date: Optional[str] = None,
         end_date: Optional[str] = None
     ) -> float:
-        """Get total quantity for a water subcategory"""
+        """Get total quantity for a water subcategory in KL (unit-aware)"""
         base_query = {
             "org_id": org_id,
             "is_current": {"$ne": False},
@@ -110,7 +101,6 @@ class WaterMetricsService:
         if facility_ids:
             base_query["facility_id"] = {"$in": facility_ids}
         
-        # Build final query with optional date filter
         if start_date and end_date:
             date_filter = self._build_date_filter(start_date, end_date)
             if date_filter:
@@ -120,16 +110,19 @@ class WaterMetricsService:
         else:
             query = base_query
         
-        pipeline = [
-            {"$match": query},
-            {"$group": {
-                "_id": None,
-                "total": {"$sum": {"$toDouble": {"$ifNull": ["$field_values.quantity", 0]}}}
-            }}
-        ]
-        
-        result = await self.db.environment_records.aggregate(pipeline).to_list(1)
-        return result[0]["total"] if result else 0
+        records = await self.db.environment_records.find(
+            query, {"_id": 0, "field_values": 1}
+        ).to_list(10000)
+
+        total_kl = 0.0
+        for record in records:
+            fv = record.get("field_values", {})
+            try:
+                amount = float(fv.get("quantity") or 0)
+            except (TypeError, ValueError):
+                continue
+            total_kl += to_kilolitres(amount, fv.get("unit"))
+        return total_kl
     
     def _build_date_filter(self, start_date: str, end_date: str) -> List[Dict]:
         return build_date_filter(start_date, end_date)

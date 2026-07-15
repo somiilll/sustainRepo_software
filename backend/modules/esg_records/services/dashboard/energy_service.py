@@ -10,6 +10,7 @@ Note:
 """
 from typing import Optional, List, Dict, Any
 from .date_utils import build_date_filter
+from .unit_utils import to_mwh
 
 
 class EnergyMetricsService:
@@ -170,17 +171,9 @@ class EnergyMetricsService:
             fv = rec.get("field_values", {})
             subcategory = (rec.get("subcategory") or "").lower()
             qty = float(fv.get("quantity") or 0)
-            unit = (fv.get("unit") or "MWh").lower()
+            qty = to_mwh(qty, fv.get("unit"))
             is_renewable = (fv.get("is_renewable") or "").lower()
             sub_subcategory = (fv.get("sub_subcategory") or fv.get("subsubcategory") or "").lower()
-            
-            # Convert to MWh
-            if "kwh" in unit:
-                qty = qty / 1000
-            elif "gwh" in unit:
-                qty = qty * 1000
-            elif "tj" in unit:
-                qty = qty * 277.778
             
             # Determine renewable status
             renewable = False

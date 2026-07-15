@@ -86,23 +86,13 @@ def number(value) -> float:
 
 
 def energy_mwh(value: float, unit: str) -> float:
-    normalized = (unit or "mwh").lower()
-    if "kwh" in normalized:
-        return value / 1000
-    if "gwh" in normalized:
-        return value * 1000
-    if "tj" in normalized:
-        return value * 277.778
-    return value
+    from modules.esg_records.services.dashboard.unit_utils import to_mwh
+    return to_mwh(value, unit)
 
 
 def water_kl(value: float, unit: str) -> float:
-    normalized = (unit or "litres").lower()
-    if "mega" in normalized:
-        return value * 1000
-    if "kilo" in normalized or normalized == "kl":
-        return value
-    return value / 1000
+    from modules.esg_records.services.dashboard.unit_utils import to_kilolitres
+    return to_kilolitres(value, unit)
 
 
 def blank_months(keys: Iterable[str], fields: Iterable[str]) -> Dict[str, dict]:
