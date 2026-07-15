@@ -13,7 +13,6 @@ import StickyFilterBar from './components/filters/StickyFilterBar';
 import PremiumKpiCard from './components/kpi/PremiumKpiCard';
 import { AnalyticsChartCard } from './components/analytics/AnalyticsChartCard';
 import { ScopeBreakdownCard } from './components/analytics/ScopeBreakdownCard';
-import { GovernanceSummaryCard } from './components/analytics/GovernanceSummaryCard';
 import { useIntensityData } from './hooks/useIntensityData';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -417,11 +416,10 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
         <AnalyticsChartCard title="Accounts Payable Days" subtitle="Days payable outstanding" data={financeRows} series={[{ key: 'apDays', label: 'AP Days', color: '#4F46E5' }]} accent="#4F46E5" unit="days" testId="ap-days-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
       </div>
 
-      {/* ── Row 8: Data Breaches & Governance ── */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+      {/* ── Row 7: Data Breaches ── */}
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <AnalyticsChartCard title="Data Breach Trend" subtitle="Reported monthly incidents" data={breachRows} series={[{ key: 'breaches', label: 'Breaches', color: '#DC2626' }]} accent="#4F46E5" testId="data-breach-trend-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
         <AnalyticsChartCard title="Incident Categories" subtitle="Data breaches by security impact" data={incidentCategoryRows} series={BREACH_CATEGORY_SERIES} chartType="bar" accent="#4F46E5" testId="incident-categories-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
-        <GovernanceSummaryCard governance={analyticsData.governance || {}} />
       </div>
 
       {/* ── Drilldown Panel ── */}
