@@ -105,11 +105,21 @@ class EnergyMetricsService:
                     result["fuel"]["non_renewable"] += energy_val
                     result["fuel"]["total"] += energy_val
                     result["non_renewable_total"] += energy_val
+                # elif "electricity" in category or "purchased" in category:
+                #     # For GHG records, assume non-renewable unless specified
+                #     result["electricity"]["non_renewable"] += energy_val
+                #     result["electricity"]["total"] += energy_val
+                #     result["non_renewable_total"] += energy_val
                 elif "electricity" in category or "purchased" in category:
-                    # For GHG records, assume non-renewable unless specified
-                    result["electricity"]["non_renewable"] += energy_val
-                    result["electricity"]["total"] += energy_val
-                    result["non_renewable_total"] += energy_val
+                    # Check if it specifies renewable
+                    if "renewable" in sub_category:
+                        result["electricity"]["renewable"] += energy_val
+                        result["electricity"]["total"] += energy_val
+                        result["renewable_total"] += energy_val
+                    else:
+                        result["electricity"]["non_renewable"] += energy_val
+                        result["electricity"]["total"] += energy_val
+                        result["non_renewable_total"] += energy_val
                 else:
                     result["other_sources"]["non_renewable"] += energy_val
                     result["other_sources"]["total"] += energy_val

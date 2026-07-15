@@ -260,6 +260,8 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
   const financeRows = aggregateSeries(analyticsData.finance, granularity, ['apDays', 'aging0to30', 'aging31to60', 'aging61to90', 'agingOver90', 'cashConversion']);
   const breachRows = aggregateSeries(analyticsData.breaches, granularity, ['breaches', 'confidentiality', 'integrity', 'availability', 'privacy']);
 
+  console.log("metrics", metrics)
+  console.log("energyRows", energyRows)
   const renewableRows = energyRows.map((row) => ({
     ...row,
     renewablePct: row.renewable + row.nonRenewable
@@ -305,7 +307,7 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
       </div>
     );
   }
-  console.log("emissionRows", emissionRows)
+
   return (
     <div className="space-y-6 pb-10" data-testid="executive-esg-dashboard">
 
@@ -344,30 +346,6 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
         <PremiumKpiCard title="Accounts Payable Days" value={summary?.kpis?.ap_days?.value} unit="days" icon={CreditCard} accentColor="#4F46E5" />
         <PremiumKpiCard title="Employee Turnover" value={summary?.kpis?.turnover_pct?.value} unit="%" icon={Repeat} accentColor="#F97316" />
       </div>
-
-      {/* ── Row 2: GHG Emissions + Scope Breakdown ── */}
-      {/* <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <div className="xl:col-span-8">
-          <AnalyticsChartCard className="h-full" title="GHG Emission Trend" subtitle="Scope emissions with previous-year comparison" data={emissionRows} series={emissionSeries} chartType="line" accent="#15803D" unit="tCO₂e" testId="ghg-emission-trend" loading={analyticsLoading} onDrilldown={openDrilldown} />
-        </div>
-        <div className="xl:col-span-4">
-          <ScopeBreakdownCard className="h-full" totals={scopeTotals} activeScopes={activeScopes} onToggleScope={toggleScope} onFullscreen={() => openDrilldown(scopeTotals, 'Scope Breakdown')} />
-        </div>
-      </div>
-
-      {/* ── Granularity Toggle ── */}
-      <div className="flex justify-end gap-1" data-testid="emission-granularity-toggle">
-        {[['monthly', 'Monthly'], ['quarterly', 'Quarterly'], ['yearly', 'Yearly']].map(([value, label]) => (
-          <button
-            type="button" key={value}
-            onClick={() => setGranularity(value)}
-            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors duration-200 ${granularity === value ? 'bg-[#1A4D2E] text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
-            data-testid={`emission-granularity-${value}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div> */}
 
       {/* ── Row 2: GHG Emissions + Scope Breakdown ── */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12 items-stretch">
