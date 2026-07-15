@@ -775,7 +775,7 @@ function AddRecordModal({ open, onClose, onSuccess, section, framework, categori
           <div className="space-y-4">
             <div>
               <Label>Reporting Type</Label>
-              <Select value={formData.reporting_type} onValueChange={(v) => handleChange('reporting_type', v)}>
+              <Select value={formData.reporting_period.reporting_type} onValueChange={(v) => handleChange('reporting_type', v)}>
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Select reporting type..." />
                 </SelectTrigger>
@@ -789,7 +789,7 @@ function AddRecordModal({ open, onClose, onSuccess, section, framework, categori
             </div>
 
             {/* Dynamic Period Fields */}
-            {formData.reporting_type === 'daily' && (
+            {formData.reporting_period.reporting_type === 'daily' && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Date *</Label>
@@ -802,11 +802,11 @@ function AddRecordModal({ open, onClose, onSuccess, section, framework, categori
               </div>
             )}
 
-            {formData.reporting_type === 'monthly' && (
+            {formData.reporting_period.reporting_type === 'monthly' && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Year</Label>
-                  <Select value={String(formData.year)} onValueChange={(v) => handleChange('year', parseInt(v))}>
+                  <Select value={String(formData.reporting_period.year)} onValueChange={(v) => handleChange('year', parseInt(v))}>
                     <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {generateYears().map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
@@ -815,7 +815,7 @@ function AddRecordModal({ open, onClose, onSuccess, section, framework, categori
                 </div>
                 <div>
                   <Label>Month</Label>
-                  <Select value={formData.month} onValueChange={(v) => handleChange('month', v)}>
+                  <Select value={formData.reporting_period.month} onValueChange={(v) => handleChange('month', v)}>
                     <SelectTrigger className="mt-1"><SelectValue placeholder="Select month..." /></SelectTrigger>
                     <SelectContent>
                       {MONTHS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
@@ -825,11 +825,11 @@ function AddRecordModal({ open, onClose, onSuccess, section, framework, categori
               </div>
             )}
 
-            {formData.reporting_type === 'quarterly' && (
+            {formData.reporting_period.reporting_type === 'quarterly' && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Year</Label>
-                  <Select value={String(formData.year)} onValueChange={(v) => handleChange('year', parseInt(v))}>
+                  <Select value={String(formData.reporting_period.year)} onValueChange={(v) => handleChange('year', parseInt(v))}>
                     <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {generateYears().map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
@@ -838,7 +838,7 @@ function AddRecordModal({ open, onClose, onSuccess, section, framework, categori
                 </div>
                 <div>
                   <Label>Quarter</Label>
-                  <Select value={formData.quarter} onValueChange={(v) => handleChange('quarter', v)}>
+                  <Select value={formData.reporting_period.quarter} onValueChange={(v) => handleChange('quarter', v)}>
                     <SelectTrigger className="mt-1"><SelectValue placeholder="Select quarter..." /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Q1">Q1</SelectItem>
@@ -851,11 +851,11 @@ function AddRecordModal({ open, onClose, onSuccess, section, framework, categori
               </div>
             )}
 
-            {formData.reporting_type === 'yearly' && (
+            {formData.reporting_period.reporting_type === 'yearly' && (
               <div className="space-y-3">
                 <div>
                   <Label>Year Type</Label>
-                  <Select value={formData.year_type} onValueChange={(v) => handleChange('year_type', v)}>
+                  <Select value={formData.reporting_period.year_type} onValueChange={(v) => handleChange('year_type', v)}>
                     <SelectTrigger className="mt-1"><SelectValue placeholder="Select year type..." /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="financial">Financial Year</SelectItem>
@@ -863,7 +863,7 @@ function AddRecordModal({ open, onClose, onSuccess, section, framework, categori
                     </SelectContent>
                   </Select>
                 </div>
-                {formData.year_type === 'financial' && (
+                {formData.reporting_period.year_type === 'financial' && (
                   <div>
                     <Label>Financial Year</Label>
                     <Select value={formData.financial_year} onValueChange={(v) => handleChange('financial_year', v)}>
@@ -874,7 +874,7 @@ function AddRecordModal({ open, onClose, onSuccess, section, framework, categori
                     </Select>
                   </div>
                 )}
-                {formData.year_type === 'calendar' && (
+                {formData.reporting_period.year_type === 'calendar' && (
                   <div>
                     <Label>Calendar Year</Label>
                     <Select value={formData.calendar_year} onValueChange={(v) => handleChange('calendar_year', v)}>

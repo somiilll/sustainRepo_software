@@ -3,43 +3,49 @@
 **original_problem_statement**: 
 Implement a Generic ESG KPI Definition Engine (Super Admin) - a configuration-driven, future-proof engine to define reusable ESG metrics/KPIs for targets, dashboards, analytics, and reports without hardcoding.
 PRODUCT REQUIREMENTS ADDED IN THIS SESSION:
-1) Target Progress Visualization (collapsible charts: monthly/yearly line charts, static horizontal progress).
-2) Repo Pilot RAG Module: ChatGPT-style AI assistant to chat with ESG documents (using MongoDB vector store and background chunking/processing).
-3) Workforce Tabular Data Entry: Convert individual demographic KPIs into reusable, Excel-like table grids with auto-calculation.
-4) Approval Queue History tab.
-5) SBTi Targets Module (separate from ESG targets, configurable via Super Admin).
-6) Executive ESG Dashboard Phase 1: 12 KPI cards and expanded charts (Environmental, Social, Governance).
+1) Update Executive ESG Dashboard KPI cards to exactly 10 specific metrics (Total Emissions, GHG Intensity, Energy Intensity, Renewable Energy %, Water Recycled, Waste Recovery, Employees + Diversity, LTIFR, AP Days, Employee Turnover).
+2) Implement a 7-row Executive Dashboard layout with specific charts (GHG Trend, Energy Mix, Water Flow, Workforce Trend, LTIFR Trend, AP Days, Data Breach Trend, etc.) using Recharts.
+3) Fix ESG Data Entry bugs related to period validation, Financial Year string formatting, and month rendering.
 
 **User's preferred language**: English (INSTRUCT next agent to respond in English only)
 
 **what currently exists?** 
-A robust, modular ESG platform. The KPI Definition Engine calculates dynamic values. ESG Targets and the new SBTi Targets track progress dynamically against baselines. The new  module allows RAG-based querying of PDF documents via background processing. Workforce data entry now uses a clean  UI. An Executive ESG Dashboard aggregates 12 core KPIs across Environment, Social, and Governance. Robust security measures (Rate limiting, CORS, Refresh Tokens, Security Headers) and DB indexing are implemented.
+A robust, modular ESG platform with a dynamic KPI engine. The platform includes a newly refactored  featuring a top row of 10 targeted KPI cards and a comprehensive 7-row analytics layout using Recharts. A central  governs the UI/UX. The ESG Data Entry form has been patched to handle nested period validation and correct Financial Year/Month string rendering.
 
 **Last working item**: 
-    - **Last item agent was working**: Fixing a bug where the Executive ESG Dashboard KPI cards (Total Emissions, GHG Intensity, Scope 1/2/3, Total Employees, Diversity %, etc.) were disappearing when data was null. Agent updated the conditional rendering in  to render  or  instead of hiding the cards entirely.
-    - **Status**: USER VERIFICATION PENDING
-    - **Agent Testing Done**: Y
-    - **Which testing method agent to use?**: manual testing by curl / screenshot tool
+    - **Last item agent was working**: Fixing three bugs in the ESG Data Entry flow: 1) Monthly entries saving without month validation. 2) Financial Year yearly entries showing as 2025 instead of FY 2025-2026. 3) Month not rendering in the Data Entry table. The main agent applied the code fixes and verified via screenshot, but the  prepared the test environment and halted before executing the functional tests.
+    - **Status**: TESTING PENDING
+    - **Agent Testing Done**: N (Code patched, but  explicitly reported Functional test execution not started)
+    - **Which testing method agent to use?**: testing_agent
     - **User Testing Done**: N
 
 **All Pending/In progress Issue list**:
-  Issue 1: Missing filters on specific seeded Water Withdrawal KPIs (Priority: P0)
-     - Attempted fixes: Identified in earlier sessions but STILL NOT EXECUTED by the agent.
-     - Next debug checklist: Apply DB update for the 6 seeded Water Withdrawal KPIs in  to include  (e.g., Ground Water, Surface Water).
+  Issue 1: Functional Testing for ESG Data Entry Period Fixes (Priority: P0)
+     - Attempted fixes: Main agent patched , , and .
+     - Next debug checklist: Instruct  to resume and execute the functional Playwright/Pytest flow for the ESG Data Entry period validation.
+     - Why fix this issue and what will be achieved with the fix? Verifies the code patches actually resolve the user-reported data entry bugs without regressions.
+     - Status: TESTING PENDING
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? Both (via testing_agent)
+     - Blocked on other issue: None
+
+  Issue 2: Missing filters on specific seeded Water Withdrawal KPIs (Priority: P0)
+     - Attempted fixes: Identified in multiple previous sessions but STILL NOT EXECUTED by the agent.
+     - Next debug checklist: Write and execute a MongoDB script to update the 6 seeded Water Withdrawal KPIs in  to include  (e.g., Ground Water, Surface Water).
      - Why fix this issue and what will be achieved with the fix? Required for the  to accurately COUNT/SUM records for these ESG metrics.
      - Status: NOT STARTED
-     - Is recurring issue? Y (Missed multiple times)
+     - Is recurring issue? Y (Missed 20 times)
      - Should Test frontend/backend/both after fix? Backend
      - Blocked on other issue: None
 
-  Issue 2: Dashboard Scope 1 & 3 Emissions Deduplication Bug (Priority: P1)
+  Issue 3: Dashboard Scope 1 & 3 Emissions Deduplication Bug (Priority: P1)
      - Attempted fixes: Investigated in prior sessions. Deferred.
      - Next debug checklist: In , bypass the  filter entirely so both monthly and yearly records are included.
      - Status: NOT STARTED
      - Is recurring issue? Y
      - Should Test frontend/backend/both after fix? Backend
 
-  Issue 3: Carbon Intensity Calculation discrepancy (Priority: P1)
+  Issue 4: Carbon Intensity Calculation discrepancy (Priority: P1)
      - Attempted fixes: Deferred.
      - Next debug checklist: Check  logic around lines 818-830 in .
      - Status: NOT STARTED
@@ -47,13 +53,17 @@ A robust, modular ESG platform. The KPI Definition Engine calculates dynamic val
      - Should Test frontend/backend/both after fix? Backend
 
 **In progress Task List**:
-  *(None. All active tasks from the current session were finished.)*
+  Task 1: Full data integration for the 7-row Executive Dashboard (Priority: P1)
+     - Where to resume:  and related chart components.
+     - What will be achieved with this? The UI layout is built and live analytics endpoints are connected, but ensure all individual charts (Energy Mix, Water Flow, Data Breaches, etc.) reflect actual backend data instead of any residual dummy data.
+     - Status: IN PROGRESS
+     - Should Test frontend/backend/both after fix? Both
+     - Blocked on something: None
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
     - P1: Implement a cron job script for marking tasks as overdue automatically when  date passes.
-    - P1: Replace dummy data with actual backend data in the Environment visualizations.
-    - P1: Phase 2 Executive Dashboard chart enhancements (cross-filtering, PDF export, fullscreen charts, achievement forecast, drill-down on KPI card clicks).
+    - P1: Phase 2 Executive Dashboard chart enhancements (PDF export, fullscreen charts, drill-down on KPI card clicks).
     
     Future Tasks:
     - P2: Dynamic ESG Disclosure Engine implementation.
@@ -63,126 +73,109 @@ A robust, modular ESG platform. The KPI Definition Engine calculates dynamic val
     - P2: Dark mode support fine-tuning.
 
 **Completed work in this session**
-- Target tracking logic overhauls:  created for accurate emissions lookup. Tracking logic separated by CY/FY, Static, Monthly, Yearly. Progress formulas correctly compute percentage vs ratio. (DONE)
-- Target Progress Visualization: Added Recharts line and horizontal progress charts with NOW markers and status badges. (DONE)
--  created to normalize FY/CY string quirks across all endpoints. (DONE)
-- DB Indexing Script: Startup script ensures 17 high-impact indexes are present. (DONE)
-- Notification System:  and NotificationBell UI for assignments and approvals. (DONE)
-- Approval Queue History Tab added to UI. (DONE)
-- Security overhaul:  rate limiting, CORS tightening, Refresh tokens, Security headers. (DONE)
-- Workforce Tabular Data Entry:  created and mapped to 8 subcategories. (DONE)
-- Repo Pilot (RAG): 3-stage background upload process to R2 and MongoDB vector store. Added Recharts parsing to Chat interface. (DONE)
-- Executive ESG Dashboard Phase 1: 12 KPI cards and multiple ESG charts added to . (DONE)
+- Updated Dashboard KPI Cards: Replaced legacy grid with 10 specific KPI cards requested by user. (DONE)
+- Consolidate KPIs: Moved Female Workforce % inside the Employees KPI card. (DONE)
+- Dashboard Rename: Renamed  to  and updated routing. (DONE)
+- 7-Row Dashboard Layout: Created Recharts-based reusable components (, , etc.) and structured the 7-row analytical layout. (DONE)
+- Dashboard Design Guidelines: Generated  for consistent theming and colors. (DONE)
+- ESG Data Entry Bugs Patched: Fixed missing month validation, Financial Year format normalization, and table rendering for nested period data. (DONE)
 
 **Earlier issues found/mentioned but not fixed**
   Issue 1: Test Repo Pilot with actual PDF uploads
-   - Debug checklist: Manually upload a PDF document and verify if Cloudflare passes it correctly to R2 and the BackgroundTask chunks it into .
-   - Why to solve this issue: The async background task was just refactored and needs end-to-end integration validation.
+   - Debug checklist: Manually upload a PDF document and verify if Cloudflare passes it correctly to R2 and the BackgroundTask chunks it.
+   - Why to solve this issue: End-to-end integration validation for RAG.
    - Should Test frontend/backend/both after fix: Both
-   - Is recurring issue? N
+   - Is recurring issue? Y
 
 **Known issue recurrence from previous fork**
-  - Legacy calculation bugs (Scope 1/3 dashboards, Carbon Intensity) remain deferred.
   - Missing filters on seeded Water Withdrawal KPIs was IGNORED again by the previous agent.
-  - Recurrence count: 19
+  - Recurrence count: 20
   - Status: NOT STARTED
 
 **Code Architecture**
 /app/
 ├── backend/
 │   ├── modules/
-│   │   ├── sbti_targets/ (NEW)
-│   │   ├── repo_pilot/ (NEW - RAG backend)
-│   │   ├── notifications/ (NEW)
-│   ├── shared/
-│   │   ├── database/indexes.py (NEW)
-│   │   ├── utils/period_utils.py (NEW)
-│   │   ├── security.py (NEW)
+│   │   ├── esg_records/ (service.py, task_engine.py patched for validation)
+│   │   ├── dashboards/
 ├── frontend/
     └── src/
-        ├── components/WorkforceDataTable.js (NEW)
-        ├── config/workforceTableConfigs.js (NEW)
-        ├── pages/RepoPilot.js (NEW)
-        ├── pages/SBTiTargets.js (NEW)
-        ├── modules/dashboard/DashboardBRSRGHG.jsx (Updated Phase 1 Exec Dashboard)
+        ├── modules/dashboard/
+        │   ├── DashboardESG.jsx (NEW/RENAMED)
+        │   ├── components/
+        │   │   ├── analytics/ (NEW chart components)
+        │   │   ├── kpi/PremiumKpiCard.jsx
+        ├── components/
+        │   ├── ESGRecordsDataEntry.js (Patched)
 
 **Key Technical Concepts**
-- **Period Normalization**: Uses  to standardize  vs  formats. Queries try legacy formats for backward compatibility but write strictly to normalized keys.
-- **Target Tracking Formulas**: 
-  -  with baseline: 
-  - Monthly targets: Looks up values in .
-- **Repo Pilot**: Uses  directly on the main event loop. Sync operations (OpenAI, LlamaParse) are wrapped in  to prevent 502 Bad Gateway timeouts from Cloudflare.
-- **DB Indexes**: Replaced full-table scans with compound indexes automatically applied on startup ().
+- **Period Normalization**: Relies on  and frontend UI mapping.  is a nested JSON object (requires strict frontend-backend alignment).
+- **Reusable Charts**: New 7-row dashboard relies on modular Recharts wrappers mapped to specific data structures returned by the analytics API.
 
 **key DB schema**
-  - : {document_id, org_id, content, embedding (vector)}
-  - : Separate from ESG targets.
-  - : {user_id, org_id, type, title, message, read, created_at}
-  - : Main authentication collection (NOT ).
+  - : Tracks tasks for data entry.
+  - : Core configuration for metrics (NEEDS DB UPDATE SCRIPT).
 
 **changes in tech stack**
-  - Added  for endpoint rate-limiting.
-  - Vector store migrated from ChromaDB to MongoDB vector search.
+  - None
 
 **All files of reference** 
-  - 
-  - 
-  - 
-  - 
-  - 
+  -  (Created)
+  -  (Renamed/Updated)
+  -  (Updated)
+  -  (Updated)
+  -  (Updated)
 
 **Areas that need refactoring**: 
-  - None immediately. Significant cleanup performed in this session.
+  - Date/Period logic is split across , , and backend services. Further alignment may be needed to prevent future bugs.
 
 **key api endpoints**
-  -  (Aggregated 12 core KPIs)
-  -  (Returns 200 immediately, initiates BackgroundTask)
-  -  (Calculates ratios/percentages dynamically)
+  - 
+  -  (Validation updated)
 
 **Critical Info for New Agent** 
-- **DO NOT create new event loops** for async tasks! FastAPI's  runs on the main loop. Wrap synchronous SDK calls in .
-- **Cloudflare Strictness**:  has been locked down and  rate limiting applied. If API calls fail locally, ensure you are testing via .
-- **Target Calculations**:  uses  and  to calculate its absolute  off the baseline dynamically. 
+- **Testing Agent Execution**: The  in the previous session created the test files for the ESG Data Entry period bugs but *did not execute them*. You must call the testing agent to actually run the validation.
+- **DB Script Priority**: You MUST write and execute the DB script to fix the Water Withdrawal KPIs. It has been ignored for 20 forks.
 
 **documents and test reports created in this job** 
   - 
   - 
 
 **Last 10 User Messages and any pending HUMAN messages** 
- 1. User: Asked for target value unit bug on intensity to be fixed (tCO2e/Mn INR -> tCO2e/INR).
- 2. User: Asked to remove target values from target ledger table (leave name only).
- 3. User: SBTi UI string changes (Scope Wise Reduction Target -> Scope Wise Target).
- 4. User: Asked to fix layout overlap in category wise SBTi target form.
- 5. User: Deep architectural review questions: CY/FY hardcoding, Auth layers, SQL injections, DB Indexing.
- 6. User: Directed agent to fix hardcoded FY places, build DB indexes.
- 7. User: Asked for comprehensive security audit and fixes (Rate limiting, CORS, Mass Assignment, Headers, BOLA).
- 8. User: Reported Email/Bell notifications missing for ESG Assignments and Approval Workflows.
- 9. User: Asked to fix target tracker edge cases (regenerate tasks on frequency change, handle orphaned records, Approval History tab).
- 10. **User (LATEST)**: Reported that the Executive ESG Dashboard KPI cards were disappearing completely when there was no data. (Agent fixed this by rendering 0 instead of dropping the component).
+ 1. User: Asked for 10 specific KPI cards and provided exact formulas for each.
+ 2. User: Asked to rename  to  and merge Female Workforce % into Employees KPI.
+ 3. User: Provided a massive 7-row structural blueprint for the dashboard charts with design/interaction requirements.
+ 4. User: Reported three bugs in ESG Data Entry: 1) Month not saving/showing. 2) FY Yearly data showing as single year. 3) Monthly entries saving without month selected. Dictated: tell me the issue dont change anything.
+ 5. User: Told agent to fix them after agent identified the root causes.
+ 6. User (LATEST): Complained that a specific API payload showed  but the UI was still rendering it empty. (Agent checked, found the UI actually *was* rendering it correctly after the latest patch, and passed it to the testing agent).
 
 **Project Health Check:**
-- App is healthy.
+- App is healthy. Broken test execution loop.
 
 **3rd Party Integrations** 
-  - Cloudflare R2 (Storage) — requires User API Key ( bucket for RAG docs)
+  - Cloudflare R2 (Storage) — requires User API Key
   - Resend (Emails) — requires User API Key
   - OpenAI (Embeddings, RAG) — requires User API Key (or Emergent LLM Key)
   - LlamaParse (Document Parsing) — requires User API Key
 
 **Testing status**
-  - Testing agent used after significant changes: YES (iteration 93)
+  - Testing agent used after significant changes: YES (But execution aborted gracefully before running tests)
   - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: 
+  - Test files created: None explicitly saved in  for the final run.
   - Known regressions: None
 
 **Credentials to test flow:**
   - Admin:  ()
-  - Org 9067d872 User: 
+  - ORG1 Admin (From test_credentials.md)
 
 **What agent forgot to execute**
-- **CRITICAL**: The agent STILL forgot to write and execute the quick DB script to fix the missing  filters for the 6 seeded Water Withdrawal KPIs (from Issue 1). 
+- **CRITICAL**: The agent *again* forgot to write and execute the DB script to fix the missing  filters for the 6 seeded Water Withdrawal KPIs.
+- The agent called  for the final bug fix, but did not realize the agent returned a message saying Functional test execution not started.
 
 **Debugging checklist for current issue**
     Issue: Missing filters on seeded Water Withdrawal KPIs
-    Database to check: 
-    - You must write and execute a quick DB script to update . Locate the 6 Water Withdrawal subcategory metrics and inject the proper  array to map to . Ensure the 6 metrics actually exist before trying to update them.</analysis>
+    Database to check: MongoDB ()
+    - Write a python script using  or .
+    - Find the 6 Water Withdrawal subcategory metrics.
+    - Update the  array to map to .
+    - Run the script via .</analysis>
