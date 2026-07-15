@@ -1144,12 +1144,26 @@ async def get_esg_summary(
             months[m] = round(total, 2)
         return months
 
+    from modules.esg_records.services.dashboard.date_utils import build_date_filter
+
+    # Build period filter for current FY (Apr curr_year - Mar curr_year+1)
+    fy_start = f"{curr_year}-04"
+    fy_end = f"{curr_year + 1}-03"
+    period_conditions = build_date_filter(fy_start, fy_end)
+
     async def get_social_value(field_key):
-        """Get latest social record field value."""
-        rec = await db.social_records.find_one(
-            {"org_id": org_id},
-            {"field_values": 1}, sort=[("created_at", -1)]
-        )
+        """Get social record field value within the current FY reporting period."""
+        base_q = {
+            "org_id": org_id,
+            "is_current": {"$ne": False},
+            "status": {"$ne": "draft"},
+            f"field_values.{field_key}": {"$exists": True, "$ne": None},
+        }
+        if period_conditions:
+            query = {"$and": [base_q, {"$or": period_conditions}]}
+        else:
+            query = base_q
+        rec = await db.social_records.find_one(query, {"field_values": 1}, sort=[("created_at", -1)])
         if rec and rec.get("field_values"):
             v = rec["field_values"].get(field_key)
             if v is not None:
@@ -1219,12 +1233,19 @@ async def get_esg_summary(
     emp_minority = await get_social_value("no_of_employees_minority")
     emp_vulnerable = await get_social_value("no_of_employees_vulnerable_groups")
 
-    # Governance KPIs
     async def get_governance_value(field_key):
-        rec = await db.governance_records.find_one(
-            {"organization_id": org_id},
-            {"field_values": 1}, sort=[("created_at", -1)]
-        )
+        """Get governance record field value within the current FY reporting period."""
+        base_q = {
+            "org_id": org_id,
+            "is_current": {"$ne": False},
+            "status": {"$ne": "draft"},
+            f"field_values.{field_key}": {"$exists": True, "$ne": None},
+        }
+        if period_conditions:
+            query = {"$and": [base_q, {"$or": period_conditions}]}
+        else:
+            query = base_q
+        rec = await db.governance_records.find_one(query, {"field_values": 1}, sort=[("created_at", -1)])
         if rec and rec.get("field_values"):
             v = rec["field_values"].get(field_key)
             if v is not None:
@@ -1246,7 +1267,7 @@ async def get_esg_summary(
 
     # Safety incidents count
     safety_count = await db.governance_records.count_documents({
-        "organization_id": org_id,
+        "org_id": org_id,
         "subcategory": "Health & Safety Incidents",
     })
 
