@@ -1147,7 +1147,7 @@ async def get_esg_summary(
     async def get_social_value(field_key):
         """Get latest social record field value."""
         rec = await db.social_records.find_one(
-            {"organization_id": org_id},
+            {"org_id": org_id},
             {"field_values": 1}, sort=[("created_at", -1)]
         )
         if rec and rec.get("field_values"):
@@ -1199,7 +1199,6 @@ async def get_esg_summary(
 
     ghg_intensity = round((s1_curr + s2_curr) / prod_val, 4) if prod_val else None
 
-    print("get_social_value", await get_social_value)
     # Social KPIs
     total_employees = await get_social_value("no_of_employees")
     female_employees = await get_social_value("no_of_female")
