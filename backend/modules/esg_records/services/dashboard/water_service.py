@@ -26,10 +26,10 @@ class WaterMetricsService:
         recycled = await self._get_recycled_total(org_id, facility_ids, start_date, end_date)
         
         # Calculate recycling percentage
-        total_input = consumption + withdrawal
-        recycling_pct = 0
-        if total_input > 0 and discharge < total_input:
-            recycling_pct = ((total_input - discharge) / total_input) * 100
+        # total_input = consumption + withdrawal
+        # recycling_pct = 0
+        # if total_input > 0 and discharge < total_input:
+        #     recycling_pct = ((total_input - discharge) / total_input) * 100
         
         # hardcoded to kL, need to expand it in future
 
@@ -37,9 +37,9 @@ class WaterMetricsService:
             "consumption": round(consumption / 1000, 2),
             "withdrawal": round(withdrawal / 1000, 2),
             "discharge": round(discharge / 1000, 2),
-            "total": round((consumption + withdrawal) / 1000, 2),
+            "totalinput": round((consumption + withdrawal) / 1000, 2),
             "recycled": round(recycled, 2),
-            "recycling_pct": round(recycling_pct, 2),
+            # "recycling_pct": round(recycling_pct, 2),
         }
 
     async def _get_recycled_total(
