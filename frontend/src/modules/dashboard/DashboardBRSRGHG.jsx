@@ -35,7 +35,7 @@ import ResourceTrendChart from './components/brsr/ResourceTrendChart';
 import { useIntensityData, useIntensityCalculations, usePrevYearIntensity } from './hooks/useIntensityData';
 
 // Icons
-import { Leaf, Droplets, Trash2, AlertTriangle, Zap, RefreshCw } from 'lucide-react';
+import { Leaf, Droplets, Trash2, AlertTriangle, Zap, RefreshCw, Users, Heart } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -60,6 +60,7 @@ export default function DashboardBRSRGHG({ data }) {
   const [prevYearMetrics, setPrevYearMetrics] = useState(null);
   const [esgLoading, setEsgLoading] = useState(true);
   const [targets, setTargets] = useState([]);
+  const [esgSummary, setEsgSummary] = useState(null);
 
   // Fetch intensity data from yearly-data endpoint (org-level) or facility production (facility-level)
   const { 
@@ -113,6 +114,11 @@ export default function DashboardBRSRGHG({ data }) {
         setEsgMetrics(metricsRes.data);
         setPrevYearMetrics(prevMetricsRes.data);
         setTargets(targetsRes.data || []);
+
+        // Fetch ESG summary (social/governance KPIs)
+        axios.get(`${API}/dashboard/esg-summary`, { headers: getAuthHeader() })
+          .then(r => setEsgSummary(r.data))
+          .catch(() => null);
       } catch (error) {
         console.error('Metrics fetch error:', error);
       } finally {
@@ -419,6 +425,26 @@ export default function DashboardBRSRGHG({ data }) {
           accentColor="#DC2626"
           loading={esgLoading}
         />
+        {esgSummary?.kpis?.total_employees?.value != null && (
+          <PremiumKpiCard
+            title="Total Employees"
+            value={esgSummary.kpis.total_employees.value}
+            unit=""
+            icon={Users}
+            accentColor="#8B5CF6"
+            loading={false}
+          />
+        )}
+        {esgSummary?.kpis?.diversity_pct?.value != null && (
+          <PremiumKpiCard
+            title="Female Workforce"
+            value={esgSummary.kpis.diversity_pct.value}
+            unit="%"
+            icon={Heart}
+            accentColor="#EC4899"
+            loading={false}
+          />
+        )}
       </div>
 
       {/* ROW 2: EMISSIONS TREND + SCOPE DONUT */}

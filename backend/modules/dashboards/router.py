@@ -1085,3 +1085,125 @@ async def get_supplier_hotspots(
     }
 
 
+
+
+@router.get("/dashboard/esg-summary")
+async def get_esg_summary(
+    current_user: dict = Depends(get_current_user),
+    year: Optional[int] = None,
+):
+    """
+    Aggregated ESG KPI summary for the executive dashboard.
+    Returns 12 KPIs with current values, previous year values, and monthly trends.
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization")
+
+    now = datetime.now(timezone.utc)
+    curr_year = year or now.year
+    prev_year = curr_year - 1
+
+    # Get all facilities for this org
+    fac_ids = [f["id"] async for f in db.facilities.find({"organization_id": org_id}, {"id": 1})]
+
+    async def sum_emissions(yr, scope=None):
+        q = {"facility_id": {"$in": fac_ids}, "reporting_period": {"$regex": f"^{yr}-"}}
+        if scope:
+            q["scope"] = scope
+        total = 0.0
+        async for rec in db.emission_records.find(q, {"total_emissions": 1}):
+            total += rec.get("total_emissions") or 0
+        return round(total, 2)
+
+    async def monthly_emissions(yr, scope=None):
+        months = {}
+        for m in range(1, 13):
+            q = {"facility_id": {"$in": fac_ids}, "reporting_period": f"{yr}-{m:02d}"}
+            if scope:
+                q["scope"] = scope
+            total = 0.0
+            async for rec in db.emission_records.find(q, {"total_emissions": 1}):
+                total += rec.get("total_emissions") or 0
+            months[m] = round(total, 2)
+        return months
+
+    async def get_social_value(field_key):
+        """Get latest social record field value."""
+        rec = await db.social_records.find_one(
+            {"organization_id": org_id},
+            {"field_values": 1}, sort=[("created_at", -1)]
+        )
+        if rec and rec.get("field_values"):
+            v = rec["field_values"].get(field_key)
+            if v is not None:
+                try:
+                    return float(v)
+                except (ValueError, TypeError):
+                    pass
+        return None
+
+    # Compute all KPIs
+    s1_curr = await sum_emissions(curr_year, "scope1")
+    s2_curr = await sum_emissions(curr_year, "scope2")
+    s3_curr = await sum_emissions(curr_year, "scope3")
+    total_curr = s1_curr + s2_curr + s3_curr
+
+    s1_prev = await sum_emissions(prev_year, "scope1")
+    s2_prev = await sum_emissions(prev_year, "scope2")
+    s3_prev = await sum_emissions(prev_year, "scope3")
+    total_prev = s1_prev + s2_prev + s3_prev
+
+    # Monthly trend for current year
+    s1_monthly = await monthly_emissions(curr_year, "scope1")
+    s2_monthly = await monthly_emissions(curr_year, "scope2")
+    s3_monthly = await monthly_emissions(curr_year, "scope3")
+
+    monthly_trend = []
+    for m in range(1, 13):
+        monthly_trend.append({
+            "month": m,
+            "scope1": s1_monthly[m],
+            "scope2": s2_monthly[m],
+            "scope3": s3_monthly[m],
+            "total": round(s1_monthly[m] + s2_monthly[m] + s3_monthly[m], 2),
+        })
+
+    # Production quantity for intensity
+    from shared.utils.period_utils import period_variants
+    prod_val = None
+    for pv in period_variants(curr_year, "FY"):
+        prod = await db.production_quantities.find_one(
+            {"organization_id": org_id, "facility_id": None, "reporting_period": pv, "is_deleted": {"$ne": True}},
+            {"quantity": 1, "unit": 1}
+        )
+        if prod:
+            prod_val = prod.get("quantity")
+            break
+
+    ghg_intensity = round((s1_curr + s2_curr) / prod_val, 4) if prod_val else None
+
+    # Social KPIs
+    total_employees = await get_social_value("no_of_employees")
+    female_employees = await get_social_value("no_of_female")
+    diversity_pct = round((female_employees / total_employees) * 100, 1) if total_employees and female_employees else None
+
+    def yoy_change(curr, prev):
+        if prev and prev != 0:
+            return round(((curr - prev) / prev) * 100, 1)
+        return None
+
+    return {
+        "year": curr_year,
+        "kpis": {
+            "total_emissions": {"value": total_curr, "prev": total_prev, "change": yoy_change(total_curr, total_prev), "unit": "tCO₂e"},
+            "ghg_intensity": {"value": ghg_intensity, "prev": None, "change": None, "unit": "tCO₂e/unit"},
+            "scope1": {"value": s1_curr, "prev": s1_prev, "change": yoy_change(s1_curr, s1_prev), "unit": "tCO₂e"},
+            "scope2": {"value": s2_curr, "prev": s2_prev, "change": yoy_change(s2_curr, s2_prev), "unit": "tCO₂e"},
+            "scope3": {"value": s3_curr, "prev": s3_prev, "change": yoy_change(s3_curr, s3_prev), "unit": "tCO₂e"},
+            "total_employees": {"value": total_employees, "prev": None, "change": None, "unit": ""},
+            "diversity_pct": {"value": diversity_pct, "prev": None, "change": None, "unit": "%"},
+        },
+        "scope_breakdown": {"scope1": s1_curr, "scope2": s2_curr, "scope3": s3_curr},
+        "monthly_trend": monthly_trend,
+    }
