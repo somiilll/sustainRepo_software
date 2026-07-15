@@ -35,7 +35,7 @@ import ResourceTrendChart from './components/brsr/ResourceTrendChart';
 import { useIntensityData, useIntensityCalculations, usePrevYearIntensity } from './hooks/useIntensityData';
 
 // Icons
-import { Leaf, Droplets, Trash2, AlertTriangle, Zap, RefreshCw, Users, Heart, ShieldAlert, CreditCard, BarChart3, Repeat } from 'lucide-react';
+import { Leaf, Droplets, Trash2, AlertTriangle, Zap, RefreshCw, Users, Heart, ShieldAlert, CreditCard, BarChart3, Repeat, Activity } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -503,6 +503,16 @@ export default function DashboardBRSRGHG({ data }) {
             loading={false}
           />
         )}
+        {esgSummary?.kpis?.ltifr?.value != null && (
+          <PremiumKpiCard
+            title="LTIFR"
+            value={esgSummary.kpis.ltifr.value}
+            unit=""
+            icon={Activity}
+            accentColor="#F97316"
+            loading={false}
+          />
+        )}
       </div>
 
       {/* ROW 2: EMISSIONS TREND + SCOPE DONUT */}
@@ -668,6 +678,7 @@ export default function DashboardBRSRGHG({ data }) {
                 { label: 'Accounts Payable Days', value: esgSummary.kpis?.ap_days?.value, unit: 'days', color: '#6366F1' },
                 { label: 'Employee Turnover', value: esgSummary.kpis?.turnover_pct?.value, unit: '%', color: '#F59E0B' },
                 { label: 'Safety Incidents', value: esgSummary.kpis?.safety_incidents?.value, unit: 'incidents', color: '#EF4444' },
+                { label: 'LTIFR', value: esgSummary.kpis?.ltifr?.value, unit: '', color: '#F97316' },
               ].map(item => (
                 <div key={item.label} className="flex items-center justify-between p-3 rounded-xl bg-stone-50">
                   <span className="text-sm text-text-secondary">{item.label}</span>

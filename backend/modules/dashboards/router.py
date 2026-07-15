@@ -1223,9 +1223,12 @@ async def get_esg_summary(
     cogs = await get_governance_value("cost_of_goods_services_procured")
     ap_days = round((accounts_payable * 365) / cogs, 1) if accounts_payable and cogs else None
 
-    # LTIFR - from safety incidents
     # LTIFR = Lost Time Injuries × 1,000,000 / Total Hours Worked
-    # For now return count of safety incidents as proxy
+    lost_time_injuries = await get_social_value("no_of_loss_time_injuries")
+    total_hours_worked = await get_social_value("total_hours_worked")
+    ltifr = round((lost_time_injuries * 1000000) / total_hours_worked, 2) if lost_time_injuries and total_hours_worked else None
+
+    # Safety incidents count
     safety_count = await db.governance_records.count_documents({
         "organization_id": org_id,
         "subcategory": "Health & Safety Incidents",
@@ -1250,6 +1253,7 @@ async def get_esg_summary(
             "data_breaches": {"value": data_breaches, "prev": None, "change": None, "unit": "incidents"},
             "ap_days": {"value": ap_days, "prev": None, "change": None, "unit": "days"},
             "safety_incidents": {"value": safety_count, "prev": None, "change": None, "unit": "incidents"},
+            "ltifr": {"value": ltifr, "prev": None, "change": None, "unit": ""},
         },
         "scope_breakdown": {"scope1": s1_curr, "scope2": s2_curr, "scope3": s3_curr},
         "monthly_trend": monthly_trend,
