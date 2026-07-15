@@ -1186,7 +1186,50 @@ async def get_esg_summary(
     # Social KPIs
     total_employees = await get_social_value("no_of_employees")
     female_employees = await get_social_value("no_of_female")
+    male_employees = await get_social_value("no_of_male")
     diversity_pct = round((female_employees / total_employees) * 100, 1) if total_employees and female_employees else None
+
+    # Employee Turnover
+    emp_start = await get_social_value("employees_at_the_start_of_the_year")
+    emp_end = await get_social_value("employees_at_the_end_of_the_year")
+    emp_left = await get_social_value("employees_who_left_during_the_reporting_period")
+    avg_employees = ((emp_start or 0) + (emp_end or 0)) / 2 if emp_start and emp_end else None
+    turnover_pct = round((emp_left / avg_employees) * 100, 1) if emp_left and avg_employees else None
+
+    # Age breakdown
+    emp_under30 = await get_social_value("no_of_employees_under_30")
+    emp_3050 = await get_social_value("no_of_employees_30_50")
+    emp_over50 = await get_social_value("no_of_employees_over_50")
+    emp_minority = await get_social_value("no_of_employees_minority")
+    emp_vulnerable = await get_social_value("no_of_employees_vulnerable_groups")
+
+    # Governance KPIs
+    async def get_governance_value(field_key):
+        rec = await db.governance_records.find_one(
+            {"organization_id": org_id},
+            {"field_values": 1}, sort=[("created_at", -1)]
+        )
+        if rec and rec.get("field_values"):
+            v = rec["field_values"].get(field_key)
+            if v is not None:
+                try:
+                    return float(v)
+                except (ValueError, TypeError):
+                    pass
+        return None
+
+    data_breaches = await get_governance_value("no_of_incidents_of_data_breach")
+    accounts_payable = await get_governance_value("accounts_payable")
+    cogs = await get_governance_value("cost_of_goods_services_procured")
+    ap_days = round((accounts_payable * 365) / cogs, 1) if accounts_payable and cogs else None
+
+    # LTIFR - from safety incidents
+    # LTIFR = Lost Time Injuries × 1,000,000 / Total Hours Worked
+    # For now return count of safety incidents as proxy
+    safety_count = await db.governance_records.count_documents({
+        "organization_id": org_id,
+        "subcategory": "Health & Safety Incidents",
+    })
 
     def yoy_change(curr, prev):
         if prev and prev != 0:
@@ -1203,7 +1246,26 @@ async def get_esg_summary(
             "scope3": {"value": s3_curr, "prev": s3_prev, "change": yoy_change(s3_curr, s3_prev), "unit": "tCO₂e"},
             "total_employees": {"value": total_employees, "prev": None, "change": None, "unit": ""},
             "diversity_pct": {"value": diversity_pct, "prev": None, "change": None, "unit": "%"},
+            "turnover_pct": {"value": turnover_pct, "prev": None, "change": None, "unit": "%"},
+            "data_breaches": {"value": data_breaches, "prev": None, "change": None, "unit": "incidents"},
+            "ap_days": {"value": ap_days, "prev": None, "change": None, "unit": "days"},
+            "safety_incidents": {"value": safety_count, "prev": None, "change": None, "unit": "incidents"},
         },
         "scope_breakdown": {"scope1": s1_curr, "scope2": s2_curr, "scope3": s3_curr},
         "monthly_trend": monthly_trend,
+        "diversity_breakdown": {
+            "female": female_employees,
+            "male": male_employees,
+            "under_30": emp_under30,
+            "age_30_50": emp_3050,
+            "over_50": emp_over50,
+            "minority": emp_minority,
+            "vulnerable": emp_vulnerable,
+        },
+        "turnover": {
+            "start": emp_start,
+            "end": emp_end,
+            "left": emp_left,
+            "rate": turnover_pct,
+        },
     }

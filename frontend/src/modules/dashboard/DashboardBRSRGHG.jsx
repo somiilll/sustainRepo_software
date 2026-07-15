@@ -35,9 +35,37 @@ import ResourceTrendChart from './components/brsr/ResourceTrendChart';
 import { useIntensityData, useIntensityCalculations, usePrevYearIntensity } from './hooks/useIntensityData';
 
 // Icons
-import { Leaf, Droplets, Trash2, AlertTriangle, Zap, RefreshCw, Users, Heart } from 'lucide-react';
+import { Leaf, Droplets, Trash2, AlertTriangle, Zap, RefreshCw, Users, Heart, ShieldAlert, CreditCard, BarChart3, Repeat } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+
+// Inline Diversity Donut for dashboard
+import { PieChart, Pie, Cell, Tooltip as ReTooltip, ResponsiveContainer } from 'recharts';
+const DIVERSITY_COLORS = ['#EC4899', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#6366F1', '#78716C'];
+function DiversityDonut({ data }) {
+  if (!data) return <p className="text-sm text-stone-400 text-center py-8">No data</p>;
+  const items = [
+    { name: 'Female', value: data.female },
+    { name: 'Male', value: data.male },
+    { name: 'Under 30', value: data.under_30 },
+    { name: '30–50', value: data.age_30_50 },
+    { name: 'Over 50', value: data.over_50 },
+    { name: 'Minority', value: data.minority },
+    { name: 'Vulnerable', value: data.vulnerable },
+  ].filter(d => d.value != null && d.value > 0);
+  if (!items.length) return <p className="text-sm text-stone-400 text-center py-8">No data</p>;
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <PieChart>
+        <Pie data={items} cx="50%" cy="50%" innerRadius={50} outerRadius={90} paddingAngle={2} dataKey="value"
+          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+          {items.map((_, i) => <Cell key={i} fill={DIVERSITY_COLORS[i % DIVERSITY_COLORS.length]} />)}
+        </Pie>
+        <ReTooltip formatter={(v) => v.toLocaleString()} />
+      </PieChart>
+    </ResponsiveContainer>
+  );
+}
 
 // =============================================================================
 // Main Dashboard Component
@@ -445,6 +473,36 @@ export default function DashboardBRSRGHG({ data }) {
             loading={false}
           />
         )}
+        {esgSummary?.kpis?.turnover_pct?.value != null && (
+          <PremiumKpiCard
+            title="Employee Turnover"
+            value={esgSummary.kpis.turnover_pct.value}
+            unit="%"
+            icon={Repeat}
+            accentColor="#F59E0B"
+            loading={false}
+          />
+        )}
+        {esgSummary?.kpis?.ap_days?.value != null && (
+          <PremiumKpiCard
+            title="Accounts Payable Days"
+            value={esgSummary.kpis.ap_days.value}
+            unit="days"
+            icon={CreditCard}
+            accentColor="#6366F1"
+            loading={false}
+          />
+        )}
+        {esgSummary?.kpis?.data_breaches?.value != null && (
+          <PremiumKpiCard
+            title="Data Breaches"
+            value={esgSummary.kpis.data_breaches.value}
+            unit="incidents"
+            icon={ShieldAlert}
+            accentColor="#DC2626"
+            loading={false}
+          />
+        )}
       </div>
 
       {/* ROW 2: EMISSIONS TREND + SCOPE DONUT */}
@@ -570,6 +628,61 @@ export default function DashboardBRSRGHG({ data }) {
           <ResourceTrendChart data={wasteTrendData} type="waste" />
         </SectionCard>
       </div>
+
+      {/* ROW 6: WORKFORCE — Diversity Donut + Turnover */}
+      {esgSummary && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <SectionCard title="Employee Diversity" subtitle="Gender & age breakdown" accent="#8B5CF6" testId="diversity-section">
+            <div className="h-64">
+              <DiversityDonut data={esgSummary.diversity_breakdown} />
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Workforce Composition" subtitle="Demographics overview" accent="#EC4899" testId="workforce-section">
+            <div className="space-y-3 pt-2">
+              {[
+                { label: 'Total Employees', value: esgSummary.kpis?.total_employees?.value, color: '#8B5CF6' },
+                { label: 'Female', value: esgSummary.diversity_breakdown?.female, color: '#EC4899' },
+                { label: 'Male', value: esgSummary.diversity_breakdown?.male, color: '#3B82F6' },
+                { label: 'Under 30', value: esgSummary.diversity_breakdown?.under_30, color: '#10B981' },
+                { label: 'Age 30–50', value: esgSummary.diversity_breakdown?.age_30_50, color: '#F59E0B' },
+                { label: 'Over 50', value: esgSummary.diversity_breakdown?.over_50, color: '#EF4444' },
+                { label: 'Minority', value: esgSummary.diversity_breakdown?.minority, color: '#6366F1' },
+                { label: 'Vulnerable', value: esgSummary.diversity_breakdown?.vulnerable, color: '#78716C' },
+              ].map(item => (
+                <div key={item.label} className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                    <span className="text-text-secondary">{item.label}</span>
+                  </div>
+                  <span className="font-semibold text-text-primary">{item.value != null ? Number(item.value).toLocaleString() : '—'}</span>
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Governance Summary" subtitle="Key governance metrics" accent="#6366F1" testId="governance-section">
+            <div className="space-y-4 pt-2">
+              {[
+                { label: 'Data Breaches', value: esgSummary.kpis?.data_breaches?.value, unit: 'incidents', color: '#DC2626' },
+                { label: 'Accounts Payable Days', value: esgSummary.kpis?.ap_days?.value, unit: 'days', color: '#6366F1' },
+                { label: 'Employee Turnover', value: esgSummary.kpis?.turnover_pct?.value, unit: '%', color: '#F59E0B' },
+                { label: 'Safety Incidents', value: esgSummary.kpis?.safety_incidents?.value, unit: 'incidents', color: '#EF4444' },
+              ].map(item => (
+                <div key={item.label} className="flex items-center justify-between p-3 rounded-xl bg-stone-50">
+                  <span className="text-sm text-text-secondary">{item.label}</span>
+                  <div className="text-right">
+                    <span className="text-lg font-bold" style={{ color: item.color }}>
+                      {item.value != null ? Number(item.value).toLocaleString() : '—'}
+                    </span>
+                    <span className="text-xs text-text-muted ml-1">{item.unit}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+        </div>
+      )}
     </div>
   );
 }
