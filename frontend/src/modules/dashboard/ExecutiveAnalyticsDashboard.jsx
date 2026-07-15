@@ -259,14 +259,11 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
   const financeRows = aggregateSeries(analyticsData.finance, granularity, ['apDays', 'aging0to30', 'aging31to60', 'aging61to90', 'agingOver90', 'cashConversion']);
   const breachRows = aggregateSeries(analyticsData.breaches, granularity, ['breaches', 'confidentiality', 'integrity', 'availability', 'privacy']);
 
-  const renewableRows = energyRows.map((row) => ({
+  const renewableIntensityRows = energyRows.map((row) => ({
     ...row,
     renewablePct: row.renewable + row.nonRenewable
       ? (row.renewable / (row.renewable + row.nonRenewable)) * 100
       : 0,
-  }));
-  const intensityRows = energyRows.map((row) => ({
-    ...row,
     energyIntensity: productionQty ? (row.renewable + row.nonRenewable) / productionQty : 0,
   }));
   const incidentCategoryRows = [{
@@ -394,10 +391,9 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
       </div>
 
       {/* ── Row 3: Energy ── */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <AnalyticsChartCard title="Energy Mix" subtitle="Renewable and non-renewable consumption" data={energyRows} series={ENERGY_SERIES} chartType="bar" stacked accent="#F97316" unit="MWh" testId="energy-mix-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
-        <AnalyticsChartCard title="Renewable Energy Trend" subtitle="Renewable share of total energy" data={renewableRows} series={[{ key: 'renewablePct', label: 'Renewable %', color: '#65A30D' }]} accent="#65A30D" unit="%" testId="renewable-energy-trend" loading={analyticsLoading} onDrilldown={openDrilldown} />
-        <AnalyticsChartCard title="Energy Intensity Trend" subtitle="Energy consumed per selected production quantity" data={intensityRows} series={[{ key: 'energyIntensity', label: 'Energy Intensity', color: '#F97316' }]} accent="#F97316" unit={`MWh/${productionUnit || 'unit'}`} testId="energy-intensity-trend" loading={analyticsLoading} onDrilldown={openDrilldown} />
+        <AnalyticsChartCard title="Renewable % & Energy Intensity" subtitle="Renewable share and energy intensity trend" data={renewableIntensityRows} series={[{ key: 'renewablePct', label: 'Renewable %', color: '#65A30D' }, { key: 'energyIntensity', label: 'Energy Intensity', color: '#F97316' }]} accent="#65A30D" testId="renewable-intensity-trend" loading={analyticsLoading} onDrilldown={openDrilldown} />
       </div>
 
       {/* ── Row 4: Water & Waste ── */}
