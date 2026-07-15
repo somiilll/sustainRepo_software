@@ -28,10 +28,53 @@ def record_month(record: dict) -> Optional[str]:
         return None
     year = period.get("year")
     month = period.get("month")
-    if year and isinstance(month, str) and month in MONTH_NAMES:
-        return f"{year}-{MONTH_NAMES.index(month) + 1:02d}"
+    rp_type = period.get("reporting_type", "")
+
+    # Monthly — name ("July") or numeric string ("7")
+    if year and month:
+        if isinstance(month, str) and month in MONTH_NAMES:
+            return f"{year}-{MONTH_NAMES.index(month) + 1:02d}"
+        try:
+            mi = int(month)
+            if 1 <= mi <= 12:
+                return f"{year}-{mi:02d}"
+        except (TypeError, ValueError):
+            pass
+
+    # Daily / Weekly — date string "2026-07-15"
     if period.get("date"):
         return str(period["date"])[:7]
+
+    # Quarterly — map to first month of the quarter
+    quarter = period.get("quarter")  # "Q1" .. "Q4"
+    if year and quarter:
+        q_map = {"Q1": 1, "Q2": 4, "Q3": 7, "Q4": 10}
+        mi = q_map.get(quarter)
+        if mi:
+            return f"{year}-{mi:02d}"
+
+    # Yearly FY — map to April of the start year ("FY 2025-2026" → "2025-04")
+    fy = period.get("financial_year")
+    if fy and isinstance(fy, str):
+        try:
+            fy_start = int(fy.split()[1].split("-")[0])
+            return f"{fy_start}-04"
+        except (IndexError, ValueError):
+            pass
+
+    # Yearly CY — map to January
+    cy = period.get("calendar_year")
+    if cy and isinstance(cy, str):
+        try:
+            cy_year = int(cy.replace("CY", "").strip())
+            return f"{cy_year}-01"
+        except (ValueError):
+            pass
+
+    # Yearly with just year — map to January
+    if year and rp_type == "yearly":
+        return f"{year}-01"
+
     return None
 
 
@@ -71,7 +114,7 @@ async def get_esg_analytics(db, org_id: str, start_date: str, end_date: str, fac
     months = month_keys(start_date, end_date)
     previous_months = month_keys(f"{int(start_date[:4]) - 1}-{start_date[5:7]}", f"{int(end_date[:4]) - 1}-{end_date[5:7]}")
     all_months = set(months + previous_months)
-    org_query = {"$or": [{"org_id": org_id}, {"organization_id": org_id}]}
+    org_query = {"$or": [{"org_id": org_id}, {"organization_id": org_id}], "is_current": {"$ne": False}, "status": {"$ne": "draft"}}
     if facility_ids:
         org_query["facility_id"] = {"$in": facility_ids}
 
