@@ -350,7 +350,7 @@ async def get_esg_analytics(db, org_id: str, start_date: str, end_date: str, fac
         quantity = number(values.get("quantity"))
         if category == "energy":
             value = energy_mwh(quantity, values.get("unit"))
-            renewable = "renewable" in str(values.get("is_renewable") or "").lower() or "renewable" in str(values.get("source_type") or "").lower()
+            renewable = "renewable" in str(values.get("is_renewable") or "").lower() or "renewable" in str(values.get("source_type") or "").lower() or "renewable" in subcategory
             energy_rows[period]["renewable" if renewable else "nonRenewable"] += value
         elif category == "water":
             if subcategory == "recycle":
