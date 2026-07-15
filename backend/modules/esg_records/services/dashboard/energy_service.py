@@ -133,89 +133,6 @@ class EnergyMetricsService:
             print(f"Error fetching GHG energy: {e}")
             return result
     
-    # async def _get_esg_energy_breakdown(
-    #     self,
-    #     org_id: str,
-    #     facility_ids: Optional[List[str]],
-    #     start_date: Optional[str],
-    #     end_date: Optional[str]
-    # ) -> Dict[str, Any]:
-    #     """Get energy from ESG records with renewable breakdown"""
-    #     result = {
-    #         "fuel": {"renewable": 0, "non_renewable": 0, "total": 0},
-    #         "electricity": {"renewable": 0, "non_renewable": 0, "total": 0},
-    #         "other_sources": {"renewable": 0, "non_renewable": 0, "total": 0},
-    #         "total": 0,
-    #         "renewable_total": 0,
-    #         "non_renewable_total": 0,
-    #     }
-        
-    #     base_query = {
-    #         "org_id": org_id,
-    #         "is_current": {"$ne": False},
-    #         "status": {"$ne": "draft"},
-    #         "category": {"$regex": "^Energy$", "$options": "i"}
-    #     }
-    #     if facility_ids:
-    #         base_query["facility_id"] = {"$in": facility_ids}
-        
-    #     # Build final query with optional date filter
-    #     if start_date and end_date:
-    #         date_filter = self._build_date_filter(start_date, end_date)
-    #         if date_filter:
-    #             query = {"$and": [base_query, {"$or": date_filter}]}
-    #         else:
-    #             query = base_query
-    #     else:
-    #         query = base_query
-        
-    #     records = await self.db.environment_records.find(query, {"_id": 0, "subcategory": 1, "field_values": 1}).to_list(10000)
-        
-    #     for rec in records:
-    #         fv = rec.get("field_values", {})
-    #         subcategory = (rec.get("subcategory") or "").lower()
-    #         qty = float(fv.get("quantity") or 0)
-    #         qty = to_mwh(qty, fv.get("unit"))
-    #         is_renewable = (fv.get("is_renewable") or "").lower()
-    #         sub_subcategory = (fv.get("sub_subcategory") or fv.get("subsubcategory") or "").lower()
-            
-    #         # Determine renewable status
-    #         renewable = False
-    #         if "yes" in is_renewable or "renewable" in sub_subcategory or "renewable" in subcategory:
-    #             renewable = True
-            
-    #         # Categorize
-    #         if "fuel" in subcategory:
-    #             # Fuel is always non-renewable per user requirement
-    #             result["fuel"]["non_renewable"] += qty
-    #             result["fuel"]["total"] += qty
-    #             result["non_renewable_total"] += qty
-    #         elif "electricity" in subcategory:
-    #             # Electricity renewable status from sub-subcategory
-    #             if renewable or "renewable" in sub_subcategory:
-    #                 result["electricity"]["renewable"] += qty
-    #                 result["renewable_total"] += qty
-    #             else:
-    #                 result["electricity"]["non_renewable"] += qty
-    #                 result["non_renewable_total"] += qty
-    #             result["electricity"]["total"] += qty
-    #         elif "other" in subcategory:
-    #             # Other sources are non-renewable per user requirement
-    #             result["other_sources"]["non_renewable"] += qty
-    #             result["other_sources"]["total"] += qty
-    #             result["non_renewable_total"] += qty
-            
-    #         result["total"] += qty
-        
-    #     # Round all values
-    #     for key in ["fuel", "electricity", "other_sources"]:
-    #         for subkey in result[key]:
-    #             result[key][subkey] = round(result[key][subkey], 2)
-    #     for key in ["total", "renewable_total", "non_renewable_total"]:
-    #         result[key] = round(result[key], 2)
-        
-    #     return result
-    
 
     async def _get_esg_energy_breakdown(
         self,
@@ -243,7 +160,6 @@ class EnergyMetricsService:
         if facility_ids:
             base_query["facility_id"] = {"$in": facility_ids}
         
-        # Build final query with optional date filter
         if start_date and end_date:
             date_filter = self._build_date_filter(start_date, end_date)
             if date_filter:
@@ -261,60 +177,52 @@ class EnergyMetricsService:
             fv = rec.get("field_values", {})
             subcategory = (rec.get("subcategory") or "").lower()
             
-            # 1. Extract values from the new explicit fields
-            ren_j = float(fv.get("Renewable Energy Consumption (J)") or 0)
-            non_ren_j = float(fv.get("Non - Renewable Energy Consumption (J)") or 0)
+            # Heating uses different field keys than others
+            if "heating" in subcategory:
+                ren_raw = float(fv.get("renewable_heating_consumption") or 0)
+                non_ren_raw = float(fv.get("non_renewable_heating_consumption") or 0)
+            else:
+                ren_raw = float(fv.get("renewable_energy_consumption") or 0)
+                non_ren_raw = float(fv.get("non_renewable_energy_consumption") or 0)
             
-            # 2. Convert Joules to MWh using your existing helper
-            ren_qty = to_mwh(ren_j, "J") if ren_j else 0
-            non_ren_qty = to_mwh(non_ren_j, "J") if non_ren_j else 0
+            # Renewable/non-renewable fields are stored in Joules
+            ren_qty = to_mwh(ren_raw, "J") if ren_raw else 0
+            non_ren_qty = to_mwh(non_ren_raw, "J") if non_ren_raw else 0
             
-            # 3. Fallback for older legacy records (Optional but recommended)
+            # Fallback: use quantity field for legacy records
             if ren_qty == 0 and non_ren_qty == 0 and fv.get("quantity"):
                 old_qty = float(fv.get("quantity") or 0)
-                if "electricity" in subcategory:
-                    is_renewable = (fv.get("is_renewable") or "").lower()
-                    sub_sub = (fv.get("sub_subcategory") or fv.get("subsubcategory") or "").lower()
-                    if "yes" in is_renewable or "renewable" in sub_sub:
-                        ren_qty = to_mwh(old_qty, fv.get("unit"))
-                    else:
-                        non_ren_qty = to_mwh(old_qty, fv.get("unit"))
+                is_renewable = (fv.get("is_renewable") or "").lower()
+                sub_sub = (fv.get("sub_subcategory") or fv.get("subsubcategory") or "").lower()
+                if "yes" in is_renewable or "renewable" in sub_sub or "renewable" in subcategory:
+                    ren_qty = to_mwh(old_qty, fv.get("unit"))
                 else:
                     non_ren_qty = to_mwh(old_qty, fv.get("unit"))
             
             total_qty = ren_qty + non_ren_qty
             
-            # 4. Add to grand totals
             result["renewable_total"] += ren_qty
             result["non_renewable_total"] += non_ren_qty
             result["total"] += total_qty
             
-            # 5. Categorize accurately based on the specific organization subcategories
-            if "fuel" in subcategory: 
-                # Matches: "fuel within organization"
+            # Categorize by subcategory
+            if "fuel" in subcategory:
                 result["fuel"]["renewable"] += ren_qty
                 result["fuel"]["non_renewable"] += non_ren_qty
                 result["fuel"]["total"] += total_qty
-                
-            elif "electricity" in subcategory: 
-                # Matches: "electricity within organization"
+            elif "electricity" in subcategory:
                 result["electricity"]["renewable"] += ren_qty
                 result["electricity"]["non_renewable"] += non_ren_qty
                 result["electricity"]["total"] += total_qty
-                
-            elif any(x in subcategory for x in ["heating", "cooling", "steam", "other"]):
-                # Matches: "heating within organization", "cooling within organization", "steam within organization"
+            elif any(x in subcategory for x in ["heating", "cooling", "steam", "outside", "other"]):
                 result["other_sources"]["renewable"] += ren_qty
                 result["other_sources"]["non_renewable"] += non_ren_qty
                 result["other_sources"]["total"] += total_qty
-                
             else:
-                # Catch-all for any edge cases
                 result["other_sources"]["renewable"] += ren_qty
                 result["other_sources"]["non_renewable"] += non_ren_qty
                 result["other_sources"]["total"] += total_qty
         
-        # Round all values to 2 decimal places
         for key in ["fuel", "electricity", "other_sources"]:
             for subkey in result[key]:
                 result[key][subkey] = round(result[key][subkey], 2)
