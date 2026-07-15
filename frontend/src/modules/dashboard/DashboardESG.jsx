@@ -1,5 +1,5 @@
 /**
- * DashboardBRSRGHG — Premium Enterprise BRSR + GHG Dashboard
+ * DashboardESG — Premium Enterprise ESG Dashboard
  * 
  * Continuous ESG Monitoring & Operational Intelligence Platform
  * 
@@ -35,7 +35,7 @@ import ResourceTrendChart from './components/brsr/ResourceTrendChart';
 import { useIntensityData, useIntensityCalculations, usePrevYearIntensity } from './hooks/useIntensityData';
 
 // Icons
-import { Leaf, Droplets, Trash2, AlertTriangle, Zap, RefreshCw, Users, Heart, ShieldAlert, CreditCard, BarChart3, Repeat, Activity } from 'lucide-react';
+import { Leaf, Droplets, Trash2, AlertTriangle, Zap, RefreshCw, Users, ShieldAlert, CreditCard, BarChart3, Repeat, Activity } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -70,7 +70,7 @@ function DiversityDonut({ data }) {
 // =============================================================================
 // Main Dashboard Component
 // =============================================================================
-export default function DashboardBRSRGHG({ data }) {
+export default function DashboardESG({ data }) {
   const { getAuthHeader } = useAuth();
   const {
     stats, loading, organization, facilities,
@@ -453,16 +453,12 @@ export default function DashboardBRSRGHG({ data }) {
           title="Employees"
           value={esgSummary?.kpis?.total_employees?.value}
           unit=""
+          secondaryLabel="Female Workforce"
+          secondaryValue={esgSummary?.kpis?.diversity_pct?.value}
+          secondaryUnit="%"
+          secondaryTestId="kpi-employees-female-workforce"
           icon={Users}
           accentColor="#6366F1"
-          loading={false}
-        />
-        <PremiumKpiCard
-          title="Female Workforce"
-          value={esgSummary?.kpis?.diversity_pct?.value}
-          unit="%"
-          icon={Heart}
-          accentColor="#EC4899"
           loading={false}
         />
         <PremiumKpiCard

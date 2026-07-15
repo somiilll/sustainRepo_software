@@ -64,6 +64,7 @@ Build a comprehensive ESG (Environmental, Social, Governance) Platform with:
 - Replaced legacy executive KPI cards with the requested 11-card set: Total Emissions, production-based GHG and Energy Intensity, Renewable Energy, Water Recycled, Waste Recovery, Employees, Female Workforce, LTIFR, Accounts Payable Days, and Employee Turnover.
 - Total Emissions is Scope 1 + Scope 2 + Scope 3; GHG Intensity uses Scope 1 + Scope 2 divided by production quantity; Energy Intensity uses total MWh divided by production quantity.
 - Water dashboard aggregation now returns `water.recycled` in KL from dedicated `Water / Recycle` records, respecting organization, facility, and reporting-period filters.
+- Renamed the combined dashboard module to `DashboardESG.jsx`; Female Workforce % is now displayed within the Employees card rather than as a separate KPI card.
 
 ## Pending Issues
 

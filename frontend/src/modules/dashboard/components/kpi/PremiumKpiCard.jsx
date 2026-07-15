@@ -17,6 +17,10 @@ export default function PremiumKpiCard({
   yoyChange,
   targetValue,
   baseYearReduction,
+  secondaryLabel,
+  secondaryValue,
+  secondaryUnit = '',
+  secondaryTestId,
   sparkData = [],
   icon: Icon,
   accentColor = '#10B981',
@@ -100,6 +104,15 @@ export default function PremiumKpiCard({
           <span className="text-stone-500">vs Base Year:</span>
           <span className={`font-semibold ${baseYearReduction <= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
             {baseYearReduction > 0 ? '+' : ''}{baseYearReduction.toFixed(1)}%
+          </span>
+        </div>
+      )}
+
+      {secondaryLabel && (
+        <div className="mt-3 flex items-center justify-between gap-3 border-t border-stone-100 pt-3 text-xs">
+          <span className="text-stone-500">{secondaryLabel}</span>
+          <span className="font-semibold text-stone-800 tabular-nums" data-testid={secondaryTestId}>
+            {secondaryValue != null ? Number(secondaryValue).toLocaleString() : '—'} {secondaryUnit}
           </span>
         </div>
       )}
