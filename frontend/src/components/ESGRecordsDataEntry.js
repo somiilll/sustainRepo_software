@@ -172,6 +172,7 @@ export default function ESGRecordsDataEntry({
   });
   const [formErrors, setFormErrors] = useState({});
   const [addFormCategory, setAddFormCategory] = useState(null);
+  const [reportingYearType, setReportingYearType] = useState('financial_year');
 
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -201,7 +202,17 @@ export default function ESGRecordsDataEntry({
   useEffect(() => {
     fetchCategories();
     fetchFacilities();
+    fetchReportingYearType();
   }, [section]);
+
+  const fetchReportingYearType = async () => {
+    try {
+      const res = await axios.get(`${API}/api/organizations/my`, { headers });
+      setReportingYearType(res.data.reporting_year_type || 'financial_year');
+    } catch (error) {
+      console.error('Failed to fetch reporting year type:', error);
+    }
+  };
 
   useEffect(() => {
     if (mode === 'list') {
@@ -314,6 +325,9 @@ export default function ESGRecordsDataEntry({
     // Validate
     const errors = {};
     if (!formData.category) errors.category = 'Required';
+    if (!asDraft && formData.reporting_type === 'monthly' && !formData.reporting_month) errors.reporting_month = 'Month is required';
+    if (!asDraft && formData.reporting_type === 'quarterly' && !formData.reporting_quarter) errors.reporting_quarter = 'Quarter is required';
+    if (!asDraft && ['daily', 'weekly'].includes(formData.reporting_type) && !formData.reporting_date) errors.reporting_date = 'Date is required';
     
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
@@ -340,6 +354,12 @@ export default function ESGRecordsDataEntry({
         reportingPeriod.quarter = formData.reporting_quarter;
       } else if (formData.reporting_type === 'yearly') {
         reportingPeriod.year = formData.reporting_year;
+        reportingPeriod.year_type = reportingYearType === 'calendar_year' ? 'calendar' : 'financial';
+        if (reportingPeriod.year_type === 'financial') {
+          reportingPeriod.financial_year = `FY ${formData.reporting_year}-${formData.reporting_year + 1}`;
+        } else {
+          reportingPeriod.calendar_year = `CY ${formData.reporting_year}`;
+        }
       }
       
       const payload = {
@@ -367,6 +387,8 @@ export default function ESGRecordsDataEntry({
         reporting_type: 'monthly',
         reporting_year: new Date().getFullYear(),
         reporting_month: '',
+        reporting_quarter: '',
+        reporting_date: '',
         field_values: {},
         source_of_information: '',
         notes: '',
@@ -513,6 +535,7 @@ export default function ESGRecordsDataEntry({
   // Save edited record
   const handleSaveEdit = async (asDraft = false) => {
     if (!selectedRecord) return;
+    const yearlyType = reportingYearType === 'calendar_year' ? 'calendar' : 'financial';
     
     setSaving(prev => ({ ...prev, edit: true }));
     try {
@@ -531,6 +554,12 @@ export default function ESGRecordsDataEntry({
         reportingPeriod.quarter = editData.reporting_quarter;
       } else if (editData.reporting_type === 'yearly') {
         reportingPeriod.year = editData.reporting_year;
+        reportingPeriod.year_type = yearlyType;
+        if (yearlyType === 'financial') {
+          reportingPeriod.financial_year = `FY ${editData.reporting_year}-${editData.reporting_year + 1}`;
+        } else {
+          reportingPeriod.calendar_year = `CY ${editData.reporting_year}`;
+        }
       }
       
       await axios.put(
@@ -742,7 +771,7 @@ export default function ESGRecordsDataEntry({
           {/* Year (for monthly, quarterly, yearly) */}
           {['monthly', 'quarterly', 'yearly'].includes(formData.reporting_type) && (
           <div className="space-y-2">
-            <Label>Year</Label>
+            <Label>{formData.reporting_type === 'yearly' ? (reportingYearType === 'calendar_year' ? 'Calendar Year' : 'Financial Year') : 'Year'}</Label>
             <Select 
               value={String(formData.reporting_year)} 
               onValueChange={(v) => setFormData(prev => ({ ...prev, reporting_year: parseInt(v) }))}
@@ -752,7 +781,7 @@ export default function ESGRecordsDataEntry({
               </SelectTrigger>
               <SelectContent>
                 {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i + 1).map(year => (
-                  <SelectItem key={year} value={String(year)}>{year}</SelectItem>
+                  <SelectItem key={year} value={String(year)}>{formData.reporting_type === 'yearly' ? (reportingYearType === 'calendar_year' ? `CY ${year}` : `FY ${year}-${year + 1}`) : year}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -774,7 +803,7 @@ export default function ESGRecordsDataEntry({
           {/* Month (if monthly) */}
           {formData.reporting_type === 'monthly' && (
             <div className="space-y-2">
-              <Label>Month</Label>
+            <Label>Month *</Label>
               <Select 
                 value={formData.reporting_month} 
                 onValueChange={(v) => setFormData(prev => ({ ...prev, reporting_month: v }))}
@@ -788,6 +817,7 @@ export default function ESGRecordsDataEntry({
                   ))}
                 </SelectContent>
               </Select>
+            {formErrors.reporting_month && <p className="text-xs text-red-500">{formErrors.reporting_month}</p>}
             </div>
           )}
         </div>
@@ -986,6 +1016,14 @@ export default function ESGRecordsDataEntry({
                 const hasDraft = drafts.some(d => d.record_id === record.id);
                 const isImported = record.source_type === 'ghg_import';
                 const isLocked = record.is_locked || isImported;
+                const reportingPeriod = record.reporting_period || {};
+                const reportingMonth = reportingPeriod.month;
+                const reportingYear = reportingPeriod.year;
+                const periodLabel = reportingPeriod.reporting_type === 'yearly'
+                  ? (reportingPeriod.financial_year || reportingPeriod.calendar_year || reportingYear || '-')
+                  : reportingPeriod.reporting_type === 'quarterly'
+                    ? `${reportingPeriod.quarter || ''} ${reportingYear || ''}`.trim()
+                    : `${reportingMonth ? MONTHS[Number(reportingMonth) - 1] || reportingMonth : ''} ${reportingYear || ''}`.trim() || '-';
                 
                 return (
                   <TableRow key={record.id} className={`${hasDraft ? 'bg-yellow-50' : ''} ${isImported ? 'bg-emerald-50/30' : ''}`}>
@@ -1011,8 +1049,7 @@ export default function ESGRecordsDataEntry({
                       )}
                     </TableCell>
                     <TableCell>
-                      {record.reporting_month && `${MONTHS[record.reporting_month - 1]} `}
-                      {record.reporting_year}
+                      {periodLabel}
                     </TableCell>
                     <TableCell>
                       <span className={`font-mono ${isImported ? 'text-emerald-700' : ''}`}>{record.value}</span>

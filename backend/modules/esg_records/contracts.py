@@ -4,7 +4,7 @@ ESG Records Module - Contracts/Models
 Reusable architecture for Environment, Social, and Governance records.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime
 
@@ -171,6 +171,13 @@ class CreateRecordRequest(BaseModel):
     notes: Optional[str] = None
     status: Optional[str] = None  # 'draft' or 'completed' (default completed)
 
+    @model_validator(mode="after")
+    def validate_complete_reporting_period(self):
+        if self.status == "draft":
+            return self
+        _validate_reporting_period(self.reporting_period)
+        return self
+
 
 class UpdateRecordRequest(BaseModel):
     """Request to update an ESG record (creates new version)."""
@@ -183,6 +190,41 @@ class UpdateRecordRequest(BaseModel):
     notes: Optional[str] = None
     change_reason: Optional[str] = None
     status: Optional[str] = None  # For resubmitting rejected records
+
+    @model_validator(mode="after")
+    def validate_complete_reporting_period(self):
+        if self.reporting_period is not None and self.status != "draft":
+            _validate_reporting_period(self.reporting_period)
+        return self
+
+
+def _validate_reporting_period(period: ReportingPeriod) -> None:
+    """Require the period fields that correspond to the selected reporting type."""
+    if period.reporting_type in ("daily", "weekly") and not period.date:
+        raise ValueError("Date is required for daily or weekly reporting")
+    if period.reporting_type == "monthly":
+        if not period.year:
+            raise ValueError("Year is required for monthly reporting")
+        if not period.month:
+            raise ValueError("Month is required for monthly reporting")
+        month = str(period.month)
+        valid_months = {
+            "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12",
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December",
+        }
+        if month not in valid_months:
+            raise ValueError("Month must be a valid calendar month")
+    if period.reporting_type == "quarterly":
+        if not period.year or period.quarter not in {"Q1", "Q2", "Q3", "Q4"}:
+            raise ValueError("Year and a valid quarter are required for quarterly reporting")
+    if period.reporting_type == "yearly":
+        if period.year_type == "financial" and not period.financial_year:
+            raise ValueError("Financial year is required for yearly financial reporting")
+        if period.year_type == "calendar" and not period.calendar_year:
+            raise ValueError("Calendar year is required for yearly calendar reporting")
+        if period.year_type not in {"financial", "calendar"}:
+            raise ValueError("Year type is required for yearly reporting")
 
 
 class RecordListFilters(BaseModel):
