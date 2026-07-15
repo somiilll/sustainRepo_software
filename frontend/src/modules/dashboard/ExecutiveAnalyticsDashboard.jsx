@@ -305,7 +305,7 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
       </div>
     );
   }
-
+  console.log("emissionRows", emissionRows)
   return (
     <div className="space-y-6 pb-10" data-testid="executive-esg-dashboard">
 
@@ -348,10 +348,10 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
       {/* ── Row 2: GHG Emissions + Scope Breakdown ── */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         <div className="xl:col-span-8">
-          <AnalyticsChartCard title="GHG Emission Trend" subtitle="Scope emissions with previous-year comparison" data={emissionRows} series={emissionSeries} chartType="line" accent="#15803D" unit="tCO₂e" testId="ghg-emission-trend" loading={analyticsLoading} onDrilldown={openDrilldown} />
+          <AnalyticsChartCard className="h-full" title="GHG Emission Trend" subtitle="Scope emissions with previous-year comparison" data={emissionRows} series={emissionSeries} chartType="line" accent="#15803D" unit="tCO₂e" testId="ghg-emission-trend" loading={analyticsLoading} onDrilldown={openDrilldown} />
         </div>
         <div className="xl:col-span-4">
-          <ScopeBreakdownCard totals={scopeTotals} activeScopes={activeScopes} onToggleScope={toggleScope} onFullscreen={() => openDrilldown(scopeTotals, 'Scope Breakdown')} />
+          <ScopeBreakdownCard className="h-full" totals={scopeTotals} activeScopes={activeScopes} onToggleScope={toggleScope} onFullscreen={() => openDrilldown(scopeTotals, 'Scope Breakdown')} />
         </div>
       </div>
 
