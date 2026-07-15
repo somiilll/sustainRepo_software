@@ -19,8 +19,24 @@ from modules.auth.dependencies import get_current_user
 from modules.dashboards.contracts import DashboardStats
 from modules.emissions.contracts import EmissionRecordResponse
 from shared.database.mongo import db
+from modules.dashboards.esg_analytics_service import get_esg_analytics
 
 router = APIRouter()
+
+
+@router.get("/dashboard/esg-analytics")
+async def get_dashboard_esg_analytics(
+    start_date: str,
+    end_date: str,
+    facility_ids: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """Return live, filter-aware time series for the Executive ESG dashboard."""
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization")
+    selected_facilities = [item.strip() for item in facility_ids.split(",") if item.strip()] if facility_ids else None
+    return await get_esg_analytics(db, org_id, start_date, end_date, selected_facilities)
 
 
 # Dashboard endpoints

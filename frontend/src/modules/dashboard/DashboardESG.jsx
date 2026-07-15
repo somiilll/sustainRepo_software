@@ -14,6 +14,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import axios from 'axios';
 import { format } from 'date-fns';
 import { useAuth } from '../../contexts/AuthContext';
+import ExecutiveAnalyticsDashboard from './ExecutiveAnalyticsDashboard';
 
 // Layout & Shared Components
 import StickyFilterBar from './components/filters/StickyFilterBar';
@@ -70,7 +71,7 @@ function DiversityDonut({ data }) {
 // =============================================================================
 // Main Dashboard Component
 // =============================================================================
-export default function DashboardESG({ data }) {
+function LegacyDashboardESG({ data }) {
   const { getAuthHeader } = useAuth();
   const {
     stats, loading, organization, facilities,
@@ -668,4 +669,8 @@ export default function DashboardESG({ data }) {
       )}
     </div>
   );
+}
+
+export default function DashboardESG({ data }) {
+  return <ExecutiveAnalyticsDashboard data={data} />;
 }
