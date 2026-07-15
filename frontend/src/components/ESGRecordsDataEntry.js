@@ -771,8 +771,9 @@ export default function ESGRecordsDataEntry({
           {/* Year (for monthly, quarterly, yearly) */}
           {['monthly', 'quarterly', 'yearly'].includes(formData.reporting_type) && (
           <div className="space-y-2">
-            <Label>{formData.reporting_type === 'yearly' ? (reportingYearType === 'calendar_year' ? 'Calendar Year' : 'Financial Year') : 'Year'}</Label>
+            <Label>{reportingYearType === 'financial_year' ? 'Financial Year' : (formData.reporting_type === 'yearly' && reportingYearType === 'calendar_year' ? 'Calendar Year' : 'Year')}</Label>
             <Select 
+              key={`year-${reportingYearType}-${formData.reporting_type}`}
               value={String(formData.reporting_year)} 
               onValueChange={(v) => setFormData(prev => ({ ...prev, reporting_year: parseInt(v) }))}
             >
@@ -781,7 +782,7 @@ export default function ESGRecordsDataEntry({
               </SelectTrigger>
               <SelectContent>
                 {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i + 1).map(year => (
-                  <SelectItem key={year} value={String(year)}>{formData.reporting_type === 'yearly' ? (reportingYearType === 'calendar_year' ? `CY ${year}` : `FY ${year}-${year + 1}`) : year}</SelectItem>
+                  <SelectItem key={year} value={String(year)}>{reportingYearType === 'financial_year' ? `FY ${year}-${year + 1}` : (formData.reporting_type === 'yearly' ? `CY ${year}` : year)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -1019,11 +1020,14 @@ export default function ESGRecordsDataEntry({
                 const reportingPeriod = record.reporting_period || {};
                 const reportingMonth = reportingPeriod.month;
                 const reportingYear = reportingPeriod.year;
+                const isFY = reportingYearType === 'financial_year';
+                const fyLabel = reportingYear ? `FY ${reportingYear}-${reportingYear + 1}` : '-';
+                const yearDisplay = isFY && reportingYear ? fyLabel : (reportingYear || '-');
                 const periodLabel = reportingPeriod.reporting_type === 'yearly'
-                  ? (reportingPeriod.financial_year || reportingPeriod.calendar_year || reportingYear || '-')
+                  ? (reportingPeriod.financial_year || reportingPeriod.calendar_year || fyLabel)
                   : reportingPeriod.reporting_type === 'quarterly'
-                    ? `${reportingPeriod.quarter || ''} ${reportingYear || ''}`.trim()
-                    : `${reportingMonth ? MONTHS[Number(reportingMonth) - 1] || reportingMonth : ''} ${reportingYear || ''}`.trim() || '-';
+                    ? `${reportingPeriod.quarter || ''} ${yearDisplay}`.trim()
+                    : `${reportingMonth ? MONTHS[Number(reportingMonth) - 1] || reportingMonth : ''} ${yearDisplay}`.trim() || '-';
                 
                 return (
                   <TableRow key={record.id} className={`${hasDraft ? 'bg-yellow-50' : ''} ${isImported ? 'bg-emerald-50/30' : ''}`}>
@@ -1300,8 +1304,9 @@ export default function ESGRecordsDataEntry({
                 {/* Year (for monthly, quarterly, yearly) */}
                 {['monthly', 'quarterly', 'yearly'].includes(editData.reporting_type) && (
                   <div className="space-y-1">
-                    <Label className="text-xs">Year</Label>
+                    <Label className="text-xs">{reportingYearType === 'financial_year' ? 'Financial Year' : 'Year'}</Label>
                     <Select
+                      key={`edit-year-${reportingYearType}-${editData.reporting_type}`}
                       value={String(editData.reporting_year || new Date().getFullYear())}
                       onValueChange={(val) => setEditData(prev => ({ ...prev, reporting_year: parseInt(val) }))}
                     >
@@ -1310,7 +1315,7 @@ export default function ESGRecordsDataEntry({
                       </SelectTrigger>
                       <SelectContent>
                         {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - 5 + i).map(year => (
-                          <SelectItem key={year} value={String(year)}>{year}</SelectItem>
+                          <SelectItem key={year} value={String(year)}>{reportingYearType === 'financial_year' ? `FY ${year}-${year + 1}` : year}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
