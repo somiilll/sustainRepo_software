@@ -22,6 +22,32 @@ from datetime import datetime, timezone
 import re
 
 
+def _cv_to_tj_per_kg(value: float, unit: str) -> float:
+    """Convert a calorific value to TJ/kg regardless of source unit."""
+    u = unit.lower().replace(" ", "")
+    if "tj/kg" in u:
+        return value
+    if "gj/kg" in u:
+        return value * 1e-3
+    if "mj/kg" in u:
+        return value * 1e-6
+    if "kj/kg" in u:
+        return value * 1e-9
+    if "gj/tonne" in u or "gj/t" in u:
+        return value * 1e-3 / 1000          # GJ/tonne → TJ/kg
+    if "mj/tonne" in u or "mj/t" in u:
+        return value * 1e-6 / 1000
+    if "tj/tonne" in u or "tj/t" in u:
+        return value / 1000
+    if "kcal/kg" in u:
+        return value * 4.184e-9              # 1 kcal = 4.184e-9 TJ
+    if "btu/lb" in u:
+        return value * 1.055e-9 * 2.20462    # BTU→TJ, lb→kg
+    # Default: assume TJ/kg
+    return value
+
+
+
 # =============================================================================
 # Constants
 # =============================================================================
@@ -509,12 +535,12 @@ class GHGIntegrationService:
         for fuel in fuels:
             fuel_name = (fuel.get("fuel_name") or "").lower()
             fuel_id = fuel.get("id", "")
-            # CV stored as 'calorific_value' in TJ/kg format
             cv = fuel.get("calorific_value")
+            cv_unit = (fuel.get("calorific_value_unit") or "TJ/kg").lower()
             density = fuel.get("density")
             if cv:
-                fuel_cv_cache[fuel_name] = float(cv)
-                fuel_cv_cache[fuel_id] = float(cv)
+                fuel_cv_cache[fuel_name] = _cv_to_tj_per_kg(float(cv), cv_unit)
+                fuel_cv_cache[fuel_id] = _cv_to_tj_per_kg(float(cv), cv_unit)
             if density:
                 fuel_density_cache[fuel_name] = float(density)
                 fuel_density_cache[fuel_id] = float(density)
@@ -568,7 +594,8 @@ class GHGIntegrationService:
                 cv_data = dfv.get("cv") or {}
                 cv = cv_data.get("value")
                 if cv:
-                    cv = float(cv)
+                    cv_unit = (cv_data.get("unit") or "TJ/kg").lower()
+                    cv = _cv_to_tj_per_kg(float(cv), cv_unit)
                 else:
                     cv = fuel_cv_cache.get(fuel_name) or fuel_cv_cache.get(fuel_db_id)
                 
