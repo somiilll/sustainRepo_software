@@ -2,6 +2,7 @@
 Governance Metrics Service - Safety incidents, data breaches, fatalities, regulatory escalations
 """
 from typing import Optional, List, Dict, Any
+from .date_utils import build_date_filter
 
 
 class GovernanceMetricsService:
@@ -223,34 +224,4 @@ class GovernanceMetricsService:
         return await self.db.governance_records.count_documents(query)
     
     def _build_date_filter(self, start_date: str, end_date: str) -> List[Dict]:
-        """Build date filter conditions for reporting_period (supports monthly and yearly/FY formats)"""
-        try:
-            start_year, start_month = int(start_date[:4]), int(start_date[5:7])
-            end_year, end_month = int(end_date[:4]), int(end_date[5:7])
-            
-            months = ["January", "February", "March", "April", "May", "June",
-                      "July", "August", "September", "October", "November", "December"]
-            
-            conditions = []
-            
-            # Monthly conditions
-            for year in range(start_year, end_year + 1):
-                for month_idx in range(1, 13):
-                    if year == start_year and month_idx < start_month:
-                        continue
-                    if year == end_year and month_idx > end_month:
-                        continue
-                    conditions.append({
-                        "reporting_period.year": year,
-                        "reporting_period.month": {"$in": [months[month_idx - 1], str(month_idx)]}
-                    })
-            
-            # Financial year conditions (e.g., "FY 2025-26")
-            # If date range is Apr 2025 - Mar 2026, it's FY 2025-26
-            for year in range(start_year - 1, end_year + 1):
-                fy_str = f"FY {year}-{str(year + 1)[-2:]}"
-                conditions.append({"reporting_period.financial_year": fy_str})
-            
-            return conditions
-        except:
-            return []
+        return build_date_filter(start_date, end_date)

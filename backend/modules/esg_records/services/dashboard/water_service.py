@@ -3,6 +3,7 @@ Water Metrics Service - Fetches water-related data from environment_records
 Subcategories: Consumption, Withdrawal, Discharge
 """
 from typing import Optional, List, Dict, Any
+from .date_utils import build_date_filter
 
 
 class WaterMetricsService:
@@ -131,25 +132,4 @@ class WaterMetricsService:
         return result[0]["total"] if result else 0
     
     def _build_date_filter(self, start_date: str, end_date: str) -> List[Dict]:
-        """Build date filter conditions for reporting_period"""
-        try:
-            start_year, start_month = int(start_date[:4]), int(start_date[5:7])
-            end_year, end_month = int(end_date[:4]), int(end_date[5:7])
-            
-            months = ["January", "February", "March", "April", "May", "June",
-                      "July", "August", "September", "October", "November", "December"]
-            
-            conditions = []
-            for year in range(start_year, end_year + 1):
-                for month_idx in range(1, 13):
-                    if year == start_year and month_idx < start_month:
-                        continue
-                    if year == end_year and month_idx > end_month:
-                        continue
-                    conditions.append({
-                        "reporting_period.year": year,
-                        "reporting_period.month": {"$in": [months[month_idx - 1], str(month_idx)]}
-                    })
-            return conditions
-        except (TypeError, ValueError, IndexError):
-            return []
+        return build_date_filter(start_date, end_date)
