@@ -56,7 +56,7 @@ class EmissionsMetricsService:
                 "total": round(ghg_total, 2),
             },
             "air_emissions": air_emissions,
-            "total": round(ghg_total + air_emissions["total"], 2),
+            # "total": round(ghg_total + air_emissions["total"], 2),
         }
     
     async def _get_ghg_emission_records_by_scope(
