@@ -9,6 +9,100 @@ MONTH_NAMES = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Metric behaviour: snapshot (carry-forward), flow (single month), ratio
+# ---------------------------------------------------------------------------
+BEHAVIOR_SNAPSHOT = "snapshot"
+BEHAVIOR_FLOW = "flow"
+BEHAVIOR_RATIO = "ratio"
+
+
+def get_spread_months(record: dict, available: set) -> List[str]:
+    """Return every month a record's period covers that exists in *available*.
+
+    Monthly/daily → single month.
+    Quarterly Q3 2026 → Jul, Aug, Sep 2026.
+    Yearly FY 2025-2026 → Apr 2025 … Mar 2026.
+    Yearly CY / plain → Jan … Dec.
+    """
+    period = record.get("reporting_period")
+    if not isinstance(period, dict):
+        m = record_month(record)
+        return [m] if m and m in available else []
+
+    rp_type = (period.get("reporting_type") or "monthly").lower()
+
+    if rp_type in ("daily", "weekly", "monthly"):
+        m = record_month(record)
+        return [m] if m and m in available else []
+
+    year = period.get("year")
+
+    if rp_type == "quarterly":
+        quarter = period.get("quarter")
+        q_months = {"Q1": (1, 2, 3), "Q2": (4, 5, 6), "Q3": (7, 8, 9), "Q4": (10, 11, 12)}
+        if year and quarter in q_months:
+            return [f"{year}-{m:02d}" for m in q_months[quarter] if f"{year}-{m:02d}" in available]
+
+    if rp_type == "yearly":
+        fy = period.get("financial_year")
+        if fy and isinstance(fy, str):
+            try:
+                fy_start = int(fy.split()[1].split("-")[0])
+                keys = [f"{fy_start}-{m:02d}" for m in range(4, 13)]
+                keys += [f"{fy_start + 1}-{m:02d}" for m in range(1, 4)]
+                return [k for k in keys if k in available]
+            except (IndexError, ValueError):
+                pass
+        if year:
+            return [f"{year}-{m:02d}" for m in range(1, 13) if f"{year}-{m:02d}" in available]
+
+    m = record_month(record)
+    return [m] if m and m in available else []
+
+
+def get_flow_month(record: dict, available: set) -> Optional[str]:
+    """Return the single month a flow metric should land on.
+
+    Monthly/daily → its month.  Quarterly → last month of quarter.
+    Yearly FY → March (end of FY).  Yearly CY → December.
+    """
+    period = record.get("reporting_period")
+    if not isinstance(period, dict):
+        m = record_month(record)
+        return m if m and m in available else None
+
+    rp_type = (period.get("reporting_type") or "monthly").lower()
+    year = period.get("year")
+
+    if rp_type in ("daily", "weekly", "monthly"):
+        m = record_month(record)
+        return m if m and m in available else None
+
+    if rp_type == "quarterly":
+        q_last = {"Q1": 3, "Q2": 6, "Q3": 9, "Q4": 12}
+        mi = q_last.get(period.get("quarter"))
+        if year and mi:
+            k = f"{year}-{mi:02d}"
+            return k if k in available else None
+
+    if rp_type == "yearly":
+        fy = period.get("financial_year")
+        if fy and isinstance(fy, str):
+            try:
+                fy_start = int(fy.split()[1].split("-")[0])
+                k = f"{fy_start + 1}-03"
+                return k if k in available else None
+            except (IndexError, ValueError):
+                pass
+        if year:
+            k = f"{year}-12"
+            return k if k in available else None
+
+    m = record_month(record)
+    return m if m and m in available else None
+
+
 def month_keys(start_date: str, end_date: str) -> List[str]:
     start_year, start_month = int(start_date[:4]), int(start_date[5:7])
     end_year, end_month = int(end_date[:4]), int(end_date[5:7])
@@ -161,48 +255,85 @@ async def get_esg_analytics(db, org_id: str, start_date: str, end_date: str, fac
             if key:
                 waste_rows[period][key] += quantity
 
+    months_set = set(months)
+
     for record in social:
-        period = record_month(record)
-        if period not in months:
-            continue
         values = record.get("field_values") or {}
+        spread = get_spread_months(record, months_set)
+        flow_m = get_flow_month(record, months_set)
+
+        # snapshot: employees — carry forward across period
         employees = number(values.get("no_of_employees") or values.get("count"))
         if employees:
-            workforce_rows[period]["employees"] += employees
-        start, end, left = number(values.get("employees_at_the_start_of_the_year")), number(values.get("employees_at_the_end_of_the_year")), number(values.get("employees_who_left_during_the_reporting_period"))
-        average = (start + end) / 2 if start and end else 0
+            for m in spread:
+                workforce_rows[m]["employees"] += employees
+
+        # ratio: turnover — carry forward
+        start_v, end_v, left = number(values.get("employees_at_the_start_of_the_year")), number(values.get("employees_at_the_end_of_the_year")), number(values.get("employees_who_left_during_the_reporting_period"))
+        average = (start_v + end_v) / 2 if start_v and end_v else 0
         if left and average:
-            workforce_rows[period]["turnover"] = (left / average) * 100
-        injuries, hours = number(values.get("no_of_loss_time_injuries")), number(values.get("total_hours_worked"))
-        workforce_rows[period]["lostTimeInjuries"] += injuries
+            turnover = (left / average) * 100
+            for m in spread:
+                workforce_rows[m]["turnover"] = turnover
+
+        # flow: injuries
+        injuries = number(values.get("no_of_loss_time_injuries"))
+        hours = number(values.get("total_hours_worked"))
+        if injuries and flow_m:
+            workforce_rows[flow_m]["lostTimeInjuries"] += injuries
+
+        # ratio: ltifr — carry forward
         if injuries and hours:
-            workforce_rows[period]["ltifr"] = (injuries * 1000000) / hours
+            ltifr = (injuries * 1000000) / hours
+            for m in spread:
+                workforce_rows[m]["ltifr"] = ltifr
 
     for record in governance:
-        period = record_month(record)
         values = record.get("field_values") or {}
-        if period in months:
-            fatalities = number(values.get("fatalities") or values.get("no_of_fatalities"))
-            injuries = number(values.get("lost_time_injuries") or values.get("no_of_loss_time_injuries"))
-            near_misses = number(values.get("near_misses") or values.get("no_of_near_misses"))
-            safety_rows[period]["fatalities"] += fatalities
-            safety_rows[period]["lostTimeInjuries"] += injuries
-            safety_rows[period]["nearMisses"] += near_misses
-            payable, cogs = number(values.get("accounts_payable")), number(values.get("cost_of_goods_services_procured"))
-            if payable and cogs:
-                finance_rows[period]["apDays"] = (payable * 365) / cogs
-            finance_rows[period]["aging0to30"] += number(values.get("payment_aging_0_30") or values.get("aging_0_30"))
-            finance_rows[period]["aging31to60"] += number(values.get("payment_aging_31_60") or values.get("aging_31_60"))
-            finance_rows[period]["aging61to90"] += number(values.get("payment_aging_61_90") or values.get("aging_61_90"))
-            finance_rows[period]["agingOver90"] += number(values.get("payment_aging_over_90") or values.get("aging_over_90"))
-            finance_rows[period]["cashConversion"] += number(values.get("cash_conversion_cycle"))
-            breaches = number(values.get("no_of_incidents_of_data_breach") or values.get("data_breaches"))
-            breach_rows[period]["breaches"] += breaches
+        spread = get_spread_months(record, months_set)
+        flow_m = get_flow_month(record, months_set)
+
+        # flow: safety incidents
+        if flow_m:
+            safety_rows[flow_m]["fatalities"] += number(values.get("fatalities") or values.get("no_of_fatalities"))
+            safety_rows[flow_m]["lostTimeInjuries"] += number(values.get("lost_time_injuries") or values.get("no_of_loss_time_injuries"))
+            safety_rows[flow_m]["nearMisses"] += number(values.get("near_misses") or values.get("no_of_near_misses"))
+
+        # ratio: apDays — carry forward
+        payable, cogs = number(values.get("accounts_payable")), number(values.get("cost_of_goods_services_procured"))
+        if payable and cogs:
+            ap_days = (payable * 365) / cogs
+            for m in spread:
+                finance_rows[m]["apDays"] = ap_days
+
+        # snapshot: aging buckets — carry forward
+        a0 = number(values.get("payment_aging_0_30") or values.get("aging_0_30"))
+        a1 = number(values.get("payment_aging_31_60") or values.get("aging_31_60"))
+        a2 = number(values.get("payment_aging_61_90") or values.get("aging_61_90"))
+        a3 = number(values.get("payment_aging_over_90") or values.get("aging_over_90"))
+        cc = number(values.get("cash_conversion_cycle"))
+        if any((a0, a1, a2, a3, cc)):
+            for m in spread:
+                finance_rows[m]["aging0to30"] += a0
+                finance_rows[m]["aging31to60"] += a1
+                finance_rows[m]["aging61to90"] += a2
+                finance_rows[m]["agingOver90"] += a3
+                finance_rows[m]["cashConversion"] += cc
+
+        # flow: breaches
+        breaches = number(values.get("no_of_incidents_of_data_breach") or values.get("data_breaches"))
+        if breaches and flow_m:
+            breach_rows[flow_m]["breaches"] += breaches
             category = str(values.get("incident_category") or values.get("breach_category") or "").lower()
-            if category in breach_rows[period]:
-                breach_rows[period][category] += breaches or 1
+            if category in breach_rows[flow_m]:
+                breach_rows[flow_m][category] += breaches or 1
+
+        # governance totals (always counted regardless of period)
         governance_totals["dataBreaches"] += number(values.get("no_of_incidents_of_data_breach") or values.get("data_breaches"))
-        governance_totals["openRisks"] += number(values.get("open_risks"))
+        # snapshot: openRisks — use spread
+        open_risks = number(values.get("open_risks"))
+        if open_risks:
+            governance_totals["openRisks"] += open_risks
         compliance = values.get("compliance_pct")
         if compliance is not None:
             governance_totals["compliancePct"] = number(compliance)
