@@ -12,7 +12,7 @@ import requests
 import os
 import uuid
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://kpi-config-wizard.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://esg-kpi-engine.preview.emergentagent.com')
 
 # Test credentials
 ADMIN_EMAIL = "admin@ghg.com"

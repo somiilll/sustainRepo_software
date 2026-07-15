@@ -6,7 +6,7 @@ import requests
 
 sys.path.insert(0, "/app/backend")
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://kpi-config-wizard.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://esg-kpi-engine.preview.emergentagent.com").rstrip("/")
 LOGIN_EMAIL = "goyalsomil2001@gmail.com"
 LOGIN_PASSWORD = "TestUser123!"
 
