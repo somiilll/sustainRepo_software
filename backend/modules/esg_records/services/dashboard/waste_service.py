@@ -48,6 +48,8 @@ class WasteMetricsService:
         """Get total quantity for a waste subcategory"""
         base_query = {
             "org_id": org_id,
+            "is_current": {"$ne": False},
+            "status": {"$ne": "draft"},
             "category": {"$regex": f"^{self.CATEGORY}$", "$options": "i"},
             "subcategory": {"$regex": f"^{subcategory}$", "$options": "i"}
         }

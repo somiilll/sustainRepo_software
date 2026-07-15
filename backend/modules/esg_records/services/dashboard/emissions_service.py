@@ -106,6 +106,8 @@ class EmissionsMetricsService:
         """Get GHG emissions from ESG records with scope breakdown"""
         base_query = {
             "org_id": org_id,
+            "is_current": {"$ne": False},
+            "status": {"$ne": "draft"},
             "category": {"$regex": "^Emissions$", "$options": "i"},
             "subcategory": {"$regex": "^GHG Emissions$", "$options": "i"}
         }
@@ -149,6 +151,8 @@ class EmissionsMetricsService:
         """Get air emissions from ESG records by pollutant type"""
         base_query = {
             "org_id": org_id,
+            "is_current": {"$ne": False},
+            "status": {"$ne": "draft"},
             "category": {"$regex": "^Emissions$", "$options": "i"},
             "subcategory": {"$regex": "^Air Emissions$", "$options": "i"}
         }

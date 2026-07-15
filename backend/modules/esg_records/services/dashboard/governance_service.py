@@ -53,6 +53,8 @@ class GovernanceMetricsService:
         """Build query for a specific category with date filter"""
         query = {
             "org_id": org_id,
+            "is_current": {"$ne": False},
+            "status": {"$ne": "draft"},
             "category": category
         }
         if facility_ids:
@@ -181,6 +183,8 @@ class GovernanceMetricsService:
         """Count records by field_values.type pattern"""
         query = {
             "org_id": org_id,
+            "is_current": {"$ne": False},
+            "status": {"$ne": "draft"},
             "field_values.type": {"$regex": type_pattern, "$options": "i"}
         }
         if facility_ids:
@@ -204,6 +208,8 @@ class GovernanceMetricsService:
         """Count records by subcategory pattern"""
         query = {
             "org_id": org_id,
+            "is_current": {"$ne": False},
+            "status": {"$ne": "draft"},
             "subcategory": {"$regex": subcategory_pattern, "$options": "i"}
         }
         if facility_ids:

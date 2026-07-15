@@ -73,13 +73,13 @@ class DashboardMetricsService:
     
     async def _get_record_counts(self, org_id: str, facility_ids: Optional[List[str]]) -> Dict[str, int]:
         """Get record counts by section"""
-        query = {"org_id": org_id}
+        query = {"org_id": org_id, "is_current": {"$ne": False}, "status": {"$ne": "draft"}}
         if facility_ids:
             query["facility_id"] = {"$in": facility_ids}
         
         env_count = await self.db.environment_records.count_documents(query)
-        social_count = await self.db.environment_records.count_documents({**query, "section": "social"})
-        gov_count = await self.db.governance_records.count_documents({"org_id": org_id})
+        social_count = await self.db.social_records.count_documents(query)
+        gov_count = await self.db.governance_records.count_documents({"org_id": org_id, "is_current": {"$ne": False}, "status": {"$ne": "draft"}})
         
         return {
             "environment": env_count,
@@ -96,7 +96,7 @@ class DashboardMetricsService:
         end_date: Optional[str]
     ) -> Dict[str, int]:
         """Get safety incidents count by type from governance_records"""
-        query = {"org_id": org_id, "category": {"$regex": "^Safety Incidents$", "$options": "i"}}
+        query = {"org_id": org_id, "is_current": {"$ne": False}, "status": {"$ne": "draft"}, "category": {"$regex": "^Safety Incidents$", "$options": "i"}}
         if facility_ids:
             query["facility_id"] = {"$in": facility_ids}
         

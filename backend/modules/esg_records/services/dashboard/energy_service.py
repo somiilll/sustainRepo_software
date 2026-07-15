@@ -146,6 +146,8 @@ class EnergyMetricsService:
         
         base_query = {
             "org_id": org_id,
+            "is_current": {"$ne": False},
+            "status": {"$ne": "draft"},
             "category": {"$regex": "^Energy$", "$options": "i"}
         }
         if facility_ids:

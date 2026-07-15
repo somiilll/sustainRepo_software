@@ -21,6 +21,8 @@ class TrainingMetricsService:
         """Get aggregated training metrics"""
         query = {
             "org_id": org_id,
+            "is_current": {"$ne": False},
+            "status": {"$ne": "draft"},
             "category": {"$regex": f"^{self.CATEGORY}$", "$options": "i"}
         }
         if facility_ids:
@@ -70,6 +72,8 @@ class TrainingMetricsService:
         """Get training count by type"""
         query = {
             "org_id": org_id,
+            "is_current": {"$ne": False},
+            "status": {"$ne": "draft"},
             "category": {"$regex": f"^{self.CATEGORY}$", "$options": "i"}
         }
         if facility_ids:
@@ -101,6 +105,8 @@ class TrainingMetricsService:
         """Get training coverage metrics"""
         query = {
             "org_id": org_id,
+            "is_current": {"$ne": False},
+            "status": {"$ne": "draft"},
             "category": {"$regex": f"^{self.CATEGORY}$", "$options": "i"}
         }
         if facility_ids:

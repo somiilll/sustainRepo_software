@@ -52,6 +52,8 @@ class WaterMetricsService:
         """Get recycled-water quantity in KL from the dedicated Recycle records."""
         base_query = {
             "org_id": org_id,
+            "is_current": {"$ne": False},
+            "status": {"$ne": "draft"},
             "category": {"$regex": f"^{self.CATEGORY}$", "$options": "i"},
             "subcategory": {"$regex": "^Recycle$", "$options": "i"},
         }
@@ -99,6 +101,8 @@ class WaterMetricsService:
         """Get total quantity for a water subcategory"""
         base_query = {
             "org_id": org_id,
+            "is_current": {"$ne": False},
+            "status": {"$ne": "draft"},
             "category": {"$regex": f"^{self.CATEGORY}$", "$options": "i"},
             "subcategory": {"$regex": f"^{subcategory}$", "$options": "i"}
         }

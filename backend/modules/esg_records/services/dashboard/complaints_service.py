@@ -71,6 +71,8 @@ class ComplaintsMetricsService:
         """Get complaints grouped by topic/type"""
         query = {
             "org_id": org_id,
+            "is_current": {"$ne": False},
+            "status": {"$ne": "draft"},
             "subcategory": {"$in": ["General Complaints", "Complaints on Principles", "Consumer Complaints"]}
         }
         if facility_ids:
@@ -102,6 +104,8 @@ class ComplaintsMetricsService:
         """Get compliance and escalation stats"""
         query = {
             "org_id": org_id,
+            "is_current": {"$ne": False},
+            "status": {"$ne": "draft"},
             "subcategory": {"$in": ["General Complaints", "Complaints on Principles", "Consumer Complaints"]}
         }
         if facility_ids:
@@ -117,7 +121,7 @@ class ComplaintsMetricsService:
         law_enforcement = await self.db.social_records.count_documents(law_query)
         
         # POSH cases
-        posh_query = {"org_id": org_id, "field_values.was_the_complaint_reported_under_the_posh_act_2013": {"$in": [True, "Yes", "yes", "true"]}}
+        posh_query = {"org_id": org_id, "is_current": {"$ne": False}, "status": {"$ne": "draft"}, "field_values.was_the_complaint_reported_under_the_posh_act_2013": {"$in": [True, "Yes", "yes", "true"]}}
         if facility_ids:
             posh_query["facility_id"] = {"$in": facility_ids}
         posh_cases = await self.db.social_records.count_documents(posh_query)
@@ -153,6 +157,8 @@ class ComplaintsMetricsService:
         """Get count of records matching subcategory"""
         query = {
             "org_id": org_id,
+            "is_current": {"$ne": False},
+            "status": {"$ne": "draft"},
             "subcategory": {"$regex": f"^{subcategory}$", "$options": "i"}
         }
         if facility_ids:
@@ -175,6 +181,8 @@ class ComplaintsMetricsService:
         """Get count of POSH complaints"""
         query = {
             "org_id": org_id,
+            "is_current": {"$ne": False},
+            "status": {"$ne": "draft"},
             "field_values.was_the_complaint_reported_under_the_posh_act_2013": {"$in": [True, "Yes", "yes", "true"]}
         }
         if facility_ids:
