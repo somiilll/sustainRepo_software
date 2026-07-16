@@ -993,7 +993,6 @@ export default function ESGRecordsDataEntry({
               <TableHead>Category</TableHead>
               <TableHead>Facility</TableHead>
               <TableHead>Period</TableHead>
-              <TableHead>Value</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Updated</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -1002,13 +1001,13 @@ export default function ESGRecordsDataEntry({
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8">
+                <TableCell colSpan={6} className="text-center py-8">
                   <Loader2 className="w-6 h-6 animate-spin mx-auto text-emerald-600" />
                 </TableCell>
               </TableRow>
             ) : records.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-text-muted">
+                <TableCell colSpan={6} className="text-center py-8 text-text-muted">
                   No metrics found
                 </TableCell>
               </TableRow>
@@ -1054,10 +1053,6 @@ export default function ESGRecordsDataEntry({
                     </TableCell>
                     <TableCell>
                       {periodLabel}
-                    </TableCell>
-                    <TableCell>
-                      <span className={`font-mono ${isImported ? 'text-emerald-700' : ''}`}>{record.value}</span>
-                      {record.unit && <span className="text-text-muted ml-1">{record.unit}</span>}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
