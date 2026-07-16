@@ -1,50 +1,88 @@
-# ESG Platform - Product Requirements Document
+# ESG Platform — Product Requirements Document
 
 ## Original Problem Statement
-Build an enterprise ESG (Environmental, Social, Governance) data management platform with comprehensive reporting, analytics, workflow management, and compliance features.
+Build a comprehensive ESG (Environmental, Social, Governance) platform with:
+- Materiality Assessment UI
+- Premium Environment, Social, and Governance Dashboards
+- Super Admin 3-level hierarchical navigation
+- GHG Scope 1/2/3 tracking and reporting
+- Multi-tenant organization management
+
+## Core Architecture
+- **Frontend**: React + Shadcn/UI + Recharts + Framer Motion
+- **Backend**: FastAPI + MongoDB (Motor async driver)
+- **Storage**: Cloudflare R2
+- **Email**: Resend
+- **AI/RAG**: OpenAI embeddings, LlamaParse
 
 ## What's Been Implemented
 
-### Core Platform
-- Multi-org architecture with role-based access (Admin, User, Super Admin)
-- JWT authentication, Organization management, Facility CRUD, User management
+### Completed Features
+- [x] Materiality Assessment UI (complete)
+- [x] Super Admin 3-level sidebar navigation restored
+- [x] Premium Environment Dashboard (Scope Explorer 3 cards, Water Trends)
+- [x] Premium Social Dashboard (Employee Diversity, Board Diversity, H&S Waffle chart)
+- [x] Premium Governance Dashboard
+- [x] GHG Dashboard (Scope 1/2/3 emissions tracking)
+- [x] Executive Dashboard with ESG analytics
+- [x] Multi-tenant org management
+- [x] User authentication (JWT)
+- [x] Facility management
+- [x] Workflow system
+- [x] Target tracking (SBT targets)
+- [x] Audit trails
+- [x] Notification system
+- [x] File upload system
 
-### Dashboard & Analytics
-- **Executive GHG Dashboard**: KPI cards, GHG Emissions Trend, Scope Donut, Facility-wise, Scope 3 Hotspots, Emission Categories
-- **Executive ESG Dashboard**: Section selector (All/Environment/Social/Governance)
-- **Environment Dashboard** (July 2026): 7 KPI cards, Scope Contribution stacked bars, Emission Hotspots treemap, Scope Explorer tabs, Energy charts (consumption/renewable%/intensity), Water charts (balance/sources/trends), Waste charts (overview/hazardous/non-hazardous)
-- **Social Dashboard** (July 2026): 9 KPI cards, Workforce Composition stacked bar, Employee Movement combo chart, Employee Diversity nested donut, Board Diversity horizontal bar, Training by Attendee + Trend, Complaint Status/Filed Against/Categories, H&S Incident Trend
-- Backend endpoints: `/api/dashboard/esg-analytics`, `/api/dashboard/esg-summary`, `/api/dashboard/environment-detail`, `/api/dashboard/social-detail`
+### Bug Fixes (Latest Session — Jul 16, 2026)
+- [x] Fixed Social Dashboard 500 error — `NameError: name 'status' is not defined` in `social_detail_service.py` line 182. Replaced undefined `status` variable with proper pending/closed complaint distribution logic.
 
-### Sidebar & Navigation
-- **Admin/User**: 3-level hierarchical config-driven sidebar
-- **Super Admin**: Full sidebar restored with all 20+ routes
+## Pending Issues
+| ID | Priority | Description | Status |
+|----|----------|-------------|--------|
+| 1 | P1 | Module Access Super Admin UI — toggle modules per org | NOT STARTED |
+| 2 | P2 | Water Withdrawal KPI filters missing | DEFERRED (user request) |
+| 3 | P2 | Scope 1 & 3 Emissions deduplication bug | NOT STARTED |
+| 4 | P2 | Carbon Intensity calculation discrepancy | NOT STARTED |
 
-### Materiality Assessment
-- 5x5 scatter matrix (Recharts), 23 GRI topics, side drawer, Framer Motion
+## Upcoming Tasks (P1)
+- Overdue task cron job (auto-mark tasks past `due_at`)
+- Executive Dashboard Phase 2 (PDF export, fullscreen charts, drill-down)
+- Test Repo Pilot with actual PDF uploads (end-to-end RAG validation)
 
-### Data Modules
-- GHG (Logs, Sinks, Base Year), Environment (Energy, Water, Waste, etc.), Social, Governance
-- Reporting (BRSR/GRI), Workflow (Tracker/My Task/Approver Queue)
-- Repo-Pilot (RAG), Audit Trails, Bulk Uploads, Targets
+## Future/Backlog (P2)
+- Dynamic ESG Disclosure Engine
+- Sentry Error Monitoring Integration
+- MFA for admin users (TOTP)
+- SBTi target validation rules
+- Dark mode fine-tuning
 
-## Architecture
-- Frontend: React + Tailwind + Shadcn + Recharts + Framer Motion
-- Backend: FastAPI + MongoDB (Motor)
-- Storage: Cloudflare R2 | Email: Resend | AI: OpenAI, LlamaParse
+## Key API Endpoints
+- `GET /api/dashboard/environment-detail`
+- `GET /api/dashboard/social-detail`
+- `GET /api/dashboard/governance-detail`
+- `GET /api/dashboard/stats`
+- `GET /api/dashboard/esg-analytics`
+- `GET /api/dashboard/esg-summary`
 
-## Prioritized Backlog
+## Key Files
+- `/app/backend/modules/dashboards/social_detail_service.py`
+- `/app/backend/modules/dashboards/environment_detail_service.py`
+- `/app/backend/modules/dashboards/governance_detail_service.py`
+- `/app/backend/modules/dashboards/esg_analytics_service.py`
+- `/app/backend/modules/dashboards/router.py`
+- `/app/frontend/src/modules/dashboard/DashboardSocial.jsx`
+- `/app/frontend/src/modules/dashboard/DashboardEnvironment.jsx`
+- `/app/frontend/src/modules/dashboard/DashboardGovernance.jsx`
+- `/app/frontend/src/pages/Dashboard.js`
+- `/app/frontend/src/config/superAdminSidebarConfig.js`
 
-### P0
-- Fix missing filters on seeded Water Withdrawal KPIs
+## DB Schema (Key Collections)
+- `organizations`: module_access, enabled_access
+- `social_records`: workforce, H&S incidents, training, complaints
+- `environment_records`: emissions, energy, water, waste
+- `governance_records`: AP Days, anti-competitive cases, breaches
 
-### P1
-- Dashboard Scope 1 & 3 Emissions deduplication bug
-- Carbon Intensity calculation discrepancy
-- Super Admin org module access toggle UI
-- Cron job for overdue tasks
-- Phase 2 Dashboard enhancements (PDF export, fullscreen, drill-down)
-- Repo Pilot end-to-end PDF test
-
-### P2
-- Dynamic ESG Disclosure Engine, Sentry, MFA, SBTi validation, Dark mode
+## Test Credentials
+- Super Admin: `esg-superadmin@sustainrepo.com`
+- Admin (ORG1): `goyalsomil2001@gmail.com` / `TestUser123!`

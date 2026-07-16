@@ -178,16 +178,13 @@ async def get_social_detail(
             complaint_categories["POSH"] += pc
             complaint_categories["Customer"] += cc
             complaint_categories["Sensitive Data"] += sc
-            complaint_status["Open"] += pending_status_complaints
-            complaint_status[status] += pending_status_complaints
-
-            # Status
-            # status = (fv.get("status") or fv.get("no_of_pending_complaints") or "").capitalize()
-            # if status in complaint_status:
-            #     total_for_status = ic + pc + cc + ec + sc
-            #     complaint_status[status] += total_for_status
-            # else:
-            #     complaint_status["Open"] += ic + pc + cc + ec + sc
+            # Complaint status tracking
+            total_for_record = ic + pc + cc + ec + sc
+            if pending_complaints > 0:
+                complaint_status["Pending"] += pending_complaints
+                complaint_status["Closed"] += max(0, total_for_record - pending_complaints)
+            else:
+                complaint_status["Closed"] += total_for_record
 
             # Filed against
             fa = fv.get("complaint_filed_against") or ""
