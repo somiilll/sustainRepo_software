@@ -22,8 +22,24 @@ from shared.database.mongo import db
 from modules.dashboards.esg_analytics_service import get_esg_analytics
 from modules.dashboards.environment_detail_service import get_environment_detail
 from modules.dashboards.social_detail_service import get_social_detail
+from modules.dashboards.governance_detail_service import get_governance_detail
 
 router = APIRouter()
+
+
+@router.get("/dashboard/governance-detail")
+async def get_dashboard_governance_detail(
+    start_date: str,
+    end_date: str,
+    facility_ids: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """Governance KPIs and trends: AP days, breaches, violations, corruption, anti-competitive."""
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization")
+    selected_facilities = [item.strip() for item in facility_ids.split(",") if item.strip()] if facility_ids else None
+    return await get_governance_detail(db, org_id, start_date, end_date, selected_facilities)
 
 
 @router.get("/dashboard/social-detail")
