@@ -26,13 +26,47 @@ import {
   Recycle, RefreshCw, RadioTower,
 } from 'lucide-react';
 
+
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 /* ── colour palette ────────────────────────────── */
-const SCOPE_COLORS = { scope1: '#059669', scope2: '#0ea5e9', scope3: '#f59e0b' };
-const S1_COLORS = ['#059669', '#34d399', '#6ee7b7', '#a7f3d0'];
-const S2_COLORS = ['#0ea5e9', '#38bdf8', '#7dd3fc', '#bae6fd'];
-const S3_COLORS = ['#f59e0b', '#fbbf24', '#fcd34d', '#fde68a', '#fef3c7', '#d97706', '#b45309', '#92400e'];
+// const SCOPE_COLORS = { scope1: '#059669', scope2: '#0ea5e9', scope3: '#f59e0b' };
+// const S1_COLORS = ['#059669', '#34d399', '#6ee7b7', '#a7f3d0'];
+// const S2_COLORS = ['#0ea5e9', '#38bdf8', '#7dd3fc', '#bae6fd'];
+// const S3_COLORS = ['#f59e0b', '#fbbf24', '#fcd34d', '#fde68a', '#fef3c7', '#d97706', '#b45309', '#92400e'];
+const SCOPE_COLORS = { 
+  scope1: '#ea580c', // Rust (Deep Orange)
+  scope2: '#eab308', // Amber (Warm Yellow)
+  scope3: '#7e22ce'  // Plum (Deep Purple)
+};
+
+// Scope 1: Rust gradient (Darkest to lightest)
+const S1_COLORS = [
+  '#c2410c', 
+  '#ea580c', 
+  '#f97316', 
+  '#fb923c'
+];
+
+// Scope 2: Amber gradient (Darkest to lightest)
+const S2_COLORS = [
+  '#ca8a04', 
+  '#eab308', 
+  '#facc15', 
+  '#fde047'
+];
+
+// Scope 3: Plum gradient (8 shades for your upstream/downstream split)
+const S3_COLORS = [
+  '#581c87', // Darkest Plum
+  '#6b21a8', 
+  '#7e22ce', 
+  '#9333ea', 
+  '#a855f7', 
+  '#c084fc', 
+  '#d8b4fe', 
+  '#e9d5ff'  // Lightest Plum
+];
 const TREEMAP_COLORS = ['#059669', '#0ea5e9', '#f59e0b', '#8b5cf6', '#ef4444', '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16'];
 const ENERGY_COLORS = { renewable: '#059669', nonRenewable: '#f59e0b' };
 const WATER_COLORS = { withdrawn: '#0ea5e9', consumed: '#6366f1', discharged: '#f97316', recycled: '#059669' };
@@ -173,51 +207,83 @@ function ScopeExplorerCard({ scope1, scope2, scope3Upstream, scope3Downstream })
   ];
 
   const activeColors = tab === 'scope1' ? S1_COLORS : tab === 'scope2' ? S2_COLORS : S3_COLORS;
+  
   const getData = () => {
     if (tab === 'scope1') return scope1;
     if (tab === 'scope2') return scope2;
-    return null; // scope3 renders differently
+    return null; 
   };
 
   return (
-    <div data-testid="scope-explorer">
-      <div className="flex items-center gap-1 mb-4 border-b border-stone-100 pb-2">
-        {tabs.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              tab === t.key ? 'text-white shadow-sm' : 'text-stone-600 hover:bg-stone-100'
-            }`}
-            style={tab === t.key ? { backgroundColor: t.color } : {}}
-            data-testid={`scope-tab-${t.key}`}
-          >
-            {t.label}
-          </button>
-        ))}
+    <div data-testid="scope-explorer" className="w-full">
+      {/* 1. Polished Segmented Control Tabs */}
+      <div className="flex w-full mb-6">
+        <div className="inline-flex bg-stone-100/80 p-1 rounded-xl border border-stone-200/60 shadow-inner">
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              data-testid={`scope-tab-${t.key}`}
+              className={`relative px-5 py-2 rounded-lg text-sm font-medium transition-all duration-200 ease-out ${
+                tab === t.key 
+                  ? 'text-white shadow-md transform scale-100' 
+                  : 'text-stone-500 hover:text-stone-700 hover:bg-stone-200/50 scale-95'
+              }`}
+              style={tab === t.key ? { backgroundColor: t.color } : {}}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {tab !== 'scope3' ? (
-        <HorizontalBarSection data={getData() || []} colors={activeColors} />
-      ) : (
-        <div className="space-y-4">
-          {scope3Upstream.length > 0 && (
-            <div>
-              <h4 className="text-[11px] font-semibold text-stone-500 uppercase tracking-wider mb-2">Upstream</h4>
-              <HorizontalBarSection data={scope3Upstream} colors={S3_COLORS} />
-            </div>
-          )}
-          {scope3Downstream.length > 0 && (
-            <div>
-              <h4 className="text-[11px] font-semibold text-stone-500 uppercase tracking-wider mb-2">Downstream</h4>
-              <HorizontalBarSection data={scope3Downstream} colors={S3_COLORS.slice(3)} />
-            </div>
-          )}
-          {scope3Upstream.length === 0 && scope3Downstream.length === 0 && (
-            <p className="text-xs text-stone-400 text-center py-6">No Scope 3 data available</p>
-          )}
-        </div>
-      )}
+      {/* 2. Content Area with a subtle fade-in effect (Key forces re-render on tab change) */}
+      <div key={tab} className="animate-in fade-in slide-in-from-bottom-2 duration-300 ease-out">
+        {tab !== 'scope3' ? (
+          <div className="bg-stone-50/30 rounded-xl p-1">
+            <HorizontalBarSection data={getData() || []} colors={activeColors} />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-5">
+            {/* 3. Upgraded Scope 3 Containers */}
+            {scope3Upstream?.length > 0 && (
+              <div className="bg-white border border-stone-200 shadow-sm rounded-xl p-5">
+                <div className="flex items-center gap-2 mb-4 border-b border-stone-100 pb-3">
+                  <div className="w-2 h-4 rounded-full bg-stone-300" />
+                  <h4 className="text-[12px] font-bold text-stone-600 uppercase tracking-widest">
+                    Upstream Activities
+                  </h4>
+                </div>
+                <HorizontalBarSection data={scope3Upstream} colors={S3_COLORS} />
+              </div>
+            )}
+
+            {scope3Downstream?.length > 0 && (
+              <div className="bg-white border border-stone-200 shadow-sm rounded-xl p-5">
+                <div className="flex items-center gap-2 mb-4 border-b border-stone-100 pb-3">
+                  <div className="w-2 h-4 rounded-full bg-stone-400" />
+                  <h4 className="text-[12px] font-bold text-stone-600 uppercase tracking-widest">
+                    Downstream Activities
+                  </h4>
+                </div>
+                <HorizontalBarSection data={scope3Downstream} colors={S3_COLORS.slice(3)} />
+              </div>
+            )}
+
+            {/* 4. Polished Empty State */}
+            {(!scope3Upstream || scope3Upstream.length === 0) && 
+             (!scope3Downstream || scope3Downstream.length === 0) && (
+              <div className="flex flex-col items-center justify-center py-12 px-4 bg-stone-50 rounded-xl border border-dashed border-stone-300">
+                <svg className="w-8 h-8 text-stone-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                </svg>
+                <p className="text-sm font-medium text-stone-500">No Scope 3 data available</p>
+                <p className="text-xs text-stone-400 mt-1">Value chain emissions have not been recorded.</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -437,6 +503,8 @@ export default function DashboardEnvironment({ data }) {
     );
   }
 
+  console.log("envDetail", envDetail)
+
   return (
     <div className="space-y-5" data-testid="dashboard-environment">
       <StickyFilterBar
@@ -455,7 +523,25 @@ export default function DashboardEnvironment({ data }) {
       />
 
       {/* ── ROW 1: KPI CARDS ─────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3" data-testid="env-kpi-row">
+      {/* <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3" data-testid="env-kpi-row">
+        <PremiumKpiCard title="Total Emissions" value={kpiTotals.totalEmissions} unit="tCO₂e"
+          yoyChange={kpiTotals.emissionsChange} icon={CloudSun} accentColor="#059669" loading={false} />
+        <PremiumKpiCard title="Net Emissions" value={kpiTotals.netEmissions} unit="tCO₂e"
+          icon={Leaf} accentColor="#10b981" loading={false} />
+        <PremiumKpiCard title="Energy Consumed" value={kpiTotals.totalEnergy} unit="MWh"
+          icon={Zap} accentColor="#f59e0b" loading={false} />
+        <PremiumKpiCard title="Water Withdrawal" value={kpiTotals.totalWaterWithdrawn} unit="KL"
+          icon={Droplets} accentColor="#0ea5e9" loading={false} />
+        <PremiumKpiCard title="Water Recycled" value={kpiTotals.waterRecycledPct} unit="%"
+          icon={Recycle} accentColor="#06b6d4" loading={false} invertedTrend={false} />
+        <PremiumKpiCard title="Waste Generated" value={kpiTotals.totalWasteGenerated} unit="MT"
+          icon={Trash2} accentColor="#78716c" loading={false} />
+        <PremiumKpiCard title="Waste Recovered" value={kpiTotals.wasteRecoveredPct} unit="%"
+          icon={FlameKindling} accentColor="#059669" loading={false} invertedTrend={false} />
+      </div> */}
+      {/* ── ROW 1: KPI CARDS ─────────────────────── */}
+      {/* Changed xl:grid-cols-7 to lg:grid-cols-4 to force 4 items per row (2 rows total) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" data-testid="env-kpi-row">
         <PremiumKpiCard title="Total Emissions" value={kpiTotals.totalEmissions} unit="tCO₂e"
           yoyChange={kpiTotals.emissionsChange} icon={CloudSun} accentColor="#059669" loading={false} />
         <PremiumKpiCard title="Net Emissions" value={kpiTotals.netEmissions} unit="tCO₂e"
@@ -473,7 +559,7 @@ export default function DashboardEnvironment({ data }) {
       </div>
 
       {/* ── ROW 2: SCOPE CONTRIBUTION + HOTSPOTS ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <SectionCard title="Scope Contribution" subtitle="Emission composition by scope" accent="#059669" testId="section-scope-contribution">
           <ScopeContributionCard
             scope1={envDetail?.scope1_breakdown || []}
@@ -509,7 +595,7 @@ export default function DashboardEnvironment({ data }) {
             <EmptyChart message="No emission data for this period" />
           )}
         </SectionCard>
-      </div>
+      </div> */}
 
       {/* ── ROW 3: SCOPE EXPLORER ─────────────────── */}
       <SectionCard title="Scope Explorer" subtitle="Drill into emission sources by scope" accent="#3b82f6" testId="section-scope-explorer">
