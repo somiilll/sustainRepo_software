@@ -2792,7 +2792,7 @@ async def upload_evidence_file(
     - superadmin: For superadmin uploads (invoice history, etc.)
     """
     # Validate bucket type
-    valid_bucket_types = ['emission_evidence', 'sinks_evidence', 'org_facility', 'superadmin', 'esg_records_evidence']
+    valid_bucket_types = ['emission_evidence', 'sinks_evidence', 'org_facility', 'superadmin', 'esg_records_evidence', 'esg_metrics']
     if bucket_type not in valid_bucket_types:
         raise HTTPException(
             status_code=400,

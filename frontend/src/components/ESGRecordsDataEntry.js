@@ -52,10 +52,11 @@ import {
   Plus, Search, Filter, History, FileText, Upload, 
   ChevronLeft, ChevronRight, Loader2, Building2, Calendar,
   Trash2, Edit2, Eye, X, Save, FileEdit, RefreshCw,
-  CheckCircle2, Clock, AlertTriangle, Lock, Link2
+  CheckCircle2, Clock, AlertTriangle, Lock, Link2, Paperclip, Download
 } from 'lucide-react';
 
-const API = process.env.REACT_APP_BACKEND_URL;
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const API = BACKEND_URL;
 
 // Months for monthly reporting
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -172,6 +173,64 @@ export default function ESGRecordsDataEntry({
   });
   const [formErrors, setFormErrors] = useState({});
   const [addFormCategory, setAddFormCategory] = useState(null);
+
+  // Evidence file states
+  const [formEvidences, setFormEvidences] = useState([]);
+  const [editEvidences, setEditEvidences] = useState([]);
+  const [uploadingEvidence, setUploadingEvidence] = useState(false);
+
+  const handleEvidenceUpload = async (files, isEdit = false) => {
+    if (!files || files.length === 0) return;
+    setUploadingEvidence(true);
+    const newEvidences = [];
+
+    for (const file of Array.from(files)) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(`${file.name} exceeds 5MB limit`);
+        continue;
+      }
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', file);
+      try {
+        const res = await axios.post(
+          `${API}/api/upload/evidence?bucket_type=esg_metrics&folder=${section}`,
+          uploadFormData,
+          { headers: { ...headers, 'Content-Type': 'multipart/form-data' } }
+        );
+        newEvidences.push({
+          id: res.data.file_id,
+          filename: file.name,
+          file_type: file.name.split('.').pop() || 'unknown',
+          file_size: file.size,
+          upload_url: `/api/files/${res.data.file_id}`,
+          uploaded_at: new Date().toISOString(),
+          uploaded_by: user?.id || '',
+        });
+      } catch (err) {
+        toast.error(`Failed to upload ${file.name}`);
+      }
+    }
+    if (newEvidences.length > 0) {
+      if (isEdit) {
+        setEditEvidences(prev => [...prev, ...newEvidences]);
+      } else {
+        setFormEvidences(prev => [...prev, ...newEvidences]);
+      }
+      toast.success(`${newEvidences.length} file(s) uploaded`);
+    }
+    setUploadingEvidence(false);
+  };
+
+  const removeEvidence = async (evidenceId, isEdit = false) => {
+    try {
+      await axios.delete(`${API}/api/files/${evidenceId}`, { headers });
+    } catch (e) { /* ignore */ }
+    if (isEdit) {
+      setEditEvidences(prev => prev.filter(e => e.id !== evidenceId));
+    } else {
+      setFormEvidences(prev => prev.filter(e => e.id !== evidenceId));
+    }
+  };
   const [reportingYearType, setReportingYearType] = useState('financial_year');
 
   const headers = { Authorization: `Bearer ${token}` };
@@ -369,6 +428,7 @@ export default function ESGRecordsDataEntry({
         record_level: formData.facility_id && formData.facility_id !== 'org_level' ? 'facility' : 'organization',
         reporting_period: reportingPeriod,
         field_values: formData.field_values,
+        evidence_files: formEvidences,
         source_of_information: formData.source_of_information,
         notes: formData.notes,
         status: asDraft ? 'draft' : 'completed',  // Send status to backend
@@ -394,6 +454,7 @@ export default function ESGRecordsDataEntry({
       });
       setFormErrors({});
       setAddFormCategory(null);
+      setFormEvidences([]);
       
       if (onRecordAdded) onRecordAdded();
     } catch (error) {
@@ -528,6 +589,9 @@ export default function ESGRecordsDataEntry({
         setSelectedCategory(null);
       }
     }
+    // Load existing evidences
+    setEditEvidences(record.evidence_files || []);
+    
     setShowEditModal(true);
   };
 
@@ -567,6 +631,7 @@ export default function ESGRecordsDataEntry({
           field_values: editData.field_values,
           notes: editData.notes,
           source_of_information: editData.source_of_information,
+          evidence_files: editEvidences,
           status: asDraft ? 'draft' : 'completed',
           // Include reporting period and facility changes
           reporting_period: reportingPeriod,
@@ -873,6 +938,49 @@ export default function ESGRecordsDataEntry({
               placeholder="Additional notes or comments..."
               rows={3}
             />
+          </div>
+        </div>
+
+        {/* Evidences */}
+        <div className="mt-4 space-y-3">
+          <Label className="flex items-center gap-2">
+            <Paperclip className="w-4 h-4" />
+            Evidence Files
+          </Label>
+          {formEvidences.length > 0 && (
+            <div className="space-y-2">
+              {formEvidences.map(ev => (
+                <div key={ev.id} className="flex items-center gap-2 p-2 bg-stone-50 rounded-lg text-sm">
+                  <FileText className="w-4 h-4 text-stone-400 flex-shrink-0" />
+                  <span className="flex-1 truncate">{ev.filename}</span>
+                  <span className="text-xs text-stone-400">{(ev.file_size / 1024).toFixed(0)}KB</span>
+                  <a href={`${BACKEND_URL}${ev.upload_url}/view`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View</a>
+                  <button type="button" onClick={() => removeEvidence(ev.id, false)} className="text-red-400 hover:text-red-600">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div
+            className="border-2 border-dashed border-stone-300 rounded-lg p-4 text-center hover:border-emerald-400 transition-colors cursor-pointer"
+            onClick={() => document.getElementById('add-evidence-upload')?.click()}
+          >
+            <input
+              id="add-evidence-upload"
+              type="file"
+              className="hidden"
+              multiple
+              onChange={(e) => { handleEvidenceUpload(e.target.files, false); e.target.value = ''; }}
+            />
+            {uploadingEvidence ? (
+              <Loader2 className="w-5 h-5 animate-spin mx-auto text-emerald-600" />
+            ) : (
+              <>
+                <Upload className="w-5 h-5 mx-auto text-stone-400 mb-1" />
+                <p className="text-xs text-stone-500">Drop files or click to upload (max 5MB each)</p>
+              </>
+            )}
           </div>
         </div>
 
@@ -1445,6 +1553,49 @@ export default function ESGRecordsDataEntry({
                 placeholder="Additional notes..."
                 rows={3}
               />
+            </div>
+
+            {/* Evidences */}
+            <div className="space-y-3 pt-3 border-t">
+              <Label className="flex items-center gap-2">
+                <Paperclip className="w-4 h-4" />
+                Evidence Files
+              </Label>
+              {editEvidences.length > 0 && (
+                <div className="space-y-2">
+                  {editEvidences.map(ev => (
+                    <div key={ev.id} className="flex items-center gap-2 p-2 bg-stone-50 rounded-lg text-sm">
+                      <FileText className="w-4 h-4 text-stone-400 flex-shrink-0" />
+                      <span className="flex-1 truncate">{ev.filename}</span>
+                      <span className="text-xs text-stone-400">{(ev.file_size / 1024).toFixed(0)}KB</span>
+                      <a href={`${BACKEND_URL}${ev.upload_url}/view`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View</a>
+                      <button type="button" onClick={() => removeEvidence(ev.id, true)} className="text-red-400 hover:text-red-600">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div
+                className="border-2 border-dashed border-stone-300 rounded-lg p-3 text-center hover:border-emerald-400 transition-colors cursor-pointer"
+                onClick={() => document.getElementById('edit-evidence-upload')?.click()}
+              >
+                <input
+                  id="edit-evidence-upload"
+                  type="file"
+                  className="hidden"
+                  multiple
+                  onChange={(e) => { handleEvidenceUpload(e.target.files, true); e.target.value = ''; }}
+                />
+                {uploadingEvidence ? (
+                  <Loader2 className="w-5 h-5 animate-spin mx-auto text-emerald-600" />
+                ) : (
+                  <>
+                    <Upload className="w-5 h-5 mx-auto text-stone-400 mb-1" />
+                    <p className="text-xs text-stone-500">Drop files or click to upload (max 5MB each)</p>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 

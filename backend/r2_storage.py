@@ -48,6 +48,7 @@ class R2Storage:
             'org_facility': os.environ.get('R2_BUCKET_ORG_FACILITY', 'organization-facility-data'),
             'superadmin': os.environ.get('R2_BUCKET_SUPERADMIN', 'superadmin-data'),
             'esg_records_evidence': os.environ.get('R2_BUCKET_ESG_RECORDS_EVIDENCE', 'esg-evidences-dev'),
+            'esg_metrics': os.environ.get('R2_BUCKET_ESG_METRICS', 'esgMetrics-dev'),
             'repo_pilot': os.environ.get('R2_BUCKET_REPO_PILOT', 'repo-pilot-dev'),
             'software_images': os.environ.get('R2_BUCKET_SOFTWARE_IMAGES', 'software-image-dev')
         }
