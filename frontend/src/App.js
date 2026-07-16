@@ -58,6 +58,7 @@ import PlaceholderPage from './pages/PlaceholderPage';
 import GHGTargetsPage from './pages/GHGTargetsPage';
 import WorkflowApproverQueue from './pages/WorkflowApproverQueue';
 import WorkflowTracker from './pages/WorkflowTracker';
+import WorkflowMyTask from './pages/WorkflowMyTask';
 import { initializeCategoryModules } from './modules/emissions';
 
 // Initialize the emissions Category Registry once at app boot.
@@ -274,7 +275,7 @@ const AppRoutes = () => {
           <Route path="reporting/brsr" element={<BRSRModule />} />
           <Route path="reporting/gri" element={<GRIModule />} />
           <Route path="workflow/tracker" element={<WorkflowTracker />} />
-          <Route path="workflow/my-task" element={<MyAssignments />} />
+          <Route path="workflow/my-task" element={<WorkflowMyTask />} />
           <Route path="workflow/approver-queue" element={<WorkflowApproverQueue />} />
           <Route path="uploads/ghg-entry" element={<Emissions />} />
           <Route path="ghg/base-year" element={<BaseYearEmissions />} />

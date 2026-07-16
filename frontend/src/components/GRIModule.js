@@ -30,7 +30,7 @@ const API = process.env.REACT_APP_BACKEND_URL;
 export default function GRIModule() {
   const { token } = useAuth();
   
-  const [activeTab, setActiveTab] = useState('tracking');
+  const [activeTab, setActiveTab] = useState('environment');
   const [reportingPeriod, setReportingPeriod] = useState('');
   const [reportingYears, setReportingYears] = useState([]);
 
@@ -84,10 +84,6 @@ export default function GRIModule() {
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="bg-stone-100 p-1 rounded-lg">
-          <TabsTrigger value="tracking" className="gap-2" data-testid="gri-tracking-tab">
-            <BarChart3 className="w-4 h-4" />
-            Tracking
-          </TabsTrigger>
           <TabsTrigger value="environment" className="gap-2" data-testid="gri-environment-tab">
             <Leaf className="w-4 h-4" />
             Environment
@@ -101,14 +97,6 @@ export default function GRIModule() {
             Governance
           </TabsTrigger>
         </TabsList>
-
-        {/* Tracking Tab - My Tasks + Tracker for disclosures */}
-        <TabsContent value="tracking" className="mt-6">
-          <TrackingModule 
-            entityType="question"
-            framework="GRI"
-          />
-        </TabsContent>
 
         {/* Environment - GRI 300 */}
         <TabsContent value="environment" className="mt-6">
