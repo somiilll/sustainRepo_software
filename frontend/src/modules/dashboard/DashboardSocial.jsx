@@ -1,34 +1,151 @@
 /**
- * DashboardSocial — Social-focused ESG Dashboard
- * 
- * KPIs:
- * 1. No. of Trainings
- * 2. Training Hours
- * 3. Complaints No.
- * 4. POSH Cases
- * 5. Consumer Complaints
+ * DashboardSocial — Premium Social Performance Dashboard
+ *
+ * Row 1: KPI Cards (Employees, Trainings, Board, Return-to-Work, Retention, Complaints, Incidents)
+ * Row 2: Workforce Composition (Stacked Bar) + Employee Movement (Combo Bar+Line)
+ * Row 3: Employee Diversity (Nested Donut) + Board Diversity (Horizontal Bar)
+ * Row 4: Training by Attendee (Horizontal Bar) + Training Trend (Line)
+ * Row 5: Complaint Status (Stacked Bar) + Filed Against (Horizontal Bar) + Categories (Grouped Bar)
+ * Row 6: Health & Safety Incident Trend (Line)
  */
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { format } from 'date-fns';
 import { useAuth } from '../../contexts/AuthContext';
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+  LineChart, Line, PieChart, Pie, Cell, Legend, ComposedChart,
+} from 'recharts';
 
-// Layout & Shared Components
 import StickyFilterBar from './components/filters/StickyFilterBar';
 import SectionCard from './components/layout/SectionCard';
-
-// BRSR Components
 import PremiumKpiCard from './components/kpi/PremiumKpiCard';
-import TrendArrow from './components/shared/TrendArrow';
-
-// Hooks
-import { useIntensityData, usePrevYearIntensity } from './hooks/useIntensityData';
-
-// Icons
-import { Users, Clock, AlertTriangle, Shield, MessageSquare, RadioTower } from 'lucide-react';
+import {
+  Users, GraduationCap, UserCheck, RotateCcw, ShieldAlert,
+  MessageSquareWarning, Scale, HeartPulse, RadioTower, RefreshCw,
+  UserPlus, UserMinus, Crown,
+} from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
+/* ── colours ───────────────────────────────── */
+const PURPLE = { 500: '#8b5cf6', 400: '#a78bfa', 300: '#c4b5fd', 200: '#ddd6fe' };
+const TEAL   = { 500: '#14b8a6', 400: '#2dd4bf', 300: '#5eead4', 200: '#99f6e4' };
+const BLUE   = { 500: '#3b82f6', 400: '#60a5fa', 300: '#93c5fd', 200: '#bfdbfe' };
+const ORANGE = { 500: '#f97316', 400: '#fb923c', 300: '#fdba74', 200: '#fed7aa' };
+const RED    = { 500: '#ef4444', 400: '#f87171', 300: '#fca5a5' };
+const GREEN  = { 500: '#059669', 400: '#34d399' };
+
+const WORKFORCE_COLORS = [PURPLE[500], PURPLE[400], PURPLE[300], PURPLE[200]];
+const DIVERSITY_COLORS = [BLUE[500], '#ec4899', TEAL[500], ORANGE[500]];
+const COMPLAINT_COLORS = [RED[500], GREEN[500], ORANGE[500]];
+
+/* ── shared tooltip ────────────────────────── */
+const ChartTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg border border-stone-200 bg-white/95 backdrop-blur-md p-2.5 shadow-xl text-xs min-w-[140px]">
+      <p className="font-semibold text-stone-700 mb-1.5">{label}</p>
+      {payload.map((p, i) => (
+        <div key={i} className="flex items-center justify-between gap-4">
+          <span className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: p.color }} />
+            {p.name}
+          </span>
+          <span className="font-semibold text-stone-900">{Number(p.value || 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+/* ── horizontal bar helper ─────────────────── */
+function HBarSection({ data, colors, unit = '' }) {
+  const max = Math.max(...data.map(d => d.value), 1);
+  if (!data.length) return <EmptyChart />;
+  return (
+    <div className="space-y-2.5">
+      {data.map((item, i) => {
+        const pct = (item.value / max) * 100;
+        return (
+          <div key={item.name} data-testid={`hbar-${item.name}`}>
+            <div className="flex items-center justify-between mb-0.5">
+              <span className="text-xs font-medium text-stone-700">{item.name}</span>
+              <span className="text-xs font-semibold text-stone-900 tabular-nums">
+                {Number(item.value).toLocaleString()}{unit ? ` ${unit}` : ''}
+              </span>
+            </div>
+            <div className="h-3 rounded-full bg-stone-100 overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.max(pct, 0.5)}%`, backgroundColor: colors[i % colors.length] }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── empty chart ───────────────────────────── */
+function EmptyChart({ message = 'No data available' }) {
+  return <div className="flex items-center justify-center h-48 text-xs text-stone-400">{message}</div>;
+}
+
+/* ── Nested Donut for Diversity ────────────── */
+function DiversityDonut({ diversity }) {
+  const { male, female, minority, vulnerable } = diversity;
+  const total = male + female;
+  const outerData = [
+    { name: 'Male', value: male },
+    { name: 'Female', value: female },
+  ].filter(d => d.value > 0);
+  const innerData = [
+    { name: 'Minority', value: minority },
+    { name: 'Vulnerable', value: vulnerable },
+    { name: 'Other', value: Math.max(total - minority - vulnerable, 0) },
+  ].filter(d => d.value > 0);
+
+  if (total === 0) return <EmptyChart message="No diversity data recorded" />;
+
+  const OUTER = [BLUE[500], '#ec4899'];
+  const INNER = [TEAL[500], ORANGE[500], '#a8a29e'];
+
+  return (
+    <div data-testid="diversity-donut">
+      <ResponsiveContainer width="100%" height={240}>
+        <PieChart>
+          <Pie data={outerData} dataKey="value" cx="50%" cy="50%" outerRadius={95} innerRadius={65} paddingAngle={2}>
+            {outerData.map((_, i) => <Cell key={i} fill={OUTER[i % OUTER.length]} />)}
+          </Pie>
+          <Pie data={innerData} dataKey="value" cx="50%" cy="50%" outerRadius={58} innerRadius={30} paddingAngle={2}>
+            {innerData.map((_, i) => <Cell key={i} fill={INNER[i % INNER.length]} />)}
+          </Pie>
+          <Tooltip content={({ payload }) => {
+            if (!payload?.length) return null;
+            const d = payload[0];
+            return (
+              <div className="rounded-lg border border-stone-200 bg-white/95 backdrop-blur-md p-2 shadow-xl text-xs">
+                <span className="font-semibold">{d.name}:</span> {Number(d.value).toLocaleString()}
+              </div>
+            );
+          }} />
+        </PieChart>
+      </ResponsiveContainer>
+      <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 -mt-2">
+        {[...outerData.map((d, i) => ({ ...d, color: OUTER[i] })), ...innerData.filter(d => d.name !== 'Other').map((d, i) => ({ ...d, color: INNER[i] }))].map(d => (
+          <span key={d.name} className="flex items-center gap-1.5 text-[10px] text-stone-600">
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: d.color }} />
+            {d.name} ({d.value})
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
+/* ════════════════════════════════════════════
+   MAIN COMPONENT
+   ════════════════════════════════════════════ */
 export default function DashboardSocial({ data }) {
   const { getAuthHeader } = useAuth();
   const {
@@ -40,93 +157,42 @@ export default function DashboardSocial({ data }) {
     isLive,
   } = data;
 
-  const [esgMetrics, setEsgMetrics] = useState(null);
-  const [prevYearMetrics, setPrevYearMetrics] = useState(null);
-  const [esgLoading, setEsgLoading] = useState(true);
+  const [detail, setDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(true);
 
-  // Fetch intensity data for FY year
-  const { fyYear, isOrgLevel } = useIntensityData(dateRange, selectedFacilities);
-
-  // Calculate previous year date range
-  const prevYearDateRange = useMemo(() => {
-    if (!dateRange.from || !dateRange.to) return { from: null, to: null };
-    const prevFrom = new Date(dateRange.from);
-    const prevTo = new Date(dateRange.to);
-    prevFrom.setFullYear(prevFrom.getFullYear() - 1);
-    prevTo.setFullYear(prevTo.getFullYear() - 1);
-    return { from: prevFrom, to: prevTo };
-  }, [dateRange]);
-
-  // Fetch ESG metrics (current + previous year)
   useEffect(() => {
-    const fetchMetrics = async () => {
-      setEsgLoading(true);
-      try {
-        const requests = [
-          axios.get(`${API}/esg-records/dashboard-metrics`, {
-            headers: getAuthHeader(),
-            params: {
-              start_date: dateRange.from ? format(dateRange.from, 'yyyy-MM') : undefined,
-              end_date: dateRange.to ? format(dateRange.to, 'yyyy-MM') : undefined,
-              facility_ids: selectedFacilities.length > 0 ? selectedFacilities.join(',') : undefined,
-            }
-          }).catch(() => ({ data: null })),
-          axios.get(`${API}/esg-records/dashboard-metrics`, {
-            headers: getAuthHeader(),
-            params: {
-              start_date: prevYearDateRange.from ? format(prevYearDateRange.from, 'yyyy-MM') : undefined,
-              end_date: prevYearDateRange.to ? format(prevYearDateRange.to, 'yyyy-MM') : undefined,
-              facility_ids: selectedFacilities.length > 0 ? selectedFacilities.join(',') : undefined,
-            }
-          }).catch(() => ({ data: null })),
-        ];
+    if (!dateRange.from || !dateRange.to) return;
+    const start = format(dateRange.from, 'yyyy-MM');
+    const end = format(dateRange.to, 'yyyy-MM');
+    const facParam = selectedFacilities.length > 0 ? `&facility_ids=${selectedFacilities.join(',')}` : '';
+    const headers = getAuthHeader();
 
-        const responses = await Promise.all(requests);
-        const [metricsRes, prevMetricsRes] = responses;
-        
-        setEsgMetrics(metricsRes.data);
-        setPrevYearMetrics(prevMetricsRes.data);
-      } catch (error) {
-        console.error('Metrics fetch error:', error);
-      } finally {
-        setEsgLoading(false);
-      }
-    };
+    setDetailLoading(true);
+    axios.get(`${API}/dashboard/social-detail?start_date=${start}&end_date=${end}${facParam}`, { headers })
+      .then(r => setDetail(r.data))
+      .catch(() => setDetail(null))
+      .finally(() => setDetailLoading(false));
+  }, [dateRange, selectedFacilities, getAuthHeader]);
 
-    if (dateRange.from && dateRange.to) {
-      fetchMetrics();
-    }
-  }, [dateRange, prevYearDateRange, selectedFacilities, getAuthHeader]);
+  const kpis = detail?.kpis || {};
+  const diversity = detail?.diversity || { male: 0, female: 0, minority: 0, vulnerable: 0 };
+  const boardDiv = detail?.board_diversity || {};
+  const workforceComp = detail?.workforce_composition || [];
+  const empMovement = detail?.employee_movement || [];
+  const trainingByAtt = detail?.training_by_attendee || [];
+  const trainingTrend = detail?.training_trend || [];
+  const complaintStatus = detail?.complaint_status || [];
+  const complaintFiled = detail?.complaint_filed_against || [];
+  const complaintCats = detail?.complaint_categories || [];
+  const safetyTrend = detail?.safety_trend || [];
 
-  // Extract social metrics
-  const trainingData = esgMetrics?.training || {};
-  const complaintsData = esgMetrics?.complaints || {};
-  const prevTraining = prevYearMetrics?.training || {};
-  const prevComplaints = prevYearMetrics?.complaints || {};
-
-  // KPI values
-  const trainingsCount = trainingData.count || 0;
-  const trainingHours = trainingData.hours || 0;
-  const complaintsTotal = complaintsData.total || 0;
-  const poshCases = complaintsData.posh || 0;
-  const consumerComplaints = complaintsData.consumer || 0;
-  const generalComplaints = complaintsData.general || 0;
-
-  // Calculate YoY trend deltas
-  const trendDeltas = useMemo(() => {
-    const computePct = (curr, prev) => {
-      if (!prev || prev === 0) return null;
-      return ((curr - prev) / prev) * 100;
-    };
-
-    return {
-      trainingsCountDelta: computePct(trainingsCount, prevTraining.count),
-      trainingHoursDelta: computePct(trainingHours, prevTraining.hours),
-      complaintsDelta: computePct(complaintsTotal, prevComplaints.general),
-      poshDelta: computePct(poshCases, prevComplaints.posh),
-      consumerDelta: computePct(consumerComplaints, prevComplaints.consumer),
-    };
-  }, [trainingsCount, trainingHours, complaintsTotal, poshCases, consumerComplaints, prevTraining, prevComplaints]);
+  // Board diversity horizontal bar data
+  const boardBarData = useMemo(() => [
+    { name: 'Male Directors', value: boardDiv.male || 0 },
+    { name: 'Female Directors', value: boardDiv.female || 0 },
+    { name: 'Minority', value: boardDiv.minority || 0 },
+    { name: 'Vulnerable Groups', value: boardDiv.vulnerable || 0 },
+  ].filter(d => d.value > 0), [boardDiv]);
 
   // Filter props
   const filterProps = {
@@ -135,31 +201,39 @@ export default function DashboardSocial({ data }) {
     showFacilityDropdown, setShowFacilityDropdown, facilityDropdownRef,
   };
 
-  // Date range label
   const dateRangeLabel = dateRange.from && dateRange.to
     ? `${format(dateRange.from, 'MMM yyyy')} – ${format(dateRange.to, 'MMM yyyy')}`
     : 'All time';
 
-  // Live badge
   const liveBadge = isLive ? (
-    <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 bg-emerald-100/70 border border-emerald-200 rounded-full px-2 py-0.5">
-      <RadioTower className="w-3 h-3" />
-      Live
+    <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-purple-700 bg-purple-100/70 border border-purple-200 rounded-full px-2 py-0.5">
+      <RadioTower className="w-3 h-3" /> Live
     </span>
   ) : null;
 
-  return (
+  const isLoading = loading || detailLoading;
 
-   <div className="space-y-6" data-testid="dashboard-brsr-ghg">
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="flex flex-col items-center gap-3">
+          <RefreshCw className="w-8 h-8 text-purple-600 animate-spin" />
+          <p className="text-stone-500 text-sm">Loading Social Dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5" data-testid="dashboard-social">
       <StickyFilterBar
-        title={organization?.name ? `${organization.name} · Executive Dashboard` : 'Executive Dashboard'}
-        subtitle={`Reporting window: ${dateRangeLabel}`}
+        title={organization?.name ? `${organization.name} · Social` : 'Social Dashboard'}
+        subtitle={`Reporting: ${dateRangeLabel}`}
         liveBadge={liveBadge}
         showFilters={showFilters}
         setShowFilters={setShowFilters}
         filterProps={filterProps}
-        onExport={() => console.log('Export triggered')}
-        showExport={true}
+        showExport={false}
         dashboardType={data.dashboardType}
         setDashboardType={data.setDashboardType}
         esgSection={data.esgSection}
@@ -167,436 +241,160 @@ export default function DashboardSocial({ data }) {
         showDashboardToggle={data.showDashboardToggle}
       />
 
-
-    <div className="space-y-6">
-      {/* KPI Cards Row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-        {/* No. of Trainings */}
-        <PremiumKpiCard
-          title="NO. OF TRAININGS"
-          value={trainingsCount}
-          unit="sessions"
-          icon={Users}
-          accentColor="blue"
-          footer={
-            trendDeltas.trainingsCountDelta !== null && (
-              <TrendArrow delta={trendDeltas.trainingsCountDelta} suffix="vs prev period" invertColors />
-            )
-          }
-        />
-
-        {/* Training Hours */}
-        <PremiumKpiCard
-          title="TRAINING HOURS"
-          value={trainingHours.toFixed(1)}
-          unit="hrs"
-          icon={Clock}
-          accentColor="indigo"
-          footer={
-            trendDeltas.trainingHoursDelta !== null && (
-              <TrendArrow delta={trendDeltas.trainingHoursDelta} suffix="vs prev period" invertColors />
-            )
-          }
-        />
-
-        {/* Complaints No. */}
-        <PremiumKpiCard
-          title="TOTAL COMPLAINTS"
-          value={complaintsTotal}
-          unit="cases"
-          icon={AlertTriangle}
-          accentColor="amber"
-          footer={
-            trendDeltas.complaintsDelta !== null && (
-              <TrendArrow delta={trendDeltas.complaintsDelta} suffix="vs prev period" />
-            )
-          }
-        />
-
-        {/* POSH Cases */}
-        <PremiumKpiCard
-          title="POSH CASES"
-          value={poshCases}
-          unit="cases"
-          icon={Shield}
-          accentColor="rose"
-          footer={
-            trendDeltas.poshDelta !== null && (
-              <TrendArrow delta={trendDeltas.poshDelta} suffix="vs prev period" />
-            )
-          }
-        />
-
-        {/* Consumer Complaints */}
-        <PremiumKpiCard
-          title="CONSUMER COMPLAINTS"
-          value={consumerComplaints}
-          unit="cases"
-          icon={MessageSquare}
-          accentColor="orange"
-          footer={
-            trendDeltas.consumerDelta !== null && (
-              <TrendArrow delta={trendDeltas.consumerDelta} suffix="vs prev period" />
-            )
-          }
-        />
+      {/* ── ROW 1: KPI CARDS ─────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3" data-testid="social-kpi-row">
+        <PremiumKpiCard title="Total Employees" value={kpis.total_employees || 0} unit="" icon={Users} accentColor={PURPLE[500]} loading={false} />
+        <PremiumKpiCard title="Trainings" value={kpis.total_trainings || 0} unit="" icon={GraduationCap} accentColor={BLUE[500]} loading={false} />
+        <PremiumKpiCard title="Board of Directors" value={kpis.total_board || 0} unit="" icon={Crown} accentColor={TEAL[500]} loading={false} />
+        <PremiumKpiCard title="Return to Work" value={kpis.return_to_work || 0} unit="" icon={RotateCcw} accentColor={GREEN[500]} loading={false} />
+        <PremiumKpiCard title="Retention Rate" value={kpis.retention_rate || 0} unit="%" icon={UserCheck} accentColor={GREEN[400]} loading={false} />
+        <PremiumKpiCard title="Internal Complaints" value={kpis.internal_complaints || 0} unit="" icon={MessageSquareWarning} accentColor={ORANGE[500]} loading={false} />
+        <PremiumKpiCard title="POSH Complaints" value={kpis.posh_complaints || 0} unit="" icon={Scale} accentColor={ORANGE[400]} loading={false} />
       </div>
 
-      {/* ROW 1: Training Analytics */}
-      <SectionCard title="Training Analytics" subtitle="Training distribution and coverage metrics">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-4">
-          {/* LEFT: Training by Type - Horizontal Bars */}
-          <div className="bg-white rounded-xl p-5 border border-stone-200">
-            <h4 className="font-semibold text-stone-800 mb-4">Training by Type</h4>
-            <TrainingByTypeChart byType={trainingData.by_type || {}} />
-          </div>
-
-          {/* RIGHT: Training Coverage */}
-          <div className="bg-white rounded-xl p-5 border border-stone-200">
-            <h4 className="font-semibold text-stone-800 mb-4">Training Coverage</h4>
-            <TrainingCoverageStats coverage={trainingData.coverage || {}} />
-          </div>
-        </div>
-      </SectionCard>
-
-      {/* ROW 2: Complaints Analytics */}
-      <SectionCard title="Complaints Analytics" subtitle="Complaint distribution, topics, and compliance tracking">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-4">
-          {/* LEFT: Complaints by Type - Stacked Bars */}
-          <div className="bg-white rounded-xl p-5 border border-stone-200">
-            <h4 className="font-semibold text-stone-800 mb-4">Complaints by Type</h4>
-            <ComplaintsByTypeChart byType={complaintsData.by_type || {}} />
-          </div>
-
-          {/* CENTER: Complaint Topics - Treemap */}
-          <div className="bg-white rounded-xl p-5 border border-stone-200">
-            <h4 className="font-semibold text-stone-800 mb-4">Complaint Topics</h4>
-            <ComplaintTopicsTreemap byTopic={complaintsData.by_topic || {}} />
-          </div>
-
-          {/* RIGHT: Compliance & Escalation - Status Cards */}
-          <div className="bg-white rounded-xl p-5 border border-stone-200">
-            <h4 className="font-semibold text-stone-800 mb-4">Compliance & Escalation</h4>
-            <ComplianceStatusCards compliance={complaintsData.compliance || {}} poshCases={poshCases} />
-          </div>
-        </div>
-      </SectionCard>
-
-      {/* Summary Section */}
-      <SectionCard title="Social Performance Summary" subtitle="Key workforce and stakeholder metrics">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-4">
-          {/* Training Summary Card */}
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-5 border border-blue-100">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Users className="w-5 h-5 text-blue-600" />
-              </div>
-              <h4 className="font-semibold text-stone-800">Training Overview</h4>
-            </div>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-stone-600">Total Sessions</span>
-                <span className="font-semibold text-stone-900">{trainingsCount}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-stone-600">Total Hours</span>
-                <span className="font-semibold text-stone-900">{trainingHours.toFixed(1)} hrs</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-stone-600">Participants</span>
-                <span className="font-semibold text-stone-900">{trainingData.participants || 0}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Complaints Summary Card */}
-          <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-5 border border-amber-100">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-amber-100 rounded-lg">
-                <AlertTriangle className="w-5 h-5 text-amber-600" />
-              </div>
-              <h4 className="font-semibold text-stone-800">Complaints Breakdown</h4>
-            </div>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-stone-600">General Complaints</span>
-                <span className="font-semibold text-stone-900">{generalComplaints}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-stone-600">POSH Cases</span>
-                <span className="font-semibold text-rose-600">{poshCases}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-stone-600">Consumer Complaints</span>
-                <span className="font-semibold text-orange-600">{consumerComplaints}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Stats Card */}
-          <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-5 border border-emerald-100">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-emerald-100 rounded-lg">
-                <Shield className="w-5 h-5 text-emerald-600" />
-              </div>
-              <h4 className="font-semibold text-stone-800">Period Summary</h4>
-            </div>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-stone-600">Reporting Period</span>
-                <span className="font-semibold text-stone-900 text-xs">{dateRangeLabel}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-stone-600">Total Complaints</span>
-                <span className="font-semibold text-stone-900">{complaintsData.total || 0}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-stone-600">Status</span>
-                {liveBadge || <span className="text-sm text-stone-500">Historical</span>}
-              </div>
-            </div>
-          </div>
-        </div>
-      </SectionCard>
-    </div>
-  </div>
-  );
-}
-
-// Training by Type Horizontal Bar Chart
-function TrainingByTypeChart({ byType }) {
-  const TRAINING_TYPES = [
-    'Health', 'Safety', 'Environment', 'Human Right Issues', 'Organization Policy(ies)',
-    'Skill Upgrade', 'Anti-corruption', 'Ethical Principles',
-    'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9', 'Others'
-  ];
-
-  const maxValue = Math.max(...Object.values(byType), 1);
-  const hasData = Object.keys(byType).length > 0;
-
-  // Filter to only show types with data or all if no data
-  const displayTypes = hasData 
-    ? TRAINING_TYPES.filter(type => byType[type] > 0)
-    : TRAINING_TYPES.slice(0, 6);
-
-  if (!hasData) {
-    return (
-      <div className="text-center py-8 text-stone-400">
-        <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
-        <p className="text-sm">No training data available</p>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
+        <PremiumKpiCard title="Customer Complaints" value={kpis.customer_complaints || 0} unit="" icon={ShieldAlert} accentColor={RED[500]} loading={false} />
+        <PremiumKpiCard title="H&S Incidents" value={kpis.total_incidents || 0} unit="" icon={HeartPulse} accentColor={RED[400]} loading={false} />
       </div>
-    );
-  }
 
+      {/* ── ROW 2: WORKFORCE ─────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <SectionCard title="Workforce Composition" subtitle="Employee categories over time" accent={PURPLE[500]} testId="section-workforce-composition">
+          {workforceComp.length > 0 ? (
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={workforceComp} barGap={1}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f4" />
+                <XAxis dataKey="period" tick={{ fontSize: 10, fill: '#78716c' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: '#78716c' }} axisLine={false} tickLine={false} width={45} />
+                <Tooltip content={<ChartTooltip />} />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 10 }} />
+                <Bar dataKey="permanent" name="Permanent" stackId="a" fill={WORKFORCE_COLORS[0]} />
+                <Bar dataKey="temporary" name="Temporary" stackId="a" fill={WORKFORCE_COLORS[1]} />
+                <Bar dataKey="workers" name="Workers" stackId="a" fill={WORKFORCE_COLORS[2]} />
+                <Bar dataKey="contract" name="Contract" stackId="a" fill={WORKFORCE_COLORS[3]} radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <EmptyChart message="No workforce composition data yet" />
+          )}
+        </SectionCard>
 
-  return (
-    <div className="space-y-5 max-h-[300px] overflow-y-auto pr-2">
-    {displayTypes.map((type) => {
-      const value = byType[type] || 0;
-      const pct = (value / maxValue) * 100;
-
-      return (
-        <div key={type} className="flex items-center gap-3 mb-5">
-          <span
-            className="text-xs text-stone-600 w-32 truncate"
-            title={type}
-          >
-            {type}
-          </span>
-
-          <div className="flex-1 bg-stone-100 rounded-full h-3 overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-500"
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-
-          <span className="text-xs font-semibold text-stone-700 w-8 text-right">
-            {value}
-          </span>
-        </div>
-      );
-    })}
-  </div>
-  );
-}
-
-// Training Coverage Stats
-function TrainingCoverageStats({ coverage }) {
-  const { employees_trained = 0, workers_trained = 0, female_pct = 0, total_attendees = 0 } = coverage;
-
-  const stats = [
-    { label: 'Total Attendees', value: total_attendees, color: 'blue' },
-    { label: 'Employees Trained', value: employees_trained, color: 'indigo' },
-    { label: 'Workers Trained', value: workers_trained, color: 'violet' },
-    { label: 'Female Attendees %', value: `${female_pct}%`, color: 'pink' },
-  ];
-
-  return (
-    <div className="grid grid-cols-2 gap-4">
-      {stats.map((stat) => (
-        <div key={stat.label} className={`bg-${stat.color}-50 rounded-lg p-4 border border-${stat.color}-100`}>
-          <p className="text-xs text-stone-500 mb-1">{stat.label}</p>
-          <p className={`text-2xl font-bold text-${stat.color}-600`}>{stat.value}</p>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// Complaints by Type - Stacked Horizontal Bars
-function ComplaintsByTypeChart({ byType }) {
-  const { General = 0, Principal = 0, Consumer = 0 } = byType;
-  const total = General + Principal + Consumer;
-  
-  const types = [
-    { label: 'General', value: General, color: 'bg-amber-500' },
-    { label: 'Principal', value: Principal, color: 'bg-orange-500' },
-    { label: 'Consumer', value: Consumer, color: 'bg-red-500' },
-  ];
-
-  if (total === 0) {
-    return (
-      <div className="text-center py-8 text-stone-400">
-        <AlertTriangle className="w-8 h-8 mx-auto mb-2 opacity-50" />
-        <p className="text-sm">No complaints data</p>
+        <SectionCard title="Employee Movement" subtitle="New hires, turnover & retention" accent={GREEN[500]} testId="section-employee-movement">
+          {empMovement.length > 0 ? (
+            <ResponsiveContainer width="100%" height={260}>
+              <ComposedChart data={empMovement}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f4" />
+                <XAxis dataKey="period" tick={{ fontSize: 10, fill: '#78716c' }} axisLine={false} tickLine={false} />
+                <YAxis yAxisId="left" tick={{ fontSize: 10, fill: '#78716c' }} axisLine={false} tickLine={false} width={45} />
+                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#78716c' }} axisLine={false} tickLine={false} width={35} domain={[0, 100]} unit="%" />
+                <Tooltip content={<ChartTooltip />} />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 10 }} />
+                <Bar yAxisId="left" dataKey="new_hires" name="New Hires" fill={GREEN[500]} radius={[3, 3, 0, 0]} />
+                <Bar yAxisId="left" dataKey="turnover" name="Turnover" fill={RED[400]} radius={[3, 3, 0, 0]} />
+                <Line yAxisId="right" dataKey="retention" name="Retention %" stroke={BLUE[500]} strokeWidth={2} dot={{ r: 3, fill: BLUE[500] }} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          ) : (
+            <EmptyChart message="No employee movement data yet" />
+          )}
+        </SectionCard>
       </div>
-    );
-  }
 
-  return (
-    <div className="space-y-4">
-      {/* Stacked bar */}
-      <div className="h-8 flex rounded-lg overflow-hidden bg-stone-100">
-        {types.map((type) => {
-          const pct = (type.value / total) * 100;
-          if (pct === 0) return null;
-          return (
-            <div
-              key={type.label}
-              className={`${type.color} transition-all duration-500 flex items-center justify-center`}
-              style={{ width: `${pct}%` }}
-              title={`${type.label}: ${type.value}`}
-            >
-              {pct > 15 && <span className="text-xs text-white font-medium">{type.value}</span>}
-            </div>
-          );
-        })}
+      {/* ── ROW 3: DIVERSITY ─────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <SectionCard title="Employee Diversity" subtitle="Gender, minority & vulnerable groups" accent={TEAL[500]} testId="section-employee-diversity">
+          <DiversityDonut diversity={diversity} />
+        </SectionCard>
+
+        <SectionCard title="Board Diversity" subtitle="Board composition breakdown" accent={PURPLE[500]} testId="section-board-diversity">
+          {boardBarData.length > 0 ? (
+            <HBarSection data={boardBarData} colors={DIVERSITY_COLORS} />
+          ) : (
+            <EmptyChart message="No board diversity data" />
+          )}
+        </SectionCard>
       </div>
-      {/* Legend */}
-      <div className="flex flex-wrap gap-4 justify-center">
-        {types.map((type) => (
-          <div key={type.label} className="flex items-center gap-2">
-            <div className={`w-3 h-3 rounded ${type.color}`} />
-            <span className="text-xs text-stone-600">{type.label}: {type.value}</span>
-          </div>
-        ))}
+
+      {/* ── ROW 4: TRAINING ──────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <SectionCard title="Training by Attendee Type" subtitle="Breakdown by participant category" accent={BLUE[500]} testId="section-training-attendee">
+          {trainingByAtt.length > 0 ? (
+            <HBarSection data={trainingByAtt} colors={[BLUE[500], BLUE[400], BLUE[300], PURPLE[500], PURPLE[400], TEAL[500]]} />
+          ) : (
+            <EmptyChart message="No training data recorded" />
+          )}
+        </SectionCard>
+
+        <SectionCard title="Training Trend" subtitle="Number of trainings over time" accent={BLUE[400]} testId="section-training-trend">
+          {trainingTrend.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={trainingTrend}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f4" />
+                <XAxis dataKey="period" tick={{ fontSize: 10, fill: '#78716c' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: '#78716c' }} axisLine={false} tickLine={false} width={40} allowDecimals={false} />
+                <Tooltip content={<ChartTooltip />} />
+                <Line dataKey="value" name="Trainings" stroke={BLUE[500]} strokeWidth={2} dot={{ r: 3, fill: BLUE[500] }} />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <EmptyChart message="No training trend data" />
+          )}
+        </SectionCard>
       </div>
-      <div className="text-center text-sm font-semibold text-stone-700">
-        Total: {total}
+
+      {/* ── ROW 5: COMPLAINTS ────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <SectionCard title="Complaint Status" subtitle="Open, closed & pending" accent={ORANGE[500]} testId="section-complaint-status">
+          {complaintStatus.length > 0 ? (
+            <HBarSection data={complaintStatus} colors={COMPLAINT_COLORS} />
+          ) : (
+            <EmptyChart message="No complaint data" />
+          )}
+        </SectionCard>
+
+        <SectionCard title="Complaints Filed Against" subtitle="By responsible party" accent={ORANGE[400]} testId="section-complaint-filed">
+          {complaintFiled.length > 0 ? (
+            <HBarSection data={complaintFiled} colors={[ORANGE[500], ORANGE[400], ORANGE[300], RED[500], PURPLE[500]]} />
+          ) : (
+            <EmptyChart message="No complaint data" />
+          )}
+        </SectionCard>
+
+        <SectionCard title="Complaint Categories" subtitle="By complaint type" accent={RED[500]} testId="section-complaint-categories">
+          {complaintCats.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={complaintCats} layout="vertical" barSize={18}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f4" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 10, fill: '#78716c' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: '#78716c' }} axisLine={false} tickLine={false} width={90} />
+                <Tooltip content={<ChartTooltip />} />
+                <Bar dataKey="value" name="Complaints" fill={ORANGE[500]} radius={[0, 3, 3, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <EmptyChart message="No complaint categories" />
+          )}
+        </SectionCard>
       </div>
-    </div>
-  );
-}
 
-// Complaint Topics Treemap
-function ComplaintTopicsTreemap({ byTopic }) {
-  const TOPIC_COLORS = {
-    'Working Conditions': 'bg-blue-500',
-    'Safety': 'bg-emerald-500',
-    'Health': 'bg-teal-500',
-    'POSH': 'bg-rose-500',
-    'Discrimination': 'bg-purple-500',
-    'Wages': 'bg-amber-500',
-    'Human Rights': 'bg-indigo-500',
-    'Cybersecurity': 'bg-cyan-500',
-    'Data Privacy': 'bg-violet-500',
-  };
-
-  const topics = Object.entries(byTopic).map(([topic, count]) => ({
-    topic,
-    count,
-    color: TOPIC_COLORS[topic] || 'bg-stone-400'
-  })).sort((a, b) => b.count - a.count);
-
-  const total = topics.reduce((sum, t) => sum + t.count, 0);
-
-  if (total === 0) {
-    return (
-      <div className="text-center py-8 text-stone-400">
-        <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
-        <p className="text-sm">No topic data available</p>
+      {/* ── ROW 6: HEALTH & SAFETY ───────────────── */}
+      <div className="grid grid-cols-1 gap-4">
+        <SectionCard title="Health & Safety Incident Trend" subtitle="Total incidents over time" accent={RED[500]} testId="section-safety-trend">
+          {safetyTrend.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={safetyTrend}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f4" />
+                <XAxis dataKey="period" tick={{ fontSize: 10, fill: '#78716c' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: '#78716c' }} axisLine={false} tickLine={false} width={40} allowDecimals={false} />
+                <Tooltip content={<ChartTooltip />} />
+                <Line dataKey="value" name="Incidents" stroke={RED[500]} strokeWidth={2.5} dot={{ r: 4, fill: RED[500], stroke: '#fff', strokeWidth: 2 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <EmptyChart message="No safety incident data recorded" />
+          )}
+        </SectionCard>
       </div>
-    );
-  }
-
-  return (
-    <div className="grid grid-cols-3 gap-1.5 h-[200px]">
-      {topics.slice(0, 9).map((item, idx) => {
-        const pct = (item.count / total) * 100;
-        // Vary sizes based on value
-        const sizeClass = pct > 30 ? 'col-span-2 row-span-2' : pct > 15 ? 'col-span-1 row-span-2' : '';
-        return (
-          <div
-            key={item.topic}
-            className={`${item.color} ${sizeClass} rounded-lg p-2 flex flex-col justify-between transition-transform hover:scale-105 cursor-default`}
-            title={`${item.topic}: ${item.count}`}
-          >
-            <span className="text-[10px] text-white/90 font-medium truncate">{item.topic}</span>
-            <span className="text-lg font-bold text-white">{item.count}</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// Compliance & Escalation Status Cards
-function ComplianceStatusCards({ compliance, poshCases }) {
-  const { law_enforcement = 0, open = 0, closed = 0, total = 0 } = compliance;
-  
-  const stats = [
-    { 
-      label: 'Law Enforcement', 
-      value: law_enforcement, 
-      icon: '⚖️',
-      color: law_enforcement > 0 ? 'bg-red-50 border-red-200' : 'bg-stone-50 border-stone-200',
-      textColor: law_enforcement > 0 ? 'text-red-600' : 'text-stone-600'
-    },
-    { 
-      label: 'POSH Cases', 
-      value: poshCases, 
-      icon: '🛡️',
-      color: poshCases > 0 ? 'bg-rose-50 border-rose-200' : 'bg-stone-50 border-stone-200',
-      textColor: poshCases > 0 ? 'text-rose-600' : 'text-stone-600'
-    },
-    { 
-      label: 'Open', 
-      value: open, 
-      icon: '📂',
-      color: open > 0 ? 'bg-amber-50 border-amber-200' : 'bg-stone-50 border-stone-200',
-      textColor: open > 0 ? 'text-amber-600' : 'text-stone-600'
-    },
-    { 
-      label: 'Closed', 
-      value: closed, 
-      icon: '✅',
-      color: 'bg-emerald-50 border-emerald-200',
-      textColor: 'text-emerald-600'
-    },
-  ];
-
-  return (
-    <div className="grid grid-cols-2 gap-3">
-      {stats.map((stat) => (
-        <div key={stat.label} className={`${stat.color} rounded-lg p-3 border`}>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-base">{stat.icon}</span>
-            <span className="text-xs text-stone-500">{stat.label}</span>
-          </div>
-          <p className={`text-xl font-bold ${stat.textColor}`}>{stat.value}</p>
-        </div>
-      ))}
     </div>
   );
 }

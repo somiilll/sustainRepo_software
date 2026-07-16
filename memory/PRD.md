@@ -7,60 +7,44 @@ Build an enterprise ESG (Environmental, Social, Governance) data management plat
 
 ### Core Platform
 - Multi-org architecture with role-based access (Admin, User, Super Admin)
-- JWT authentication with secure login/registration
-- Organization management with module access controls
-- Facility management (CRUD)
-- User management with role assignment
-
-### Data Modules
-- GHG Module (Logs, Sinks, Base Year)
-- Environment (Energy, Water, Waste, Biodiversity, Climate Change, Material)
-- Social metrics data entry
-- Governance metrics data entry
-- ESG Records module with add/edit forms
+- JWT authentication, Organization management, Facility CRUD, User management
 
 ### Dashboard & Analytics
-- **Executive GHG Dashboard** with KPI summary cards, GHG Emissions Trend
-- **Executive ESG Dashboard** with section selector (All/Environment/Social/Governance)
-- **Environment Dashboard** (July 2026): Premium 6-row dashboard
-  - Row 1: 7 KPI Cards
-  - Row 2: Scope Contribution (stacked horizontal bars) + Emission Hotspots (Treemap)
-  - Row 3: Scope Explorer with tabs (S1/S2/S3)
-  - Row 4: Energy (Stacked column + Renewable% + Intensity)
-  - Row 5: Water (Balance flow + Sources bar + Recycling%)
-  - Row 6: Waste (Overview + Hazardous + Non-Hazardous)
-  - Backend: `/api/dashboard/environment-detail` with scope breakdowns, hotspots, water sources (withdrawal/discharge/consumption), waste types
-- Semantic data spreading, unit/date utilities
+- **Executive GHG Dashboard**: KPI cards, GHG Emissions Trend, Scope Donut, Facility-wise, Scope 3 Hotspots, Emission Categories
+- **Executive ESG Dashboard**: Section selector (All/Environment/Social/Governance)
+- **Environment Dashboard** (July 2026): 7 KPI cards, Scope Contribution stacked bars, Emission Hotspots treemap, Scope Explorer tabs, Energy charts (consumption/renewable%/intensity), Water charts (balance/sources/trends), Waste charts (overview/hazardous/non-hazardous)
+- **Social Dashboard** (July 2026): 9 KPI cards, Workforce Composition stacked bar, Employee Movement combo chart, Employee Diversity nested donut, Board Diversity horizontal bar, Training by Attendee + Trend, Complaint Status/Filed Against/Categories, H&S Incident Trend
+- Backend endpoints: `/api/dashboard/esg-analytics`, `/api/dashboard/esg-summary`, `/api/dashboard/environment-detail`, `/api/dashboard/social-detail`
 
 ### Sidebar & Navigation
-- **Admin/User**: 3-level hierarchical config-driven sidebar (sidebarConfig.js)
-- **Super Admin**: Full sidebar restored (superAdminSidebarConfig.js) with Dashboard, Organizations, Admins, Sectors, ESG Config, KPI Definitions, GHG (Scopes & Categories, GHG Data [7 items], GHG Calculation [6 items], Process Templates)
+- **Admin/User**: 3-level hierarchical config-driven sidebar
+- **Super Admin**: Full sidebar restored with all 20+ routes
 
-### Materiality Assessment (July 2026)
-- 5x5 scatter matrix using Recharts, 23 GRI topics, side drawer
+### Materiality Assessment
+- 5x5 scatter matrix (Recharts), 23 GRI topics, side drawer, Framer Motion
 
-### Reporting
-- BRSR/GRI report generation, Workflow tracking
-
-### Other Features
-- Repo-Pilot (RAG), Audit Trails, Profile, Bulk uploads
+### Data Modules
+- GHG (Logs, Sinks, Base Year), Environment (Energy, Water, Waste, etc.), Social, Governance
+- Reporting (BRSR/GRI), Workflow (Tracker/My Task/Approver Queue)
+- Repo-Pilot (RAG), Audit Trails, Bulk Uploads, Targets
 
 ## Architecture
-- Frontend: React + Tailwind CSS + Shadcn UI + Recharts + Framer Motion
+- Frontend: React + Tailwind + Shadcn + Recharts + Framer Motion
 - Backend: FastAPI + MongoDB (Motor)
 - Storage: Cloudflare R2 | Email: Resend | AI: OpenAI, LlamaParse
 
 ## Prioritized Backlog
 
-### P0 (Critical)
+### P0
 - Fix missing filters on seeded Water Withdrawal KPIs
 
-### P1 (High)
+### P1
 - Dashboard Scope 1 & 3 Emissions deduplication bug
 - Carbon Intensity calculation discrepancy
-- Cron job for marking tasks as "overdue"
-- Phase 2 Executive Dashboard enhancements
-- Test Repo Pilot with actual PDF uploads
+- Super Admin org module access toggle UI
+- Cron job for overdue tasks
+- Phase 2 Dashboard enhancements (PDF export, fullscreen, drill-down)
+- Repo Pilot end-to-end PDF test
 
-### P2 (Medium)
+### P2
 - Dynamic ESG Disclosure Engine, Sentry, MFA, SBTi validation, Dark mode
