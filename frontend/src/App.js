@@ -55,6 +55,7 @@ import PasswordChangeModal from './components/PasswordChangeModal';
 import ApproverQueue from './components/ApproverQueue';
 import MyAssignments from './pages/MyAssignments';
 import PlaceholderPage from './pages/PlaceholderPage';
+import MaterialityAssessment from './pages/MaterialityAssessment';
 import GHGTargetsPage from './pages/GHGTargetsPage';
 import ESGTargetsTab from './components/ESGTargetsTab';
 import WorkflowApproverQueue from './pages/WorkflowApproverQueue';
@@ -276,7 +277,7 @@ const AppRoutes = () => {
           <Route path="reporting/brsr" element={<BRSRModule />} />
           <Route path="reporting/gri" element={<GRIModule />} />
           <Route path="reporting/materiality" element={<PlaceholderPage title="Materiality Assessment" />} />
-          <Route path="materiality" element={<PlaceholderPage title="Materiality Assessment" />} />
+          <Route path="materiality" element={<MaterialityAssessment />} />
           <Route path="workflow/tracker" element={<WorkflowTracker />} />
           <Route path="workflow/my-task" element={<WorkflowMyTask />} />
           <Route path="workflow/approver-queue" element={<WorkflowApproverQueue />} />

@@ -1,80 +1,85 @@
 # ESG Platform - Product Requirements Document
 
 ## Original Problem Statement
-Build a comprehensive ESG (Environmental, Social, Governance) Platform with dynamic KPI engine, executive dashboard, data entry, targets, and reporting capabilities.
-
-## Architecture
-```
-/app/
-├── backend/
-│   ├── modules/
-│   │   ├── esg_records/ (services/dashboard/, ghg_integration.py)
-│   │   ├── dashboards/ (esg_analytics_service.py)
-│   │   ├── organizations/ (contracts.py - module_access field)
-│   │   ├── kpi_engine/, esg_kpi_definitions/, esg_targets/
-│   │   └── emissions/
-├── frontend/
-│   └── src/
-│       ├── config/sidebarConfig.js (menu hierarchy definition)
-│       ├── hooks/useModuleAccess.js (access flag hook)
-│       ├── components/Sidebar.js (config-driven hierarchical sidebar)
-│       ├── modules/dashboard/ (DashboardESG, ExecutiveAnalyticsDashboard)
-│       ├── components/ESGRecordsDataEntry.js
-│       └── pages/PlaceholderPage.js
-```
+Build an enterprise ESG (Environmental, Social, Governance) data management platform with comprehensive reporting, analytics, workflow management, and compliance features.
 
 ## What's Been Implemented
 
-### Phase 1: Sidebar Restructure (Jul 16, 2026)
-- Config-driven hierarchical sidebar with 3-level nesting
-- Menu config at `/config/sidebarConfig.js` — single source of truth
-- `useModuleAccess` hook for per-module access flags
-- `module_access: Dict[str, bool]` field added to organization schema
-- Placeholder pages for new modules (Biodiversity, Climate Change, Material, Tracker, KPI Metrics, Env/Social/Gov Targets)
-- Backwards-compatible redirects for old routes
-- New route structure: /environment/*, /workflow/*, /uploads/*, /targets/voluntary/*
+### Core Platform
+- Multi-org architecture with role-based access (Admin, User)
+- JWT authentication with secure login/registration
+- Organization management with module access controls
+- Facility management (CRUD)
+- User management with role assignment
 
-### Dashboard Data Pipeline (Jul 15-16, 2026)
-- Shared `unit_utils.py`: to_kilolitres, to_mwh, to_number
-- Shared `date_utils.py`: build_date_filter for ALL period types
-- is_current/status filters on all dashboard queries
-- Metric behavior semantics: snapshot (carry-forward), flow (single month), ratio
-- GHG energy data now feeds energy time series charts
-- Proportional distribution for quarterly/yearly emission records
-- CV unit conversion (_cv_to_tj_per_kg) for fuel energy calculations
-- Fixed renewable electricity detection in _get_ghg_energy_breakdown
-- Fixed org_query to use org_id only (not organization_id)
-- Incidents Trend chart (data breaches + H&S + violations)
-- Default dashboard date range changed to current FY
+### Data Modules
+- GHG Module (Logs, Sinks, Base Year)
+- Environment (Energy, Water, Waste, Biodiversity, Climate Change, Material)
+- Social metrics data entry
+- Governance metrics data entry
+- ESG Records module with add/edit forms
 
-### ESG Data Entry Fixes
-- FY dropdown format, edit form month mismatch, period validation
+### Dashboard & Analytics
+- Executive Dashboard with KPI summary cards
+- GHG Emissions Trend (gradient chart)
+- Energy Mix & Intensity combined chart
+- Incidents Trend chart
+- Semantic data spreading (snapshot vs flow metrics)
+- Unit conversion utilities
+- Date utilities for FY alignment
+- Default view: Current Financial Year
 
-## Pending Issues
-- P0: Water Withdrawal KPI source_type filters (20+ forks missed)
-- P1: Dashboard Scope 1&3 emissions deduplication
-- P1: Carbon Intensity calculation discrepancy
-- P1: Emission record version deduplication (old+new versions both counted)
+### Sidebar & Navigation
+- 3-level hierarchical config-driven sidebar (sidebarConfig.js)
+- Environment sub-modules with GHG nesting
+- Reporting (BRSR, GRI)
+- Workflow (Tracker, My Task, Approver Queue)
+- Uploads (Bulk Uploads)
+- Targets (Voluntary: GHG/Env/Social/Gov, SBTi)
 
-## Upcoming Tasks
-- Phase 2: Fill placeholder pages (Biodiversity, GRI, Approver Queue)
-- Superadmin UI for module_access checkbox grid
-- Make metric_behavior config-driven via esg_kpi_definitions
-- Cron job for overdue tasks
-- Phase 2 Dashboard enhancements (PDF export, drill-down)
+### Materiality Assessment (NEW - July 2026)
+- Premium 5x5 scatter matrix using Recharts (Business Impact vs Stakeholder Impact)
+- 23 GRI topics with hardcoded data across 4 categories (Environmental, Social, Governance, Economic)
+- Interactive colored dots with hover tooltips
+- Right-panel sortable data table with category/priority badges
+- Side drawer with score cards, progress bars, description, placeholder KPI/Evidence sections
+- Framer Motion entrance animations and spring drawer transitions
+- Summary stats bar (Total Topics, Critical, High Priority, Avg Score)
+- Search + Category + Priority filters with legend
 
-## Future/Backlog
+### Reporting
+- BRSR report generation
+- GRI report generation
+- Report tracking in Workflow modules
+
+### Other Features
+- Repo-Pilot (RAG document processing)
+- Audit Trails
+- Profile management
+- Bulk uploads
+
+## Architecture
+- Frontend: React + Tailwind CSS + Shadcn UI + Recharts + Framer Motion
+- Backend: FastAPI + MongoDB (Motor)
+- Storage: Cloudflare R2
+- Email: Resend
+- AI: OpenAI (embeddings/RAG), LlamaParse
+
+## Prioritized Backlog
+
+### P0 (Critical)
+- Fix missing filters on seeded Water Withdrawal KPIs (esg_kpi_definitions DB update)
+
+### P1 (High)
+- Dashboard Scope 1 & 3 Emissions deduplication bug
+- Carbon Intensity calculation discrepancy
+- Cron job for marking tasks as "overdue"
+- Phase 2 Executive Dashboard enhancements (PDF export, fullscreen charts, drill-down)
+- Test Repo Pilot with actual PDF uploads (end-to-end RAG)
+
+### P2 (Medium)
 - Dynamic ESG Disclosure Engine
 - Sentry Error Monitoring
 - MFA for admin users
 - SBTi target validation rules
-
-## Key API Endpoints
-- GET /api/dashboard/esg-analytics - Time series (behavior-aware)
-- GET /api/esg-records/dashboard-metrics - Aggregated KPI totals
-- GET /api/dashboard/esg-summary - KPI card values
-- GET /api/organizations/my - Org config + module_access
-
-## 3rd Party Integrations
-- Cloudflare R2 (Storage)
-- Resend (Emails)
+- Dark mode support fine-tuning
