@@ -694,6 +694,7 @@ export default function ESGRecordsDataEntry({
                 setFormData(prev => ({ ...prev, category: v, subcategory: '', field_values: {} }));
                 fetchAddFormCategory(v, '');
               }}
+              disabled={!!preFilterCategory}
             >
               <SelectTrigger className={formErrors.category ? 'border-red-500' : ''}>
                 <SelectValue placeholder="Select category" />
