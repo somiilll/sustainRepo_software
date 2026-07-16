@@ -5,9 +5,6 @@ import {
   Activity, CreditCard, Droplets, Leaf, RefreshCw,
   Repeat, Trash2, Users, Zap,
 } from 'lucide-react';
-import {
-  Pie, PieChart, Cell, ResponsiveContainer, Tooltip,
-} from 'recharts';
 import { useAuth } from '../../contexts/AuthContext';
 import StickyFilterBar from './components/filters/StickyFilterBar';
 import PremiumKpiCard from './components/kpi/PremiumKpiCard';
@@ -17,7 +14,6 @@ import { useIntensityData } from './hooks/useIntensityData';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const MONTH = 'monthly';
-const DIVERSITY_COLORS = ['#7C3AED', '#EC4899', '#14B8A6', '#F59E0B', '#EF4444', '#4F46E5', '#78716C'];
 
 // ---------------------------------------------------------------------------
 // Utility helpers
@@ -58,79 +54,6 @@ const percentageSeries = (rows, numerator, denominator, output) =>
   }));
 
 // ---------------------------------------------------------------------------
-// Employee Diversity donut card
-// ---------------------------------------------------------------------------
-
-function DiversityCard({ data }) {
-  const segments = [
-    { name: 'Female', value: data?.female || 0 },
-    { name: 'Male', value: data?.male || 0 },
-    { name: 'Under 30', value: data?.under_30 || 0 },
-    { name: '30-50', value: data?.age_30_50 || 0 },
-    { name: 'Over 50', value: data?.over_50 || 0 },
-    { name: 'Minority', value: data?.minority || 0 },
-    { name: 'Vulnerable', value: data?.vulnerable || 0 },
-  ].filter((s) => s.value > 0);
-
-  return (
-    <section
-      className="relative min-w-0 overflow-hidden rounded-lg border border-stone-200 bg-white p-5 shadow-[0_2px_8px_rgba(0,0,0,0.04)] transition-shadow duration-200 hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)] dark:border-stone-700 dark:bg-stone-900"
-      data-testid="employee-diversity-card"
-    >
-      <div className="absolute inset-x-0 top-0 h-1 bg-[#7C3AED]" />
-      <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100">
-        Employee Diversity
-      </h3>
-      <p className="mt-0.5 text-xs text-stone-500">Workforce composition</p>
-
-      {segments.length ? (
-        <>
-          <div className="mt-2 h-44">
-            <ResponsiveContainer>
-              <PieChart>
-                <Pie
-                  data={segments}
-                  dataKey="value"
-                  nameKey="name"
-                  innerRadius={42}
-                  outerRadius={68}
-                  paddingAngle={2}
-                >
-                  {segments.map((s, i) => (
-                    <Cell key={s.name} fill={DIVERSITY_COLORS[i]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v) => Number(v).toLocaleString()} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-            {segments.map((s, i) => (
-              <div className="flex items-center justify-between text-[11px]" key={s.name}>
-                <span className="flex items-center gap-1.5 text-stone-600">
-                  <i className="h-2 w-2 rounded-full" style={{ backgroundColor: DIVERSITY_COLORS[i] }} />
-                  {s.name}
-                </span>
-                <span className="font-semibold text-stone-800">
-                  {Number(s.value).toLocaleString()}
-                </span>
-              </div>
-            ))}
-          </div>
-        </>
-      ) : (
-        <div
-          className="flex h-[236px] items-center justify-center text-sm text-stone-400"
-          data-testid="employee-diversity-empty"
-        >
-          No workforce data for these filters
-        </div>
-      )}
-    </section>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Chart row configurations
 // ---------------------------------------------------------------------------
 
@@ -159,26 +82,6 @@ const WASTE_SERIES = [
   { key: 'generated', label: 'Generated', color: '#57534E' },
   { key: 'recovered', label: 'Recovered', color: '#65A30D' },
   { key: 'disposed', label: 'Disposed', color: '#EF4444' },
-];
-
-const SAFETY_SERIES = [
-  { key: 'fatalities', label: 'Fatalities', color: '#DC2626' },
-  { key: 'lostTimeInjuries', label: 'Lost Time Injuries', color: '#F97316' },
-  { key: 'nearMisses', label: 'Near Misses', color: '#F59E0B' },
-];
-
-const AGING_SERIES = [
-  { key: 'aging0to30', label: '0-30 Days', color: '#65A30D' },
-  { key: 'aging31to60', label: '31-60 Days', color: '#F59E0B' },
-  { key: 'aging61to90', label: '61-90 Days', color: '#F97316' },
-  { key: 'agingOver90', label: '>90 Days', color: '#DC2626' },
-];
-
-const BREACH_CATEGORY_SERIES = [
-  { key: 'confidentiality', label: 'Confidentiality', color: '#DC2626' },
-  { key: 'integrity', label: 'Integrity', color: '#F97316' },
-  { key: 'availability', label: 'Availability', color: '#F59E0B' },
-  { key: 'privacy', label: 'Privacy', color: '#4F46E5' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -269,13 +172,7 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
       : 0,
     energyIntensity: productionQty ? (row.renewable + row.nonRenewable) / productionQty : 0,
   }));
-  const incidentCategoryRows = [{
-    period: 'Categories',
-    confidentiality: breachRows.reduce((s, r) => s + r.confidentiality, 0),
-    integrity: breachRows.reduce((s, r) => s + r.integrity, 0),
-    availability: breachRows.reduce((s, r) => s + r.availability, 0),
-    privacy: breachRows.reduce((s, r) => s + r.privacy, 0),
-  }];
+  const incidentsRows = aggregateSeries(analyticsData.incidents || [], granularity, ['dataBreaches', 'healthSafety', 'violations']);
 
   const emissionSeries = [
     ...EMISSION_SERIES_BASE.filter((s) => !activeScopes.length || activeScopes.includes(s.key)),
@@ -405,22 +302,15 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
         <AnalyticsChartCard title="Waste Management" subtitle="Generated, recovered, and disposed" data={wasteRows} series={WASTE_SERIES} chartType="bar" stacked accent="#57534E" unit="MT" testId="waste-management-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
       </div>
 
-      {/* ── Row 5: Workforce ── */}
+      {/* ── Row 5: LTIFR & AP Days ── */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <DiversityCard data={summary?.diversity_breakdown} />
         <AnalyticsChartCard title="LTIFR Trend" subtitle="Lost-time injury frequency rate" data={workforceRows} series={[{ key: 'ltifr', label: 'LTIFR', color: '#DC2626' }]} accent="#DC2626" testId="ltifr-trend-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
-      </div>
-
-      {/* ── Row 6: Safety ── */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <AnalyticsChartCard title="Health & Safety Incidents" subtitle="Reported incidents by category" data={safetyRows} series={SAFETY_SERIES} chartType="bar" accent="#DC2626" testId="safety-incidents-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
         <AnalyticsChartCard title="Accounts Payable Days" subtitle="Days payable outstanding" data={financeRows} series={[{ key: 'apDays', label: 'AP Days', color: '#4F46E5' }]} accent="#4F46E5" unit="days" testId="ap-days-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
       </div>
 
-      {/* ── Row 7: Data Breaches ── */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <AnalyticsChartCard title="Data Breach Trend" subtitle="Reported monthly incidents" data={breachRows} series={[{ key: 'breaches', label: 'Breaches', color: '#DC2626' }]} accent="#4F46E5" testId="data-breach-trend-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
-        <AnalyticsChartCard title="Incident Categories" subtitle="Data breaches by security impact" data={incidentCategoryRows} series={BREACH_CATEGORY_SERIES} chartType="bar" accent="#4F46E5" testId="incident-categories-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
+      {/* ── Row 6: Incidents Trend ── */}
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-1">
+        <AnalyticsChartCard title="Incidents Trend" subtitle="Data breaches, health & safety incidents, and violations over time" data={incidentsRows} series={[{ key: 'dataBreaches', label: 'Data Breaches', color: '#DC2626' }, { key: 'healthSafety', label: 'Health & Safety', color: '#F97316' }, { key: 'violations', label: 'Violations', color: '#7C3AED' }]} chartType="bar" accent="#DC2626" testId="incidents-trend-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
       </div>
 
       {/* ── Drilldown Panel ── */}

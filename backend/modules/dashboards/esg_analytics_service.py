@@ -327,6 +327,7 @@ async def get_esg_analytics(db, org_id: str, start_date: str, end_date: str, fac
     safety_rows = blank_months(months, ["fatalities", "lostTimeInjuries", "nearMisses"])
     finance_rows = blank_months(months, ["apDays", "aging0to30", "aging31to60", "aging61to90", "agingOver90", "cashConversion"])
     breach_rows = blank_months(months, ["breaches", "confidentiality", "integrity", "availability", "privacy"])
+    incidents_rows = blank_months(months, ["dataBreaches", "healthSafety", "violations"])
     governance_totals = {"dataBreaches": 0.0, "openRisks": 0.0, "compliancePct": None}
 
     emission_buckets = set(emission_rows.keys())
@@ -424,14 +425,22 @@ async def get_esg_analytics(db, org_id: str, start_date: str, end_date: str, fac
 
     for record in governance:
         values = record.get("field_values") or {}
+        subcategory = (record.get("subcategory") or "").lower()
         spread = get_spread_months(record, months_set)
         flow_m = get_flow_month(record, months_set)
 
         # flow: safety incidents
         if flow_m:
-            safety_rows[flow_m]["fatalities"] += number(values.get("fatalities") or values.get("no_of_fatalities"))
-            safety_rows[flow_m]["lostTimeInjuries"] += number(values.get("lost_time_injuries") or values.get("no_of_loss_time_injuries"))
-            safety_rows[flow_m]["nearMisses"] += number(values.get("near_misses") or values.get("no_of_near_misses"))
+            fatalities = number(values.get("fatalities") or values.get("no_of_fatalities"))
+            injuries_gov = number(values.get("lost_time_injuries") or values.get("no_of_loss_time_injuries"))
+            near_misses = number(values.get("near_misses") or values.get("no_of_near_misses"))
+            safety_rows[flow_m]["fatalities"] += fatalities
+            safety_rows[flow_m]["lostTimeInjuries"] += injuries_gov
+            safety_rows[flow_m]["nearMisses"] += near_misses
+            if "health" in subcategory or "safety" in subcategory:
+                incidents_rows[flow_m]["healthSafety"] += fatalities + injuries_gov + near_misses
+            if "violation" in subcategory:
+                incidents_rows[flow_m]["violations"] += number(values.get("no_of_incidents") or values.get("number_of_incidents") or values.get("count") or values.get("quantity") or 1)
 
         # ratio: apDays — carry forward
         payable, cogs = number(values.get("accounts_payable")), number(values.get("cost_of_goods_services_procured"))
@@ -458,6 +467,7 @@ async def get_esg_analytics(db, org_id: str, start_date: str, end_date: str, fac
         breaches = number(values.get("no_of_incidents_of_data_breach") or values.get("data_breaches"))
         if breaches and flow_m:
             breach_rows[flow_m]["breaches"] += breaches
+            incidents_rows[flow_m]["dataBreaches"] += breaches
             category = str(values.get("incident_category") or values.get("breach_category") or "").lower()
             if category in breach_rows[flow_m]:
                 breach_rows[flow_m][category] += breaches or 1
@@ -479,7 +489,7 @@ async def get_esg_analytics(db, org_id: str, start_date: str, end_date: str, fac
         previous = emission_rows.get(previous_key, {})
         emissions_current.append({**row, "previousTotal": sum(previous.get(scope, 0) for scope in ("scope1", "scope2", "scope3"))})
 
-    for rows in (energy_rows, water_rows, waste_rows, workforce_rows, safety_rows, finance_rows, breach_rows):
+    for rows in (energy_rows, water_rows, waste_rows, workforce_rows, safety_rows, finance_rows, breach_rows, incidents_rows):
         for row in rows.values():
             for key, value in row.items():
                 if key != "period":
@@ -494,5 +504,6 @@ async def get_esg_analytics(db, org_id: str, start_date: str, end_date: str, fac
         "safety": list(safety_rows.values()),
         "finance": list(finance_rows.values()),
         "breaches": list(breach_rows.values()),
+        "incidents": list(incidents_rows.values()),
         "governance": governance_totals,
     }
