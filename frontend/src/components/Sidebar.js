@@ -7,6 +7,7 @@ import sidebarConfig from '../config/sidebarConfig';
 import { Button } from './ui/button';
 import { ChevronDown, ChevronRight, LogOut } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
+import superAdminSidebarConfig from '../config/superAdminSidebarConfig';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const LOGO_FALLBACK = 'https://customer-assets.emergentagent.com/job_d67b5362-a184-47b7-81eb-abb9d39b89dd/artifacts/qllw2r8k_Logo_v3.png';
@@ -87,6 +88,9 @@ export default function Sidebar() {
   const { hasAccess } = useModuleAccess();
   const [logoUrl, setLogoUrl] = useState(LOGO_FALLBACK);
 
+  const isSuperAdmin = user?.role === 'super_admin';
+  const activeConfig = isSuperAdmin ? superAdminSidebarConfig : sidebarConfig;
+
   const buildExpanded = () => {
     const result = {};
     const check = (items) => {
@@ -95,7 +99,7 @@ export default function Sidebar() {
         if (item.children) check(item.children);
       });
     };
-    check(sidebarConfig);
+    check(activeConfig);
     return result;
   };
 
@@ -110,10 +114,10 @@ export default function Sidebar() {
           if (item.children) check(item.children);
         });
       };
-      check(sidebarConfig);
+      check(activeConfig);
       return Object.keys(updates).length ? { ...prev, ...updates } : prev;
     });
-  }, [location.pathname]);
+  }, [location.pathname, activeConfig]);
 
   useEffect(() => {
     axios.get(`${API}/software-assets/logo`).then(r => { if (r.data?.url) setLogoUrl(r.data.url); }).catch(() => null);
@@ -123,7 +127,6 @@ export default function Sidebar() {
   const handleLogout = () => { logout(); navigate('/login'); };
 
   if (!user) return null;
-  const isSuperAdmin = user.role === 'super_admin';
 
   return (
     <aside className="flex h-screen w-64 shrink-0 flex-col border-r border-stone-200 bg-white" data-testid="main-sidebar">
@@ -134,15 +137,9 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-3" data-testid="sidebar-nav">
-        {isSuperAdmin ? (
-          <Link to="/super-admin" className={`flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium ${location.pathname === '/super-admin' ? 'bg-emerald-100 text-emerald-900' : 'text-stone-600 hover:bg-stone-50'}`} data-testid="sidebar-super-admin">
-            Super Admin Panel
-          </Link>
-        ) : (
-          sidebarConfig.map(item => (
-            <MenuItem key={item.key} item={item} depth={0} expanded={expanded} onToggle={toggleMenu} location={location} hasAccess={hasAccess} userRole={user.role} />
-          ))
-        )}
+        {activeConfig.map(item => (
+          <MenuItem key={item.key} item={item} depth={0} expanded={expanded} onToggle={toggleMenu} location={location} hasAccess={hasAccess} userRole={user.role} />
+        ))}
       </nav>
 
       <div className="border-t border-stone-200 p-3">

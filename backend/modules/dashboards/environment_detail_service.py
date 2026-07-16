@@ -191,19 +191,68 @@ async def get_environment_detail(
         {"_id": 0, "subcategory": 1, "field_values": 1},
     ).to_list(5000)
 
+    # Source key mappings
+    WITHDRAWAL_KEYS = {
+        "water_withdrawal_through_ground_water": "Ground Water",
+        "water_withdrawal_through_surface_water": "Surface Water",
+        "water_withdrawal_through_third_party_water": "Third-Party Water",
+        "water_withdrawal_through_seawater_desalinated_water": "Seawater / Desalinated",
+    }
+    DISCHARGE_KEYS = {
+        "water_discharged_to_ground_water": "Ground Water",
+        "water_discharged_to_surface_water": "Surface Water",
+        "water_discharged_to_third_party_water": "Third-Party Water",
+        "water_discharged_to_seawater_desalinated_water": "Seawater / Desalinated",
+        "water_sent_for_use_to_other_organization": "Sent to Other Org",
+    }
+    CONSUMPTION_KEYS = {
+        "water_consumption_through_ground_water": "Ground Water",
+        "water_consumption_through_surface_water": "Surface Water",
+        "water_consumption_through_third_party_water": "Third-Party Water",
+        "water_consumption_through_seawater_desalinated_water": "Seawater / Desalinated",
+    }
+
     water_sources: Dict[str, float] = {}
+    water_discharge_sources: Dict[str, float] = {}
+    water_consumption_sources: Dict[str, float] = {}
+
     for wr in water_records:
         sub = (wr.get("subcategory") or "").lower()
         fv = wr.get("field_values") or {}
-        qty = float(fv.get("quantity") or fv.get("total_quantity_of_water_recycled") or 0)
-        if sub == "withdrawal":
-            src = fv.get("source_type") or "Other"
-            water_sources[src] = water_sources.get(src, 0) + qty
 
-    water_sources_list = sorted(
-        [{"name": k, "value": round(v, 2)} for k, v in water_sources.items()],
-        key=lambda x: x["value"], reverse=True,
-    )
+        if sub == "withdrawal":
+            for key, label in WITHDRAWAL_KEYS.items():
+                val = float(fv.get(key) or 0)
+                if val > 0:
+                    water_sources[label] = water_sources.get(label, 0) + val
+        elif sub == "discharge":
+            for key, label in DISCHARGE_KEYS.items():
+                val = float(fv.get(key) or 0)
+                if val > 0:
+                    water_discharge_sources[label] = water_discharge_sources.get(label, 0) + val
+        elif sub == "consumption":
+            # Consumption may use individual keys or a single quantity+source_type
+            found_individual = False
+            for key, label in CONSUMPTION_KEYS.items():
+                val = float(fv.get(key) or 0)
+                if val > 0:
+                    water_consumption_sources[label] = water_consumption_sources.get(label, 0) + val
+                    found_individual = True
+            if not found_individual:
+                qty = float(fv.get("quantity") or 0)
+                src = fv.get("source_type") or "Other"
+                if qty > 0:
+                    water_consumption_sources[src] = water_consumption_sources.get(src, 0) + qty
+
+    def _sorted_sources(d):
+        return sorted(
+            [{"name": k, "value": round(v, 2)} for k, v in d.items()],
+            key=lambda x: x["value"], reverse=True,
+        )
+
+    water_sources_list = _sorted_sources(water_sources)
+    water_discharge_list = _sorted_sources(water_discharge_sources)
+    water_consumption_list = _sorted_sources(water_consumption_sources)
 
     # --- Waste type breakdown ---
     waste_records = await db.environment_records.find(
@@ -234,6 +283,8 @@ async def get_environment_detail(
         "scope3_downstream": fmt_scope3(scope3_downstream),
         "hotspots": hotspots,
         "water_sources": water_sources_list,
+        "water_discharge_sources": water_discharge_list,
+        "water_consumption_sources": water_consumption_list,
         "hazardous_waste": hazardous_waste,
         "non_hazardous_waste": non_hazardous_waste,
     }
