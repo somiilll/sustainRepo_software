@@ -34,8 +34,10 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
 - [x] Notification system
 - [x] File upload system
 
-### Bug Fixes (Latest Session — Jul 16, 2026)
-- [x] Fixed Social Dashboard 500 error — `NameError: name 'status' is not defined` in `social_detail_service.py` line 182. Replaced undefined `status` variable with proper pending/closed complaint distribution logic.
+### Bug Fixes (Jul 16, 2026)
+- [x] Fixed Social Dashboard 500 error — `NameError: name 'status' is not defined` in `social_detail_service.py` line 182
+- [x] Fixed Governance Dashboard AP Days — aligned with ESG Summary by using latest record values instead of averaging (both now 352.8 days)
+- [x] Governance Data Breaches/Violations/Corruption case-sensitivity matching fixed — values now showing correctly (6, 5, 3)
 
 ## Pending Issues
 | ID | Priority | Description | Status |

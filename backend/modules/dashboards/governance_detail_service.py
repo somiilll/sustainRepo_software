@@ -16,8 +16,8 @@ async def get_governance_detail(
     ).to_list(10000)
 
     # KPI accumulators
-    total_ap_days = 0.0
-    ap_count = 0
+    latest_ap = None
+    latest_cogs = None
     total_anti_competitive = 0
     total_data_breaches = 0
     total_violations = 0
@@ -50,14 +50,16 @@ async def get_governance_detail(
         fv = rec.get("field_values") or {}
         period = _period_key(rec.get("reporting_period"))
 
-        # Accounts Payable Days
+        # Accounts Payable Days — keep latest values seen
         if "payable" in sub or "accounts" in sub:
             ap = float(fv.get("accounts_payable") or 0)
             cogs = float(fv.get("cost_of_goods_services_procured") or fv.get("cogs") or 0)
-            if cogs > 0:
+            if ap:
+                latest_ap = ap
+            if cogs:
+                latest_cogs = cogs
+            if ap and cogs:
                 days = (ap * 365) / cogs
-                total_ap_days += days
-                ap_count += 1
                 if period != "unknown":
                     ap_trend[period] = ap_trend.get(period, 0) + days
 
@@ -89,7 +91,7 @@ async def get_governance_detail(
             if period != "unknown":
                 corruption_trend[period] = corruption_trend.get(period, 0) + cases
 
-    avg_ap_days = round(total_ap_days / ap_count, 1) if ap_count > 0 else round(total_ap_days, 1)
+    avg_ap_days = round((latest_ap * 365) / latest_cogs, 1) if latest_ap and latest_cogs else 0.0
 
     def _sorted_trend(d):
         return [{"period": k, "value": round(v, 1)} for k, v in sorted(d.items())]
