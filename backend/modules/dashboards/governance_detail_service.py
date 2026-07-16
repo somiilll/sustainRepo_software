@@ -62,29 +62,29 @@ async def get_governance_detail(
                     ap_trend[period] = ap_trend.get(period, 0) + days
 
         # Anti-Competitive Cases
-        if "anti-competitive" in sub or "anti_competitive" in sub or "anticompetitive" in sub:
-            cases = int(fv.get("total_anti_competitive_cases") or fv.get("no_of_cases") or fv.get("cases") or 0)
+        if "anti-competitive" in sub or "Competitive" in sub:
+            cases = int(fv.get("total_no_of_cases") or 0)
             total_anti_competitive += cases
             if period != "unknown":
                 anti_comp_trend[period] = anti_comp_trend.get(period, 0) + cases
 
         # Data Breaches
-        if "breach" in sub or "cyber" in sub or "data" in sub:
-            breaches = int(fv.get("total_data_breaches") or fv.get("no_of_breaches") or fv.get("breaches") or 0)
+        if "Breach" in sub or "Data" in sub:
+            breaches = int(fv.get("no_of_incidents_of_data_breach") or 0)
             total_data_breaches += breaches
             if period != "unknown":
                 breach_trend[period] = breach_trend.get(period, 0) + breaches
 
         # Regulatory / Compliance Violations
-        if "violation" in sub or "compliance" in sub or "regulatory" in sub:
-            violations = int(fv.get("total_violations") or fv.get("no_of_violations") or fv.get("violations") or 0)
+        if "Violations" in sub or "compliance" in sub or "regulatory" in sub:
+            violations = int(fv.get("no_of_incidents_of_violations") or 0)
             total_violations += violations
             if period != "unknown":
                 violation_trend[period] = violation_trend.get(period, 0) + violations
 
         # Corruption Cases
-        if "corruption" in sub or "bribery" in sub:
-            cases = int(fv.get("total_corruption_cases") or fv.get("no_of_cases") or fv.get("cases") or 0)
+        if "Corruption" in sub or "bribery" in sub:
+            cases = int(fv.get("no_of_confirmed_corruption_incidents") or 0)
             total_corruption += cases
             if period != "unknown":
                 corruption_trend[period] = corruption_trend.get(period, 0) + cases

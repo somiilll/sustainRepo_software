@@ -149,6 +149,8 @@ export default function DashboardGovernance({ data }) {
     );
   }
 
+  console.log("kpis", kpis)
+
   return (
     <div className="space-y-5" data-testid="dashboard-governance">
       <StickyFilterBar
