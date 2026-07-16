@@ -159,30 +159,34 @@ async def get_social_detail(
 
         # --- Complaints ---
         if "complaint" in sub:
-            ic = int(fv.get("internal_complaints") or 0)
-            pc = int(fv.get("posh_complaints") or 0)
-            cc = int(fv.get("customer_complaints") or 0)
-            ec = int(fv.get("external_complaints") or 0)
-            sc = int(fv.get("sensitive_customer_data_complaints") or fv.get("sensitive_data_complaints") or 0)
+            ic = int(fv.get("total_no_of_complaints_recieved") or 0)
+            pc = int(fv.get("no_of_posh_complaints") or 0)
+            cc = int(fv.get("total_no_of_complaints") or 0)
+            ec = int(fv.get("no_of_complaints") or 0)
+            sc = int(fv.get("no_of_complaints_involving_sensitive_customer_data") or 0)
+            pending_complaints = int(fv.get("no_of_pending_complaints") or 0)
             internal_complaints += ic
             posh_complaints += pc
             customer_complaints += cc
             external_complaints += ec
             sensitive_data_complaints += sc
+            pending_status_complaints += pending_complaints
 
             complaint_categories["Internal"] += ic
             complaint_categories["External"] += ec
             complaint_categories["POSH"] += pc
             complaint_categories["Customer"] += cc
             complaint_categories["Sensitive Data"] += sc
+            complaint_status["Open"] += pending_status_complaints
+            complaint_status[status] += pending_status_complaints
 
             # Status
-            status = (fv.get("status") or fv.get("complaint_status") or "").capitalize()
-            if status in complaint_status:
-                total_for_status = ic + pc + cc + ec + sc
-                complaint_status[status] += total_for_status
-            else:
-                complaint_status["Open"] += ic + pc + cc + ec + sc
+            # status = (fv.get("status") or fv.get("no_of_pending_complaints") or "").capitalize()
+            # if status in complaint_status:
+            #     total_for_status = ic + pc + cc + ec + sc
+            #     complaint_status[status] += total_for_status
+            # else:
+            #     complaint_status["Open"] += ic + pc + cc + ec + sc
 
             # Filed against
             fa = fv.get("complaint_filed_against") or ""

@@ -144,7 +144,7 @@ function EmployeeDiversityBar({ male, female, total }) {
         <p className="text-3xl font-bold text-stone-900">{t.toLocaleString()}</p>
         <p className="text-[11px] text-stone-500 mt-0.5">Total Employees</p>
       </div>
-      <div className="h-5 rounded-full overflow-hidden flex bg-stone-100">
+      <div className="w-full h-10 rounded-full flex overflow-hidden shadow-inner bg-stone-100 text-xs font-bold text-white">
         {male > 0 && (
           <div className="h-full transition-all duration-700 flex items-center justify-center"
             style={{ width: `${malePct}%`, backgroundColor: BLUE[500] }}>
@@ -225,6 +225,7 @@ export default function DashboardSocial({ data }) {
       .finally(() => setDetailLoading(false));
   }, [dateRange, selectedFacilities, getAuthHeader]);
 
+  console.log("detail", detail)
   const kpis = detail?.kpis || {};
   const diversity = detail?.diversity || { male: 0, female: 0, minority: 0, vulnerable: 0 };
   const boardDiv = detail?.board_diversity || {};
@@ -267,7 +268,7 @@ export default function DashboardSocial({ data }) {
     );
   }
 
-  const latestData = workforceComp[workforceComp.length - 1];
+  const latestData = workforceComp.length > 0 ? workforceComp[workforceComp.length - 1] : {};
   const { permanent = 0, temporary = 0, workers = 0, contract = 0 } = latestData;
   const total = permanent + temporary + workers + contract;
 
