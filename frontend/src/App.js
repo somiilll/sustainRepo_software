@@ -276,6 +276,7 @@ const AppRoutes = () => {
           <Route path="reporting/brsr" element={<BRSRModule />} />
           <Route path="reporting/gri" element={<GRIModule />} />
           <Route path="reporting/materiality" element={<PlaceholderPage title="Materiality Assessment" />} />
+          <Route path="materiality" element={<PlaceholderPage title="Materiality Assessment" />} />
           <Route path="workflow/tracker" element={<WorkflowTracker />} />
           <Route path="workflow/my-task" element={<WorkflowMyTask />} />
           <Route path="workflow/approver-queue" element={<WorkflowApproverQueue />} />

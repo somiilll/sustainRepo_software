@@ -69,13 +69,18 @@ const sidebarConfig = [
     path: '/governance',
   },
   {
+    key: 'materiality',
+    label: 'Materiality Assessment',
+    icon: 'BarChart3',
+    path: '/materiality',
+  },
+  {
     key: 'reporting',
     label: 'Reporting',
     icon: 'FileText',
     children: [
       { key: 'reporting.brsr', label: 'BRSR', icon: 'ScrollText', path: '/reporting/brsr' },
       { key: 'reporting.gri', label: 'GRI', icon: 'BookOpen', path: '/reporting/gri' },
-      { key: 'reporting.materiality', label: 'Materiality Assessment', icon: 'BarChart3', path: '/reporting/materiality' },
     ],
   },
   {
