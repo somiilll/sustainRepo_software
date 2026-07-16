@@ -142,6 +142,7 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
   const energyIntensity = productionQty ? totalEnergy / productionQty : null;
   const ghgIntensity = productionQty ? scope12 / productionQty : null;
 
+
   const scopeTotals = {
     scope1: totals.scope1 || emissionData.total_scope1 || 0,
     scope2: totals.scope2 || emissionData.total_scope2 || 0,
@@ -202,6 +203,7 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
   }
 
   console.log("waterRows", waterRows)
+    console.log("metrics", metrics)
 
   return (
     <div className="space-y-6 pb-10" data-testid="executive-esg-dashboard">
