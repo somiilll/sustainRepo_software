@@ -46,6 +46,7 @@ async def get_social_detail(
     customer_complaints = 0
     external_complaints = 0
     sensitive_data_complaints = 0
+    pending_status_complaints = 0
 
     # Training breakdowns
     training_by_attendee: Dict[str, int] = {}

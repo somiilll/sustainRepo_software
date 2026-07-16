@@ -292,7 +292,7 @@ export default function DashboardSocial({ data }) {
       {/* ── ROW 1: KPI CARDS ─────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3" data-testid="social-kpi-row">
         {/* <PremiumKpiCard title="Total Employees" value={kpis.total_employees || 0} unit="" icon={Users} accentColor={PURPLE[500]} loading={false} /> */}
-        <PremiumKpiCard title="Total Employees" value={total || 0} unit="" icon={Users} accentColor={PURPLE[500]} loading={false} />
+        <PremiumKpiCard title="Total Employees" value={kpis.total_employees || 0} unit="" icon={Users} accentColor={PURPLE[500]} loading={false} />
         <PremiumKpiCard title="Trainings" value={kpis.total_trainings || 0} unit="" icon={GraduationCap} accentColor={BLUE[500]} loading={false} />
         <PremiumKpiCard title="Board of Directors" value={kpis.total_board || 0} unit="" icon={Crown} accentColor={TEAL[500]} loading={false} />
         <PremiumKpiCard title="Return to Work" value={kpis.return_to_work || 0} unit="" icon={RotateCcw} accentColor={GREEN[500]} loading={false} />
