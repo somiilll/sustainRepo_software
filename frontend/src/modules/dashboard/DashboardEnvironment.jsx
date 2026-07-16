@@ -197,93 +197,150 @@ function ScopeContributionCard({ scope1, scope2, scope3 }) {
   );
 }
 
-/* ── Scope Explorer with tabs ──────────────────── */
-function ScopeExplorerCard({ scope1, scope2, scope3Upstream, scope3Downstream }) {
-  const [tab, setTab] = useState('scope1');
-  const tabs = [
-    { key: 'scope1', label: 'Scope 1', color: SCOPE_COLORS.scope1 },
-    { key: 'scope2', label: 'Scope 2', color: SCOPE_COLORS.scope2 },
-    { key: 'scope3', label: 'Scope 3', color: SCOPE_COLORS.scope3 },
-  ];
-
-  const activeColors = tab === 'scope1' ? S1_COLORS : tab === 'scope2' ? S2_COLORS : S3_COLORS;
-  
-  const getData = () => {
-    if (tab === 'scope1') return scope1;
-    if (tab === 'scope2') return scope2;
-    return null; 
-  };
+/* ── Scope Summary Card (independent, expandable) ── */
+function ScopeSummaryCard({ title, subtitle, total, data, colors, badgeColor, testId, children }) {
+  const [expanded, setExpanded] = useState(false);
+  const sorted = [...data].sort((a, b) => b.value - a.value);
+  const top3 = sorted.slice(0, 3);
+  const hasData = sorted.some(d => d.value > 0);
+  const maxVal = Math.max(...sorted.map(d => d.value), 1);
 
   return (
-    <div data-testid="scope-explorer" className="w-full">
-      {/* 1. Polished Segmented Control Tabs */}
-      <div className="flex w-full mb-6">
-        <div className="inline-flex bg-stone-100/80 p-1 rounded-xl border border-stone-200/60 shadow-inner">
-          {tabs.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              data-testid={`scope-tab-${t.key}`}
-              className={`relative px-5 py-2 rounded-lg text-sm font-medium transition-all duration-200 ease-out ${
-                tab === t.key 
-                  ? 'text-white shadow-md transform scale-100' 
-                  : 'text-stone-500 hover:text-stone-700 hover:bg-stone-200/50 scale-95'
-              }`}
-              style={tab === t.key ? { backgroundColor: t.color } : {}}
-            >
-              {t.label}
+    <div className="rounded-xl border border-stone-200 bg-white shadow-sm overflow-hidden transition-all duration-300" data-testid={testId}>
+      {/* Header */}
+      <div className="px-5 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="h-8 w-1.5 rounded-full" style={{ backgroundColor: badgeColor }} />
+          <div>
+            <h3 className="text-sm font-bold text-stone-900">{title}</h3>
+            <p className="text-[11px] text-stone-500">{subtitle}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-lg font-bold tabular-nums" style={{ color: badgeColor }}>
+            {total > 0 ? total.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—'}
+          </span>
+          <span className="text-[10px] font-medium text-stone-400">tCO₂e</span>
+          {hasData && (
+            <button onClick={() => setExpanded(e => !e)}
+              className="ml-1 p-1.5 rounded-lg hover:bg-stone-100 transition-colors text-stone-400 hover:text-stone-600"
+              data-testid={`${testId}-toggle`}>
+              <svg className={`w-4 h-4 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
             </button>
-          ))}
+          )}
         </div>
       </div>
 
-      {/* 2. Content Area with a subtle fade-in effect (Key forces re-render on tab change) */}
-      <div key={tab} className="animate-in fade-in slide-in-from-bottom-2 duration-300 ease-out">
-        {tab !== 'scope3' ? (
-          <div className="bg-stone-50/30 rounded-xl p-1">
-            <HorizontalBarSection data={getData() || []} colors={activeColors} />
+      {!hasData ? (
+        <div className="px-5 pb-5">
+          <div className="flex flex-col items-center justify-center py-8 bg-stone-50/60 rounded-lg border border-dashed border-stone-200">
+            <p className="text-xs text-stone-400">No emission data recorded</p>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-5">
-            {/* 3. Upgraded Scope 3 Containers */}
-            {scope3Upstream?.length > 0 && (
-              <div className="bg-white border border-stone-200 shadow-sm rounded-xl p-5">
-                <div className="flex items-center gap-2 mb-4 border-b border-stone-100 pb-3">
-                  <div className="w-2 h-4 rounded-full bg-stone-300" />
-                  <h4 className="text-[12px] font-bold text-stone-600 uppercase tracking-widest">
-                    Upstream Activities
-                  </h4>
-                </div>
-                <HorizontalBarSection data={scope3Upstream} colors={S3_COLORS} />
-              </div>
-            )}
+        </div>
+      ) : (
+        <>
+          {/* Collapsed: top 3 preview */}
+          {!expanded && (
+            <div className="px-5 pb-4 space-y-2">
+              {top3.map((item, i) => {
+                const pct = (item.value / maxVal) * 100;
+                const contribution = total > 0 ? ((item.value / total) * 100).toFixed(1) : 0;
+                return (
+                  <div key={item.name}>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="text-[11px] font-medium text-stone-600 truncate max-w-[60%]">{item.name}</span>
+                      <span className="text-[11px] tabular-nums text-stone-500">
+                        <span className="font-semibold text-stone-800">{item.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                        <span className="ml-1 text-stone-400">({contribution}%)</span>
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full bg-stone-100 overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.max(pct, 0.5)}%`, backgroundColor: colors[i % colors.length] }} />
+                    </div>
+                  </div>
+                );
+              })}
+              {sorted.length > 3 && (
+                <button onClick={() => setExpanded(true)} className="text-[10px] font-medium text-stone-400 hover:text-stone-600 transition-colors pt-0.5">
+                  + {sorted.length - 3} more categories
+                </button>
+              )}
+            </div>
+          )}
 
-            {scope3Downstream?.length > 0 && (
-              <div className="bg-white border border-stone-200 shadow-sm rounded-xl p-5">
-                <div className="flex items-center gap-2 mb-4 border-b border-stone-100 pb-3">
-                  <div className="w-2 h-4 rounded-full bg-stone-400" />
-                  <h4 className="text-[12px] font-bold text-stone-600 uppercase tracking-widest">
-                    Downstream Activities
-                  </h4>
-                </div>
-                <HorizontalBarSection data={scope3Downstream} colors={S3_COLORS.slice(3)} />
-              </div>
-            )}
+          {/* Expanded: full breakdown */}
+          {expanded && (
+            <div className="px-5 pb-5 border-t border-stone-100 pt-4 space-y-2.5 animate-in fade-in slide-in-from-top-1 duration-200">
+              {children ? children : sorted.map((item, i) => {
+                const pct = (item.value / maxVal) * 100;
+                const contribution = total > 0 ? ((item.value / total) * 100).toFixed(1) : 0;
+                return (
+                  <div key={item.name}>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="text-xs font-medium text-stone-700">{item.name}</span>
+                      <span className="text-xs tabular-nums">
+                        <span className="font-semibold text-stone-900">{item.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                        <span className="ml-1 text-stone-400">tCO₂e ({contribution}%)</span>
+                      </span>
+                    </div>
+                    <div className="h-3 rounded-full bg-stone-100 overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.max(pct, 0.5)}%`, backgroundColor: colors[i % colors.length] }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
 
-            {/* 4. Polished Empty State */}
-            {(!scope3Upstream || scope3Upstream.length === 0) && 
-             (!scope3Downstream || scope3Downstream.length === 0) && (
-              <div className="flex flex-col items-center justify-center py-12 px-4 bg-stone-50 rounded-xl border border-dashed border-stone-300">
-                <svg className="w-8 h-8 text-stone-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                </svg>
-                <p className="text-sm font-medium text-stone-500">No Scope 3 data available</p>
-                <p className="text-xs text-stone-400 mt-1">Value chain emissions have not been recorded.</p>
+/* ── Scope 3 expanded content (upstream + downstream) ── */
+function Scope3ExpandedContent({ upstream, downstream, colors }) {
+  const allData = [...upstream, ...downstream];
+  const maxVal = Math.max(...allData.map(d => d.value), 1);
+  const total = allData.reduce((s, d) => s + d.value, 0);
+
+  const renderSection = (label, data, offset) => {
+    if (!data.length) return null;
+    return (
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <span className="h-3 w-0.5 rounded-full bg-stone-300" />
+          <h4 className="text-[11px] font-bold text-stone-500 uppercase tracking-widest">{label}</h4>
+        </div>
+        <div className="space-y-2.5">
+          {data.map((item, i) => {
+            const pct = (item.value / maxVal) * 100;
+            const contribution = total > 0 ? ((item.value / total) * 100).toFixed(1) : 0;
+            return (
+              <div key={item.name}>
+                <div className="flex items-center justify-between mb-0.5">
+                  <span className="text-xs font-medium text-stone-700">{item.name}</span>
+                  <span className="text-xs tabular-nums">
+                    <span className="font-semibold text-stone-900">{item.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                    <span className="ml-1 text-stone-400">tCO₂e ({contribution}%)</span>
+                  </span>
+                </div>
+                <div className="h-3 rounded-full bg-stone-100 overflow-hidden">
+                  <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.max(pct, 0.5)}%`, backgroundColor: colors[(i + offset) % colors.length] }} />
+                </div>
               </div>
-            )}
-          </div>
-        )}
+            );
+          })}
+        </div>
       </div>
+    );
+  };
+
+  return (
+    <div className="space-y-5">
+      {renderSection('Upstream Activities', upstream, 0)}
+      {renderSection('Downstream Activities', downstream, upstream.length)}
     </div>
   );
 }
@@ -599,15 +656,36 @@ export default function DashboardEnvironment({ data }) {
         </SectionCard>
       </div> */}
 
-      {/* ── ROW 3: SCOPE EXPLORER ─────────────────── */}
-      <SectionCard title="Scope Explorer" subtitle="Drill into emission sources by scope" accent="#3b82f6" testId="section-scope-explorer">
-        <ScopeExplorerCard
-          scope1={envDetail?.scope1_breakdown || []}
-          scope2={envDetail?.scope2_breakdown || []}
-          scope3Upstream={envDetail?.scope3_upstream || []}
-          scope3Downstream={envDetail?.scope3_downstream || []}
+      {/* ── ROW 3: SCOPE EXPLORER (3 independent cards) ── */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4" data-testid="scope-explorer">
+        <ScopeSummaryCard
+          title="Scope 1" subtitle="Direct Emissions"
+          total={(envDetail?.scope1_breakdown || []).reduce((s, d) => s + d.value, 0)}
+          data={envDetail?.scope1_breakdown || []}
+          colors={S1_COLORS} badgeColor={SCOPE_COLORS.scope1}
+          testId="scope-card-1"
         />
-      </SectionCard>
+        <ScopeSummaryCard
+          title="Scope 2" subtitle="Indirect Energy Emissions"
+          total={(envDetail?.scope2_breakdown || []).reduce((s, d) => s + d.value, 0)}
+          data={envDetail?.scope2_breakdown || []}
+          colors={S2_COLORS} badgeColor={SCOPE_COLORS.scope2}
+          testId="scope-card-2"
+        />
+        <ScopeSummaryCard
+          title="Scope 3" subtitle="Value Chain Emissions"
+          total={[...(envDetail?.scope3_upstream || []), ...(envDetail?.scope3_downstream || [])].reduce((s, d) => s + d.value, 0)}
+          data={[...(envDetail?.scope3_upstream || []), ...(envDetail?.scope3_downstream || [])]}
+          colors={S3_COLORS} badgeColor={SCOPE_COLORS.scope3}
+          testId="scope-card-3"
+        >
+          <Scope3ExpandedContent
+            upstream={envDetail?.scope3_upstream || []}
+            downstream={envDetail?.scope3_downstream || []}
+            colors={S3_COLORS}
+          />
+        </ScopeSummaryCard>
+      </div>
 
       {/* ── ROW 4: ENERGY ─────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
