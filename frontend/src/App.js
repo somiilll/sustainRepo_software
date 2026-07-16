@@ -56,6 +56,7 @@ import ApproverQueue from './components/ApproverQueue';
 import MyAssignments from './pages/MyAssignments';
 import PlaceholderPage from './pages/PlaceholderPage';
 import GHGTargetsPage from './pages/GHGTargetsPage';
+import ESGTargetsTab from './components/ESGTargetsTab';
 import WorkflowApproverQueue from './pages/WorkflowApproverQueue';
 import WorkflowTracker from './pages/WorkflowTracker';
 import WorkflowMyTask from './pages/WorkflowMyTask';
@@ -282,9 +283,9 @@ const AppRoutes = () => {
           <Route path="uploads/bulk" element={<BulkUpload />} />
           <Route path="uploads/kpi-metrics" element={<PlaceholderPage title="KPI Metrics" />} />
           <Route path="targets/voluntary/ghg" element={<GHGTargetsPage />} />
-          <Route path="targets/voluntary/environment" element={<PlaceholderPage title="Environment Targets" />} />
-          <Route path="targets/voluntary/social" element={<PlaceholderPage title="Social Targets" />} />
-          <Route path="targets/voluntary/governance" element={<PlaceholderPage title="Governance Targets" />} />
+          <Route path="targets/voluntary/environment" element={<ESGTargetsTab section="environment" />} />
+          <Route path="targets/voluntary/social" element={<ESGTargetsTab section="social" />} />
+          <Route path="targets/voluntary/governance" element={<ESGTargetsTab section="governance" />} />
           <Route path="targets/sbti" element={<SBTiTargets />} />
           <Route path="repo-pilot" element={<RepoPilot />} />
           <Route path="my-assignments" element={<Navigate to="/workflow/my-task" replace />} />
