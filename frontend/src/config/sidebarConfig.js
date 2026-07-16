@@ -121,6 +121,12 @@ const sidebarConfig = [
     ],
   },
   {
+    key: 'reports',
+    label: 'Reports',
+    icon: 'FileBarChart',
+    path: '/reports',
+  },
+  {
     key: 'users',
     label: 'Users',
     icon: 'Users',

@@ -386,7 +386,7 @@ async def get_esg_analytics(db, org_id: str, start_date: str, end_date: str, fac
             if key:
                 water_rows[period][key] += value
         elif category == "waste":
-            key = {"generated": "generated", "recovered": "recovered", "disposal": "disposed"}.get(subcategory)
+            key = {"generated": "generated", "recovered": "recovered / diverted from disposal", "disposal": "disposed"}.get(subcategory)
             if key:
                 waste_rows[period][key] += quantity
 
