@@ -30,43 +30,16 @@ import {
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 /* ── colour palette ────────────────────────────── */
-// const SCOPE_COLORS = { scope1: '#059669', scope2: '#0ea5e9', scope3: '#f59e0b' };
-// const S1_COLORS = ['#059669', '#34d399', '#6ee7b7', '#a7f3d0'];
-// const S2_COLORS = ['#0ea5e9', '#38bdf8', '#7dd3fc', '#bae6fd'];
-// const S3_COLORS = ['#f59e0b', '#fbbf24', '#fcd34d', '#fde68a', '#fef3c7', '#d97706', '#b45309', '#92400e'];
+// A slightly deeper, mature rust for the main tab/text so it remains readable
 const SCOPE_COLORS = { 
-  scope1: '#ea580c', // Rust (Deep Orange)
-  scope2: '#eab308', // Amber (Warm Yellow)
-  scope3: '#7e22ce'  // Plum (Deep Purple)
+  scope1: '#c2410c', // Muted Rust 
+  scope2: '#eab308', // (Keeping your previous scope 2)
+  scope3: '#8b5cf6'  // (Keeping your previous scope 3)
 };
 
-// Scope 1: Rust gradient (Darkest to lightest)
-const S1_COLORS = [
-  '#c2410c', 
-  '#ea580c', 
-  '#f97316', 
-  '#fb923c'
-];
-
-// Scope 2: Amber gradient (Darkest to lightest)
-const S2_COLORS = [
-  '#ca8a04', 
-  '#eab308', 
-  '#facc15', 
-  '#fde047'
-];
-
-// Scope 3: Plum gradient (8 shades for your upstream/downstream split)
-const S3_COLORS = [
-  '#581c87', // Darkest Plum
-  '#6b21a8', 
-  '#7e22ce', 
-  '#9333ea', 
-  '#a855f7', 
-  '#c084fc', 
-  '#d8b4fe', 
-  '#e9d5ff'  // Lightest Plum
-];
+const S1_COLORS = ['#FFA726', '#FF7043', '#FFE082', '#F57C00'];
+const S2_COLORS = ['#FFEB3B', '#FBC02D', '#FFF176'];
+const S3_COLORS = ['#3F51B5', '#4FC3F7', '#E91E63', '#7E57C2', '#F48FB1', '#81D4FA', '#9C27B0'];
 const TREEMAP_COLORS = ['#059669', '#0ea5e9', '#f59e0b', '#8b5cf6', '#ef4444', '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16'];
 const ENERGY_COLORS = { renewable: '#059669', nonRenewable: '#f59e0b' };
 const WATER_COLORS = { withdrawn: '#0ea5e9', consumed: '#6366f1', discharged: '#f97316', recycled: '#059669' };
@@ -140,59 +113,238 @@ function HorizontalBarSection({ data, colors, unit = 'tCO₂e', maxValue }) {
 }
 
 /* ── Scope Contribution stacked bar ───────────── */
-function ScopeContributionCard({ scope1, scope2, scope3 }) {
+// function ScopeContributionCard({ scope1, scope2, scope3 }) {
+//   const scopes = [
+//     { label: 'Scope 1', data: scope1, colors: S1_COLORS, color: SCOPE_COLORS.scope1 },
+//     { label: 'Scope 2', data: scope2, colors: S2_COLORS, color: SCOPE_COLORS.scope2 },
+//     // { label: 'Scope 3 Upstream', data: scope3?.upstream || [], colors: S3_COLORS, color: SCOPE_COLORS.scope3 },
+//     { label: 'Scope 3', data: scope3?.upstream || [], colors: S3_COLORS, color: SCOPE_COLORS.scope3 },
+//   ];
+//   const total = (d) => d.reduce((s, i) => s + i.value, 0);
+
+//   return (
+//     <div className="space-y-5" data-testid="scope-contribution">
+//       {scopes.map((scope) => {
+//         const t = total(scope.data);
+//         if (t <= 0) return null;
+//         return (
+//           <div key={scope.label}>
+//             <div className="flex items-center justify-between mb-2">
+//               <span className="text-xs font-semibold text-stone-800">{scope.label}</span>
+//               <span className="text-xs font-bold tabular-nums" style={{ color: scope.color }}>
+//                 {t.toLocaleString(undefined, { maximumFractionDigits: 0 })} tCO₂e
+//               </span>
+//             </div>
+//             {/* Stacked horizontal bar */}
+//             <div className="h-6 rounded-full bg-stone-100 overflow-hidden flex">
+//               {scope.data.filter(d => d.value > 0).map((d, i) => {
+//                 const pct = (d.value / t) * 100;
+//                 return (
+//                   <div
+//                     key={d.name}
+//                     className="h-full relative group cursor-pointer transition-opacity hover:opacity-80"
+//                     style={{ width: `${pct}%`, backgroundColor: scope.colors[i % scope.colors.length] }}
+//                     title={`${d.name}: ${d.value.toLocaleString(undefined, { maximumFractionDigits: 1 })} tCO₂e (${pct.toFixed(1)}%)`}
+//                   >
+//                     {pct > 12 && (
+//                       <span className="absolute inset-0 flex items-center justify-center text-[9px] font-semibold text-white truncate px-1">
+//                         {d.name.replace('Purchased ', '')}
+//                       </span>
+//                     )}
+//                   </div>
+//                 );
+//               })}
+//             </div>
+//             {/* Legend */}
+//             <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5">
+//               {scope.data.filter(d => d.value > 0).map((d, i) => (
+//                 <span key={d.name} className="flex items-center gap-1 text-[10px] text-stone-500">
+//                   <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: scope.colors[i % scope.colors.length] }} />
+//                   {d.name}
+//                 </span>
+//               ))}
+//             </div>
+//           </div>
+//         );
+//       })}
+//     </div>
+//   );
+// }
+
+// export function ScopeContributionCard({ scope1, scope2, scope3 }) {
+//   // We structure the data to iterate through each scope panel cleanly
+//   const scopes = [
+//     { label: 'Scope 1 (Direct Emissions)', data: scope1, colors: S1_COLORS },
+//     { label: 'Scope 2 (Indirect Grid Energy)', data: scope2, colors: S2_COLORS },
+//     // Combining upstream and downstream for Scope 3 if needed, or just using upstream based on your original code
+//     { label: 'Scope 3 (Value Chain)', data: [...(scope3?.upstream || []), ...(scope3?.downstream || [])], colors: S3_COLORS },
+//   ];
+
+//   const total = (d) => d.reduce((s, i) => s + i.value, 0);
+
+//   return (
+//     // Main Container - Dark industrial theme with subtle border
+//     <div 
+//       className="bg-[#1e2329] p-4 sm:p-5 rounded-xl border border-slate-700 shadow-2xl font-sans" 
+//       data-testid="scope-contribution-industrial"
+//     >
+//       <div className="space-y-4">
+//         {scopes.map((scope) => {
+//           const t = total(scope.data);
+//           if (t <= 0) return null;
+
+//           // Sort data highest to lowest for a cleaner waterfall look
+//           const sortedData = [...scope.data]
+//             .filter(d => d.value > 0)
+//             .sort((a, b) => b.value - a.value);
+
+//           return (
+//             // Individual Scope Panel
+//             <div key={scope.label} className="border border-slate-600 rounded-lg overflow-hidden bg-[#242a31]">
+              
+//               {/* Panel Header */}
+//               <div className="flex justify-between items-center px-4 py-2.5 border-b border-slate-600 bg-[#2a3139]">
+//                 <h3 className="text-slate-200 font-medium text-sm tracking-wide">
+//                   {scope.label}
+//                 </h3>
+//                 <span className="text-[#00D4FF] font-bold text-sm tracking-wider">
+//                   {t.toLocaleString(undefined, { maximumFractionDigits: 0 })} tCO₂e
+//                 </span>
+//               </div>
+              
+//               {/* Data Rows */}
+//               <div className="p-4 space-y-3.5">
+//                 {sortedData.map((d, i) => {
+//                   const pct = (d.value / t) * 100;
+//                   const barColor = scope.colors[i % scope.colors.length];
+                  
+//                   return (
+//                     <div key={d.name} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs group">
+                      
+//                       {/* Label */}
+//                       <div className="sm:w-1/3 text-slate-300 truncate font-medium tracking-wide" title={d.name}>
+//                         {d.name}
+//                       </div>
+                      
+//                       {/* Progress Bar Container */}
+//                       <div className="flex-1 h-2.5 bg-slate-700/50 rounded-sm overflow-hidden flex relative">
+//                         <div 
+//                           className="h-full rounded-sm transition-all duration-500 ease-out"
+//                           style={{ 
+//                             width: `${pct}%`, 
+//                             backgroundColor: barColor,
+//                             // Adding a subtle neon glow to the bars
+//                             boxShadow: `0 0 10px ${barColor}40` 
+//                           }} 
+//                         />
+//                       </div>
+                      
+//                       {/* Values (Aligned to the right, using mono font for numbers) */}
+//                       <div className="sm:w-1/3 flex justify-between sm:justify-end gap-4 text-slate-300 font-mono text-[11px]">
+//                         <span>
+//                           {d.value.toLocaleString(undefined, { maximumFractionDigits: 0 })} tCO₂e
+//                         </span>
+//                         <span className="text-slate-500 w-12 text-right">
+//                           ({pct.toFixed(0)}%)
+//                         </span>
+//                       </div>
+                      
+//                     </div>
+//                   );
+//                 })}
+//               </div>
+//             </div>
+//           );
+//         })}
+//       </div>
+//     </div>
+//   );
+// }
+
+
+export function ScopeContributionCard({ scope1, scope2, scope3 }) {
   const scopes = [
-    { label: 'Scope 1', data: scope1, colors: S1_COLORS, color: SCOPE_COLORS.scope1 },
-    { label: 'Scope 2', data: scope2, colors: S2_COLORS, color: SCOPE_COLORS.scope2 },
-    { label: 'Scope 3 Upstream', data: scope3?.upstream || [], colors: S3_COLORS, color: SCOPE_COLORS.scope3 },
+    { label: 'Scope 1 (Direct Emissions)', data: scope1, colors: S1_COLORS, accent: '#F97316' },
+    { label: 'Scope 2 (Indirect Grid Energy)', data: scope2, colors: S2_COLORS, accent: '#EAB308' },
+    { label: 'Scope 3 (Value Chain)', data: [...(scope3?.upstream || []), ...(scope3?.downstream || [])], colors: S3_COLORS, accent: '#3B82F6' },
   ];
+
   const total = (d) => d.reduce((s, i) => s + i.value, 0);
 
   return (
-    <div className="space-y-5" data-testid="scope-contribution">
-      {scopes.map((scope) => {
-        const t = total(scope.data);
-        if (t <= 0) return null;
-        return (
-          <div key={scope.label}>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-stone-800">{scope.label}</span>
-              <span className="text-xs font-bold tabular-nums" style={{ color: scope.color }}>
-                {t.toLocaleString(undefined, { maximumFractionDigits: 0 })} tCO₂e
-              </span>
-            </div>
-            {/* Stacked horizontal bar */}
-            <div className="h-6 rounded-full bg-stone-100 overflow-hidden flex">
-              {scope.data.filter(d => d.value > 0).map((d, i) => {
-                const pct = (d.value / t) * 100;
-                return (
-                  <div
-                    key={d.name}
-                    className="h-full relative group cursor-pointer transition-opacity hover:opacity-80"
-                    style={{ width: `${pct}%`, backgroundColor: scope.colors[i % scope.colors.length] }}
-                    title={`${d.name}: ${d.value.toLocaleString(undefined, { maximumFractionDigits: 1 })} tCO₂e (${pct.toFixed(1)}%)`}
-                  >
-                    {pct > 12 && (
-                      <span className="absolute inset-0 flex items-center justify-center text-[9px] font-semibold text-white truncate px-1">
-                        {d.name.replace('Purchased ', '')}
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            {/* Legend */}
-            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5">
-              {scope.data.filter(d => d.value > 0).map((d, i) => (
-                <span key={d.name} className="flex items-center gap-1 text-[10px] text-stone-500">
-                  <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: scope.colors[i % scope.colors.length] }} />
-                  {d.name}
+    // Main Container - Clean white theme with soft shadow
+    <div 
+      className="bg-white p-4 sm:p-5 rounded-xl font-sans w-full" 
+      data-testid="scope-contribution-clean"
+    >
+      <div className="space-y-5">
+        {scopes.map((scope) => {
+          const t = total(scope.data);
+          if (t <= 0) return null;
+
+          // Sort data highest to lowest for a clear hierarchy
+          const sortedData = [...scope.data]
+            .filter(d => d.value > 0)
+            .sort((a, b) => b.value - a.value);
+
+          return (
+            // Individual Scope Panel - Light borders and soft background for the header
+            <div key={scope.label} className="border border-stone-200 rounded-lg overflow-hidden bg-white shadow-sm">
+              
+              {/* Panel Header */}
+              <div className="flex justify-between items-center px-5 py-3 border-b border-stone-100 bg-stone-50/50">
+                <h3 className="text-stone-800 font-semibold text-sm tracking-wide flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: scope.accent }} />
+                  {scope.label}
+                </h3>
+                <span className="text-stone-800 font-bold text-sm tracking-wider">
+                  {t.toLocaleString(undefined, { maximumFractionDigits: 0 })} tCO₂e
                 </span>
-              ))}
+              </div>
+              
+              {/* Data Rows */}
+              <div className="p-5 space-y-4">
+                {sortedData.map((d, i) => {
+                  const pct = (d.value / t) * 100;
+                  const barColor = scope.colors[i % scope.colors.length];
+                  
+                  return (
+                    <div key={d.name} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs group">
+                      
+                      {/* Label */}
+                      <div className="sm:w-1/3 text-stone-600 truncate font-medium" title={d.name}>
+                        {d.name}
+                      </div>
+                      
+                      {/* Progress Bar Container - Light gray track */}
+                      <div className="flex-1 h-2.5 bg-stone-100 rounded-full overflow-hidden flex relative">
+                        <div 
+                          className="h-full rounded-full transition-all duration-500 ease-out"
+                          style={{ 
+                            width: `${pct}%`, 
+                            backgroundColor: barColor 
+                          }} 
+                        />
+                      </div>
+                      
+                      {/* Values */}
+                      <div className="sm:w-1/3 flex justify-between sm:justify-end gap-4 text-stone-700 font-mono text-[11px]">
+                        <span className="font-semibold">
+                          {d.value.toLocaleString(undefined, { maximumFractionDigits: 0 })} tCO₂e
+                        </span>
+                        <span className="text-stone-400 w-12 text-right">
+                          ({pct.toFixed(0)}%)
+                        </span>
+                      </div>
+                      
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -582,23 +734,6 @@ export default function DashboardEnvironment({ data }) {
       />
 
       {/* ── ROW 1: KPI CARDS ─────────────────────── */}
-      {/* <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3" data-testid="env-kpi-row">
-        <PremiumKpiCard title="Total Emissions" value={kpiTotals.totalEmissions} unit="tCO₂e"
-          yoyChange={kpiTotals.emissionsChange} icon={CloudSun} accentColor="#059669" loading={false} />
-        <PremiumKpiCard title="Net Emissions" value={kpiTotals.netEmissions} unit="tCO₂e"
-          icon={Leaf} accentColor="#10b981" loading={false} />
-        <PremiumKpiCard title="Energy Consumed" value={kpiTotals.totalEnergy} unit="MWh"
-          icon={Zap} accentColor="#f59e0b" loading={false} />
-        <PremiumKpiCard title="Water Withdrawal" value={kpiTotals.totalWaterWithdrawn} unit="KL"
-          icon={Droplets} accentColor="#0ea5e9" loading={false} />
-        <PremiumKpiCard title="Water Recycled" value={kpiTotals.waterRecycledPct} unit="%"
-          icon={Recycle} accentColor="#06b6d4" loading={false} invertedTrend={false} />
-        <PremiumKpiCard title="Waste Generated" value={kpiTotals.totalWasteGenerated} unit="MT"
-          icon={Trash2} accentColor="#78716c" loading={false} />
-        <PremiumKpiCard title="Waste Recovered" value={kpiTotals.wasteRecoveredPct} unit="%"
-          icon={FlameKindling} accentColor="#059669" loading={false} invertedTrend={false} />
-      </div> */}
-      {/* ── ROW 1: KPI CARDS ─────────────────────── */}
       {/* Changed xl:grid-cols-7 to lg:grid-cols-4 to force 4 items per row (2 rows total) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" data-testid="env-kpi-row">
         <PremiumKpiCard title="Total Emissions" value={kpiTotals.totalEmissions} unit="tCO₂e"
@@ -656,8 +791,44 @@ export default function DashboardEnvironment({ data }) {
         </SectionCard>
       </div> */}
 
+      {/* ── ROW 2: SCOPE CONTRIBUTION (SPLIT) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        
+        {/* LEFT COLUMN: Scope 1 & 2 */}
+        <SectionCard 
+          title="Direct & Indirect Emissions" 
+          subtitle="Scope 1 & Scope 2 composition" 
+          accent="#F97316" /* Matches Scope 1 Orange */
+          testId="section-scope-1-2"
+        >
+          <ScopeContributionCard
+            scope1={envDetail?.scope1_breakdown || []}
+            scope2={envDetail?.scope2_breakdown || []}
+            scope3={null} /* Null hides the Scope 3 block in this card */
+          />
+        </SectionCard>
+
+        {/* RIGHT COLUMN: Scope 3 */}
+        <SectionCard 
+          title="Value Chain Emissions" 
+          subtitle="Scope 3 composition" 
+          accent="#3B82F6" /* Matches Scope 3 Blue */
+          testId="section-scope-3"
+        >
+          <ScopeContributionCard
+            scope1={[]} /* Empty array hides Scope 1 */
+            scope2={[]} /* Empty array hides Scope 2 */
+            scope3={{ 
+              upstream: envDetail?.scope3_upstream || [], 
+              downstream: envDetail?.scope3_downstream || [] 
+            }}
+          />
+        </SectionCard>
+        
+      </div>
+
       {/* ── ROW 3: SCOPE EXPLORER (3 independent cards) ── */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4" data-testid="scope-explorer">
+      {/* <div className="grid grid-cols-1 xl:grid-cols-3 gap-4" data-testid="scope-explorer">
         <ScopeSummaryCard
           title="Scope 1" subtitle="Direct Emissions"
           total={(envDetail?.scope1_breakdown || []).reduce((s, d) => s + d.value, 0)}
@@ -685,7 +856,7 @@ export default function DashboardEnvironment({ data }) {
             colors={S3_COLORS}
           />
         </ScopeSummaryCard>
-      </div>
+      </div> */}
 
       {/* ── ROW 4: ENERGY ─────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

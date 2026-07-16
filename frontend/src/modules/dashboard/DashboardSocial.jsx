@@ -14,14 +14,14 @@ import { format } from 'date-fns';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-  LineChart, Line, PieChart, Pie, Cell, Legend, ComposedChart,
+  LineChart, Line, Legend, ComposedChart,
 } from 'recharts';
 
 import StickyFilterBar from './components/filters/StickyFilterBar';
 import SectionCard from './components/layout/SectionCard';
 import PremiumKpiCard from './components/kpi/PremiumKpiCard';
 import {
-  Users, GraduationCap, UserCheck, RotateCcw, ShieldAlert,
+  Users, User, GraduationCap, UserCheck, RotateCcw, ShieldAlert,
   MessageSquareWarning, Scale, HeartPulse, RadioTower, RefreshCw,
   UserPlus, UserMinus, Crown,
 } from 'lucide-react';
@@ -90,53 +90,66 @@ function EmptyChart({ message = 'No data available' }) {
   return <div className="flex items-center justify-center h-48 text-xs text-stone-400">{message}</div>;
 }
 
-/* ── Nested Donut for Diversity ────────────── */
-function DiversityDonut({ diversity }) {
-  const { male, female, minority, vulnerable } = diversity;
-  const total = male + female;
-  const outerData = [
-    { name: 'Male', value: male },
-    { name: 'Female', value: female },
-  ].filter(d => d.value > 0);
-  const innerData = [
-    { name: 'Minority', value: minority },
-    { name: 'Vulnerable', value: vulnerable },
-    { name: 'Other', value: Math.max(total - minority - vulnerable, 0) },
-  ].filter(d => d.value > 0);
+/* ── Employee Diversity Bar ────────────────── */
+function EmployeeDiversityBar({ male, female, total }) {
+  const t = total || (male + female) || 1;
+  const malePct = ((male / t) * 100).toFixed(1);
+  const femalePct = ((female / t) * 100).toFixed(1);
 
-  if (total === 0) return <EmptyChart message="No diversity data recorded" />;
-
-  const OUTER = [BLUE[500], '#ec4899'];
-  const INNER = [TEAL[500], ORANGE[500], '#a8a29e'];
+  if (t <= 0 || (male === 0 && female === 0)) {
+    return <EmptyChart message="No employee data recorded" />;
+  }
 
   return (
-    <div data-testid="diversity-donut">
-      <ResponsiveContainer width="100%" height={240}>
-        <PieChart>
-          <Pie data={outerData} dataKey="value" cx="50%" cy="50%" outerRadius={95} innerRadius={65} paddingAngle={2}>
-            {outerData.map((_, i) => <Cell key={i} fill={OUTER[i % OUTER.length]} />)}
-          </Pie>
-          <Pie data={innerData} dataKey="value" cx="50%" cy="50%" outerRadius={58} innerRadius={30} paddingAngle={2}>
-            {innerData.map((_, i) => <Cell key={i} fill={INNER[i % INNER.length]} />)}
-          </Pie>
-          <Tooltip content={({ payload }) => {
-            if (!payload?.length) return null;
-            const d = payload[0];
-            return (
-              <div className="rounded-lg border border-stone-200 bg-white/95 backdrop-blur-md p-2 shadow-xl text-xs">
-                <span className="font-semibold">{d.name}:</span> {Number(d.value).toLocaleString()}
-              </div>
-            );
-          }} />
-        </PieChart>
-      </ResponsiveContainer>
-      <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 -mt-2">
-        {[...outerData.map((d, i) => ({ ...d, color: OUTER[i] })), ...innerData.filter(d => d.name !== 'Other').map((d, i) => ({ ...d, color: INNER[i] }))].map(d => (
-          <span key={d.name} className="flex items-center gap-1.5 text-[10px] text-stone-600">
-            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: d.color }} />
-            {d.name} ({d.value})
-          </span>
-        ))}
+    <div className="space-y-4" data-testid="diversity-bar">
+      <div className="text-center">
+        <p className="text-3xl font-bold text-stone-900">{t.toLocaleString()}</p>
+        <p className="text-[11px] text-stone-500 mt-0.5">Total Employees</p>
+      </div>
+      <div className="h-5 rounded-full overflow-hidden flex bg-stone-100">
+        {male > 0 && (
+          <div className="h-full transition-all duration-700 flex items-center justify-center"
+            style={{ width: `${malePct}%`, backgroundColor: BLUE[500] }}>
+            {parseFloat(malePct) > 15 && <span className="text-[9px] font-bold text-white">{malePct}%</span>}
+          </div>
+        )}
+        {female > 0 && (
+          <div className="h-full transition-all duration-700 flex items-center justify-center"
+            style={{ width: `${femalePct}%`, backgroundColor: '#ec4899' }}>
+            {parseFloat(femalePct) > 15 && <span className="text-[9px] font-bold text-white">{femalePct}%</span>}
+          </div>
+        )}
+      </div>
+      <div className="flex justify-between text-xs">
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: BLUE[500] }} /> Male ({male})</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: '#ec4899' }} /> Female ({female})</span>
+      </div>
+    </div>
+  );
+}
+
+/* ── Waffle Chart (4x5 person grid) ───────── */
+function WaffleChart({ total, fatal }) {
+  const GRID = 20;
+  const fatalPct = total > 0 ? fatal / total : 0;
+  const fatalIcons = Math.round(fatalPct * GRID);
+
+  return (
+    <div data-testid="waffle-chart">
+      <div className="grid grid-cols-5 gap-1.5">
+        {Array.from({ length: GRID }).map((_, i) => {
+          const isFatal = i < fatalIcons;
+          return (
+            <User
+              key={i}
+              className={`w-5 h-5 transition-colors duration-300 ${isFatal ? 'text-red-500 fill-red-500' : 'text-sky-300 fill-sky-300'}`}
+            />
+          );
+        })}
+      </div>
+      <div className="flex justify-center gap-4 mt-2.5 text-[10px] text-stone-500">
+        <span className="flex items-center gap-1"><User className="w-3 h-3 text-red-500 fill-red-500" /> Fatal</span>
+        <span className="flex items-center gap-1"><User className="w-3 h-3 text-sky-300 fill-sky-300" /> Non-Fatal</span>
       </div>
     </div>
   );
@@ -176,7 +189,6 @@ export default function DashboardSocial({ data }) {
 
   const kpis = detail?.kpis || {};
   const diversity = detail?.diversity || { male: 0, female: 0, minority: 0, vulnerable: 0 };
-  const boardDiv = detail?.board_diversity || {};
   const workforceComp = detail?.workforce_composition || [];
   const empMovement = detail?.employee_movement || [];
   const trainingByAtt = detail?.training_by_attendee || [];
@@ -186,14 +198,8 @@ export default function DashboardSocial({ data }) {
   const complaintCats = detail?.complaint_categories || [];
   const safetyTrend = detail?.safety_trend || [];
 
-  // Board diversity horizontal bar data
-  const boardBarData = useMemo(() => [
-    { name: 'Male Directors', value: boardDiv.male || 0 },
-    { name: 'Female Directors', value: boardDiv.female || 0 },
-    { name: 'Minority', value: boardDiv.minority || 0 },
-    { name: 'Vulnerable Groups', value: boardDiv.vulnerable || 0 },
-  ].filter(d => d.value > 0), [boardDiv]);
 
+  console.log("detail",detail)
   // Filter props
   const filterProps = {
     facilities, selectedFacilities, setSelectedFacilities,
@@ -224,6 +230,10 @@ export default function DashboardSocial({ data }) {
     );
   }
 
+  const latestData = workforceComp[workforceComp.length - 1];
+  const { permanent = 0, temporary = 0, workers = 0, contract = 0 } = latestData;
+  const total = permanent + temporary + workers + contract;
+
   return (
     <div className="space-y-5" data-testid="dashboard-social">
       <StickyFilterBar
@@ -243,7 +253,8 @@ export default function DashboardSocial({ data }) {
 
       {/* ── ROW 1: KPI CARDS ─────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3" data-testid="social-kpi-row">
-        <PremiumKpiCard title="Total Employees" value={kpis.total_employees || 0} unit="" icon={Users} accentColor={PURPLE[500]} loading={false} />
+        {/* <PremiumKpiCard title="Total Employees" value={kpis.total_employees || 0} unit="" icon={Users} accentColor={PURPLE[500]} loading={false} /> */}
+        <PremiumKpiCard title="Total Employees" value={total || 0} unit="" icon={Users} accentColor={PURPLE[500]} loading={false} />
         <PremiumKpiCard title="Trainings" value={kpis.total_trainings || 0} unit="" icon={GraduationCap} accentColor={BLUE[500]} loading={false} />
         <PremiumKpiCard title="Board of Directors" value={kpis.total_board || 0} unit="" icon={Crown} accentColor={TEAL[500]} loading={false} />
         <PremiumKpiCard title="Return to Work" value={kpis.return_to_work || 0} unit="" icon={RotateCcw} accentColor={GREEN[500]} loading={false} />
@@ -254,65 +265,35 @@ export default function DashboardSocial({ data }) {
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
         <PremiumKpiCard title="Customer Complaints" value={kpis.customer_complaints || 0} unit="" icon={ShieldAlert} accentColor={RED[500]} loading={false} />
-        <PremiumKpiCard title="H&S Incidents" value={kpis.total_incidents || 0} unit="" icon={HeartPulse} accentColor={RED[400]} loading={false} />
+        <PremiumKpiCard title="Health & Safety Incidents" value={kpis.total_incidents || 0} unit="" icon={HeartPulse} accentColor={RED[400]} loading={false} />
       </div>
 
-      {/* ── ROW 2: WORKFORCE ─────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <SectionCard title="Workforce Composition" subtitle="Employee categories over time" accent={PURPLE[500]} testId="section-workforce-composition">
-          {workforceComp.length > 0 ? (
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={workforceComp} barGap={1}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f4" />
-                <XAxis dataKey="period" tick={{ fontSize: 10, fill: '#78716c' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: '#78716c' }} axisLine={false} tickLine={false} width={45} />
-                <Tooltip content={<ChartTooltip />} />
-                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 10 }} />
-                <Bar dataKey="permanent" name="Permanent" stackId="a" fill={WORKFORCE_COLORS[0]} />
-                <Bar dataKey="temporary" name="Temporary" stackId="a" fill={WORKFORCE_COLORS[1]} />
-                <Bar dataKey="workers" name="Workers" stackId="a" fill={WORKFORCE_COLORS[2]} />
-                <Bar dataKey="contract" name="Contract" stackId="a" fill={WORKFORCE_COLORS[3]} radius={[3, 3, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <EmptyChart message="No workforce composition data yet" />
-          )}
+
+      {/* ── ROW 3: DIVERSITY + H&S WAFFLE ─────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* LEFT: Employee Diversity (1/3) */}
+        <SectionCard title="Employee Diversity" subtitle="Gender distribution" accent={TEAL[500]} testId="section-employee-diversity">
+          <EmployeeDiversityBar male={diversity.male} female={diversity.female} total={kpis.total_employees || (diversity.male + diversity.female)} />
         </SectionCard>
 
-        <SectionCard title="Employee Movement" subtitle="New hires, turnover & retention" accent={GREEN[500]} testId="section-employee-movement">
-          {empMovement.length > 0 ? (
-            <ResponsiveContainer width="100%" height={260}>
-              <ComposedChart data={empMovement}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f4" />
-                <XAxis dataKey="period" tick={{ fontSize: 10, fill: '#78716c' }} axisLine={false} tickLine={false} />
-                <YAxis yAxisId="left" tick={{ fontSize: 10, fill: '#78716c' }} axisLine={false} tickLine={false} width={45} />
-                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#78716c' }} axisLine={false} tickLine={false} width={35} domain={[0, 100]} unit="%" />
-                <Tooltip content={<ChartTooltip />} />
-                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 10 }} />
-                <Bar yAxisId="left" dataKey="new_hires" name="New Hires" fill={GREEN[500]} radius={[3, 3, 0, 0]} />
-                <Bar yAxisId="left" dataKey="turnover" name="Turnover" fill={RED[400]} radius={[3, 3, 0, 0]} />
-                <Line yAxisId="right" dataKey="retention" name="Retention %" stroke={BLUE[500]} strokeWidth={2} dot={{ r: 3, fill: BLUE[500] }} />
-              </ComposedChart>
-            </ResponsiveContainer>
-          ) : (
-            <EmptyChart message="No employee movement data yet" />
-          )}
-        </SectionCard>
-      </div>
-
-      {/* ── ROW 3: DIVERSITY ─────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <SectionCard title="Employee Diversity" subtitle="Gender, minority & vulnerable groups" accent={TEAL[500]} testId="section-employee-diversity">
-          <DiversityDonut diversity={diversity} />
-        </SectionCard>
-
-        <SectionCard title="Board Diversity" subtitle="Board composition breakdown" accent={PURPLE[500]} testId="section-board-diversity">
-          {boardBarData.length > 0 ? (
-            <HBarSection data={boardBarData} colors={DIVERSITY_COLORS} />
-          ) : (
-            <EmptyChart message="No board diversity data" />
-          )}
-        </SectionCard>
+        {/* RIGHT: H&S Waffle (2/3 spanning 2 cols) */}
+        <div className="lg:col-span-2">
+          <SectionCard title="Health & Safety — Fatality Impact" subtitle="Incidents causing fatality vs total incidents" accent={RED[500]} testId="section-hs-waffle">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div className="flex flex-col items-center justify-center">
+                <p className="text-3xl font-bold text-stone-900">{kpis.total_incidents || 0}</p>
+                <p className="text-[11px] text-stone-500 mt-1">Total Incidents</p>
+              </div>
+              <div className="flex flex-col items-center justify-center">
+                <p className="text-3xl font-bold text-red-600">{kpis.total_fatalities || 0}</p>
+                <p className="text-[11px] text-stone-500 mt-1">Fatalities</p>
+              </div>
+              <div className="flex flex-col items-center justify-center">
+                <WaffleChart total={kpis.total_incidents || 0} fatal={kpis.total_fatalities || 0} />
+              </div>
+            </div>
+          </SectionCard>
+        </div>
       </div>
 
       {/* ── ROW 4: TRAINING ──────────────────────── */}

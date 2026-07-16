@@ -36,6 +36,7 @@ async def get_social_detail(
     total_incidents = 0
     loss_time_injuries = 0
     total_hours_worked = 0
+    total_fatalities = 0
     return_to_work = 0
     retention_rate = 0.0
     new_hires = 0
@@ -119,18 +120,20 @@ async def get_social_detail(
 
         # --- Board ---
         if "board" in sub or "director" in sub:
-            total_board += int(fv.get("total_board_of_directors") or fv.get("no_of_board_members") or 0)
+            # total_board += int(fv.get("total_board_of_directors") or fv.get("no_of_board_members") or 0)
             board_male += int(fv.get("no_of_male_directors") or fv.get("no_of_male") or 0)
             board_female += int(fv.get("no_of_female_directors") or fv.get("no_of_female") or 0)
-            board_minority += int(fv.get("no_of_directors_minority") or fv.get("no_of_minority") or 0)
-            board_vulnerable += int(fv.get("no_of_directors_vulnerable") or fv.get("no_of_vulnerable") or 0)
+            board_minority += int(fv.get("no_of_directors_minority") or fv.get("no_of_employees_belonging_to_minority") or 0)
+            board_vulnerable += int(fv.get("no_of_directors_vulnerable") or fv.get("no_of_employees_belonging_to_vulnerable_groups") or 0)
+
+            total_board = int(board_male + board_female)
 
         # --- Training ---
         if "training" in sub or "learning" in sub:
-            count = int(fv.get("no_of_trainings") or fv.get("total_trainings") or fv.get("number_of_trainings") or 0)
+            count = int(fv.get("no_of_trainings_done") or 0)
             total_trainings += count
 
-            attendee = fv.get("training_attendees_type") or fv.get("attendee_type") or "General"
+            attendee = fv.get("training_attendes_type") or "General"
             training_by_attendee[attendee] = training_by_attendee.get(attendee, 0) + count
 
             if period != "unknown":
@@ -182,7 +185,7 @@ async def get_social_detail(
                 complaint_status["Open"] += ic + pc + cc + ec + sc
 
             # Filed against
-            fa = fv.get("complaint_filed_against") or fv.get("filed_against") or ""
+            fa = fv.get("complaint_filed_against") or ""
             if fa:
                 complaint_filed_against[fa] = complaint_filed_against.get(fa, 0) + ic + pc + cc + ec + sc
 
@@ -190,9 +193,11 @@ async def get_social_detail(
         if "health" in sub or "safety" in sub or "incident" in sub:
             incidents = int(fv.get("total_no_of_incidents") or fv.get("total_incidents") or 0)
             lti = int(fv.get("no_of_loss_time_injuries") or fv.get("loss_time_injuries") or 0)
+            fatalities = int(fv.get("no_of_fatality") or fv.get("no_of_fatalities") or 0)
             hw = float(fv.get("total_hours_worked") or 0)
             total_incidents += incidents
             loss_time_injuries += lti
+            total_fatalities += fatalities
             total_hours_worked += hw
 
             if period != "unknown":
@@ -229,6 +234,7 @@ async def get_social_detail(
             "external_complaints": external_complaints,
             "total_incidents": total_incidents,
             "loss_time_injuries": loss_time_injuries,
+            "total_fatalities": total_fatalities,
             "ltifr": round(ltifr, 2),
             "new_hires": new_hires,
             "turnover": turnover,
