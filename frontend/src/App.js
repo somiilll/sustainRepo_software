@@ -55,6 +55,9 @@ import PasswordChangeModal from './components/PasswordChangeModal';
 import ApproverQueue from './components/ApproverQueue';
 import MyAssignments from './pages/MyAssignments';
 import PlaceholderPage from './pages/PlaceholderPage';
+import GHGTargetsPage from './pages/GHGTargetsPage';
+import WorkflowApproverQueue from './pages/WorkflowApproverQueue';
+import WorkflowTracker from './pages/WorkflowTracker';
 import { initializeCategoryModules } from './modules/emissions';
 
 // Initialize the emissions Category Registry once at app boot.
@@ -258,9 +261,9 @@ const AppRoutes = () => {
           <Route path="sinks" element={<Sinks />} />
           <Route path="base-year-emissions" element={<BaseYearAndTargets />} />
           <Route path="environment" element={<Environment />} />
-          <Route path="environment/energy" element={<Environment />} />
-          <Route path="environment/water" element={<Environment />} />
-          <Route path="environment/waste" element={<Environment />} />
+          <Route path="environment/energy" element={<Environment preFilterCategory="Energy" />} />
+          <Route path="environment/water" element={<Environment preFilterCategory="Water" />} />
+          <Route path="environment/waste" element={<Environment preFilterCategory="Waste" />} />
           <Route path="environment/biodiversity" element={<PlaceholderPage title="Biodiversity" />} />
           <Route path="environment/climate-change" element={<PlaceholderPage title="Climate Change" />} />
           <Route path="environment/material" element={<PlaceholderPage title="Material" />} />
@@ -270,13 +273,14 @@ const AppRoutes = () => {
           <Route path="reporting" element={<Reporting />} />
           <Route path="reporting/brsr" element={<BRSRModule />} />
           <Route path="reporting/gri" element={<GRIModule />} />
-          <Route path="workflow/tracker" element={<PlaceholderPage title="Tracker" />} />
+          <Route path="workflow/tracker" element={<WorkflowTracker />} />
           <Route path="workflow/my-task" element={<MyAssignments />} />
-          <Route path="workflow/approver-queue" element={<ApproverQueue />} />
+          <Route path="workflow/approver-queue" element={<WorkflowApproverQueue />} />
           <Route path="uploads/ghg-entry" element={<Emissions />} />
+          <Route path="ghg/base-year" element={<BaseYearEmissions />} />
           <Route path="uploads/bulk" element={<BulkUpload />} />
           <Route path="uploads/kpi-metrics" element={<PlaceholderPage title="KPI Metrics" />} />
-          <Route path="targets/voluntary/ghg" element={<BaseYearAndTargets />} />
+          <Route path="targets/voluntary/ghg" element={<GHGTargetsPage />} />
           <Route path="targets/voluntary/environment" element={<PlaceholderPage title="Environment Targets" />} />
           <Route path="targets/voluntary/social" element={<PlaceholderPage title="Social Targets" />} />
           <Route path="targets/voluntary/governance" element={<PlaceholderPage title="Governance Targets" />} />

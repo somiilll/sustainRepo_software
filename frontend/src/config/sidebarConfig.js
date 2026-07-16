@@ -23,7 +23,11 @@ const sidebarConfig = [
     label: 'Environment',
     icon: 'Leaf',
     children: [
-      { key: 'environment.ghg', label: 'GHG Module', icon: 'Cloud', path: '/ghg/scope1' },
+      { key: 'environment.ghg', label: 'GHG Module', icon: 'Cloud', children: [
+          { key: 'environment.ghg.logs', label: 'Logs', icon: 'FileText', path: '/ghg/scope1' },
+          { key: 'environment.ghg.sinks', label: 'Sinks', icon: 'TreeDeciduous', path: '/sinks' },
+          { key: 'environment.ghg.base_year', label: 'Base Year', icon: 'CalendarDays', path: '/ghg/base-year' },
+      ] },
       { key: 'environment.energy', label: 'Energy', icon: 'Zap', path: '/environment/energy' },
       { key: 'environment.water', label: 'Water', icon: 'Droplets', path: '/environment/water' },
       { key: 'environment.waste', label: 'Waste', icon: 'Trash2', path: '/environment/waste' },

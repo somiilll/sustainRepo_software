@@ -9,12 +9,12 @@ import FrameworkTabs from '../components/FrameworkTabs';
 import ESGRecordsModule from '../components/ESGRecordsModule';
 import GRIQuestionnaire from '../components/GRIQuestionnaire';
 
-export default function Environment() {
+export default function Environment({ preFilterCategory }) {
   const [isEditing, setIsEditing] = useState(false);
 
-  // Records tab content - ESG Records Module (with Tracker, Data Entry, Targets, Add)
+  // Records tab content - ESG Records Module (Logs only)
   const RecordsContent = () => (
-    <ESGRecordsModule section="environment" />
+    <ESGRecordsModule section="environment" preFilterCategory={preFilterCategory} />
   );
 
   // Framework content renderer
