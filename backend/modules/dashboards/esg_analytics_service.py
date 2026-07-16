@@ -414,8 +414,12 @@ async def get_esg_analytics(db, org_id: str, start_date: str, end_date: str, fac
         # flow: injuries
         injuries = number(values.get("no_of_loss_time_injuries"))
         hours = number(values.get("total_hours_worked"))
+        total_incidents = number(values.get("total_no_of_incidents") or values.get("total_incidents"))
         if injuries and flow_m:
             workforce_rows[flow_m]["lostTimeInjuries"] += injuries
+        # Feed H&S incidents into the incidents trend
+        if flow_m and (total_incidents or injuries):
+            incidents_rows[flow_m]["healthSafety"] += total_incidents or injuries
 
         # ratio: ltifr — carry forward
         if injuries and hours:
