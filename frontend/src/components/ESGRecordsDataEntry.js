@@ -225,7 +225,6 @@ export default function ESGRecordsDataEntry({
   const fetchCategories = async () => {
     try {
       const res = await axios.get(`${API}/api/esg-records/categories/${section}`, {
-        params: { framework },
         headers
       });
       setCategories(res.data.categories || []);
