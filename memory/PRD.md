@@ -20,13 +20,18 @@ Build an enterprise ESG (Environmental, Social, Governance) data management plat
 - ESG Records module with add/edit forms
 
 ### Dashboard & Analytics
-- Executive Dashboard with KPI summary cards
-- GHG Emissions Trend (gradient chart)
-- Energy Mix & Intensity combined chart
-- Incidents Trend chart
+- **Executive GHG Dashboard** with KPI summary cards, GHG Emissions Trend
+- **Executive ESG Dashboard** with section selector (All/Environment/Social/Governance)
+- **Environment Dashboard** (NEW - July 2026): Premium 6-row environment performance dashboard
+  - Row 1: 7 KPI Cards (Total Emissions, Net Emissions, Energy Consumed, Water Withdrawal, Water Recycled %, Waste Generated, Waste Recovered %)
+  - Row 2: Scope Contribution (stacked horizontal bars S1/S2/S3) + Emission Hotspots (Treemap)
+  - Row 3: Scope Explorer with tabs (Scope 1/2/3 horizontal bar breakdowns)
+  - Row 4: Energy (Stacked column + Renewable% area + Intensity line)
+  - Row 5: Water (Balance flow + Sources bar + Recycling% line)
+  - Row 6: Waste (Overview + Hazardous + Non-Hazardous stacked bars)
+  - Backend: `/api/dashboard/environment-detail` endpoint for scope breakdowns, hotspots, water sources, waste types
 - Semantic data spreading (snapshot vs flow metrics)
-- Unit conversion utilities
-- Date utilities for FY alignment
+- Unit conversion utilities, Date utilities for FY alignment
 - Default view: Current Financial Year
 
 ### Sidebar & Navigation
@@ -37,15 +42,11 @@ Build an enterprise ESG (Environmental, Social, Governance) data management plat
 - Uploads (Bulk Uploads)
 - Targets (Voluntary: GHG/Env/Social/Gov, SBTi)
 
-### Materiality Assessment (NEW - July 2026)
-- Premium 5x5 scatter matrix using Recharts (Business Impact vs Stakeholder Impact)
-- 23 GRI topics with hardcoded data across 4 categories (Environmental, Social, Governance, Economic)
-- Interactive colored dots with hover tooltips
-- Right-panel sortable data table with category/priority badges
-- Side drawer with score cards, progress bars, description, placeholder KPI/Evidence sections
-- Framer Motion entrance animations and spring drawer transitions
-- Summary stats bar (Total Topics, Critical, High Priority, Avg Score)
-- Search + Category + Priority filters with legend
+### Materiality Assessment (July 2026)
+- Premium 5x5 scatter matrix using Recharts
+- 23 GRI topics with hardcoded data across 4 categories
+- Interactive colored dots, hover tooltips, side drawer
+- Framer Motion animations
 
 ### Reporting
 - BRSR report generation
@@ -54,9 +55,7 @@ Build an enterprise ESG (Environmental, Social, Governance) data management plat
 
 ### Other Features
 - Repo-Pilot (RAG document processing)
-- Audit Trails
-- Profile management
-- Bulk uploads
+- Audit Trails, Profile management, Bulk uploads
 
 ## Architecture
 - Frontend: React + Tailwind CSS + Shadcn UI + Recharts + Framer Motion
