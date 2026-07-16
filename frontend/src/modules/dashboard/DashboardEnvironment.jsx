@@ -466,11 +466,13 @@ export default function DashboardEnvironment({ data }) {
     })),
   [waste]);
 
-  const waterRecyclePctData = useMemo(() =>
-    water.map(w => {
-      const wthdrn = w.withdrawn || 0;
-      return { period: shortMonth(w.period), pct: wthdrn > 0 ? ((w.recycled || 0) / wthdrn) * 100 : 0 };
-    }),
+  const waterTrendData = useMemo(() =>
+    water.map(w => ({
+      period: shortMonth(w.period),
+      withdrawn: w.withdrawn || 0,
+      consumed: w.consumed || 0,
+      discharged: w.discharged || 0,
+    })),
   [water]);
 
   // Filter props
@@ -677,19 +679,22 @@ export default function DashboardEnvironment({ data }) {
           )}
         </SectionCard>
 
-        <SectionCard title="Water Recycling %" subtitle="Monthly recycling rate" accent="#06b6d4" testId="section-water-recycle-pct">
-          {waterRecyclePctData.some(d => d.pct > 0) ? (
+        <SectionCard title="Water Trends" subtitle="Monthly withdrawal, consumption & discharge" accent="#06b6d4" testId="section-water-trends">
+          {waterTrendData.some(d => d.withdrawn > 0 || d.consumed > 0 || d.discharged > 0) ? (
             <ResponsiveContainer width="100%" height={220}>
-              <ComposedChart data={waterRecyclePctData}>
+              <LineChart data={waterTrendData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f4" />
                 <XAxis dataKey="period" tick={{ fontSize: 10, fill: '#78716c' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: '#78716c' }} axisLine={false} tickLine={false} width={35} domain={[0, 100]} unit="%" />
+                <YAxis tick={{ fontSize: 10, fill: '#78716c' }} axisLine={false} tickLine={false} width={45} />
                 <Tooltip content={<ChartTooltip />} />
-                <Area dataKey="pct" name="Recycling %" fill="#06b6d420" stroke="#06b6d4" strokeWidth={2} dot={{ r: 3, fill: '#06b6d4' }} />
-              </ComposedChart>
+                <Line dataKey="withdrawn" name="Withdrawal" stroke={WATER_COLORS.withdrawn} strokeWidth={2} dot={{ r: 3, fill: WATER_COLORS.withdrawn }} />
+                <Line dataKey="consumed" name="Consumption" stroke={WATER_COLORS.consumed} strokeWidth={2} dot={{ r: 3, fill: WATER_COLORS.consumed }} />
+                <Line dataKey="discharged" name="Discharge" stroke={WATER_COLORS.discharged} strokeWidth={2} dot={{ r: 3, fill: WATER_COLORS.discharged }} />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 10 }} />
+              </LineChart>
             </ResponsiveContainer>
           ) : (
-            <EmptyChart message="No water recycling data" />
+            <EmptyChart message="No water trend data" />
           )}
         </SectionCard>
       </div>
