@@ -28,16 +28,17 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
 - [x] Multi-tenant org management
 - [x] User authentication (JWT)
 - [x] Facility management
-- [x] Workflow system
+- [x] Workflow system (My Tasks, Tracker, Approver Queue)
 - [x] Target tracking (SBT targets)
 - [x] Audit trails
 - [x] Notification system
 - [x] File upload system
 
 ### Bug Fixes (Jul 16, 2026)
-- [x] Fixed Social Dashboard 500 error — `NameError: name 'status' is not defined` in `social_detail_service.py` line 182
-- [x] Fixed Governance Dashboard AP Days — aligned with ESG Summary by using latest record values instead of averaging (both now 352.8 days)
-- [x] Governance Data Breaches/Violations/Corruption case-sensitivity matching fixed — values now showing correctly (6, 5, 3)
+- [x] Fixed Social Dashboard 500 error — `NameError: name 'status' is not defined` in `social_detail_service.py`
+- [x] Fixed Governance Dashboard AP Days — aligned with ESG Summary using latest record values (both 352.8 days)
+- [x] Fixed Governance Data Breaches/Violations/Corruption case-sensitivity (breaches=6, violations=5, corruption=3)
+- [x] Fixed My Tasks: restored "Fill Now" for metrics, removed incorrect BRSR tagging, restored backfill/current/future task grouping — root cause was `WorkflowMyTask.js` using `MyAssignments` instead of `MyTasks` component
 
 ## Pending Issues
 | ID | Priority | Description | Status |
@@ -66,6 +67,8 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
 - `GET /api/dashboard/stats`
 - `GET /api/dashboard/esg-analytics`
 - `GET /api/dashboard/esg-summary`
+- `GET /api/esg-records/tasks/my-tasks`
+- `GET /api/tracking/my-disclosures`
 
 ## Key Files
 - `/app/backend/modules/dashboards/social_detail_service.py`
@@ -77,6 +80,11 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
 - `/app/frontend/src/modules/dashboard/DashboardEnvironment.jsx`
 - `/app/frontend/src/modules/dashboard/DashboardGovernance.jsx`
 - `/app/frontend/src/pages/Dashboard.js`
+- `/app/frontend/src/pages/WorkflowMyTask.js`
+- `/app/frontend/src/components/MyTasks.js`
+- `/app/frontend/src/components/tasks/TaskGroupedView.js`
+- `/app/frontend/src/components/tasks/TaskCard.js`
+- `/app/frontend/src/components/tasks/TaskRow.js`
 - `/app/frontend/src/config/superAdminSidebarConfig.js`
 
 ## DB Schema (Key Collections)

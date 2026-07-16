@@ -22,7 +22,7 @@ class WasteMetricsService:
     ) -> Dict[str, Any]:
         """Get aggregated waste metrics"""
         generated = await self._get_subcategory_total(org_id, facility_ids, "Generated", start_date, end_date)
-        recovered = await self._get_subcategory_total(org_id, facility_ids, "Recovered", start_date, end_date)
+        recovered = await self._get_subcategory_total(org_id, facility_ids, "Recovered / Diverted from disposal", start_date, end_date)
         disposal = await self._get_subcategory_total(org_id, facility_ids, "Disposal", start_date, end_date)
         
         # Calculate recovery percentage

@@ -203,7 +203,7 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
   }
 
   console.log("waterRows", waterRows)
-    console.log("metrics", metrics)
+  console.log("metrics", metrics)
 
   return (
     <div className="space-y-6 pb-10" data-testid="executive-esg-dashboard">

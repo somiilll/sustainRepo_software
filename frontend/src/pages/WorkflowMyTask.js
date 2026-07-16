@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Leaf, ScrollText, BookOpen } from 'lucide-react';
-import MyAssignments from './MyAssignments';
 import MyTasks from '../components/MyTasks';
 
 /**
@@ -34,7 +33,7 @@ export default function WorkflowMyTask() {
         </TabsList>
 
         <TabsContent value="esg" className="mt-4">
-          <MyAssignments />
+          <MyTasks entityType="all" />
         </TabsContent>
         <TabsContent value="brsr" className="mt-4">
           <MyTasks entityType="question" framework="BRSR" />
