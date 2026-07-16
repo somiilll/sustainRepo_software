@@ -91,6 +91,44 @@ function EmptyChart({ message = 'No data available' }) {
 }
 
 /* ── Employee Diversity Bar ────────────────── */
+function z({ male, female, total }) {
+  const t = total || (male + female) || 1;
+  const malePct = ((male / t) * 100).toFixed(1);
+  const femalePct = ((female / t) * 100).toFixed(1);
+
+  if (t <= 0 || (male === 0 && female === 0)) {
+    return <EmptyChart message="No employee data recorded" />;
+  }
+
+  return (
+    <div className="space-y-4" data-testid="diversity-bar">
+      <div className="text-center">
+        <p className="text-3xl font-bold text-stone-900">{t.toLocaleString()}</p>
+        <p className="text-[11px] text-stone-500 mt-0.5">Total Employees</p>
+      </div>
+      <div className="h-5 rounded-full overflow-hidden flex bg-stone-100">
+        {male > 0 && (
+          <div className="h-full transition-all duration-700 flex items-center justify-center"
+            style={{ width: `${malePct}%`, backgroundColor: BLUE[500] }}>
+            {parseFloat(malePct) > 15 && <span className="text-[9px] font-bold text-white">{malePct}%</span>}
+          </div>
+        )}
+        {female > 0 && (
+          <div className="h-full transition-all duration-700 flex items-center justify-center"
+            style={{ width: `${femalePct}%`, backgroundColor: '#ec4899' }}>
+            {parseFloat(femalePct) > 15 && <span className="text-[9px] font-bold text-white">{femalePct}%</span>}
+          </div>
+        )}
+      </div>
+      <div className="flex justify-between text-xs">
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: BLUE[500] }} /> Male ({male})</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: '#ec4899' }} /> Female ({female})</span>
+      </div>
+    </div>
+  );
+}
+
+/* ── Employee Diversity Bar ────────────────── */
 function EmployeeDiversityBar({ male, female, total }) {
   const t = total || (male + female) || 1;
   const malePct = ((male / t) * 100).toFixed(1);
@@ -189,6 +227,7 @@ export default function DashboardSocial({ data }) {
 
   const kpis = detail?.kpis || {};
   const diversity = detail?.diversity || { male: 0, female: 0, minority: 0, vulnerable: 0 };
+  const boardDiv = detail?.board_diversity || {};
   const workforceComp = detail?.workforce_composition || [];
   const empMovement = detail?.employee_movement || [];
   const trainingByAtt = detail?.training_by_attendee || [];
@@ -198,8 +237,6 @@ export default function DashboardSocial({ data }) {
   const complaintCats = detail?.complaint_categories || [];
   const safetyTrend = detail?.safety_trend || [];
 
-
-  console.log("detail",detail)
   // Filter props
   const filterProps = {
     facilities, selectedFacilities, setSelectedFacilities,
@@ -269,14 +306,25 @@ export default function DashboardSocial({ data }) {
       </div>
 
 
-      {/* ── ROW 3: DIVERSITY + H&S WAFFLE ─────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* LEFT: Employee Diversity (1/3) */}
+      {/* ── ROW 3: DIVERSITY + BOARD + H&S WAFFLE ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
         <SectionCard title="Employee Diversity" subtitle="Gender distribution" accent={TEAL[500]} testId="section-employee-diversity">
           <EmployeeDiversityBar male={diversity.male} female={diversity.female} total={kpis.total_employees || (diversity.male + diversity.female)} />
         </SectionCard>
 
-        {/* RIGHT: H&S Waffle (2/3 spanning 2 cols) */}
+        <SectionCard title="Board Diversity" subtitle="Board composition" accent={PURPLE[500]} testId="section-board-diversity">
+          {(boardDiv.male || boardDiv.female) ? (
+            <HBarSection data={[
+              { name: 'Male', value: boardDiv.male || 0 },
+              { name: 'Female', value: boardDiv.female || 0 },
+              { name: 'Minority', value: boardDiv.minority || 0 },
+              { name: 'Vulnerable', value: boardDiv.vulnerable || 0 },
+            ].filter(d => d.value > 0)} colors={[BLUE[500], '#ec4899', TEAL[500], ORANGE[500]]} />
+          ) : (
+            <EmptyChart message="No board data" />
+          )}
+        </SectionCard>
+
         <div className="lg:col-span-2">
           <SectionCard title="Health & Safety — Fatality Impact" subtitle="Incidents causing fatality vs total incidents" accent={RED[500]} testId="section-hs-waffle">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
