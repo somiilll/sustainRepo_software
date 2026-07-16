@@ -156,7 +156,7 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
     workforce: [], safety: [], finance: [], breaches: [],
     governance: {},
   };
-
+  console.log("analyticsData", analyticsData)
   const emissionRows = aggregateSeries(analyticsData.emissions, granularity, ['scope1', 'scope2', 'scope3', 'previousTotal']);
   const energyRows = aggregateSeries(analyticsData.energy, granularity, ['renewable', 'nonRenewable']);
   const waterRows = aggregateSeries(analyticsData.water, granularity, ['withdrawn', 'consumed', 'discharged', 'recycled']);
@@ -204,6 +204,7 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
 
   console.log("waterRows", waterRows)
   console.log("metrics", metrics)
+  console.log("wasteRows", wasteRows)
 
   return (
     <div className="space-y-6 pb-10" data-testid="executive-esg-dashboard">
