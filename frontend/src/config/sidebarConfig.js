@@ -13,6 +13,19 @@ const sidebarConfig = [
     path: '/dashboard',
   },
   {
+    key: 'organization',
+    label: 'Organization',
+    icon: 'Building2',
+    path: '/organization',
+  },
+  {
+    key: 'facilities',
+    label: 'Facilities',
+    icon: 'Factory',
+    path: '/facilities',
+    adminOnly: true,
+  },
+  {
     key: 'repo_pilot',
     label: 'Repo-Pilot',
     icon: 'Bot',
@@ -24,7 +37,7 @@ const sidebarConfig = [
     icon: 'Leaf',
     children: [
       { key: 'environment.ghg', label: 'GHG Module', icon: 'Cloud', children: [
-          { key: 'environment.ghg.logs', label: 'Logs', icon: 'FileText', path: '/ghg/scope1' },
+          { key: 'environment.ghg.logs', label: 'Logs', icon: 'FileText', path: '/ghg' },
           { key: 'environment.ghg.sinks', label: 'Sinks', icon: 'TreeDeciduous', path: '/sinks' },
           { key: 'environment.ghg.base_year', label: 'Base Year', icon: 'CalendarDays', path: '/ghg/base-year' },
       ] },
@@ -108,6 +121,13 @@ const sidebarConfig = [
     label: 'Users',
     icon: 'Users',
     path: '/users',
+    adminOnly: true,
+  },
+  {
+    key: 'audit_trails',
+    label: 'Audit Trails',
+    icon: 'ScrollText',
+    path: '/audit-trails',
     adminOnly: true,
   },
   {

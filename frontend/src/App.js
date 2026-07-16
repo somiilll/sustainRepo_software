@@ -250,7 +250,7 @@ const AppRoutes = () => {
           <Route path="organization" element={<OrganizationDetails />} />
           <Route path="facilities" element={<Facilities />} />
           <Route path="emissions" element={<Navigate to="/ghg/scope1" replace />} />
-          <Route path="ghg" element={<Navigate to="/ghg/scope1" replace />} />
+          <Route path="ghg" element={<Emissions />} />
           <Route path="ghg/scope1" element={<Emissions />} />
           <Route path="ghg/scope2" element={<Emissions />} />
           <Route path="ghg/scope3" element={<Emissions />} />
