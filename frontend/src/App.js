@@ -284,6 +284,7 @@ const AppRoutes = () => {
           <Route path="uploads/ghg-entry" element={<Emissions />} />
           <Route path="ghg/base-year" element={<BaseYearEmissions />} />
           <Route path="uploads/bulk" element={<BulkUpload />} />
+          <Route path="uploads/ocr" element={<PlaceholderPage title="OCR Detection" />} />
           <Route path="uploads/kpi-metrics" element={<PlaceholderPage title="KPI Metrics" />} />
           <Route path="targets/voluntary/ghg" element={<GHGTargetsPage />} />
           <Route path="targets/voluntary/environment" element={<ESGTargetsTab section="environment" />} />
