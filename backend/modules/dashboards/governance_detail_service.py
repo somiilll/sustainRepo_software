@@ -69,21 +69,21 @@ async def get_governance_detail(
                 anti_comp_trend[period] = anti_comp_trend.get(period, 0) + cases
 
         # Data Breaches
-        if "Breach" in sub or "Data" in sub:
+        if "breach" in sub or "data" in sub:
             breaches = int(fv.get("no_of_incidents_of_data_breach") or 0)
             total_data_breaches += breaches
             if period != "unknown":
                 breach_trend[period] = breach_trend.get(period, 0) + breaches
 
         # Regulatory / Compliance Violations
-        if "Violations" in sub or "compliance" in sub or "regulatory" in sub:
+        if "violations" in sub or "compliance" in sub or "regulatory" in sub:
             violations = int(fv.get("no_of_incidents_of_violations") or 0)
             total_violations += violations
             if period != "unknown":
                 violation_trend[period] = violation_trend.get(period, 0) + violations
 
         # Corruption Cases
-        if "Corruption" in sub or "bribery" in sub:
+        if "corruption" in sub:
             cases = int(fv.get("no_of_confirmed_corruption_incidents") or 0)
             total_corruption += cases
             if period != "unknown":
