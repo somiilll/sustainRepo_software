@@ -263,18 +263,42 @@ async def get_environment_detail(
     hazardous_waste = {"generated": 0.0, "recovered": 0.0, "disposed": 0.0}
     non_hazardous_waste = {"generated": 0.0, "recovered": 0.0, "disposed": 0.0}
 
+    # Waste field_values use keys like:
+    #   hazardous_waste_generated, non_hazardous_waste_generated
+    #   hazardous_waste_disposed, non_hazardous_waste_disposed
+    #   hazardous_waste_recovered, non_hazardous_waste_recovered
+    WASTE_FIELD_MAP = {
+        "hazardous_waste_generated": ("hazardous", "generated"),
+        "non_hazardous_waste_generated": ("non_hazardous", "generated"),
+        "hazardous_waste_disposed": ("hazardous", "disposed"),
+        "non_hazardous_waste_disposed": ("non_hazardous", "disposed"),
+        "hazardous_waste_recovered": ("hazardous", "recovered"),
+        "non_hazardous_waste_recovered": ("non_hazardous", "recovered"),
+    }
+
     for wr in waste_records:
-        sub = (wr.get("subcategory") or "").lower()
         fv = wr.get("field_values") or {}
-        qty = float(fv.get("quantity") or 0)
-        is_hazardous = "hazardous" in str(fv.get("waste_type") or "").lower() or "hazardous" in str(fv.get("type") or "").lower()
-        target = hazardous_waste if is_hazardous else non_hazardous_waste
-        if "generated" in sub:
-            target["generated"] += qty
-        elif "recovered" in sub:
-            target["recovered"] += qty
-        elif "disposal" in sub or "disposed" in sub:
-            target["disposed"] += qty
+        found_mapped = False
+        for field_key, (waste_type, metric) in WASTE_FIELD_MAP.items():
+            val = float(fv.get(field_key) or 0)
+            if val > 0:
+                target = hazardous_waste if waste_type == "hazardous" else non_hazardous_waste
+                target[metric] += val
+                found_mapped = True
+
+        # Fallback: if no mapped keys found, try subcategory + quantity
+        if not found_mapped:
+            sub = (wr.get("subcategory") or "").lower()
+            qty = float(fv.get("quantity") or 0)
+            if qty > 0:
+                is_haz = "hazardous" in str(fv.get("waste_type") or "").lower()
+                target = hazardous_waste if is_haz else non_hazardous_waste
+                if "generated" in sub:
+                    target["generated"] += qty
+                elif "recovered" in sub or "diverted" in sub:
+                    target["recovered"] += qty
+                elif "disposal" in sub or "disposed" in sub:
+                    target["disposed"] += qty
 
     return {
         "scope1_breakdown": fmt_breakdown(scope1_breakdown),
