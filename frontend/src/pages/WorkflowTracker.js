@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Leaf, Users2, Shield, ScrollText, BookOpen } from 'lucide-react';
 import ESGRecordsTracker from '../components/ESGRecordsTracker';
-import TrackingModule from '../components/TrackingModule';
+import ESGTrackingTab from '../components/ESGTrackingTab';
 
 /**
  * Workflow Tracker — combined tracker for ESG sections + BRSR/GRI disclosures.
+ * Uses ESGTrackingTab directly (no sub-tabs).
  */
 export default function WorkflowTracker() {
   const [section, setSection] = useState('environment');
@@ -51,10 +52,10 @@ export default function WorkflowTracker() {
           <ESGRecordsTracker section="governance" />
         </TabsContent>
         <TabsContent value="brsr" className="mt-4">
-          <TrackingModule entityType="question" framework="BRSR" />
+          <ESGTrackingTab domain="all" frameworkFilter="BRSR" hideReportingPeriodSelector={true} />
         </TabsContent>
         <TabsContent value="gri" className="mt-4">
-          <TrackingModule entityType="question" framework="GRI" />
+          <ESGTrackingTab domain="all" frameworkFilter="GRI" hideReportingPeriodSelector={true} />
         </TabsContent>
       </Tabs>
     </div>
