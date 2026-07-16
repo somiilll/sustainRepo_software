@@ -75,6 +75,7 @@ const sidebarConfig = [
     children: [
       { key: 'reporting.brsr', label: 'BRSR', icon: 'ScrollText', path: '/reporting/brsr' },
       { key: 'reporting.gri', label: 'GRI', icon: 'BookOpen', path: '/reporting/gri' },
+      { key: 'reporting.materiality', label: 'Materiality Assessment', icon: 'BarChart3', path: '/reporting/materiality' },
     ],
   },
   {
