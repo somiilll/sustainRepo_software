@@ -1,5 +1,5 @@
 """Organization Pydantic contracts."""
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -74,6 +74,7 @@ class OrganizationCreate(BaseModel):
     has_esg: Optional[bool] = True  # Enable ESG module (Environment, Social, Governance records)
     sbti_targets_enabled: Optional[bool] = False  # Enable SBTi Targets module
     repo_pilot_enabled: Optional[bool] = False  # Enable Repo Pilot module
+    module_access: Optional[Dict[str, bool]] = None  # Per-module access flags
 
     @field_validator('pincode')
     @classmethod
@@ -166,4 +167,5 @@ class OrganizationResponse(BaseModel):
     has_esg: Optional[bool] = True  # Enable ESG module (Environment, Social, Governance records)
     sbti_targets_enabled: Optional[bool] = False  # Enable SBTi Targets module
     repo_pilot_enabled: Optional[bool] = False  # Enable Repo Pilot module
+    module_access: Optional[Dict[str, bool]] = None  # Per-module access flags
 

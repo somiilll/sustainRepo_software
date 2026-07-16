@@ -54,6 +54,7 @@ import Layout from './components/Layout';
 import PasswordChangeModal from './components/PasswordChangeModal';
 import ApproverQueue from './components/ApproverQueue';
 import MyAssignments from './pages/MyAssignments';
+import PlaceholderPage from './pages/PlaceholderPage';
 import { initializeCategoryModules } from './modules/emissions';
 
 // Initialize the emissions Category Registry once at app boot.
@@ -257,16 +258,34 @@ const AppRoutes = () => {
           <Route path="sinks" element={<Sinks />} />
           <Route path="base-year-emissions" element={<BaseYearAndTargets />} />
           <Route path="environment" element={<Environment />} />
+          <Route path="environment/energy" element={<Environment />} />
+          <Route path="environment/water" element={<Environment />} />
+          <Route path="environment/waste" element={<Environment />} />
+          <Route path="environment/biodiversity" element={<PlaceholderPage title="Biodiversity" />} />
+          <Route path="environment/climate-change" element={<PlaceholderPage title="Climate Change" />} />
+          <Route path="environment/material" element={<PlaceholderPage title="Material" />} />
           <Route path="social" element={<Social />} />
-                  <Route path="hr-workforce" element={<HRWorkforce />} />
+          <Route path="hr-workforce" element={<HRWorkforce />} />
           <Route path="governance" element={<Governance />} />
           <Route path="reporting" element={<Reporting />} />
           <Route path="reporting/brsr" element={<BRSRModule />} />
           <Route path="reporting/gri" element={<GRIModule />} />
-          <Route path="reporting/sbti" element={<SBTiTargets />} />
+          <Route path="workflow/tracker" element={<PlaceholderPage title="Tracker" />} />
+          <Route path="workflow/my-task" element={<MyAssignments />} />
+          <Route path="workflow/approver-queue" element={<ApproverQueue />} />
+          <Route path="uploads/ghg-entry" element={<Emissions />} />
+          <Route path="uploads/bulk" element={<BulkUpload />} />
+          <Route path="uploads/kpi-metrics" element={<PlaceholderPage title="KPI Metrics" />} />
+          <Route path="targets/voluntary/ghg" element={<BaseYearAndTargets />} />
+          <Route path="targets/voluntary/environment" element={<PlaceholderPage title="Environment Targets" />} />
+          <Route path="targets/voluntary/social" element={<PlaceholderPage title="Social Targets" />} />
+          <Route path="targets/voluntary/governance" element={<PlaceholderPage title="Governance Targets" />} />
+          <Route path="targets/sbti" element={<SBTiTargets />} />
           <Route path="repo-pilot" element={<RepoPilot />} />
-          <Route path="my-assignments" element={<MyAssignments />} />
-          <Route path="approver-queue" element={<ApproverQueue />} />
+          <Route path="my-assignments" element={<Navigate to="/workflow/my-task" replace />} />
+          <Route path="approver-queue" element={<Navigate to="/workflow/approver-queue" replace />} />
+          <Route path="bulk-upload" element={<Navigate to="/uploads/bulk" replace />} />
+          <Route path="base-year-emissions" element={<Navigate to="/targets/voluntary/ghg" replace />} />
           <Route path="reports" element={<Reports />} />
           <Route path="users" element={
             <AdminRoute>
