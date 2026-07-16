@@ -96,7 +96,7 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
     dateRange, setDateRange,
     showFilters, setShowFilters,
     showFacilityDropdown, setShowFacilityDropdown, facilityDropdownRef,
-    filteredData, isLive, getPreviousFinancialYear,
+    filteredData, isLive, getCurrentFinancialYear,
   } = data;
 
   const [analytics, setAnalytics] = useState(null);
@@ -186,7 +186,7 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
 
   const filterProps = {
     dateRange, setDateRange, facilities, selectedFacilities, setSelectedFacilities,
-    showFacilityDropdown, setShowFacilityDropdown, facilityDropdownRef, getPreviousFinancialYear,
+    showFacilityDropdown, setShowFacilityDropdown, facilityDropdownRef, getCurrentFinancialYear,
   };
 
   const openDrilldown = (point, title) => setDrilldown({ point, title });
