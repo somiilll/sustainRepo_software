@@ -180,12 +180,38 @@ export default function MyAssignments() {
 
   // Navigate to fill the question
   const handleFillQuestion = (assignment) => {
-    // Navigate to the appropriate questionnaire
-    const domain = assignment.domain || 'environment';
-    const framework = assignment.framework || 'BRSR';
-    
-    // Navigate to ESG module with the right section and framework
-    navigate(`/esg/${domain}?framework=${framework}&question=${assignment.entity_id}`);
+    const domain = (assignment.domain || 'environment').toLowerCase();
+    const category = assignment.category || '';
+    const subcategory = assignment.subcategory || '';
+
+    // Map domain + category to the correct route
+    const routeMap = {
+      environment: '/environment',
+      social: '/social',
+      governance: '/governance',
+    };
+
+    // Environment subcategory routes
+    const envCategoryRoutes = {
+      energy: '/environment/energy',
+      water: '/environment/water',
+      waste: '/environment/waste',
+      biodiversity: '/environment/biodiversity',
+      'climate change': '/environment/climate-change',
+      material: '/environment/material',
+    };
+
+    let path = routeMap[domain] || '/environment';
+    if (domain === 'environment' && category) {
+      const catKey = category.toLowerCase();
+      path = envCategoryRoutes[catKey] || path;
+    }
+
+    const params = new URLSearchParams({ tab: 'add-metric' });
+    if (category) params.set('category', category);
+    if (subcategory) params.set('subcategory', subcategory);
+
+    navigate(`${path}?${params.toString()}`);
   };
 
   // Format due date

@@ -264,9 +264,9 @@ const AppRoutes = () => {
           <Route path="environment/energy" element={<Environment preFilterCategory="Energy" />} />
           <Route path="environment/water" element={<Environment preFilterCategory="Water" />} />
           <Route path="environment/waste" element={<Environment preFilterCategory="Waste" />} />
-          <Route path="environment/biodiversity" element={<PlaceholderPage title="Biodiversity" />} />
-          <Route path="environment/climate-change" element={<PlaceholderPage title="Climate Change" />} />
-          <Route path="environment/material" element={<PlaceholderPage title="Material" />} />
+          <Route path="environment/biodiversity" element={<Environment preFilterCategory="Biodiversity" />} />
+          <Route path="environment/climate-change" element={<Environment preFilterCategory="Climate Change" />} />
+          <Route path="environment/material" element={<Environment preFilterCategory="Material" />} />
           <Route path="social" element={<Social />} />
           <Route path="hr-workforce" element={<HRWorkforce />} />
           <Route path="governance" element={<Governance />} />

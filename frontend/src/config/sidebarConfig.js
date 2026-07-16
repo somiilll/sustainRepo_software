@@ -92,9 +92,7 @@ const sidebarConfig = [
     label: 'Uploads',
     icon: 'Upload',
     children: [
-      { key: 'uploads.ghg_entry', label: 'GHG Add Entry', icon: 'FileSpreadsheet', path: '/uploads/ghg-entry' },
       { key: 'uploads.bulk', label: 'Bulk Uploads', icon: 'Upload', path: '/uploads/bulk' },
-      { key: 'uploads.kpi_metrics', label: 'KPI Metrics', icon: 'Gauge', path: '/uploads/kpi-metrics' },
     ],
   },
   {
