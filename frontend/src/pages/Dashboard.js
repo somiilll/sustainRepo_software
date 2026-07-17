@@ -53,9 +53,9 @@ export default function Dashboard() {
   // }
   
   // ESG Dashboard selection
-  if (esgSection === 'all') {
-    return <DashboardESG data={enhancedData} />;
-  }
+  // if (esgSection === 'all') {
+  //   return <DashboardESG data={enhancedData} />;
+  // }
   
   // if (esgSection === 'environment') {
   //   return <DashboardEnvironment data={enhancedData} />;

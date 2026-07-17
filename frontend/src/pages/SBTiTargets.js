@@ -12,13 +12,11 @@ import { Progress } from '../components/ui/progress';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { Target, Plus, Edit2, Trash2, TrendingDown, Zap } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts';
-
-const RedDot = ({ cx, cy, payload, dataKey, compareKey }) => {
-  if (payload[dataKey] == null) return null;
-  const isAbove = payload[compareKey] != null && payload[dataKey] > payload[compareKey];
-  return <circle cx={cx} cy={cy} r={4} fill={isAbove ? '#dc2626' : '#0ea5e9'} stroke="#fff" strokeWidth={1.5} />;
-};
+import {
+  ComposedChart, AreaChart, Area, BarChart, Bar, Cell,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, ReferenceLine, Legend,
+} from 'recharts';
 import { generateReportingYears } from '../utils/reportingYearUtils';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -89,42 +87,163 @@ function TargetCard({ target, onEdit, onDelete, token }) {
         </div>
       )}
 
-      {/* Intensity trajectory chart */}
-      {isIntensity && progress?.trajectory && (
-        <div className="mt-3">
-          <p className="text-xs text-text-muted mb-1">Intensity Pathway</p>
-          <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={progress.trajectory} margin={{ top: 5, right: 20, left: 10, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
-              <XAxis dataKey="year_label" tick={{ fontSize: 9 }} stroke="#78716c" angle={-30} textAnchor="end" height={50} />
-              <YAxis tick={{ fontSize: 10 }} stroke="#78716c" />
-              <Tooltip />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Line type="monotone" dataKey="expected" stroke="#e11d48" strokeWidth={2} strokeDasharray="6 3" dot={{ r: 3 }} name="Expected Pathway" />
-              <Line type="monotone" dataKey="actual" stroke="#0ea5e9" strokeWidth={2.5} dot={<RedDot dataKey="actual" compareKey="expected" />} connectNulls={false} name="Actual Intensity" />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+      {/* Intensity trajectory charts */}
+      {isIntensity && progress?.trajectory && (() => {
+        const baseIntensity = target.base_year_intensity;
+        const targetIntensity = target.target_intensity;
+        const gap = baseIntensity - targetIntensity;
+        const areaData = progress.trajectory.map(d => ({
+          ...d,
+          projected: baseIntensity,
+          targetLine: targetIntensity,
+          _base: targetIntensity,
+          _gap: gap > 0 ? gap : 0,
+        }));
+        const currentYearData = progress.trajectory.find(d => d.year === new Date().getFullYear());
+        const actualVal = currentYearData?.actual;
+        const targetBarVal = targetIntensity;
 
-      {/* Percentage target chart — projected vs actual emissions */}
-      {!isIntensity && progress?.chart_data && (
-        <div className="mt-3">
-          <p className="text-xs text-text-muted mb-1">Emissions Trajectory</p>
-          <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={progress.chart_data.map(d => ({ ...d, target: progress.target_line_value }))} margin={{ top: 5, right: 20, left: 10, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
-              <XAxis dataKey="year_label" tick={{ fontSize: 9 }} stroke="#78716c" angle={-30} textAnchor="end" height={50} />
-              <YAxis tick={{ fontSize: 10 }} stroke="#78716c" domain={['auto', 'auto']} />
-              <Tooltip />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Line type="monotone" dataKey="projected" stroke="#f59e0b" strokeWidth={2} strokeDasharray="6 3" dot={{ r: 3 }} name="Projected (no reduction)" />
-              <Line type="monotone" dataKey="actual" stroke="#0ea5e9" strokeWidth={2.5} dot={<RedDot dataKey="actual" compareKey="projected" />} connectNulls={false} name="Actual Emissions" />
-              <Line type="monotone" dataKey="target" stroke="#16a34a" strokeWidth={2} strokeDasharray="4 4" dot={false} name="Target Value" />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+        return (
+          <div className="mt-4 space-y-5">
+            <div>
+              <p className="text-xs font-medium text-stone-600 mb-2">Intensity Reduction Pathway</p>
+              <ResponsiveContainer width="100%" height={260}>
+                <ComposedChart data={areaData} margin={{ top: 5, right: 20, left: 10, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id={`reductionGrad-int-${target.id}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.08} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
+                  <XAxis dataKey="year_label" tick={{ fontSize: 9 }} stroke="#78716c" angle={-30} textAnchor="end" height={50} />
+                  <YAxis tick={{ fontSize: 10 }} stroke="#78716c" />
+                  <Tooltip content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    const proj = payload.find(p => p.dataKey === 'projected');
+                    const tgt = payload.find(p => p.dataKey === 'targetLine');
+                    return (
+                      <div className="rounded-lg border border-stone-200 bg-white p-2.5 shadow-xl text-xs">
+                        <p className="font-medium text-stone-700 mb-1">{label}</p>
+                        {proj && <p style={{ color: '#f59e0b' }}>Business-as-usual: {proj.value}</p>}
+                        {tgt && <p style={{ color: '#16a34a' }}>Target Intensity: {tgt.value}</p>}
+                      </div>
+                    );
+                  }} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Area type="monotone" dataKey="_base" stackId="zone" fill="transparent" stroke="none" legendType="none" tooltipType="none" />
+                  <Area type="monotone" dataKey="_gap" stackId="zone" fill={`url(#reductionGrad-int-${target.id})`} stroke="none" legendType="none" tooltipType="none" />
+                  <Line type="monotone" dataKey="projected" stroke="#f59e0b" strokeWidth={2} strokeDasharray="6 3" dot={{ r: 3 }} name="Business-as-usual" />
+                  <Line type="monotone" dataKey="targetLine" stroke="#16a34a" strokeWidth={2} dot={{ r: 3 }} name="Target Intensity" />
+                </ComposedChart>
+              </ResponsiveContainer>
+              <p className="text-[10px] text-stone-400 text-center mt-1">Shaded area = intensity to be reduced</p>
+            </div>
+
+            {actualVal != null && targetBarVal != null && (() => {
+              const ratio = targetBarVal > 0 ? actualVal / targetBarVal : 0;
+              const barColor = ratio > 1 ? '#dc2626' : ratio > 0.85 ? '#f59e0b' : '#16a34a';
+              const barData = [
+                { name: 'Actual Intensity', value: actualVal, fill: barColor },
+                { name: 'Target Intensity', value: targetBarVal, fill: '#6366f1' },
+              ];
+              return (
+                <div>
+                  <p className="text-xs font-medium text-stone-600 mb-2">Current Year Performance</p>
+                  <ResponsiveContainer width="100%" height={100}>
+                    <BarChart data={barData} layout="vertical" margin={{ top: 0, right: 20, left: 100, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 10 }} stroke="#78716c" />
+                      <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} stroke="#78716c" width={95} />
+                      <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e7e5e4' }} />
+                      <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={22}>
+                        {barData.map((d, i) => <Cell key={i} fill={d.fill} />)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              );
+            })()}
+          </div>
+        );
+      })()}
+
+      {/* Percentage target charts — Reduction zone + current year bar */}
+      {!isIntensity && progress?.chart_data && (() => {
+        const targetVal = progress.target_line_value;
+        const areaData = progress.chart_data.map(d => ({
+          ...d,
+          target: targetVal,
+          _base: targetVal,
+          _gap: Math.max(d.projected - targetVal, 0),
+        }));
+        const currentYearData = progress.chart_data.find(d => d.year === new Date().getFullYear());
+        const actualVal = currentYearData?.actual;
+
+        return (
+          <div className="mt-4 space-y-5">
+            <div>
+              <p className="text-xs font-medium text-stone-600 mb-2">Emissions Reduction Pathway</p>
+              <ResponsiveContainer width="100%" height={260}>
+                <ComposedChart data={areaData} margin={{ top: 5, right: 20, left: 10, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id={`reductionGrad-${target.id}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#ef4444" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="#ef4444" stopOpacity={0.05} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
+                  <XAxis dataKey="year_label" tick={{ fontSize: 9 }} stroke="#78716c" angle={-30} textAnchor="end" height={50} />
+                  <YAxis tick={{ fontSize: 10 }} stroke="#78716c" />
+                  <Tooltip content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    const proj = payload.find(p => p.dataKey === 'projected');
+                    const tgt = payload.find(p => p.dataKey === 'target');
+                    return (
+                      <div className="rounded-lg border border-stone-200 bg-white p-2.5 shadow-xl text-xs">
+                        <p className="font-medium text-stone-700 mb-1">{label}</p>
+                        {proj && <p style={{ color: '#f59e0b' }}>Projected (no reduction): {proj.value}</p>}
+                        {tgt && <p style={{ color: '#16a34a' }}>Target Value: {tgt.value}</p>}
+                      </div>
+                    );
+                  }} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Area type="monotone" dataKey="_base" stackId="zone" fill="transparent" stroke="none" legendType="none" tooltipType="none" />
+                  <Area type="monotone" dataKey="_gap" stackId="zone" fill={`url(#reductionGrad-${target.id})`} stroke="none" legendType="none" tooltipType="none" />
+                  <Line type="monotone" dataKey="projected" stroke="#f59e0b" strokeWidth={2} strokeDasharray="6 3" dot={{ r: 3 }} name="Projected (no reduction)" />
+                  <Line type="monotone" dataKey="target" stroke="#16a34a" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 3 }} name="Target Value" />
+                </ComposedChart>
+              </ResponsiveContainer>
+              <p className="text-[10px] text-stone-400 text-center mt-1">Shaded area = emissions to be reduced</p>
+            </div>
+
+            {actualVal != null && targetVal != null && (() => {
+              const ratio = targetVal > 0 ? actualVal / targetVal : 0;
+              const barColor = ratio > 1 ? '#dc2626' : ratio > 0.85 ? '#f59e0b' : '#16a34a';
+              const barData = [
+                { name: 'Actual Emissions', value: actualVal, fill: barColor },
+                { name: 'Target Value', value: targetVal, fill: '#6366f1' },
+              ];
+              return (
+                <div>
+                  <p className="text-xs font-medium text-stone-600 mb-2">Current Year Performance</p>
+                  <ResponsiveContainer width="100%" height={100}>
+                    <BarChart data={barData} layout="vertical" margin={{ top: 0, right: 20, left: 100, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 10 }} stroke="#78716c" />
+                      <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} stroke="#78716c" width={95} />
+                      <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e7e5e4' }} />
+                      <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={22}>
+                        {barData.map((d, i) => <Cell key={i} fill={d.fill} />)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              );
+            })()}
+          </div>
+        );
+      })()}
     </Card>
   );
 }

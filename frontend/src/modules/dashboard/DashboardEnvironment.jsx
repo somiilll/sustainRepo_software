@@ -262,11 +262,124 @@ function HorizontalBarSection({ data, colors, unit = 'tCO₂e', maxValue }) {
 // }
 
 
-export function ScopeContributionCard({ scope1, scope2, scope3 }) {
+// export function ScopeContributionCard({ scope1, scope2, scope3 }) {
+//   const scopes = [
+//     { label: 'Scope 1 (Direct Emissions)', data: scope1, colors: S1_COLORS, accent: '#F97316' },
+//     { label: 'Scope 2 (Indirect Grid Energy)', data: scope2, colors: S2_COLORS, accent: '#EAB308' },
+//     { label: 'Scope 3 (Value Chain)', data: [...(scope3?.upstream || []), ...(scope3?.downstream || [])], colors: S3_COLORS, accent: '#3B82F6' },
+//   ];
+
+//   const total = (d) => d.reduce((s, i) => s + i.value, 0);
+
+//   return (
+//     // Main Container - Clean white theme with soft shadow
+//     <div 
+//       className="bg-white p-4 sm:p-5 rounded-xl font-sans w-full" 
+//       data-testid="scope-contribution-clean"
+//     >
+//       <div className="space-y-5">
+//         {scopes.map((scope) => {
+//           const t = total(scope.data);
+//           if (t <= 0) return null;
+
+//           // Sort data highest to lowest for a clear hierarchy
+//           const sortedData = [...scope.data]
+//             .filter(d => d.value > 0)
+//             .sort((a, b) => b.value - a.value);
+
+//           return (
+//             // Individual Scope Panel - Light borders and soft background for the header
+//             <div key={scope.label} className="border border-stone-200 rounded-lg overflow-hidden bg-white shadow-sm">
+              
+//               {/* Panel Header */}
+//               <div className="flex justify-between items-center px-5 py-3 border-b border-stone-100 bg-stone-50/50">
+//                 <h3 className="text-stone-800 font-semibold text-sm tracking-wide flex items-center gap-2">
+//                   <div className="w-2 h-2 rounded-full" style={{ backgroundColor: scope.accent }} />
+//                   {scope.label}
+//                 </h3>
+//                 <span className="text-stone-800 font-bold text-sm tracking-wider">
+//                   {t.toLocaleString(undefined, { maximumFractionDigits: 0 })} tCO₂e
+//                 </span>
+//               </div>
+              
+//               {/* Data Rows */}
+//               <div className="p-5 space-y-4">
+//                 {sortedData.map((d, i) => {
+//                   const pct = (d.value / t) * 100;
+//                   const barColor = scope.colors[i % scope.colors.length];
+                  
+//                   return (
+//                     <div key={d.name} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs group">
+                      
+//                       {/* Label */}
+//                       <div className="sm:w-1/3 text-stone-600 truncate font-medium" title={d.name}>
+//                         {d.name}
+//                       </div>
+                      
+//                       {/* Progress Bar Container - Light gray track */}
+//                       <div className="flex-1 h-2.5 bg-stone-100 rounded-full overflow-hidden flex relative">
+//                         <div 
+//                           className="h-full rounded-full transition-all duration-500 ease-out"
+//                           style={{ 
+//                             width: `${pct}%`, 
+//                             backgroundColor: barColor 
+//                           }} 
+//                         />
+//                       </div>
+                      
+//                       {/* Values */}
+//                       <div className="sm:w-1/3 flex justify-between sm:justify-end gap-4 text-stone-700 font-mono text-[11px]">
+//                         <span className="font-semibold">
+//                           {d.value.toLocaleString(undefined, { maximumFractionDigits: 0 })} tCO₂e
+//                         </span>
+//                         <span className="text-stone-400 w-12 text-right">
+//                           ({pct.toFixed(0)}%)
+//                         </span>
+//                       </div>
+                      
+//                     </div>
+//                   );
+//                 })}
+//               </div>
+//             </div>
+//           );
+//         })}
+//       </div>
+//     </div>
+//   );
+// }
+
+
+export function ScopeContributionCard({ scope1, scope2, scope3, splitScope3 = false, }) {
   const scopes = [
     { label: 'Scope 1 (Direct Emissions)', data: scope1, colors: S1_COLORS, accent: '#F97316' },
     { label: 'Scope 2 (Indirect Grid Energy)', data: scope2, colors: S2_COLORS, accent: '#EAB308' },
-    { label: 'Scope 3 (Value Chain)', data: [...(scope3?.upstream || []), ...(scope3?.downstream || [])], colors: S3_COLORS, accent: '#3B82F6' },
+    ...(splitScope3
+    ? [
+        {
+          label: "Scope 3 Upstream",
+          data: scope3?.upstream || [],
+          colors: S3_COLORS,
+          accent: "#3B82F6",
+        },
+        {
+          label: "Scope 3 Downstream",
+          data: scope3?.downstream || [],
+          colors: S3_COLORS,
+          accent: "#60A5FA",
+        },
+      ]
+    : [
+        {
+          label: "Scope 3 (Value Chain)",
+          data: [
+            ...(scope3?.upstream || []),
+            ...(scope3?.downstream || []),
+          ],
+          colors: S3_COLORS,
+          accent: "#3B82F6",
+        },
+      ]),
   ];
 
   const total = (d) => d.reduce((s, i) => s + i.value, 0);
@@ -714,8 +827,6 @@ export default function DashboardEnvironment({ data }) {
     );
   }
 
-  console.log("envDetail", envDetail)
-
   return (
     <div className="space-y-5" data-testid="dashboard-environment">
       <StickyFilterBar
@@ -818,6 +929,7 @@ export default function DashboardEnvironment({ data }) {
           <ScopeContributionCard
             scope1={[]} /* Empty array hides Scope 1 */
             scope2={[]} /* Empty array hides Scope 2 */
+            splitScope3
             scope3={{ 
               upstream: envDetail?.scope3_upstream || [], 
               downstream: envDetail?.scope3_downstream || [] 
