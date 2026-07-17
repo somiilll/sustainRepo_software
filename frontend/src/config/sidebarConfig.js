@@ -12,12 +12,12 @@ const sidebarConfig = [
     icon: 'LayoutDashboard',
     path: '/dashboard',
   },
-  {
-    key: 'organization',
-    label: 'Organization',
-    icon: 'Building2',
-    path: '/organization',
-  },
+  // {
+  //   key: 'organization',
+  //   label: 'Organization',
+  //   icon: 'Building2',
+  //   path: '/organization',
+  // },
   {
     key: 'facilities',
     label: 'Facilities',
@@ -112,7 +112,7 @@ const sidebarConfig = [
         label: 'Voluntary Targets',
         icon: 'Sprout',
         children: [
-          { key: 'targets.voluntary.ghg', label: 'GHG Targets', path: '/targets/voluntary/ghg' },
+          // { key: 'targets.voluntary.ghg', label: 'GHG Targets', path: '/targets/voluntary/ghg' },
           { key: 'targets.voluntary.environment', label: 'Environment Targets', path: '/targets/voluntary/environment' },
           { key: 'targets.voluntary.social', label: 'Social Targets', path: '/targets/voluntary/social' },
           { key: 'targets.voluntary.governance', label: 'Governance Targets', path: '/targets/voluntary/governance' },
