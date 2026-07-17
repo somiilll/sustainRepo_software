@@ -128,8 +128,8 @@ function ChatMessage({ msg, documents }) {
                 <Badge
                   key={i}
                   variant="outline"
-                  className={`text-[10px] bg-white/80 ${imgUrl ? 'cursor-pointer hover:bg-emerald-50' : ''}`}
-                  onClick={() => imgUrl && setViewSource({ ...s, imgUrl })}
+                  className="text-[10px] bg-white/80 cursor-pointer hover:bg-emerald-50"
+                  onClick={() => setViewSource({ ...s, imgUrl: imgUrl || null })}
                 >
                   [{s.citation_id}] {s.doc_id} p.{s.page_num}
                 </Badge>
@@ -150,7 +150,15 @@ function ChatMessage({ msg, documents }) {
               <p className="text-sm font-semibold">{viewSource.doc_id}{viewSource.page_num ? ` — Page ${viewSource.page_num}` : ''}</p>
               <Button variant="ghost" size="sm" onClick={() => setViewSource(null)}><X className="w-4 h-4" /></Button>
             </div>
-            <img src={viewSource.imgUrl} alt={viewSource.doc_id || 'Image'} className="w-full" />
+            {viewSource.imgUrl ? (
+              <img src={viewSource.imgUrl} alt={viewSource.doc_id || 'Image'} className="w-full" />
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <FileText className="w-12 h-12 text-stone-300 mb-3" />
+                <p className="text-sm font-medium text-stone-600">Page image not available</p>
+                <p className="text-xs text-stone-400 mt-1">Source: {viewSource.doc_id}{viewSource.page_num ? `, Page ${viewSource.page_num}` : ''}</p>
+              </div>
+            )}
           </div>
         </div>
       )}
