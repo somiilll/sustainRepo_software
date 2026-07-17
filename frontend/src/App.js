@@ -55,6 +55,10 @@ import PasswordChangeModal from './components/PasswordChangeModal';
 import ApproverQueue from './components/ApproverQueue';
 import MyAssignments from './pages/MyAssignments';
 import PlaceholderPage from './pages/PlaceholderPage';
+import GHGAnalysis from './pages/GHGAnalysis';
+import EnvironmentAnalysis from './pages/EnvironmentAnalysis';
+import SocialAnalysis from './pages/SocialAnalysis';
+import GovernanceAnalysis from './pages/GovernanceAnalysis';
 import MaterialityAssessment from './pages/MaterialityAssessment';
 import GHGTargetsPage from './pages/GHGTargetsPage';
 import ESGTargetsTab from './components/ESGTargetsTab';
@@ -261,6 +265,7 @@ const AppRoutes = () => {
           <Route path="ghg/approvals" element={<ApprovalSection />} />
           <Route path="emissions/dynamic" element={<DynamicEmissionsTest />} />
           <Route path="bulk-upload" element={<BulkUpload />} />
+          <Route path="ghg/analysis" element={<GHGAnalysis />} />
           <Route path="sinks" element={<Sinks />} />
           <Route path="base-year-emissions" element={<BaseYearAndTargets />} />
           <Route path="environment" element={<Environment />} />
@@ -270,9 +275,12 @@ const AppRoutes = () => {
           <Route path="environment/biodiversity" element={<Environment preFilterCategory="Biodiversity" />} />
           <Route path="environment/climate-change" element={<Environment preFilterCategory="Climate Change" />} />
           <Route path="environment/material" element={<Environment preFilterCategory="Material" />} />
+          <Route path="environment/analysis" element={<EnvironmentAnalysis />} />
           <Route path="social" element={<Social />} />
+          <Route path="social/analysis" element={<SocialAnalysis />} />
           <Route path="hr-workforce" element={<HRWorkforce />} />
           <Route path="governance" element={<Governance />} />
+          <Route path="governance/analysis" element={<GovernanceAnalysis />} />
           <Route path="reporting" element={<Reporting />} />
           <Route path="reporting/brsr" element={<BRSRModule />} />
           <Route path="reporting/gri" element={<GRIModule />} />

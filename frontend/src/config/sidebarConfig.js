@@ -40,6 +40,7 @@ const sidebarConfig = [
           { key: 'environment.ghg.logs', label: 'Logs', icon: 'FileText', path: '/ghg' },
           { key: 'environment.ghg.sinks', label: 'Sinks', icon: 'TreeDeciduous', path: '/sinks' },
           { key: 'environment.ghg.base_year', label: 'Base Year', icon: 'CalendarDays', path: '/ghg/base-year' },
+          { key: 'environment.ghg.analysis', label: 'Analysis', icon: 'BarChart3', path: '/ghg/analysis' },
       ] },
       { key: 'environment.energy', label: 'Energy', icon: 'Zap', path: '/environment/energy' },
       { key: 'environment.water', label: 'Water', icon: 'Droplets', path: '/environment/water' },
@@ -54,19 +55,26 @@ const sidebarConfig = [
           { key: 'environment.others.material', label: 'Material', path: '/environment/material' },
         ],
       },
+      { key: 'environment.analysis', label: 'Analysis', icon: 'BarChart3', path: '/environment/analysis' },
     ],
   },
   {
     key: 'social',
     label: 'Social',
     icon: 'Users2',
-    path: '/social',
+    children: [
+      { key: 'social.kpi', label: 'KPI', icon: 'FileText', path: '/social' },
+      { key: 'social.analysis', label: 'Analysis', icon: 'BarChart3', path: '/social/analysis' },
+    ],
   },
   {
     key: 'governance',
     label: 'Governance',
     icon: 'Shield',
-    path: '/governance',
+    children: [
+      { key: 'governance.kpi', label: 'KPI', icon: 'FileText', path: '/governance' },
+      { key: 'governance.analysis', label: 'Analysis', icon: 'BarChart3', path: '/governance/analysis' },
+    ],
   },
   {
     key: 'materiality',
