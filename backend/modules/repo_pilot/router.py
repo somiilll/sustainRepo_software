@@ -65,7 +65,8 @@ async def upload_document(
     r2_url = ""
     r2_key = ""
     try:
-        from r2_storage import r2_storage
+        from r2_storage import get_r2_storage
+        r2_storage = get_r2_storage()
         r2_result = await r2_storage.upload_file(
             file_content=content,
             filename=file.filename,
@@ -137,7 +138,8 @@ async def _process_document_async(document_id: str, org_id: str, doc_id: str, pd
         image_urls = {}
         image_keys = {}
         try:
-            from r2_storage import r2_storage
+            from r2_storage import get_r2_storage
+            r2_storage = get_r2_storage()
             for page_num, img_bytes in page_images.items():
                 r2_result = await r2_storage.upload_file(
                     file_content=img_bytes,
@@ -232,7 +234,8 @@ async def list_documents(current_user: dict = Depends(get_current_user)):
 
     # Refresh presigned URLs from stored R2 keys
     try:
-        from r2_storage import r2_storage
+        from r2_storage import get_r2_storage
+        r2_storage = get_r2_storage()
         for doc in docs:
             image_keys = doc.get("image_keys", {})
             if image_keys:
@@ -294,7 +297,8 @@ async def _regenerate_images_async(document_id: str, org_id: str, doc_id: str, r
 
         image_urls = {}
         image_keys = {}
-        from r2_storage import r2_storage
+        from r2_storage import get_r2_storage
+        r2_storage = get_r2_storage()
         # Get org name for folder structure
         org_doc = await db.organizations.find_one({"id": org_id}, {"_id": 0, "name": 1})
         org_folder = (org_doc.get("name", org_id) if org_doc else org_id).replace(" ", "_")
