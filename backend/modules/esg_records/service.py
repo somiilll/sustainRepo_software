@@ -784,7 +784,7 @@ class ESGRecordsService:
             changed_fields.append("notes")
         
         # Check if this record's assignment requires approval
-        # Must match facility_id to get the correct assignment
+        # Must match exact subcategory to avoid cross-matching different subcategories
         requires_approval = False
         assignment_query = {
             "organization_id": current.get("org_id"),
@@ -797,17 +797,6 @@ class ESGRecordsService:
             assignment_query["subcategory"] = current.get("subcategory")
         
         assignment = await db.esg_assignments.find_one(assignment_query, {"_id": 0})
-        
-        # If no exact match, try without subcategory (parent category assignment)
-        if not assignment and current.get("subcategory"):
-            parent_query = {
-                "organization_id": current.get("org_id"),
-                "category": current.get("category"),
-                "entity_type": "record_category",
-            }
-            if current.get("facility_id"):
-                parent_query["facility_id"] = current.get("facility_id")
-            assignment = await db.esg_assignments.find_one(parent_query, {"_id": 0})
         
         if assignment:
             requires_approval = assignment.get("requires_approval", False)
@@ -1770,11 +1759,41 @@ class ESGRecordsService:
                 data=data,
             )
 
+        # PROPAGATE APPROVAL: When requires_approval is True for a subcategory,
+        # propagate approver settings to all sibling subcategories in the same category
+        # that are assigned to the same user but lack an approver
+        propagated = 0
+        if data.get("requires_approval") and data.get("subcategory") and data.get("approver_id"):
+            sibling_query = {
+                "organization_id": org_id,
+                "entity_type": "record_category",
+                "category": data.get("category"),
+                "assigned_to_user_id": data.get("assigned_to_user_id"),
+                "subcategory": {"$ne": data.get("subcategory")},
+                "$or": [
+                    {"requires_approval": {"$ne": True}},
+                    {"approver_id": None},
+                ],
+            }
+            result = await db.esg_assignments.update_many(
+                sibling_query,
+                {"$set": {
+                    "requires_approval": True,
+                    "approver_id": data.get("approver_id"),
+                    "approval_chain": data.get("approval_chain", []),
+                    "updated_at": now,
+                }}
+            )
+            propagated = result.modified_count
+            if propagated > 0:
+                print(f"Propagated approval config to {propagated} sibling subcategory assignments under {data.get('category')}")
+
         return {
             "id": assignment_id, 
             "status": "saved",
             "cascaded_assignments": len(cascade_results),
             "cascade_details": cascade_results,
+            "propagated_approval": propagated,
         }
 
     async def _cascade_assignment_to_children(
