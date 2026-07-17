@@ -290,7 +290,8 @@ async def get_esg_analytics(db, org_id: str, start_date: str, end_date: str, fac
     months = month_keys(start_date, end_date)
     previous_months = month_keys(f"{int(start_date[:4]) - 1}-{start_date[5:7]}", f"{int(end_date[:4]) - 1}-{end_date[5:7]}")
     all_months = set(months + previous_months)
-    org_query = {"org_id": org_id, "is_current": {"$ne": False}, "status": {"$ne": "draft"}}
+    org_query = {"org_id": org_id, "is_current": {"$ne": False}, "status": {"$ne": "draft"},
+                 "approval_status": {"$in": ["approved", "not_required", None]}}
     if facility_ids:
         org_query["facility_id"] = {"$in": facility_ids}
 

@@ -6,7 +6,8 @@ async def get_governance_detail(
     db, org_id: str, start_date: str, end_date: str,
     facility_ids: Optional[List[str]] = None,
 ) -> dict:
-    org_query = {"org_id": org_id, "is_current": {"$ne": False}, "status": {"$ne": "draft"}}
+    org_query = {"org_id": org_id, "is_current": {"$ne": False}, "status": {"$ne": "draft"},
+                 "approval_status": {"$in": ["approved", "not_required", None]}}
     if facility_ids:
         org_query["facility_id"] = {"$in": facility_ids}
 

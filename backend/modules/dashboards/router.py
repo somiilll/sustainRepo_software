@@ -1205,6 +1205,7 @@ async def get_esg_summary(
             "org_id": org_id,
             "is_current": {"$ne": False},
             "status": {"$ne": "draft"},
+            "approval_status": {"$in": ["approved", "not_required", None]},
             f"field_values.{field_key}": {"$exists": True, "$ne": None},
         }
         if period_conditions:
@@ -1287,6 +1288,7 @@ async def get_esg_summary(
             "org_id": org_id,
             "is_current": {"$ne": False},
             "status": {"$ne": "draft"},
+            "approval_status": {"$in": ["approved", "not_required", None]},
             f"field_values.{field_key}": {"$exists": True, "$ne": None},
         }
         if period_conditions:
@@ -1317,6 +1319,7 @@ async def get_esg_summary(
     safety_count = await db.governance_records.count_documents({
         "org_id": org_id,
         "subcategory": "Health & Safety Incidents",
+        "approval_status": {"$in": ["approved", "not_required", None]},
     })
 
     def yoy_change(curr, prev):

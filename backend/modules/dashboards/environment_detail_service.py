@@ -182,7 +182,7 @@ async def get_environment_detail(
         )
 
     # --- Water source breakdown from environment_records ---
-    org_query = {"org_id": org_id}
+    org_query = {"org_id": org_id, "approval_status": {"$in": ["approved", "not_required", None]}}
     if facility_ids:
         org_query["facility_id"] = {"$in": facility_ids}
 
