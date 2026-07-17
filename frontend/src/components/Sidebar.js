@@ -130,9 +130,10 @@ export default function Sidebar() {
 
   return (
     <aside className="flex h-screen w-64 shrink-0 flex-col border-r border-stone-200 bg-white" data-testid="main-sidebar">
-      <div className="flex h-16 items-center justify-center border-b border-stone-200 px-4">
-        <Link to={isSuperAdmin ? '/super-admin' : '/dashboard'}>
-          <img src={logoUrl} alt="Logo" className="h-10 w-auto" onError={(e) => { e.target.src = LOGO_FALLBACK; }} />
+      <div className="flex h-16 items-center border-b border-stone-200 px-4">
+        <Link to={isSuperAdmin ? '/super-admin' : '/dashboard'} className="flex items-center gap-2.5">
+          <img src={logoUrl} alt="Logo" className="h-9 w-auto" onError={(e) => { e.target.src = LOGO_FALLBACK; }} />
+          <span className="text-lg font-bold text-stone-800 tracking-tight">SustainRepo</span>
         </Link>
       </div>
 
