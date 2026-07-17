@@ -1287,13 +1287,14 @@ class ESGRecordsService:
     ) -> Dict[str, Any]:
         """Get record statistics for an organization."""
         collection = self._get_records_collection(section)
+        base_filter = {"org_id": org_id, "is_current": True}
         
         # Total records
-        total = await collection.count_documents({"org_id": org_id, "is_current": True})
+        total = await collection.count_documents(base_filter)
         
         # By category
         pipeline = [
-            {"$match": {"org_id": org_id, "is_current": True}},
+            {"$match": base_filter},
             {"$group": {"_id": "$category", "count": {"$sum": 1}}}
         ]
         by_category = {}
@@ -1302,17 +1303,39 @@ class ESGRecordsService:
         
         # By reporting type
         pipeline = [
-            {"$match": {"org_id": org_id, "is_current": True}},
+            {"$match": base_filter},
             {"$group": {"_id": "$reporting_period.reporting_type", "count": {"$sum": 1}}}
         ]
         by_reporting_type = {}
         async for doc in collection.aggregate(pipeline):
             by_reporting_type[doc["_id"]] = doc["count"]
         
+        # By status
+        drafts = await collection.count_documents({**base_filter, "status": "draft"})
+        completed = await collection.count_documents({**base_filter, "status": "completed"})
+        
+        # By approval_status
+        approved = await collection.count_documents({**base_filter, "approval_status": "approved"})
+        pending = await collection.count_documents({**base_filter, "approval_status": "pending_approval"})
+        rejected = await collection.count_documents({**base_filter, "approval_status": "rejected"})
+        not_required = await collection.count_documents({
+            **base_filter,
+            "$or": [{"approval_status": "not_required"}, {"approval_status": None}, {"approval_status": {"$exists": False}}]
+        })
+        
+        # "submitted" = completed records (not draft) regardless of approval
+        submitted = completed
+        
         return {
             "total": total,
             "by_category": by_category,
-            "by_reporting_type": by_reporting_type
+            "by_reporting_type": by_reporting_type,
+            "drafts": drafts,
+            "submitted": submitted,
+            "approved": approved,
+            "pending_approval": pending,
+            "rejected": rejected,
+            "not_required": not_required,
         }
     
     # =========================================================================

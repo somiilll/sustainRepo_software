@@ -1019,7 +1019,7 @@ export default function ESGRecordsDataEntry({
             <div className="text-sm text-text-muted">Total Metrics</div>
           </Card>
           <Card className="p-4">
-            <div className="text-2xl font-bold text-yellow-600">{drafts.length}</div>
+            <div className="text-2xl font-bold text-yellow-600">{stats.drafts || 0}</div>
             <div className="text-sm text-text-muted">Drafts</div>
           </Card>
           <Card className="p-4">
