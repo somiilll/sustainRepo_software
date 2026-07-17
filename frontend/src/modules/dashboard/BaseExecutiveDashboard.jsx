@@ -193,7 +193,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
   return (
     <div className="space-y-6 pb-0" data-testid="executive-dashboard">
       <StickyFilterBar
-        title={organization?.name ? `${organization.name} · Executive Dashboard` : 'Executive Dashboard'}
+        title={organization?.name ? `${organization.name} · GHG Dashboard` : 'GHG Dashboard'}
         subtitle={`Reporting window: ${dateRangeLabel}`}
         liveBadge={liveBadge}
         showFilters={showFilters}

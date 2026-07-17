@@ -1,39 +1,38 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceArea } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Search, ChevronRight, ArrowUpDown, Filter, TrendingUp, AlertTriangle, Shield, Leaf } from 'lucide-react';
+import { X, Search, ChevronRight, ArrowUpDown, Filter, TrendingUp, Shield, Leaf } from 'lucide-react';
 
 const CATEGORIES = {
   Environmental: { color: '#059669', bg: '#ecfdf5', icon: Leaf },
   Social: { color: '#ea580c', bg: '#fff7ed', icon: TrendingUp },
   Governance: { color: '#2563eb', bg: '#eff6ff', icon: Shield },
-  Economic: { color: '#7c3aed', bg: '#f5f3ff', icon: AlertTriangle },
 };
 
 const GRI_TOPICS = [
-  { id: 'GRI301', code: 'GRI 301', topic: 'Materials', category: 'Environmental', businessImpact: 3.2, stakeholderImpact: 3.5, priority: 'Medium', description: 'Materials used by weight or volume, recycled input materials, reclaimed products.' },
+  { id: 'GRI301', code: 'GRI 301', topic: 'Materials', category: 'Environmental', businessImpact: 2.4, stakeholderImpact: 2.8, priority: 'Medium', description: 'Materials used by weight or volume, recycled input materials, reclaimed products.' },
   { id: 'GRI302', code: 'GRI 302', topic: 'Energy', category: 'Environmental', businessImpact: 4.2, stakeholderImpact: 4.5, priority: 'High', description: 'Energy consumption, intensity, and reduction initiatives.' },
-  { id: 'GRI303', code: 'GRI 303', topic: 'Water & Effluents', category: 'Environmental', businessImpact: 3.8, stakeholderImpact: 4.2, priority: 'High', description: 'Water withdrawal, discharge, and consumption across operations.' },
-  { id: 'GRI304', code: 'GRI 304', topic: 'Biodiversity', category: 'Environmental', businessImpact: 2.8, stakeholderImpact: 3.6, priority: 'Medium', description: 'Operational sites in or near areas of high biodiversity value.' },
+  { id: 'GRI303', code: 'GRI 303', topic: 'Water & Effluents', category: 'Environmental', businessImpact: 3.1, stakeholderImpact: 4.2, priority: 'High', description: 'Water withdrawal, discharge, and consumption across operations.' },
+  { id: 'GRI304', code: 'GRI 304', topic: 'Biodiversity', category: 'Environmental', businessImpact: 1.6, stakeholderImpact: 3.4, priority: 'Medium', description: 'Operational sites in or near areas of high biodiversity value.' },
   { id: 'GRI305', code: 'GRI 305', topic: 'Emissions', category: 'Environmental', businessImpact: 4.8, stakeholderImpact: 4.9, priority: 'Critical', description: 'Direct and indirect GHG emissions, intensity, and reduction.' },
-  { id: 'GRI306', code: 'GRI 306', topic: 'Waste', category: 'Environmental', businessImpact: 3.5, stakeholderImpact: 3.9, priority: 'High', description: 'Waste generation, diversion from disposal, and directed to disposal.' },
-  { id: 'GRI308', code: 'GRI 308', topic: 'Supplier Env. Assessment', category: 'Environmental', businessImpact: 3.0, stakeholderImpact: 3.4, priority: 'Medium', description: 'Environmental criteria in supplier screening and assessment.' },
-  { id: 'GRI401', code: 'GRI 401', topic: 'Employment', category: 'Social', businessImpact: 4.0, stakeholderImpact: 4.3, priority: 'High', description: 'New hires, turnover, benefits, and parental leave.' },
+  { id: 'GRI306', code: 'GRI 306', topic: 'Waste', category: 'Environmental', businessImpact: 2.7, stakeholderImpact: 3.3, priority: 'Medium', description: 'Waste generation, diversion from disposal, and directed to disposal.' },
+  { id: 'GRI308', code: 'GRI 308', topic: 'Supplier Env. Assessment', category: 'Environmental', businessImpact: 1.8, stakeholderImpact: 2.1, priority: 'Low', description: 'Environmental criteria in supplier screening and assessment.' },
+  { id: 'GRI401', code: 'GRI 401', topic: 'Employment', category: 'Social', businessImpact: 3.8, stakeholderImpact: 2.5, priority: 'Medium', description: 'New hires, turnover, benefits, and parental leave.' },
   { id: 'GRI403', code: 'GRI 403', topic: 'Health & Safety', category: 'Social', businessImpact: 4.5, stakeholderImpact: 4.7, priority: 'Critical', description: 'Occupational health management, hazard identification, injury rates.' },
-  { id: 'GRI404', code: 'GRI 404', topic: 'Training & Education', category: 'Social', businessImpact: 3.4, stakeholderImpact: 3.8, priority: 'Medium', description: 'Average training hours, skills management, and career development.' },
-  { id: 'GRI405', code: 'GRI 405', topic: 'Diversity & Equal Opp.', category: 'Social', businessImpact: 3.9, stakeholderImpact: 4.4, priority: 'High', description: 'Diversity in governance bodies and across employee categories.' },
-  { id: 'GRI406', code: 'GRI 406', topic: 'Non-discrimination', category: 'Social', businessImpact: 3.6, stakeholderImpact: 4.1, priority: 'High', description: 'Incidents of discrimination and corrective actions taken.' },
-  { id: 'GRI408', code: 'GRI 408', topic: 'Child Labor', category: 'Social', businessImpact: 3.1, stakeholderImpact: 4.6, priority: 'High', description: 'Operations and suppliers at risk for child labor.' },
-  { id: 'GRI409', code: 'GRI 409', topic: 'Forced Labor', category: 'Social', businessImpact: 3.0, stakeholderImpact: 4.5, priority: 'High', description: 'Operations and suppliers at risk for forced or compulsory labor.' },
-  { id: 'GRI413', code: 'GRI 413', topic: 'Local Communities', category: 'Social', businessImpact: 2.9, stakeholderImpact: 3.7, priority: 'Medium', description: 'Community engagement, impact assessments, and development programs.' },
-  { id: 'GRI414', code: 'GRI 414', topic: 'Supplier Social Assessment', category: 'Social', businessImpact: 3.2, stakeholderImpact: 3.6, priority: 'Medium', description: 'Social criteria in supplier screening and assessment.' },
-  { id: 'GRI418', code: 'GRI 418', topic: 'Customer Privacy', category: 'Social', businessImpact: 4.1, stakeholderImpact: 4.0, priority: 'High', description: 'Substantiated complaints regarding breaches of customer privacy.' },
-  { id: 'GRI201', code: 'GRI 201', topic: 'Economic Performance', category: 'Economic', businessImpact: 4.7, stakeholderImpact: 4.2, priority: 'Critical', description: 'Direct economic value generated and distributed.' },
-  { id: 'GRI202', code: 'GRI 202', topic: 'Market Presence', category: 'Economic', businessImpact: 3.3, stakeholderImpact: 3.1, priority: 'Medium', description: 'Entry-level wage ratios and local hiring practices.' },
-  { id: 'GRI203', code: 'GRI 203', topic: 'Indirect Economic Impacts', category: 'Economic', businessImpact: 3.0, stakeholderImpact: 3.5, priority: 'Medium', description: 'Infrastructure investments and services supported.' },
+  { id: 'GRI404', code: 'GRI 404', topic: 'Training & Education', category: 'Social', businessImpact: 2.2, stakeholderImpact: 3.0, priority: 'Medium', description: 'Average training hours, skills management, and career development.' },
+  { id: 'GRI405', code: 'GRI 405', topic: 'Diversity & Equal Opp.', category: 'Social', businessImpact: 2.9, stakeholderImpact: 4.4, priority: 'High', description: 'Diversity in governance bodies and across employee categories.' },
+  { id: 'GRI406', code: 'GRI 406', topic: 'Non-discrimination', category: 'Social', businessImpact: 2.3, stakeholderImpact: 4.1, priority: 'High', description: 'Incidents of discrimination and corrective actions taken.' },
+  { id: 'GRI408', code: 'GRI 408', topic: 'Child Labor', category: 'Social', businessImpact: 1.5, stakeholderImpact: 4.6, priority: 'High', description: 'Operations and suppliers at risk for child labor.' },
+  { id: 'GRI409', code: 'GRI 409', topic: 'Forced Labor', category: 'Social', businessImpact: 1.4, stakeholderImpact: 4.5, priority: 'High', description: 'Operations and suppliers at risk for forced or compulsory labor.' },
+  { id: 'GRI413', code: 'GRI 413', topic: 'Local Communities', category: 'Social', businessImpact: 1.7, stakeholderImpact: 3.2, priority: 'Medium', description: 'Community engagement, impact assessments, and development programs.' },
+  { id: 'GRI414', code: 'GRI 414', topic: 'Supplier Social Assessment', category: 'Social', businessImpact: 2.0, stakeholderImpact: 1.8, priority: 'Low', description: 'Social criteria in supplier screening and assessment.' },
+  { id: 'GRI418', code: 'GRI 418', topic: 'Customer Privacy', category: 'Social', businessImpact: 4.1, stakeholderImpact: 3.2, priority: 'High', description: 'Substantiated complaints regarding breaches of customer privacy.' },
+  { id: 'GRI201', code: 'GRI 201', topic: 'Economic Performance', category: 'Governance', businessImpact: 4.7, stakeholderImpact: 2.6, priority: 'High', description: 'Direct economic value generated and distributed.' },
+  { id: 'GRI202', code: 'GRI 202', topic: 'Market Presence', category: 'Governance', businessImpact: 3.3, stakeholderImpact: 1.9, priority: 'Medium', description: 'Entry-level wage ratios and local hiring practices.' },
+  { id: 'GRI203', code: 'GRI 203', topic: 'Indirect Economic Impacts', category: 'Governance', businessImpact: 1.9, stakeholderImpact: 3.5, priority: 'Medium', description: 'Infrastructure investments and services supported.' },
   { id: 'GRI205', code: 'GRI 205', topic: 'Anti-corruption', category: 'Governance', businessImpact: 4.3, stakeholderImpact: 4.6, priority: 'Critical', description: 'Risk assessments, anti-corruption training, and confirmed incidents.' },
-  { id: 'GRI206', code: 'GRI 206', topic: 'Anti-competitive Behavior', category: 'Governance', businessImpact: 3.7, stakeholderImpact: 3.3, priority: 'Medium', description: 'Legal actions for anti-competitive behavior and antitrust.' },
-  { id: 'GRI207', code: 'GRI 207', topic: 'Tax', category: 'Governance', businessImpact: 3.9, stakeholderImpact: 3.5, priority: 'High', description: 'Tax governance, control, and risk management approach.' },
+  { id: 'GRI206', code: 'GRI 206', topic: 'Anti-competitive Behavior', category: 'Governance', businessImpact: 3.7, stakeholderImpact: 1.5, priority: 'Medium', description: 'Legal actions for anti-competitive behavior and antitrust.' },
+  { id: 'GRI207', code: 'GRI 207', topic: 'Tax', category: 'Governance', businessImpact: 3.9, stakeholderImpact: 2.2, priority: 'Medium', description: 'Tax governance, control, and risk management approach.' },
 ];
 
 const PRIORITY_CONFIG = {
