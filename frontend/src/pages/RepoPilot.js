@@ -81,11 +81,30 @@ function RenderChart({ chart }) {
 function ChatMessage({ msg, documents }) {
   const isUser = msg.role === 'user';
   const [viewSource, setViewSource] = useState(null);
+  const contentRef = useRef(null);
 
   const getImageUrl = (source) => {
     const doc = documents.find(d => d.doc_id === source.doc_id);
     return doc?.image_urls?.[String(source.page_num)] || null;
   };
+
+  // Attach click listeners to <img> tags rendered inside dangerouslySetInnerHTML
+  useEffect(() => {
+    if (!contentRef.current || isUser) return;
+    const images = contentRef.current.querySelectorAll('img');
+    const handler = (e) => {
+      const src = e.currentTarget.src;
+      const alt = e.currentTarget.alt || '';
+      setViewSource({ doc_id: alt || 'Image', page_num: '', imgUrl: src });
+    };
+    images.forEach(img => {
+      img.style.cursor = 'pointer';
+      img.addEventListener('click', handler);
+    });
+    return () => {
+      images.forEach(img => img.removeEventListener('click', handler));
+    };
+  }, [msg.content, isUser]);
 
   return (
     <div className={`flex gap-3 ${isUser ? 'justify-end' : ''}`} data-testid="chat-message">
@@ -98,7 +117,7 @@ function ChatMessage({ msg, documents }) {
         {isUser ? (
           <p>{msg.content}</p>
         ) : (
-          <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: formatMarkdown(msg.content) }} />
+          <div ref={contentRef} className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: formatMarkdown(msg.content) }} />
         )}
         {msg.charts?.length > 0 && msg.charts.map((chart, i) => <RenderChart key={i} chart={chart} />)}
         {msg.sources?.length > 0 && (
@@ -128,10 +147,10 @@ function ChatMessage({ msg, documents }) {
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center" onClick={() => setViewSource(null)}>
           <div className="bg-white rounded-lg p-4 max-w-3xl max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-2">
-              <p className="text-sm font-semibold">{viewSource.doc_id} — Page {viewSource.page_num}</p>
+              <p className="text-sm font-semibold">{viewSource.doc_id}{viewSource.page_num ? ` — Page ${viewSource.page_num}` : ''}</p>
               <Button variant="ghost" size="sm" onClick={() => setViewSource(null)}><X className="w-4 h-4" /></Button>
             </div>
-            <img src={viewSource.imgUrl} alt={`Page ${viewSource.page_num}`} className="w-full" />
+            <img src={viewSource.imgUrl} alt={viewSource.doc_id || 'Image'} className="w-full" />
           </div>
         </div>
       )}
