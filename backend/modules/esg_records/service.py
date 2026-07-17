@@ -1759,24 +1759,19 @@ class ESGRecordsService:
                 data=data,
             )
 
-        # PROPAGATE APPROVAL: When requires_approval is True for a subcategory,
-        # propagate approver settings to all sibling subcategories in the same category
-        # that are assigned to the same user but lack an approver
+        # PROPAGATE APPROVAL: When a category-level assignment has requires_approval,
+        # propagate approver settings to ALL subcategory assignments under that category
+        # Only triggers for category-level assignments (no subcategory specified)
         propagated = 0
-        if data.get("requires_approval") and data.get("subcategory") and data.get("approver_id"):
-            sibling_query = {
+        if data.get("requires_approval") and not data.get("subcategory") and data.get("approver_id"):
+            child_query = {
                 "organization_id": org_id,
                 "entity_type": "record_category",
                 "category": data.get("category"),
-                "assigned_to_user_id": data.get("assigned_to_user_id"),
-                "subcategory": {"$ne": data.get("subcategory")},
-                "$or": [
-                    {"requires_approval": {"$ne": True}},
-                    {"approver_id": None},
-                ],
+                "subcategory": {"$ne": None},
             }
             result = await db.esg_assignments.update_many(
-                sibling_query,
+                child_query,
                 {"$set": {
                     "requires_approval": True,
                     "approver_id": data.get("approver_id"),
@@ -1786,7 +1781,7 @@ class ESGRecordsService:
             )
             propagated = result.modified_count
             if propagated > 0:
-                print(f"Propagated approval config to {propagated} sibling subcategory assignments under {data.get('category')}")
+                print(f"Propagated approval config to {propagated} subcategory assignments under {data.get('category')}")
 
         return {
             "id": assignment_id, 
