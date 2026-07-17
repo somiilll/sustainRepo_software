@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceArea } from 'recharts';
+import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceArea, ReferenceLine } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Search, ChevronRight, ArrowUpDown, Filter, TrendingUp, Shield, Leaf } from 'lucide-react';
 
@@ -42,24 +42,12 @@ const PRIORITY_CONFIG = {
   Low: { color: '#6b7280', bg: '#f9fafb', border: '#e5e7eb' },
 };
 
-const ZONE_COLORS = [
-  { x1: 1, y1: 1, x2: 2, y2: 2, fill: '#f5f5f4', label: 'Low' },
-  { x1: 1, y1: 2, x2: 2, y2: 3.5, fill: '#fafaf9' },
-  { x1: 2, y1: 1, x2: 3.5, y2: 2, fill: '#fafaf9' },
-  { x1: 2, y1: 2, x2: 3.5, y2: 3.5, fill: '#fefce8', label: 'Medium' },
-  { x1: 3.5, y1: 3.5, x2: 5, y2: 5, fill: '#ecfdf5', label: 'High' },
-  { x1: 3.5, y1: 2, x2: 5, y2: 3.5, fill: '#f0fdf4' },
-  { x1: 2, y1: 3.5, x2: 3.5, y2: 5, fill: '#f0fdf4' },
-  { x1: 1, y1: 3.5, x2: 2, y2: 5, fill: '#fefce8' },
-  { x1: 3.5, y1: 1, x2: 5, y2: 2, fill: '#fefce8' },
-];
-
 const CustomDot = (props) => {
   const { cx, cy, payload, selectedId, onSelect } = props;
   if (!payload) return null;
   const cat = CATEGORIES[payload.category];
   const isSelected = selectedId === payload.id;
-  const r = isSelected ? 22 : 18;
+  const r = isSelected ? 15 : 11;
 
   return (
     <g
@@ -68,16 +56,16 @@ const CustomDot = (props) => {
       data-testid={`matrix-dot-${payload.id}`}
     >
       {isSelected && (
-        <circle cx={cx} cy={cy} r={r + 6} fill="none" stroke={cat.color} strokeWidth={2} opacity={0.3}>
-          <animate attributeName="r" values={`${r + 4};${r + 8};${r + 4}`} dur="2s" repeatCount="indefinite" />
+        <circle cx={cx} cy={cy} r={r + 5} fill="none" stroke={cat.color} strokeWidth={2} opacity={0.3}>
+          <animate attributeName="r" values={`${r + 3};${r + 7};${r + 3}`} dur="2s" repeatCount="indefinite" />
           <animate attributeName="opacity" values="0.3;0.1;0.3" dur="2s" repeatCount="indefinite" />
         </circle>
       )}
-      <circle cx={cx} cy={cy} r={r} fill={cat.color} stroke="#fff" strokeWidth={2.5}
-        style={{ filter: isSelected ? `drop-shadow(0 0 8px ${cat.color}66)` : 'drop-shadow(0 2px 4px rgba(0,0,0,0.15))' }}
+      <circle cx={cx} cy={cy} r={r} fill={cat.color} stroke="#fff" strokeWidth={2}
+        style={{ filter: isSelected ? `drop-shadow(0 0 6px ${cat.color}66)` : 'drop-shadow(0 1px 3px rgba(0,0,0,0.15))' }}
       />
       <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central"
-        fill="#fff" fontSize={9} fontWeight={700} style={{ pointerEvents: 'none' }}>
+        fill="#fff" fontSize={7} fontWeight={700} style={{ pointerEvents: 'none' }}>
         {payload.code.replace('GRI ', '')}
       </text>
     </g>
@@ -200,6 +188,8 @@ export default function MaterialityAssessment() {
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [priorityFilter, setPriorityFilter] = useState('All');
   const [sortKey, setSortKey] = useState('priority');
+  const [cutoffX, setCutoffX] = useState(3.0);
+  const [cutoffY, setCutoffY] = useState(3.0);
 
   const priorityOrder = { Critical: 0, High: 1, Medium: 2, Low: 3 };
 
@@ -303,13 +293,51 @@ export default function MaterialityAssessment() {
           initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.35, delay: 0.15 }}
           data-testid="materiality-matrix-card"
         >
-          <h2 className="text-sm font-semibold text-stone-800 mb-4">Materiality Matrix</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-stone-800">Materiality Matrix</h2>
+          </div>
+
+          {/* Cutoff Controls */}
+          <div className="flex gap-4 mb-4 p-3 rounded-lg bg-stone-50 border border-stone-100">
+            <div className="flex-1">
+              <label className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide">Business Cutoff</label>
+              <div className="flex items-center gap-2 mt-1">
+                <input type="range" min="1" max="5" step="0.1" value={cutoffX}
+                  onChange={e => setCutoffX(parseFloat(e.target.value))}
+                  className="flex-1 h-1 accent-stone-600"
+                  data-testid="cutoff-x-slider" />
+                <span className="text-xs font-bold text-stone-700 w-7 text-right">{cutoffX.toFixed(1)}</span>
+              </div>
+            </div>
+            <div className="flex-1">
+              <label className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide">Stakeholder Cutoff</label>
+              <div className="flex items-center gap-2 mt-1">
+                <input type="range" min="1" max="5" step="0.1" value={cutoffY}
+                  onChange={e => setCutoffY(parseFloat(e.target.value))}
+                  className="flex-1 h-1 accent-stone-600"
+                  data-testid="cutoff-y-slider" />
+                <span className="text-xs font-bold text-stone-700 w-7 text-right">{cutoffY.toFixed(1)}</span>
+              </div>
+            </div>
+          </div>
+
           <ResponsiveContainer width="100%" height={440}>
             <ScatterChart margin={{ top: 10, right: 10, bottom: 35, left: 20 }}>
-              {ZONE_COLORS.map((z, i) => (
-                <ReferenceArea key={i} x1={z.x1} x2={z.x2} y1={z.y1} y2={z.y2} fill={z.fill} fillOpacity={1} strokeOpacity={0} />
-              ))}
+              {/* Zone: Below both cutoffs — grey */}
+              <ReferenceArea x1={1} x2={cutoffX} y1={1} y2={cutoffY} fill="#e7e5e4" fillOpacity={0.45} strokeOpacity={0} />
+              {/* Zone: Above both cutoffs — green */}
+              <ReferenceArea x1={cutoffX} x2={5} y1={cutoffY} y2={5} fill="#bbf7d0" fillOpacity={0.4} strokeOpacity={0} />
+              {/* Zone: Above stakeholder cutoff, below business — yellow */}
+              <ReferenceArea x1={1} x2={cutoffX} y1={cutoffY} y2={5} fill="#fef08a" fillOpacity={0.35} strokeOpacity={0} />
+              {/* Zone: Below stakeholder cutoff, above business — yellow */}
+              <ReferenceArea x1={cutoffX} x2={5} y1={1} y2={cutoffY} fill="#fef08a" fillOpacity={0.35} strokeOpacity={0} />
+
               <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" strokeOpacity={0.6} />
+
+              {/* Cutoff Reference Lines */}
+              <ReferenceLine x={cutoffX} stroke="#78716c" strokeWidth={1.5} strokeDasharray="6 4" label={{ value: `B: ${cutoffX.toFixed(1)}`, position: 'top', fontSize: 9, fill: '#57534e', fontWeight: 600 }} />
+              <ReferenceLine y={cutoffY} stroke="#78716c" strokeWidth={1.5} strokeDasharray="6 4" label={{ value: `S: ${cutoffY.toFixed(1)}`, position: 'right', fontSize: 9, fill: '#57534e', fontWeight: 600 }} />
+
               <XAxis type="number" dataKey="x" domain={[1, 5]} ticks={[1, 2, 3, 4, 5]}
                 tickFormatter={(v) => ['', 'Very Low', 'Low', 'Medium', 'High', 'Very High'][v]}
                 tick={{ fontSize: 10, fill: '#78716c' }} axisLine={{ stroke: '#d6d3d1' }}
@@ -332,9 +360,15 @@ export default function MaterialityAssessment() {
           </ResponsiveContainer>
           {/* Zone Labels */}
           <div className="flex items-center justify-between px-4 mt-2">
-            <span className="text-[10px] text-stone-400 font-medium">Low Priority</span>
-            <span className="text-[10px] text-amber-500 font-medium">Medium Priority</span>
-            <span className="text-[10px] text-emerald-600 font-medium">High Priority</span>
+            <span className="flex items-center gap-1.5 text-[10px] font-medium text-stone-400">
+              <span className="w-2.5 h-2.5 rounded-sm bg-stone-300/60" /> Not Material
+            </span>
+            <span className="flex items-center gap-1.5 text-[10px] font-medium text-amber-500">
+              <span className="w-2.5 h-2.5 rounded-sm bg-amber-200/70" /> Monitor
+            </span>
+            <span className="flex items-center gap-1.5 text-[10px] font-medium text-emerald-600">
+              <span className="w-2.5 h-2.5 rounded-sm bg-emerald-200/70" /> Material
+            </span>
           </div>
         </motion.div>
 
