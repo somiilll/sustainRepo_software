@@ -2976,7 +2976,7 @@ export default function ESGQuestionnaire({
       setResponses(allResponses);
 
       // Calculate filtered summary based on filtered configs
-      const filteredQuestionIds = fetchedConfigs.map(c => c.question_id);
+      const filteredQuestionIds = fetchedConfigs.map(c => c.question_key);
       const answeredCount = filteredQuestionIds.filter(qid => allResponses[qid] !== undefined && allResponses[qid] !== null && allResponses[qid] !== '').length;
       setSummary({
         total_questions: fetchedConfigs.length,
