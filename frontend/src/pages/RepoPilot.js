@@ -328,104 +328,130 @@ export default function RepoPilotPage() {
     setDocFilter(prev => prev.includes(docId) ? prev.filter(d => d !== docId) : [...prev, docId]);
   };
 
+  const [docsOpen, setDocsOpen] = useState(false);
+  const docsRef = useRef(null);
+
+  // Close docs panel on outside click
+  useEffect(() => {
+    const handler = (e) => { if (docsRef.current && !docsRef.current.contains(e.target)) setDocsOpen(false); };
+    if (docsOpen) document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [docsOpen]);
+
   return (
-    <div className="flex h-[calc(100vh-2rem)] gap-4 p-4" data-testid="repo-pilot-page">
-      {/* Sidebar — Documents */}
-      <div className="w-72 shrink-0 flex flex-col">
-        <Card className="flex-1 flex flex-col overflow-hidden">
-          <div className="p-3 border-b">
-            <h3 className="font-semibold text-sm">Documents</h3>
-            <input type="file" ref={fileInputRef} accept=".pdf" onChange={handleUpload} className="hidden" />
-            <Button size="sm" className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700 gap-1" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-              {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
-              {uploading ? 'Processing...' : 'Upload PDF'}
-            </Button>
+    <div className="flex flex-col h-[calc(100vh-2rem)] p-4" data-testid="repo-pilot-page">
+      <Card className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="p-4 border-b flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center">
+            <Bot className="w-5 h-5 text-emerald-700" />
           </div>
-          <div className="flex-1 overflow-y-auto p-2 space-y-1">
-            {documents.length === 0 ? (
-              <p className="text-xs text-text-muted text-center py-4">No documents uploaded yet</p>
-            ) : documents.map(doc => (
-              <div key={doc.doc_id} className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer text-xs group ${docFilter.includes(doc.doc_id) ? 'bg-emerald-50 border border-emerald-200' : 'hover:bg-stone-50'}`} onClick={() => doc.stage === 'COMPLETED' && toggleFilter(doc.doc_id)}>
-                <FileText className={`w-3.5 h-3.5 shrink-0 ${doc.stage === 'COMPLETED' ? 'text-stone-400' : 'text-amber-400'}`} />
-                <div className="flex-1 min-w-0">
-                  <p className="truncate font-medium">{doc.filename || doc.doc_id}</p>
-                  {doc.stage === 'COMPLETED' ? (
-                    <p className="text-text-muted">{doc.pages} pages · {doc.chunks} chunks</p>
-                  ) : doc.stage === 'FAILED' ? (
-                    <p className="text-red-500">Failed</p>
-                  ) : (
-                    <p className="text-amber-600">Processing... {doc.progress || 0}%</p>
-                  )}
-                </div>
-                {isAdmin && (
-                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); handleDelete(doc.doc_id); }}>
-                    <Trash2 className="w-3 h-3 text-red-500" />
+          <div className="flex-1">
+            <h2 className="font-semibold text-text-primary">Repo Pilot</h2>
+            <p className="text-xs text-text-muted">Ask questions about your ESG documents</p>
+          </div>
+
+          {/* Documents button + panel */}
+          <div className="relative" ref={docsRef}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-xs"
+              onClick={() => setDocsOpen(o => !o)}
+              data-testid="docs-panel-toggle"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              Docs {documents.filter(d => d.stage === 'COMPLETED').length > 0 && <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-1.5 rounded-full">{documents.filter(d => d.stage === 'COMPLETED').length}</span>}
+              {docFilter.length > 0 && <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-1.5 rounded-full">{docFilter.length} filtered</span>}
+            </Button>
+
+            {docsOpen && (
+              <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl border border-stone-200 shadow-xl z-50 flex flex-col max-h-[420px]">
+                <div className="p-3 border-b">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-semibold text-sm">Documents</h3>
+                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setDocsOpen(false)}>
+                      <X className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                  <input type="file" ref={fileInputRef} accept=".pdf" onChange={handleUpload} className="hidden" />
+                  <Button size="sm" className="w-full bg-emerald-600 hover:bg-emerald-700 gap-1" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                    {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                    {uploading ? 'Processing...' : 'Upload PDF'}
                   </Button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                  {documents.length === 0 ? (
+                    <p className="text-xs text-text-muted text-center py-4">No documents uploaded yet</p>
+                  ) : documents.map(doc => (
+                    <div key={doc.doc_id} className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer text-xs group ${docFilter.includes(doc.doc_id) ? 'bg-emerald-50 border border-emerald-200' : 'hover:bg-stone-50'}`} onClick={() => doc.stage === 'COMPLETED' && toggleFilter(doc.doc_id)}>
+                      <FileText className={`w-3.5 h-3.5 shrink-0 ${doc.stage === 'COMPLETED' ? 'text-stone-400' : 'text-amber-400'}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="truncate font-medium">{doc.filename || doc.doc_id}</p>
+                        {doc.stage === 'COMPLETED' ? (
+                          <p className="text-text-muted">{doc.pages} pages · {doc.chunks} chunks</p>
+                        ) : doc.stage === 'FAILED' ? (
+                          <p className="text-red-500">Failed</p>
+                        ) : (
+                          <p className="text-amber-600">Processing... {doc.progress || 0}%</p>
+                        )}
+                      </div>
+                      {isAdmin && (
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); handleDelete(doc.doc_id); }}>
+                          <Trash2 className="w-3 h-3 text-red-500" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {docFilter.length > 0 && (
+                  <div className="p-2 border-t">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-text-muted">Filtering: {docFilter.length} doc(s)</span>
+                      <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1" onClick={() => setDocFilter([])}>
+                        <X className="w-3 h-3" /> Clear
+                      </Button>
+                    </div>
+                  </div>
                 )}
               </div>
-            ))}
+            )}
           </div>
-          {docFilter.length > 0 && (
-            <div className="p-2 border-t">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-text-muted">Filtering: {docFilter.length} doc(s)</span>
-                <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1" onClick={() => setDocFilter([])}>
-                  <X className="w-3 h-3" /> Clear
-                </Button>
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {messages.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <Bot className="w-16 h-16 text-stone-200 mb-4" />
+              <h3 className="text-lg font-semibold text-text-primary mb-1">ESG Document Assistant</h3>
+              <p className="text-sm text-text-muted max-w-md">Upload ESG reports, sustainability documents, or annual reports and ask any questions. I will find answers with exact page citations.</p>
+            </div>
+          )}
+          {messages.map((msg, i) => <ChatMessage key={i} msg={msg} documents={documents} />)}
+          {loading && (
+            <div className="flex gap-3">
+              <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                <Bot className="w-4 h-4 text-emerald-700" />
+              </div>
+              <div className="bg-stone-100 rounded-2xl rounded-bl-sm px-4 py-3">
+                <div className="flex gap-1"><div className="w-2 h-2 bg-stone-400 rounded-full animate-bounce" /><div className="w-2 h-2 bg-stone-400 rounded-full animate-bounce" style={{animationDelay:'0.1s'}} /><div className="w-2 h-2 bg-stone-400 rounded-full animate-bounce" style={{animationDelay:'0.2s'}} /></div>
               </div>
             </div>
           )}
-        </Card>
-      </div>
+          <div ref={messagesEndRef} />
+        </div>
 
-      {/* Chat Area */}
-      <div className="flex-1 flex flex-col">
-        <Card className="flex-1 flex flex-col overflow-hidden">
-          {/* Header */}
-          <div className="p-4 border-b flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center">
-              <Bot className="w-5 h-5 text-emerald-700" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-text-primary">Repo Pilot</h2>
-              <p className="text-xs text-text-muted">Ask questions about your ESG documents</p>
-            </div>
+        {/* Input */}
+        <div className="p-4 border-t">
+          <div className="flex gap-2 max-w-3xl mx-auto">
+            <Input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()} placeholder="Ask about your ESG documents..." className="flex-1" disabled={loading} data-testid="chat-input" />
+            <Button onClick={handleSend} disabled={!input.trim() || loading} className="bg-emerald-600 hover:bg-emerald-700" data-testid="chat-send">
+              <Send className="w-4 h-4" />
+            </Button>
           </div>
-
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-full text-center">
-                <Bot className="w-16 h-16 text-stone-200 mb-4" />
-                <h3 className="text-lg font-semibold text-text-primary mb-1">ESG Document Assistant</h3>
-                <p className="text-sm text-text-muted max-w-md">Upload ESG reports, sustainability documents, or annual reports and ask any questions. I will find answers with exact page citations.</p>
-              </div>
-            )}
-            {messages.map((msg, i) => <ChatMessage key={i} msg={msg} documents={documents} />)}
-            {loading && (
-              <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-                  <Bot className="w-4 h-4 text-emerald-700" />
-                </div>
-                <div className="bg-stone-100 rounded-2xl rounded-bl-sm px-4 py-3">
-                  <div className="flex gap-1"><div className="w-2 h-2 bg-stone-400 rounded-full animate-bounce" /><div className="w-2 h-2 bg-stone-400 rounded-full animate-bounce" style={{animationDelay:'0.1s'}} /><div className="w-2 h-2 bg-stone-400 rounded-full animate-bounce" style={{animationDelay:'0.2s'}} /></div>
-                </div>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Input */}
-          <div className="p-4 border-t">
-            <div className="flex gap-2">
-              <Input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()} placeholder="Ask about your ESG documents..." className="flex-1" disabled={loading} data-testid="chat-input" />
-              <Button onClick={handleSend} disabled={!input.trim() || loading} className="bg-emerald-600 hover:bg-emerald-700" data-testid="chat-send">
-                <Send className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        </Card>
-      </div>
+        </div>
+      </Card>
     </div>
   );
 }
