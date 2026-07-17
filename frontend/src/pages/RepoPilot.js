@@ -424,8 +424,25 @@ export default function RepoPilotPage() {
           {messages.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full text-center">
               <Bot className="w-16 h-16 text-stone-200 mb-4" />
-              <h3 className="text-lg font-semibold text-text-primary mb-1">ESG Document Assistant</h3>
-              <p className="text-sm text-text-muted max-w-md">Upload ESG reports, sustainability documents, or annual reports and ask any questions. I will find answers with exact page citations.</p>
+              <h3 className="text-lg font-semibold text-text-primary mb-1">Hello, I am your ESG expert.</h3>
+              <p className="text-sm text-text-muted mb-6">How can I help you today?</p>
+              <div className="grid grid-cols-2 gap-2 max-w-lg">
+                {[
+                  'Show our Scope 1 and Scope 2 emissions.',
+                  'Does our company have a Child Labour Policy?',
+                  'Summarize our customer complaints data.',
+                  'What does our Water Management policy say?',
+                ].map((q) => (
+                  <button
+                    key={q}
+                    className="text-left text-xs px-3 py-2.5 rounded-lg border border-stone-200 bg-white hover:bg-emerald-50 hover:border-emerald-200 text-stone-600 transition-colors"
+                    onClick={() => { setInput(q); setTimeout(() => { setInput(''); const userMsg = { role: 'user', content: q }; setMessages(prev => [...prev, userMsg]); setLoading(true); axios.post(`${API}/api/repo-pilot/chat`, { message: q, doc_filters: docFilter.length > 0 ? docFilter : null, length: 'Medium' }, { headers }).then(res => { setMessages(prev => [...prev, { role: 'assistant', content: res.data.answer, sources: res.data.sources, charts: res.data.charts }]); }).catch(() => { setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, an error occurred. Please try again.' }]); }).finally(() => setLoading(false)); }, 0); }}
+                    data-testid={`suggested-q-${q.slice(0, 20).replace(/\s/g, '-')}`}
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
           {messages.map((msg, i) => <ChatMessage key={i} msg={msg} documents={documents} />)}
