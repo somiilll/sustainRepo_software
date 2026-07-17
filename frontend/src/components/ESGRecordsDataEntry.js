@@ -93,6 +93,7 @@ export default function ESGRecordsDataEntry({
   // Filters - Initialize from URL params if provided
   const [filters, setFilters] = useState({
     category: preFilterCategory || '',
+    subcategory: preFilterSubcategory || '',
     status: '',
     facility_id: '',
     search: ''
@@ -345,7 +346,10 @@ export default function ESGRecordsDataEntry({
 
   const fetchStats = async () => {
     try {
-      const res = await axios.get(`${API}/api/esg-records/stats/${section}`, { headers });
+      const params = {};
+      if (filters.category) params.category = filters.category;
+      if (filters.subcategory) params.subcategory = filters.subcategory;
+      const res = await axios.get(`${API}/api/esg-records/stats/${section}`, { params, headers });
       setStats(res.data);
     } catch (error) {
       console.error('Failed to fetch stats:', error);

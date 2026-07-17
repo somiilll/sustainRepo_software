@@ -392,6 +392,8 @@ async def get_record_version(
 @router.get("/stats/{section}")
 async def get_record_stats(
     section: ESG_SECTION,
+    category: str = None,
+    subcategory: str = None,
     current_user: dict = Depends(get_current_user)
 ):
     """Get record statistics for the organization."""
@@ -401,7 +403,9 @@ async def get_record_stats(
     
     stats = await esg_records_service.get_record_stats(
         section=section,
-        org_id=org_id
+        org_id=org_id,
+        category=category,
+        subcategory=subcategory,
     )
     
     return stats

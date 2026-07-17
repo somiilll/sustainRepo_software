@@ -1283,11 +1283,17 @@ class ESGRecordsService:
     async def get_record_stats(
         self,
         section: ESG_SECTION,
-        org_id: str
+        org_id: str,
+        category: str = None,
+        subcategory: str = None,
     ) -> Dict[str, Any]:
         """Get record statistics for an organization."""
         collection = self._get_records_collection(section)
         base_filter = {"org_id": org_id, "is_current": True}
+        if category:
+            base_filter["category"] = category
+        if subcategory:
+            base_filter["subcategory"] = subcategory
         
         # Total records
         total = await collection.count_documents(base_filter)
