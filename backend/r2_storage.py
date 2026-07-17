@@ -142,6 +142,13 @@ class R2Storage:
             # Upload to R2
             self.client.put_object(**upload_params)
             
+            # Generate a presigned URL for access
+            url = self.client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': bucket, 'Key': key},
+                ExpiresIn=604800,  # 7 days
+            )
+            
             logger.info(f"[R2_UPLOAD] Success: {bucket}/{key}")
             
             return {
@@ -149,6 +156,7 @@ class R2Storage:
                 'bucket': bucket,
                 'bucket_type': bucket_type,
                 'key': key,
+                'url': url,
                 'original_filename': filename,
                 'content_type': content_type,
                 'file_size': len(file_content),

@@ -63,6 +63,7 @@ async def upload_document(
 
     # Upload PDF to R2
     r2_url = ""
+    r2_key = ""
     try:
         from r2_storage import r2_storage
         r2_result = await r2_storage.upload_file(
@@ -74,6 +75,7 @@ async def upload_document(
         )
         if r2_result and not r2_result.get("error"):
             r2_url = r2_result.get("url", "")
+            r2_key = r2_result.get("key", "")
     except Exception as e:
         logger.warning(f"R2 PDF upload failed: {e}")
 
@@ -84,6 +86,7 @@ async def upload_document(
         "doc_id": doc_id,
         "filename": file.filename,
         "r2_url": r2_url,
+        "r2_key": r2_key,
         "split_2up": split_2up,
         "status": "uploaded",
         "stage": "UPLOADED",
@@ -132,6 +135,7 @@ async def _process_document_async(document_id: str, org_id: str, doc_id: str, pd
         # Upload page images to R2
         page_images = result.get("page_images", {})
         image_urls = {}
+        image_keys = {}
         try:
             from r2_storage import r2_storage
             for page_num, img_bytes in page_images.items():
@@ -144,6 +148,7 @@ async def _process_document_async(document_id: str, org_id: str, doc_id: str, pd
                 )
                 if r2_result and not r2_result.get("error"):
                     image_urls[str(page_num)] = r2_result.get("url", "")
+                    image_keys[str(page_num)] = r2_result.get("key", "")
         except Exception as e:
             logger.warning(f"R2 image upload failed: {e}")
 
@@ -159,6 +164,7 @@ async def _process_document_async(document_id: str, org_id: str, doc_id: str, pd
                 "pages": result.get("pages", 0),
                 "chunks": result.get("chunks", 0),
                 "image_urls": image_urls,
+                "image_keys": image_keys,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }}
         )
@@ -223,6 +229,24 @@ async def list_documents(current_user: dict = Depends(get_current_user)):
     docs = await db[DOCS_COLLECTION].find(
         {"organization_id": org_id}, {"_id": 0, "embedding": 0}
     ).sort("created_at", -1).to_list(100)
+
+    # Refresh presigned URLs from stored R2 keys
+    try:
+        from r2_storage import r2_storage
+        for doc in docs:
+            image_keys = doc.get("image_keys", {})
+            if image_keys:
+                refreshed = {}
+                for page_num, key in image_keys.items():
+                    if key:
+                        refreshed[page_num] = r2_storage.generate_presigned_url("repo_pilot", key, expiration=3600)
+                doc["image_urls"] = refreshed
+            r2_key = doc.get("r2_key", "")
+            if r2_key:
+                doc["r2_url"] = r2_storage.generate_presigned_url("repo_pilot", r2_key, expiration=3600)
+    except Exception as e:
+        logger.warning(f"Failed to refresh presigned URLs: {e}")
+
     return {"documents": docs}
 
 
@@ -269,6 +293,7 @@ async def _regenerate_images_async(document_id: str, org_id: str, doc_id: str, r
         page_images = await asyncio.to_thread(_gen_images, pdf_bytes)
 
         image_urls = {}
+        image_keys = {}
         from r2_storage import r2_storage
         # Get org name for folder structure
         org_doc = await db.organizations.find_one({"id": org_id}, {"_id": 0, "name": 1})
@@ -283,10 +308,11 @@ async def _regenerate_images_async(document_id: str, org_id: str, doc_id: str, r
             )
             if r2_result and not r2_result.get("error"):
                 image_urls[str(page_num)] = r2_result.get("url", "")
+                image_keys[str(page_num)] = r2_result.get("key", "")
 
         await db[DOCS_COLLECTION].update_one(
             {"id": document_id},
-            {"$set": {"image_urls": image_urls, "updated_at": datetime.now(timezone.utc).isoformat()}}
+            {"$set": {"image_urls": image_urls, "image_keys": image_keys, "updated_at": datetime.now(timezone.utc).isoformat()}}
         )
         logger.info(f"Regenerated {len(image_urls)} images for {doc_id}")
     except Exception as e:
