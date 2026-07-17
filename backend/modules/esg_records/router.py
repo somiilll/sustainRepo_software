@@ -227,30 +227,47 @@ async def list_records(
             
             imported_records = filtered_imported
         
-        # Merge with native records
-        # For now, append imported at the end; in future could interleave by date
-        native_records = result.get("records", [])
-        all_records = native_records + imported_records
-        
-        # Update pagination info
-        total_with_imported = result.get("total", 0) + len(imported_records)
-        
-        # Apply pagination to combined list
-        # For simplicity, if we're on page 1 and have imported records, show them
-        # More sophisticated pagination could be added later
-        start_idx = (page - 1) * limit
-        end_idx = start_idx + limit
-        paginated_records = all_records[start_idx:end_idx]
-        
-        result = {
-            "records": paginated_records,
-            "total": total_with_imported,
-            "page": page,
-            "limit": limit,
-            "total_pages": (total_with_imported + limit - 1) // limit,
-            "has_imported": len(imported_records) > 0,
-            "imported_count": len(imported_records)
-        }
+        # Only enter merge path if imported records actually exist
+        if imported_records:
+            # Re-fetch native records WITHOUT pagination for correct merge
+            unpaginated_filters = RecordListFilters(
+                category=category,
+                subcategory=subcategory,
+                reporting_type=reporting_type,
+                facility_id=facility_id,
+                framework=framework,
+                year=year,
+                month=month,
+                search=search,
+                page=1,
+                limit=999999
+            )
+            unpaginated_result = await esg_records_service.list_records(
+                section=section,
+                org_id=org_id,
+                filters=unpaginated_filters,
+                assigned_categories=assigned_categories,
+            )
+            native_records = unpaginated_result.get("records", [])
+            
+            # Merge native + imported, apply pagination once
+            all_records = native_records + imported_records
+            total_with_imported = len(all_records)
+            
+            start_idx = (page - 1) * limit
+            end_idx = start_idx + limit
+            paginated_records = all_records[start_idx:end_idx]
+            
+            result = {
+                "records": paginated_records,
+                "total": total_with_imported,
+                "page": page,
+                "limit": limit,
+                "total_pages": (total_with_imported + limit - 1) // limit,
+                "has_imported": True,
+                "imported_count": len(imported_records)
+            }
+        # No imported records — return DB-paginated result directly
     
     return result
 
