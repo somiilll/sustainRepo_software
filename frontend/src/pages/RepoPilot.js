@@ -144,6 +144,7 @@ function formatMarkdown(text) {
   let html = text
     .replace(/### (.*?)$/gm, '<h3 class="font-semibold text-base mt-3 mb-1">$1</h3>')
     .replace(/## (.*?)$/gm, '<h2 class="font-semibold text-lg mt-3 mb-1">$1</h2>')
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" class="max-w-full rounded-lg my-2 border border-stone-200" />')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
     .replace(/^- (.*?)$/gm, '<li class="ml-4">$1</li>')
