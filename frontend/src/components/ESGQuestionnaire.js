@@ -2918,6 +2918,7 @@ export default function ESGQuestionnaire({
   framework = 'BRSR', 
   section, 
   isEditing = false,
+  reportingYear: externalReportingYear = null,
   filterPrinciples = null,
   excludePrinciples = null,
   yearType = 'financial_year'  // Organization's reporting year type
@@ -2932,7 +2933,10 @@ export default function ESGQuestionnaire({
   // Generate year options based on effective year type
   const yearOptions = generateReportingYears(effectiveYearType, 5);
   
-  const [reportingYear, setReportingYear] = useState(() => getCurrentReportingYear(effectiveYearType));
+  // Use external reporting year if provided, otherwise manage internally
+  const [internalReportingYear, setInternalReportingYear] = useState(() => getCurrentReportingYear(effectiveYearType));
+  const reportingYear = externalReportingYear || internalReportingYear;
+  const setReportingYear = setInternalReportingYear;
   const [configs, setConfigs] = useState([]);
   const [responses, setResponses] = useState({});
   const [summary, setSummary] = useState(null);
@@ -3059,18 +3063,22 @@ export default function ESGQuestionnaire({
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Label className="text-sm">Reporting Year:</Label>
-            {isEditing ? (
-              <Select value={reportingYear} onValueChange={setReportingYear}>
-                <SelectTrigger className="w-40 h-9"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {yearOptions.map(year => (
-                    <SelectItem key={year} value={year}>{year}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <Badge variant="outline">{reportingYear}</Badge>
+            {!externalReportingYear && (
+              <>
+                <Label className="text-sm">Reporting Year:</Label>
+                {isEditing ? (
+                  <Select value={reportingYear} onValueChange={setReportingYear}>
+                    <SelectTrigger className="w-40 h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {yearOptions.map(year => (
+                        <SelectItem key={year} value={year}>{year}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Badge variant="outline">{reportingYear}</Badge>
+                )}
+              </>
             )}
           </div>
         </div>

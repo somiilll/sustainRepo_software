@@ -19,8 +19,11 @@ import {
   BarChart3,
   Leaf,
   Users,
-  Shield
+  Shield,
+  Pencil,
+  X
 } from 'lucide-react';
+import { Button } from './ui/button';
 import { generateReportingYears, getCurrentReportingYear } from '../utils/reportingYearUtils';
 import TrackingModule from './TrackingModule';
 import ESGQuestionnaire from './ESGQuestionnaire';
@@ -33,6 +36,7 @@ export default function BRSRModule() {
   const [activeTab, setActiveTab] = useState('environment');
   const [reportingPeriod, setReportingPeriod] = useState('');
   const [reportingYears, setReportingYears] = useState([]);
+  const [isEditing, setIsEditing] = useState(false);
 
   // Initialize reporting years
   useEffect(() => {
@@ -66,7 +70,7 @@ export default function BRSRModule() {
           <p className="text-text-muted mt-1">Business Responsibility & Sustainability Reporting</p>
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <Label className="text-sm whitespace-nowrap">Reporting Period:</Label>
           <Select value={reportingPeriod} onValueChange={setReportingPeriod}>
             <SelectTrigger className="w-40 bg-white">
@@ -78,6 +82,14 @@ export default function BRSRModule() {
               ))}
             </SelectContent>
           </Select>
+          <Button
+            variant={isEditing ? 'outline' : 'default'}
+            size="sm"
+            onClick={() => setIsEditing(!isEditing)}
+            className={isEditing ? 'border-red-300 text-red-600 hover:bg-red-50' : ''}
+          >
+            {isEditing ? <><X className="w-4 h-4 mr-1" /> Done</> : <><Pencil className="w-4 h-4 mr-1" /> Edit</>}
+          </Button>
         </div>
       </div>
 
@@ -103,6 +115,8 @@ export default function BRSRModule() {
           <ESGQuestionnaire 
             framework="BRSR"
             section="environment"
+            isEditing={isEditing}
+            reportingYear={reportingPeriod}
           />
         </TabsContent>
 
@@ -111,6 +125,8 @@ export default function BRSRModule() {
           <ESGQuestionnaire 
             framework="BRSR"
             section="social"
+            isEditing={isEditing}
+            reportingYear={reportingPeriod}
           />
         </TabsContent>
 
@@ -119,6 +135,8 @@ export default function BRSRModule() {
           <ESGQuestionnaire 
             framework="BRSR"
             section="governance"
+            isEditing={isEditing}
+            reportingYear={reportingPeriod}
           />
         </TabsContent>
       </Tabs>
