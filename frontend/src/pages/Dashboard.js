@@ -31,7 +31,8 @@ export default function Dashboard() {
   const [esgSection, setEsgSection] = useState('all');
   
   // Only show toggle if org has both modules
-  const showToggle = hasGhg && hasEsg;
+  // const showToggle = hasGhg && hasEsg;
+  const showToggle = false; // Disabled: always show ESG dashboard
   
   // Pass toggle state to data for StickyFilterBar
   const enhancedData = {
@@ -44,29 +45,29 @@ export default function Dashboard() {
   };
 
   // GHG Dashboard selection
-  if (dashboardType === 'ghg' || !hasEsg) {
-    if (hasScope3Access) {
-      return <DashboardScope123 data={enhancedData} />;
-    }
-    return <DashboardScope12 data={enhancedData} />;
-  }
+  // if (dashboardType === 'ghg' || !hasEsg) {
+  //   if (hasScope3Access) {
+  //     return <DashboardScope123 data={enhancedData} />;
+  //   }
+  //   return <DashboardScope12 data={enhancedData} />;
+  // }
   
   // ESG Dashboard selection
   if (esgSection === 'all') {
     return <DashboardESG data={enhancedData} />;
   }
   
-  if (esgSection === 'environment') {
-    return <DashboardEnvironment data={enhancedData} />;
-  }
+  // if (esgSection === 'environment') {
+  //   return <DashboardEnvironment data={enhancedData} />;
+  // }
   
-  if (esgSection === 'social') {
-    return <DashboardSocial data={enhancedData} />;
-  }
+  // if (esgSection === 'social') {
+  //   return <DashboardSocial data={enhancedData} />;
+  // }
   
-  if (esgSection === 'governance') {
-    return <DashboardGovernance data={enhancedData} />;
-  }
+  // if (esgSection === 'governance') {
+  //   return <DashboardGovernance data={enhancedData} />;
+  // }
   
   // Default: DashboardESG (All ESG)
   return <DashboardESG data={enhancedData} />;

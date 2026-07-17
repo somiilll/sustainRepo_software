@@ -62,7 +62,8 @@ export default function Layout() {
 
   const location = useLocation();
   const isDashboardPage =
-  location.pathname.includes('/dashboard');
+    location.pathname.includes('/dashboard') ||
+    location.pathname.endsWith('/analysis');
 
   return (
     <div className="flex h-screen overflow-hidden">
