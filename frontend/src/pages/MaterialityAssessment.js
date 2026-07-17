@@ -181,14 +181,14 @@ function TopicDrawer({ topic, onClose }) {
           </div>
 
           {/* Placeholders */}
-          <div className="rounded-xl border border-dashed border-stone-200 p-4">
+          {/* <div className="rounded-xl border border-dashed border-stone-200 p-4">
             <h4 className="text-xs font-semibold text-stone-500 mb-1">Linked KPIs & Targets</h4>
             <p className="text-xs text-stone-400">No KPIs linked yet. Configure in Targets module.</p>
           </div>
           <div className="rounded-xl border border-dashed border-stone-200 p-4">
             <h4 className="text-xs font-semibold text-stone-500 mb-1">Evidence & Documents</h4>
             <p className="text-xs text-stone-400">No evidence uploaded yet.</p>
-          </div>
+          </div> */}
         </div>
       </motion.div>
     </AnimatePresence>
