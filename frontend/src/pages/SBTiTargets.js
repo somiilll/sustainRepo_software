@@ -91,17 +91,16 @@ function TargetCard({ target, onEdit, onDelete, token }) {
       {isIntensity && progress?.trajectory && (() => {
         const baseIntensity = target.base_year_intensity;
         const targetIntensity = target.target_intensity;
-        const gap = baseIntensity - targetIntensity;
         const areaData = progress.trajectory.map(d => ({
           ...d,
           projected: baseIntensity,
-          targetLine: targetIntensity,
-          _base: targetIntensity,
-          _gap: gap > 0 ? gap : 0,
+          targetLine: d.expected,
+          _base: d.expected,
+          _gap: Math.max(baseIntensity - d.expected, 0),
         }));
         const currentYearData = progress.trajectory.find(d => d.year === new Date().getFullYear());
         const actualVal = currentYearData?.actual;
-        const targetBarVal = targetIntensity;
+        const targetBarVal = currentYearData?.expected;
 
         return (
           <div className="mt-4 space-y-5">
