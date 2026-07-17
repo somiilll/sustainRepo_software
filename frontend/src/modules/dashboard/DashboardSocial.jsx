@@ -14,7 +14,7 @@ import { format } from 'date-fns';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-  LineChart, Line, Legend, ComposedChart,
+  LineChart, Line, Legend, ComposedChart, PieChart, Pie, Cell,
 } from 'recharts';
 
 import StickyFilterBar from './components/filters/StickyFilterBar';
@@ -38,7 +38,7 @@ const GREEN  = { 500: '#059669', 400: '#34d399' };
 
 const WORKFORCE_COLORS = [PURPLE[500], PURPLE[400], PURPLE[300], PURPLE[200]];
 const DIVERSITY_COLORS = [BLUE[500], '#ec4899', TEAL[500], ORANGE[500]];
-const COMPLAINT_COLORS = [RED[500], GREEN[500], ORANGE[500]];
+const COMPLAINT_COLORS = [RED[500], ORANGE[400], TEAL[500]];
 
 /* ── shared tooltip ────────────────────────── */
 const ChartTooltip = ({ active, payload, label }) => {
@@ -348,7 +348,15 @@ export default function DashboardSocial({ data }) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <SectionCard title="Training by Attendee Type" subtitle="Breakdown by participant category" accent={BLUE[500]} testId="section-training-attendee">
           {trainingByAtt.length > 0 ? (
-            <HBarSection data={trainingByAtt} colors={[BLUE[500], BLUE[400], BLUE[300], PURPLE[500], PURPLE[400], TEAL[500]]} />
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie data={trainingByAtt} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} innerRadius={40} paddingAngle={2} strokeWidth={2} stroke="#fff">
+                  {trainingByAtt.map((_, i) => <Cell key={i} fill={[BLUE[500], ORANGE[500], BLUE[300], PURPLE[500], PURPLE[400], TEAL[500]][i % 6]} />)}
+                </Pie>
+                <Tooltip content={<ChartTooltip />} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+              </PieChart>
+            </ResponsiveContainer>
           ) : (
             <EmptyChart message="No training data recorded" />
           )}
@@ -375,7 +383,15 @@ export default function DashboardSocial({ data }) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <SectionCard title="Complaint Status" subtitle="Open, closed & pending" accent={ORANGE[500]} testId="section-complaint-status">
           {complaintStatus.length > 0 ? (
-            <HBarSection data={complaintStatus} colors={COMPLAINT_COLORS} />
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie data={complaintStatus} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} innerRadius={40} paddingAngle={2} strokeWidth={2} stroke="#fff">
+                  {complaintStatus.map((_, i) => <Cell key={i} fill={COMPLAINT_COLORS[i % COMPLAINT_COLORS.length]} />)}
+                </Pie>
+                <Tooltip content={<ChartTooltip />} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+              </PieChart>
+            </ResponsiveContainer>
           ) : (
             <EmptyChart message="No complaint data" />
           )}
@@ -383,7 +399,17 @@ export default function DashboardSocial({ data }) {
 
         <SectionCard title="Complaints Filed Against" subtitle="By responsible party" accent={ORANGE[400]} testId="section-complaint-filed">
           {complaintFiled.length > 0 ? (
-            <HBarSection data={complaintFiled} colors={[ORANGE[500], ORANGE[400], ORANGE[300], RED[500], PURPLE[500]]} />
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={complaintFiled} barSize={28}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f4" vertical={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#78716c' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: '#78716c' }} axisLine={false} tickLine={false} width={40} allowDecimals={false} />
+                <Tooltip content={<ChartTooltip />} />
+                <Bar dataKey="value" name="Complaints" radius={[4, 4, 0, 0]}>
+                  {complaintFiled.map((_, i) => <Cell key={i} fill={[ORANGE[500], ORANGE[400], ORANGE[300], RED[500], PURPLE[500]][i % 5]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           ) : (
             <EmptyChart message="No complaint data" />
           )}
