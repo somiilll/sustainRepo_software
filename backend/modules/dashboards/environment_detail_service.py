@@ -300,6 +300,75 @@ async def get_environment_detail(
                 elif "disposal" in sub or "disposed" in sub:
                     target["disposed"] += qty
 
+    # --- Energy source breakdown & facility energy from GHG integration ---
+    energy_source_breakdown = []
+    facility_energy = []
+    try:
+        from modules.esg_records.ghg_integration import get_ghg_integration_service
+        ghg_svc = get_ghg_integration_service(db)
+        energy_records = await ghg_svc.get_energy_from_ghg(
+            org_id=org_id,
+            facility_ids=facility_ids,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+        source_map: Dict[str, float] = {}
+        fac_map: Dict[str, Dict] = {}
+
+        # Resolve facility names for labelling
+        fac_name_cache: Dict[str, str] = {}
+
+        for rec in energy_records:
+            fv = rec.get("field_values") or {}
+            energy_val = float(fv.get("total_energy") or 0)
+            energy_unit = fv.get("energy_unit", "MWh")
+            if energy_unit == "TJ":
+                energy_val *= 277.778  # TJ → MWh
+
+            subcat = rec.get("subcategory") or ""
+            if "Electricity" in subcat:
+                source_name = "Electricity"
+            elif "Fuel" in subcat:
+                source_name = "Fuel"
+            elif "Heating" in subcat:
+                source_name = "Heating & Steam"
+            else:
+                source_name = "Other"
+
+            source_map[source_name] = source_map.get(source_name, 0) + energy_val
+
+            fac_id = rec.get("facility_id") or ""
+            fac_name = rec.get("facility_name") or fac_id
+            is_renewable = rec.get("sub_subcategory", "") == "Renewable"
+
+            if fac_id:
+                fac_name_cache[fac_id] = fac_name
+                if fac_id not in fac_map:
+                    fac_map[fac_id] = {"name": fac_name, "total": 0.0, "renewable": 0.0}
+                fac_map[fac_id]["total"] += energy_val
+                if is_renewable:
+                    fac_map[fac_id]["renewable"] += energy_val
+
+        energy_source_breakdown = sorted(
+            [{"name": k, "value": round(v, 2)} for k, v in source_map.items() if v > 0],
+            key=lambda x: -x["value"],
+        )
+        facility_energy = sorted(
+            [
+                {
+                    "name": v["name"],
+                    "total": round(v["total"], 2),
+                    "renewable_pct": round(v["renewable"] / v["total"] * 100, 1) if v["total"] > 0 else 0,
+                }
+                for v in fac_map.values()
+                if v["total"] > 0
+            ],
+            key=lambda x: -x["total"],
+        )
+    except Exception:
+        pass
+
     return {
         "scope1_breakdown": fmt_breakdown(scope1_breakdown),
         "scope2_breakdown": fmt_breakdown(scope2_breakdown),
@@ -311,4 +380,6 @@ async def get_environment_detail(
         "water_consumption_sources": water_consumption_list,
         "hazardous_waste": hazardous_waste,
         "non_hazardous_waste": non_hazardous_waste,
+        "energy_source_breakdown": energy_source_breakdown,
+        "facility_energy": facility_energy,
     }
