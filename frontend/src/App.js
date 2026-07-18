@@ -59,6 +59,7 @@ import GHGAnalysis from './pages/GHGAnalysis';
 import EnvironmentAnalysis from './pages/EnvironmentAnalysis';
 import EnergyAnalysis from './pages/EnergyAnalysis';
 import WaterAnalysis from './pages/WaterAnalysis';
+import WasteAnalysis from './pages/WasteAnalysis';
 import SocialAnalysis from './pages/SocialAnalysis';
 import GovernanceAnalysis from './pages/GovernanceAnalysis';
 import MaterialityAssessment from './pages/MaterialityAssessment';
@@ -280,7 +281,7 @@ const AppRoutes = () => {
           <Route path="environment/analysis" element={<EnvironmentAnalysis />} />
           <Route path="environment/energy/analysis" element={<EnergyAnalysis />} />
           <Route path="environment/water/analysis" element={<WaterAnalysis />} />
-          <Route path="environment/waste/analysis" element={<EnvironmentAnalysis />} />
+          <Route path="environment/waste/analysis" element={<WasteAnalysis />} />
           <Route path="social" element={<Social />} />
           <Route path="social/analysis" element={<SocialAnalysis />} />
           <Route path="hr-workforce" element={<HRWorkforce />} />
