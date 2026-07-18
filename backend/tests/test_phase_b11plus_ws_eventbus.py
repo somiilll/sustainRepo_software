@@ -14,7 +14,7 @@ import pytest
 import requests
 import websockets
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://green-data-hub-2.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://energy-insight-15.preview.emergentagent.com").rstrip("/")
 WS_BASE = BASE_URL.replace("https://", "wss://").replace("http://", "ws://")
 
 ADMIN_A = {"email": "goyalsomil@hotmail.com", "password": "Test123!"}
