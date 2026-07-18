@@ -15,6 +15,7 @@ Build a comprehensive ESG (Environment, Social, Governance) platform with premiu
 - Executive Dashboard (GHG Scope 1/2/3 with base-year comparison)
 - Environment Dashboard (Emissions, Energy, Water, Waste KPIs + charts)
 - **Energy Dashboard** (4 KPIs + 5 charts: Monthly Trend, Source Breakdown, Renewable vs Non, Facility-wise, Intensity) — Rebuilt 2026-07-18 to reuse esg-analytics + environment-detail APIs
+- **Water Dashboard** (4 KPIs + 7 charts: Monthly Trend, Source Donut, Source Trend, Flow Overview, Discharge Destinations, Recycling Gauge, Monthly Recycled) — Built 2026-07-18
 - Social Dashboard (Workforce, Training, Complaints, Health & Safety)
 - Governance Dashboard (AP Days, Anti-Competitive, Data Breaches, Violations)
 - ESG Summary Dashboard (combined view)
@@ -57,7 +58,7 @@ Build a comprehensive ESG (Environment, Social, Governance) platform with premiu
 
 ## Pending Issues
 1. **P1**: Module Access Super Admin UI (toggle modules per org) — NOT STARTED
-2. **P1**: Implement Water and Waste Analysis Dashboards (similar to Energy Dashboard) — NOT STARTED
+2. **P1**: Implement Waste Analysis Dashboard (similar to Water/Energy Dashboard) — NOT STARTED
 3. **P2**: Dashboard Scope 1 & 3 Emissions deduplication bug — NOT STARTED
 4. **P2**: Carbon Intensity Calculation discrepancy — NOT STARTED
 

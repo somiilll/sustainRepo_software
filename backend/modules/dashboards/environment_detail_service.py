@@ -188,7 +188,7 @@ async def get_environment_detail(
 
     water_records = await db.environment_records.find(
         {**org_query, "category": "Water"},
-        {"_id": 0, "subcategory": 1, "field_values": 1},
+        {"_id": 0, "subcategory": 1, "field_values": 1, "reporting_period": 1},
     ).to_list(5000)
 
     # Source key mappings
@@ -215,16 +215,23 @@ async def get_environment_detail(
     water_sources: Dict[str, float] = {}
     water_discharge_sources: Dict[str, float] = {}
     water_consumption_sources: Dict[str, float] = {}
+    water_monthly_sources: Dict[str, Dict[str, float]] = {}  # period -> {source_name -> value}
+
+    from modules.dashboards.esg_analytics_service import record_month
 
     for wr in water_records:
         sub = (wr.get("subcategory") or "").lower()
         fv = wr.get("field_values") or {}
+        period_key = record_month(wr)
 
         if sub == "withdrawal":
             for key, label in WITHDRAWAL_KEYS.items():
                 val = float(fv.get(key) or 0)
                 if val > 0:
                     water_sources[label] = water_sources.get(label, 0) + val
+                    if period_key:
+                        water_monthly_sources.setdefault(period_key, {})
+                        water_monthly_sources[period_key][label] = water_monthly_sources[period_key].get(label, 0) + val
         elif sub == "discharge":
             for key, label in DISCHARGE_KEYS.items():
                 val = float(fv.get(key) or 0)
@@ -253,6 +260,15 @@ async def get_environment_detail(
     water_sources_list = _sorted_sources(water_sources)
     water_discharge_list = _sorted_sources(water_discharge_sources)
     water_consumption_list = _sorted_sources(water_consumption_sources)
+
+    # Build sorted monthly source trend
+    all_source_names = sorted(water_sources.keys())
+    water_monthly_sources_list = []
+    for period_k in sorted(water_monthly_sources.keys()):
+        entry = {"period": period_k}
+        for src_name in all_source_names:
+            entry[src_name] = round(water_monthly_sources[period_k].get(src_name, 0), 2)
+        water_monthly_sources_list.append(entry)
 
     # --- Waste type breakdown ---
     waste_records = await db.environment_records.find(
@@ -378,6 +394,7 @@ async def get_environment_detail(
         "water_sources": water_sources_list,
         "water_discharge_sources": water_discharge_list,
         "water_consumption_sources": water_consumption_list,
+        "water_monthly_sources": water_monthly_sources_list,
         "hazardous_waste": hazardous_waste,
         "non_hazardous_waste": non_hazardous_waste,
         "energy_source_breakdown": energy_source_breakdown,
