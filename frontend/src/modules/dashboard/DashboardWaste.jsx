@@ -268,17 +268,13 @@ export default function DashboardWaste({ data }) {
       />
 
       {/* ── KPI Row ────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4" data-testid="waste-kpi-row">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" data-testid="waste-kpi-row">
         <PremiumKpiCard title="Total Generated" value={Math.round(totals.generated)} unit="MT"
           icon={Trash2} accentColor="#78716c" testId="kpi-waste-generated" />
         <PremiumKpiCard title="Total Recovered" value={Math.round(totals.recovered)} unit="MT"
           icon={Recycle} accentColor="#059669" testId="kpi-waste-recovered" />
         <PremiumKpiCard title="Total Disposed" value={Math.round(totals.disposed)} unit="MT"
           icon={FlameKindling} accentColor="#ef4444" testId="kpi-waste-disposed" />
-        <PremiumKpiCard title="Hazardous" value={Math.round(haz.generated || 0)} unit="MT"
-          icon={AlertTriangle} accentColor="#f59e0b" testId="kpi-haz-generated" />
-        <PremiumKpiCard title="Non-Hazardous" value={Math.round(nhaz.generated || 0)} unit="MT"
-          icon={PackageOpen} accentColor="#3b82f6" testId="kpi-nhaz-generated" />
         <PremiumKpiCard title="Recovery Rate" value={Math.round(totals.recoveryRate * 10) / 10} unit="%"
           icon={Recycle} accentColor="#059669" testId="kpi-recovery-rate" />
       </div>
@@ -307,38 +303,22 @@ export default function DashboardWaste({ data }) {
         ) : <EmptyChart message="No monthly waste data" />}
       </SectionCard>
 
-      {/* ── Row 2: Composition Donut + Haz vs Non-Haz Stacked ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <SectionCard title="Waste Composition" subtitle="Hazardous vs Non-Hazardous (MT)" accent={AMBER[500]} testId="section-waste-composition">
-          {compositionData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={260}>
-              <PieChart>
-                <Pie data={compositionData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} innerRadius={50} paddingAngle={3} strokeWidth={2} stroke="#fff">
-                  {compositionData.map((_, i) => <Cell key={i} fill={COMP_COLORS[i % COMP_COLORS.length]} />)}
-                </Pie>
-                <Tooltip content={<ChartTooltip />} />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : <EmptyChart message="No composition data" />}
-        </SectionCard>
-
-        <SectionCard title="Hazardous vs Non-Hazardous Trend" subtitle="Monthly generation comparison" accent={RED[500]} testId="section-haz-nhaz-trend">
-          {hazNhazMonthly.length > 0 && hazNhazMonthly.some(d => d.hazardous > 0 || d.nonHazardous > 0) ? (
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={hazNhazMonthly} barGap={2}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f4" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#78716c' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: '#78716c' }} axisLine={false} tickLine={false} width={50} />
-                <Tooltip content={<ChartTooltip />} />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="hazardous" name="Hazardous" stackId="a" fill={RED[500]} barSize={24} />
-                <Bar dataKey="nonHazardous" name="Non-Hazardous" stackId="a" fill={AMBER[500]} radius={[4, 4, 0, 0]} barSize={24} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : <EmptyChart message="No monthly hazardous/non-hazardous data" />}
-        </SectionCard>
-      </div>
+      {/* ── Row 2: Haz vs Non-Haz Stacked ── */}
+      <SectionCard title="Hazardous vs Non-Hazardous Trend" subtitle="Monthly generation comparison" accent={RED[500]} testId="section-haz-nhaz-trend">
+        {hazNhazMonthly.length > 0 && hazNhazMonthly.some(d => d.hazardous > 0 || d.nonHazardous > 0) ? (
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={hazNhazMonthly} barGap={2}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f4" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#78716c' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: '#78716c' }} axisLine={false} tickLine={false} width={50} />
+              <Tooltip content={<ChartTooltip />} />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Bar dataKey="hazardous" name="Hazardous" stackId="a" fill={RED[500]} barSize={24} />
+              <Bar dataKey="nonHazardous" name="Non-Hazardous" stackId="a" fill={AMBER[500]} radius={[4, 4, 0, 0]} barSize={24} />
+            </BarChart>
+          </ResponsiveContainer>
+        ) : <EmptyChart message="No monthly hazardous/non-hazardous data" />}
+      </SectionCard>
 
       {/* ── Row 3: Recovery Trend + Disposal Trend ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -375,16 +355,10 @@ export default function DashboardWaste({ data }) {
         </SectionCard>
       </div>
 
-      {/* ── Row 4: Waste Flow + Recovery Gauge ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <SectionCard title="Waste Flow Overview" subtitle="Generated → Type → Recovery / Disposal" accent={STONE[400]} testId="section-waste-flow">
-          <WasteFlowCard hazardous={haz} nonHazardous={nhaz} />
-        </SectionCard>
-
-        <SectionCard title="Waste Recovery Performance" subtitle="Recovered vs Target" accent={GREEN[500]} testId="section-recovery-gauge">
-          <RecoveryGauge percentage={totals.recoveryRate} target={30} />
-        </SectionCard>
-      </div>
+      {/* ── Row 4: Waste Flow ── */}
+      <SectionCard title="Waste Flow Overview" subtitle="Generated → Type → Recovery / Disposal" accent={STONE[400]} testId="section-waste-flow">
+        <WasteFlowCard hazardous={haz} nonHazardous={nhaz} />
+      </SectionCard>
     </div>
   );
 }
