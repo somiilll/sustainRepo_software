@@ -17,6 +17,7 @@ import PremiumKpiCard from './components/kpi/PremiumKpiCard';
 import {
   Zap, TrendingUp, Factory, Leaf, RefreshCw,
 } from 'lucide-react';
+import { useIntensityData } from './hooks/useIntensityData';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -80,6 +81,7 @@ export default function DashboardEnergy({ data }) {
   const [esgAnalytics, setEsgAnalytics] = useState(null);
   const [envDetail, setEnvDetail] = useState(null);
   const [loading, setLoading] = useState(true);
+  const { turnover, productionQty, productionUnit } = useIntensityData(dateRange, selectedFacilities);
 
   /* ── fetch both APIs on filter change ────── */
   useEffect(() => {
@@ -135,20 +137,22 @@ export default function DashboardEnergy({ data }) {
   [energy]);
 
   const intensityTrend = useMemo(() => {
-    const revenue = organization?.revenue;
-    const production = organization?.production;
-    if (!revenue && !production) return [];
-    const monthlyRevenue = (revenue || 0) / 12;
-    const monthlyProduction = (production || 0) / 12;
+    if (!turnover && !productionQty) return [];
+    const monthlyTurnover = (turnover || 0) / 12;
+    const monthlyProduction = (productionQty || 0) / 12;
     return energy.map(e => {
       const total = (e.renewable || 0) + (e.nonRenewable || 0);
       return {
         label: shortMonth(e.period),
-        intensity_revenue: monthlyRevenue > 0 ? Math.round((total / monthlyRevenue) * 10000) / 10000 : null,
+        intensity_revenue: monthlyTurnover > 0 ? Math.round((total / monthlyTurnover) * 10000) / 10000 : null,
         intensity_production: monthlyProduction > 0 ? Math.round((total / monthlyProduction) * 10000) / 10000 : null,
       };
     });
-  }, [energy, organization]);
+  }, [energy, turnover, productionQty]);
+
+  const energyIntensityprod = productionQty ? kpi.total_energy / productionQty : null;
+  const energyIntensityRevenue = turnover ? kpi.total_energy / turnover : null;
+
 
   const sources = envDetail?.energy_source_breakdown || [];
   const facilityBars = envDetail?.facility_energy || [];
@@ -203,8 +207,8 @@ export default function DashboardEnergy({ data }) {
         />
         <PremiumKpiCard
           title="Energy Intensity (Revenue)"
-          value={kpi.intensity_revenue}
-          unit={kpi.intensity_revenue != null ? `MWh/${kpi.currency}` : undefined}
+          value={energyIntensityRevenue}
+          unit={`INR`}
           icon={TrendingUp}
           accentColor="#3b82f6"
           placeholder={kpi.intensity_revenue == null ? 'Revenue unavailable' : undefined}
@@ -212,11 +216,11 @@ export default function DashboardEnergy({ data }) {
         />
         <PremiumKpiCard
           title="Energy Intensity (Production)"
-          value={kpi.intensity_production}
-          unit={kpi.intensity_production != null ? `MWh/${kpi.production_unit}` : undefined}
+          value={energyIntensityprod}
+          unit={`MWh/${productionUnit || 'unit produced'}`}
           icon={Factory}
           accentColor="#8b5cf6"
-          placeholder={kpi.intensity_production == null ? 'Production data unavailable' : undefined}
+          placeholder={energyIntensityprod == null ? 'Production data unavailable' : undefined}
           testId="kpi-intensity-production"
         />
         <PremiumKpiCard
