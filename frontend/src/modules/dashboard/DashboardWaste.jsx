@@ -303,25 +303,24 @@ export default function DashboardWaste({ data }) {
         ) : <EmptyChart message="No monthly waste data" />}
       </SectionCard>
 
-      {/* ── Row 2: Haz vs Non-Haz Stacked ── */}
-      <SectionCard title="Hazardous vs Non-Hazardous Trend" subtitle="Monthly generation comparison" accent={RED[500]} testId="section-haz-nhaz-trend">
-        {hazNhazMonthly.length > 0 && hazNhazMonthly.some(d => d.hazardous > 0 || d.nonHazardous > 0) ? (
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={hazNhazMonthly} barGap={2}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f4" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#78716c' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: '#78716c' }} axisLine={false} tickLine={false} width={50} />
-              <Tooltip content={<ChartTooltip />} />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Bar dataKey="hazardous" name="Hazardous" stackId="a" fill={RED[500]} barSize={24} />
-              <Bar dataKey="nonHazardous" name="Non-Hazardous" stackId="a" fill={AMBER[500]} radius={[4, 4, 0, 0]} barSize={24} />
-            </BarChart>
-          </ResponsiveContainer>
-        ) : <EmptyChart message="No monthly hazardous/non-hazardous data" />}
-      </SectionCard>
-
-      {/* ── Row 3: Recovery Trend + Disposal Trend ── */}
+      {/* ── Row 2: Haz vs Non-Haz + Recovery Trend ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <SectionCard title="Hazardous vs Non-Hazardous Trend" subtitle="Monthly generation comparison" accent={RED[500]} testId="section-haz-nhaz-trend">
+          {hazNhazMonthly.length > 0 && hazNhazMonthly.some(d => d.hazardous > 0 || d.nonHazardous > 0) ? (
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={hazNhazMonthly} barGap={2}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f4" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#78716c' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: '#78716c' }} axisLine={false} tickLine={false} width={50} />
+                <Tooltip content={<ChartTooltip />} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="hazardous" name="Hazardous" stackId="a" fill={RED[500]} barSize={24} />
+                <Bar dataKey="nonHazardous" name="Non-Hazardous" stackId="a" fill={AMBER[500]} radius={[4, 4, 0, 0]} barSize={24} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : <EmptyChart message="No monthly hazardous/non-hazardous data" />}
+        </SectionCard>
+
         <SectionCard title="Waste Recovery Trend" subtitle="Monthly recovered by waste type" accent={GREEN[500]} testId="section-recovery-trend">
           {recoveryTrend.length > 0 && recoveryTrend.some(d => d.hazRecovered > 0 || d.nhazRecovered > 0) ? (
             <ResponsiveContainer width="100%" height={260}>
@@ -337,7 +336,10 @@ export default function DashboardWaste({ data }) {
             </ResponsiveContainer>
           ) : <EmptyChart message="No recovery trend data" />}
         </SectionCard>
+      </div>
 
+      {/* ── Row 3: Disposal Trend + Waste Flow ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <SectionCard title="Waste Disposal Trend" subtitle="Monthly disposed by waste type" accent={RED[500]} testId="section-disposal-trend">
           {disposalTrend.length > 0 && disposalTrend.some(d => d.hazDisposed > 0 || d.nhazDisposed > 0) ? (
             <ResponsiveContainer width="100%" height={260}>
@@ -353,12 +355,11 @@ export default function DashboardWaste({ data }) {
             </ResponsiveContainer>
           ) : <EmptyChart message="No disposal trend data" />}
         </SectionCard>
-      </div>
 
-      {/* ── Row 4: Waste Flow ── */}
-      <SectionCard title="Waste Flow Overview" subtitle="Generated → Type → Recovery / Disposal" accent={STONE[400]} testId="section-waste-flow">
-        <WasteFlowCard hazardous={haz} nonHazardous={nhaz} />
-      </SectionCard>
+        <SectionCard title="Waste Flow Overview" subtitle="Generated → Type → Recovery / Disposal" accent={STONE[400]} testId="section-waste-flow">
+          <WasteFlowCard hazardous={haz} nonHazardous={nhaz} />
+        </SectionCard>
+      </div>
     </div>
   );
 }
