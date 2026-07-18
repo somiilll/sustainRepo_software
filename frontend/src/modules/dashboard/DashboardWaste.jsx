@@ -103,21 +103,15 @@ function RecoveryGauge({ percentage, target = 30 }) {
 
 /* ── Waste Flow Card ───────────────────────── */
 function WasteFlowCard({ hazardous, nonHazardous }) {
-  const hazG = hazardous?.generated || 0;
-  const hazR = hazardous?.recovered || 0;
-  const hazD = hazardous?.disposed || 0;
-  const nhazG = nonHazardous?.generated || 0;
-  const nhazR = nonHazardous?.recovered || 0;
-  const nhazD = nonHazardous?.disposed || 0;
-  const totalG = hazG + nhazG;
+  const totalG = (hazardous?.generated || 0) + (nonHazardous?.generated || 0);
+  const totalR = (hazardous?.recovered || 0) + (nonHazardous?.recovered || 0);
+  const totalD = (hazardous?.disposed || 0) + (nonHazardous?.disposed || 0);
   if (totalG <= 0) return <EmptyChart message="No waste flow data" />;
 
   const bars = [
-    { label: 'Total Generated', value: totalG, color: STONE[500], pct: 100 },
-    { label: 'Hazardous', value: hazG, color: RED[500], pct: (hazG / totalG) * 100 },
-    { label: 'Non-Hazardous', value: nhazG, color: AMBER[500], pct: (nhazG / totalG) * 100 },
-    { label: 'Recovered', value: hazR + nhazR, color: GREEN[500], pct: ((hazR + nhazR) / totalG) * 100 },
-    { label: 'Disposed', value: hazD + nhazD, color: RED[400], pct: ((hazD + nhazD) / totalG) * 100 },
+    { label: 'Waste Generated', value: totalG, color: STONE[500], pct: 100 },
+    { label: 'Recovered', value: totalR, color: GREEN[500], pct: (totalR / totalG) * 100 },
+    { label: 'Disposed', value: totalD, color: RED[400], pct: (totalD / totalG) * 100 },
   ];
 
   return (
@@ -126,7 +120,7 @@ function WasteFlowCard({ hazardous, nonHazardous }) {
         <div key={b.label}>
           <div className="flex items-center justify-between mb-1">
             <span className="text-xs font-medium text-stone-700 flex items-center gap-1.5">
-              {i > 0 && <span className="text-stone-300">{i <= 2 ? '↓' : '→'}</span>}
+              {i > 0 && <span className="text-stone-300">↓</span>}
               {b.label}
             </span>
             <span className="text-xs font-semibold tabular-nums" style={{ color: b.color }}>
