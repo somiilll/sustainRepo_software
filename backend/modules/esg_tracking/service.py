@@ -148,9 +148,9 @@ class TrackingService:
         
         # Build query based on domain
         if domain == TrackingDomain.ALL:
-            # Fetch all sections
+            # Fetch all sections including BRSR section_b/section_c
             configs = await self._configs.find(
-                {"section": {"$in": ["environment", "social", "governance"]}},
+                {"section": {"$in": ["environment", "social", "governance", "section_a", "section_b", "section_c"]}},
                 {"_id": 0}
             ).to_list(5000)
         else:
@@ -161,10 +161,14 @@ class TrackingService:
             ).to_list(1000)
         
         # Group configs by framework
-        # Note: Configs without framework field are treated as BRSR
+        # Note: Configs use either "framework" (string) or "frameworks" (array)
         framework_configs: Dict[str, List[dict]] = {}
         for config in configs:
-            fw = (config.get("framework") or "brsr").lower()
+            fw = (config.get("framework") or "").lower()
+            if not fw:
+                # Check frameworks array
+                fws = config.get("frameworks") or []
+                fw = fws[0].lower() if fws else "brsr"
             if fw not in framework_configs:
                 framework_configs[fw] = []
             framework_configs[fw].append(config)
@@ -324,26 +328,29 @@ class TrackingService:
         
         # Build section filter based on domain
         if domain == TrackingDomain.ALL:
-            section_filter = {"$in": ["environment", "social", "governance"]}
+            section_filter = {"$in": ["environment", "social", "governance", "section_a", "section_b", "section_c"]}
         else:
             section_filter = domain_section_map.get(domain)
         
         # Get all configs for this framework and domain
-        # Note: Some configs may not have 'framework' field - treat them as BRSR by default
-        config_query = {
-            "section": section_filter,
-            "$or": [
-                {"framework": {"$regex": f"^{framework_id}$", "$options": "i"}},
-                {"framework": None},  # Legacy configs without framework field
-                {"framework": {"$exists": False}},  # Legacy configs without framework field
-            ]
-        }
-        
-        # If not BRSR, only get configs with explicit framework match
-        if framework_id.lower() != "brsr":
+        # Handle both "framework" (string) and "frameworks" (array) fields
+        if framework_id.lower() == "brsr":
             config_query = {
                 "section": section_filter,
-                "framework": {"$regex": f"^{framework_id}$", "$options": "i"},
+                "$or": [
+                    {"framework": {"$regex": f"^{framework_id}$", "$options": "i"}},
+                    {"frameworks": {"$regex": f"^{framework_id}$", "$options": "i"}},
+                    {"framework": None},
+                    {"framework": {"$exists": False}},
+                ]
+            }
+        else:
+            config_query = {
+                "section": section_filter,
+                "$or": [
+                    {"framework": {"$regex": f"^{framework_id}$", "$options": "i"}},
+                    {"frameworks": {"$regex": f"^{framework_id}$", "$options": "i"}},
+                ]
             }
         
         configs = await self._configs.find(config_query, {"_id": 0}).to_list(5000)
@@ -518,7 +525,7 @@ class TrackingService:
         
         # Build section filter based on domain
         if domain == TrackingDomain.ALL:
-            section_filter = {"$in": ["environment", "social", "governance"]}
+            section_filter = {"$in": ["environment", "social", "governance", "section_a", "section_b", "section_c"]}
         else:
             section_filter = domain_section_map.get(domain)
         
@@ -529,38 +536,46 @@ class TrackingService:
         )
         stale_threshold = org.get("stale_threshold_days", DEFAULT_STALE_THRESHOLD_DAYS) if org else DEFAULT_STALE_THRESHOLD_DAYS
         
-        # Build config query - handle missing framework field for BRSR
+        # Build config query - handle both "framework" and "frameworks" fields
+        fw_match = [
+            {"framework": {"$regex": f"^{framework_id}$", "$options": "i"}},
+            {"frameworks": {"$regex": f"^{framework_id}$", "$options": "i"}},
+        ]
+        if framework_id.lower() == "brsr":
+            fw_match.extend([{"framework": None}, {"framework": {"$exists": False}}])
+
         if framework_id.lower() == "brsr":
             config_query = {
                 "section": section_filter,
-                "$or": [
-                    {"framework": {"$regex": f"^{framework_id}$", "$options": "i"}},
-                    {"framework": None},
-                    {"framework": {"$exists": False}},
-                ],
+                "$or": fw_match,
                 "$and": [
                     {"$or": [
                         {"brsr_principle": section_id},
                         {"brsr_section": section_id},
+                        {"section": section_id},
                         {"topic": section_id},
                     ]}
                 ]
             }
         elif framework_id.upper() == "GRI":
-            # For GRI, section_id is the disclosure_id
             config_query = {
                 "section": section_filter,
-                "framework": {"$regex": f"^{framework_id}$", "$options": "i"},
+                "$or": [
+                    {"framework": {"$regex": f"^{framework_id}$", "$options": "i"}},
+                    {"frameworks": {"$regex": f"^{framework_id}$", "$options": "i"}},
+                ],
                 "disclosure_id": section_id,
             }
         else:
             config_query = {
                 "section": section_filter,
-                "framework": {"$regex": f"^{framework_id}$", "$options": "i"},
-                "$or": [
-                    {"brsr_section": section_id},
-                    {"topic": section_id},
-                    {"brsr_principle": section_id},
+                "$or": fw_match,
+                "$and": [
+                    {"$or": [
+                        {"brsr_section": section_id},
+                        {"topic": section_id},
+                        {"brsr_principle": section_id},
+                    ]}
                 ]
             }
         
@@ -924,23 +939,25 @@ class TrackingService:
             TrackingDomain.SOCIAL: "social",
             TrackingDomain.GOVERNANCE: "governance",
         }
-        section = domain_section_map.get(domain)
         
-        # Build config query - handle missing framework field for BRSR
-        if request.framework_id.lower() == "brsr":
-            config_query = {
-                "section": section,
-                "$or": [
-                    {"framework": {"$regex": f"^{request.framework_id}$", "$options": "i"}},
-                    {"framework": None},
-                    {"framework": {"$exists": False}},
-                ]
-            }
+        # For BRSR "all" domain, include section_b/section_c
+        if domain == TrackingDomain.ALL:
+            section_val = {"$in": ["environment", "social", "governance", "section_a", "section_b", "section_c"]}
         else:
-            config_query = {
-                "section": section,
-                "framework": {"$regex": f"^{request.framework_id}$", "$options": "i"},
-            }
+            section_val = domain_section_map.get(domain)
+        
+        # Build config query - handle both "framework" and "frameworks" fields
+        fw_match = [
+            {"framework": {"$regex": f"^{request.framework_id}$", "$options": "i"}},
+            {"frameworks": {"$regex": f"^{request.framework_id}$", "$options": "i"}},
+        ]
+        if request.framework_id.lower() == "brsr":
+            fw_match.extend([{"framework": None}, {"framework": {"$exists": False}}])
+        
+        config_query = {
+            "section": section_val,
+            "$or": fw_match,
+        }
         
         if request.section_id:
             if "$or" in config_query:
