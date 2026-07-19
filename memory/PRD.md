@@ -47,6 +47,8 @@ Build a comprehensive ESG (Environment, Social, Governance) platform with premiu
 - Workflow Tracker, My Task, Approver Queue
 - MyTasks component with Fill Now, BRSR tagging, group tracking
 
+### Dashboards & Analytics
+
 ### Other Features
 - Materiality Assessment UI
 - Bulk Upload, OCR Detection placeholder

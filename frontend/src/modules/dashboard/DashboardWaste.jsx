@@ -8,14 +8,14 @@ import { format } from 'date-fns';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  CartesianGrid, LineChart, Line, Legend, PieChart, Pie, Cell,
+  CartesianGrid, LineChart, Line, Legend,
 } from 'recharts';
 
 import StickyFilterBar from './components/filters/StickyFilterBar';
 import SectionCard from './components/layout/SectionCard';
 import PremiumKpiCard from './components/kpi/PremiumKpiCard';
 import {
-  Trash2, Recycle, FlameKindling, AlertTriangle, PackageOpen, RefreshCw,
+  Trash2, Recycle, FlameKindling, RefreshCw,
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -30,8 +30,6 @@ const BLUE   = { 500: '#3b82f6' };
 const PURPLE = { 500: '#8b5cf6' };
 const TEAL   = { 500: '#14b8a6' };
 const ROSE   = { 500: '#f43f5e' };
-
-const COMP_COLORS = [RED[500], AMBER[500], BLUE[500], TEAL[500], PURPLE[500]];
 
 /* ── shared tooltip ────────────────────────── */
 const ChartTooltip = ({ active, payload, label }) => {
@@ -66,39 +64,6 @@ function shortMonth(period) {
     return m[parseInt(parts[1], 10) - 1] || period;
   }
   return period;
-}
-
-/* ── Recovery Gauge ────────────────────────── */
-function RecoveryGauge({ percentage, target = 30 }) {
-  const pct = Math.min(Math.max(percentage || 0, 0), 100);
-  const deg = (pct / 100) * 360;
-  const color = pct >= target ? '#059669' : pct >= target * 0.8 ? '#f59e0b' : '#ef4444';
-  const label = pct >= target ? 'On Track' : pct >= target * 0.8 ? 'Near Target' : 'Needs Improvement';
-
-  return (
-    <div className="flex flex-col items-center gap-4 py-4" data-testid="recovery-gauge">
-      <div className="relative w-40 h-40">
-        <div className="absolute inset-0 rounded-full border-[14px] border-stone-100" />
-        <div
-          className="absolute inset-0 rounded-full transition-all duration-1000"
-          style={{
-            background: `conic-gradient(${color} ${deg}deg, transparent ${deg}deg)`,
-            mask: 'radial-gradient(farthest-side, transparent calc(100% - 14px), #000 calc(100% - 14px))',
-            WebkitMask: 'radial-gradient(farthest-side, transparent calc(100% - 14px), #000 calc(100% - 14px))',
-          }}
-        />
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-3xl font-bold tabular-nums" style={{ color }}>{pct.toFixed(1)}</span>
-          <span className="text-[11px] text-stone-500 -mt-0.5">% Recovered</span>
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
-        <span className="text-xs font-semibold" style={{ color }}>{label}</span>
-        <span className="text-[10px] text-stone-400 ml-1">Target: {target}%</span>
-      </div>
-    </div>
-  );
 }
 
 /* ── Waste Flow Card ───────────────────────── */
@@ -192,13 +157,6 @@ export default function DashboardWaste({ data }) {
       disposed: Math.round((w.disposed || 0) * 100) / 100,
     })),
   [waste]);
-
-  const compositionData = useMemo(() => {
-    const items = [];
-    if (haz.generated > 0) items.push({ name: 'Hazardous', value: Math.round(haz.generated) });
-    if (nhaz.generated > 0) items.push({ name: 'Non-Hazardous', value: Math.round(nhaz.generated) });
-    return items;
-  }, [haz, nhaz]);
 
   const hazNhazMonthly = useMemo(() =>
     wasteMonthly.map(m => ({

@@ -3,10 +3,8 @@
  * 
  * Business Responsibility & Sustainability Reporting module.
  * Tabs:
- * - Tracking: My Tasks + Admin Tracker for disclosures
- * - Environment: Section C Environment questions
- * - Social: Section C Social questions
- * - Governance: Section C Governance questions
+ * - Section B: Management & Process Disclosures
+ * - Section C: Principle-wise Performance Disclosures (P1-P9)
  */
 
 import React, { useState, useEffect } from 'react';
@@ -17,16 +15,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Label } from './ui/label';
 import { 
   BarChart3,
-  Leaf,
-  Users,
-  Shield,
   Pencil,
   X,
   ClipboardList
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { generateReportingYears, getCurrentReportingYear } from '../utils/reportingYearUtils';
-import TrackingModule from './TrackingModule';
 import ESGQuestionnaire from './ESGQuestionnaire';
 import BRSRSectionC from './BRSRSectionC';
 

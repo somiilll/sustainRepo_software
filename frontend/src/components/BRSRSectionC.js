@@ -18,7 +18,7 @@ import { toast } from 'sonner';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
-const SECTIONS = ['environment', 'social', 'governance'];
+const SECTION = 'section_c';
 
 const PRINCIPLE_META = {
   P1: { name: 'Principle 1', title: 'Ethics, Transparency & Accountability' },
@@ -52,22 +52,15 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
     try {
       const headers = getAuthHeader();
 
-      const [envConfigs, socConfigs, govConfigs, envResp, socResp, govResp] = await Promise.all([
-        axios.get(`${API}/api/esg-questionnaire/configs`, { params: { framework, section: 'environment' }, headers }).then(r => r.data.configs || []).catch(() => []),
-        axios.get(`${API}/api/esg-questionnaire/configs`, { params: { framework, section: 'social' }, headers }).then(r => r.data.configs || []).catch(() => []),
-        axios.get(`${API}/api/esg-questionnaire/configs`, { params: { framework, section: 'governance' }, headers }).then(r => r.data.configs || []).catch(() => []),
-        axios.get(`${API}/api/esg-questionnaire/responses/${framework}/environment/${reportingYear}`, { headers }).then(r => r.data.responses || {}).catch(() => ({})),
-        axios.get(`${API}/api/esg-questionnaire/responses/${framework}/social/${reportingYear}`, { headers }).then(r => r.data.responses || {}).catch(() => ({})),
-        axios.get(`${API}/api/esg-questionnaire/responses/${framework}/governance/${reportingYear}`, { headers }).then(r => r.data.responses || {}).catch(() => ({})),
+      const [configsRes, responsesRes] = await Promise.all([
+        axios.get(`${API}/api/esg-questionnaire/configs`, { params: { framework, section: SECTION }, headers })
+          .then(r => r.data.configs || []).catch(() => []),
+        axios.get(`${API}/api/esg-questionnaire/responses/${framework}/${SECTION}/${reportingYear}`, { headers })
+          .then(r => r.data.responses || {}).catch(() => ({})),
       ]);
 
-      const configs = [
-        ...envConfigs.map(c => ({ ...c, _section: 'environment' })),
-        ...socConfigs.map(c => ({ ...c, _section: 'social' })),
-        ...govConfigs.map(c => ({ ...c, _section: 'governance' })),
-      ];
-      setAllConfigs(configs);
-      setAllResponses({ ...envResp, ...socResp, ...govResp });
+      setAllConfigs(configsRes);
+      setAllResponses(responsesRes);
     } catch (err) {
       console.error('Failed to fetch Section C data:', err);
     } finally {
@@ -120,27 +113,11 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
     setSaving(true);
     try {
       const headers = getAuthHeader();
-      const bySec = { environment: {}, social: {}, governance: {} };
-
-      for (const c of allConfigs) {
-        const sec = c._section || c.section;
-        if (bySec[sec] !== undefined && allResponses[c.question_key] !== undefined) {
-          bySec[sec][c.question_key] = allResponses[c.question_key];
-        }
-      }
-
-      await Promise.all(
-        SECTIONS.map(sec =>
-          Object.keys(bySec[sec]).length > 0
-            ? axios.put(
-                `${API}/api/esg-questionnaire/responses/${framework}/${sec}/${reportingYear}`,
-                { responses: bySec[sec] },
-                { headers }
-              )
-            : Promise.resolve()
-        )
+      await axios.put(
+        `${API}/api/esg-questionnaire/responses/${framework}/${SECTION}/${reportingYear}`,
+        { responses: allResponses },
+        { headers }
       );
-
       toast.success(`Section C responses saved for ${reportingYear}`);
       fetchData();
     } catch (err) {
