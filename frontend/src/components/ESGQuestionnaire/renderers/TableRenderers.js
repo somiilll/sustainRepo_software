@@ -189,23 +189,87 @@ export function FYComparisonTableRenderer({ config, value, onChange, isEditing, 
       <Table>
         <TableHeader>
           {tableConfig.column_groups ? (
-            <>
-              <TableRow className="bg-stone-100">
-                <TableHead className="text-xs font-semibold w-48 border-b border-r" rowSpan={2}>Category</TableHead>
-                {tableConfig.column_groups.map((group, gi) => (
-                  <TableHead key={gi} colSpan={group.columns.length} className="text-xs font-semibold text-center border-b border-r last:border-r-0">
-                    {group.label.includes('Current') ? fyLabels.current : group.label.includes('Previous') ? fyLabels.previous : group.label}
-                  </TableHead>
-                ))}
-              </TableRow>
-              <TableRow className="bg-stone-50">
-                {tableConfig.column_groups.flatMap((group) =>
-                  group.columns.map(col => (
-                    <TableHead key={col.key} className="text-[11px] font-medium">{col.label}</TableHead>
-                  ))
-                )}
-              </TableRow>
-            </>
+            (() => {
+              // Check if any group has sub_groups (3-level headers)
+              const has3Levels = tableConfig.column_groups.some(g => g.sub_groups);
+              const totalCols = has3Levels
+                ? tableConfig.column_groups.reduce((sum, g) => sum + (g.sub_groups || []).reduce((s2, sg) => s2 + (sg.columns || []).length, 0), 0)
+                : tableConfig.column_groups.reduce((sum, g) => sum + (g.columns || []).length, 0);
+
+              if (has3Levels) {
+                // Helper to replace FY labels
+                const fyLabel = (label) => {
+                  if (label.includes('Current')) return fyLabels.current;
+                  if (label.includes('Previous')) return fyLabels.previous;
+                  return label;
+                };
+                // Check if Level 3 has any non-empty labels
+                const allLevel3Labels = tableConfig.column_groups.flatMap(g =>
+                  (g.sub_groups || []).flatMap(sg => (sg.columns || []).map(c => c.label))
+                );
+                const showLevel3 = allLevel3Labels.some(l => l && l.trim());
+                const rowSpan = showLevel3 ? 3 : 2;
+
+                return (
+                  <>
+                    {/* Level 1: Top group headers */}
+                    <TableRow className="bg-stone-100">
+                      <TableHead className="text-xs font-semibold w-48 border-b border-r" rowSpan={rowSpan}>Category</TableHead>
+                      {tableConfig.column_groups.map((group, gi) => {
+                        const colSpan = (group.sub_groups || []).reduce((s, sg) => s + (sg.columns || []).length, 0);
+                        return (
+                          <TableHead key={gi} colSpan={colSpan} className="text-xs font-semibold text-center border-b border-r last:border-r-0">
+                            {fyLabel(group.label)}
+                          </TableHead>
+                        );
+                      })}
+                    </TableRow>
+                    {/* Level 2: Sub-group headers */}
+                    <TableRow className="bg-stone-50/80">
+                      {tableConfig.column_groups.flatMap((group, gi) =>
+                        (group.sub_groups || []).map((sg, si) => (
+                          <TableHead key={`${gi}-${si}`} colSpan={(sg.columns || []).length} className="text-[11px] font-semibold text-center border-b border-r last:border-r-0">
+                            {fyLabel(sg.label)}
+                          </TableHead>
+                        ))
+                      )}
+                    </TableRow>
+                    {/* Level 3: Individual column headers (only if non-empty labels exist) */}
+                    {showLevel3 && (
+                      <TableRow className="bg-stone-50">
+                        {tableConfig.column_groups.flatMap((group) =>
+                          (group.sub_groups || []).flatMap((sg) =>
+                            (sg.columns || []).map(col => (
+                              <TableHead key={col.key} className="text-[10px] font-medium">{col.label}</TableHead>
+                            ))
+                          )
+                        )}
+                      </TableRow>
+                    )}
+                  </>
+                );
+              }
+              // 2-level headers (existing)
+              return (
+                <>
+                  <TableRow className="bg-stone-100">
+                    <TableHead className="text-xs font-semibold w-48 border-b border-r" rowSpan={2}>Category</TableHead>
+                    {tableConfig.column_groups.map((group, gi) => (
+                      <TableHead key={gi} colSpan={group.columns.length} className="text-xs font-semibold text-center border-b border-r last:border-r-0">
+                        {group.label.includes('Current') ? fyLabels.current : group.label.includes('Previous') ? fyLabels.previous : group.label}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                  <TableRow className="bg-stone-50">
+                    {tableConfig.column_groups.flatMap((group) =>
+                      group.columns.map(col => (
+                        <TableHead key={col.key} className="text-[11px] font-medium">{col.label}</TableHead>
+                      ))
+                    )}
+                  </TableRow>
+                </>
+              );
+            })()
           ) : (
             <TableRow className="bg-stone-50">
               <TableHead className="text-xs font-medium w-48">Category</TableHead>
