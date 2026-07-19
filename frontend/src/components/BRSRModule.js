@@ -28,6 +28,7 @@ import { Button } from './ui/button';
 import { generateReportingYears, getCurrentReportingYear } from '../utils/reportingYearUtils';
 import TrackingModule from './TrackingModule';
 import ESGQuestionnaire from './ESGQuestionnaire';
+import BRSRSectionC from './BRSRSectionC';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -101,17 +102,9 @@ export default function BRSRModule() {
             <ClipboardList className="w-4 h-4" />
             Section B
           </TabsTrigger>
-          <TabsTrigger value="environment" className="gap-2" data-testid="brsr-environment-tab">
-            <Leaf className="w-4 h-4" />
-            Environment
-          </TabsTrigger>
-          <TabsTrigger value="social" className="gap-2" data-testid="brsr-social-tab">
-            <Users className="w-4 h-4" />
-            Social
-          </TabsTrigger>
-          <TabsTrigger value="governance" className="gap-2" data-testid="brsr-governance-tab">
-            <Shield className="w-4 h-4" />
-            Governance
+          <TabsTrigger value="section_c" className="gap-2" data-testid="brsr-section-c-tab">
+            <BarChart3 className="w-4 h-4" />
+            Section C
           </TabsTrigger>
         </TabsList>
 
@@ -125,31 +118,10 @@ export default function BRSRModule() {
           />
         </TabsContent>
 
-        {/* Environment */}
-        <TabsContent value="environment" className="mt-6">
-          <ESGQuestionnaire 
+        {/* Section C - Principle-wise Performance Disclosures */}
+        <TabsContent value="section_c" className="mt-6">
+          <BRSRSectionC
             framework="BRSR"
-            section="environment"
-            isEditing={isEditing}
-            reportingYear={reportingPeriod}
-          />
-        </TabsContent>
-
-        {/* Social */}
-        <TabsContent value="social" className="mt-6">
-          <ESGQuestionnaire 
-            framework="BRSR"
-            section="social"
-            isEditing={isEditing}
-            reportingYear={reportingPeriod}
-          />
-        </TabsContent>
-
-        {/* Governance */}
-        <TabsContent value="governance" className="mt-6">
-          <ESGQuestionnaire 
-            framework="BRSR"
-            section="governance"
             isEditing={isEditing}
             reportingYear={reportingPeriod}
           />
