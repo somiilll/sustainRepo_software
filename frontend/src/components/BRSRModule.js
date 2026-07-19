@@ -21,7 +21,8 @@ import {
   Users,
   Shield,
   Pencil,
-  X
+  X,
+  ClipboardList
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { generateReportingYears, getCurrentReportingYear } from '../utils/reportingYearUtils';
@@ -33,7 +34,7 @@ const API = process.env.REACT_APP_BACKEND_URL;
 export default function BRSRModule() {
   const { token } = useAuth();
   
-  const [activeTab, setActiveTab] = useState('environment');
+  const [activeTab, setActiveTab] = useState('section_b');
   const [reportingPeriod, setReportingPeriod] = useState('');
   const [reportingYears, setReportingYears] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
@@ -96,6 +97,10 @@ export default function BRSRModule() {
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="bg-stone-100 p-1 rounded-lg">
+          <TabsTrigger value="section_b" className="gap-2" data-testid="brsr-section-b-tab">
+            <ClipboardList className="w-4 h-4" />
+            Section B
+          </TabsTrigger>
           <TabsTrigger value="environment" className="gap-2" data-testid="brsr-environment-tab">
             <Leaf className="w-4 h-4" />
             Environment
@@ -109,6 +114,16 @@ export default function BRSRModule() {
             Governance
           </TabsTrigger>
         </TabsList>
+
+        {/* Section B - Management & Process Disclosures */}
+        <TabsContent value="section_b" className="mt-6">
+          <ESGQuestionnaire 
+            framework="BRSR"
+            section="section_b"
+            isEditing={isEditing}
+            reportingYear={reportingPeriod}
+          />
+        </TabsContent>
 
         {/* Environment */}
         <TabsContent value="environment" className="mt-6">
