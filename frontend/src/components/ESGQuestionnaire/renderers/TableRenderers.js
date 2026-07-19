@@ -188,10 +188,20 @@ export function FYComparisonTableRenderer({ config, value, onChange, isEditing, 
     <div className="mt-2 overflow-x-auto">
       <Table>
         <TableHeader>
+          {tableConfig.column_groups && (
+            <TableRow className="bg-stone-100">
+              <TableHead className="text-xs font-medium w-48" rowSpan={2}>Category</TableHead>
+              {tableConfig.column_groups.map((group, gi) => (
+                <TableHead key={gi} colSpan={group.columns.length} className="text-xs font-semibold text-center border-b">
+                  {group.label.includes('Current') ? fyLabels.current : group.label.includes('Previous') ? fyLabels.previous : group.label}
+                </TableHead>
+              ))}
+            </TableRow>
+          )}
           <TableRow className="bg-stone-50">
-            <TableHead className="text-xs font-medium w-48">Category</TableHead>
+            {!tableConfig.column_groups && <TableHead className="text-xs font-medium w-48">Category</TableHead>}
             {columns.map(col => (
-              <TableHead key={col.key} className="text-xs font-medium">{getColumnLabel(col)}</TableHead>
+              <TableHead key={col.key} className="text-xs font-medium">{tableConfig.column_groups ? col.label : getColumnLabel(col)}</TableHead>
             ))}
           </TableRow>
         </TableHeader>
@@ -204,7 +214,7 @@ export function FYComparisonTableRenderer({ config, value, onChange, isEditing, 
                   {!isEditing ? (
                     <span className="text-sm">{data[row.key]?.[col.key] ?? '-'}</span>
                   ) : (
-                    <Input type="number" value={data[row.key]?.[col.key] ?? ''} onChange={(e) => handleCellChange(row.key, col.key, e.target.value)} className="h-8 text-sm" />
+                    <Input type={col.type === 'number' ? 'number' : 'text'} value={data[row.key]?.[col.key] ?? ''} onChange={(e) => handleCellChange(row.key, col.key, e.target.value)} className="h-8 text-sm" />
                   )}
                 </TableCell>
               ))}
