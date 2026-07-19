@@ -188,22 +188,32 @@ export function FYComparisonTableRenderer({ config, value, onChange, isEditing, 
     <div className="mt-2 overflow-x-auto">
       <Table>
         <TableHeader>
-          {tableConfig.column_groups && (
-            <TableRow className="bg-stone-100">
-              <TableHead className="text-xs font-medium w-48" rowSpan={2}>Category</TableHead>
-              {tableConfig.column_groups.map((group, gi) => (
-                <TableHead key={gi} colSpan={group.columns.length} className="text-xs font-semibold text-center border-b">
-                  {group.label.includes('Current') ? fyLabels.current : group.label.includes('Previous') ? fyLabels.previous : group.label}
-                </TableHead>
+          {tableConfig.column_groups ? (
+            <>
+              <TableRow className="bg-stone-100">
+                <TableHead className="text-xs font-semibold w-48 border-b border-r" rowSpan={2}>Category</TableHead>
+                {tableConfig.column_groups.map((group, gi) => (
+                  <TableHead key={gi} colSpan={group.columns.length} className="text-xs font-semibold text-center border-b border-r last:border-r-0">
+                    {group.label.includes('Current') ? fyLabels.current : group.label.includes('Previous') ? fyLabels.previous : group.label}
+                  </TableHead>
+                ))}
+              </TableRow>
+              <TableRow className="bg-stone-50">
+                {tableConfig.column_groups.flatMap((group) =>
+                  group.columns.map(col => (
+                    <TableHead key={col.key} className="text-[11px] font-medium">{col.label}</TableHead>
+                  ))
+                )}
+              </TableRow>
+            </>
+          ) : (
+            <TableRow className="bg-stone-50">
+              <TableHead className="text-xs font-medium w-48">Category</TableHead>
+              {columns.map(col => (
+                <TableHead key={col.key} className="text-xs font-medium">{getColumnLabel(col)}</TableHead>
               ))}
             </TableRow>
           )}
-          <TableRow className="bg-stone-50">
-            {!tableConfig.column_groups && <TableHead className="text-xs font-medium w-48">Category</TableHead>}
-            {columns.map(col => (
-              <TableHead key={col.key} className="text-xs font-medium">{tableConfig.column_groups ? col.label : getColumnLabel(col)}</TableHead>
-            ))}
-          </TableRow>
         </TableHeader>
         <TableBody>
           {fixedRows.map((row) => (
