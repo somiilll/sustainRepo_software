@@ -11,6 +11,12 @@ Build a comprehensive ESG (Environment, Social, Governance) platform with premiu
 
 ## What's Been Implemented
 
+### Internal Data AI (Phase 1 — Built 2026-07-20)
+- Intelligent analytics assistant in RepoPilot (toggle: Document AI / Internal Data AI)
+- GPT-5.6-sol for intent detection + response formatting; text-embedding-3-large for entity resolution
+- 15 intents, 8 service modules, facility-level permission filtering
+- Architecture: User Question → Embeddings → Intent Detection → Planner → Service Calls → Response Builder → Rich UI
+
 ### Dashboards & Analytics
 - Executive Dashboard (GHG Scope 1/2/3 with base-year comparison)
 - Environment Dashboard (Emissions, Energy, Water, Waste KPIs + charts)

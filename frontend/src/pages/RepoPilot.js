@@ -6,7 +6,7 @@ import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
-import { Send, Upload, FileText, Trash2, Bot, User, Loader2, X } from 'lucide-react';
+import { Send, Upload, FileText, Trash2, Bot, User, Loader2, X, Database } from 'lucide-react';
 import {
   BarChart, Bar, LineChart, Line, AreaChart, Area, ScatterChart, Scatter,
   PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
@@ -109,8 +109,8 @@ function ChatMessage({ msg, documents }) {
   return (
     <div className={`flex gap-3 ${isUser ? 'justify-end' : ''}`} data-testid="chat-message">
       {!isUser && (
-        <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 mt-1">
-          <Bot className="w-4 h-4 text-emerald-700" />
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-1 ${msg.source === 'internal' ? 'bg-blue-100' : 'bg-emerald-100'}`}>
+          {msg.source === 'internal' ? <Database className="w-4 h-4 text-blue-700" /> : <Bot className="w-4 h-4 text-emerald-700" />}
         </div>
       )}
       <div className={`max-w-[75%] rounded-2xl px-4 py-3 text-sm ${isUser ? 'bg-emerald-600 text-white rounded-br-sm' : 'bg-stone-100 text-text-primary rounded-bl-sm'}`}>
@@ -118,6 +118,29 @@ function ChatMessage({ msg, documents }) {
           <p>{msg.content}</p>
         ) : (
           <div ref={contentRef} className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: formatMarkdown(msg.content) }} />
+        )}
+        {/* Internal Data AI highlights */}
+        {msg.highlights?.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-2 pt-2 border-t border-stone-200/50">
+            {msg.highlights.map((h, i) => (
+              <div key={i} className="bg-white/80 rounded-md px-2.5 py-1 border border-stone-200">
+                <span className="text-[10px] text-stone-500 block">{h.label}</span>
+                <span className="text-xs font-semibold text-stone-800">{h.value}{h.unit ? ` ${h.unit}` : ''}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {/* Suggestion chip */}
+        {msg.suggestion && (
+          <button
+            className="mt-2 text-[11px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full hover:bg-blue-100 transition-colors"
+            onClick={() => {
+              const chatInput = document.querySelector('[data-testid="chat-input"]');
+              if (chatInput) { chatInput.value = msg.suggestion; chatInput.dispatchEvent(new Event('input', { bubbles: true })); }
+            }}
+          >
+            💡 {msg.suggestion}
+          </button>
         )}
         {msg.charts?.length > 0 && msg.charts.map((chart, i) => <RenderChart key={i} chart={chart} />)}
         {msg.sources?.length > 0 && (
@@ -213,6 +236,7 @@ export default function RepoPilotPage() {
   const [documents, setDocuments] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [docFilter, setDocFilter] = useState([]);
+  const [aiMode, setAiMode] = useState('document'); // 'document' | 'internal'
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -236,18 +260,36 @@ export default function RepoPilotPage() {
     setLoading(true);
 
     try {
-      const res = await axios.post(`${API}/api/repo-pilot/chat`, {
-        message: userMsg.content,
-        doc_filters: docFilter.length > 0 ? docFilter : null,
-        length: 'Medium',
-      }, { headers });
+      if (aiMode === 'internal') {
+        const res = await axios.post(`${API}/api/internal-ai/chat`, {
+          message: userMsg.content,
+        }, { headers });
 
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: res.data.answer,
-        sources: res.data.sources,
-        charts: res.data.charts,
-      }]);
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: res.data.answer,
+          highlights: res.data.highlights,
+          suggestion: res.data.suggestion,
+          response_type: res.data.response_type,
+          raw_data: res.data.raw_data,
+          intent: res.data.intent,
+          source: 'internal',
+        }]);
+      } else {
+        const res = await axios.post(`${API}/api/repo-pilot/chat`, {
+          message: userMsg.content,
+          doc_filters: docFilter.length > 0 ? docFilter : null,
+          length: 'Medium',
+        }, { headers });
+
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: res.data.answer,
+          sources: res.data.sources,
+          charts: res.data.charts,
+          source: 'document',
+        }]);
+      }
     } catch (e) {
       setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, an error occurred. Please try again.' }]);
     }
@@ -462,8 +504,43 @@ export default function RepoPilotPage() {
         {/* Input */}
         <div className="p-4 border-t">
           <div className="flex gap-2 max-w-3xl mx-auto">
-            <Input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()} placeholder="Ask about your ESG documents..." className="flex-1" disabled={loading} data-testid="chat-input" />
-            <Button onClick={handleSend} disabled={!input.trim() || loading} className="bg-emerald-600 hover:bg-emerald-700" data-testid="chat-send">
+            {/* AI Mode Toggle */}
+            <div className="flex rounded-lg border bg-stone-50 p-0.5 shrink-0" data-testid="ai-mode-toggle">
+              <button
+                onClick={() => { setAiMode('document'); setMessages([]); }}
+                className={`px-2.5 py-1.5 text-[11px] font-medium rounded-md transition-all ${
+                  aiMode === 'document'
+                    ? 'bg-white text-emerald-700 shadow-sm border border-emerald-200'
+                    : 'text-stone-500 hover:text-stone-700'
+                }`}
+                data-testid="ai-mode-document"
+              >
+                <FileText className="w-3 h-3 inline mr-1" />
+                Document AI
+              </button>
+              <button
+                onClick={() => { setAiMode('internal'); setMessages([]); }}
+                className={`px-2.5 py-1.5 text-[11px] font-medium rounded-md transition-all ${
+                  aiMode === 'internal'
+                    ? 'bg-white text-blue-700 shadow-sm border border-blue-200'
+                    : 'text-stone-500 hover:text-stone-700'
+                }`}
+                data-testid="ai-mode-internal"
+              >
+                <Database className="w-3 h-3 inline mr-1" />
+                Internal Data AI
+              </button>
+            </div>
+            <Input
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
+              placeholder={aiMode === 'internal' ? 'Ask about your ESG data, targets, emission factors...' : 'Ask about your ESG documents...'}
+              className="flex-1"
+              disabled={loading}
+              data-testid="chat-input"
+            />
+            <Button onClick={handleSend} disabled={!input.trim() || loading} className={aiMode === 'internal' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'} data-testid="chat-send">
               <Send className="w-4 h-4" />
             </Button>
           </div>
