@@ -7,12 +7,27 @@ async def query(org_id: str, facility_ids: list = None, **kwargs) -> dict:
     metric = kwargs.get("metric") or kwargs.get("entity_name") or ""
     scope = kwargs.get("scope")
     category = kwargs.get("category")
+    facility_name = kwargs.get("facility")
 
     match_stage = {"organization_id": org_id}
     if facility_ids:
         match_stage["facility_id"] = {"$in": facility_ids}
     if scope:
         match_stage["scope"] = {"$regex": scope.replace("scope ", "").strip()}
+
+    # Resolve a named facility (e.g. "Facility E") to its facility_id so all
+    # aggregations below (totals, period, unit) are scoped to just that facility
+    # instead of the whole org.
+    if facility_name:
+        matched_facs = await db.facilities.find(
+            {"organization_id": org_id, "name": {"$regex": facility_name, "$options": "i"}},
+            {"_id": 0, "id": 1},
+        ).to_list(20)
+        matched_fac_ids = [f["id"] for f in matched_facs]
+        if facility_ids:
+            matched_fac_ids = [fid for fid in matched_fac_ids if fid in facility_ids]
+        if matched_fac_ids:
+            match_stage["facility_id"] = {"$in": matched_fac_ids}
 
     # Facility-wise emissions
     pipeline = [
