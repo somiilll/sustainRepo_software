@@ -53,7 +53,17 @@ def plan_service_calls(intent_result: dict) -> List[Dict[str, Any]]:
         plan.append({"service": "organization", "method": "get_info", "params": entities})
 
     elif intent == "kpi_lookup":
-        plan.append({"service": "esg_records", "method": "get_kpis", "params": entities})
+        # GHG/emissions value questions (e.g. "scope 1 emissions") get misclassified here by the
+        # LLM instead of "analytics" — route them to the analytics service which actually
+        # aggregates emission_records, instead of esg_kpi_definitions (a metadata catalog with
+        # no computed values).
+        record_type = (entities.get("record_type") or "").lower()
+        metric = (entities.get("metric") or entities.get("entity_name") or "").lower()
+        is_emission_metric = record_type == "emission" or bool(entities.get("scope")) or "emission" in metric or "ghg" in metric
+        if is_emission_metric:
+            plan.append({"service": "analytics", "method": "query", "params": entities})
+        else:
+            plan.append({"service": "esg_records", "method": "get_kpis", "params": entities})
 
     elif intent == "summary":
         plan.append({"service": "analytics", "method": "summary", "params": entities})
