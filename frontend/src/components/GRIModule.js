@@ -16,11 +16,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Label } from './ui/label';
 import { 
-  BarChart3,
   Leaf,
   Users,
-  Shield
+  Shield,
+  Pencil,
+  X
 } from 'lucide-react';
+import { Button } from './ui/button';
 import { generateReportingYears, getCurrentReportingYear } from '../utils/reportingYearUtils';
 import TrackingModule from './TrackingModule';
 import GRIQuestionnaire from './GRIQuestionnaire';
@@ -33,6 +35,7 @@ export default function GRIModule() {
   const [activeTab, setActiveTab] = useState('environment');
   const [reportingPeriod, setReportingPeriod] = useState('');
   const [reportingYears, setReportingYears] = useState([]);
+  const [isEditing, setIsEditing] = useState(false);
 
   // Initialize reporting years
   useEffect(() => {
@@ -66,7 +69,15 @@ export default function GRIModule() {
           <p className="text-text-muted mt-1">Global Reporting Initiative Standards</p>
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <Button
+            variant={isEditing ? 'outline' : 'default'}
+            size="sm"
+            onClick={() => setIsEditing(!isEditing)}
+            className={isEditing ? 'border-red-300 text-red-600 hover:bg-red-50' : ''}
+          >
+            {isEditing ? <><X className="w-4 h-4 mr-1" /> Done</> : <><Pencil className="w-4 h-4 mr-1" /> Edit</>}
+          </Button>
           <Label className="text-sm whitespace-nowrap">Reporting Period:</Label>
           <Select value={reportingPeriod} onValueChange={setReportingPeriod}>
             <SelectTrigger className="w-40 bg-white">
@@ -102,6 +113,7 @@ export default function GRIModule() {
         <TabsContent value="environment" className="mt-6">
           <GRIQuestionnaire 
             section="environment"
+            isEditing={isEditing}
           />
         </TabsContent>
 
@@ -109,6 +121,7 @@ export default function GRIModule() {
         <TabsContent value="social" className="mt-6">
           <GRIQuestionnaire 
             section="social"
+            isEditing={isEditing}
           />
         </TabsContent>
 
@@ -116,6 +129,7 @@ export default function GRIModule() {
         <TabsContent value="governance" className="mt-6">
           <GRIQuestionnaire 
             section="governance"
+            isEditing={isEditing}
           />
         </TabsContent>
       </Tabs>

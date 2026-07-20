@@ -919,9 +919,9 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
                     <Badge variant="secondary" className="text-[10px] shrink-0 hidden sm:inline-flex">
                       {disclosure.material_topic}
                     </Badge>
-                    <span className="text-[11px] text-text-muted shrink-0">
+                    {/* <span className="text-[11px] text-text-muted shrink-0">
                       {disclosure.questions.length}q
-                    </span>
+                    </span> */}
                   </div>
                   
                   {/* Completion Badge + Progress */}
