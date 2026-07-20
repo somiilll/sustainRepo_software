@@ -33,6 +33,8 @@ class ChatResponse(BaseModel):
     suggestion: Optional[str] = None
     response_type: str = "text"
     raw_data: Optional[dict] = None
+    chart: Optional[dict] = None
+    evidence: Optional[list] = None
     intent: Optional[str] = None
 
 
@@ -50,7 +52,16 @@ async def internal_ai_chat(
     facility_ids = current_user.get("assigned_facilities") or []
     session_id = request.session_id or str(uuid.uuid4())
 
-    # 1. Semantic entity resolution via embeddings
+    # 1. Auto-precompute embeddings if missing
+    emb_count = await db.internal_ai_embeddings.count_documents({"organization_id": {"$in": [org_id, "__global__"]}})
+    if emb_count == 0:
+        try:
+            await precompute_embeddings(org_id, db)
+            logger.info(f"Auto-precomputed embeddings for org {org_id}")
+        except Exception as e:
+            logger.warning(f"Auto-embed failed: {e}")
+
+    # 2. Semantic entity resolution via embeddings
     entity_matches = await find_similar_entities(request.message, org_id, db, top_k=3)
     matched_entities = entity_matches.get("matches", [])
 
@@ -105,6 +116,14 @@ async def internal_ai_chat(
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
 
+    # Extract evidence files if present
+    evidence_files = None
+    if intent_name == "evidence_retrieval":
+        ev_data = service_data.get("evidence", {})
+        files = ev_data.get("files", [])
+        if files:
+            evidence_files = files
+
     return ChatResponse(
         session_id=session_id,
         answer=formatted.get("answer", ""),
@@ -112,6 +131,8 @@ async def internal_ai_chat(
         suggestion=formatted.get("suggestion"),
         response_type=formatted.get("response_type", response_type),
         raw_data=formatted.get("raw_data"),
+        chart=formatted.get("chart"),
+        evidence=evidence_files,
         intent=intent_name,
     )
 

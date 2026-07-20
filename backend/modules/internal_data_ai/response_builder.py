@@ -24,15 +24,28 @@ Rules:
 - For calculations, show the formula and steps.
 - For evidence, mention file name, upload date, and linked record.
 - Keep responses under 300 words unless the data requires more.
-- If showing a list of records, format as a compact table description.
 - Always mention the time period if the data is period-specific.
 
 Return a JSON object:
 {
   "answer": "<formatted natural language answer>",
   "highlights": [{"label": "key", "value": "val", "unit": "optional"}],
-  "suggestion": "<optional follow-up question suggestion or null>"
-}"""
+  "suggestion": "<optional follow-up question suggestion or null>",
+  "chart": null or {
+    "type": "bar|line|pie|area",
+    "title": "<chart title>",
+    "data": [{"name": "<label>", "value": <number>}],
+    "xKey": "name",
+    "yKey": "value",
+    "color": "#3b82f6"
+  }
+}
+
+IMPORTANT for chart:
+- Include a "chart" object when the data naturally lends itself to visualization (rankings, breakdowns, trends, comparisons).
+- Use "pie" for composition/breakdown (<=7 items), "bar" for rankings/comparisons, "line" for trends over time, "area" for cumulative trends.
+- Each data item must have "name" (string label) and "value" (number).
+- Omit chart if data has fewer than 2 items or is not numeric."""
 
 
 async def build_response(
@@ -71,6 +84,7 @@ async def build_response(
             "highlights": result.get("highlights", []),
             "suggestion": result.get("suggestion"),
             "response_type": response_type,
+            "chart": result.get("chart"),
             "raw_data": service_data if response_type in ("table", "chart", "evidence") else None,
         }
     except Exception as e:

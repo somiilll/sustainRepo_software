@@ -6,7 +6,7 @@ import uuid
 import pytest
 import requests
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://energy-insight-15.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://repo-pilot-preview.preview.emergentagent.com').rstrip('/')
 API = f"{BASE_URL}/api"
 
 SUPER_ADMIN_EMAIL = "esg-superadmin@sustainrepo.com"

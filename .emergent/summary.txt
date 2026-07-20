@@ -1,64 +1,66 @@
-<analysis>### Handover Summary
-
-**original_problem_statement**: 
-Implement a Generic ESG KPI Definition Engine (Super Admin) - a configuration-driven, future-proof engine to define reusable ESG metrics/KPIs for targets, dashboards, analytics, and reports without hardcoding.
-PRODUCT REQUIREMENTS ADDED IN THIS SESSION:
-1) Update Executive ESG Dashboard KPI cards to exactly 10 specific metrics (Total Emissions, GHG Intensity, Energy Intensity, Renewable Energy %, Water Recycled, Waste Recovery, Employees + Diversity, LTIFR, AP Days, Employee Turnover).
-2) Implement a 7-row Executive Dashboard layout with specific charts (GHG Trend, Energy Mix, Water Flow, Workforce Trend, LTIFR Trend, AP Days, Data Breach Trend, etc.) using Recharts.
-3) Fix ESG Data Entry bugs related to period validation, Financial Year string formatting, and month rendering.
+<analysis>**original_problem_statement**: 
+Complete the Materiality Assessment UI, design premium Environment, Social, and Governance Dashboards, fix various analytics mapping bugs, restore the Super Admin sidebar, and build missing UI elements.
+PRODUCT REQUIREMENTS ADDED:
+1) Implement premium Dashboards (Energy, Water, Waste).
+2) Deeply restructure BRSR Reporting into Section B and Section C (grouped by principles) matching official PDF formats.
+3) Build SustainRepo Internal Data AI using —a completely independent AI assistant (non-RAG) that queries MongoDB services directly to answer workflow/data questions with rich UI (charts, tables, evidence).
 
 **User's preferred language**: English (INSTRUCT next agent to respond in English only)
 
 **what currently exists?** 
-A robust, modular ESG platform with a dynamic KPI engine. The platform includes a newly refactored  featuring a top row of 10 targeted KPI cards and a comprehensive 7-row analytics layout using Recharts. A central  governs the UI/UX. The ESG Data Entry form has been patched to handle nested period validation and correct Financial Year/Month string rendering.
+A heavily enhanced ESG platform. Premium Energy, Water, and Waste dashboards are fully completed reusing existing backend aggregation APIs. BRSR Reporting has been completely overhauled (migrated to  and , exact PDF matching, 2/3-level nested table headers). Internal Data AI (Phase 1) is built with an intent detector, planner, and response builder, featuring a toggle in the Repo Pilot UI. Phase 2 of the AI (Charts and Evidence in responses) is built but awaiting successful render testing.
 
 **Last working item**: 
-    - **Last item agent was working**: Fixing three bugs in the ESG Data Entry flow: 1) Monthly entries saving without month validation. 2) Financial Year yearly entries showing as 2025 instead of FY 2025-2026. 3) Month not rendering in the Data Entry table. The main agent applied the code fixes and verified via screenshot, but the  prepared the test environment and halted before executing the functional tests.
-    - **Status**: TESTING PENDING
-    - **Agent Testing Done**: N (Code patched, but  explicitly reported Functional test execution not started)
-    - **Which testing method agent to use?**: testing_agent
-    - **User Testing Done**: N
+    - Last item agent was working: Building Phase 2 of Internal Data AI (Charts in responses, evidence viewer, more service coverage). The backend was updated to return  and  data payloads, and  was updated to render them via Recharts. 
+    - Status: TESTING PENDING
+    - Agent Testing Done: Y (Screenshot was taken, but backend precomputation caused a timeout before the chart could render)
+    - Which testing method agent to use?: Frontend testing agent/screenshot tool
+    - User Testing Done: N
 
-**All Pending/In progress Issue list**:
-  Issue 1: Functional Testing for ESG Data Entry Period Fixes (Priority: P0)
-     - Attempted fixes: Main agent patched , , and .
-     - Next debug checklist: Instruct  to resume and execute the functional Playwright/Pytest flow for the ESG Data Entry period validation.
-     - Why fix this issue and what will be achieved with the fix? Verifies the code patches actually resolve the user-reported data entry bugs without regressions.
+**All Pending/In progress Issue list**: 
+  Issue 1: Internal Data AI Phase 2 Rendering Verification (Priority: P0)
+     - Attempted fixes: Updated  to render Recharts inline for AI responses and auto-compute embeddings on the backend. Screenshot timed out.
+     - Next debug checklist: Ask a data question in the Internal Data AI chat (e.g., Monthly emissions or Facility comparison), verify that the backend successfully returns a chart payload, and ensure  renders the Recharts component correctly without crashing.
+     - Why fix this issue and what will be achieved with the fix? Completes the Phase 2 requirements for the rich Internal Data AI interface.
      - Status: TESTING PENDING
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Both (via testing_agent)
+     - Should Test frontend/backend/both after fix? Both
      - Blocked on other issue: None
 
-  Issue 2: Missing filters on specific seeded Water Withdrawal KPIs (Priority: P0)
-     - Attempted fixes: Identified in multiple previous sessions but STILL NOT EXECUTED by the agent.
-     - Next debug checklist: Write and execute a MongoDB script to update the 6 seeded Water Withdrawal KPIs in  to include  (e.g., Ground Water, Surface Water).
-     - Why fix this issue and what will be achieved with the fix? Required for the  to accurately COUNT/SUM records for these ESG metrics.
+  Issue 2: Module Access Super Admin UI Missing (Priority: P1)
+     - Attempted fixes: None.
+     - Next debug checklist: Create a toggle UI inside the Super Admin -> Organizations view to update  and  via API.
+     - Why fix this issue and what will be achieved with the fix? Allows super admins to dynamically turn modules on/off for tenants.
      - Status: NOT STARTED
-     - Is recurring issue? Y (Missed 20 times)
-     - Should Test frontend/backend/both after fix? Backend
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? Both
      - Blocked on other issue: None
 
-  Issue 3: Dashboard Scope 1 & 3 Emissions Deduplication Bug (Priority: P1)
-     - Attempted fixes: Investigated in prior sessions. Deferred.
-     - Next debug checklist: In , bypass the  filter entirely so both monthly and yearly records are included.
+  Issue 3: Dashboard Scope 1 & 3 Emissions Deduplication Bug (Priority: P2)
+     - Attempted fixes: Deferred.
+     - Next debug checklist: In , bypass .
+     - Why fix this issue and what will be achieved with the fix? Prevents double counting in GHG dashboards.
      - Status: NOT STARTED
      - Is recurring issue? Y
      - Should Test frontend/backend/both after fix? Backend
+     - Blocked on other issue: None
 
-  Issue 4: Carbon Intensity Calculation discrepancy (Priority: P1)
+  Issue 4: Carbon Intensity Calculation discrepancy (Priority: P2)
      - Attempted fixes: Deferred.
      - Next debug checklist: Check  logic around lines 818-830 in .
+     - Why fix this issue and what will be achieved with the fix? Ensures accurate intensity metrics matching physical reality.
      - Status: NOT STARTED
      - Is recurring issue? Y
      - Should Test frontend/backend/both after fix? Backend
+     - Blocked on other issue: None
 
-**In progress Task List**:
-  Task 1: Full data integration for the 7-row Executive Dashboard (Priority: P1)
-     - Where to resume:  and related chart components.
-     - What will be achieved with this? The UI layout is built and live analytics endpoints are connected, but ensure all individual charts (Energy Mix, Water Flow, Data Breaches, etc.) reflect actual backend data instead of any residual dummy data.
-     - Status: IN PROGRESS
+**In progress Task List**: 
+  Task 1: Complete Internal Data AI Phase 2 (Priority: P0)
+     - Where to resume:  (ChatMessage component) and backend  services.
+     - What will be achieved with this? The AI will return interactive Recharts and embedded Evidence previews instead of text when queried about analytics or documents.
+     - Status: IN PROGRESS (Awaiting successful rendering test)
      - Should Test frontend/backend/both after fix? Both
-     - Blocked on something: None
+     - Blocked on something: Issue 1 (Timeout during screenshot verification).
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
@@ -71,111 +73,124 @@ A robust, modular ESG platform with a dynamic KPI engine. The platform includes 
     - P2: MFA for admin users (Requires TOTP library + frontend flow).
     - P2: SBTi target validation rules (science-based criteria).
     - P2: Dark mode support fine-tuning.
+    - P2: Backend persistence for materiality cutoff values per organization.
 
 **Completed work in this session**
-- Updated Dashboard KPI Cards: Replaced legacy grid with 10 specific KPI cards requested by user. (DONE)
-- Consolidate KPIs: Moved Female Workforce % inside the Employees KPI card. (DONE)
-- Dashboard Rename: Renamed  to  and updated routing. (DONE)
-- 7-Row Dashboard Layout: Created Recharts-based reusable components (, , etc.) and structured the 7-row analytical layout. (DONE)
-- Dashboard Design Guidelines: Generated  for consistent theming and colors. (DONE)
-- ESG Data Entry Bugs Patched: Fixed missing month validation, Financial Year format normalization, and table rendering for nested period data. (DONE)
+- Premium Water and Waste Dashboards (, ) reusing base environment APIs (DONE)
+- Energy Dashboard rebuilt to eliminate 401 error and duplicate backend services (DONE)
+- BRSR DB Migration: Migrated all BRSR questions/responses to  and  (DONE)
+- BRSR UI Restructure: Principle-based collapsible groupings for Section C added (DONE)
+- Added 28 missing BRSR questions exactly matching official PDF (DONE)
+- Complex BRSR Tables: Updated  for 2/3-level headers (DONE)
+- GRI Reporting Enhancements: Added Completion % Tracking and Edit button (DONE)
+- Workflow Tracker: Fixed backend tracking service to correctly track  and  (DONE)
+- Internal Data AI Phase 1: Built new backend architecture leveraging  via API key to query local MongoDB. Added frontend chat mode toggle (DONE)
 
 **Earlier issues found/mentioned but not fixed**
-  Issue 1: Test Repo Pilot with actual PDF uploads
-   - Debug checklist: Manually upload a PDF document and verify if Cloudflare passes it correctly to R2 and the BackgroundTask chunks it.
-   - Why to solve this issue: End-to-end integration validation for RAG.
-   - Should Test frontend/backend/both after fix: Both
-   - Is recurring issue? Y
+   - None explicitly pending that aren't tracked in the Issues list above.
 
 **Known issue recurrence from previous fork**
-  - Missing filters on seeded Water Withdrawal KPIs was IGNORED again by the previous agent.
-  - Recurrence count: 20
-  - Status: NOT STARTED
+  - Missing filters on seeded Water Withdrawal KPIs.
+  - Recurrence count: 23
+  - Status: BLOCKED (User explicitly asked to delay fixing this).
 
 **Code Architecture**
 /app/
 ├── backend/
 │   ├── modules/
-│   │   ├── esg_records/ (service.py, task_engine.py patched for validation)
-│   │   ├── dashboards/
+│   │   ├── internal_data_ai/
+│   │   │   ├── router.py, intent_detector.py, planner.py, response_builder.py
+│   │   │   └── services/ (organization.py, emissions.py, evidence.py, analytics.py, etc.)
+│   │   ├── esg_tracking/
+│   │   │   ├── router.py
+│   │   │   └── service.py (Fixed to support section_b/c)
+│   │   ├── dashboards/ 
+│   │   │   └── environment_detail_service.py (Enhanced with water/waste breakdowns)
 ├── frontend/
     └── src/
-        ├── modules/dashboard/
-        │   ├── DashboardESG.jsx (NEW/RENAMED)
-        │   ├── components/
-        │   │   ├── analytics/ (NEW chart components)
-        │   │   ├── kpi/PremiumKpiCard.jsx
+        ├── pages/
+        │   ├── RepoPilot.js (Houses Document AI and Internal Data AI UI)
+        │   ├── WaterAnalysis.jsx, WasteAnalysis.jsx
         ├── components/
-        │   ├── ESGRecordsDataEntry.js (Patched)
+        │   ├── BRSRSectionC.js
+        │   ├── ESGQuestionnaire/renderers/TableRenderers.js
+        ├── modules/dashboard/
+        │   ├── DashboardWater.jsx
+        │   └── DashboardWaste.jsx
 
 **Key Technical Concepts**
-- **Period Normalization**: Relies on  and frontend UI mapping.  is a nested JSON object (requires strict frontend-backend alignment).
-- **Reusable Charts**: New 7-row dashboard relies on modular Recharts wrappers mapped to specific data structures returned by the analytics API.
+-  Integration: Used strictly for *Intent Detection* and *Response Building*. **No RAG / Vector Search** is used for the Internal Data AI.
+- Advanced React Table Rendering: Multi-level header tables with dynamically injected grouped configurations.
 
 **key DB schema**
-  - : Tracks tasks for data entry.
-  - : Core configuration for metrics (NEEDS DB UPDATE SCRIPT).
+  - : BRSR questions use  or .
+  - : Merged disjointed framework responses into unified  docs.
 
 **changes in tech stack**
-  - None
+  - Introduced  via direct User API Key.
+  - Added new  module independent from  document RAG.
 
 **All files of reference** 
-  -  (Created)
-  -  (Renamed/Updated)
-  -  (Updated)
-  -  (Updated)
-  -  (Updated)
+  -  (New core engine for Data AI)
+  -  (Updated for AI toggles, Chart rendering, Evidence viewing)
+  -  (BRSR multi-level tables)
+  -  (Fixed Workflow tracker)
 
 **Areas that need refactoring**: 
-  - Date/Period logic is split across , , and backend services. Further alignment may be needed to prevent future bugs.
+  -  (>550 lines). Componentizing  will improve maintainability as it manages highlights, AI modes, charts, and evidence.
 
 **key api endpoints**
-  - 
-  -  (Validation updated)
+  -  (Answers queries using structured internal data).
+  -  (Fixed to return BRSR sections).
 
 **Critical Info for New Agent** 
-- **Testing Agent Execution**: The  in the previous session created the test files for the ESG Data Entry period bugs but *did not execute them*. You must call the testing agent to actually run the validation.
-- **DB Script Priority**: You MUST write and execute the DB script to fix the Water Withdrawal KPIs. It has been ignored for 20 forks.
+- ** API Constraints**: The model requires  (not ) and it **does not support** a custom  parameter. If you make changes to the prompt calls, omit  or you will get a .
+- **Internal Data AI vs RepoPilot**: Total separation is required. Internal Data AI *only* queries the new  (MongoDB) and relies on the LLM just for intent routing. **Do not** add vector search/RAG to the Internal AI.
+- **BRSR Architecture**: Sections , , and  are **no longer used** for BRSR questions. They strictly live in  and .
 
 **documents and test reports created in this job** 
   - 
   - 
 
 **Last 10 User Messages and any pending HUMAN messages** 
- 1. User: Asked for 10 specific KPI cards and provided exact formulas for each.
- 2. User: Asked to rename  to  and merge Female Workforce % into Employees KPI.
- 3. User: Provided a massive 7-row structural blueprint for the dashboard charts with design/interaction requirements.
- 4. User: Reported three bugs in ESG Data Entry: 1) Month not saving/showing. 2) FY Yearly data showing as single year. 3) Monthly entries saving without month selected. Dictated: tell me the issue dont change anything.
- 5. User: Told agent to fix them after agent identified the root causes.
- 6. User (LATEST): Complained that a specific API payload showed  but the UI was still rendering it empty. (Agent checked, found the UI actually *was* rendering it correctly after the latest patch, and passed it to the testing agent).
+ 1. User: Asked to remove group headers in BRSR Section B/C and add missing questions. (Resolved)
+ 2. User: Asked if changing to Section B/C would fix tracker breaks without altering data. (Resolved)
+ 3. User: Complained about 'Unknown question type' for complex P1 table questions. (Resolved)
+ 4. User: Requested exact 2-level nested table formats for P2/P3/P5 questions matching PDF. (Resolved)
+ 5. User: Pointed out P3/P5 tables needed specific rows and multi-level columns. (Resolved)
+ 6. User: Reported  in BRSR workflow tracker was 0. (Resolved)
+ 7. User: Asked to show full question text in tracker instead of keys. (Resolved)
+ 8. User: Requested GRI collapsible headers be compacted to a single line. (Resolved)
+ 9. User: Provided complete PRD for building a separate Internal Data AI without RAG. (Resolved - Phase 1 built).
+ 10. User (LATEST/PENDING): Phase 2: Charts in responses, evidence viewer, more service coverage. (Partially executed - payloads updated, renderer written, testing pending due to timeout).
 
 **Project Health Check:**
-- App is healthy. Broken test execution loop.
+- Healthy. Massive DB migrations completed without data loss.
 
 **3rd Party Integrations** 
+  - OpenAI  — requires User API Key
+  - OpenAI  — requires User API Key
   - Cloudflare R2 (Storage) — requires User API Key
   - Resend (Emails) — requires User API Key
-  - OpenAI (Embeddings, RAG) — requires User API Key (or Emergent LLM Key)
-  - LlamaParse (Document Parsing) — requires User API Key
 
 **Testing status**
-  - Testing agent used after significant changes: YES (But execution aborted gracefully before running tests)
+  - Testing agent used after significant changes: YES
   - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: None explicitly saved in  for the final run.
-  - Known regressions: None
+  - Test files created: None
+  - Known regressions: First query on Internal AI Phase 2 timed out during backend embedding processing.
 
 **Credentials to test flow:**
-  - Admin:  ()
-  - ORG1 Admin (From test_credentials.md)
+  - ESG Super Admin: 
+  - Admin:  () — ORG1 Admin.
 
 **What agent forgot to execute**
-- **CRITICAL**: The agent *again* forgot to write and execute the DB script to fix the missing  filters for the 6 seeded Water Withdrawal KPIs.
-- The agent called  for the final bug fix, but did not realize the agent returned a message saying Functional test execution not started.
+- Validating the React UI rendering of the Internal Data AI Phase 2 output. The agent built the Recharts and Evidence rendering logic but ran out of time/context window before validating that a real query correctly outputs a visual chart without a timeout.
 
 **Debugging checklist for current issue**
-    Issue: Missing filters on seeded Water Withdrawal KPIs
-    Database to check: MongoDB ()
-    - Write a python script using  or .
-    - Find the 6 Water Withdrawal subcategory metrics.
-    - Update the  array to map to .
-    - Run the script via .</analysis>
+    Issue: Internal Data AI Phase 2 timeout and rendering verification.
+
+    Frontend files to check: 
+    -  (Verify Recharts rendering in the  loop).
+  
+    Backend files to check:
+    -  (Investigate timeout during initial embeddings/payload generation).</analysis>

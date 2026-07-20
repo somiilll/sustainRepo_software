@@ -11,7 +11,7 @@ import uuid
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://energy-insight-15.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://repo-pilot-preview.preview.emergentagent.com").rstrip("/")
 EMAIL = "goyalsomil2001@gmail.com"
 PASSWORD = "TestUser123!"
 FRAMEWORK = "BRSR"

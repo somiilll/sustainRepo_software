@@ -27,14 +27,16 @@ async def find_files(org_id: str, facility_ids: list = None, **kwargs) -> dict:
     results = []
     for f in files:
         r2_key = f.get("r2_key")
+        bucket_type = f.get("bucket_type")
         preview_url = None
-        if r2_key:
+        if r2_key and bucket_type:
             try:
                 from r2_storage import get_r2_storage
                 storage = get_r2_storage()
-                preview_url = storage.generate_presigned_url(r2_key, expires_in=3600)
-            except Exception:
-                pass
+                preview_url = storage.generate_presigned_url(bucket_type, r2_key, expiration=3600)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Presigned URL generation failed: {e}")
 
         results.append({
             "id": f.get("id"),

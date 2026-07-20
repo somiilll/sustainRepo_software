@@ -130,6 +130,81 @@ function ChatMessage({ msg, documents }) {
             ))}
           </div>
         )}
+        {/* Internal Data AI Chart */}
+        {msg.chart && msg.chart.data?.length > 0 && (
+          <div className="mt-3 pt-2 border-t border-stone-200/50">
+            {msg.chart.title && <p className="text-xs font-semibold text-stone-600 mb-2">{msg.chart.title}</p>}
+            <ResponsiveContainer width="100%" height={200}>
+              {msg.chart.type === 'pie' ? (
+                <PieChart>
+                  <Pie data={msg.chart.data} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} innerRadius={35} paddingAngle={2} strokeWidth={2} stroke="#fff">
+                    {msg.chart.data.map((_, i) => <Cell key={i} fill={['#3b82f6','#059669','#f59e0b','#ef4444','#8b5cf6','#14b8a6','#f97316'][i % 7]} />)}
+                  </Pie>
+                  <Tooltip formatter={(v) => v.toLocaleString()} />
+                  <Legend wrapperStyle={{ fontSize: 10 }} />
+                </PieChart>
+              ) : msg.chart.type === 'line' ? (
+                <LineChart data={msg.chart.data}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f4" vertical={false} />
+                  <XAxis dataKey={msg.chart.xKey || 'name'} tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 9 }} axisLine={false} tickLine={false} width={45} />
+                  <Tooltip formatter={(v) => v.toLocaleString()} />
+                  <Line type="monotone" dataKey={msg.chart.yKey || 'value'} stroke={msg.chart.color || '#3b82f6'} strokeWidth={2} dot={{ r: 3 }} />
+                </LineChart>
+              ) : msg.chart.type === 'area' ? (
+                <AreaChart data={msg.chart.data}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f4" vertical={false} />
+                  <XAxis dataKey={msg.chart.xKey || 'name'} tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 9 }} axisLine={false} tickLine={false} width={45} />
+                  <Tooltip formatter={(v) => v.toLocaleString()} />
+                  <Area type="monotone" dataKey={msg.chart.yKey || 'value'} stroke={msg.chart.color || '#3b82f6'} fill={msg.chart.color || '#3b82f6'} fillOpacity={0.15} strokeWidth={2} />
+                </AreaChart>
+              ) : (
+                <BarChart data={msg.chart.data}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f4" vertical={false} />
+                  <XAxis dataKey={msg.chart.xKey || 'name'} tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 9 }} axisLine={false} tickLine={false} width={45} />
+                  <Tooltip formatter={(v) => v.toLocaleString()} />
+                  <Bar dataKey={msg.chart.yKey || 'value'} fill={msg.chart.color || '#3b82f6'} radius={[4, 4, 0, 0]} barSize={24} />
+                </BarChart>
+              )}
+            </ResponsiveContainer>
+          </div>
+        )}
+        {/* Evidence files */}
+        {msg.evidence?.length > 0 && (
+          <div className="mt-3 pt-2 border-t border-stone-200/50 space-y-2">
+            <p className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider">Evidence Files</p>
+            {msg.evidence.map((f, i) => {
+              const isImage = f.content_type?.startsWith('image/');
+              const isPdf = f.content_type === 'application/pdf';
+              return (
+                <div key={i} className="flex items-center gap-3 bg-white rounded-lg border p-2.5">
+                  {isImage && f.preview_url ? (
+                    <img src={f.preview_url} alt={f.filename} className="w-12 h-12 rounded object-cover border" />
+                  ) : (
+                    <div className="w-12 h-12 rounded bg-stone-100 flex items-center justify-center border">
+                      <FileText className="w-5 h-5 text-stone-400" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-stone-800 truncate">{f.filename}</p>
+                    <p className="text-[10px] text-stone-500">
+                      {f.uploaded_by && `By ${f.uploaded_by} · `}
+                      {f.uploaded_at && new Date(f.uploaded_at).toLocaleDateString()}
+                      {f.entity_type && ` · ${f.entity_type}`}
+                    </p>
+                  </div>
+                  {f.preview_url && (
+                    <a href={f.preview_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline shrink-0">
+                      {isPdf ? 'View' : isImage ? 'Open' : 'Download'}
+                    </a>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
         {/* Suggestion chip */}
         {msg.suggestion && (
           <button
@@ -272,6 +347,8 @@ export default function RepoPilotPage() {
           suggestion: res.data.suggestion,
           response_type: res.data.response_type,
           raw_data: res.data.raw_data,
+          chart: res.data.chart,
+          evidence: res.data.evidence,
           intent: res.data.intent,
           source: 'internal',
         }]);
