@@ -901,33 +901,27 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
               {/* Disclosure Header */}
               <CollapsibleTrigger asChild>
                 <button
-                  className="w-full p-4 flex items-center justify-between hover:bg-stone-50 transition-colors text-left"
+                  className="w-full px-4 py-3 flex items-center justify-between hover:bg-stone-50 transition-colors text-left"
                   data-testid={`disclosure-trigger-${disclosure.disclosure_id}`}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
                     {isOpen ? (
-                      <ChevronDown className="w-5 h-5 text-stone-400" />
+                      <ChevronDown className="w-4 h-4 text-stone-400 shrink-0" />
                     ) : (
-                      <ChevronRight className="w-5 h-5 text-stone-400" />
+                      <ChevronRight className="w-4 h-4 text-stone-400 shrink-0" />
                     )}
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs font-mono bg-blue-50 text-blue-700 border-blue-200">
-                          {disclosure.disclosure_id}
-                        </Badge>
-                        <span className="font-medium text-text-primary">
-                          {disclosure.disclosure_name}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="secondary" className="text-xs">
-                          {disclosure.material_topic}
-                        </Badge>
-                        <span className="text-xs text-text-muted">
-                          {disclosure.questions.length} question{disclosure.questions.length !== 1 ? 's' : ''}
-                        </span>
-                      </div>
-                    </div>
+                    <Badge variant="outline" className="text-xs font-mono bg-blue-50 text-blue-700 border-blue-200 shrink-0">
+                      {disclosure.disclosure_id}
+                    </Badge>
+                    <span className="font-medium text-text-primary text-sm truncate">
+                      {disclosure.disclosure_name}
+                    </span>
+                    <Badge variant="secondary" className="text-[10px] shrink-0 hidden sm:inline-flex">
+                      {disclosure.material_topic}
+                    </Badge>
+                    <span className="text-[11px] text-text-muted shrink-0">
+                      {disclosure.questions.length}q
+                    </span>
                   </div>
                   
                   {/* Completion Badge + Progress */}
