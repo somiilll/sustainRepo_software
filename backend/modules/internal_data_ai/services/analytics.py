@@ -61,8 +61,21 @@ async def query(org_id: str, facility_ids: list = None, **kwargs) -> dict:
 
     total_records = await db.emission_records.count_documents(match_stage)
 
+    # Time period covered by the matched records (e.g. "2024-04" or "2024-04 to 2025-03")
+    period_stats = await db.emission_records.aggregate([
+        {"$match": match_stage},
+        {"$group": {"_id": None, "min_period": {"$min": "$reporting_period"}, "max_period": {"$max": "$reporting_period"}}},
+    ]).to_list(1)
+    period = None
+    if period_stats:
+        min_p, max_p = period_stats[0].get("min_period"), period_stats[0].get("max_period")
+        if min_p and max_p:
+            period = min_p if min_p == max_p else f"{min_p} to {max_p}"
+
     return {
         "total_records": total_records,
+        "unit": "tCO2e",
+        "period": period,
         "facility_rankings": [
             {"facility": fac_map.get(r["_id"], r["_id"]), "total_emissions": round(r["total_emissions"], 2), "records": r["record_count"]}
             for r in facility_emissions
