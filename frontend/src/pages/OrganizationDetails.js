@@ -643,6 +643,7 @@ export default function OrganizationDetails() {
 
   return (
     <div className="space-y-6">
+      {/* Page Title & Edit Button */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Organization</h1>
@@ -672,8 +673,87 @@ export default function OrganizationDetails() {
         )}
       </div>
 
-      {/* Framework Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      {/* ========== PERSISTENT ORGANIZATION SUMMARY HEADER ========== */}
+      {!editing && (
+        <Card className="p-0 border border-stone-200 rounded-xl bg-white overflow-hidden">
+          {/* Top gradient accent bar */}
+          <div className="h-2 bg-gradient-to-r from-primary via-emerald-500 to-teal-500" />
+          
+          <div className="p-6">
+            <div className="flex flex-col lg:flex-row lg:items-start gap-6">
+              {/* Logo & Name */}
+              <div className="flex items-start gap-4 flex-1">
+                {organization?.logo && !logoError ? (
+                  <img 
+                    src={getFullLogoUrl(organization.logo)} 
+                    alt={organization.name} 
+                    className="w-20 h-20 object-contain rounded-xl border-2 border-stone-100 shadow-sm bg-white"
+                    onError={() => setLogoError(true)} 
+                  />
+                ) : (
+                  <div className="w-20 h-20 flex items-center justify-center rounded-xl bg-gradient-to-br from-primary/10 to-emerald-50 border border-stone-100">
+                    <Building className="w-10 h-10 text-primary" />
+                  </div>
+                )}
+                <div className="flex-1">
+                  <h1 className="text-2xl lg:text-3xl font-heading font-bold text-text-primary mb-2">
+                    {organization?.name}
+                  </h1>
+                  <div className="flex flex-wrap gap-2">
+                    {organization?.country && (
+                      <Badge variant="outline" className="bg-stone-50 text-stone-700 border-stone-200">
+                        <Globe className="w-3 h-3 mr-1" />
+                        {organization.country}
+                      </Badge>
+                    )}
+                    {organization?.esg_frameworks_enabled?.map((framework) => (
+                      <Badge key={framework} className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100">
+                        <Shield className="w-3 h-3 mr-1" />
+                        {framework}
+                      </Badge>
+                    ))}
+                    {organization?.reporting_year_type && (
+                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                        <Calendar className="w-3 h-3 mr-1" />
+                        {organization.reporting_year_type === 'financial_year' ? 'Financial Year' : 'Calendar Year'}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Stats */}
+              <div className="flex flex-wrap lg:flex-nowrap gap-4 lg:gap-6">
+                <div className="text-center px-4 py-2 rounded-lg bg-stone-50">
+                  <div className="text-2xl font-bold text-primary">{moduleCounts.facilities}</div>
+                  <div className="text-xs text-text-muted">Facilities</div>
+                </div>
+                <div className="text-center px-4 py-2 rounded-lg bg-stone-50">
+                  <div className="text-2xl font-bold text-emerald-600">{moduleCounts.targets}</div>
+                  <div className="text-xs text-text-muted">Targets</div>
+                </div>
+                {organization?.reporting_frequency && (
+                  <div className="text-center px-4 py-2 rounded-lg bg-stone-50">
+                    <div className="text-lg font-semibold text-text-primary capitalize">{organization.reporting_frequency}</div>
+                    <div className="text-xs text-text-muted">Reporting</div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Last Updated */}
+            {organization?.created_at && (
+              <div className="mt-4 pt-4 border-t border-stone-100 flex items-center gap-2 text-xs text-text-muted">
+                <Clock className="w-3 h-3" />
+                <span>Last updated: {new Date(organization.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* Framework Tabs - with increased top spacing */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mt-8">
         <TabsList className="bg-stone-100 p-1 rounded-lg">
           <TabsTrigger 
             value="organization" 
@@ -698,7 +778,7 @@ export default function OrganizationDetails() {
         </TabsList>
 
         {/* Organization Details Tab */}
-        <TabsContent value="organization" className="mt-6">
+        <TabsContent value="organization" className="mt-8">
           {editing ? (
             <Card className="p-6 border border-stone-200 rounded-xl bg-white">
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -1301,97 +1381,20 @@ export default function OrganizationDetails() {
         </Card>
       ) : (
         /* ========== PREMIUM VIEW-ONLY ORGANIZATION PROFILE ========== */
-        <div className="space-y-8" data-testid="org-view-mode">
-          
-          {/* === HERO HEADER SECTION === */}
-          <Card className="p-0 border border-stone-200 rounded-xl bg-white overflow-hidden">
-            {/* Top gradient accent bar */}
-            <div className="h-2 bg-gradient-to-r from-primary via-emerald-500 to-teal-500" />
-            
-            <div className="p-6">
-              <div className="flex flex-col lg:flex-row lg:items-start gap-6">
-                {/* Logo & Name */}
-                <div className="flex items-start gap-4 flex-1">
-                  {organization?.logo && !logoError ? (
-                    <img 
-                      src={getFullLogoUrl(organization.logo)} 
-                      alt={organization.name} 
-                      className="w-20 h-20 object-contain rounded-xl border-2 border-stone-100 shadow-sm bg-white"
-                      onError={() => setLogoError(true)} 
-                    />
-                  ) : (
-                    <div className="w-20 h-20 flex items-center justify-center rounded-xl bg-gradient-to-br from-primary/10 to-emerald-50 border border-stone-100">
-                      <Building className="w-10 h-10 text-primary" />
-                    </div>
-                  )}
-                  <div className="flex-1">
-                    <h1 className="text-2xl lg:text-3xl font-heading font-bold text-text-primary mb-2">
-                      {organization?.name}
-                    </h1>
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      {organization?.country && (
-                        <Badge variant="outline" className="bg-stone-50 text-stone-700 border-stone-200">
-                          <Globe className="w-3 h-3 mr-1" />
-                          {organization.country}
-                        </Badge>
-                      )}
-                      {organization?.esg_frameworks_enabled?.map((framework) => (
-                        <Badge key={framework} className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100">
-                          <Shield className="w-3 h-3 mr-1" />
-                          {framework}
-                        </Badge>
-                      ))}
-                      {organization?.reporting_year_type && (
-                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                          <Calendar className="w-3 h-3 mr-1" />
-                          {organization.reporting_year_type === 'financial_year' ? 'Financial Year' : 'Calendar Year'}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                </div>
+        <div className="space-y-10" data-testid="org-view-mode">
 
-                {/* Quick Stats */}
-                <div className="flex flex-wrap lg:flex-nowrap gap-4 lg:gap-6">
-                  <div className="text-center px-4 py-2 rounded-lg bg-stone-50">
-                    <div className="text-2xl font-bold text-primary">{moduleCounts.facilities}</div>
-                    <div className="text-xs text-text-muted">Facilities</div>
-                  </div>
-                  <div className="text-center px-4 py-2 rounded-lg bg-stone-50">
-                    <div className="text-2xl font-bold text-emerald-600">{moduleCounts.targets}</div>
-                    <div className="text-xs text-text-muted">Targets</div>
-                  </div>
-                  {organization?.reporting_frequency && (
-                    <div className="text-center px-4 py-2 rounded-lg bg-stone-50">
-                      <div className="text-lg font-semibold text-text-primary capitalize">{organization.reporting_frequency}</div>
-                      <div className="text-xs text-text-muted">Reporting</div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Last Updated */}
-              {organization?.created_at && (
-                <div className="mt-4 pt-4 border-t border-stone-100 flex items-center gap-2 text-xs text-text-muted">
-                  <Clock className="w-3 h-3" />
-                  <span>Last updated: {new Date(organization.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
-                </div>
-              )}
-            </div>
-          </Card>
-
-          {/* === QUICK INFO GRID === */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* === QUICK INFO GRID - 2 columns === */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             
             {/* Corporate Address Card */}
-            <Card className="p-5 border border-stone-200 rounded-xl bg-white hover:shadow-md transition-shadow">
-              <div className="flex items-center gap-3 mb-4">
+            <Card className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-3 mb-5">
                 <div className="p-2 rounded-lg bg-blue-50">
                   <MapPin className="w-5 h-5 text-blue-600" />
                 </div>
                 <h3 className="font-semibold text-text-primary">Corporate Address</h3>
               </div>
-              <div className="space-y-2 text-sm">
+              <div className="space-y-3 text-sm">
                 {organization?.corporate_address && (
                   <div className="flex justify-between">
                     <span className="text-text-muted">Street</span>
@@ -1427,8 +1430,8 @@ export default function OrganizationDetails() {
 
             {/* Person Responsible Card */}
             {organization?.person_responsible && (
-              <Card className="p-5 border border-stone-200 rounded-xl bg-white hover:shadow-md transition-shadow">
-                <div className="flex items-center gap-3 mb-4">
+              <Card className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-3 mb-5">
                   <div className="p-2 rounded-lg bg-purple-50">
                     <Users className="w-5 h-5 text-purple-600" />
                   </div>
@@ -1438,7 +1441,7 @@ export default function OrganizationDetails() {
                   <div>
                     <p className="text-lg font-medium text-text-primary">{organization.person_responsible}</p>
                     {organization.person_responsible_designation && (
-                      <p className="text-sm text-text-muted flex items-center gap-1">
+                      <p className="text-sm text-text-muted flex items-center gap-1 mt-1">
                         <Briefcase className="w-3 h-3" />
                         {organization.person_responsible_designation}
                       </p>
@@ -1453,46 +1456,6 @@ export default function OrganizationDetails() {
                 </div>
               </Card>
             )}
-
-            {/* Reporting Information Card */}
-            <Card className="p-5 border border-stone-200 rounded-xl bg-white hover:shadow-md transition-shadow">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 rounded-lg bg-amber-50">
-                  <FileBarChart className="w-5 h-5 text-amber-600" />
-                </div>
-                <h3 className="font-semibold text-text-primary">Reporting Information</h3>
-              </div>
-              <div className="space-y-3">
-                {organization?.esg_frameworks_enabled?.length > 0 && (
-                  <div>
-                    <span className="text-xs text-text-muted block mb-1">Frameworks</span>
-                    <div className="flex flex-wrap gap-1">
-                      {organization.esg_frameworks_enabled.map((fw) => (
-                        <Badge key={fw} variant="outline" className="text-xs">{fw}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {organization?.org_boundaries_approach && (
-                  <div>
-                    <span className="text-xs text-text-muted block mb-1">Boundary</span>
-                    <Badge variant="outline" className="text-xs bg-stone-50">
-                      {organization.org_boundaries_approach === 'equity_share' ? 'Equity Share' : 
-                       organization.org_boundaries_approach === 'control_operational' ? 'Operational Control' :
-                       organization.org_boundaries_approach === 'control_financial' ? 'Financial Control' :
-                       organization.org_boundaries_approach === 'control_both' ? 'Operational & Financial Control' : 
-                       'Control Approach'}
-                    </Badge>
-                  </div>
-                )}
-                {organization?.reporting_frequency && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-text-muted">Frequency</span>
-                    <span className="text-text-primary capitalize">{organization.reporting_frequency}</span>
-                  </div>
-                )}
-              </div>
-            </Card>
           </div>
 
           {/* === ORGANIZATION OVERVIEW === */}
@@ -1675,32 +1638,30 @@ export default function OrganizationDetails() {
             </Card>
           )}
 
-          {/* === GHG REDUCTION & PERFORMANCE TRACKING === */}
-          {(organization?.ghg_reduction_initiatives || organization?.internal_performance_tracking) && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {organization?.ghg_reduction_initiatives && (
-                <Card className="p-6 border border-stone-200 rounded-xl bg-white">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-2 rounded-lg bg-green-50">
-                      <Leaf className="w-5 h-5 text-green-600" />
-                    </div>
-                    <h3 className="font-semibold text-text-primary">GHG Reduction Initiatives</h3>
-                  </div>
-                  <p className="text-text-secondary leading-relaxed text-sm">{organization.ghg_reduction_initiatives}</p>
-                </Card>
-              )}
-              {organization?.internal_performance_tracking && (
-                <Card className="p-6 border border-stone-200 rounded-xl bg-white">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-2 rounded-lg bg-cyan-50">
-                      <BarChart3 className="w-5 h-5 text-cyan-600" />
-                    </div>
-                    <h3 className="font-semibold text-text-primary">Performance Tracking</h3>
-                  </div>
-                  <p className="text-text-secondary leading-relaxed text-sm">{organization.internal_performance_tracking}</p>
-                </Card>
-              )}
-            </div>
+          {/* === GHG REDUCTION INITIATIVES - FULL WIDTH === */}
+          {organization?.ghg_reduction_initiatives && (
+            <Card className="p-6 border border-stone-200 rounded-xl bg-white">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-green-50">
+                  <Leaf className="w-5 h-5 text-green-600" />
+                </div>
+                <h3 className="font-semibold text-text-primary">GHG Reduction Initiatives</h3>
+              </div>
+              <p className="text-text-secondary leading-relaxed">{organization.ghg_reduction_initiatives}</p>
+            </Card>
+          )}
+
+          {/* === INTERNAL PERFORMANCE TRACKING - FULL WIDTH === */}
+          {organization?.internal_performance_tracking && (
+            <Card className="p-6 border border-stone-200 rounded-xl bg-white">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-cyan-50">
+                  <BarChart3 className="w-5 h-5 text-cyan-600" />
+                </div>
+                <h3 className="font-semibold text-text-primary">Internal Performance Tracking</h3>
+              </div>
+              <p className="text-text-secondary leading-relaxed">{organization.internal_performance_tracking}</p>
+            </Card>
           )}
 
           {/* === ATTACHMENTS === */}
