@@ -1759,21 +1759,19 @@ export default function OrganizationDetails() {
                 </a>
               )}
 
-              {/* Environment/ESG */}
-              {organization?.has_esg !== false && (
-                <a href="/environment" className="block">
-                  <Card className="p-4 border border-stone-200 rounded-xl bg-white hover:shadow-lg hover:border-primary/30 transition-all cursor-pointer group">
-                    <div className="flex flex-col items-center text-center">
-                      <div className="p-3 rounded-full bg-teal-50 group-hover:bg-teal-100 transition-colors mb-3">
-                        <Globe className="w-6 h-6 text-teal-600" />
-                      </div>
-                      <h4 className="font-semibold text-text-primary text-sm">Environment</h4>
-                      <p className="text-xs text-text-muted mt-1">ESG Tracking</p>
-                      <ArrowRight className="w-4 h-4 text-text-muted mt-2 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+              {/* Dashboard */}
+              <a href="/dashboard" className="block">
+                <Card className="p-4 border border-stone-200 rounded-xl bg-white hover:shadow-lg hover:border-primary/30 transition-all cursor-pointer group">
+                  <div className="flex flex-col items-center text-center">
+                    <div className="p-3 rounded-full bg-teal-50 group-hover:bg-teal-100 transition-colors mb-3">
+                      <BarChart3 className="w-6 h-6 text-teal-600" />
                     </div>
-                  </Card>
-                </a>
-              )}
+                    <h4 className="font-semibold text-text-primary text-sm">Dashboard</h4>
+                    <p className="text-xs text-text-muted mt-1">Analytics & Insights</p>
+                    <ArrowRight className="w-4 h-4 text-text-muted mt-2 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                  </div>
+                </Card>
+              </a>
 
               {/* Targets */}
               <a href="/targets/voluntary/ghg" className="block">
