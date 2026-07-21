@@ -753,7 +753,7 @@ export default function OrganizationDetails() {
       )}
 
       {/* Framework Tabs - with increased top spacing */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mt-8">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="bg-stone-100 p-1 rounded-lg">
           <TabsTrigger 
             value="organization" 
@@ -778,7 +778,7 @@ export default function OrganizationDetails() {
         </TabsList>
 
         {/* Organization Details Tab */}
-        <TabsContent value="organization" className="mt-8">
+        <TabsContent value="organization" className="mt-2">
           {editing ? (
             <Card className="p-6 border border-stone-200 rounded-xl bg-white">
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -1381,7 +1381,7 @@ export default function OrganizationDetails() {
         </Card>
       ) : (
         /* ========== PREMIUM VIEW-ONLY ORGANIZATION PROFILE ========== */
-        <div className="space-y-10" data-testid="org-view-mode">
+        <div className="flex flex-col gap-4" data-testid="org-view-mode">
 
           {/* === QUICK INFO GRID - 2 columns === */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -1625,10 +1625,10 @@ export default function OrganizationDetails() {
                       <Badge className="bg-amber-100 text-amber-800 mb-2">Equity Share Approach</Badge>
                       <p className="text-sm text-text-secondary">The organization accounts for GHG emissions according to its equity share in each facility.</p>
                     </div>
-                    <p className="text-xs text-amber-700 bg-amber-50 p-2 rounded flex items-start gap-2">
+                    {/* <p className="text-xs text-amber-700 bg-amber-50 p-2 rounded flex items-start gap-2">
                       <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
                       <span><strong>Disclaimer:</strong> It is assumed that the data provided corresponds to emissions from the whole facility.</span>
-                    </p>
+                    </p> */}
                   </div>
                 )}
                 {organization.org_boundaries && (
