@@ -75,7 +75,7 @@ async def create_user(
     org_name_doc = await db.organizations.find_one({"id": org_id}, {"_id": 0, "name": 1})
     org_name = org_name_doc.get("name", "your organization") if org_name_doc else "your organization"
 
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://repo-pilot-preview.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://brsr-restructure.preview.emergentagent.com')
     login_link = f"{frontend_url}/login"
 
     email_body = user_invite_email(

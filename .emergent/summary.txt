@@ -8,26 +8,35 @@ PRODUCT REQUIREMENTS ADDED:
 **User's preferred language**: English (INSTRUCT next agent to respond in English only)
 
 **what currently exists?** 
-A heavily enhanced ESG platform. Premium Energy, Water, and Waste dashboards are fully completed reusing existing backend aggregation APIs. BRSR Reporting has been completely overhauled (migrated to  and , exact PDF matching, 2/3-level nested table headers). Internal Data AI (Phase 1) is built with an intent detector, planner, and response builder, featuring a toggle in the Repo Pilot UI. Phase 2 of the AI (Charts and Evidence in responses) is built but awaiting successful render testing.
+A heavily enhanced ESG platform with complete premium Dashboards (Energy, Water, Waste). The BRSR Reporting is completely restructured. Internal Data AI Phase 1 is built. Phase 2 (Charts, Evidence viewer) is partially complete; the backend APIs for Internal AI have been heavily debugged and fixed to accurately return charts, units, time periods, and evidence files, but the frontend currently crashes when navigating to the RepoPilot AI chat page due to a React  bug.
 
 **Last working item**: 
-    - Last item agent was working: Building Phase 2 of Internal Data AI (Charts in responses, evidence viewer, more service coverage). The backend was updated to return  and  data payloads, and  was updated to render them via Recharts. 
-    - Status: TESTING PENDING
-    - Agent Testing Done: Y (Screenshot was taken, but backend precomputation caused a timeout before the chart could render)
+    - Last item agent was working: Debugging a critical frontend crash () that occurs when navigating to the  page. The agent traced the root cause to , where  incorrectly returns a non-function value (the result of ) instead of a cleanup function.
+    - Status: IN PROGRESS
+    - Agent Testing Done: Y
     - Which testing method agent to use?: Frontend testing agent/screenshot tool
     - User Testing Done: N
 
 **All Pending/In progress Issue list**: 
-  Issue 1: Internal Data AI Phase 2 Rendering Verification (Priority: P0)
-     - Attempted fixes: Updated  to render Recharts inline for AI responses and auto-compute embeddings on the backend. Screenshot timed out.
-     - Next debug checklist: Ask a data question in the Internal Data AI chat (e.g., Monthly emissions or Facility comparison), verify that the backend successfully returns a chart payload, and ensure  renders the Recharts component correctly without crashing.
-     - Why fix this issue and what will be achieved with the fix? Completes the Phase 2 requirements for the rich Internal Data AI interface.
+  Issue 1: RepoPilot UI Crash () (Priority: P0)
+     - Attempted fixes: Investigated the error and located the problematic code via grep. 
+     - Next debug checklist: Update  line 319 to correctly wrap the function execution: . 
+     - Why fix this issue and what will be achieved with the fix? Fixes the application crash and restores access to the Internal Data AI interface.
+     - Status: IN PROGRESS
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? Frontend
+     - Blocked on other issue: None
+
+  Issue 2: Internal Data AI Phase 2 Verification via Testing Agent (Priority: P0)
+     - Attempted fixes: Backend logic fixes applied successfully. The user explicitly mandated that  must be used to verify the fixes against the reported bugs, but the testing agent ran out of time before completing execution.
+     - Next debug checklist: After fixing the RepoPilot UI crash, immediately run the  to verify the Internal Data AI Phase 2 chat queries (emissions data, evidence fetching) end-to-end.
+     - Why fix this issue and what will be achieved with the fix? Complies with strict user instructions and ensures recent backend fixes are stable in the UI.
      - Status: TESTING PENDING
      - Is recurring issue? N
      - Should Test frontend/backend/both after fix? Both
-     - Blocked on other issue: None
+     - Blocked on other issue: Issue 1 (RepoPilot crash)
 
-  Issue 2: Module Access Super Admin UI Missing (Priority: P1)
+  Issue 3: Module Access Super Admin UI Missing (Priority: P1)
      - Attempted fixes: None.
      - Next debug checklist: Create a toggle UI inside the Super Admin -> Organizations view to update  and  via API.
      - Why fix this issue and what will be achieved with the fix? Allows super admins to dynamically turn modules on/off for tenants.
@@ -36,7 +45,7 @@ A heavily enhanced ESG platform. Premium Energy, Water, and Waste dashboards are
      - Should Test frontend/backend/both after fix? Both
      - Blocked on other issue: None
 
-  Issue 3: Dashboard Scope 1 & 3 Emissions Deduplication Bug (Priority: P2)
+  Issue 4: Dashboard Scope 1 & 3 Emissions Deduplication Bug (Priority: P2)
      - Attempted fixes: Deferred.
      - Next debug checklist: In , bypass .
      - Why fix this issue and what will be achieved with the fix? Prevents double counting in GHG dashboards.
@@ -45,7 +54,7 @@ A heavily enhanced ESG platform. Premium Energy, Water, and Waste dashboards are
      - Should Test frontend/backend/both after fix? Backend
      - Blocked on other issue: None
 
-  Issue 4: Carbon Intensity Calculation discrepancy (Priority: P2)
+  Issue 5: Carbon Intensity Calculation discrepancy (Priority: P2)
      - Attempted fixes: Deferred.
      - Next debug checklist: Check  logic around lines 818-830 in .
      - Why fix this issue and what will be achieved with the fix? Ensures accurate intensity metrics matching physical reality.
@@ -56,11 +65,11 @@ A heavily enhanced ESG platform. Premium Energy, Water, and Waste dashboards are
 
 **In progress Task List**: 
   Task 1: Complete Internal Data AI Phase 2 (Priority: P0)
-     - Where to resume:  (ChatMessage component) and backend  services.
+     - Where to resume:  (ChatMessage component) and ensuring the  runs.
      - What will be achieved with this? The AI will return interactive Recharts and embedded Evidence previews instead of text when queried about analytics or documents.
-     - Status: IN PROGRESS (Awaiting successful rendering test)
+     - Status: IN PROGRESS
      - Should Test frontend/backend/both after fix? Both
-     - Blocked on something: Issue 1 (Timeout during screenshot verification).
+     - Blocked on something: Issue 1 (RepoPilot crash).
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
@@ -76,15 +85,11 @@ A heavily enhanced ESG platform. Premium Energy, Water, and Waste dashboards are
     - P2: Backend persistence for materiality cutoff values per organization.
 
 **Completed work in this session**
-- Premium Water and Waste Dashboards (, ) reusing base environment APIs (DONE)
-- Energy Dashboard rebuilt to eliminate 401 error and duplicate backend services (DONE)
-- BRSR DB Migration: Migrated all BRSR questions/responses to  and  (DONE)
-- BRSR UI Restructure: Principle-based collapsible groupings for Section C added (DONE)
-- Added 28 missing BRSR questions exactly matching official PDF (DONE)
-- Complex BRSR Tables: Updated  for 2/3-level headers (DONE)
-- GRI Reporting Enhancements: Added Completion % Tracking and Edit button (DONE)
-- Workflow Tracker: Fixed backend tracking service to correctly track  and  (DONE)
-- Internal Data AI Phase 1: Built new backend architecture leveraging  via API key to query local MongoDB. Added frontend chat mode toggle (DONE)
+- Fixed Cloudflare R2 evidence preview URL generation in  (DONE)
+- Fixed Internal Data AI  service to correctly fetch and project  and  from Mongo for Scope 1/2 emissions (DONE)
+- Fixed Internal Data AI facility filtering bug in the Mongo aggregation  (DONE)
+- Fixed Internal Data AI  service to correctly locate files by extracting  from  rather than searching generic  metadata (DONE)
+- Added fallback for  vs  LLM non-determinism in the evidence service (DONE)
 
 **Earlier issues found/mentioned but not fixed**
    - None explicitly pending that aren't tracked in the Issues list above.
@@ -103,69 +108,62 @@ A heavily enhanced ESG platform. Premium Energy, Water, and Waste dashboards are
 │   │   │   └── services/ (organization.py, emissions.py, evidence.py, analytics.py, etc.)
 │   │   ├── esg_tracking/
 │   │   │   ├── router.py
-│   │   │   └── service.py (Fixed to support section_b/c)
+│   │   │   └── service.py
 │   │   ├── dashboards/ 
-│   │   │   └── environment_detail_service.py (Enhanced with water/waste breakdowns)
+│   │   │   └── environment_detail_service.py
 ├── frontend/
     └── src/
         ├── pages/
         │   ├── RepoPilot.js (Houses Document AI and Internal Data AI UI)
-        │   ├── WaterAnalysis.jsx, WasteAnalysis.jsx
-        ├── components/
-        │   ├── BRSRSectionC.js
-        │   ├── ESGQuestionnaire/renderers/TableRenderers.js
-        ├── modules/dashboard/
-        │   ├── DashboardWater.jsx
-        │   └── DashboardWaste.jsx
 
 **Key Technical Concepts**
--  Integration: Used strictly for *Intent Detection* and *Response Building*. **No RAG / Vector Search** is used for the Internal Data AI.
-- Advanced React Table Rendering: Multi-level header tables with dynamically injected grouped configurations.
+-  Integration: Used strictly for *Intent Detection* and *Response Building*. **No RAG / Vector Search** is used for the Internal Data AI. It directly formats JSON data retrieved from MongoDB.
+- React 19  strictness: Returning a non-function value from a hook (like ) causes a fatal unmount crash ().
 
 **key DB schema**
   - : BRSR questions use  or .
-  - : Merged disjointed framework responses into unified  docs.
+  - : Contains fields like , , and .
+  - : Generic metadata for uploads (R2 info); must be joined via .
 
 **changes in tech stack**
-  - Introduced  via direct User API Key.
-  - Added new  module independent from  document RAG.
+  - None this session. (Continues using User API Key for GPT-5.6-sol).
 
 **All files of reference** 
-  -  (New core engine for Data AI)
-  -  (Updated for AI toggles, Chart rendering, Evidence viewing)
-  -  (BRSR multi-level tables)
-  -  (Fixed Workflow tracker)
+  -  (Contains the  crash bug on line 319)
+  -  (Fixed query projections and filters)
+  -  (Fixed evidence traversal)
+  -  (Fixed presigned URL arg signature)
+  -  (Authentication data)
 
 **Areas that need refactoring**: 
-  -  (>550 lines). Componentizing  will improve maintainability as it manages highlights, AI modes, charts, and evidence.
+  -  (>600 lines). Componentizing  will improve maintainability as it manages highlights, AI modes, charts, and evidence.
 
 **key api endpoints**
   -  (Answers queries using structured internal data).
-  -  (Fixed to return BRSR sections).
+  -  (Evidence file retrieval).
 
 **Critical Info for New Agent** 
-- ** API Constraints**: The model requires  (not ) and it **does not support** a custom  parameter. If you make changes to the prompt calls, omit  or you will get a .
-- **Internal Data AI vs RepoPilot**: Total separation is required. Internal Data AI *only* queries the new  (MongoDB) and relies on the LLM just for intent routing. **Do not** add vector search/RAG to the Internal AI.
-- **BRSR Architecture**: Sections , , and  are **no longer used** for BRSR questions. They strictly live in  and .
+- **Testing Agent Mandate:** The user explicitly stated: *After applying the fix you MUST call the testing_agent subagent to verify it against the reported issue — required before you finish, not optional.* You must run this after fixing the RepoPilot crash.
+- **Frontend Crash:** React 19 does not allow  to return anything other than a cleanup function or .  is breaking the app because  does not return a function.
 
 **documents and test reports created in this job** 
-  - 
+  -  (Prior session verification)
   - 
 
 **Last 10 User Messages and any pending HUMAN messages** 
- 1. User: Asked to remove group headers in BRSR Section B/C and add missing questions. (Resolved)
- 2. User: Asked if changing to Section B/C would fix tracker breaks without altering data. (Resolved)
- 3. User: Complained about 'Unknown question type' for complex P1 table questions. (Resolved)
- 4. User: Requested exact 2-level nested table formats for P2/P3/P5 questions matching PDF. (Resolved)
- 5. User: Pointed out P3/P5 tables needed specific rows and multi-level columns. (Resolved)
- 6. User: Reported  in BRSR workflow tracker was 0. (Resolved)
- 7. User: Asked to show full question text in tracker instead of keys. (Resolved)
- 8. User: Requested GRI collapsible headers be compacted to a single line. (Resolved)
- 9. User: Provided complete PRD for building a separate Internal Data AI without RAG. (Resolved - Phase 1 built).
- 10. User (LATEST/PENDING): Phase 2: Charts in responses, evidence viewer, more service coverage. (Partially executed - payloads updated, renderer written, testing pending due to timeout).
+ 1. User: Asked why Scope 1 emissions showed No data found. (Resolved)
+ 2. User: Reiterated strict rules for testing via . (Acknowledged)
+ 3. User: Asked why Unit and Time Period were Not provided for Facility E. (Resolved)
+ 4. User: Instructed to fix the missing unit/period issue. (Resolved)
+ 5. User: Pointed out Facility E period showed org-wide period instead of facility period. (Resolved)
+ 6. User: Instructed to fix the facility filtering bug. (Resolved)
+ 7. User: Pointed out Evidence search returned No data found for an existing Natural Gas file. (Resolved)
+ 8. User: Instructed to fix the evidence retrieval bug. (Resolved)
+ 9. User: Reported UI crashed with destroy is not a function error.
+ 10. User (LATEST/PENDING): Provided exact stack trace:  pointing to component unmount lifecycle.
 
 **Project Health Check:**
-- Healthy. Massive DB migrations completed without data loss.
+- Broken (Frontend completely blocked from navigating to  due to a React unmount crash).
 
 **3rd Party Integrations** 
   - OpenAI  — requires User API Key
@@ -174,23 +172,25 @@ A heavily enhanced ESG platform. Premium Energy, Water, and Waste dashboards are
   - Resend (Emails) — requires User API Key
 
 **Testing status**
-  - Testing agent used after significant changes: YES
+  - Testing agent used after significant changes: YES (Attempted, but cut short due to time constraints). MUST be re-run.
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: None
-  - Known regressions: First query on Internal AI Phase 2 timed out during backend embedding processing.
+  - Known regressions:  in .
 
 **Credentials to test flow:**
   - ESG Super Admin: 
   - Admin:  () — ORG1 Admin.
 
 **What agent forgot to execute**
-- Validating the React UI rendering of the Internal Data AI Phase 2 output. The agent built the Recharts and Evidence rendering logic but ran out of time/context window before validating that a real query correctly outputs a visual chart without a timeout.
+- The agent discovered the  bug in  but the context window ended before applying the  fix.
+- The  needs to be successfully executed as per user mandate.
 
 **Debugging checklist for current issue**
-    Issue: Internal Data AI Phase 2 timeout and rendering verification.
+    Issue: RepoPilot UI Crash ()
 
     Frontend files to check: 
-    -  (Verify Recharts rendering in the  loop).
+    -  (line 319) -> Change  to .
+    - Check for any other identical  misuses in the file using grep if necessary.
   
     Backend files to check:
-    -  (Investigate timeout during initial embeddings/payload generation).</analysis>
+    - None (Frontend React lifecycle issue).</analysis>

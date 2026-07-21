@@ -316,7 +316,7 @@ export default function RepoPilotPage() {
   const fileInputRef = useRef(null);
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  useEffect(scrollToBottom, [messages]);
+  useEffect(() => { scrollToBottom(); }, [messages]);
 
   const fetchDocs = useCallback(async () => {
     try {
