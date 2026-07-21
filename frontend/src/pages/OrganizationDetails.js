@@ -8,7 +8,8 @@ import { Label } from '../components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload, Download, Info, Lock, TrendingUp, Loader2 } from 'lucide-react';
+import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload, Download, Info, Lock, TrendingUp, Loader2, Factory, Target, BarChart3, FileBarChart, Leaf, Users, Mail, Phone, Globe, Calendar, Clock, ChevronDown, ChevronUp, ArrowRight, Briefcase, Eye, Shield, Zap } from 'lucide-react';
+import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
@@ -71,6 +72,18 @@ export default function OrganizationDetails() {
   });
   const [yearlyDataLoading, setYearlyDataLoading] = useState(false);
   const [yearlyDataSaving, setYearlyDataSaving] = useState(false);
+  
+  // Module summary counts for quick navigation cards
+  const [moduleCounts, setModuleCounts] = useState({
+    facilities: 0,
+    targets: 0,
+    ghgRecords: 0,
+    esgRecords: 0
+  });
+  
+  // Collapsible text states
+  const [expandedSections, setExpandedSections] = useState({});
+  const toggleSection = (section) => setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
   
   const { getAuthHeader, user, subscriptionExpired } = useAuth();
 
@@ -363,6 +376,32 @@ export default function OrganizationDetails() {
       setLoading(false);
     }
   };
+
+  // Fetch module counts for quick navigation cards
+  const fetchModuleCounts = useCallback(async () => {
+    try {
+      const headers = getAuthHeader();
+      const [facilitiesRes, targetsRes] = await Promise.all([
+        axios.get(`${API}/facilities`, { headers }).catch(() => ({ data: [] })),
+        axios.get(`${API}/targets`, { headers }).catch(() => ({ data: [] }))
+      ]);
+      
+      setModuleCounts({
+        facilities: Array.isArray(facilitiesRes.data) ? facilitiesRes.data.length : 0,
+        targets: Array.isArray(targetsRes.data) ? targetsRes.data.length : 0,
+        ghgRecords: 0, // Will be populated if needed
+        esgRecords: 0
+      });
+    } catch (error) {
+      console.error('Error fetching module counts:', error);
+    }
+  }, [getAuthHeader]);
+
+  useEffect(() => {
+    if (organization && !editing) {
+      fetchModuleCounts();
+    }
+  }, [organization, editing, fetchModuleCounts]);
 
   const handleLogoUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -1261,231 +1300,554 @@ export default function OrganizationDetails() {
           </form>
         </Card>
       ) : (
-        <Card className="p-6 border border-stone-200 rounded-xl bg-white">
-          <div className="space-y-6">
-            <div className="flex items-start gap-4 mb-4">
-              {organization?.logo && !logoError ? (
-                <img src={getFullLogoUrl(organization.logo)} alt={organization.name} className="w-20 h-20 object-contain rounded-lg border border-stone-200" onError={() => setLogoError(true)} />
-              ) : (
-                <div className="bg-primary/10 p-3 rounded-lg"><Building className="w-6 h-6 text-primary" /></div>
-              )}
-              <div>
-                <h2 className="text-2xl font-heading font-bold text-text-primary">{organization?.name}</h2>
-                <div className="flex items-start gap-1 text-sm text-text-muted">
-                  <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                  <span>
-                    {organization?.corporate_address}
-                    {organization?.city && `, ${organization.city}`}
-                    {organization?.state && `, ${organization.state}`}
-                    {organization?.country && ` - ${organization.country}`}
-                    {organization?.pincode && ` (${organization.pincode})`}
-                  </span>
+        /* ========== PREMIUM VIEW-ONLY ORGANIZATION PROFILE ========== */
+        <div className="space-y-8" data-testid="org-view-mode">
+          
+          {/* === HERO HEADER SECTION === */}
+          <Card className="p-0 border border-stone-200 rounded-xl bg-white overflow-hidden">
+            {/* Top gradient accent bar */}
+            <div className="h-2 bg-gradient-to-r from-primary via-emerald-500 to-teal-500" />
+            
+            <div className="p-6">
+              <div className="flex flex-col lg:flex-row lg:items-start gap-6">
+                {/* Logo & Name */}
+                <div className="flex items-start gap-4 flex-1">
+                  {organization?.logo && !logoError ? (
+                    <img 
+                      src={getFullLogoUrl(organization.logo)} 
+                      alt={organization.name} 
+                      className="w-20 h-20 object-contain rounded-xl border-2 border-stone-100 shadow-sm bg-white"
+                      onError={() => setLogoError(true)} 
+                    />
+                  ) : (
+                    <div className="w-20 h-20 flex items-center justify-center rounded-xl bg-gradient-to-br from-primary/10 to-emerald-50 border border-stone-100">
+                      <Building className="w-10 h-10 text-primary" />
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <h1 className="text-2xl lg:text-3xl font-heading font-bold text-text-primary mb-2">
+                      {organization?.name}
+                    </h1>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {organization?.country && (
+                        <Badge variant="outline" className="bg-stone-50 text-stone-700 border-stone-200">
+                          <Globe className="w-3 h-3 mr-1" />
+                          {organization.country}
+                        </Badge>
+                      )}
+                      {organization?.esg_frameworks_enabled?.map((framework) => (
+                        <Badge key={framework} className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100">
+                          <Shield className="w-3 h-3 mr-1" />
+                          {framework}
+                        </Badge>
+                      ))}
+                      {organization?.reporting_year_type && (
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                          <Calendar className="w-3 h-3 mr-1" />
+                          {organization.reporting_year_type === 'financial_year' ? 'Financial Year' : 'Calendar Year'}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Stats */}
+                <div className="flex flex-wrap lg:flex-nowrap gap-4 lg:gap-6">
+                  <div className="text-center px-4 py-2 rounded-lg bg-stone-50">
+                    <div className="text-2xl font-bold text-primary">{moduleCounts.facilities}</div>
+                    <div className="text-xs text-text-muted">Facilities</div>
+                  </div>
+                  <div className="text-center px-4 py-2 rounded-lg bg-stone-50">
+                    <div className="text-2xl font-bold text-emerald-600">{moduleCounts.targets}</div>
+                    <div className="text-xs text-text-muted">Targets</div>
+                  </div>
+                  {organization?.reporting_frequency && (
+                    <div className="text-center px-4 py-2 rounded-lg bg-stone-50">
+                      <div className="text-lg font-semibold text-text-primary capitalize">{organization.reporting_frequency}</div>
+                      <div className="text-xs text-text-muted">Reporting</div>
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
 
-            {organization?.general_description && (
-              <div>
-                <h3 className="text-sm font-medium text-text-muted mb-1">Organization Description</h3>
-                <p className="text-text-primary">{organization.general_description}</p>
+              {/* Last Updated */}
+              {organization?.created_at && (
+                <div className="mt-4 pt-4 border-t border-stone-100 flex items-center gap-2 text-xs text-text-muted">
+                  <Clock className="w-3 h-3" />
+                  <span>Last updated: {new Date(organization.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                </div>
+              )}
+            </div>
+          </Card>
+
+          {/* === QUICK INFO GRID === */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* Corporate Address Card */}
+            <Card className="p-5 border border-stone-200 rounded-xl bg-white hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-blue-50">
+                  <MapPin className="w-5 h-5 text-blue-600" />
+                </div>
+                <h3 className="font-semibold text-text-primary">Corporate Address</h3>
               </div>
+              <div className="space-y-2 text-sm">
+                {organization?.corporate_address && (
+                  <div className="flex justify-between">
+                    <span className="text-text-muted">Street</span>
+                    <span className="text-text-primary text-right max-w-[60%]">{organization.corporate_address}</span>
+                  </div>
+                )}
+                {organization?.city && (
+                  <div className="flex justify-between">
+                    <span className="text-text-muted">City</span>
+                    <span className="text-text-primary">{organization.city}</span>
+                  </div>
+                )}
+                {organization?.state && (
+                  <div className="flex justify-between">
+                    <span className="text-text-muted">State</span>
+                    <span className="text-text-primary">{organization.state}</span>
+                  </div>
+                )}
+                {organization?.country && (
+                  <div className="flex justify-between">
+                    <span className="text-text-muted">Country</span>
+                    <span className="text-text-primary">{organization.country}</span>
+                  </div>
+                )}
+                {organization?.pincode && (
+                  <div className="flex justify-between">
+                    <span className="text-text-muted">PIN Code</span>
+                    <span className="text-text-primary font-mono">{organization.pincode}</span>
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            {/* Person Responsible Card */}
+            {organization?.person_responsible && (
+              <Card className="p-5 border border-stone-200 rounded-xl bg-white hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 rounded-lg bg-purple-50">
+                    <Users className="w-5 h-5 text-purple-600" />
+                  </div>
+                  <h3 className="font-semibold text-text-primary">Person Responsible</h3>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-lg font-medium text-text-primary">{organization.person_responsible}</p>
+                    {organization.person_responsible_designation && (
+                      <p className="text-sm text-text-muted flex items-center gap-1">
+                        <Briefcase className="w-3 h-3" />
+                        {organization.person_responsible_designation}
+                      </p>
+                    )}
+                  </div>
+                  {organization.person_responsible_contact && (
+                    <p className="text-sm text-text-muted flex items-center gap-1">
+                      <Mail className="w-3 h-3" />
+                      {organization.person_responsible_contact}
+                    </p>
+                  )}
+                </div>
+              </Card>
             )}
 
-            <div className="grid grid-cols-2 gap-6">
-              {organization?.mission && (
-                <div>
-                  <h3 className="text-sm font-medium text-text-muted mb-1">Mission</h3>
-                  <p className="text-text-primary">{organization.mission}</p>
+            {/* Reporting Information Card */}
+            <Card className="p-5 border border-stone-200 rounded-xl bg-white hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-amber-50">
+                  <FileBarChart className="w-5 h-5 text-amber-600" />
                 </div>
+                <h3 className="font-semibold text-text-primary">Reporting Information</h3>
+              </div>
+              <div className="space-y-3">
+                {organization?.esg_frameworks_enabled?.length > 0 && (
+                  <div>
+                    <span className="text-xs text-text-muted block mb-1">Frameworks</span>
+                    <div className="flex flex-wrap gap-1">
+                      {organization.esg_frameworks_enabled.map((fw) => (
+                        <Badge key={fw} variant="outline" className="text-xs">{fw}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {organization?.org_boundaries_approach && (
+                  <div>
+                    <span className="text-xs text-text-muted block mb-1">Boundary</span>
+                    <Badge variant="outline" className="text-xs bg-stone-50">
+                      {organization.org_boundaries_approach === 'equity_share' ? 'Equity Share' : 
+                       organization.org_boundaries_approach === 'control_operational' ? 'Operational Control' :
+                       organization.org_boundaries_approach === 'control_financial' ? 'Financial Control' :
+                       organization.org_boundaries_approach === 'control_both' ? 'Operational & Financial Control' : 
+                       'Control Approach'}
+                    </Badge>
+                  </div>
+                )}
+                {organization?.reporting_frequency && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-text-muted">Frequency</span>
+                    <span className="text-text-primary capitalize">{organization.reporting_frequency}</span>
+                  </div>
+                )}
+              </div>
+            </Card>
+          </div>
+
+          {/* === ORGANIZATION OVERVIEW === */}
+          {organization?.general_description && (
+            <Card className="p-6 border border-stone-200 rounded-xl bg-white">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-stone-100">
+                  <Building className="w-5 h-5 text-stone-600" />
+                </div>
+                <h3 className="font-semibold text-text-primary">Organization Overview</h3>
+              </div>
+              <div className="text-text-secondary leading-relaxed">
+                {organization.general_description.length > 400 && !expandedSections.description ? (
+                  <>
+                    <p>{organization.general_description.slice(0, 400)}...</p>
+                    <button 
+                      onClick={() => toggleSection('description')} 
+                      className="mt-2 text-primary text-sm font-medium flex items-center gap-1 hover:underline"
+                    >
+                      Read More <ChevronDown className="w-4 h-4" />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p>{organization.general_description}</p>
+                    {organization.general_description.length > 400 && (
+                      <button 
+                        onClick={() => toggleSection('description')} 
+                        className="mt-2 text-primary text-sm font-medium flex items-center gap-1 hover:underline"
+                      >
+                        Show Less <ChevronUp className="w-4 h-4" />
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            </Card>
+          )}
+
+          {/* === MISSION & VISION SIDE BY SIDE === */}
+          {(organization?.mission || organization?.vision) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {organization?.mission && (
+                <Card className="p-6 border border-stone-200 rounded-xl bg-gradient-to-br from-white to-emerald-50/30">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 rounded-lg bg-emerald-100">
+                      <Target className="w-5 h-5 text-emerald-600" />
+                    </div>
+                    <h3 className="font-semibold text-text-primary">Mission</h3>
+                  </div>
+                  <p className="text-text-secondary leading-relaxed">{organization.mission}</p>
+                </Card>
               )}
               {organization?.vision && (
-                <div>
-                  <h3 className="text-sm font-medium text-text-muted mb-1">Vision</h3>
-                  <p className="text-text-primary">{organization.vision}</p>
-                </div>
+                <Card className="p-6 border border-stone-200 rounded-xl bg-gradient-to-br from-white to-blue-50/30">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 rounded-lg bg-blue-100">
+                      <Eye className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <h3 className="font-semibold text-text-primary">Vision</h3>
+                  </div>
+                  <p className="text-text-secondary leading-relaxed">{organization.vision}</p>
+                </Card>
               )}
             </div>
+          )}
 
-            {organization?.process_description && (
-              <div>
-                <h3 className="text-sm font-medium text-text-muted mb-1">Process Description</h3>
-                <p className="text-text-primary">{organization.process_description}</p>
-              </div>
-            )}
-
-            {organization?.person_responsible && (
-              <div>
-                <h3 className="text-sm font-medium text-text-muted mb-1">Person Responsible</h3>
-                <p className="text-text-primary">{organization.person_responsible}</p>
-                {organization.person_responsible_designation && (
-                  <p className="text-sm text-text-muted">{organization.person_responsible_designation}</p>
-                )}
-                {organization.person_responsible_contact && (
-                  <p className="text-sm text-text-muted">{organization.person_responsible_contact}</p>
-                )}
-              </div>
-            )}
-
-            {organization?.report_purpose && (
-              <div>
-                <h3 className="text-sm font-medium text-text-muted mb-1">Purpose of the Report</h3>
-                <p className="text-text-primary">{organization.report_purpose}</p>
-              </div>
-            )}
-
-            {(organization?.org_boundaries_approach || organization?.org_boundaries) && (
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-sm font-medium text-text-muted">Organizational Boundaries</h3>
-                  <TooltipProvider delayDuration={200}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="cursor-help">
-                          <Info className="w-3.5 h-3.5 text-text-muted hover:text-primary transition-colors" />
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
-                        <p>It defines which operations and facilities are included in the GHG inventory based on the selected consolidation approach (Equity Share or Control Approach). This helps clarify how emissions are attributed and accounted for within the organization.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+          {/* === PROCESS DESCRIPTION === */}
+          {organization?.process_description && (
+            <Card className="p-6 border border-stone-200 rounded-xl bg-white">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-orange-50">
+                  <Zap className="w-5 h-5 text-orange-600" />
                 </div>
+                <h3 className="font-semibold text-text-primary">Operations & Process</h3>
+              </div>
+              <div className="text-text-secondary leading-relaxed">
+                {organization.process_description.length > 400 && !expandedSections.process ? (
+                  <>
+                    <p>{organization.process_description.slice(0, 400)}...</p>
+                    <button 
+                      onClick={() => toggleSection('process')} 
+                      className="mt-2 text-primary text-sm font-medium flex items-center gap-1 hover:underline"
+                    >
+                      Read More <ChevronDown className="w-4 h-4" />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p>{organization.process_description}</p>
+                    {organization.process_description.length > 400 && (
+                      <button 
+                        onClick={() => toggleSection('process')} 
+                        className="mt-2 text-primary text-sm font-medium flex items-center gap-1 hover:underline"
+                      >
+                        Show Less <ChevronUp className="w-4 h-4" />
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            </Card>
+          )}
+
+          {/* === PURPOSE OF REPORT === */}
+          {organization?.report_purpose && (
+            <Card className="p-6 border border-stone-200 rounded-xl bg-white">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-indigo-50">
+                  <FileText className="w-5 h-5 text-indigo-600" />
+                </div>
+                <h3 className="font-semibold text-text-primary">Purpose of the Report</h3>
+              </div>
+              <p className="text-text-secondary leading-relaxed">{organization.report_purpose}</p>
+            </Card>
+          )}
+
+          {/* === ORGANIZATIONAL BOUNDARIES === */}
+          {(organization?.org_boundaries_approach || organization?.org_boundaries) && (
+            <Card className="p-6 border border-stone-200 rounded-xl bg-white">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-teal-50">
+                  <Shield className="w-5 h-5 text-teal-600" />
+                </div>
+                <h3 className="font-semibold text-text-primary">Organizational Boundaries</h3>
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="cursor-help">
+                        <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                      <p>Defines which operations and facilities are included in the GHG inventory based on the selected consolidation approach.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              <div className="space-y-3">
                 {organization.org_boundaries_approach === 'control_operational' && (
-                  <p className="text-text-primary"><strong>Operational Control Approach:</strong> The organization accounts for 100% of GHG emissions from operations over which it exercises operational control.</p>
+                  <div className="p-3 bg-teal-50 rounded-lg border border-teal-100">
+                    <Badge className="bg-teal-100 text-teal-800 mb-2">Operational Control</Badge>
+                    <p className="text-sm text-text-secondary">The organization accounts for 100% of GHG emissions from operations over which it exercises operational control.</p>
+                  </div>
                 )}
                 {organization.org_boundaries_approach === 'control_financial' && (
-                  <p className="text-text-primary"><strong>Financial Control Approach:</strong> The organization accounts for 100% of GHG emissions from operations over which it exercises financial control.</p>
+                  <div className="p-3 bg-teal-50 rounded-lg border border-teal-100">
+                    <Badge className="bg-teal-100 text-teal-800 mb-2">Financial Control</Badge>
+                    <p className="text-sm text-text-secondary">The organization accounts for 100% of GHG emissions from operations over which it exercises financial control.</p>
+                  </div>
                 )}
                 {organization.org_boundaries_approach === 'control_both' && (
-                  <p className="text-text-primary"><strong>Operational & Financial Control Approach:</strong> The organization accounts for 100% of GHG emissions from operations over which it has both operational and financial control.</p>
+                  <div className="p-3 bg-teal-50 rounded-lg border border-teal-100">
+                    <Badge className="bg-teal-100 text-teal-800 mb-2">Operational & Financial Control</Badge>
+                    <p className="text-sm text-text-secondary">The organization accounts for 100% of GHG emissions from operations over which it has both operational and financial control.</p>
+                  </div>
                 )}
                 {organization.org_boundaries_approach === 'control' && (
-                  <p className="text-text-primary"><strong>Control Approach:</strong> The organization accounts for 100% of GHG emissions from operations over which it has operational or financial control.</p>
+                  <div className="p-3 bg-teal-50 rounded-lg border border-teal-100">
+                    <Badge className="bg-teal-100 text-teal-800 mb-2">Control Approach</Badge>
+                    <p className="text-sm text-text-secondary">The organization accounts for 100% of GHG emissions from operations over which it has operational or financial control.</p>
+                  </div>
                 )}
                 {organization.org_boundaries_approach === 'equity_share' && (
                   <div className="space-y-2">
-                    <p className="text-text-primary">
-                      <strong>Equity Share Approach:</strong> The organization accounts for GHG emissions according to its equity share in each facility.
-                    </p>
-                    <p className="text-sm text-amber-700 bg-amber-50 p-2 rounded">
-                      <strong>Disclaimer:</strong> It is assumed that the data provided corresponds to emissions from the whole facility.
+                    <div className="p-3 bg-amber-50 rounded-lg border border-amber-100">
+                      <Badge className="bg-amber-100 text-amber-800 mb-2">Equity Share Approach</Badge>
+                      <p className="text-sm text-text-secondary">The organization accounts for GHG emissions according to its equity share in each facility.</p>
+                    </div>
+                    <p className="text-xs text-amber-700 bg-amber-50 p-2 rounded flex items-start gap-2">
+                      <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                      <span><strong>Disclaimer:</strong> It is assumed that the data provided corresponds to emissions from the whole facility.</span>
                     </p>
                   </div>
                 )}
                 {organization.org_boundaries && (
-                  <p className="text-text-primary mt-2">{organization.org_boundaries}</p>
+                  <p className="text-sm text-text-secondary mt-2 pt-2 border-t border-stone-100">{organization.org_boundaries}</p>
                 )}
               </div>
-            )}
+            </Card>
+          )}
 
-            {organization?.ghg_reduction_initiatives && (
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-sm font-medium text-text-muted">GHG Reduction Initiatives</h3>
-                  <TooltipProvider delayDuration={200}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="cursor-help">
-                          <Info className="w-3.5 h-3.5 text-text-muted hover:text-primary transition-colors" />
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
-                        <p>It refers to specific activities or initiatives carried out by the organization, either as one-time actions or ongoing efforts, to reduce or prevent direct and indirect GHG emissions, or to increase the removal of greenhouse gases.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                <p className="text-text-primary">{organization.ghg_reduction_initiatives}</p>
-              </div>
-            )}
-
-            {organization?.internal_performance_tracking && (
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-sm font-medium text-text-muted">Internal Performance Tracking</h3>
-                  <TooltipProvider delayDuration={200}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="cursor-help">
-                          <Info className="w-3.5 h-3.5 text-text-muted hover:text-primary transition-colors" />
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
-                        <p>It refers to the process of monitoring, measuring, and reviewing greenhouse gas emissions and reduction progress to ensure continuous improvement and effective climate management.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                <p className="text-text-primary">{organization.internal_performance_tracking}</p>
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-6">
-              {organization?.reporting_frequency && (
-                <div>
-                  <h3 className="text-sm font-medium text-text-muted mb-1">Reporting Frequency</h3>
-                  <p className="text-text-primary capitalize">{organization.reporting_frequency}</p>
-                </div>
+          {/* === GHG REDUCTION & PERFORMANCE TRACKING === */}
+          {(organization?.ghg_reduction_initiatives || organization?.internal_performance_tracking) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {organization?.ghg_reduction_initiatives && (
+                <Card className="p-6 border border-stone-200 rounded-xl bg-white">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 rounded-lg bg-green-50">
+                      <Leaf className="w-5 h-5 text-green-600" />
+                    </div>
+                    <h3 className="font-semibold text-text-primary">GHG Reduction Initiatives</h3>
+                  </div>
+                  <p className="text-text-secondary leading-relaxed text-sm">{organization.ghg_reduction_initiatives}</p>
+                </Card>
               )}
-              {organization?.reporting_year_type && (
-                <div>
-                  <h3 className="text-sm font-medium text-text-muted mb-1">Reporting Year Type</h3>
-                  <p className="text-text-primary">
-                    {organization.reporting_year_type === 'financial_year' ? 'Financial Year' : 'Calendar Year'}
-                  </p>
-                </div>
+              {organization?.internal_performance_tracking && (
+                <Card className="p-6 border border-stone-200 rounded-xl bg-white">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 rounded-lg bg-cyan-50">
+                      <BarChart3 className="w-5 h-5 text-cyan-600" />
+                    </div>
+                    <h3 className="font-semibold text-text-primary">Performance Tracking</h3>
+                  </div>
+                  <p className="text-text-secondary leading-relaxed text-sm">{organization.internal_performance_tracking}</p>
+                </Card>
               )}
             </div>
+          )}
 
-            {organization?.attachments?.length > 0 && (
-              <div>
-                <h3 className="text-sm font-medium text-text-muted mb-2 flex items-center gap-1">
-                  <Paperclip className="w-4 h-4" /> Attachments
-                </h3>
-                <div className="space-y-2">
-                  {organization.attachments.map((att, idx) => {
-                    // Construct proper view and download URLs for uploaded files
-                    const isUploadedFile = att.url && (att.url.includes('/api/files/') || att.type === 'file');
-                    let viewUrl = isUploadedFile ? att.url : ensureProtocol(att.url);
-                    let downloadUrl = att.url;
-                    let fileId = null;
-                    if (isUploadedFile) {
-                      const fileIdMatch = att.url.match(/\/api\/files\/([^\/]+)/);
-                      if (fileIdMatch) {
-                        fileId = fileIdMatch[1];
-                        viewUrl = `${process.env.REACT_APP_BACKEND_URL}/api/files/${fileId}/view`;
-                        downloadUrl = `${process.env.REACT_APP_BACKEND_URL}/api/files/${fileId}/download`;
-                      }
+          {/* === ATTACHMENTS === */}
+          {organization?.attachments?.length > 0 && (
+            <Card className="p-6 border border-stone-200 rounded-xl bg-white">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-stone-100">
+                  <Paperclip className="w-5 h-5 text-stone-600" />
+                </div>
+                <h3 className="font-semibold text-text-primary">Attachments</h3>
+                <Badge variant="outline" className="ml-auto">{organization.attachments.length} files</Badge>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {organization.attachments.map((att, idx) => {
+                  const isUploadedFile = att.url && (att.url.includes('/api/files/') || att.type === 'file');
+                  let viewUrl = isUploadedFile ? att.url : ensureProtocol(att.url);
+                  let downloadUrl = att.url;
+                  if (isUploadedFile) {
+                    const fileIdMatch = att.url.match(/\/api\/files\/([^\/]+)/);
+                    if (fileIdMatch) {
+                      viewUrl = `${process.env.REACT_APP_BACKEND_URL}/api/files/${fileIdMatch[1]}/view`;
+                      downloadUrl = `${process.env.REACT_APP_BACKEND_URL}/api/files/${fileIdMatch[1]}/download`;
                     }
-                    return (
-                      <div key={idx} className="flex items-center gap-2 p-2 bg-stone-50 rounded-lg">
-                        <Link className="w-4 h-4 text-blue-500" />
-                        <span className="flex-1 text-sm">{att.name}</span>
-                        <a href={viewUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View</a>
-                        {/* Only show Download for uploaded files, not external links */}
+                  }
+                  return (
+                    <div key={idx} className="flex items-center gap-3 p-3 bg-stone-50 rounded-lg hover:bg-stone-100 transition-colors group">
+                      <div className="p-2 rounded bg-white border border-stone-200">
+                        <FileText className="w-4 h-4 text-stone-500" />
+                      </div>
+                      <span className="flex-1 text-sm font-medium text-text-primary truncate">{att.name}</span>
+                      <div className="flex gap-2 opacity-70 group-hover:opacity-100 transition-opacity">
+                        <a href={viewUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">View</a>
                         {isUploadedFile && (
                           <button 
                             onClick={(e) => { e.preventDefault(); downloadFile(downloadUrl, att.name); }}
-                            className="text-xs text-green-600 hover:underline flex items-center gap-1"
+                            className="text-xs text-emerald-600 hover:underline"
                           >
-                            <Download className="w-3 h-3" /> Download
+                            Download
                           </button>
                         )}
                       </div>
-                    );
-                  })}
-                </div>
+                    </div>
+                  );
+                })}
               </div>
-            )}
+            </Card>
+          )}
 
-            {(organization?.other_information || organization?.remarks) && (
-              <div>
-                <h3 className="text-sm font-medium text-text-muted mb-1">Other Information</h3>
-                <p className="text-text-primary">{organization.other_information || organization.remarks}</p>
+          {/* === OTHER INFORMATION === */}
+          {(organization?.other_information || organization?.remarks) && (
+            <Card className="p-6 border border-stone-200 rounded-xl bg-white">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-stone-100">
+                  <Info className="w-5 h-5 text-stone-600" />
+                </div>
+                <h3 className="font-semibold text-text-primary">Other Information</h3>
               </div>
-            )}
+              <p className="text-text-secondary leading-relaxed">{organization.other_information || organization.remarks}</p>
+            </Card>
+          )}
+
+          {/* === RELATED MODULES QUICK NAVIGATION === */}
+          <div>
+            <h3 className="text-lg font-semibold text-text-primary mb-4">Related Modules</h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              {/* Facilities */}
+              <a href="/facilities" className="block">
+                <Card className="p-4 border border-stone-200 rounded-xl bg-white hover:shadow-lg hover:border-primary/30 transition-all cursor-pointer group">
+                  <div className="flex flex-col items-center text-center">
+                    <div className="p-3 rounded-full bg-blue-50 group-hover:bg-blue-100 transition-colors mb-3">
+                      <Factory className="w-6 h-6 text-blue-600" />
+                    </div>
+                    <h4 className="font-semibold text-text-primary text-sm">Facilities</h4>
+                    {moduleCounts.facilities > 0 && (
+                      <p className="text-xs text-text-muted mt-1">{moduleCounts.facilities} Facilities</p>
+                    )}
+                    <ArrowRight className="w-4 h-4 text-text-muted mt-2 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                  </div>
+                </Card>
+              </a>
+
+              {/* GHG */}
+              {organization?.has_ghg !== false && (
+                <a href="/ghg" className="block">
+                  <Card className="p-4 border border-stone-200 rounded-xl bg-white hover:shadow-lg hover:border-primary/30 transition-all cursor-pointer group">
+                    <div className="flex flex-col items-center text-center">
+                      <div className="p-3 rounded-full bg-emerald-50 group-hover:bg-emerald-100 transition-colors mb-3">
+                        <Leaf className="w-6 h-6 text-emerald-600" />
+                      </div>
+                      <h4 className="font-semibold text-text-primary text-sm">GHG</h4>
+                      <p className="text-xs text-text-muted mt-1">Emissions Data</p>
+                      <ArrowRight className="w-4 h-4 text-text-muted mt-2 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                    </div>
+                  </Card>
+                </a>
+              )}
+
+              {/* Environment/ESG */}
+              {organization?.has_esg !== false && (
+                <a href="/environment" className="block">
+                  <Card className="p-4 border border-stone-200 rounded-xl bg-white hover:shadow-lg hover:border-primary/30 transition-all cursor-pointer group">
+                    <div className="flex flex-col items-center text-center">
+                      <div className="p-3 rounded-full bg-teal-50 group-hover:bg-teal-100 transition-colors mb-3">
+                        <Globe className="w-6 h-6 text-teal-600" />
+                      </div>
+                      <h4 className="font-semibold text-text-primary text-sm">Environment</h4>
+                      <p className="text-xs text-text-muted mt-1">ESG Tracking</p>
+                      <ArrowRight className="w-4 h-4 text-text-muted mt-2 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                    </div>
+                  </Card>
+                </a>
+              )}
+
+              {/* Targets */}
+              <a href="/targets/voluntary/ghg" className="block">
+                <Card className="p-4 border border-stone-200 rounded-xl bg-white hover:shadow-lg hover:border-primary/30 transition-all cursor-pointer group">
+                  <div className="flex flex-col items-center text-center">
+                    <div className="p-3 rounded-full bg-amber-50 group-hover:bg-amber-100 transition-colors mb-3">
+                      <Target className="w-6 h-6 text-amber-600" />
+                    </div>
+                    <h4 className="font-semibold text-text-primary text-sm">Targets</h4>
+                    {moduleCounts.targets > 0 ? (
+                      <p className="text-xs text-text-muted mt-1">{moduleCounts.targets} Targets</p>
+                    ) : (
+                      <p className="text-xs text-text-muted mt-1">Set Goals</p>
+                    )}
+                    <ArrowRight className="w-4 h-4 text-text-muted mt-2 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                  </div>
+                </Card>
+              </a>
+
+              {/* Reports */}
+              <a href="/reports" className="block">
+                <Card className="p-4 border border-stone-200 rounded-xl bg-white hover:shadow-lg hover:border-primary/30 transition-all cursor-pointer group">
+                  <div className="flex flex-col items-center text-center">
+                    <div className="p-3 rounded-full bg-purple-50 group-hover:bg-purple-100 transition-colors mb-3">
+                      <FileBarChart className="w-6 h-6 text-purple-600" />
+                    </div>
+                    <h4 className="font-semibold text-text-primary text-sm">Reports</h4>
+                    <p className="text-xs text-text-muted mt-1">Generate Reports</p>
+                    <ArrowRight className="w-4 h-4 text-text-muted mt-2 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                  </div>
+                </Card>
+              </a>
+            </div>
           </div>
-        </Card>
+        </div>
       )}
 
         {/* Yearly Data Section - Turnover & Production Quantity */}
