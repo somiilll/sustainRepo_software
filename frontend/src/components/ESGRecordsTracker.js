@@ -566,10 +566,11 @@ export default function ESGRecordsTracker({
         const totalAssignments = facilityAssignments.reduce((sum, [_, fa]) => sum + (fa.user_ids?.length || 0), 0);
         toast.success(`Created ${totalAssignments} assignment(s) across ${facilityAssignments.length} facility(ies)`);
       } else {
-        // Organization level - create assignment for each selected user
+        // Organization level - create assignment for each selected user (sequential to avoid race conditions)
         const isParentCategory = !assigningItem.subcategory;
-        const promises = assignForm.assigned_user_ids.map((userId, index) => 
-          axios.post(
+        for (let index = 0; index < assignForm.assigned_user_ids.length; index++) {
+          const userId = assignForm.assigned_user_ids[index];
+          await axios.post(
             `${API}/api/esg-records/assignments`,
             {
               entity_type: 'record_category',
@@ -599,11 +600,7 @@ export default function ESGRecordsTracker({
               replace_existing: index === 0,
             },
             { headers }
-          )
-        );
-
-        for (const promise of promises) {
-          await promise;
+          );
         }
         toast.success(`Assignment saved for ${assignForm.assigned_user_ids.length} user(s)`);
       }
