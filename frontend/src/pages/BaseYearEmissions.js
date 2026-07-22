@@ -1708,6 +1708,9 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                   </Badge>
                 </div>
                 
+                {/* Spacer - pushes scope cards to the right */}
+                <div className="flex-1" />
+                
                 {/* Scope 1 & 2 Base Year - Clickable Card */}
                 <div 
                   className="hidden sm:block min-w-[120px] p-2 rounded-lg bg-blue-50/50 border border-blue-100 hover:bg-blue-100/50 transition-colors cursor-pointer"
@@ -1750,8 +1753,8 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                   </div>
                 )}
                 
-                {/* Spacer */}
-                <div className="flex-1" />
+                {/* Gap before status */}
+                <div className="w-8" />
                 
                 {/* Status Badge */}
                 <div className="flex-shrink-0">
@@ -1913,6 +1916,9 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                       </Badge>
                     </div>
                     
+                    {/* Spacer - pushes scope cards to the right */}
+                    <div className="flex-1" />
+                    
                     {/* Scope 1 & 2 Base Year - Clickable Card */}
                     <div 
                       className="hidden sm:block min-w-[120px] p-2 rounded-lg bg-blue-50/50 border border-blue-100 hover:bg-blue-100/50 transition-colors cursor-pointer"
@@ -1953,8 +1959,8 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                       </div>
                     )}
                     
-                    {/* Spacer */}
-                    <div className="flex-1" />
+                    {/* Gap before status */}
+                    <div className="w-8" />
                     
                     {/* Status Badge */}
                     <div className="flex-shrink-0">
