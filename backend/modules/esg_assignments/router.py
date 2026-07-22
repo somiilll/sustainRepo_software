@@ -327,6 +327,24 @@ async def get_response_versions(
 # REMINDER ENDPOINTS (Admin only)
 # ============================================
 
+@router.post("/assignments/{assignment_id}/remind")
+async def send_assignment_reminder(
+    assignment_id: str,
+    current_user: dict = Depends(get_admin_user),
+):
+    """
+    Send a reminder email for a specific assignment (Admin only).
+    
+    Sends an email to the assigned user reminding them about the pending task.
+    """
+    result = await assignment_service.send_reminder_for_assignment(
+        assignment_id=assignment_id,
+        organization_id=current_user["organization_id"],
+        sent_by_user_id=current_user["id"],
+    )
+    return result
+
+
 @router.post("/reminders/process")
 async def process_reminders(
     current_user: dict = Depends(get_admin_user),

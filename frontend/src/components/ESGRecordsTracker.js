@@ -621,13 +621,15 @@ export default function ESGRecordsTracker({
   const sendReminder = async (assignmentId) => {
     try {
       await axios.post(
-        `${API}/api/esg-records/assignments/${assignmentId}/remind`,
+        `${API}/api/esg-assignments/assignments/${assignmentId}/remind`,
         {},
         { headers }
       );
       toast.success('Reminder sent');
     } catch (error) {
-      toast.error('Failed to send reminder');
+      console.error('Send reminder error:', error);
+      const errorMsg = error.response?.data?.detail || 'Failed to send reminder';
+      toast.error(errorMsg);
     }
   };
 
