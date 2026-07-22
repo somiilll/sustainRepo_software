@@ -70,6 +70,7 @@ import {
   Calendar,
   MoreHorizontal,
   X,
+  Search,
 } from 'lucide-react';
 import { 
   generateReportingYears, 
@@ -183,6 +184,7 @@ export default function ESGRecordsTracker({
   // Assignment modal
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [assigningItem, setAssigningItem] = useState(null);
+  const [userSearchQuery, setUserSearchQuery] = useState(''); // Search filter for users
   const [assignForm, setAssignForm] = useState({
     assigned_user_ids: [],
     assignment_level: 'organization',
@@ -228,6 +230,7 @@ export default function ESGRecordsTracker({
       approval_chain: [],
     });
     setAssigningItem(null);
+    setUserSearchQuery('');
   };
 
   // Fetch organization and set reporting period (only if not overridden)
@@ -1374,7 +1377,7 @@ export default function ESGRecordsTracker({
         setShowAssignModal(open);
         if (!open) resetAssignForm();
       }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserPlus className="w-5 h-5 text-emerald-600" />
@@ -1557,61 +1560,86 @@ export default function ESGRecordsTracker({
             {assignForm.assignment_level !== 'facility' && (
             <div className="space-y-2">
               <Label>Assign To *</Label>
-              <div className="border rounded-lg max-h-48 overflow-y-auto">
-                {users.map(u => (
-                  <div 
-                    key={u.id}
-                    className="flex items-center gap-3 p-2 hover:bg-stone-50 cursor-pointer border-b last:border-b-0"
-                    onClick={() => {
-                      const ids = assignForm.assigned_user_ids;
-                      if (ids.includes(u.id)) {
-                        setAssignForm(prev => ({ ...prev, assigned_user_ids: ids.filter(id => id !== u.id) }));
-                      } else {
-                        setAssignForm(prev => ({ ...prev, assigned_user_ids: [...ids, u.id] }));
-                      }
-                    }}
-                  >
-                    <Checkbox 
-                      checked={assignForm.assigned_user_ids.includes(u.id)}
-                      onCheckedChange={() => {
-                        const ids = assignForm.assigned_user_ids;
-                        if (ids.includes(u.id)) {
-                          setAssignForm(prev => ({ ...prev, assigned_user_ids: ids.filter(id => id !== u.id) }));
-                        } else {
-                          setAssignForm(prev => ({ ...prev, assigned_user_ids: [...ids, u.id] }));
-                        }
-                      }}
-                    />
-                    <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-sm font-medium text-emerald-700">
-                      {(u.full_name || u.name || u.email)?.charAt(0) || '?'}
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-medium text-sm">{u.full_name || u.name || 'No Name'}</div>
-                      <div className="text-xs text-text-muted">{u.email}</div>
-                    </div>
-                    <Badge variant="outline" className="text-xs">{u.role}</Badge>
-                  </div>
-                ))}
+              {/* Selected users badges */}
+              <div className="flex flex-wrap gap-1 min-h-[36px] p-2 border rounded-lg bg-stone-50">
+                {assignForm.assigned_user_ids.map(id => {
+                  const u = users.find(user => user.id === id);
+                  return u ? (
+                    <Badge key={id} variant="secondary" className="text-xs flex items-center gap-1">
+                      {u.full_name || u.name || u.email}
+                      <X 
+                        className="w-3 h-3 cursor-pointer hover:text-red-500" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setAssignForm(prev => ({ ...prev, assigned_user_ids: prev.assigned_user_ids.filter(uid => uid !== id) }));
+                        }}
+                      />
+                    </Badge>
+                  ) : null;
+                })}
+                {assignForm.assigned_user_ids.length === 0 && (
+                  <span className="text-xs text-text-muted">No assignees selected</span>
+                )}
               </div>
-              {assignForm.assigned_user_ids.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {assignForm.assigned_user_ids.map(id => {
-                    const u = users.find(user => user.id === id);
-                    return u ? (
-                      <Badge key={id} variant="secondary" className="text-xs flex items-center gap-1">
-                        {u.full_name || u.name || u.email}
-                        <X 
-                          className="w-3 h-3 cursor-pointer hover:text-red-500" 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setAssignForm(prev => ({ ...prev, assigned_user_ids: prev.assigned_user_ids.filter(uid => uid !== id) }));
-                          }}
-                        />
-                      </Badge>
-                    ) : null;
-                  })}
-                </div>
-              )}
+              
+              {/* Search input */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                <Input
+                  type="text"
+                  placeholder="Search users by name or email..."
+                  value={userSearchQuery}
+                  onChange={(e) => setUserSearchQuery(e.target.value)}
+                  className="pl-9 h-9 text-sm"
+                />
+              </div>
+              
+              {/* Filtered user list */}
+              <div className="border rounded-lg max-h-48 overflow-y-auto">
+                {users
+                  .filter(u => !assignForm.assigned_user_ids.includes(u.id))
+                  .filter(u => {
+                    if (!userSearchQuery) return true;
+                    const q = userSearchQuery.toLowerCase();
+                    return (
+                      (u.full_name || '').toLowerCase().includes(q) ||
+                      (u.name || '').toLowerCase().includes(q) ||
+                      (u.email || '').toLowerCase().includes(q)
+                    );
+                  })
+                  .map(u => (
+                    <div 
+                      key={u.id}
+                      className="flex items-center gap-3 p-2 hover:bg-stone-50 cursor-pointer border-b last:border-b-0"
+                      onClick={() => {
+                        setAssignForm(prev => ({ ...prev, assigned_user_ids: [...prev.assigned_user_ids, u.id] }));
+                      }}
+                    >
+                      <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-sm font-medium text-emerald-700">
+                        {(u.full_name || u.name || u.email)?.charAt(0)?.toUpperCase() || '?'}
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-medium text-sm">{u.full_name || u.name || 'No Name'}</div>
+                        <div className="text-xs text-text-muted">{u.email}</div>
+                      </div>
+                      <Badge variant="outline" className="text-xs">{u.role}</Badge>
+                    </div>
+                  ))
+                }
+                {users.filter(u => !assignForm.assigned_user_ids.includes(u.id)).filter(u => {
+                  if (!userSearchQuery) return true;
+                  const q = userSearchQuery.toLowerCase();
+                  return (
+                    (u.full_name || '').toLowerCase().includes(q) ||
+                    (u.name || '').toLowerCase().includes(q) ||
+                    (u.email || '').toLowerCase().includes(q)
+                  );
+                }).length === 0 && (
+                  <div className="p-4 text-center text-text-muted text-sm">
+                    {userSearchQuery ? 'No users match your search' : 'No users available'}
+                  </div>
+                )}
+              </div>
             </div>
             )}
 
