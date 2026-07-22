@@ -1709,7 +1709,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                 </div>
                 
                 {/* Spacer - pushes scope cards to the right */}
-                <div className="flex-1" />
+                <div className="w-40" />
                 
                 {/* Scope 1 & 2 Base Year - Clickable Card */}
                 <div 
@@ -1730,6 +1730,8 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                     {getEntityRecord('organization', organization.id, 'scope12')?.base_year || '—'}
                   </p>
                 </div>
+
+                 <div className="w-20" />
                 
                 {/* Scope 3 Base Year - Clickable Card */}
                 {hasScope3Access && (
@@ -1754,7 +1756,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                 )}
                 
                 {/* Gap before status */}
-                <div className="w-8" />
+                <div className="flex-1" />
                 
                 {/* Status Badge */}
                 <div className="flex-shrink-0">
@@ -1917,7 +1919,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                     </div>
                     
                     {/* Spacer - pushes scope cards to the right */}
-                    <div className="flex-1" />
+                    <div className="w-40" />
                     
                     {/* Scope 1 & 2 Base Year - Clickable Card */}
                     <div 
@@ -1937,6 +1939,8 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                         {scope12Record?.base_year || '—'}
                       </p>
                     </div>
+
+                    <div className="w-20" />
                     
                     {/* Scope 3 Base Year - Clickable Card */}
                     {hasScope3Access && (
@@ -1960,7 +1964,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                     )}
                     
                     {/* Gap before status */}
-                    <div className="w-8" />
+                    <div className="flex-1" />
                     
                     {/* Status Badge */}
                     <div className="flex-shrink-0">
