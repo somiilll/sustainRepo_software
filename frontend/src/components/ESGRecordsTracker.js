@@ -418,10 +418,10 @@ export default function ESGRecordsTracker({
       });
     }
     
-    // For organization-level, get existing user IDs
+    // For organization-level, get existing user IDs from assignees array
     const orgLevelAssignments = categoryAssignments.filter(a => !a.facility_id);
     const existingUserIds = orgLevelAssignments
-      .map(a => a.assigned_to_user_id)
+      .flatMap(a => a.assignees?.map(assignee => assignee.user_id) || [a.assigned_to_user_id])
       .filter(Boolean);
     
     // Get first assignment for other field defaults
