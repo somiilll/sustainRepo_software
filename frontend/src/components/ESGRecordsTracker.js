@@ -411,7 +411,16 @@ export default function ESGRecordsTracker({
               facility_name: facilities.find(f => f.id === a.facility_id)?.name || ''
             };
           }
-          if (a.assigned_to_user_id && !facilityAssignmentsData[a.facility_id].user_ids.includes(a.assigned_to_user_id)) {
+          // Read from assignees array (new model) or fallback to assigned_to_user_id (legacy)
+          const assigneeUserIds = a.assignees?.map(assignee => assignee.user_id) || [];
+          if (assigneeUserIds.length > 0) {
+            assigneeUserIds.forEach(userId => {
+              if (userId && !facilityAssignmentsData[a.facility_id].user_ids.includes(userId)) {
+                facilityAssignmentsData[a.facility_id].user_ids.push(userId);
+              }
+            });
+          } else if (a.assigned_to_user_id && !facilityAssignmentsData[a.facility_id].user_ids.includes(a.assigned_to_user_id)) {
+            // Fallback for legacy assignments
             facilityAssignmentsData[a.facility_id].user_ids.push(a.assigned_to_user_id);
           }
         }
