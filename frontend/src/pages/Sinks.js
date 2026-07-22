@@ -9,9 +9,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
-import { Plus, TreeDeciduous, Trash2, Edit2, Calendar, Loader2, Upload, FileText, X, Download, Eye, Filter, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react';
+import { Plus, TreeDeciduous, Trash2, Edit2, Calendar, Loader2, Upload, FileText, X, Download, Eye, Filter, ArrowUpDown, ChevronUp, ChevronDown, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
+import { useGHGAccess } from '../hooks/useKPIAccess';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -56,6 +57,15 @@ export default function Sinks() {
   const [submitting, setSubmitting] = useState(false);
   const [uploadingMonth, setUploadingMonth] = useState(null);
   const { getAuthHeader, user } = useAuth();
+  
+  // KPI Assignment-based access control for sinks
+  const {
+    accessInfo: kpiAccessInfo,
+    loading: kpiAccessLoading,
+    canAccessSinks,
+    filterFacilitiesByScope,
+    hasFullAccess: hasFullKPIAccess,
+  } = useGHGAccess();
 
   // Filter and Sort states
   const [showFilters, setShowFilters] = useState(false);
@@ -101,6 +111,21 @@ export default function Sinks() {
   const hasSinkAccess = enabledAccess === null || enabledAccess === undefined 
     ? true  // Default access if not set
     : enabledAccess.some(access => ['scope1_2', 'scope1_2_3'].includes(access));
+  
+  // KPI assignment-based sinks access (combines org-level and assignment-level)
+  const hasKPISinksAccess = useMemo(() => {
+    // Admins always have full access
+    if (user?.role === 'admin' || user?.role === 'super_admin') return true;
+    // Check KPI assignment for sinks
+    return canAccessSinks;
+  }, [user?.role, canAccessSinks]);
+  
+  // Filter facilities based on KPI assignment for sinks
+  const kpiFilteredFacilities = useMemo(() => {
+    if (user?.role === 'admin' || user?.role === 'super_admin') return facilities;
+    // Filter facilities based on sinks access
+    return filterFacilitiesByScope(facilities, 'sinks');
+  }, [facilities, filterFacilitiesByScope, user?.role]);
 
   // Determine reporting year type from organization settings
   const orgReportingYearType = organization?.reporting_year_type; // 'financial_year' or 'calendar_year'
@@ -550,6 +575,12 @@ export default function Sinks() {
   // Filtered and sorted sinks
   const filteredSinks = useMemo(() => {
     let result = [...sinks];
+    
+    // KPI assignment-based filtering: only show sinks for allowed facilities
+    if (user?.role !== 'admin' && user?.role !== 'super_admin') {
+      const allowedFacilityIds = kpiFilteredFacilities.map(f => f.id);
+      result = result.filter(sink => allowedFacilityIds.includes(sink.facility_id));
+    }
 
     // Filter by facility
     if (filterFacility !== 'all') {
@@ -591,7 +622,7 @@ export default function Sinks() {
     });
 
     return result;
-  }, [sinks, filterFacility, filterYear, sortBy, sortOrder, facilities]);
+  }, [sinks, filterFacility, filterYear, sortBy, sortOrder, facilities, kpiFilteredFacilities, user?.role]);
 
   // Filtered total
   const filteredTotalReduction = useMemo(() => {
@@ -645,7 +676,7 @@ export default function Sinks() {
                       <SelectValue placeholder="Select a facility" />
                     </SelectTrigger>
                     <SelectContent>
-                      {facilities.map((facility) => (
+                      {kpiFilteredFacilities.map((facility) => (
                         <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>
                       ))}
                     </SelectContent>
@@ -891,6 +922,21 @@ export default function Sinks() {
           </TooltipProvider>
         )}
       </div>
+      
+      {/* KPI Access Warning */}
+      {!hasKPISinksAccess && user?.role !== 'admin' && user?.role !== 'super_admin' && (
+        <Card className="p-4 border-2 border-amber-200 rounded-xl bg-amber-50">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+            <div>
+              <p className="font-medium text-amber-800">Limited Access</p>
+              <p className="text-sm text-amber-700">
+                You don&apos;t have KPI assignments for Carbon Sinks. Contact your admin if you need access to add or manage sink records.
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* Summary Card */}
       <Card className="p-6 border-2 border-green-200 rounded-xl bg-gradient-to-br from-green-50 to-white">

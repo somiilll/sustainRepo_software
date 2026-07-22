@@ -18,6 +18,7 @@ import EmissionEditForm from '../components/EmissionEditForm';
 import { useCalcEngine } from '../hooks/useCalcEngine';
 import { useEmissionsCoreData } from '../hooks/useEmissionsCoreData';
 import { useEmissionsCalculator } from '../hooks/useEmissionsCalculator';
+import { useGHGAccess } from '../hooks/useKPIAccess';
 import {
   unitsMatch as unitsMatchShared,
   isVolumeUnit as isVolumeUnitShared,
@@ -48,6 +49,19 @@ export default function Emissions() {
     fugitiveEmissionsData: initialFugitiveData,
     refresh: fetchData
   } = useEmissionsCoreData(getAuthHeader);
+  
+  // ============================================================================
+  // KPI ASSIGNMENT-BASED ACCESS CONTROL
+  // ============================================================================
+  const {
+    accessInfo: kpiAccessInfo,
+    loading: kpiAccessLoading,
+    canAccessScope: kpiCanAccessScope,
+    canAccessFacility: kpiCanAccessFacility,
+    filterFacilitiesByScope,
+    hasFullAccess: hasFullKPIAccess,
+    allowedScopes: kpiAllowedScopes,
+  } = useGHGAccess();
   
   // ============================================================================
   // LOCAL UI STATE - Not fetched from API
@@ -2755,16 +2769,41 @@ export default function Emissions() {
     return enabledAccess?.includes('scope1_2_3') || false;
   }, [organization]);
 
+  // KPI Assignment-based scope access check (combines org-level and assignment-level)
+  const canAccessScopeWithKPI = useCallback((scope) => {
+    // Admins always have full access
+    if (user?.role === 'admin' || user?.role === 'super_admin') return true;
+    // Check KPI assignment access
+    return kpiCanAccessScope(scope);
+  }, [user?.role, kpiCanAccessScope]);
+
+  // Filter facilities based on KPI assignment for current scope
+  const kpiFilteredFacilities = useMemo(() => {
+    if (user?.role === 'admin' || user?.role === 'super_admin') return facilities;
+    return filterFacilitiesByScope(facilities, activeScope);
+  }, [facilities, activeScope, filterFacilitiesByScope, user?.role]);
+
   // Apply filters
   // Get active facilities only for filtering emissions
   const activeFacilityIds = useMemo(() => {
     return facilities.filter(f => f.is_active !== false).map(f => f.id);
   }, [facilities]);
 
+  // Get KPI-allowed facility IDs for current scope
+  const kpiAllowedFacilityIds = useMemo(() => {
+    if (user?.role === 'admin' || user?.role === 'super_admin') return null; // null means all allowed
+    return kpiFilteredFacilities.map(f => f.id);
+  }, [kpiFilteredFacilities, user?.role]);
+
   const filteredEmissions = useMemo(() => {
     let filtered = emissions.filter(e => {
       // Hide emissions from deactivated facilities
       if (!activeFacilityIds.includes(e.facility_id)) return false;
+      
+      // KPI Assignment-based filtering: check if user has access to this facility for this scope
+      if (kpiAllowedFacilityIds !== null && !kpiAllowedFacilityIds.includes(e.facility_id)) {
+        return false;
+      }
       
       // Filter out biogenic records with biogenic_scope_selection='scope3' for orgs without scope3 access
       // This is a client-side backup in case the backend filter was bypassed
@@ -3218,7 +3257,11 @@ export default function Emissions() {
         <TabsList className="grid w-full max-w-2xl" style={{ gridTemplateColumns: `repeat(${Math.max(dynamicScopes.length, 1)}, minmax(0, 1fr))` }}>
           {dynamicScopes.map(s => {
             const isScope3 = s.code === 'scope3';
-            const isDisabled = isScope3 && !hasScope3Access;
+            // Check both organization-level and KPI assignment-level access
+            const orgDisabled = isScope3 && !hasScope3Access;
+            const kpiDisabled = !canAccessScopeWithKPI(s.code);
+            const isDisabled = orgDisabled || kpiDisabled;
+            const disabledReason = orgDisabled ? 'Not Available' : kpiDisabled ? 'Not Assigned' : '';
             return (
               <TabsTrigger
                 key={s.code}
@@ -3228,9 +3271,9 @@ export default function Emissions() {
                 data-testid={`scope-tab-${s.code}`}
               >
                 {s.name}
-                {isDisabled && (
+                {isDisabled && disabledReason && (
                   <span className="absolute -top-2 -right-2 z-10 px-1.5 py-0.5 bg-stone-200 text-stone-600 text-[9px] font-semibold rounded whitespace-nowrap">
-                    Not Available
+                    {disabledReason}
                   </span>
                 )}
               </TabsTrigger>

@@ -27,14 +27,33 @@ async def create_sink(sink_data: SinkCreate, current_user: dict = Depends(get_cu
     if not facility:
         raise HTTPException(status_code=404, detail="Facility not found")
 
-    if current_user["role"] == "user":
+    org_id = facility.get("organization_id")
+    user_id = current_user.get("id")
+    user_role = current_user.get("role", "user")
+
+    # Legacy access check
+    if user_role == "user":
         if sink_data.facility_id not in current_user.get("assigned_facilities", []):
             raise HTTPException(status_code=403, detail="Not authorized for this facility")
-    elif current_user["role"] == "admin":
-        if facility.get("organization_id") != current_user.get("organization_id"):
+    elif user_role == "admin":
+        if org_id != current_user.get("organization_id"):
             raise HTTPException(status_code=403, detail="Not authorized for this facility")
 
-    organization = await db.organizations.find_one({"id": facility.get("organization_id")}, {"_id": 0})
+    # KPI Assignment-based access control (admins bypass)
+    if user_role not in ["admin", "super_admin"]:
+        from modules.esg_assignments.kpi_access_helper import kpi_access_helper
+        can_access, reason = await kpi_access_helper.can_access_sinks(
+            user_id=user_id,
+            organization_id=org_id,
+            facility_id=sink_data.facility_id,
+        )
+        if not can_access:
+            raise HTTPException(
+                status_code=403,
+                detail="You don't have access to create carbon sinks for this facility. Check your KPI assignments."
+            )
+
+    organization = await db.organizations.find_one({"id": org_id}, {"_id": 0})
     if organization:
         enabled_access = organization.get("enabled_access")
         if enabled_access is None:
@@ -49,7 +68,7 @@ async def create_sink(sink_data: SinkCreate, current_user: dict = Depends(get_cu
     sink_dict = {
         "id": str(uuid.uuid4()),
         "facility_id": sink_data.facility_id,
-        "organization_id": facility.get("organization_id"),
+        "organization_id": org_id,
         "reporting_year": sink_data.reporting_year,
         "reporting_month": sink_data.reporting_month,
         "total_emissions_reduced": sink_data.total_emissions_reduced,
@@ -64,19 +83,45 @@ async def create_sink(sink_data: SinkCreate, current_user: dict = Depends(get_cu
         "updated_at": None,
     }
     await db.sinks.insert_one(sink_dict)
+    
+    # Update assignment completion status (best-effort)
+    try:
+        from modules.esg_assignments.completion_tracking import completion_tracking_service
+        await completion_tracking_service.on_record_submitted(
+            organization_id=org_id,
+            category="GHG Emissions",
+            facility_id=sink_data.facility_id,
+            subcategory="GHG Emissions - Removal/Sinks",
+        )
+    except Exception:
+        pass  # Don't fail the request if completion tracking fails
+    
     return SinkResponse(**sink_dict)
 
 
 @router.get("/sinks", response_model=List[SinkResponse])
 async def get_sinks(current_user: dict = Depends(get_current_user)):
-    if current_user["role"] == "super_admin":
+    user_role = current_user.get("role", "user")
+    org_id = current_user.get("organization_id")
+    user_id = current_user.get("id")
+    
+    if user_role == "super_admin":
         sinks = await db.sinks.find({}, {"_id": 0}).to_list(10000)
-    elif current_user["role"] == "admin":
-        org_id = current_user.get("organization_id")
+    elif user_role == "admin":
         sinks = await db.sinks.find({"organization_id": org_id}, {"_id": 0}).to_list(10000)
     else:
+        # Regular users - apply KPI assignment-based filtering
         facility_ids = current_user.get("assigned_facilities", [])
         sinks = await db.sinks.find({"facility_id": {"$in": facility_ids}}, {"_id": 0}).to_list(10000)
+        
+        # Apply KPI access control filtering
+        from modules.esg_assignments.kpi_access_helper import kpi_access_helper
+        sinks = await kpi_access_helper.filter_sinks_by_access(
+            user_id=user_id,
+            organization_id=org_id,
+            records=sinks,
+        )
+    
     return [SinkResponse(**s) for s in sinks]
 
 

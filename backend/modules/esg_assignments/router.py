@@ -423,3 +423,129 @@ async def get_entity_assignment(
     )
     
     return {"assignment": assignment}
+
+
+
+# ============================================
+# KPI ACCESS ENDPOINTS
+# ============================================
+
+@router.get("/kpi-access/ghg")
+async def get_ghg_access(
+    reporting_period: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get user's GHG emissions access based on their KPI assignments.
+    
+    Returns allowed scopes, facility restrictions, and sinks access.
+    Used by frontend to filter UI elements.
+    """
+    from .kpi_access_helper import kpi_access_helper
+    
+    access_info = await kpi_access_helper.get_allowed_ghg_scopes(
+        user_id=current_user["id"],
+        organization_id=current_user["organization_id"],
+        reporting_period=reporting_period,
+    )
+    
+    return access_info
+
+
+@router.get("/kpi-access/facilities")
+async def get_facility_access(
+    category: str,
+    subcategory: Optional[str] = None,
+    reporting_period: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get user's facility access for a specific KPI category.
+    
+    Returns allowed facility IDs or indicates full access.
+    """
+    from .kpi_access_helper import kpi_access_helper
+    
+    access_info = await kpi_access_helper.get_allowed_facilities(
+        user_id=current_user["id"],
+        organization_id=current_user["organization_id"],
+        category=category,
+        subcategory=subcategory,
+        reporting_period=reporting_period,
+    )
+    
+    return access_info
+
+
+@router.get("/kpi-access/facilities/list")
+async def get_accessible_facilities(
+    category: str,
+    subcategory: Optional[str] = None,
+    reporting_period: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get the actual facility documents user can access for a category.
+    
+    Returns list of facility objects with id, name, etc.
+    """
+    from .kpi_access_helper import kpi_access_helper
+    
+    facilities = await kpi_access_helper.get_accessible_facilities_list(
+        user_id=current_user["id"],
+        organization_id=current_user["organization_id"],
+        category=category,
+        subcategory=subcategory,
+        reporting_period=reporting_period,
+    )
+    
+    return {"facilities": facilities, "total": len(facilities)}
+
+
+# ============================================
+# COMPLETION TRACKING ENDPOINTS
+# ============================================
+
+@router.get("/assignments/{assignment_id}/progress")
+async def get_assignment_progress(
+    assignment_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get detailed progress information for an assignment.
+    
+    For organization-level assignments, shows per-facility completion status.
+    """
+    from .completion_tracking import completion_tracking_service
+    
+    progress = await completion_tracking_service.get_assignment_progress(
+        assignment_id=assignment_id,
+    )
+    
+    return progress
+
+
+@router.post("/assignments/check-completion")
+async def check_and_update_completion(
+    category: str,
+    subcategory: Optional[str] = None,
+    facility_id: Optional[str] = None,
+    reporting_period: Optional[str] = None,
+    current_user: dict = Depends(get_admin_user),
+):
+    """
+    Manually trigger completion check for assignments (Admin only).
+    
+    Normally this is called automatically when records are submitted.
+    """
+    from .completion_tracking import completion_tracking_service
+    
+    result = await completion_tracking_service.check_and_update_completion(
+        organization_id=current_user["organization_id"],
+        category=category,
+        subcategory=subcategory,
+        facility_id=facility_id,
+        reporting_period=reporting_period,
+    )
+    
+    return result

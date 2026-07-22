@@ -18,5 +18,15 @@ Features:
 from .router import router
 from .service import AssignmentService
 from .access_control import AccessControlService
+from .kpi_access_helper import KPIAccessHelper, kpi_access_helper
+from .completion_tracking import CompletionTrackingService, completion_tracking_service
 
-__all__ = ["router", "AssignmentService", "AccessControlService"]
+__all__ = [
+    "router",
+    "AssignmentService",
+    "AccessControlService",
+    "KPIAccessHelper",
+    "kpi_access_helper",
+    "CompletionTrackingService",
+    "completion_tracking_service",
+]
