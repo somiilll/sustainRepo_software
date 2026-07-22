@@ -11,6 +11,21 @@ Build a comprehensive ESG (Environment, Social, Governance) platform with premiu
 
 ## What's Been Implemented
 
+### KPI Assignment-Based Access Control (Completed 2026-07-22)
+- **GHG Subcategory Restrictions**: User assignments for GHG Emissions subcategories (Scope 1/2/3/Biogenic/Sinks) restrict data access to only assigned scope types
+- **Facility-Level Restrictions**: Facility-level assignments restrict users to only view/create data for assigned facilities
+- **Organization-Level Access**: Org-level assignments grant access to all facilities
+- **Admin Bypass**: Admins always have full access regardless of assignments
+- **Completion Tracking**: Per-facility completion tracking for org-level assignments; marked complete when all facilities have at least one record
+- **New Backend APIs**: `/api/esg-assignments/kpi-access/ghg`, `/kpi-access/facilities`, `/kpi-access/facilities/list`, `/assignments/{id}/progress`
+- **New Frontend Hooks**: `useGHGAccess`, `useFacilityAccess`, `useAssignmentProgress` in `/app/frontend/src/hooks/useKPIAccess.js`
+- **Integrated Pages**: Emissions.js (scope tab + facility filtering), Sinks.js (access warning + facility filtering)
+
+### Multi-User Assignment Bug Fix (Completed 2026-07-22)
+- Fixed race condition in ESGRecordsTracker.js where parallel API calls caused only one user to be assigned
+- Changed from `.map()` + `Promise.all` to sequential `for` loop with `await`
+- Fixed assignment modal to read from `assignees[]` array instead of single `assigned_to_user_id` when loading existing assignments
+
 ### Internal Data AI (Phase 1 — Built 2026-07-20)
 - Intelligent analytics assistant in RepoPilot (toggle: Document AI / Internal Data AI)
 - GPT-5.6-sol for intent detection + response formatting; text-embedding-3-large for entity resolution
@@ -90,7 +105,10 @@ Build a comprehensive ESG (Environment, Social, Governance) platform with premiu
 - `/app/frontend/src/App.js` — Route definitions
 - `/app/frontend/src/pages/Dashboard.js` — Main dashboard router
 - `/app/frontend/src/pages/{GHG,Environment,Social,Governance}Analysis.jsx` — Module analysis wrappers
+- `/app/frontend/src/hooks/useKPIAccess.js` — KPI assignment-based access hooks
 - `/app/frontend/src/modules/dashboard/` — Dashboard components
 - `/app/backend/modules/dashboards/` — Dashboard API services
 - `/app/backend/modules/esg_records/` — Records CRUD + approvals
+- `/app/backend/modules/esg_assignments/kpi_access_helper.py` — KPI access control logic
+- `/app/backend/modules/esg_assignments/completion_tracking.py` — Assignment completion tracking
 - `/app/backend/r2_storage.py` — Cloudflare R2 integration
