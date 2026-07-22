@@ -514,7 +514,7 @@ export default function ESGRecordsTracker({
         return config;
       };
 
-      // For facility-level, create one assignment per user per facility
+      // For facility-level, send all facility assignments in one request
       if (assignForm.assignment_level === 'facility') {
         const facilityAssignments = Object.entries(assignForm.facility_assignments || {})
           .filter(([_, fa]) => fa?.user_ids?.length > 0);
@@ -525,83 +525,78 @@ export default function ESGRecordsTracker({
           return;
         }
         
-        let isFirst = true;
+        // Build facility_assignments object: { facility_id: [user_ids], ... }
+        const facilityAssignmentsMap = {};
         for (const [facilityId, fa] of facilityAssignments) {
-          // Create assignment for each user in this facility
-          for (const userId of fa.user_ids) {
-            await axios.post(
-              `${API}/api/esg-records/assignments`,
-              {
-                entity_type: 'record_category',
-                entity_id: `${entityId}_${facilityId}`,
-                category: assigningItem.category,
-                subcategory: assigningItem.subcategory || null,
-                sub_subcategory: assigningItem.sub_subcategory || null,
-                assign_children: !assigningItem.subcategory,
-                assignment_level: 'facility',
-                facility_id: facilityId,
-                assigned_to_user_id: userId,
-                reporting_period: reportingPeriod,
-                start_date: assignForm.start_date || null,
-                end_date: assignForm.end_date || null,
-                timezone: assignForm.timezone || 'Asia/Kolkata',
-                filling_frequency: assignForm.filling_frequency || null,
-                due_config: buildDueConfig(),
-                reminder_enabled: assignForm.reminder_enabled,
-                reminder_config: assignForm.reminder_enabled ? {
-                  frequency: assignForm.reminder_frequency,
-                  days_before_due: [7, 3, 1],
-                  repeat_overdue: true,
-                } : null,
-                requires_approval: fa.requires_approval && !!fa.approver_id,
-                approver_id: fa.requires_approval ? fa.approver_id : null,
-                approval_chain: [],
-                replace_existing: isFirst,
-              },
-              { headers }
-            );
-            isFirst = false;
-          }
+          facilityAssignmentsMap[facilityId] = fa.user_ids;
         }
+        
+        await axios.post(
+          `${API}/api/esg-records/assignments`,
+          {
+            entity_type: 'record_category',
+            entity_id: entityId,
+            category: assigningItem.category,
+            subcategory: assigningItem.subcategory || null,
+            sub_subcategory: assigningItem.sub_subcategory || null,
+            assign_children: !assigningItem.subcategory,
+            assignment_level: 'facility',
+            facility_assignments: facilityAssignmentsMap,
+            reporting_period: reportingPeriod,
+            start_date: assignForm.start_date || null,
+            end_date: assignForm.end_date || null,
+            timezone: assignForm.timezone || 'Asia/Kolkata',
+            filling_frequency: assignForm.filling_frequency || null,
+            due_config: buildDueConfig(),
+            reminder_enabled: assignForm.reminder_enabled,
+            reminder_config: assignForm.reminder_enabled ? {
+              frequency: assignForm.reminder_frequency,
+              days_before_due: [7, 3, 1],
+              repeat_overdue: true,
+            } : null,
+            requires_approval: assignForm.requires_approval,
+            approval_chain: assignForm.requires_approval && multiLevelApprovalEnabled ? assignForm.approval_chain : [],
+          },
+          { headers }
+        );
+        
         const totalAssignments = facilityAssignments.reduce((sum, [_, fa]) => sum + (fa.user_ids?.length || 0), 0);
         toast.success(`Created ${totalAssignments} assignment(s) across ${facilityAssignments.length} facility(ies)`);
       } else {
-        // Organization level - create assignment for each selected user (sequential to avoid race conditions)
+        // Organization level - send all users in one request (new V2 API)
         const isParentCategory = !assigningItem.subcategory;
-        for (let index = 0; index < assignForm.assigned_user_ids.length; index++) {
-          const userId = assignForm.assigned_user_ids[index];
-          await axios.post(
-            `${API}/api/esg-records/assignments`,
-            {
-              entity_type: 'record_category',
-              entity_id: entityId,
-              category: assigningItem.category,
-              subcategory: assigningItem.subcategory || null,
-              sub_subcategory: assigningItem.sub_subcategory || null,
-              assign_children: isParentCategory,
-              assignment_level: assignForm.assignment_level,
-              facility_id: null,
-              assigned_to_user_id: userId,
-              reporting_period: reportingPeriod,
-              start_date: assignForm.start_date || null,
-              end_date: assignForm.end_date || null,
-              timezone: assignForm.timezone || 'Asia/Kolkata',
-              filling_frequency: assignForm.filling_frequency || null,
-              due_config: buildDueConfig(),
-              reminder_enabled: assignForm.reminder_enabled,
-              reminder_config: assignForm.reminder_enabled ? {
-                frequency: assignForm.reminder_frequency,
-                days_before_due: [7, 3, 1],
-                repeat_overdue: true,
-              } : null,
-              requires_approval: assignForm.requires_approval,
-              approver_id: assignForm.requires_approval && !multiLevelApprovalEnabled ? assignForm.approver_id : null,
-              approval_chain: assignForm.requires_approval && multiLevelApprovalEnabled ? assignForm.approval_chain : [],
-              replace_existing: index === 0,
-            },
-            { headers }
-          );
-        }
+        
+        await axios.post(
+          `${API}/api/esg-records/assignments`,
+          {
+            entity_type: 'record_category',
+            entity_id: entityId,
+            category: assigningItem.category,
+            subcategory: assigningItem.subcategory || null,
+            sub_subcategory: assigningItem.sub_subcategory || null,
+            assign_children: isParentCategory,
+            assignment_level: 'organization',
+            facility_id: null,
+            user_ids: assignForm.assigned_user_ids,  // V2: array of user IDs
+            reporting_period: reportingPeriod,
+            start_date: assignForm.start_date || null,
+            end_date: assignForm.end_date || null,
+            timezone: assignForm.timezone || 'Asia/Kolkata',
+            filling_frequency: assignForm.filling_frequency || null,
+            due_config: buildDueConfig(),
+            reminder_enabled: assignForm.reminder_enabled,
+            reminder_config: assignForm.reminder_enabled ? {
+              frequency: assignForm.reminder_frequency,
+              days_before_due: [7, 3, 1],
+              repeat_overdue: true,
+            } : null,
+            requires_approval: assignForm.requires_approval,
+            approver_id: assignForm.requires_approval && !multiLevelApprovalEnabled ? assignForm.approver_id : null,
+            approval_chain: assignForm.requires_approval && multiLevelApprovalEnabled ? assignForm.approval_chain : [],
+          },
+          { headers }
+        );
+        
         toast.success(`Assignment saved for ${assignForm.assigned_user_ids.length} user(s)`);
       }
       

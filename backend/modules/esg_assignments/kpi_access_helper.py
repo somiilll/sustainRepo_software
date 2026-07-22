@@ -86,17 +86,37 @@ class KPIAccessHelper:
         """
         Get all assignments for a user in a specific category.
         
+        Supports both old model (assigned_to_user_id on assignment) and 
+        new model (separate esg_assignment_assignees table).
+        
         Returns list of assignment documents.
         """
+        # New model: check esg_assignment_assignees first
+        assignee_records = await db["esg_assignment_assignees"].find(
+            {"user_id": user_id, "removed_at": None},
+            {"_id": 0, "assignment_id": 1}
+        ).to_list(500)
+        
+        assignment_ids_from_new = [a["assignment_id"] for a in assignee_records]
+        
+        # Build query for assignments
         query = {
             "organization_id": organization_id,
-            "assigned_to_user_id": user_id,
             "category": category,
             "entity_type": "record_category",
         }
         
         if reporting_period:
             query["reporting_period"] = reporting_period
+        
+        # Find assignments where user is in assignees table OR has old assigned_to_user_id
+        if assignment_ids_from_new:
+            query["$or"] = [
+                {"id": {"$in": assignment_ids_from_new}},
+                {"assigned_to_user_id": user_id},  # Legacy support
+            ]
+        else:
+            query["assigned_to_user_id"] = user_id  # Legacy only
         
         cursor = self._assignments.find(query, {"_id": 0})
         return await cursor.to_list(100)
@@ -227,6 +247,8 @@ class KPIAccessHelper:
         """
         Get the facilities a user can access for a specific category/subcategory.
         
+        Supports both old model (assigned_to_user_id) and new model (esg_assignment_assignees).
+        
         Returns:
             {
                 "has_full_access": bool,  # True if can access all facilities
@@ -242,28 +264,43 @@ class KPIAccessHelper:
                 "assignment_level": None,
             }
         
-        # Get user's assignments for this category
-        query = {
+        # New model: get assignment IDs from assignees table
+        assignee_records = await db["esg_assignment_assignees"].find(
+            {"user_id": user_id, "removed_at": None},
+            {"_id": 0, "assignment_id": 1}
+        ).to_list(500)
+        assignment_ids_from_new = [a["assignment_id"] for a in assignee_records]
+        
+        # Build base query for assignments
+        base_query = {
             "organization_id": organization_id,
-            "assigned_to_user_id": user_id,
             "category": category,
             "entity_type": "record_category",
         }
         
-        if subcategory:
-            # Check for both specific subcategory and category-level (no subcategory)
-            query["$or"] = [
-                {"subcategory": subcategory},
-                {"subcategory": None},
-                {"subcategory": {"$exists": False}},
-            ]
-            del query["category"]
-            query["$and"] = [{"category": category}]
-        
         if reporting_period:
-            query["reporting_period"] = reporting_period
+            base_query["reporting_period"] = reporting_period
         
-        cursor = self._assignments.find(query, {"_id": 0})
+        # Query for user's assignments (new model OR legacy)
+        user_query = {**base_query}
+        if assignment_ids_from_new:
+            user_query["$or"] = [
+                {"id": {"$in": assignment_ids_from_new}},
+                {"assigned_to_user_id": user_id},
+            ]
+        else:
+            user_query["assigned_to_user_id"] = user_id
+        
+        if subcategory:
+            user_query["$and"] = user_query.get("$and", []) + [
+                {"$or": [
+                    {"subcategory": subcategory},
+                    {"subcategory": None},
+                    {"subcategory": {"$exists": False}},
+                ]}
+            ]
+        
+        cursor = self._assignments.find(user_query, {"_id": 0})
         assignments = await cursor.to_list(100)
         
         if not assignments:

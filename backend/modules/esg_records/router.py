@@ -592,11 +592,22 @@ async def create_record_assignment(
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Create or update a record category assignment.
-    Supports multiple assignments per category (multi-user).
+    Create or update a record category assignment (V2 - New Data Model).
+    
+    This endpoint uses the new assignment model where:
+    - One assignment per work item (category/facility/period)
+    - Assignees tracked separately in esg_assignment_assignees
+    
+    Supports:
+    - Organization-level assignments (all facilities)
+    - Facility-level assignments (specific facilities)
+    - Multiple users per assignment
+    - Switching between org and facility level
     
     Admin only - regular users cannot assign tasks.
     """
+    from modules.esg_assignments.assignment_service_v2 import assignment_service_v2
+    
     org_id = current_user.get("organization_id")
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization assigned")
@@ -607,14 +618,140 @@ async def create_record_assignment(
         raise HTTPException(status_code=403, detail="Only admins can create assignments")
     
     user_id = current_user.get("id")
+    assignment_level = data.get("assignment_level", "organization")
     
-    assignment = await esg_records_service.create_assignment(
-        org_id=org_id,
-        assigned_by_user_id=user_id,
-        data=data,
-    )
+    try:
+        if assignment_level == "facility":
+            # Facility-level: expects facility_assignments dict
+            # { facility_id: [user_ids], ... }
+            facility_assignments = data.get("facility_assignments", {})
+            
+            if not facility_assignments:
+                # Single facility assignment (legacy format)
+                facility_id = data.get("facility_id")
+                user_ids = data.get("user_ids", [])
+                if data.get("assigned_to_user_id"):
+                    user_ids = [data.get("assigned_to_user_id")]
+                
+                if facility_id and user_ids:
+                    facility_assignments = {facility_id: user_ids}
+            
+            if not facility_assignments:
+                raise HTTPException(status_code=400, detail="No facility assignments provided")
+            
+            # Extract common assignment properties
+            assignment_data = {
+                "start_date": data.get("start_date"),
+                "end_date": data.get("end_date"),
+                "timezone": data.get("timezone", "Asia/Kolkata"),
+                "filling_frequency": data.get("filling_frequency"),
+                "due_config": data.get("due_config"),
+                "reminder_enabled": data.get("reminder_enabled", False),
+                "reminder_config": data.get("reminder_config"),
+                "requires_approval": data.get("requires_approval", False),
+                "approval_chain": data.get("approval_chain", []),
+            }
+            
+            result = await assignment_service_v2.replace_org_with_facility_assignments(
+                organization_id=org_id,
+                category=data.get("category"),
+                subcategory=data.get("subcategory"),
+                sub_subcategory=data.get("sub_subcategory"),
+                reporting_period=data.get("reporting_period"),
+                facility_assignments=facility_assignments,
+                assignment_data=assignment_data,
+                created_by_user_id=user_id,
+            )
+            
+            return {
+                "message": f"Created {result['created_facility_level']} facility-level assignments",
+                "deleted_org_level": result["deleted_org_level"],
+                "assignments": result["assignments"],
+            }
+        
+        else:
+            # Organization-level assignment
+            user_ids = data.get("user_ids", data.get("assigned_user_ids", []))
+            if data.get("assigned_to_user_id"):
+                user_ids = [data.get("assigned_to_user_id")]
+            
+            if not user_ids:
+                raise HTTPException(status_code=400, detail="No users provided for assignment")
+            
+            # Check if switching from facility to org level
+            existing_facility_assignments = await assignment_service_v2._assignments.find({
+                "organization_id": org_id,
+                "category": data.get("category"),
+                "subcategory": data.get("subcategory"),
+                "sub_subcategory": data.get("sub_subcategory"),
+                "reporting_period": data.get("reporting_period"),
+                "facility_id": {"$ne": None},
+            }).to_list(10)
+            
+            if existing_facility_assignments:
+                # Switching from facility to org level
+                assignment_data = {
+                    "start_date": data.get("start_date"),
+                    "end_date": data.get("end_date"),
+                    "timezone": data.get("timezone", "Asia/Kolkata"),
+                    "filling_frequency": data.get("filling_frequency"),
+                    "due_config": data.get("due_config"),
+                    "reminder_enabled": data.get("reminder_enabled", False),
+                    "reminder_config": data.get("reminder_config"),
+                    "requires_approval": data.get("requires_approval", False),
+                    "approval_chain": data.get("approval_chain", []),
+                }
+                
+                result = await assignment_service_v2.replace_facility_with_org_assignment(
+                    organization_id=org_id,
+                    category=data.get("category"),
+                    subcategory=data.get("subcategory"),
+                    sub_subcategory=data.get("sub_subcategory"),
+                    reporting_period=data.get("reporting_period"),
+                    user_ids=user_ids,
+                    assignment_data=assignment_data,
+                    created_by_user_id=user_id,
+                )
+                
+                return {
+                    "message": "Switched to organization-level assignment",
+                    "deleted_facility_level": result["deleted_facility_level"],
+                    "assignment": result["assignment"],
+                }
+            
+            # Normal org-level assignment (create or update)
+            assignment_data = {
+                "organization_id": org_id,
+                "category": data.get("category"),
+                "subcategory": data.get("subcategory"),
+                "sub_subcategory": data.get("sub_subcategory"),
+                "facility_id": None,
+                "reporting_period": data.get("reporting_period"),
+                "assignment_level": "organization",
+                "start_date": data.get("start_date"),
+                "end_date": data.get("end_date"),
+                "timezone": data.get("timezone", "Asia/Kolkata"),
+                "filling_frequency": data.get("filling_frequency"),
+                "due_config": data.get("due_config"),
+                "reminder_enabled": data.get("reminder_enabled", False),
+                "reminder_config": data.get("reminder_config"),
+                "requires_approval": data.get("requires_approval", False),
+                "approval_chain": data.get("approval_chain", []),
+            }
+            
+            assignment, is_new = await assignment_service_v2.create_or_update_assignment(
+                data=assignment_data,
+                user_ids=user_ids,
+                created_by_user_id=user_id,
+            )
+            
+            return {
+                "message": "Assignment created" if is_new else "Assignment updated",
+                "assignment": assignment,
+            }
     
-    return {"message": "Assignment saved", "assignment": assignment}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/assignments/{assignment_id}/remind")
