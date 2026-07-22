@@ -377,23 +377,33 @@ async def generate_tasks_for_assignment(
     """
     Generate reporting tasks for an assignment using SHARED TASK model.
     
-    NEW ARCHITECTURE:
+    NEW ARCHITECTURE (V2):
     - ONE task per org/facility/category/subcategory/period (organizational obligation)
     - User assignments are tracked in esg_task_assignees collection
     - Tasks are NOT duplicated per user
+    - Assignees are fetched from esg_assignment_assignees collection (V2 model)
     
     This function:
     1. Generates task periods based on frequency
     2. Upserts tasks (creates if not exists, skips if exists)
-    3. Creates assignee entries linking user to tasks
+    3. Fetches assignees from esg_assignment_assignees and links them to tasks
     """
     assignment_id = assignment.get("id")
     org_id = assignment.get("organization_id")
-    user_id = assignment.get("assigned_to_user_id")
     facility_id = assignment.get("facility_id")
     category = assignment.get("category")
     subcategory = assignment.get("subcategory")
     sub_subcategory = assignment.get("sub_subcategory")
+    
+    # V2: Fetch assignees from esg_assignment_assignees collection
+    assignees = await db["esg_assignment_assignees"].find(
+        {"assignment_id": assignment_id, "removed_at": None},
+        {"_id": 0, "user_id": 1, "user_name": 1, "user_email": 1, "role": 1}
+    ).to_list(100)
+    
+    if not assignees:
+        # Log warning but continue - tasks can exist without assignees initially
+        print(f"[TaskEngine] Warning: No assignees found for assignment {assignment_id}")
     
     # Parse dates
     start_date = parse_date(assignment.get("start_date"))
@@ -496,8 +506,12 @@ async def generate_tasks_for_assignment(
             await db["esg_reporting_tasks"].insert_one(task_doc)
             tasks_created += 1
         
-        # Create assignee entry (link user to task) - upsert to avoid duplicates
-        if user_id:
+        # V2: Create assignee entries for ALL assignees from esg_assignment_assignees
+        for assignee in assignees:
+            user_id = assignee.get("user_id")
+            if not user_id:
+                continue
+                
             assignee_exists = await db["esg_task_assignees"].find_one({
                 "task_id": task_id,
                 "user_id": user_id,
@@ -510,11 +524,11 @@ async def generate_tasks_for_assignment(
                     "assignment_id": assignment_id,
                     "organization_id": org_id,
                     "user_id": user_id,
-                    "user_name": assignment.get("user_name"),
-                    "user_email": assignment.get("user_email"),
-                    "role": "editor",
-                    "assigned_by_user_id": assignment.get("assigned_by_user_id"),
-                    "assigned_by_name": assignment.get("assigned_by_name"),
+                    "user_name": assignee.get("user_name"),
+                    "user_email": assignee.get("user_email"),
+                    "role": assignee.get("role", "editor"),
+                    "assigned_by_user_id": assignment.get("created_by_user_id"),
+                    "assigned_by_name": None,
                     "is_active": True,
                     "created_at": now,
                     "updated_at": now,
