@@ -1954,8 +1954,8 @@ export default function ESGRecordsTracker({
               onClick={handleAssign}
               disabled={
                 assigning || 
-                assignForm.assigned_user_ids.length === 0 || 
-                (assignForm.assignment_level === 'facility' && !assignForm.facility_id) ||
+                (assignForm.assignment_level !== 'facility' && assignForm.assigned_user_ids.length === 0) ||
+                (assignForm.assignment_level === 'facility' && Object.values(assignForm.facility_assignments || {}).every(fa => !fa?.user_ids?.length)) ||
                 (assignForm.requires_approval && multiLevelApprovalEnabled && assignForm.assignment_level !== 'facility' && assignForm.approval_chain.length === 0) ||
                 (assignForm.requires_approval && !multiLevelApprovalEnabled && approvalWorkflowEnabled && assignForm.assignment_level !== 'facility' && !assignForm.approver_id) ||
                 (assignForm.reminder_enabled && !assignForm.reminder_frequency)
