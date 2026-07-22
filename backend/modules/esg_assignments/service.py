@@ -810,22 +810,39 @@ class AssignmentService:
             sender_name = sender.get("full_name") or sender.get("name") or sender.get("email", "").split("@")[0]
         
         user_name = assigned_user.get("full_name") or assigned_user.get("name") or assigned_user.get("email", "").split("@")[0]
-        entity_id = assignment.get("entity_id", "Task")
+        
+        # Format entity_id for display (replace underscores with spaces, title case)
+        raw_entity_id = assignment.get("entity_id", "Task")
+        entity_id_display = raw_entity_id.replace("_", " ").replace("-", " ").title()
+        
+        # Format reporting period with dates if available
+        reporting_period = assignment.get("reporting_period", "")
+        start_date = assignment.get("start_date")
+        end_date = assignment.get("end_date")
+        
+        if start_date and end_date:
+            try:
+                from datetime import datetime as dt
+                start_dt = dt.fromisoformat(start_date.replace("Z", "+00:00")) if isinstance(start_date, str) else start_date
+                end_dt = dt.fromisoformat(end_date.replace("Z", "+00:00")) if isinstance(end_date, str) else end_date
+                reporting_period = f"{start_dt.strftime('%b %d, %Y')} - {end_dt.strftime('%b %d, %Y')}"
+            except Exception:
+                pass  # Keep original reporting_period if date parsing fails
         
         # Send email
         try:
             email_body = assignment_reminder_email(
                 user_name=user_name,
                 entity_type=assignment.get("entity_type", ""),
-                entity_id=entity_id,
+                entity_id=entity_id_display,
                 status=assignment.get("status", "pending"),
                 due_date=assignment.get("due_date"),
-                reporting_period=assignment.get("reporting_period", ""),
+                reporting_period=reporting_period,
             )
             
             await send_email(
                 to_email=assigned_user["email"],
-                subject=f"Reminder: {entity_id} - ESG Assignment",
+                subject=f"Reminder: {entity_id_display} - ESG Assignment",
                 body=email_body,
             )
             logging.info(f"Reminder email sent to {assigned_user['email']} for assignment {assignment_id}")
@@ -835,10 +852,10 @@ class AssignmentService:
                 user_id=assigned_user["id"],
                 org_id=organization_id,
                 title="Reminder",
-                message=f"Reminder: {entity_id} is pending your action",
+                message=f"Reminder: {entity_id_display} is pending your action",
                 notification_type="reminder",
                 link="/environment",
-                metadata={"assignment_id": assignment_id, "entity_id": entity_id},
+                metadata={"assignment_id": assignment_id, "entity_id": entity_id_display},
             )
             
             # Update last_reminder_sent_at
