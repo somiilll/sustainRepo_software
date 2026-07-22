@@ -65,36 +65,43 @@ export default function TaskCard({ task, onFill, onView }) {
             )}
           </div>
           
-          {/* Category/Subcategory */}
-          <h4 className="font-medium text-text-primary mb-1">
-            {task.category ? (
-              <span>
-                {task.category} 
-                {task.subcategory && ` › ${task.subcategory}`}
-              </span>
-            ) : (
-              task.entity_id
+
+          {/* Category/Subcategory with Facility, Period, Due - All in one row */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-1">
+            {/* Category › Subcategory */}
+            <h4 className="font-medium text-text-primary">
+              {task.category ? (
+                <span>
+                  {task.category}
+                  {task.subcategory && ` › ${task.subcategory}`}
+                </span>
+              ) : (
+                task.entity_id
+              )}
+            </h4>
+
+            {/* Separator */}
+            {/* {(task.facility_name || periodRange || dueInfo.text) && (
+              <span className="text-text-muted">|</span>
+            )} */}
+
+            {/* Facility Info */}
+            {task.facility_name && (
+              <div className="flex items-center gap-1 text-sm text-blue-600 ml-7">
+                <Building2 className="w-3.5 h-3.5" />
+                <span className="font-medium">{task.facility_name}</span>
+              </div>
             )}
-          </h4>
-          
-          {/* Facility Info */}
-          {task.facility_name && (
-            <div className="flex items-center gap-1.5 text-sm text-blue-600 mb-1">
-              <Building2 className="w-3.5 h-3.5" />
-              <span className="font-medium">{task.facility_name}</span>
-            </div>
-          )}
-          
-          {/* Period Info */}
-          {periodRange && (
-            <div className="text-sm text-text-muted mb-1">
-              <span className="font-medium">Period:</span> {periodRange}
-            </div>
-          )}
-          
-          {/* Due Date */}
-          <div className="flex flex-wrap items-center gap-3 text-sm text-text-muted">
-            <div className="flex items-center gap-1">
+
+            {/* Period Info */}
+            {periodRange && (
+              <div className="text-sm text-text-muted">
+                <span className="font-medium">Period:</span> {periodRange}
+              </div>
+            )}
+
+            {/* Due Date */}
+            <div className="flex items-center gap-1 text-sm text-text-muted">
               <Calendar className="w-3.5 h-3.5" />
               <span className={dueInfo.isOverdue ? 'text-red-600 font-medium' : dueInfo.isUrgent ? 'text-orange-600 font-medium' : ''}>
                 Due: {dueInfo.text}
