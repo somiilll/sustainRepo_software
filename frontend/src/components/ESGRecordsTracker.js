@@ -1257,6 +1257,16 @@ export default function ESGRecordsTracker({
                               <UserPlus className="w-4 h-4" />
                             </Button>
                           )}
+                          {subcat.assignment && isUserAdmin && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => sendReminder(subcat.assignment.id)}
+                              title="Send Reminder"
+                            >
+                              <Bell className="w-4 h-4" />
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
 
@@ -1332,6 +1342,16 @@ export default function ESGRecordsTracker({
                                   title={subsub.assignment ? "Edit Assignment" : "Assign"}
                                 >
                                   <UserPlus className="w-4 h-4" />
+                                </Button>
+                              )}
+                              {subsub.assignment && isUserAdmin && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => sendReminder(subsub.assignment.id)}
+                                  title="Send Reminder"
+                                >
+                                  <Bell className="w-4 h-4" />
                                 </Button>
                               )}
                             </TableCell>
