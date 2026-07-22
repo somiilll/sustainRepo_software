@@ -70,9 +70,7 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     user_id = current_user.get("id")
     user_role = current_user.get("role", "user")
     
-    # Legacy access check for basic auth
-    if user_role == "user" and record_data.facility_id not in current_user.get("assigned_facilities", []):
-        raise HTTPException(status_code=403, detail="Not authorized")
+    # Admin org check
     if user_role == "admin" and org_id != current_user.get("organization_id"):
         raise HTTPException(status_code=403, detail="Not authorized")
     
@@ -800,13 +798,21 @@ async def get_emission_record(record_id: str, current_user: dict = Depends(get_c
             record_org = fac.get("organization_id") if fac else None
         if record_org and record_org != org_id:
             raise HTTPException(status_code=403, detail="Not authorized")
-    else:  # regular user
-        assigned = current_user.get("assigned_facilities", []) or []
+    else:  # regular user - use KPI access control
+        from modules.esg_assignments.kpi_access_helper import kpi_access_helper
+        can_access, reason = await kpi_access_helper.can_access_emission(
+            user_id=current_user.get("id"),
+            organization_id=current_user.get("organization_id"),
+            scope=record.get("scope", "").lower(),
+            facility_id=record.get("facility_id"),
+            reporting_period=record.get("reporting_period"),
+        )
+        # Also allow users to access their own pending records
         is_own_pending = (
             record.get("approval_status", "approved") != "approved"
             and record.get("submitted_by") == current_user.get("id")
         )
-        if record.get("facility_id") not in assigned and not is_own_pending:
+        if not can_access and not is_own_pending:
             raise HTTPException(status_code=403, detail="Not authorized")
 
     return EmissionRecordResponse(**record)

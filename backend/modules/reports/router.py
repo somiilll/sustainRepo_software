@@ -106,9 +106,9 @@ async def generate_facility_report(
     if not facility:
         raise HTTPException(status_code=404, detail="Facility not found")
     
-    # Check access
-    if current_user["role"] == "user" and facility_id not in current_user.get("assigned_facilities", []):
-        raise HTTPException(status_code=403, detail="Not authorized")
+    # Check access - Reports are admin-only
+    if current_user["role"] == "user":
+        raise HTTPException(status_code=403, detail="Reports are only accessible to admins")
     if current_user["role"] == "admin" and facility["organization_id"] != current_user.get("organization_id"):
         raise HTTPException(status_code=403, detail="Not authorized")
     
@@ -318,12 +318,14 @@ async def generate_combined_report(
     
     # Get all selected facilities
     facilities_data = []
+    # Reports are admin-only
+    if current_user["role"] == "user":
+        raise HTTPException(status_code=403, detail="Reports are only accessible to admins")
+    
     for fid in facility_ids:
         facility = await db.facilities.find_one({"id": fid}, {"_id": 0})
         if facility:
-            # Check access
-            if current_user["role"] == "user" and fid not in current_user.get("assigned_facilities", []):
-                continue
+            # Check access for admin
             if current_user["role"] == "admin" and facility.get("organization_id") != current_user.get("organization_id"):
                 continue
             
@@ -563,11 +565,11 @@ async def generate_ghg_inventory_report(
     for fid in request.facility_ids:
         facility = await db.facilities.find_one({"id": fid}, {"_id": 0})
         if facility:
-            # Check access based on role
+            # Check access based on role - Reports are admin-only
             if current_user.get("role") == "super_admin":
                 facilities_data.append(facility)
-            elif current_user.get("role") == "user" and fid not in current_user.get("assigned_facilities", []):
-                continue
+            elif current_user.get("role") == "user":
+                continue  # Users cannot access reports
             elif current_user.get("role") == "admin" and facility.get("organization_id") != current_user.get("organization_id"):
                 continue
             else:

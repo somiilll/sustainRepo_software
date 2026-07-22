@@ -31,13 +31,9 @@ async def create_sink(sink_data: SinkCreate, current_user: dict = Depends(get_cu
     user_id = current_user.get("id")
     user_role = current_user.get("role", "user")
 
-    # Legacy access check
-    if user_role == "user":
-        if sink_data.facility_id not in current_user.get("assigned_facilities", []):
-            raise HTTPException(status_code=403, detail="Not authorized for this facility")
-    elif user_role == "admin":
-        if org_id != current_user.get("organization_id"):
-            raise HTTPException(status_code=403, detail="Not authorized for this facility")
+    # Admin org check
+    if user_role == "admin" and org_id != current_user.get("organization_id"):
+        raise HTTPException(status_code=403, detail="Not authorized for this facility")
 
     # KPI Assignment-based access control (admins bypass)
     if user_role not in ["admin", "super_admin"]:
@@ -110,9 +106,9 @@ async def get_sinks(current_user: dict = Depends(get_current_user)):
     elif user_role == "admin":
         sinks = await db.sinks.find({"organization_id": org_id}, {"_id": 0}).to_list(10000)
     else:
-        # Regular users - apply KPI assignment-based filtering
-        facility_ids = current_user.get("assigned_facilities", [])
-        sinks = await db.sinks.find({"facility_id": {"$in": facility_ids}}, {"_id": 0}).to_list(10000)
+        # Regular users - use KPI assignment-based filtering only
+        # First get all sinks for org, then filter by KPI access
+        sinks = await db.sinks.find({"organization_id": org_id}, {"_id": 0}).to_list(10000)
         
         # Apply KPI access control filtering
         from modules.esg_assignments.kpi_access_helper import kpi_access_helper

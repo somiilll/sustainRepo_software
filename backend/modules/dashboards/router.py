@@ -145,26 +145,26 @@ async def get_dashboard_stats(
         
         facility_ids = [f["id"] for f in facilities]
         emissions_query = {"facility_id": {"$in": facility_ids}}
-    else:  # user
-        assigned = current_user.get("assigned_facilities", [])
-        facilities = await db.facilities.find({"id": {"$in": assigned}}, {"_id": 0}).to_list(1000)
-        
-        # Get organization for user to check equity share approach
-        org_id = None  # Initialize org_id for users
-        if facilities:
-            org_id = facilities[0].get("organization_id")
-            if org_id:
-                organization = await db.organizations.find_one({"id": org_id}, {"_id": 0})
-                if organization and organization.get("org_boundaries_approach") == "equity_share":
-                    use_equity_share = True
-        
-        # Build facility equity map
-        for f in facilities:
-            equity_pct = f.get("equity_share_percentage", 100.0) or 100.0
-            facility_equity_map[f["id"]] = equity_pct / 100.0
-        
-        facility_ids = assigned  # Set facility_ids for use in sinks query
-        emissions_query = {"facility_id": {"$in": assigned}}
+    else:  # user - Dashboards use KPI access; for now return empty for users without KPI assignments
+        # Users access dashboards through KPI-based filtering, not assigned_facilities
+        # Return empty data - frontend should handle this appropriately
+        return DashboardStats(
+            total_facilities=0,
+            total_emissions=0,
+            scope1_emissions=0,
+            scope2_emissions=0,
+            biogenic_emissions=0,
+            recent_records=[],
+            emissions_by_facility=[],
+            emissions_trend=[],
+            emissions_by_category=[],
+            emissions_by_fuel=[],
+            yearly_fuel_analysis=[],
+            yearly_facility_analysis=[],
+            monthly_comparison=[],
+            sinks_total=0,
+            sinks_by_facility=[]
+        )
     
     # Apply date range filter if provided
     # We need to handle both monthly (YYYY-MM) and yearly (FY YYYY-YY, CY YYYY) formats
@@ -1001,9 +1001,8 @@ async def get_supplier_hotspots(
             return {"categories": [], "suppliers": [], "total_scope3_emissions": 0}
         facilities = await db.facilities.find({"organization_id": org_id}, {"_id": 0}).to_list(1000)
         facility_ids = [f["id"] for f in facilities]
-    else:
-        assigned = current_user.get("assigned_facilities", [])
-        facility_ids = assigned
+    else:  # user - Return empty data for users; dashboards use KPI-based access
+        facility_ids = []
     
     # Build emissions query for Scope 3 only
     emissions_query = {
