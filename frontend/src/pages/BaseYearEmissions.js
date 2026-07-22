@@ -1631,18 +1631,6 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
         </div>
       )}
 
-      {/* Compact Info Banner */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 flex items-center gap-3">
-        <Info className="w-4 h-4 text-blue-500 flex-shrink-0" />
-        <p className="text-sm text-blue-800">
-          Base year emissions serve as a reference point for tracking GHG reduction progress. 
-          {hasScope3Access 
-            ? <> Configure <strong>Scope 1 & 2</strong> and <strong>Scope 3</strong> base years.</>
-            : <> Configure <strong>Scope 1 & 2</strong> base years.</>
-          }
-        </p>
-      </div>
-
       {/* ========== UNIFIED BASE YEAR SECTION ========== */}
       <div className="space-y-4">
         {/* Section Header with Search and Filter */}
@@ -1706,25 +1694,53 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                 </div>
                 
                 {/* Organization Name */}
-                <div className="min-w-0 w-48 sm:w-56">
+                <div className="min-w-0 w-40 sm:w-48">
                   <div className="flex items-center gap-2">
                     <Building className="w-4 h-4 text-primary flex-shrink-0" />
                     <p className="font-semibold text-text-primary truncate">{organization.name}</p>
                   </div>
-                  <p className="text-xs text-text-muted ml-6">Organization</p>
                 </div>
                 
-                {/* Scope 1 & 2 Base Year */}
-                <div className="hidden sm:block min-w-[120px]">
+                {/* Type Column */}
+                <div className="hidden sm:block min-w-[100px]">
+                  <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs">
+                    Organization
+                  </Badge>
+                </div>
+                
+                {/* Scope 1 & 2 Base Year - Clickable Card */}
+                <div 
+                  className="hidden sm:block min-w-[120px] p-2 rounded-lg bg-blue-50/50 border border-blue-100 hover:bg-blue-100/50 transition-colors cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const record = getEntityRecord('organization', organization.id, 'scope12');
+                    if (record) {
+                      handleViewHistory(record);
+                    } else if (user?.role === 'admin') {
+                      handleEntityClick('organization', organization.id, organization.name, 'scope12');
+                    }
+                  }}
+                >
                   <p className="text-xs text-blue-600 font-medium">Scope 1 & 2</p>
                   <p className="text-sm font-semibold text-text-primary">
                     {getEntityRecord('organization', organization.id, 'scope12')?.base_year || '—'}
                   </p>
                 </div>
                 
-                {/* Scope 3 Base Year */}
+                {/* Scope 3 Base Year - Clickable Card */}
                 {hasScope3Access && (
-                  <div className="hidden sm:block min-w-[120px]">
+                  <div 
+                    className="hidden sm:block min-w-[120px] p-2 rounded-lg bg-purple-50/50 border border-purple-100 hover:bg-purple-100/50 transition-colors cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const record = getEntityRecord('organization', organization.id, 'scope3');
+                      if (record) {
+                        handleViewHistory(record);
+                      } else if (user?.role === 'admin') {
+                        handleEntityClick('organization', organization.id, organization.name, 'scope3');
+                      }
+                    }}
+                  >
                     <p className="text-xs text-purple-600 font-medium">Scope 3</p>
                     <p className="text-sm font-semibold text-text-primary">
                       {getEntityRecord('organization', organization.id, 'scope3')?.base_year || '—'}
@@ -1880,7 +1896,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                     </div>
                     
                     {/* Facility Name & Location */}
-                    <div className="min-w-0 w-48 sm:w-56">
+                    <div className="min-w-0 w-40 sm:w-48">
                       <p className="font-medium text-text-primary truncate">{facility.name}</p>
                       <p className="text-xs text-text-muted flex items-center gap-1 truncate">
                         <MapPin className="w-3 h-3" />
@@ -1888,17 +1904,44 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                       </p>
                     </div>
                     
-                    {/* Scope 1 & 2 Base Year */}
-                    <div className="hidden sm:block min-w-[120px]">
+                    {/* Type Column */}
+                    <div className="hidden sm:block min-w-[100px]">
+                      <Badge variant="outline" className="bg-stone-50 text-stone-600 border-stone-200 text-xs">
+                        Facility
+                      </Badge>
+                    </div>
+                    
+                    {/* Scope 1 & 2 Base Year - Clickable Card */}
+                    <div 
+                      className="hidden sm:block min-w-[120px] p-2 rounded-lg bg-blue-50/50 border border-blue-100 hover:bg-blue-100/50 transition-colors cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (scope12Record) {
+                          handleViewHistory(scope12Record);
+                        } else {
+                          handleEntityClick('facility', facility.id, facility.name, 'scope12');
+                        }
+                      }}
+                    >
                       <p className="text-xs text-blue-600 font-medium">Scope 1 & 2</p>
                       <p className="text-sm font-semibold text-text-primary">
                         {scope12Record?.base_year || '—'}
                       </p>
                     </div>
                     
-                    {/* Scope 3 Base Year */}
+                    {/* Scope 3 Base Year - Clickable Card */}
                     {hasScope3Access && (
-                      <div className="hidden sm:block min-w-[120px]">
+                      <div 
+                        className="hidden sm:block min-w-[120px] p-2 rounded-lg bg-purple-50/50 border border-purple-100 hover:bg-purple-100/50 transition-colors cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (scope3Record) {
+                            handleViewHistory(scope3Record);
+                          } else {
+                            handleEntityClick('facility', facility.id, facility.name, 'scope3');
+                          }
+                        }}
+                      >
                         <p className="text-xs text-purple-600 font-medium">Scope 3</p>
                         <p className="text-sm font-semibold text-text-primary">
                           {scope3Record?.base_year || '—'}
