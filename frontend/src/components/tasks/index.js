@@ -5,6 +5,7 @@
 // Components
 export { default as TaskCard } from './TaskCard';
 export { default as TaskRow } from './TaskRow';
+export { default as TaskLedger } from './TaskLedger';
 export { default as TaskFilters } from './TaskFilters';
 export { default as TaskStatsCards } from './TaskStatsCards';
 export { default as TaskGroupedView } from './TaskGroupedView';

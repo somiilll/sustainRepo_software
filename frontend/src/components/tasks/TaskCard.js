@@ -87,7 +87,7 @@ export default function TaskCard({ task, onFill, onView }) {
 
             {/* Facility Info */}
             {task.facility_name && (
-              <div className="flex items-center gap-1 text-sm text-blue-600 ml-7">
+              <div className="flex items-center gap-1 text-sm text-blue-600 ml-20">
                 <Building2 className="w-3.5 h-3.5" />
                 <span className="font-medium">{task.facility_name}</span>
               </div>
@@ -95,13 +95,13 @@ export default function TaskCard({ task, onFill, onView }) {
 
             {/* Period Info */}
             {periodRange && (
-              <div className="text-sm text-text-muted">
+              <div className="text-sm text-text-muted ml-20">
                 <span className="font-medium">Period:</span> {periodRange}
               </div>
             )}
 
             {/* Due Date */}
-            <div className="flex items-center gap-1 text-sm text-text-muted">
+            <div className="flex items-center gap-1 text-sm text-text-muted ml-20">
               <Calendar className="w-3.5 h-3.5" />
               <span className={dueInfo.isOverdue ? 'text-red-600 font-medium' : dueInfo.isUrgent ? 'text-orange-600 font-medium' : ''}>
                 Due: {dueInfo.text}

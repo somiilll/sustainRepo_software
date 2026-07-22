@@ -1,26 +1,22 @@
 /**
  * My Tasks Component
  * 
- * Shows current user's assigned tasks (metrics and disclosures).
+ * Shows current user's assigned tasks in a ledger/table format.
  * Refactored to use modular task components.
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Card } from './ui/card';
-import { Loader2, ClipboardList } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 // Task module imports
 import {
-  TaskCard,
+  TaskLedger,
   TaskFilters,
   TaskStatsCards,
-  TaskGroupedView,
   useMyTasks,
   ENTITY_TYPE,
-  categorizeTask,
-  isTaskOverdue,
 } from './tasks';
 
 /**
@@ -50,7 +46,6 @@ export default function MyTasks({
     tasks, 
     questions, 
     stats, 
-    groupedTasks,
     hasAssignments,
     refresh 
   } = useMyTasks({
@@ -61,48 +56,6 @@ export default function MyTasks({
     reportingPeriod,
     includeBackfill: true,
   });
-
-  // Filter items for flat view
-  const filteredItems = useMemo(() => {
-    let items = [];
-    
-    if (entityType === ENTITY_TYPE.RECORD || entityType === ENTITY_TYPE.ALL) {
-      items = [...items, ...tasks];
-    }
-    if (entityType === ENTITY_TYPE.QUESTION || entityType === ENTITY_TYPE.ALL) {
-      items = [...items, ...questions];
-    }
-    
-    return items.filter(item => {
-      // Search filter
-      if (filters.search) {
-        const searchLower = filters.search.toLowerCase();
-        const matchesSearch = 
-          item.category?.toLowerCase().includes(searchLower) ||
-          item.subcategory?.toLowerCase().includes(searchLower) ||
-          item.entity_id?.toLowerCase().includes(searchLower) ||
-          item.period_label?.toLowerCase().includes(searchLower);
-        if (!matchesSearch) return false;
-      }
-      
-      // Status filter
-      if (filters.status !== 'all') {
-        if (filters.status === 'overdue') {
-          if (!isTaskOverdue(item)) return false;
-        } else if (item.status !== filters.status) {
-          return false;
-        }
-      }
-      
-      // Task type filter
-      if (filters.taskType !== 'all') {
-        const taskType = categorizeTask(item);
-        if (taskType !== filters.taskType) return false;
-      }
-      
-      return true;
-    });
-  }, [tasks, questions, entityType, filters]);
 
   // Navigate to fill the item
   const handleFillTask = (task) => {
@@ -164,43 +117,19 @@ export default function MyTasks({
         onRefresh={refresh}
       />
 
-      {/* Grouped View - For Metrics */}
-      {entityType === ENTITY_TYPE.RECORD && (
-        <TaskGroupedView
-          groups={groupedTasks}
-          filters={filters}
-          onFillTask={handleFillTask}
-          onViewTask={handleViewTask}
-          emptyMessage="No metric tasks found"
-          hasAssignments={hasAssignments}
-        />
-      )}
-
-      {/* Flat View - For Questions or Mixed */}
-      {entityType !== ENTITY_TYPE.RECORD && (
-        <div className="space-y-3">
-          {filteredItems.length === 0 ? (
-            <Card className="p-8 text-center">
-              <ClipboardList className="w-12 h-12 text-stone-300 mx-auto mb-3" />
-              <h3 className="text-lg font-medium text-text-primary">No tasks found</h3>
-              <p className="text-text-muted">
-                {entityType === ENTITY_TYPE.QUESTION
-                  ? 'You do not have any disclosure tasks assigned.'
-                  : 'You do not have any tasks assigned for this period.'}
-              </p>
-            </Card>
-          ) : (
-            filteredItems.map(item => (
-              <TaskCard 
-                key={item.id} 
-                task={item} 
-                onFill={handleFillTask}
-                onView={handleViewTask}
-              />
-            ))
-          )}
-        </div>
-      )}
+      {/* Ledger View - For all task types */}
+      <TaskLedger
+        tasks={[...tasks, ...questions]}
+        filters={filters}
+        onFillTask={handleFillTask}
+        onViewTask={handleViewTask}
+        emptyMessage={
+          entityType === ENTITY_TYPE.QUESTION
+            ? 'No disclosure tasks found'
+            : 'No tasks found'
+        }
+        hasAssignments={hasAssignments}
+      />
     </div>
   );
 }
