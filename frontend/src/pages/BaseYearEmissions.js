@@ -1715,7 +1715,8 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                     e.stopPropagation();
                     const record = getEntityRecord('organization', organization.id, 'scope12');
                     if (record) {
-                      handleViewHistory(record);
+                      setViewRecord(record);
+                      setShowViewDialog(true);
                     } else if (user?.role === 'admin') {
                       handleEntityClick('organization', organization.id, organization.name, 'scope12');
                     }
@@ -1735,7 +1736,8 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                       e.stopPropagation();
                       const record = getEntityRecord('organization', organization.id, 'scope3');
                       if (record) {
-                        handleViewHistory(record);
+                        setViewRecord(record);
+                        setShowViewDialog(true);
                       } else if (user?.role === 'admin') {
                         handleEntityClick('organization', organization.id, organization.name, 'scope3');
                       }
@@ -1917,7 +1919,8 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                       onClick={(e) => {
                         e.stopPropagation();
                         if (scope12Record) {
-                          handleViewHistory(scope12Record);
+                          setViewRecord(scope12Record);
+                          setShowViewDialog(true);
                         } else {
                           handleEntityClick('facility', facility.id, facility.name, 'scope12');
                         }
@@ -1936,7 +1939,8 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                         onClick={(e) => {
                           e.stopPropagation();
                           if (scope3Record) {
-                            handleViewHistory(scope3Record);
+                            setViewRecord(scope3Record);
+                            setShowViewDialog(true);
                           } else {
                             handleEntityClick('facility', facility.id, facility.name, 'scope3');
                           }
