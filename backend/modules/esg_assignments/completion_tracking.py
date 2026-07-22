@@ -42,6 +42,10 @@ class CompletionTrackingService:
         
         Called after a record is submitted to update assignment status.
         
+        NOTE: reporting_period from emission records (e.g., "2026-07") is used to check
+        if data exists, but assignments are filtered by start_date/end_date range,
+        NOT by the assignment's reporting_period field (which is a FY label).
+        
         Returns summary of updates made.
         """
         # Find matching assignments
@@ -58,8 +62,26 @@ class CompletionTrackingService:
                 {"subcategory": {"$exists": False}},
             ]
         
+        # Filter by facility if provided
+        if facility_id:
+            query["facility_id"] = facility_id
+        
+        # Instead of matching reporting_period exactly, check if the period falls
+        # within the assignment's start_date to end_date range
         if reporting_period:
-            query["reporting_period"] = reporting_period
+            # Parse the reporting_period (e.g., "2026-07" -> year=2026, month=7)
+            try:
+                parts = reporting_period.split("-")
+                if len(parts) >= 2:
+                    year = int(parts[0])
+                    month = int(parts[1])
+                    # Build date string for comparison (first day of the month)
+                    period_date = f"{year:04d}-{month:02d}-01"
+                    query["start_date"] = {"$lte": period_date}
+                    query["end_date"] = {"$gte": period_date}
+            except (ValueError, IndexError):
+                # If parsing fails, skip date filtering
+                pass
         
         cursor = self._assignments.find(query, {"_id": 0})
         assignments = await cursor.to_list(500)
