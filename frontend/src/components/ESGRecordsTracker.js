@@ -84,6 +84,7 @@ import {
 } from '../utils/reportingYearUtils';
 import DataCoverageGrid from './DataCoverageGrid';
 import TaskCalendarGrid from './TaskCalendarGrid';
+import { AssignmentWizard } from './assignment-wizard';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -685,6 +686,136 @@ export default function ESGRecordsTracker({
     } catch (error) {
       console.error('Failed to save assignment:', error);
       toast.error(error.response?.data?.detail || 'Failed to save assignment');
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  // Handle wizard submit - adapts wizard form to existing API
+  const handleWizardSubmit = async (wizardForm) => {
+    setAssigning(true);
+    try {
+      // Build entity_id from category hierarchy
+      const entityId = [
+        assigningItem.category,
+        assigningItem.subcategory,
+        assigningItem.sub_subcategory
+      ].filter(Boolean).join('_') || assigningItem.category;
+
+      // Build due_config based on frequency
+      const buildDueConfig = () => {
+        const freq = wizardForm.filling_frequency;
+        if (!freq) return null;
+        
+        const config = {
+          type: freq,
+          time: wizardForm.due_time || '17:00',
+          timezone: wizardForm.timezone || 'Asia/Kolkata',
+        };
+        
+        if (['monthly', 'quarterly', 'half_yearly', 'yearly'].includes(freq)) {
+          config.day_of_month = parseInt(wizardForm.due_day_of_month) || 15;
+        }
+        if (freq === 'weekly') {
+          config.day_of_week = wizardForm.due_day_of_week || 'friday';
+        }
+        
+        return config;
+      };
+
+      // For facility-level, send all facility assignments in one request
+      if (wizardForm.assignment_level === 'facility') {
+        const facilityAssignments = Object.entries(wizardForm.facility_assignments || {})
+          .filter(([_, fa]) => fa?.user_ids?.length > 0);
+        
+        if (facilityAssignments.length === 0) {
+          toast.error('Please assign at least one facility to a user');
+          return;
+        }
+        
+        // Build facility_assignments object: { facility_id: [user_ids], ... }
+        const facilityAssignmentsMap = {};
+        for (const [facilityId, fa] of facilityAssignments) {
+          facilityAssignmentsMap[facilityId] = fa.user_ids;
+        }
+        
+        await axios.post(
+          `${API}/api/esg-records/assignments`,
+          {
+            entity_type: 'record_category',
+            entity_id: entityId,
+            category: assigningItem.category,
+            subcategory: assigningItem.subcategory || null,
+            sub_subcategory: assigningItem.sub_subcategory || null,
+            assign_children: !assigningItem.subcategory,
+            assignment_level: 'facility',
+            facility_assignments: facilityAssignmentsMap,
+            reporting_period: reportingPeriod,
+            start_date: wizardForm.start_date || null,
+            end_date: wizardForm.end_date || null,
+            timezone: wizardForm.timezone || 'Asia/Kolkata',
+            filling_frequency: wizardForm.filling_frequency || null,
+            due_config: buildDueConfig(),
+            reminder_enabled: wizardForm.reminder_enabled,
+            reminder_config: wizardForm.reminder_enabled ? {
+              frequency: wizardForm.reminder_frequency,
+              days_before_due: [7, 3, 1],
+              repeat_overdue: true,
+            } : null,
+            requires_approval: wizardForm.requires_approval,
+            approval_chain: wizardForm.requires_approval && multiLevelApprovalEnabled ? wizardForm.approval_chain : [],
+          },
+          { headers }
+        );
+        
+        const totalAssignments = facilityAssignments.reduce((sum, [_, fa]) => sum + (fa.user_ids?.length || 0), 0);
+        toast.success(`Created ${totalAssignments} assignment(s) across ${facilityAssignments.length} facility(ies)`);
+      } else {
+        // Organization level
+        const isParentCategory = !assigningItem.subcategory;
+        
+        await axios.post(
+          `${API}/api/esg-records/assignments`,
+          {
+            entity_type: 'record_category',
+            entity_id: entityId,
+            category: assigningItem.category,
+            subcategory: assigningItem.subcategory || null,
+            sub_subcategory: assigningItem.sub_subcategory || null,
+            assign_children: isParentCategory,
+            assignment_level: 'organization',
+            facility_id: null,
+            user_ids: wizardForm.assigned_user_ids,
+            reporting_period: reportingPeriod,
+            start_date: wizardForm.start_date || null,
+            end_date: wizardForm.end_date || null,
+            timezone: wizardForm.timezone || 'Asia/Kolkata',
+            filling_frequency: wizardForm.filling_frequency || null,
+            due_config: buildDueConfig(),
+            reminder_enabled: wizardForm.reminder_enabled,
+            reminder_config: wizardForm.reminder_enabled ? {
+              frequency: wizardForm.reminder_frequency,
+              days_before_due: [7, 3, 1],
+              repeat_overdue: true,
+            } : null,
+            requires_approval: wizardForm.requires_approval,
+            approver_id: wizardForm.requires_approval && !multiLevelApprovalEnabled ? wizardForm.approver_id : null,
+            approval_chain: wizardForm.requires_approval && multiLevelApprovalEnabled ? wizardForm.approval_chain : [],
+          },
+          { headers }
+        );
+        
+        toast.success(`Assignment saved for ${wizardForm.assigned_user_ids.length} user(s)`);
+      }
+      
+      setShowAssignModal(false);
+      resetAssignForm();
+      setAssignments([]);
+      setTimeout(() => fetchTrackerData(true), 100);
+    } catch (error) {
+      console.error('Failed to save assignment:', error);
+      toast.error(error.response?.data?.detail || 'Failed to save assignment');
+      throw error; // Re-throw to let wizard handle the error state
     } finally {
       setAssigning(false);
     }
@@ -1559,609 +1690,24 @@ export default function ESGRecordsTracker({
         </Table>
       </Card>
 
-      {/* Assignment Modal */}
-      <Dialog open={showAssignModal} onOpenChange={(open) => {
-        setShowAssignModal(open);
-        if (!open) resetAssignForm();
-      }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <UserPlus className="w-5 h-5 text-emerald-600" />
-              Assign Metric Category
-            </DialogTitle>
-            <DialogDescription asChild>
-              <div className="text-sm text-text-muted">
-                <div className="p-3 bg-stone-50 rounded-lg border text-text-primary mt-2">
-                  <span className="font-medium">{assigningItem?.category}</span>
-                  {assigningItem?.subcategory && <span> → {assigningItem.subcategory}</span>}
-                  {assigningItem?.sub_subcategory && <span> → {assigningItem.sub_subcategory}</span>}
-                </div>
-              </div>
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            {/* Assignment Level */}
-            <div className="space-y-2">
-              <Label>Assignment Level *</Label>
-              <Select 
-                value={assignForm.assignment_level} 
-                onValueChange={(v) => setAssignForm(prev => ({ ...prev, assignment_level: v, facility_id: '' }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="organization">Organization Level</SelectItem>
-                  <SelectItem value="facility">Facility Level</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Facility (if facility level) - Show all facilities with per-facility assignment */}
-            {assignForm.assignment_level === 'facility' && (
-              <div className="space-y-3">
-                <Label>Assign Per Facility *</Label>
-                <p className="text-xs text-text-muted">Select users, approval settings for each facility. Leave empty to skip.</p>
-                <div className="border rounded-lg max-h-80 overflow-y-auto divide-y">
-                  {facilities.map(fac => {
-                    const facAssign = assignForm.facility_assignments?.[fac.id] || { user_ids: [], approver_id: '', requires_approval: false };
-                    return (
-                      <div key={fac.id} className="p-3 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-sm">{fac.name}</span>
-                          <Badge variant="outline" className="text-xs">{fac.type || 'Facility'}</Badge>
-                        </div>
-                        
-                        {/* Multi-user selection for this facility */}
-                        <div className="space-y-1">
-                          <Label className="text-xs text-text-muted">Assignees</Label>
-                          <div className="flex flex-wrap gap-1 min-h-[32px] p-2 border rounded bg-stone-50">
-                            {(facAssign.user_ids || []).map(uid => {
-                              const u = users.find(user => user.id === uid);
-                              return u ? (
-                                <Badge key={uid} variant="secondary" className="text-xs flex items-center gap-1">
-                                  {u.full_name || u.name || u.email}
-                                  <X 
-                                    className="w-3 h-3 cursor-pointer hover:text-red-500" 
-                                    onClick={() => setAssignForm(prev => ({
-                                      ...prev,
-                                      facility_assignments: {
-                                        ...prev.facility_assignments,
-                                        [fac.id]: {
-                                          ...prev.facility_assignments?.[fac.id],
-                                          user_ids: (prev.facility_assignments?.[fac.id]?.user_ids || []).filter(id => id !== uid),
-                                          facility_name: fac.name
-                                        }
-                                      }
-                                    }))}
-                                  />
-                                </Badge>
-                              ) : null;
-                            })}
-                            {(facAssign.user_ids || []).length === 0 && (
-                              <span className="text-xs text-text-muted">No assignees</span>
-                            )}
-                          </div>
-                          <Select 
-                            value="__select__"
-                            onValueChange={(v) => {
-                              if (v && v !== '__select__') {
-                                setAssignForm(prev => {
-                                  const current = prev.facility_assignments?.[fac.id]?.user_ids || [];
-                                  if (!current.includes(v)) {
-                                    return {
-                                      ...prev,
-                                      facility_assignments: {
-                                        ...prev.facility_assignments,
-                                        [fac.id]: {
-                                          ...prev.facility_assignments?.[fac.id],
-                                          user_ids: [...current, v],
-                                          facility_name: fac.name
-                                        }
-                                      }
-                                    };
-                                  }
-                                  return prev;
-                                });
-                              }
-                            }}
-                          >
-                            <SelectTrigger className="h-8 text-sm">
-                              <SelectValue placeholder="+ Add assignee" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__select__" disabled>Select user...</SelectItem>
-                              {users.filter(u => !(facAssign.user_ids || []).includes(u.id)).map(u => (
-                                <SelectItem key={u.id} value={u.id}>
-                                  {u.full_name || u.name || u.email}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        
-                        {/* Per-facility approval toggle and approver */}
-                        <div className="flex items-center gap-3 pt-2 border-t">
-                          <Checkbox 
-                            id={`approval-${fac.id}`}
-                            checked={facAssign.requires_approval || false}
-                            onCheckedChange={(checked) => setAssignForm(prev => ({
-                              ...prev,
-                              facility_assignments: {
-                                ...prev.facility_assignments,
-                                [fac.id]: { 
-                                  ...prev.facility_assignments?.[fac.id], 
-                                  requires_approval: checked,
-                                  approver_id: checked ? prev.facility_assignments?.[fac.id]?.approver_id : '',
-                                  facility_name: fac.name 
-                                }
-                              }
-                            }))}
-                          />
-                          <Label htmlFor={`approval-${fac.id}`} className="text-xs cursor-pointer">Requires approval</Label>
-                          
-                          {facAssign.requires_approval && (
-                            <Select 
-                              value={facAssign.approver_id || '__none__'} 
-                              onValueChange={(v) => setAssignForm(prev => ({
-                                ...prev,
-                                facility_assignments: {
-                                  ...prev.facility_assignments,
-                                  [fac.id]: { 
-                                    ...prev.facility_assignments?.[fac.id], 
-                                    approver_id: v === '__none__' ? '' : v,
-                                    facility_name: fac.name 
-                                  }
-                                }
-                              }))}
-                            >
-                              <SelectTrigger className="h-7 text-xs flex-1">
-                                <SelectValue placeholder="Select approver" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="__none__">Select approver...</SelectItem>
-                                {users.map(u => (
-                                  <SelectItem key={u.id} value={u.id}>
-                                    {u.full_name || u.name || u.email}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                {Object.values(assignForm.facility_assignments || {}).filter(fa => fa?.user_ids?.length > 0).length > 0 && (
-                  <div className="text-xs text-emerald-600">
-                    {Object.values(assignForm.facility_assignments || {}).filter(fa => fa?.user_ids?.length > 0).length} facility(ies) with assignments
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Multi-user selection - only for organization level */}
-            {assignForm.assignment_level !== 'facility' && (
-            <div className="space-y-2">
-              <Label>Assign To *</Label>
-              {/* Selected users badges */}
-              <div className="flex flex-wrap gap-1 min-h-[36px] p-2 border rounded-lg bg-stone-50">
-                {assignForm.assigned_user_ids.map(id => {
-                  const u = users.find(user => user.id === id);
-                  return u ? (
-                    <Badge key={id} variant="secondary" className="text-xs flex items-center gap-1">
-                      {u.full_name || u.name || u.email}
-                      <X 
-                        className="w-3 h-3 cursor-pointer hover:text-red-500" 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setAssignForm(prev => ({ ...prev, assigned_user_ids: prev.assigned_user_ids.filter(uid => uid !== id) }));
-                        }}
-                      />
-                    </Badge>
-                  ) : null;
-                })}
-                {assignForm.assigned_user_ids.length === 0 && (
-                  <span className="text-xs text-text-muted">No assignees selected</span>
-                )}
-              </div>
-              
-              {/* Search input */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-                <Input
-                  type="text"
-                  placeholder="Search users by name or email..."
-                  value={userSearchQuery}
-                  onChange={(e) => setUserSearchQuery(e.target.value)}
-                  className="pl-9 h-9 text-sm"
-                />
-              </div>
-              
-              {/* Filtered user list */}
-              <div className="border rounded-lg max-h-48 overflow-y-auto">
-                {users
-                  .filter(u => !assignForm.assigned_user_ids.includes(u.id))
-                  .filter(u => {
-                    if (!userSearchQuery) return true;
-                    const q = userSearchQuery.toLowerCase();
-                    return (
-                      (u.full_name || '').toLowerCase().includes(q) ||
-                      (u.name || '').toLowerCase().includes(q) ||
-                      (u.email || '').toLowerCase().includes(q)
-                    );
-                  })
-                  .map(u => (
-                    <div 
-                      key={u.id}
-                      className="flex items-center gap-3 p-2 hover:bg-stone-50 cursor-pointer border-b last:border-b-0"
-                      onClick={() => {
-                        setAssignForm(prev => ({ ...prev, assigned_user_ids: [...prev.assigned_user_ids, u.id] }));
-                      }}
-                    >
-                      <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-sm font-medium text-emerald-700">
-                        {(u.full_name || u.name || u.email)?.charAt(0)?.toUpperCase() || '?'}
-                      </div>
-                      <div className="flex-1">
-                        <div className="font-medium text-sm">{u.full_name || u.name || 'No Name'}</div>
-                        <div className="text-xs text-text-muted">{u.email}</div>
-                      </div>
-                      <Badge variant="outline" className="text-xs">{u.role}</Badge>
-                    </div>
-                  ))
-                }
-                {users.filter(u => !assignForm.assigned_user_ids.includes(u.id)).filter(u => {
-                  if (!userSearchQuery) return true;
-                  const q = userSearchQuery.toLowerCase();
-                  return (
-                    (u.full_name || '').toLowerCase().includes(q) ||
-                    (u.name || '').toLowerCase().includes(q) ||
-                    (u.email || '').toLowerCase().includes(q)
-                  );
-                }).length === 0 && (
-                  <div className="p-4 text-center text-text-muted text-sm">
-                    {userSearchQuery ? 'No users match your search' : 'No users available'}
-                  </div>
-                )}
-              </div>
-            </div>
-            )}
-
-            {/* Reporting Period Info */}
-            <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="text-xs text-blue-600 font-medium mb-1">Reporting Period</div>
-              <div className="text-sm font-medium text-blue-800">{reportingPeriod}</div>
-            </div>
-
-            {/* Start Date & End Date */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Start Date *</Label>
-                <Input
-                  type="date"
-                  value={assignForm.start_date}
-                  onChange={(e) => setAssignForm(prev => ({ ...prev, start_date: e.target.value }))}
-                />
-                <p className="text-xs text-text-muted">First day data is expected</p>
-              </div>
-              <div className="space-y-2">
-                <Label>End Date</Label>
-                <Input
-                  type="date"
-                  value={assignForm.end_date}
-                  onChange={(e) => setAssignForm(prev => ({ ...prev, end_date: e.target.value }))}
-                />
-                <p className="text-xs text-text-muted">Cannot exceed reporting year</p>
-              </div>
-            </div>
-
-            {/* Filling Frequency */}
-            <div className="space-y-2">
-              <Label>Filling Frequency *</Label>
-              <Select 
-                value={assignForm.filling_frequency} 
-                onValueChange={(v) => setAssignForm(prev => ({ ...prev, filling_frequency: v }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select frequency" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="daily">Daily</SelectItem>
-                  <SelectItem value="weekly">Weekly</SelectItem>
-                  <SelectItem value="monthly">Monthly</SelectItem>
-                  <SelectItem value="quarterly">Quarterly</SelectItem>
-                  <SelectItem value="half_yearly">Half Yearly</SelectItem>
-                  <SelectItem value="yearly">Yearly</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Due Time & Timezone (show when frequency selected) */}
-            {assignForm.filling_frequency && (
-              <div className="space-y-3 p-3 border rounded-lg bg-amber-50">
-                <Label className="text-sm font-medium text-amber-800">Due Schedule Configuration</Label>
-                
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label className="text-xs">Due Time</Label>
-                    <Input
-                      type="time"
-                      value={assignForm.due_time}
-                      onChange={(e) => setAssignForm(prev => ({ ...prev, due_time: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs">Timezone</Label>
-                    <Select 
-                      value={assignForm.timezone} 
-                      onValueChange={(v) => setAssignForm(prev => ({ ...prev, timezone: v }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TIMEZONES.map(tz => (
-                          <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {/* Weekly: Day of Week */}
-                {assignForm.filling_frequency === 'weekly' && (
-                  <div className="space-y-2">
-                    <Label className="text-xs">Due Day of Week</Label>
-                    <Select 
-                      value={assignForm.due_day_of_week} 
-                      onValueChange={(v) => setAssignForm(prev => ({ ...prev, due_day_of_week: v }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="monday">Monday</SelectItem>
-                        <SelectItem value="tuesday">Tuesday</SelectItem>
-                        <SelectItem value="wednesday">Wednesday</SelectItem>
-                        <SelectItem value="thursday">Thursday</SelectItem>
-                        <SelectItem value="friday">Friday</SelectItem>
-                        <SelectItem value="saturday">Saturday</SelectItem>
-                        <SelectItem value="sunday">Sunday</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {/* Monthly/Quarterly/Half-Yearly/Yearly: Day of Month */}
-                {['monthly', 'quarterly', 'half_yearly', 'yearly'].includes(assignForm.filling_frequency) && (
-                  <div className="space-y-2">
-                    <Label className="text-xs">Due Day of Month</Label>
-                    <Select 
-                      value={String(assignForm.due_day_of_month)} 
-                      onValueChange={(v) => setAssignForm(prev => ({ ...prev, due_day_of_month: parseInt(v) }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {[...Array(31)].map((_, i) => (
-                          <SelectItem key={i+1} value={String(i+1)}>{i+1}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-amber-700">Auto-adjusts for shorter months (e.g., 31 → 28 for Feb)</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Reminder Settings */}
-            <div className="space-y-3 p-3 border rounded-lg bg-stone-50">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="reminder_enabled"
-                  checked={assignForm.reminder_enabled}
-                  onCheckedChange={(checked) => setAssignForm(prev => ({
-                    ...prev, 
-                    reminder_enabled: checked,
-                    reminder_frequency: checked ? prev.reminder_frequency : ''
-                  }))}
-                />
-                <Label htmlFor="reminder_enabled" className="text-sm cursor-pointer">
-                  Enable reminders
-                </Label>
-              </div>
-              
-              {assignForm.reminder_enabled && (
-                <div className="space-y-2 mt-2">
-                  <Label className="text-sm">Reminder Frequency *</Label>
-                  <Select 
-                    value={assignForm.reminder_frequency} 
-                    onValueChange={(v) => setAssignForm(prev => ({ ...prev, reminder_frequency: v }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select reminder frequency" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="daily">Daily</SelectItem>
-                      <SelectItem value="weekly">Weekly</SelectItem>
-                      <SelectItem value="monthly">Monthly</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            </div>
-
-            {/* Approval Settings */}
-            {(approvalWorkflowEnabled || multiLevelApprovalEnabled) && (
-              <div className="space-y-3 p-3 border rounded-lg bg-violet-50">
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="requires_approval"
-                    checked={assignForm.requires_approval}
-                    onCheckedChange={(checked) => setAssignForm(prev => ({
-                      ...prev, 
-                      requires_approval: checked,
-                      approver_id: checked ? prev.approver_id : '',
-                      approval_chain: checked ? prev.approval_chain : []
-                    }))}
-                  />
-                  <Label htmlFor="requires_approval" className="text-sm cursor-pointer">
-                    {multiLevelApprovalEnabled 
-                      ? 'Requires multi-level approval before finalization'
-                      : 'Requires approval before finalization'
-                    }
-                  </Label>
-                </div>
-                
-                {/* Single-level approval - only show for organization level */}
-                {assignForm.requires_approval && !multiLevelApprovalEnabled && approvalWorkflowEnabled && assignForm.assignment_level !== 'facility' && (
-                  <div className="space-y-2 mt-3">
-                    <Label className="text-sm">Select Approver *</Label>
-                    <Select 
-                      value={assignForm.approver_id} 
-                      onValueChange={(v) => setAssignForm(prev => ({ ...prev, approver_id: v }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select approver" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {users.map(u => (
-                          <SelectItem key={u.id} value={u.id}>
-                            <div className="flex items-center gap-2">
-                              <div className="w-6 h-6 rounded-full bg-violet-100 flex items-center justify-center text-xs font-medium text-violet-700">
-                                {(u.full_name || u.name || u.email)?.charAt(0) || '?'}
-                              </div>
-                              <div>
-                                <span className="font-medium">{u.full_name || u.name || u.email}</span>
-                                <span className="text-xs text-text-muted ml-2">({u.role})</span>
-                              </div>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-                
-                {/* Info for facility-level approval */}
-                {assignForm.requires_approval && assignForm.assignment_level === 'facility' && (
-                  <p className="text-xs text-text-muted mt-2">Approvers are configured per-facility above</p>
-                )}
-                
-                {/* Multi-level approval chain builder - only for organization level */}
-                {assignForm.requires_approval && multiLevelApprovalEnabled && assignForm.assignment_level !== 'facility' && (
-                  <div className="space-y-3 mt-3">
-                    <Label className="text-sm">Approval Chain * <span className="text-xs text-text-muted">(in order)</span></Label>
-                    
-                    {/* Current approval chain */}
-                    {assignForm.approval_chain.length > 0 && (
-                      <div className="space-y-2">
-                        {assignForm.approval_chain.map((approverId, index) => {
-                          const approver = users.find(u => u.id === approverId);
-                          return (
-                            <div key={approverId} className="flex items-center gap-2 p-2 bg-white rounded border">
-                              <Badge variant="outline" className="bg-violet-100 text-violet-700">
-                                Level {index + 1}
-                              </Badge>
-                              <div className="flex-1 flex items-center gap-2">
-                                <div className="w-6 h-6 rounded-full bg-violet-200 flex items-center justify-center text-xs font-medium text-violet-700">
-                                  {(approver?.full_name || approver?.name)?.charAt(0) || '?'}
-                                </div>
-                                <span className="text-sm font-medium">{approver?.full_name || approver?.name || approver?.email || 'Unknown'}</span>
-                                <span className="text-xs text-text-muted">({approver?.role})</span>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  const newChain = assignForm.approval_chain.filter((_, i) => i !== index);
-                                  setAssignForm(prev => ({ ...prev, approval_chain: newChain }));
-                                }}
-                              >
-                                <X className="w-4 h-4 text-red-500" />
-                              </Button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                    
-                    {/* Add approver dropdown */}
-                    <Select 
-                      value="" 
-                      onValueChange={(userId) => {
-                        if (userId && !assignForm.approval_chain.includes(userId)) {
-                          setAssignForm(prev => ({
-                            ...prev, 
-                            approval_chain: [...prev.approval_chain, userId]
-                          }));
-                        }
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={`Add Level ${assignForm.approval_chain.length + 1} Approver`} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {users
-                          .filter(u => !assignForm.approval_chain.includes(u.id))
-                          .map(u => (
-                            <SelectItem key={u.id} value={u.id}>
-                              <div className="flex items-center gap-2">
-                                <div className="w-6 h-6 rounded-full bg-stone-100 flex items-center justify-center text-xs font-medium">
-                                  {(u.full_name || u.name || u.email)?.charAt(0) || '?'}
-                                </div>
-                                <div>
-                                  <span className="font-medium">{u.full_name || u.name || u.email}</span>
-                                  <span className="text-xs text-text-muted ml-2">({u.role})</span>
-                                </div>
-                              </div>
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                    
-                    {assignForm.approval_chain.length === 0 && (
-                      <p className="text-xs text-text-muted">Add approvers in the order they should review (e.g., Manager → Director → VP)</p>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => {
-              setShowAssignModal(false);
-              resetAssignForm();
-            }}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleAssign}
-              disabled={
-                assigning || 
-                (assignForm.assignment_level !== 'facility' && assignForm.assigned_user_ids.length === 0) ||
-                (assignForm.assignment_level === 'facility' && Object.values(assignForm.facility_assignments || {}).every(fa => !fa?.user_ids?.length)) ||
-                (assignForm.requires_approval && multiLevelApprovalEnabled && assignForm.assignment_level !== 'facility' && assignForm.approval_chain.length === 0) ||
-                (assignForm.requires_approval && !multiLevelApprovalEnabled && approvalWorkflowEnabled && assignForm.assignment_level !== 'facility' && !assignForm.approver_id) ||
-                (assignForm.reminder_enabled && !assignForm.reminder_frequency)
-              }
-            >
-              {assigning ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Assigning...</>
-              ) : assignForm.assignment_level === 'facility' ? (
-                <><UserPlus className="w-4 h-4 mr-2" /> Save Facility Assignments</>
-              ) : (
-                <><UserPlus className="w-4 h-4 mr-2" /> Assign to {assignForm.assigned_user_ids.length} User{assignForm.assigned_user_ids.length !== 1 ? 's' : ''}</>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Assignment Wizard */}
+      <AssignmentWizard
+        open={showAssignModal}
+        onOpenChange={(open) => {
+          setShowAssignModal(open);
+          if (!open) resetAssignForm();
+        }}
+        category={assigningItem?.category}
+        subcategory={assigningItem?.subcategory}
+        subSubcategory={assigningItem?.sub_subcategory}
+        facilities={facilities}
+        users={users}
+        reportingPeriod={reportingPeriod}
+        approvalWorkflowEnabled={approvalWorkflowEnabled}
+        multiLevelApprovalEnabled={multiLevelApprovalEnabled}
+        initialData={assignForm}
+        onSubmit={handleWizardSubmit}
+      />
     </div>
   );
 }
