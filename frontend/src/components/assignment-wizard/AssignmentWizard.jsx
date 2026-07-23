@@ -36,6 +36,7 @@ export function AssignmentWizard({
   approvalWorkflowEnabled = false,
   multiLevelApprovalEnabled = false,
   initialData = null,
+  authToken = null,
   onSubmit,
 }) {
   const wizard = useAssignmentWizard({
@@ -48,6 +49,7 @@ export function AssignmentWizard({
     approvalWorkflowEnabled,
     multiLevelApprovalEnabled,
     initialData,
+    authToken,
     onSubmit,
     onClose: () => onOpenChange(false),
   });
@@ -118,6 +120,7 @@ export function AssignmentWizard({
               form={wizard.form}
               updateForm={wizard.updateForm}
               reportingPeriod={reportingPeriod}
+              frequencyConfig={wizard.frequencyConfig}
             />
           )}
           {wizard.currentStep === 3 && (

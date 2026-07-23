@@ -23,13 +23,20 @@ import {
   SelectValue 
 } from '../ui/select';
 import { cn } from '@/lib/utils';
-import { TIMEZONES, FREQUENCIES, DAYS_OF_WEEK } from './useAssignmentWizard';
+import { TIMEZONES, ALL_FREQUENCIES, DAYS_OF_WEEK } from './useAssignmentWizard';
 
 export function StepSchedule({
   form,
   updateForm,
   reportingPeriod,
+  frequencyConfig = {},
 }) {
+  // Get allowed frequencies from config, with fallback to all
+  const allowedFrequencies = useMemo(() => {
+    const allowed = frequencyConfig.allowed_frequencies || ALL_FREQUENCIES.map(f => f.value);
+    return ALL_FREQUENCIES.filter(f => allowed.includes(f.value));
+  }, [frequencyConfig.allowed_frequencies]);
+
   // Parse dates for timeline
   const timeline = useMemo(() => {
     if (!form.start_date) return null;
@@ -132,11 +139,14 @@ export function StepSchedule({
             <SelectValue placeholder="Select frequency" />
           </SelectTrigger>
           <SelectContent>
-            {FREQUENCIES.map(f => (
+            {allowedFrequencies.map(f => (
               <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
+        {frequencyConfig.loading && (
+          <p className="text-xs text-text-muted">Loading frequency options...</p>
+        )}
       </div>
 
       {/* Due Schedule Card */}

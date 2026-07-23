@@ -13,6 +13,7 @@ import uuid
 from core_platform.auth import get_current_user
 from .service import esg_records_service
 from .ghg_integration import get_ghg_integration_service
+from .category_config_service import category_config_service
 from .contracts import (
     ESG_SECTION, REPORTING_TYPE, 
     CreateRecordRequest, UpdateRecordRequest, RecordListFilters
@@ -20,6 +21,33 @@ from .contracts import (
 from shared.database import get_database
 
 router = APIRouter(prefix="/esg-records", tags=["ESG Records"])
+
+
+# =============================================================================
+# Category Configuration Endpoints
+# =============================================================================
+
+@router.get("/category-config/frequency")
+async def get_category_frequency_config(
+    category: str = Query(..., description="Category name (e.g., 'Water', 'GHG Emissions')"),
+    subcategory: Optional[str] = Query(None, description="Subcategory name (e.g., 'Discharge')"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get allowed reporting frequencies for a category/subcategory.
+    
+    Returns the list of allowed frequencies and the default frequency.
+    Uses category-specific defaults, falls back to all frequencies if not configured.
+    """
+    org_id = current_user.get("organization_id")
+    
+    config = await category_config_service.get_frequency_config(
+        category=category,
+        subcategory=subcategory,
+        org_id=org_id
+    )
+    
+    return config
 
 
 # =============================================================================

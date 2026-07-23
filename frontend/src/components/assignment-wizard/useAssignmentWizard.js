@@ -3,7 +3,10 @@
  * Manages all state and logic for the assignment wizard
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import axios from 'axios';
+
+const API = process.env.REACT_APP_BACKEND_URL;
 
 const INITIAL_FORM_STATE = {
   // Step 1: Level
@@ -16,7 +19,7 @@ const INITIAL_FORM_STATE = {
   // Step 3: Schedule
   start_date: '',
   end_date: '',
-  filling_frequency: 'monthly',
+  filling_frequency: '',  // Will be set from category config
   due_time: '17:00',
   timezone: 'Asia/Kolkata',
   due_day_of_month: 15,
@@ -49,7 +52,8 @@ export const TIMEZONES = [
   { value: 'UTC', label: 'UTC' },
 ];
 
-export const FREQUENCIES = [
+// All frequencies - used as fallback
+export const ALL_FREQUENCIES = [
   { value: 'daily', label: 'Daily' },
   { value: 'weekly', label: 'Weekly' },
   { value: 'monthly', label: 'Monthly' },
@@ -57,6 +61,9 @@ export const FREQUENCIES = [
   { value: 'half_yearly', label: 'Half Yearly' },
   { value: 'yearly', label: 'Yearly' },
 ];
+
+// Legacy export for backward compatibility
+export const FREQUENCIES = ALL_FREQUENCIES;
 
 export const DAYS_OF_WEEK = [
   { value: 'monday', label: 'Monday' },
@@ -80,14 +87,67 @@ export function useAssignmentWizard({
   initialData = null,
   onSubmit,
   onClose,
+  authToken = null,
 }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [form, setForm] = useState(INITIAL_FORM_STATE);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [expandedFacilities, setExpandedFacilities] = useState({});
+  
+  // Frequency config from backend
+  const [frequencyConfig, setFrequencyConfig] = useState({
+    allowed_frequencies: ALL_FREQUENCIES.map(f => f.value),
+    default_frequency: 'monthly',
+    loading: false,
+  });
+
+  // Fetch frequency config when category changes
+  useEffect(() => {
+    const fetchFrequencyConfig = async () => {
+      if (!category) return;
+      
+      setFrequencyConfig(prev => ({ ...prev, loading: true }));
+      
+      try {
+        const params = new URLSearchParams({ category });
+        if (subcategory) params.append('subcategory', subcategory);
+        
+        const headers = authToken ? { Authorization: `Bearer ${authToken}` } : {};
+        const response = await axios.get(
+          `${API}/api/esg-records/category-config/frequency?${params}`,
+          { headers }
+        );
+        
+        const config = response.data;
+        setFrequencyConfig({
+          allowed_frequencies: config.allowed_frequencies || ALL_FREQUENCIES.map(f => f.value),
+          default_frequency: config.default_frequency || 'monthly',
+          loading: false,
+        });
+        
+        // Set default frequency if form doesn't have one
+        setForm(prev => {
+          if (!prev.filling_frequency) {
+            return { ...prev, filling_frequency: config.default_frequency || 'monthly' };
+          }
+          return prev;
+        });
+      } catch (error) {
+        console.error('Failed to fetch frequency config:', error);
+        // Fallback to all frequencies
+        setFrequencyConfig({
+          allowed_frequencies: ALL_FREQUENCIES.map(f => f.value),
+          default_frequency: 'monthly',
+          loading: false,
+        });
+      }
+    };
+    
+    fetchFrequencyConfig();
+  }, [category, subcategory, authToken]);
 
   // Initialize form with initial data when provided
-  React.useEffect(() => {
+  useEffect(() => {
     if (initialData) {
       setForm({
         ...INITIAL_FORM_STATE,
@@ -394,6 +454,9 @@ export function useAssignmentWizard({
     canGoNext,
     canGoPrev,
     isLastStep,
+    
+    // Frequency config from backend
+    frequencyConfig,
     
     // Actions
     updateForm,

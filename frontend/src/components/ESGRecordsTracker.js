@@ -1706,6 +1706,7 @@ export default function ESGRecordsTracker({
         approvalWorkflowEnabled={approvalWorkflowEnabled}
         multiLevelApprovalEnabled={multiLevelApprovalEnabled}
         initialData={assignForm}
+        authToken={token}
         onSubmit={handleWizardSubmit}
       />
     </div>
