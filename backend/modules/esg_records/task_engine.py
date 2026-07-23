@@ -42,6 +42,111 @@ class TaskType(str, Enum):
     FUTURE = "future"           # Future periods
 
 
+
+async def _check_data_exists_for_task(
+    db: AsyncIOMotorDatabase,
+    organization_id: str,
+    facility_id: Optional[str],
+    category: str,
+    subcategory: str,
+    period_key: str,
+) -> bool:
+    """
+    Check if data already exists for a given task period.
+    
+    This is called when creating tasks to determine if the task should
+    be automatically marked as completed because data was submitted
+    before the assignment was created.
+    
+    Handles:
+    - GHG Emissions: Checks emission_records by facility_id and scope
+    - Water/Environment: Checks environment_records by org_id
+    - Social: Checks social_records by org_id
+    - Governance: Checks governance_records by org_id
+    """
+    cat_lower = category.lower() if category else ""
+    sub_lower = subcategory.lower() if subcategory else ""
+    
+    # GHG Emissions - check emission_records
+    if "ghg" in cat_lower or "emission" in cat_lower or "scope" in sub_lower:
+        query = {"reporting_period": period_key}
+        
+        if facility_id:
+            query["facility_id"] = facility_id
+        
+        # Map subcategory to scope
+        if "scope 1" in sub_lower:
+            query["scope"] = "scope1"
+        elif "scope 2" in sub_lower:
+            query["scope"] = "scope2"
+        elif "scope 3" in sub_lower:
+            query["scope"] = "scope3"
+        elif "biogenic" in sub_lower:
+            query["scope"] = "biogenic"
+        
+        count = await db["emission_records"].count_documents(query)
+        return count > 0
+    
+    # Water and Environment - check environment_records
+    if "water" in cat_lower or "energy" in cat_lower:
+        query = {
+            "$or": [
+                {"org_id": organization_id},
+                {"organization_id": organization_id},
+            ],
+            "category": {"$regex": f"^{category}$", "$options": "i"},
+        }
+        if subcategory:
+            query["subcategory"] = {"$regex": f"^{subcategory}$", "$options": "i"}
+        
+        # Check period - environment_records use dict format {year, month}
+        try:
+            parts = period_key.split("-")
+            if len(parts) >= 2:
+                year = int(parts[0])
+                month = int(parts[1])
+                query["reporting_period.year"] = year
+                query["reporting_period.month"] = {"$in": [str(month), month]}
+        except (ValueError, IndexError):
+            pass
+        
+        count = await db["environment_records"].count_documents(query)
+        return count > 0
+    
+    # Social records
+    if any(k in cat_lower or k in sub_lower for k in ["social", "employee", "worker", "health", "safety", "complaint", "training"]):
+        query = {
+            "$or": [
+                {"org_id": organization_id},
+                {"organization_id": organization_id},
+            ],
+            "category": {"$regex": f"^{category}$", "$options": "i"},
+        }
+        if subcategory:
+            query["subcategory"] = {"$regex": f"^{subcategory}$", "$options": "i"}
+        
+        count = await db["social_records"].count_documents(query)
+        return count > 0
+    
+    # Governance records
+    if any(k in cat_lower or k in sub_lower for k in ["governance", "board", "ethic", "compliance", "corruption", "financial"]):
+        query = {
+            "$or": [
+                {"org_id": organization_id},
+                {"organization_id": organization_id},
+            ],
+            "category": {"$regex": f"^{category}$", "$options": "i"},
+        }
+        if subcategory:
+            query["subcategory"] = {"$regex": f"^{subcategory}$", "$options": "i"}
+        
+        count = await db["governance_records"].count_documents(query)
+        return count > 0
+    
+    return False
+
+
+
 def get_last_day_of_month(year: int, month: int) -> int:
     """Get the last day of a given month, handling leap years."""
     return calendar.monthrange(year, month)[1]
@@ -469,8 +574,22 @@ async def generate_tasks_for_assignment(
             # Create new task (organizational obligation)
             task_id = str(uuid.uuid4())
             
+            # Check if data already exists for this period/facility
+            # This handles cases where data was submitted before the assignment was created
+            data_exists = await _check_data_exists_for_task(
+                db=db,
+                organization_id=org_id,
+                facility_id=facility_id,
+                category=category,
+                subcategory=subcategory,
+                period_key=period["period_key"],
+            )
+            
             # Determine initial status
-            if period["is_backfill"]:
+            if data_exists:
+                # Data already exists - mark as completed
+                status = TaskStatus.COMPLETED.value
+            elif period["is_backfill"]:
                 status = TaskStatus.BACKFILL_PENDING.value
             elif period["task_type"] == TaskType.FUTURE.value:
                 status = TaskStatus.PENDING.value
@@ -496,7 +615,7 @@ async def generate_tasks_for_assignment(
                 "task_type": period["task_type"],
                 "is_backfill": period["is_backfill"],
                 "status": status,
-                "submitted_at": None,
+                "submitted_at": datetime.now(tz.utc) if data_exists else None,
                 "approved_at": None,
                 "skipped_reason": None,
                 "created_at": now,
@@ -957,3 +1076,76 @@ async def get_task_assignees(
     ).to_list(100)
     
     return assignees
+
+
+
+async def sync_task_statuses_with_data(
+    db: AsyncIOMotorDatabase,
+    organization_id: str,
+) -> Dict[str, Any]:
+    """
+    Sync existing task statuses with actual data records.
+    
+    For tasks that are not completed but have data in the corresponding
+    records collection, update the task status to completed.
+    
+    This fixes the discrepancy where data was submitted but the task
+    wasn't updated (e.g., via bulk upload or before the task existed).
+    
+    Returns summary of updates made.
+    """
+    # Find all non-completed tasks for this organization
+    non_completed_tasks = await db["esg_reporting_tasks"].find({
+        "organization_id": organization_id,
+        "status": {"$nin": ["completed", "skipped"]},
+    }, {"_id": 0}).to_list(5000)
+    
+    updated_count = 0
+    updated_tasks = []
+    
+    for task in non_completed_tasks:
+        task_id = task.get("id")
+        category = task.get("category", "")
+        subcategory = task.get("subcategory", "")
+        facility_id = task.get("facility_id")
+        period_key = task.get("period_key", "")
+        
+        # Check if data exists for this task
+        data_exists = await _check_data_exists_for_task(
+            db=db,
+            organization_id=organization_id,
+            facility_id=facility_id,
+            category=category,
+            subcategory=subcategory,
+            period_key=period_key,
+        )
+        
+        if data_exists:
+            # Update task to completed
+            await db["esg_reporting_tasks"].update_one(
+                {"id": task_id},
+                {
+                    "$set": {
+                        "status": TaskStatus.COMPLETED.value,
+                        "completed_at": datetime.now(tz.utc),
+                        "updated_at": datetime.now(tz.utc),
+                        "sync_note": "Auto-completed: data exists in records",
+                    }
+                }
+            )
+            updated_count += 1
+            updated_tasks.append({
+                "task_id": task_id,
+                "period_key": period_key,
+                "category": category,
+                "subcategory": subcategory,
+                "facility_id": facility_id,
+                "old_status": task.get("status"),
+                "new_status": "completed",
+            })
+    
+    return {
+        "tasks_checked": len(non_completed_tasks),
+        "tasks_updated": updated_count,
+        "updated_tasks": updated_tasks,
+    }

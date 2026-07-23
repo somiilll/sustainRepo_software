@@ -1195,8 +1195,38 @@ async def refresh_overdue_tasks(
     return result
 
 
+@router.post("/tasks/sync-with-data")
+async def sync_task_statuses_with_data_endpoint(
+    current_user: dict = Depends(get_current_user),
+    db = Depends(get_database),
+):
+    """
+    Sync task statuses with actual data records.
+    
+    For tasks that are not completed but have data in the corresponding
+    records collection, update the task status to completed.
+    
+    This fixes discrepancies where data was submitted but the task
+    wasn't updated (e.g., via bulk upload or before the task existed).
+    
+    Admin only.
+    """
+    from .task_engine import sync_task_statuses_with_data
+    
+    # Only admins can trigger this
+    if current_user.get("role") not in ["admin", "super_admin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    result = await sync_task_statuses_with_data(db=db, organization_id=org_id)
+    
+    return result
 
-@router.get("/tasks/completion-by-category")
+
+
 async def get_completion_by_category(
     reporting_period: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
