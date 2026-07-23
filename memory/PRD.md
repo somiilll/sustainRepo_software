@@ -50,6 +50,16 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
   - Radar chart visualization
   - AI-powered executive summary generation
   - Printable report export
+- [x] **Progress Engine V2** (July 2025)
+  - Handles emission_records schema (facility_id only, string dates, scope field)
+  - Handles environment_records schema (org_id, dict dates, is_current field)
+  - Smart org-level calculation: only expands to facility count if facility records exist
+  - GHG Emissions Scope 1 progress: 14.3% (2/14 tasks)
+  - Water/Discharge progress: 75% (3/4 tasks)
+- [x] **ESG Records Tracker UI Updates** (July 2025)
+  - Status column shows colored boxes: Orange (Pending), Red (Overdue), Green (Completed)
+  - Tooltips on hover for each status box
+  - Removed Stale stat card from overview (now 5 cards)
 
 ### ESG Metrics Calculations (via ESGMetricsService)
 | Metric | Formula | Data Source |

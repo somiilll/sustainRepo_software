@@ -29,6 +29,12 @@ import { Label } from './ui/label';
 import { Progress } from './ui/progress';
 import { Checkbox } from './ui/checkbox';
 import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from './ui/tooltip';
+import { 
   Select, 
   SelectContent, 
   SelectItem, 
@@ -1209,26 +1215,40 @@ export default function ESGRecordsTracker({
                     <TableCell>
                       {/* Task Status Boxes - Pending (Orange), Overdue (Red), Completed (Green) */}
                       {totalTasks > 0 ? (
-                        <div className="flex items-center gap-1.5">
-                          <div 
-                            className="px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200 cursor-help"
-                            title="Pending Tasks"
-                          >
-                            {pendingTasks}
+                        <TooltipProvider>
+                          <div className="flex items-center gap-1.5">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200 cursor-help">
+                                  {pendingTasks}
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Pending Tasks</p>
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 border border-red-200 cursor-help">
+                                  {overdueTasks}
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Overdue Tasks</p>
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700 border border-green-200 cursor-help">
+                                  {completedTasks}
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Completed Tasks</p>
+                              </TooltipContent>
+                            </Tooltip>
                           </div>
-                          <div 
-                            className="px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 border border-red-200 cursor-help"
-                            title="Overdue Tasks"
-                          >
-                            {overdueTasks}
-                          </div>
-                          <div 
-                            className="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700 border border-green-200 cursor-help"
-                            title="Completed Tasks"
-                          >
-                            {completedTasks}
-                          </div>
-                        </div>
+                        </TooltipProvider>
                       ) : (
                         renderCategoryStatusBadge(cat.category, { completed: completedTasks, total: totalTasks })
                       )}
