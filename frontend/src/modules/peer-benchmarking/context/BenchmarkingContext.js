@@ -15,10 +15,18 @@ const EMPTY_COMPANY = {
   metrics: {}
 };
 
+// Helper to format date as YYYY-MM-DD
+const formatDateForAPI = (date) => {
+  if (!date) return null;
+  const d = new Date(date);
+  return d.toISOString().split('T')[0];
+};
+
 export const BenchmarkingProvider = ({ children }) => {
   const [myCompany, setMyCompany] = useState(EMPTY_COMPANY);
-  const [availableYears, setAvailableYears] = useState(['All Data']);
-  const [selectedYear, setSelectedYear] = useState('All Data');
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
+  const [dateRange, setDateRange] = useState({ min: null, max: null });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [savedReports, setSavedReports] = useState(() => {
@@ -31,30 +39,33 @@ export const BenchmarkingProvider = ({ children }) => {
     }
   });
 
-  // Fetch available years on mount
+  // Fetch available date range on mount
   useEffect(() => {
-    const fetchAvailableYears = async () => {
+    const fetchDateRange = async () => {
       try {
         const token = localStorage.getItem('token');
         if (!token) return;
 
-        const response = await axios.get(`${API_BASE}/api/benchmarking/available-years`, {
+        const response = await axios.get(`${API_BASE}/api/benchmarking/date-range`, {
           headers: { Authorization: `Bearer ${token}` }
         });
 
-        if (response.data?.years) {
-          setAvailableYears(response.data.years);
+        if (response.data) {
+          setDateRange({
+            min: response.data.min_date,
+            max: response.data.max_date
+          });
         }
       } catch (err) {
-        console.error('Failed to fetch available years:', err);
+        console.error('Failed to fetch date range:', err);
       }
     };
 
-    fetchAvailableYears();
+    fetchDateRange();
   }, []);
 
-  // Fetch company data based on selected year
-  const fetchMyCompanyData = useCallback(async (year = selectedYear) => {
+  // Fetch company data based on date range
+  const fetchMyCompanyData = useCallback(async (start = startDate, end = endDate) => {
     try {
       setLoading(true);
       setError(null);
@@ -66,9 +77,13 @@ export const BenchmarkingProvider = ({ children }) => {
         return;
       }
 
+      const params = {};
+      if (start) params.start_date = formatDateForAPI(start);
+      if (end) params.end_date = formatDateForAPI(end);
+
       const response = await axios.get(`${API_BASE}/api/benchmarking/my-company`, {
         headers: { Authorization: `Bearer ${token}` },
-        params: { year }
+        params
       });
 
       if (response.data) {
@@ -80,12 +95,25 @@ export const BenchmarkingProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [selectedYear]);
+  }, [startDate, endDate]);
 
-  // Fetch data on mount and when year changes
+  // Fetch data on mount
   useEffect(() => {
-    fetchMyCompanyData(selectedYear);
-  }, [selectedYear, fetchMyCompanyData]);
+    fetchMyCompanyData(null, null);
+  }, []);
+
+  // Fetch data when dates change
+  const applyDateFilter = useCallback((start, end) => {
+    setStartDate(start);
+    setEndDate(end);
+    fetchMyCompanyData(start, end);
+  }, [fetchMyCompanyData]);
+
+  const clearDateFilter = useCallback(() => {
+    setStartDate(null);
+    setEndDate(null);
+    fetchMyCompanyData(null, null);
+  }, [fetchMyCompanyData]);
 
   useEffect(() => {
     localStorage.setItem('benchmarking_saved_reports', JSON.stringify(savedReports));
@@ -99,12 +127,8 @@ export const BenchmarkingProvider = ({ children }) => {
     setSavedReports(prev => prev.filter(r => r.id !== id));
   };
 
-  const changeYear = (year) => {
-    setSelectedYear(year);
-  };
-
   const refreshMyCompany = () => {
-    fetchMyCompanyData(selectedYear);
+    fetchMyCompanyData(startDate, endDate);
   };
 
   return (
@@ -117,9 +141,11 @@ export const BenchmarkingProvider = ({ children }) => {
       loading,
       error,
       refreshMyCompany,
-      availableYears,
-      selectedYear,
-      changeYear
+      startDate,
+      endDate,
+      dateRange,
+      applyDateFilter,
+      clearDateFilter
     }}>
       {children}
     </BenchmarkingContext.Provider>

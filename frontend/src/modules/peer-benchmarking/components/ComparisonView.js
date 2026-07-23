@@ -4,7 +4,7 @@ import { METRIC_LABELS } from '../types';
 import { RadarChartWidget } from './RadarChartWidget';
 import { ExecutiveSummaryWidget } from './ExecutiveSummaryWidget';
 import { PrintableReport } from './PrintableReport';
-import { AlertCircle, Trash2, Loader2, Database, RefreshCw, Calendar } from 'lucide-react';
+import { AlertCircle, Trash2, Loader2, Database, RefreshCw, Calendar, X } from 'lucide-react';
 
 const METRIC_UNITS = {
   scope1: 'tCO2e',
@@ -30,16 +30,32 @@ export const ComparisonView = () => {
     loading, 
     error, 
     refreshMyCompany,
-    availableYears,
-    selectedYear,
-    changeYear
+    startDate,
+    endDate,
+    applyDateFilter,
+    clearDateFilter
   } = useBenchmarking();
+  
   const [comp1Id, setComp1Id] = useState(savedReports[0]?.id || '');
   const [comp2Id, setComp2Id] = useState(savedReports[1]?.id || '');
   const [execSummary, setExecSummary] = useState(null);
+  const [tempStartDate, setTempStartDate] = useState(startDate || '');
+  const [tempEndDate, setTempEndDate] = useState(endDate || '');
 
   const comp1 = savedReports.find(r => r.id === comp1Id);
   const comp2 = savedReports.find(r => r.id === comp2Id);
+
+  const handleApplyFilter = () => {
+    applyDateFilter(tempStartDate || null, tempEndDate || null);
+  };
+
+  const handleClearFilter = () => {
+    setTempStartDate('');
+    setTempEndDate('');
+    clearDateFilter();
+  };
+
+  const hasDateFilter = startDate || endDate;
 
   // Show loading state
   if (loading) {
@@ -214,10 +230,10 @@ export const ComparisonView = () => {
         executiveSummary={execSummary}
       />
 
-      {/* Internal Data Indicator with Year Selector */}
+      {/* Internal Data Indicator with Date Range Selector */}
       {myCompany.data_source === 'internal' && (
         <div className="glass-panel p-4 mb-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-3">
               <Database className="w-5 h-5 text-green-600" />
               <div>
@@ -226,32 +242,59 @@ export const ComparisonView = () => {
                 <p className="text-xs text-slate-400">Data sourced from your internal ESG records</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              {/* Year Selector */}
+            
+            {/* Date Range Selector */}
+            <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-slate-400" />
-                <select
-                  value={selectedYear}
-                  onChange={(e) => changeYear(e.target.value)}
+                <span className="text-sm text-slate-500">From:</span>
+                <input
+                  type="date"
+                  value={tempStartDate}
+                  onChange={(e) => setTempStartDate(e.target.value)}
                   className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                >
-                  {availableYears.map(year => (
-                    <option key={year} value={year}>{year}</option>
-                  ))}
-                </select>
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-slate-500">To:</span>
+                <input
+                  type="date"
+                  value={tempEndDate}
+                  onChange={(e) => setTempEndDate(e.target.value)}
+                  className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                />
               </div>
               <button 
+                onClick={handleApplyFilter}
+                className="btn-primary text-sm py-2"
+              >
+                Apply
+              </button>
+              {hasDateFilter && (
+                <button 
+                  onClick={handleClearFilter}
+                  className="btn-secondary flex items-center gap-1 text-sm py-2"
+                >
+                  <X className="w-3 h-3" />
+                  Clear
+                </button>
+              )}
+              <button 
                 onClick={refreshMyCompany}
-                className="btn-secondary flex items-center gap-2 text-sm"
+                className="btn-secondary flex items-center gap-2 text-sm py-2"
+                title="Refresh data"
               >
                 <RefreshCw className="w-4 h-4" />
-                Refresh
               </button>
             </div>
           </div>
-          {selectedYear !== 'All Data' && (
-            <div className="mt-2 text-xs text-green-600 bg-green-50 px-3 py-1 rounded-full inline-block">
-              Showing data for: {selectedYear}
+          
+          {hasDateFilter && (
+            <div className="mt-3 text-sm text-green-700 bg-green-50 px-3 py-2 rounded-lg inline-flex items-center gap-2">
+              <Calendar className="w-4 h-4" />
+              <span>
+                Showing data for: <strong>{myCompany.year}</strong>
+              </span>
             </div>
           )}
         </div>
