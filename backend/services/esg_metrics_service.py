@@ -156,23 +156,87 @@ class ESGMetricsService:
         }
 
     async def _get_turnover(self) -> Optional[float]:
-        """Get turnover/revenue from governance records."""
-        query = self._build_query("governance")
-        query["$or"] = [
-            {"subcategory": {"$regex": "turnover|revenue|financial", "$options": "i"}},
-            {"category": {"$regex": "financial", "$options": "i"}}
-        ]
-        
-        records = await db.governance_records.find(query, {"_id": 0, "field_values": 1}).to_list(100)
-        
-        for rec in records:
-            fv = rec.get("field_values") or {}
-            for key in ["turnover", "revenue", "total_turnover", "total_revenue", "net_turnover"]:
-                if key in fv and fv[key]:
+        """
+        Get turnover/revenue from organization_financials collection.
+        This is where org yearly data (turnover) is stored.
+        """
+        # First try organization_financials (primary source)
+        try:
+            # Build query for financials
+            query = {"org_id": self.org_id}
+            
+            # If date range specified, try to match reporting_year
+            if self.start_date or self.end_date:
+                # Try to extract year from date range for matching
+                year = None
+                if self.start_date:
                     try:
-                        return float(fv[key])
+                        year = int(self.start_date[:4])
                     except:
                         pass
+                elif self.end_date:
+                    try:
+                        year = int(self.end_date[:4])
+                    except:
+                        pass
+                
+                if year:
+                    # Try various reporting year formats
+                    query["$or"] = [
+                        {"reporting_year": f"FY {year}-{str(year+1)[-2:]}"},
+                        {"reporting_year": f"FY{year}-{str(year+1)[-2:]}"},
+                        {"reporting_year": f"FY {year-1}-{str(year)[-2:]}"},
+                        {"reporting_year": str(year)},
+                        {"reporting_year": {"$regex": str(year), "$options": "i"}}
+                    ]
+            
+            financials = await db.organization_financials.find_one(
+                query,
+                {"_id": 0, "turnover": 1}
+            )
+            
+            if financials and financials.get("turnover"):
+                try:
+                    return float(financials["turnover"])
+                except:
+                    pass
+            
+            # If no date filter, get the most recent one
+            if not self.start_date and not self.end_date:
+                financials = await db.organization_financials.find_one(
+                    {"org_id": self.org_id},
+                    {"_id": 0, "turnover": 1},
+                    sort=[("reporting_year", -1)]
+                )
+                if financials and financials.get("turnover"):
+                    try:
+                        return float(financials["turnover"])
+                    except:
+                        pass
+        except Exception as e:
+            logger.warning(f"Error fetching turnover from organization_financials: {e}")
+        
+        # Fallback: try governance_records (legacy)
+        try:
+            query = self._build_query("governance")
+            query["$or"] = [
+                {"subcategory": {"$regex": "turnover|revenue|financial", "$options": "i"}},
+                {"category": {"$regex": "financial", "$options": "i"}}
+            ]
+            
+            records = await db.governance_records.find(query, {"_id": 0, "field_values": 1}).to_list(100)
+            
+            for rec in records:
+                fv = rec.get("field_values") or {}
+                for key in ["turnover", "revenue", "total_turnover", "total_revenue", "net_turnover"]:
+                    if key in fv and fv[key]:
+                        try:
+                            return float(fv[key])
+                        except:
+                            pass
+        except Exception as e:
+            logger.warning(f"Error fetching turnover from governance_records: {e}")
+        
         return None
 
     # ==================== WATER ====================
