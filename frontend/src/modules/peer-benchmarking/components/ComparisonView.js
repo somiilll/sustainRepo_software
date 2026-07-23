@@ -22,6 +22,18 @@ const METRIC_UNITS = {
   daysAccountsPayable: 'Days'
 };
 
+// Color constants for benchmarking bars
+const COLORS = {
+  leader: '#34d399',       // Green - best performer
+  leaderGradient: 'linear-gradient(90deg, #10b981, #059669)',
+  laggard: '#f87171',      // Red - worst performer
+  laggardGradient: 'linear-gradient(90deg, #ef4444, #dc2626)',
+  parity: '#f59e0b',       // Amber - tied/equal
+  myCompanyText: '#3b82f6', // Accent Blue for My Company page refs
+  comp1Text: '#8b5cf6',     // Purple for Competitor 1
+  comp2Text: '#14b8a6'      // Teal for Competitor 2
+};
+
 export const ComparisonView = () => {
   const { 
     myCompany, 
@@ -218,6 +230,70 @@ export const ComparisonView = () => {
     return (sum / count).toFixed(2);
   };
 
+  // Helper: Get page number with fallback
+  const getPageRef = (metricData) => {
+    const page = metricData?.page;
+    return page !== null && page !== undefined ? `Pg ${page}` : 'Pg N/A';
+  };
+
+  // Helper: Calculate relative benchmarking bars
+  const getRelativeBars = (metric, myVal, c1Val, c2Val) => {
+    const lowerIsBetter = isLowerBetter(metric);
+    const values = [
+      { label: 'You', val: myVal, color: COLORS.myCompanyText },
+      { label: 'C1', val: c1Val, color: COLORS.comp1Text },
+      { label: 'C2', val: c2Val, color: COLORS.comp2Text }
+    ].filter(v => v.val !== null && typeof v.val === 'number');
+
+    if (values.length === 0) return null;
+
+    // Find max value for scaling
+    const maxVal = Math.max(...values.map(v => Math.abs(v.val)));
+    if (maxVal === 0) return values.map(v => ({ ...v, width: 100, barColor: COLORS.parity }));
+
+    // Determine best and worst performers
+    const sorted = [...values].sort((a, b) => lowerIsBetter ? a.val - b.val : b.val - a.val);
+    const bestVal = sorted[0]?.val;
+    const worstVal = sorted[sorted.length - 1]?.val;
+
+    return values.map(v => {
+      const width = Math.max(5, (Math.abs(v.val) / maxVal) * 100);
+      let barColor = COLORS.parity;
+      
+      if (values.length > 1) {
+        const gap = maxVal > 0 ? Math.abs(bestVal - worstVal) / maxVal * 100 : 0;
+        
+        if (v.val === bestVal && bestVal !== worstVal) {
+          barColor = gap > 30 ? COLORS.leaderGradient : COLORS.leader;
+        } else if (v.val === worstVal && bestVal !== worstVal) {
+          barColor = gap > 30 ? COLORS.laggardGradient : COLORS.laggard;
+        }
+      }
+      
+      return { ...v, width, barColor };
+    });
+  };
+
+  // Helper: Get reasoning notes for all companies
+  const getReasoningNotes = (metric, myCompanyName, comp1Data, comp2Data, comp1Name, comp2Name) => {
+    const notes = [];
+    const myReasoning = myCompany.metrics[metric]?.reasoning;
+    const c1Reasoning = comp1Data?.metrics[metric]?.reasoning;
+    const c2Reasoning = comp2Data?.metrics[metric]?.reasoning;
+
+    if (myReasoning) {
+      notes.push({ name: myCompanyName, text: myReasoning, color: COLORS.myCompanyText });
+    }
+    if (c1Reasoning && comp1Name) {
+      notes.push({ name: comp1Name, text: c1Reasoning, color: COLORS.comp1Text });
+    }
+    if (c2Reasoning && comp2Name) {
+      notes.push({ name: comp2Name, text: c2Reasoning, color: COLORS.comp2Text });
+    }
+
+    return notes;
+  };
+
   const activeCompetitors = [comp1, comp2].filter(Boolean);
 
   return (
@@ -341,9 +417,12 @@ export const ComparisonView = () => {
                   ))}
                 </select>
               </th>
+              <th>Sources &amp; Page Numbers</th>
+              <th>Relative Benchmarking Bar</th>
               <th>Avg. of Peers</th>
               <th>Rank</th>
               <th>Insights</th>
+              <th style={{ minWidth: '300px' }}>Reasoning &amp; Context Notes</th>
             </tr>
           </thead>
           <tbody>
@@ -353,6 +432,24 @@ export const ComparisonView = () => {
               const c2Val = comp2?.metrics[metric]?.normalizedValue ?? null;
               const insight = getMultiInsight(metric, myVal, c1Val, c2Val, comp1?.name, comp2?.name);
               const canonicalUnit = METRIC_UNITS[metric] || '';
+              
+              // Get page references
+              const myPage = getPageRef(myCompany.metrics[metric]);
+              const c1Page = comp1 ? getPageRef(comp1.metrics[metric]) : null;
+              const c2Page = comp2 ? getPageRef(comp2.metrics[metric]) : null;
+              
+              // Get relative benchmarking bars
+              const bars = getRelativeBars(metric, myVal, c1Val, c2Val);
+              
+              // Get reasoning notes
+              const reasoningNotes = getReasoningNotes(
+                metric,
+                myCompany.name,
+                comp1,
+                comp2,
+                comp1?.name,
+                comp2?.name
+              );
 
               return (
                 <tr key={metric}>
@@ -360,6 +457,50 @@ export const ComparisonView = () => {
                   <td>{formatVal(myVal, canonicalUnit)}</td>
                   <td>{formatVal(c1Val, canonicalUnit)}</td>
                   <td>{formatVal(c2Val, canonicalUnit)}</td>
+                  
+                  {/* Sources & Page Numbers */}
+                  <td className="text-xs">
+                    <div className="space-y-1">
+                      <div style={{ color: COLORS.myCompanyText }}>
+                        {myCompany.name}: {myPage}
+                      </div>
+                      {comp1 && (
+                        <div style={{ color: COLORS.comp1Text }}>
+                          {comp1.name} ({comp1.year}): {c1Page}
+                        </div>
+                      )}
+                      {comp2 && (
+                        <div style={{ color: COLORS.comp2Text }}>
+                          {comp2.name} ({comp2.year}): {c2Page}
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                  
+                  {/* Relative Benchmarking Bar */}
+                  <td style={{ minWidth: '120px' }}>
+                    {bars ? (
+                      <div className="space-y-1">
+                        {bars.map((bar, idx) => (
+                          <div key={idx} className="flex items-center gap-2">
+                            <span className="text-xs w-6 text-slate-400">{bar.label}</span>
+                            <div className="flex-1 h-3 bg-slate-700 rounded-full overflow-hidden">
+                              <div
+                                className="h-full rounded-full transition-all duration-300"
+                                style={{
+                                  width: `${bar.width}%`,
+                                  background: bar.barColor
+                                }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-500">No data</span>
+                    )}
+                  </td>
+                  
                   <td>{getIndustryAverage(metric)} {canonicalUnit}</td>
                   <td>
                     <span className={`status-badge ${insight.rankStatus}`}>
@@ -367,6 +508,22 @@ export const ComparisonView = () => {
                     </span>
                   </td>
                   <td className="text-sm text-stone-400 whitespace-pre-line">{insight.insightsText}</td>
+                  
+                  {/* Reasoning & Context Notes */}
+                  <td style={{ maxWidth: '300px', fontSize: '0.775rem' }}>
+                    {reasoningNotes.length > 0 ? (
+                      <div className="space-y-2">
+                        {reasoningNotes.map((note, idx) => (
+                          <div key={idx} className="border-l-2 pl-2" style={{ borderColor: note.color }}>
+                            <span className="font-semibold" style={{ color: note.color }}>{note.name}:</span>
+                            <span className="text-slate-400 ml-1 break-words">{note.text}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-slate-500 italic">No reasoning available</span>
+                    )}
+                  </td>
                 </tr>
               );
             })}
