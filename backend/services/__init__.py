@@ -4,6 +4,7 @@ Backend Services Package
 Centralized services used across multiple modules.
 """
 
-from services.esg_metrics_service import ESGMetricsService, get_benchmarking_metrics
+# ESG Metrics are now served via modules/benchmarking/peer_benchmarking_service.py
+# which reuses existing dashboard services for consistency.
 
-__all__ = ["ESGMetricsService", "get_benchmarking_metrics"]
+__all__ = []

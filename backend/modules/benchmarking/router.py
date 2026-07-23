@@ -19,7 +19,7 @@ import httpx
 
 from shared.database.mongo import db
 from modules.auth.dependencies import get_current_user
-from services.esg_metrics_service import ESGMetricsService, get_benchmarking_metrics
+from modules.benchmarking.peer_benchmarking_service import get_benchmarking_metrics
 
 logger = logging.getLogger(__name__)
 
