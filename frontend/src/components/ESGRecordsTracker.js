@@ -1002,7 +1002,7 @@ export default function ESGRecordsTracker({
   return (
     <div className="space-y-6">
       {/* Stats Overview */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card className="p-4">
           <div className="text-2xl font-bold text-text-primary">{stats?.total_categories || 0}</div>
           <div className="text-sm text-text-muted">Total Categories</div>
@@ -1022,10 +1022,6 @@ export default function ESGRecordsTracker({
         <Card className="p-4">
           <div className="text-2xl font-bold text-red-600">{stats?.overdue || 0}</div>
           <div className="text-sm text-text-muted">Overdue</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-2xl font-bold text-orange-600">{stats?.stale || 0}</div>
-          <div className="text-sm text-text-muted">Stale</div>
         </Card>
       </div>
 
@@ -1157,17 +1153,7 @@ export default function ESGRecordsTracker({
                           )}
                         </Button>
                         <Layers className="w-4 h-4 text-emerald-600" />
-                        <div className="flex flex-col">
-                          <span className="font-medium">{cat.category}</span>
-                          {/* Task summary under category name */}
-                          {totalTasks > 0 && (
-                            <div className="flex gap-3 text-xs mt-0.5">
-                              <span className="text-yellow-600">Pending: {pendingTasks}</span>
-                              <span className="text-red-600">Overdue: {overdueTasks}</span>
-                              <span className="text-green-600">Completed: {completedTasks}</span>
-                            </div>
-                          )}
-                        </div>
+                        <span className="font-medium">{cat.category}</span>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -1221,7 +1207,31 @@ export default function ESGRecordsTracker({
                       )}
                     </TableCell>
                     <TableCell>
-                      {renderCategoryStatusBadge(cat.category, { completed: completedTasks, total: totalTasks })}
+                      {/* Task Status Boxes - Pending (Orange), Overdue (Red), Completed (Green) */}
+                      {totalTasks > 0 ? (
+                        <div className="flex items-center gap-1.5">
+                          <div 
+                            className="px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200 cursor-help"
+                            title="Pending Tasks"
+                          >
+                            {pendingTasks}
+                          </div>
+                          <div 
+                            className="px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 border border-red-200 cursor-help"
+                            title="Overdue Tasks"
+                          >
+                            {overdueTasks}
+                          </div>
+                          <div 
+                            className="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700 border border-green-200 cursor-help"
+                            title="Completed Tasks"
+                          >
+                            {completedTasks}
+                          </div>
+                        </div>
+                      ) : (
+                        renderCategoryStatusBadge(cat.category, { completed: completedTasks, total: totalTasks })
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
