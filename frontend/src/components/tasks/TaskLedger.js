@@ -153,8 +153,10 @@ function TaskLedgerRow({ task, onFill, onView, onEdit }) {
   const isCompleted = task.status === 'completed';
   const isApproved = task.approval_status === 'approved';
   
-  // Check if approval is required
-  const requiresApproval = task.requires_approval === true;
+  // Check if approval status should be shown (has a meaningful value, not null/not_required)
+  const hasApprovalStatus = task.approval_status && 
+    task.approval_status !== 'not_required' && 
+    task.approval_status !== 'none';
   
   // Check if user can edit
   const role = task.user_role || 'editor';
@@ -235,8 +237,8 @@ function TaskLedgerRow({ task, onFill, onView, onEdit }) {
 
       {/* Approval Status */}
       <div className="col-span-1">
-        {requiresApproval ? (
-          <ApprovalStatusBadge status={task.approval_status} />
+        {hasApprovalStatus ? (
+          <ApprovalStatusBadge approvalStatus={task.approval_status} />
         ) : (
           <span className="text-sm text-stone-400">-</span>
         )}
