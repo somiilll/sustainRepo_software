@@ -26,6 +26,13 @@ export const UploadView = () => {
 
   const handleExtraction = async () => {
     if (!file) return;
+    
+    // Validate required fields before extraction
+    if (!reportName.trim()) {
+      setError('Please enter a Company Name before extraction.');
+      return;
+    }
+    
     setIsExtracting(true);
     setProgress(20);
     setError(null);
@@ -41,7 +48,14 @@ export const UploadView = () => {
 
       setProgress(40);
       
-      const response = await fetch(`${API_BASE}/api/benchmarking/extract`, {
+      // Build URL with query params for competitor info
+      const params = new URLSearchParams({
+        competitor_name: reportName.trim(),
+        competitor_industry: industry,
+        reporting_year: reportYear
+      });
+      
+      const response = await fetch(`${API_BASE}/api/benchmarking/extract?${params}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -59,13 +73,16 @@ export const UploadView = () => {
       const data = await response.json();
       setProgress(100);
 
+      // Backend now returns the full competitor object with id, name, metrics, etc.
       const newReport = {
-        id: Math.random().toString(36).substr(2, 9),
-        name: reportName || `${file.name.replace('.pdf', '')} - Extracted`,
-        industry,
-        year: reportYear,
-        fileName: file.name,
-        metrics: data.metrics
+        id: data.id || Math.random().toString(36).substr(2, 9),
+        name: data.name || reportName.trim(),
+        industry: data.industry || industry,
+        year: data.year || reportYear,
+        fileName: data.fileName || file.name,
+        metrics: data.metrics,
+        storage_path: data.storage_path,
+        data_source: data.data_source || 'pdf_extraction'
       };
 
       setExtractedReport(newReport);
@@ -79,16 +96,10 @@ export const UploadView = () => {
 
   const handleSave = () => {
     if (extractedReport) {
-      if (!reportName.trim()) {
-        alert('Please enter a Company Name before saving.');
-        return;
-      }
-
-      saveReport({
-        ...extractedReport,
-        name: reportName.trim(),
-        year: reportYear
-      });
+      // Data is already saved to MongoDB by the backend
+      // Just add to local state for the comparison view
+      saveReport(extractedReport);
+      
       // Reset
       setFile(null);
       setExtractedReport(null);
@@ -134,27 +145,51 @@ export const UploadView = () => {
         )}
 
         {!file && (
-          <div
-            className="upload-zone"
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={handleFileDrop}
-            onClick={() => {
-              const input = document.createElement('input');
-              input.type = 'file';
-              input.accept = '.pdf';
-              input.onchange = (e) => {
-                if (e.target.files[0]) {
-                  setFile(e.target.files[0]);
-                  setError(null);
-                }
-              };
-              input.click();
-            }}
-          >
-            <UploadCloud className="w-12 h-12 text-stone-500 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Drag & Drop Report Here</h3>
-            <p className="text-stone-500 text-sm">or click to browse files (PDF only)</p>
-          </div>
+          <>
+            <div className="mb-4">
+              <label className="block text-sm text-stone-400 mb-2">Company Name *</label>
+              <input
+                type="text"
+                className="input-field"
+                placeholder="e.g. Competitor A"
+                value={reportName}
+                onChange={(e) => setReportName(e.target.value)}
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm text-stone-400 mb-2">Financial Year</label>
+              <input
+                type="text"
+                className="input-field"
+                placeholder="e.g. FY23-24"
+                value={reportYear}
+                onChange={(e) => setReportYear(e.target.value)}
+              />
+            </div>
+
+            <div
+              className="upload-zone"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={handleFileDrop}
+              onClick={() => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.pdf';
+                input.onchange = (e) => {
+                  if (e.target.files[0]) {
+                    setFile(e.target.files[0]);
+                    setError(null);
+                  }
+                };
+                input.click();
+              }}
+            >
+              <UploadCloud className="w-12 h-12 text-stone-500 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Drag & Drop Report Here</h3>
+              <p className="text-stone-500 text-sm">or click to browse files (PDF only)</p>
+            </div>
+          </>
         )}
 
         {file && !extractedReport && (
@@ -220,33 +255,32 @@ export const UploadView = () => {
         {!extractedReport ? (
           <div className="text-center py-12 text-stone-500">
             <FileText className="w-16 h-16 mx-auto mb-4 opacity-30" />
-            <p>Upload a competitor's ESG report to extract metrics</p>
+            <p>Upload a competitor&apos;s ESG report to extract metrics</p>
             <p className="text-sm mt-2 text-stone-600">
               Supports annual reports, sustainability reports, and BRSR filings
             </p>
           </div>
         ) : (
           <div className="animate-fade-in">
-            <div className="mb-4">
-              <label className="block text-sm text-stone-400 mb-2">Company Name *</label>
-              <input
-                type="text"
-                className="input-field"
-                placeholder="e.g. Competitor A"
-                value={reportName}
-                onChange={(e) => setReportName(e.target.value)}
-              />
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm text-stone-400 mb-2">Financial Year</label>
-              <input
-                type="text"
-                className="input-field"
-                placeholder="e.g. FY23-24"
-                value={reportYear}
-                onChange={(e) => setReportYear(e.target.value)}
-              />
+            <div className="mb-4 bg-stone-800/30 p-3 rounded">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-stone-400">Company:</span>
+                <span className="font-semibold">{extractedReport.name}</span>
+              </div>
+              <div className="flex justify-between items-center mt-1">
+                <span className="text-sm text-stone-400">Year:</span>
+                <span className="text-stone-300">{extractedReport.year}</span>
+              </div>
+              <div className="flex justify-between items-center mt-1">
+                <span className="text-sm text-stone-400">Industry:</span>
+                <span className="text-stone-300">{extractedReport.industry}</span>
+              </div>
+              {extractedReport.storage_path && (
+                <div className="flex justify-between items-center mt-1">
+                  <span className="text-sm text-stone-400">Storage:</span>
+                  <span className="text-xs text-emerald-400">Saved to cloud</span>
+                </div>
+              )}
             </div>
 
             <h4 className="text-sm font-semibold text-stone-400 mb-3">Extracted Metrics</h4>

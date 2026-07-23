@@ -29,15 +29,38 @@ export const BenchmarkingProvider = ({ children }) => {
   const [dateRange, setDateRange] = useState({ min: null, max: null });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [savedReports, setSavedReports] = useState(() => {
-    try {
-      const saved = localStorage.getItem('benchmarking_saved_reports');
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      console.error('Failed to parse saved reports from localStorage', e);
-      return [];
-    }
-  });
+  const [savedReports, setSavedReports] = useState([]);
+
+  // Fetch saved competitors from database on mount
+  useEffect(() => {
+    const fetchSavedCompetitors = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        const response = await axios.get(`${API_BASE}/api/benchmarking/competitors`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (response.data && response.data.competitors) {
+          setSavedReports(response.data.competitors);
+        }
+      } catch (err) {
+        console.error('Failed to fetch saved competitors:', err);
+        // Fallback to localStorage if API fails
+        try {
+          const saved = localStorage.getItem('benchmarking_saved_reports');
+          if (saved) {
+            setSavedReports(JSON.parse(saved));
+          }
+        } catch (e) {
+          console.error('Failed to parse saved reports from localStorage', e);
+        }
+      }
+    };
+
+    fetchSavedCompetitors();
+  }, []);
 
   // Fetch available date range on mount
   useEffect(() => {
@@ -115,15 +138,37 @@ export const BenchmarkingProvider = ({ children }) => {
     fetchMyCompanyData(null, null);
   }, [fetchMyCompanyData]);
 
+  // Sync to localStorage as backup
   useEffect(() => {
-    localStorage.setItem('benchmarking_saved_reports', JSON.stringify(savedReports));
+    if (savedReports.length > 0) {
+      localStorage.setItem('benchmarking_saved_reports', JSON.stringify(savedReports));
+    }
   }, [savedReports]);
 
   const saveReport = (report) => {
-    setSavedReports(prev => [...prev, report]);
+    // Report is already saved to MongoDB by the backend
+    // Just add to local state if not already present
+    setSavedReports(prev => {
+      if (prev.find(r => r.id === report.id)) {
+        return prev;
+      }
+      return [...prev, report];
+    });
   };
 
-  const removeReport = (id) => {
+  const removeReport = async (id) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (token) {
+        // Delete from MongoDB
+        await axios.delete(`${API_BASE}/api/benchmarking/competitors/${id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      }
+    } catch (err) {
+      console.error('Failed to delete competitor from database:', err);
+    }
+    // Always remove from local state
     setSavedReports(prev => prev.filter(r => r.id !== id));
   };
 
