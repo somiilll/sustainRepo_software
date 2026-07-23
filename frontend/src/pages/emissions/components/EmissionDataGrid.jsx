@@ -1,15 +1,34 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { Button } from '../../../components/ui/button';
-import { Activity, FileText, Edit, History, Trash2 } from 'lucide-react';
+import { Activity, FileText, Edit, History, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { getApprovalBadge } from '../../../modules/ghg/utils/approvalSchema';
+import { format } from 'date-fns';
 
 /**
  * EmissionDataGrid
  *
  * Renders the enterprise data grid for the Emissions page (header row, data rows, empty state).
- * Pure presentational component extracted from Emissions.js (Phase E6) — behavior is
- * byte-identical to the original inline JSX. No business logic changes.
+ * Features:
+ * - Sortable columns (Facility, Period, Category, Sub-category, Quantity, Activity, Method, Activity/Fuel, Type, Last Updated At)
+ * - Last Updated At column showing updated_at or created_at
  */
+
+// Sortable header component
+const SortableHeader = ({ label, sortKey, currentSort, onSort, className = '' }) => {
+  const isActive = currentSort.key === sortKey;
+  const Icon = isActive ? (currentSort.direction === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
+  
+  return (
+    <button
+      onClick={() => onSort(sortKey)}
+      className={`flex items-center gap-1 hover:text-stone-900 transition-colors ${className}`}
+    >
+      <span>{label}</span>
+      <Icon className={`w-3 h-3 ${isActive ? 'text-emerald-600' : 'text-stone-400'}`} />
+    </button>
+  );
+};
+
 export default function EmissionDataGrid({
   activeScope,
   filteredEmissions,
@@ -26,6 +45,111 @@ export default function EmissionDataGrid({
   filterCategory,
   filterFrequency,
 }) {
+  // Sorting state
+  const [sort, setSort] = useState({ key: null, direction: 'desc' });
+  
+  // Handle sort toggle
+  const handleSort = (key) => {
+    setSort(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+  
+  // Get facility name for sorting
+  const getFacilityName = (emission) => {
+    const facility = facilities.find(f => f.id === emission.facility_id);
+    return facility?.name || '';
+  };
+  
+  // Get last updated timestamp
+  const getLastUpdatedAt = (emission) => {
+    return emission.updated_at || emission.created_at;
+  };
+  
+  // Format date for display
+  const formatLastUpdated = (emission) => {
+    const timestamp = getLastUpdatedAt(emission);
+    if (!timestamp) return '-';
+    try {
+      return format(new Date(timestamp), 'dd MMM yyyy HH:mm');
+    } catch {
+      return '-';
+    }
+  };
+  
+  // Get quantity value for sorting
+  const getQuantityValue = (emission) => {
+    const dfv = emission.dynamic_field_values || {};
+    const qtyField = dfv.qty || dfv.qty_energy;
+    if (qtyField?.value !== null && qtyField?.value !== undefined) {
+      return parseFloat(qtyField.value) || 0;
+    }
+    return parseFloat(emission.quantity) || 0;
+  };
+  
+  // Sorted emissions
+  const sortedEmissions = useMemo(() => {
+    if (!sort.key) return filteredEmissions;
+    
+    return [...filteredEmissions].sort((a, b) => {
+      let aVal, bVal;
+      
+      switch (sort.key) {
+        case 'facility':
+          aVal = getFacilityName(a).toLowerCase();
+          bVal = getFacilityName(b).toLowerCase();
+          break;
+        case 'period':
+          aVal = a.reporting_period || '';
+          bVal = b.reporting_period || '';
+          break;
+        case 'category':
+          aVal = (a.category || '').toLowerCase();
+          bVal = (b.category || '').toLowerCase();
+          break;
+        case 'subcategory':
+          aVal = (a.sub_category || a.fuel_type || '').toLowerCase();
+          bVal = (b.sub_category || b.fuel_type || '').toLowerCase();
+          break;
+        case 'quantity':
+          aVal = getQuantityValue(a);
+          bVal = getQuantityValue(b);
+          break;
+        case 'activity':
+          aVal = (a.scope3_activity || a.sub_category || '').toLowerCase();
+          bVal = (b.scope3_activity || b.sub_category || '').toLowerCase();
+          break;
+        case 'method':
+          aVal = (a.calculation_method_scope3 || '').toLowerCase();
+          bVal = (b.calculation_method_scope3 || '').toLowerCase();
+          break;
+        case 'activityFuel':
+          aVal = (a.fuel_type || a.sub_category || '').toLowerCase();
+          bVal = (b.fuel_type || b.sub_category || '').toLowerCase();
+          break;
+        case 'type':
+          aVal = (a.biogenic_scope_selection || '').toLowerCase();
+          bVal = (b.biogenic_scope_selection || '').toLowerCase();
+          break;
+        case 'lastUpdated':
+          aVal = getLastUpdatedAt(a) || '';
+          bVal = getLastUpdatedAt(b) || '';
+          break;
+        case 'emissions':
+          aVal = a.outputs?.co2e?.value || a.co2e_emissions || a.total_emissions || 0;
+          bVal = b.outputs?.co2e?.value || b.co2e_emissions || b.total_emissions || 0;
+          break;
+        default:
+          return 0;
+      }
+      
+      if (aVal < bVal) return sort.direction === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sort.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [filteredEmissions, sort, facilities]);
+
   return (
     <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
       {/* Fixed Header Row */}
@@ -34,37 +158,84 @@ export default function EmissionDataGrid({
           {/* Scope 3 Headers */}
           {activeScope === 'scope3' && (
             <>
-              <div className="w-36 flex-shrink-0">Facility</div>
-              <div className="w-24 flex-shrink-0">Period</div>
-              <div className="w-52 flex-shrink-0">Category</div>
-              <div className="flex-1 min-w-[120px] pl-2">Activity</div>
-              <div className="w-20 flex-shrink-0 text-center">Method</div>
-              <div className="w-28 flex-shrink-0 text-right normal-case">tCO₂e</div>
+              <div className="w-36 flex-shrink-0">
+                <SortableHeader label="Facility" sortKey="facility" currentSort={sort} onSort={handleSort} />
+              </div>
+              <div className="w-24 flex-shrink-0">
+                <SortableHeader label="Period" sortKey="period" currentSort={sort} onSort={handleSort} />
+              </div>
+              <div className="w-52 flex-shrink-0">
+                <SortableHeader label="Category" sortKey="category" currentSort={sort} onSort={handleSort} />
+              </div>
+              <div className="flex-1 min-w-[120px] pl-2">
+                <SortableHeader label="Activity" sortKey="activity" currentSort={sort} onSort={handleSort} />
+              </div>
+              <div className="w-20 flex-shrink-0 text-center">
+                <SortableHeader label="Method" sortKey="method" currentSort={sort} onSort={handleSort} className="justify-center" />
+              </div>
+              <div className="w-28 flex-shrink-0 text-right">
+                <SortableHeader label="tCO₂e" sortKey="emissions" currentSort={sort} onSort={handleSort} className="justify-end normal-case" />
+              </div>
+              <div className="w-32 flex-shrink-0">
+                <SortableHeader label="Last Updated" sortKey="lastUpdated" currentSort={sort} onSort={handleSort} />
+              </div>
               <div className="w-28 flex-shrink-0 text-center">Actions</div>
             </>
           )}
           {/* Scope 1 & 2 Headers */}
           {(activeScope === 'scope1' || activeScope === 'scope2') && (
             <>
-              <div className="w-36 flex-shrink-0">Facility</div>
-              <div className="w-24 flex-shrink-0">Period</div>
-              <div className="w-44 flex-shrink-0">Category</div>
-              <div className="flex-1 min-w-[140px]">Sub-category</div>
-              <div className="w-32 flex-shrink-0 text-right">Quantity</div>
-              <div className="w-28 flex-shrink-0 text-right normal-case">tCO₂e</div>
+              <div className="w-36 flex-shrink-0">
+                <SortableHeader label="Facility" sortKey="facility" currentSort={sort} onSort={handleSort} />
+              </div>
+              <div className="w-24 flex-shrink-0">
+                <SortableHeader label="Period" sortKey="period" currentSort={sort} onSort={handleSort} />
+              </div>
+              <div className="w-44 flex-shrink-0">
+                <SortableHeader label="Category" sortKey="category" currentSort={sort} onSort={handleSort} />
+              </div>
+              <div className="flex-1 min-w-[140px]">
+                <SortableHeader label="Sub-category" sortKey="subcategory" currentSort={sort} onSort={handleSort} />
+              </div>
+              <div className="w-32 flex-shrink-0 text-right">
+                <SortableHeader label="Quantity" sortKey="quantity" currentSort={sort} onSort={handleSort} className="justify-end" />
+              </div>
+              <div className="w-28 flex-shrink-0 text-right">
+                <SortableHeader label="tCO₂e" sortKey="emissions" currentSort={sort} onSort={handleSort} className="justify-end normal-case" />
+              </div>
+              <div className="w-32 flex-shrink-0">
+                <SortableHeader label="Last Updated" sortKey="lastUpdated" currentSort={sort} onSort={handleSort} />
+              </div>
               <div className="w-28 flex-shrink-0 text-center">Actions</div>
             </>
           )}
           {/* Biogenic Headers */}
           {activeScope === 'biogenic' && (
             <>
-              <div className="w-36 flex-shrink-0">Facility</div>
-              <div className="w-24 flex-shrink-0">Period</div>
-              <div className="w-20 flex-shrink-0">Type</div>
-              <div className="w-36 flex-shrink-0">Category</div>
-              <div className="flex-1 min-w-[120px]">Activity / Fuel</div>
-              <div className="w-20 flex-shrink-0 text-center">Method</div>
-              <div className="w-28 flex-shrink-0 text-right normal-case">tCO₂e</div>
+              <div className="w-36 flex-shrink-0">
+                <SortableHeader label="Facility" sortKey="facility" currentSort={sort} onSort={handleSort} />
+              </div>
+              <div className="w-24 flex-shrink-0">
+                <SortableHeader label="Period" sortKey="period" currentSort={sort} onSort={handleSort} />
+              </div>
+              <div className="w-20 flex-shrink-0">
+                <SortableHeader label="Type" sortKey="type" currentSort={sort} onSort={handleSort} />
+              </div>
+              <div className="w-36 flex-shrink-0">
+                <SortableHeader label="Category" sortKey="category" currentSort={sort} onSort={handleSort} />
+              </div>
+              <div className="flex-1 min-w-[120px]">
+                <SortableHeader label="Activity / Fuel" sortKey="activityFuel" currentSort={sort} onSort={handleSort} />
+              </div>
+              <div className="w-20 flex-shrink-0 text-center">
+                <SortableHeader label="Method" sortKey="method" currentSort={sort} onSort={handleSort} className="justify-center" />
+              </div>
+              <div className="w-28 flex-shrink-0 text-right">
+                <SortableHeader label="tCO₂e" sortKey="emissions" currentSort={sort} onSort={handleSort} className="justify-end normal-case" />
+              </div>
+              <div className="w-32 flex-shrink-0">
+                <SortableHeader label="Last Updated" sortKey="lastUpdated" currentSort={sort} onSort={handleSort} />
+              </div>
               <div className="w-28 flex-shrink-0 text-center">Actions</div>
             </>
           )}
@@ -73,7 +244,7 @@ export default function EmissionDataGrid({
 
       {/* Data Rows */}
       <div className="divide-y divide-stone-100">
-        {filteredEmissions.map((emission) => {
+        {sortedEmissions.map((emission) => {
           const facility = facilities.find(f => f.id === emission.facility_id);
           const dfv = emission.dynamic_field_values || {};
           const hasOverride = Object.values(dfv).some(field => field?.is_override === true);
@@ -181,6 +352,9 @@ export default function EmissionDataGrid({
                       {totalEmissions.toFixed(4)}
                     </span>
                   </div>
+                  <div className="w-32 flex-shrink-0 text-xs text-text-secondary">
+                    {formatLastUpdated(emission)}
+                  </div>
                 </>
               )}
 
@@ -221,6 +395,9 @@ export default function EmissionDataGrid({
                     <span className="text-sm font-semibold text-primary">
                       {totalEmissions.toFixed(4)}
                     </span>
+                  </div>
+                  <div className="w-32 flex-shrink-0 text-xs text-text-secondary">
+                    {formatLastUpdated(emission)}
                   </div>
                 </>
               )}
@@ -279,6 +456,9 @@ export default function EmissionDataGrid({
                     <span className="text-sm font-semibold text-primary">
                       {totalEmissions.toFixed(4)}
                     </span>
+                  </div>
+                  <div className="w-32 flex-shrink-0 text-xs text-text-secondary">
+                    {formatLastUpdated(emission)}
                   </div>
                 </>
               )}
