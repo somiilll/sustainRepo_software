@@ -98,13 +98,135 @@ JSON_SCHEMA = {
 }
 
 
+@router.get("/available-years")
+async def get_available_years(
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Returns list of available reporting years/periods from the organization's data.
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization found")
+
+    fiscal_years = set()
+    calendar_years = set()
+    monthly_periods = set()
+    
+    def extract_year_label(period):
+        """Extract and categorize year label from various period formats"""
+        if period is None:
+            return None, None
+        
+        # If it's a dict object (nested reporting period)
+        if isinstance(period, dict):
+            fy = period.get("financial_year")
+            if fy:
+                return "fy", fy
+            cy = period.get("calendar_year")
+            if cy:
+                return "cy", f"CY {cy}"
+            year = period.get("year")
+            month = period.get("month")
+            if year and month:
+                month_num = month if isinstance(month, int) else {
+                    'january': 1, 'february': 2, 'march': 3, 'april': 4,
+                    'may': 5, 'june': 6, 'july': 7, 'august': 8,
+                    'september': 9, 'october': 10, 'november': 11, 'december': 12
+                }.get(str(month).lower(), month)
+                return "monthly", f"{year}-{str(month_num).zfill(2)}"
+            if year:
+                return "cy", f"CY {year}"
+            return None, None
+        
+        # If it's a string
+        period_str = str(period).strip()
+        if not period_str:
+            return None, None
+            
+        # Skip if it looks like a stringified dict
+        if period_str.startswith("{") and period_str.endswith("}"):
+            return None, None
+        
+        period_upper = period_str.upper()
+        
+        # Fiscal Year patterns
+        if "FY" in period_upper:
+            return "fy", period_str
+        
+        # Calendar Year patterns
+        if period_upper.startswith("CY"):
+            return "cy", period_str
+            
+        # Monthly pattern (YYYY-MM)
+        if len(period_str) == 7 and "-" in period_str:
+            return "monthly", period_str
+            
+        return None, None
+    
+    # Get unique reporting periods from emissions
+    try:
+        emission_periods = await db.emission_records.distinct(
+            "reporting_period",
+            {"organization_id": org_id}
+        )
+        for period in emission_periods:
+            category, label = extract_year_label(period)
+            if label:
+                if category == "fy":
+                    fiscal_years.add(label)
+                elif category == "cy":
+                    calendar_years.add(label)
+                elif category == "monthly":
+                    monthly_periods.add(label)
+    except Exception as e:
+        logger.warning(f"Error fetching emission periods: {e}")
+
+    # Get unique reporting periods from environment records
+    try:
+        env_periods = await db.environment_records.distinct(
+            "reporting_period",
+            {"org_id": org_id}
+        )
+        for period in env_periods:
+            category, label = extract_year_label(period)
+            if label:
+                if category == "fy":
+                    fiscal_years.add(label)
+                elif category == "cy":
+                    calendar_years.add(label)
+                elif category == "monthly":
+                    monthly_periods.add(label)
+    except Exception as e:
+        logger.warning(f"Error fetching environment periods: {e}")
+
+    # Build final list: FY years (sorted desc) -> CY years (sorted desc) -> Monthly (sorted desc)
+    result = ["All Data"]
+    
+    # Add fiscal years (sorted by year descending)
+    fy_sorted = sorted(list(fiscal_years), reverse=True)
+    result.extend(fy_sorted)
+    
+    # Add calendar years (sorted descending)
+    cy_sorted = sorted(list(calendar_years), reverse=True)
+    result.extend(cy_sorted)
+    
+    # Add monthly periods (sorted descending)
+    monthly_sorted = sorted(list(monthly_periods), reverse=True)
+    result.extend(monthly_sorted)
+    
+    return {"years": result}
+
+
 @router.get("/my-company")
 async def get_my_company_data(
+    year: str = "All Data",
     current_user: dict = Depends(get_current_user),
 ):
     """
     Fetches internal ESG data for the user's organization to use as 'My Company' baseline.
     Aggregates data from emissions, environment, social, and governance records.
+    Optionally filters by reporting year/period.
     """
     org_id = current_user.get("organization_id")
     if not org_id:
@@ -115,9 +237,12 @@ async def get_my_company_data(
     org_name = org.get("name", "My Company") if org else "My Company"
     industry = org.get("industry") or org.get("sector") or "Manufacturing"
 
-    # Get current fiscal year
-    current_year = datetime.now().year
-    reporting_year = f"FY{current_year-1}-{current_year}"
+    # Determine display year
+    if year == "All Data":
+        current_year = datetime.now().year
+        reporting_year = f"All Data (up to {current_year})"
+    else:
+        reporting_year = year
 
     # Initialize metrics
     metrics = {
@@ -136,13 +261,32 @@ async def get_my_company_data(
         "daysAccountsPayable": create_empty_metric(),
     }
 
+    # Build query filter for year
+    def build_year_filter(year_value, period_field="reporting_period"):
+        if year_value == "All Data":
+            return {}
+        # Match exact period or periods containing the year
+        return {
+            "$or": [
+                {period_field: year_value},
+                {period_field: {"$regex": year_value.replace("FY ", "").replace("FY", ""), "$options": "i"}}
+            ]
+        }
+
+    emission_year_filter = build_year_filter(year)
+    env_year_filter = build_year_filter(year)
+
     # 1. Fetch GHG Emissions data (Scope 1 & 2)
     try:
         scope1_total = 0
         scope2_total = 0
         
+        query = {"organization_id": org_id}
+        if emission_year_filter:
+            query.update(emission_year_filter)
+        
         emission_records = await db.emission_records.find(
-            {"organization_id": org_id},
+            query,
             {"_id": 0, "scope": 1, "co2e_emissions": 1, "total_emissions": 1}
         ).to_list(1000)
 
@@ -155,9 +299,9 @@ async def get_my_company_data(
                 scope2_total += emissions_val
 
         if scope1_total > 0:
-            metrics["scope1"] = create_metric(round(scope1_total, 2), "tCO2e", "Aggregated from internal emission records")
+            metrics["scope1"] = create_metric(round(scope1_total, 2), "tCO2e", f"Aggregated from {year} emission records")
         if scope2_total > 0:
-            metrics["scope2"] = create_metric(round(scope2_total, 2), "tCO2e", "Aggregated from internal emission records")
+            metrics["scope2"] = create_metric(round(scope2_total, 2), "tCO2e", f"Aggregated from {year} emission records")
 
     except Exception as e:
         logger.warning(f"Error fetching emissions: {e}")

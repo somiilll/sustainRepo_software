@@ -4,7 +4,7 @@ import { METRIC_LABELS } from '../types';
 import { RadarChartWidget } from './RadarChartWidget';
 import { ExecutiveSummaryWidget } from './ExecutiveSummaryWidget';
 import { PrintableReport } from './PrintableReport';
-import { AlertCircle, Trash2, Loader2, Database, RefreshCw } from 'lucide-react';
+import { AlertCircle, Trash2, Loader2, Database, RefreshCw, Calendar } from 'lucide-react';
 
 const METRIC_UNITS = {
   scope1: 'tCO2e',
@@ -23,7 +23,17 @@ const METRIC_UNITS = {
 };
 
 export const ComparisonView = () => {
-  const { myCompany, savedReports, removeReport, loading, error, refreshMyCompany } = useBenchmarking();
+  const { 
+    myCompany, 
+    savedReports, 
+    removeReport, 
+    loading, 
+    error, 
+    refreshMyCompany,
+    availableYears,
+    selectedYear,
+    changeYear
+  } = useBenchmarking();
   const [comp1Id, setComp1Id] = useState(savedReports[0]?.id || '');
   const [comp2Id, setComp2Id] = useState(savedReports[1]?.id || '');
   const [execSummary, setExecSummary] = useState(null);
@@ -35,8 +45,8 @@ export const ComparisonView = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-400 mr-3" />
-        <span className="text-stone-400">Loading internal company data...</span>
+        <Loader2 className="w-8 h-8 animate-spin text-green-600 mr-3" />
+        <span className="text-slate-500">Loading internal company data...</span>
       </div>
     );
   }
@@ -204,24 +214,46 @@ export const ComparisonView = () => {
         executiveSummary={execSummary}
       />
 
-      {/* Internal Data Indicator */}
+      {/* Internal Data Indicator with Year Selector */}
       {myCompany.data_source === 'internal' && (
-        <div className="glass-panel p-4 mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Database className="w-5 h-5 text-emerald-400" />
-            <div>
-              <span className="text-emerald-400 font-semibold">{myCompany.name}</span>
-              <span className="text-stone-400 text-sm ml-2">• {myCompany.industry} • {myCompany.year}</span>
-              <p className="text-xs text-stone-500">Data sourced from your internal ESG records</p>
+        <div className="glass-panel p-4 mb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Database className="w-5 h-5 text-green-600" />
+              <div>
+                <span className="text-green-700 font-semibold">{myCompany.name}</span>
+                <span className="text-slate-500 text-sm ml-2">• {myCompany.industry}</span>
+                <p className="text-xs text-slate-400">Data sourced from your internal ESG records</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {/* Year Selector */}
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-slate-400" />
+                <select
+                  value={selectedYear}
+                  onChange={(e) => changeYear(e.target.value)}
+                  className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                >
+                  {availableYears.map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              </div>
+              <button 
+                onClick={refreshMyCompany}
+                className="btn-secondary flex items-center gap-2 text-sm"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Refresh
+              </button>
             </div>
           </div>
-          <button 
-            onClick={refreshMyCompany}
-            className="btn-secondary flex items-center gap-2 text-sm"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Refresh Data
-          </button>
+          {selectedYear !== 'All Data' && (
+            <div className="mt-2 text-xs text-green-600 bg-green-50 px-3 py-1 rounded-full inline-block">
+              Showing data for: {selectedYear}
+            </div>
+          )}
         </div>
       )}
 
