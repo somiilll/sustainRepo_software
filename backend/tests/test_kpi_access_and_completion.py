@@ -13,7 +13,7 @@ import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://peer-bench-debug.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://assignment-cascade.preview.emergentagent.com").rstrip("/")
 
 ADMIN_EMAIL = "goyalsomil2001@gmail.com"
 ADMIN_PASSWORD = "TestUser123!"

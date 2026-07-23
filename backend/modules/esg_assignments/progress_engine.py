@@ -3,11 +3,11 @@ Assignment Progress Calculation Engine
 
 A clean, modular engine for calculating real progress based on actual data collection tasks.
 
-Architecture:
-- ProgressCalculationEngine: Main orchestrator
-- PeriodGenerator: Generates reporting periods based on frequency
-- RecordChecker: Checks if records exist in various collections
-- ProgressCalculator: Calculates progress for different assignment levels
+Supports:
+- Multiple reporting_period formats (object, string, FY format)
+- Both org_id and organization_id keys
+- Flexible is_current handling (None treated as current)
+- Category mapping for emissions (Scope 1/2/3 → granular categories)
 """
 
 from typing import Optional, List, Dict, Any, Tuple
@@ -15,8 +15,44 @@ from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
 from shared.database.mongo import db
 import logging
+import re
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# CONSTANTS
+# ============================================================================
+
+MONTH_NAMES = [
+    "january", "february", "march", "april", "may", "june",
+    "july", "august", "september", "october", "november", "december"
+]
+
+MONTH_ABBREV = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
+
+# Map GHG Emissions subcategories to actual emission record categories
+SCOPE_CATEGORY_MAP = {
+    "scope 1": ["Stationary Combustion", "Mobile Combustion", "Fugitive Emissions", "Process Emissions"],
+    "scope 2": ["Purchased Electricity", "Purchased Heat", "Purchased Steam", "Purchased Cooling"],
+    "scope 3": [
+        "C1 - Purchased Goods and Services",
+        "C2 - Capital Goods",
+        "C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2",
+        "C4 - Upstream Transportation and Distribution",
+        "C5 - Waste Generated in Operations",
+        "C6 - Business Travel",
+        "C7 - Employee Commuting",
+        "C8 - Upstream Leased Assets",
+        "C9 - Downstream Transportation and Distribution",
+        "C10 - Processing of Sold Products",
+        "C11 - Use of Sold Products",
+        "C12 - End-of-Life Treatment of Sold Products",
+        "C13 - Downstream Leased Assets",
+        "C14 - Franchises",
+        "C15 - Investments",
+    ],
+}
 
 
 # ============================================================================
@@ -24,21 +60,18 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 class PeriodGenerator:
-    """Generates reporting period strings based on frequency and date range."""
+    """Generates reporting period identifiers based on frequency and date range."""
     
     @staticmethod
     def generate(
         start_date: Optional[str],
         end_date: Optional[str],
         frequency: str,
-    ) -> List[str]:
+    ) -> List[Dict[str, Any]]:
         """
-        Generate list of reporting periods.
+        Generate list of reporting periods with metadata.
         
-        Returns:
-            Monthly: ["2024-01", "2024-02", ...]
-            Quarterly: ["2024-Q1", "2024-Q2", ...]  
-            Annually: ["2024", "2025", ...]
+        Returns list of dicts with year, month, quarter info for flexible matching.
         """
         start, end = PeriodGenerator._parse_dates(start_date, end_date)
         if not start or not end:
@@ -61,77 +94,86 @@ class PeriodGenerator:
         if not start_date or not end_date:
             now = datetime.now()
             if now.month >= 4:
-                return (
-                    datetime(now.year, 4, 1),
-                    datetime(now.year + 1, 3, 31)
-                )
-            return (
-                datetime(now.year - 1, 4, 1),
-                datetime(now.year, 3, 31)
-            )
+                return datetime(now.year, 4, 1), datetime(now.year + 1, 3, 31)
+            return datetime(now.year - 1, 4, 1), datetime(now.year, 3, 31)
         
         try:
-            return (
-                datetime.strptime(start_date[:10], "%Y-%m-%d"),
-                datetime.strptime(end_date[:10], "%Y-%m-%d")
-            )
+            start = datetime.strptime(str(start_date)[:10], "%Y-%m-%d")
+            end = datetime.strptime(str(end_date)[:10], "%Y-%m-%d")
+            return start, end
         except (ValueError, TypeError):
             return None, None
     
     @staticmethod
-    def _generate_monthly(start: datetime, end: datetime) -> List[str]:
+    def _generate_monthly(start: datetime, end: datetime) -> List[Dict]:
         periods = []
         current = start
         while current <= end:
-            periods.append(current.strftime("%Y-%m"))
+            periods.append({
+                "type": "monthly",
+                "year": current.year,
+                "month": current.month,
+                "string": current.strftime("%Y-%m"),
+            })
             current += relativedelta(months=1)
         return periods
     
     @staticmethod
-    def _generate_quarterly(start: datetime, end: datetime) -> List[str]:
+    def _generate_quarterly(start: datetime, end: datetime) -> List[Dict]:
         periods = []
         current = start
+        seen = set()
         while current <= end:
             quarter = (current.month - 1) // 3 + 1
-            period_str = f"{current.year}-Q{quarter}"
-            if period_str not in periods:
-                periods.append(period_str)
+            key = f"{current.year}-Q{quarter}"
+            if key not in seen:
+                seen.add(key)
+                periods.append({
+                    "type": "quarterly",
+                    "year": current.year,
+                    "quarter": quarter,
+                    "string": key,
+                })
             current += relativedelta(months=3)
         return periods
     
     @staticmethod
-    def _generate_annually(start: datetime, end: datetime) -> List[str]:
+    def _generate_annually(start: datetime, end: datetime) -> List[Dict]:
         periods = []
+        seen = set()
         current = start
         while current <= end:
-            year_str = str(current.year)
-            if year_str not in periods:
-                periods.append(year_str)
+            if current.year not in seen:
+                seen.add(current.year)
+                periods.append({
+                    "type": "annual",
+                    "year": current.year,
+                    "string": str(current.year),
+                })
             current += relativedelta(years=1)
         return periods
     
     @staticmethod
-    def get_period_due_date(period: str, due_day: int = 15) -> Optional[datetime]:
+    def get_due_date(period: Dict, due_day: int = 15) -> Optional[datetime]:
         """Calculate due date for a reporting period."""
         try:
-            if "-Q" in period:
-                year, q = period.split("-Q")
-                quarter = int(q)
+            ptype = period.get("type", "monthly")
+            year = period.get("year")
+            
+            if ptype == "quarterly":
+                quarter = period.get("quarter", 1)
                 due_month = quarter * 3 + 1
                 if due_month > 12:
                     due_month = 1
-                    year = int(year) + 1
-                else:
-                    year = int(year)
+                    year += 1
                 return datetime(year, due_month, min(due_day, 28), tzinfo=timezone.utc)
             
-            elif len(period) == 4:
-                year = int(period)
+            elif ptype == "annual":
                 return datetime(year + 1, 4, min(due_day, 28), tzinfo=timezone.utc)
             
-            else:
-                year, month = period.split("-")
-                due_date = datetime(int(year), int(month), 1, tzinfo=timezone.utc)
+            else:  # monthly
+                month = period.get("month", 1)
+                due_date = datetime(year, month, 1, tzinfo=timezone.utc)
                 due_date += relativedelta(months=1)
                 return due_date.replace(day=min(due_day, 28))
         except (ValueError, TypeError):
@@ -148,6 +190,7 @@ class RecordChecker:
     COLLECTION_MAP = {
         "emission": "emission_records",
         "ghg": "emission_records",
+        "scope": "emission_records",
         "social": "social_records",
         "employee": "social_records",
         "worker": "social_records",
@@ -159,25 +202,51 @@ class RecordChecker:
         "compliance": "governance_records",
     }
     
-    # Month name to number mapping
-    MONTH_MAP = {
-        "january": 1, "february": 2, "march": 3, "april": 4,
-        "may": 5, "june": 6, "july": 7, "august": 8,
-        "september": 9, "october": 10, "november": 11, "december": 12,
-        "jan": 1, "feb": 2, "mar": 3, "apr": 4,
-        "jun": 6, "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+    # Map scope names to emission_records scope field values
+    SCOPE_FIELD_MAP = {
+        "scope 1": "scope1",
+        "scope 2": "scope2", 
+        "scope 3": "scope3",
     }
     
     @staticmethod
-    def get_collection(category: str):
-        """Get MongoDB collection for a category."""
+    def get_collection_name(category: str, subcategory: Optional[str] = None) -> str:
+        """Get MongoDB collection name for a category."""
         cat_lower = (category or "").lower()
+        sub_lower = (subcategory or "").lower()
         
+        # Check subcategory first (more specific)
+        for keyword, collection_name in RecordChecker.COLLECTION_MAP.items():
+            if keyword in sub_lower:
+                return collection_name
+        
+        # Then check category
         for keyword, collection_name in RecordChecker.COLLECTION_MAP.items():
             if keyword in cat_lower:
-                return db[collection_name]
+                return collection_name
         
-        return db["environment_records"]
+        return "environment_records"
+    
+    @staticmethod
+    def get_collection(category: str, subcategory: Optional[str] = None):
+        """Get MongoDB collection for a category."""
+        return db[RecordChecker.get_collection_name(category, subcategory)]
+    
+    @staticmethod
+    def _is_emission_collection(category: str, subcategory: Optional[str] = None) -> bool:
+        """Check if the category maps to emission_records collection."""
+        return RecordChecker.get_collection_name(category, subcategory) == "emission_records"
+    
+    @staticmethod
+    def _get_scope_value(subcategory: Optional[str]) -> Optional[str]:
+        """Extract scope field value from subcategory (e.g., 'GHG Emissions - Scope 1' -> 'scope1')."""
+        if not subcategory:
+            return None
+        sub_lower = subcategory.lower()
+        for scope_name, scope_value in RecordChecker.SCOPE_FIELD_MAP.items():
+            if scope_name in sub_lower:
+                return scope_value
+        return None
     
     @staticmethod
     async def check_exists(
@@ -185,26 +254,31 @@ class RecordChecker:
         category: str,
         subcategory: Optional[str],
         facility_id: Optional[str],
-        period: str,
+        period: Dict[str, Any],
     ) -> Tuple[bool, Optional[datetime]]:
         """
-        Check if a record exists.
-        
-        Args:
-            period: Format "YYYY-MM" for monthly, "YYYY-Q1" for quarterly, "YYYY" for annual
+        Check if a record exists for the given criteria.
         
         Returns:
             (has_data: bool, last_updated: datetime or None)
         """
-        collection = RecordChecker.get_collection(category)
+        collection_name = RecordChecker.get_collection_name(category, subcategory)
+        collection = db[collection_name]
         
-        # Build query
-        query = RecordChecker._build_query(org_id, category, subcategory, facility_id, period)
+        # Use specialized query builder for emission_records vs other collections
+        if collection_name == "emission_records":
+            query = await RecordChecker._build_emission_query(
+                org_id, category, subcategory, facility_id, period
+            )
+        else:
+            # Get categories to search (handles Scope 1/2/3 mapping for non-emission)
+            search_categories = RecordChecker._get_search_categories(category, subcategory)
+            query = RecordChecker._build_standard_query(org_id, search_categories, facility_id, period)
         
         record = await collection.find_one(
             query,
             {"_id": 0, "updated_at": 1, "created_at": 1},
-            sort=[("updated_at", -1)]
+            sort=[("updated_at", -1), ("created_at", -1)]
         )
         
         if record:
@@ -214,152 +288,248 @@ class RecordChecker:
         return False, None
     
     @staticmethod
-    def _build_query(
+    async def _build_emission_query(
         org_id: str,
         category: str,
         subcategory: Optional[str],
         facility_id: Optional[str],
-        period: str,
+        period: Dict[str, Any],
     ) -> Dict:
         """
-        Build MongoDB query for record lookup.
+        Build query specifically for emission_records collection.
         
-        Handles reporting_period as an object:
-        {
-            "reporting_type": "monthly",
-            "year": 2026,
-            "month": "6" or "June",
-            ...
-        }
+        Key differences from standard records:
+        - NO org_id/organization_id field - must query by facility_id
+        - NO is_current field
+        - Uses 'scope' field (scope1, scope2, scope3) 
+        - Uses string reporting_period format (e.g., "2026-07")
+        - Categories are case-sensitive Title Case (e.g., "Stationary Combustion")
         """
-        # Parse period string to year/month/quarter
-        year, month, quarter = RecordChecker._parse_period(period)
+        conditions = []
         
-        # Build reporting_period query conditions
-        period_conditions = RecordChecker._build_period_conditions(year, month, quarter)
+        # Facility filter - emission_records ALWAYS requires facility_id
+        if facility_id:
+            conditions.append({"facility_id": facility_id})
+        else:
+            # For org-level check, we need to find ALL facilities for this org
+            # and check if ANY facility has data
+            org_facilities = await db["facilities"].find(
+                {"organization_id": org_id},
+                {"_id": 0, "id": 1}
+            ).to_list(500)
+            
+            if org_facilities:
+                facility_ids = [f["id"] for f in org_facilities]
+                conditions.append({"facility_id": {"$in": facility_ids}})
+            else:
+                # No facilities found - query will return empty
+                return {"facility_id": "__NO_MATCH__"}
         
-        # Base query
-        query = {
-            "org_id": org_id,  # Records use org_id, not organization_id
-            "is_current": True,  # Only current records
+        # Period filter - emission_records uses string format like "2026-07"
+        period_filter = RecordChecker._build_emission_period_filter(period)
+        if period_filter:
+            conditions.append(period_filter)
+        
+        # Scope filter - use the 'scope' field (scope1, scope2, scope3)
+        scope_value = RecordChecker._get_scope_value(subcategory)
+        if scope_value:
+            conditions.append({"scope": scope_value})
+        
+        # Category filter - get granular categories for scope
+        search_categories = RecordChecker._get_search_categories(category, subcategory)
+        if search_categories:
+            category_filter = RecordChecker._build_category_filter(search_categories)
+            if category_filter:
+                conditions.append(category_filter)
+        
+        if not conditions:
+            return {}
+        
+        return {"$and": conditions}
+    
+    @staticmethod
+    def _build_emission_period_filter(period: Dict[str, Any]) -> Optional[Dict]:
+        """
+        Build period filter specifically for emission_records.
+        emission_records uses string format: "2026-07", "2025-12"
+        """
+        year = period.get("year")
+        month = period.get("month")
+        period_string = period.get("string", "")
+        
+        variants = []
+        
+        # Add the string representation directly
+        if period_string:
+            variants.append(period_string)
+        
+        # Add year-month variants
+        if year and month:
+            variants.extend([
+                f"{year}-{month:02d}",
+                f"{year}-{month}",
+            ])
+        
+        if not variants:
+            return None
+        
+        # Remove duplicates
+        variants = list(set(variants))
+        return {"reporting_period": {"$in": variants}}
+    
+    @staticmethod
+    def _build_standard_query(
+        org_id: str,
+        categories: List[str],
+        facility_id: Optional[str],
+        period: Dict[str, Any],
+    ) -> Dict:
+        """Build MongoDB query for standard records (environment, social, governance)."""
+        
+        # Organization filter - handle both org_id and organization_id
+        org_filter = {
+            "$or": [
+                {"org_id": org_id},
+                {"organization_id": org_id},
+            ]
         }
         
-        # Add period conditions
-        if period_conditions:
-            query["$and"] = period_conditions
-        
-        # Handle facility_id
-        if facility_id:
-            query["facility_id"] = facility_id
-        else:
-            # Org-level: no facility or null/empty facility
-            query["$or"] = [
-                {"facility_id": {"$exists": False}},
-                {"facility_id": None},
-                {"facility_id": ""},
+        # Current record filter - handle None as current
+        current_filter = {
+            "$or": [
+                {"is_current": True},
+                {"is_current": {"$exists": False}},
+                {"is_current": None},
             ]
+        }
         
-        # Add category/subcategory filters
-        if category:
-            query["category"] = {"$regex": f"^{category}$", "$options": "i"}
+        # Period filter
+        period_filter = RecordChecker._build_standard_period_filter(period)
         
-        if subcategory:
-            query["subcategory"] = {"$regex": f"^{subcategory}$", "$options": "i"}
+        # Category filter
+        category_filter = RecordChecker._build_category_filter(categories)
+        
+        # Facility filter
+        if facility_id:
+            facility_filter = {"facility_id": facility_id}
+        else:
+            facility_filter = {
+                "$or": [
+                    {"facility_id": {"$exists": False}},
+                    {"facility_id": None},
+                    {"facility_id": ""},
+                ]
+            }
+        
+        # Combine all filters
+        query = {"$and": [org_filter, current_filter, facility_filter]}
+        
+        if period_filter:
+            query["$and"].append(period_filter)
+        
+        if category_filter:
+            query["$and"].append(category_filter)
         
         return query
     
     @staticmethod
-    def _parse_period(period: str) -> Tuple[Optional[int], Optional[int], Optional[int]]:
+    def _get_search_categories(category: str, subcategory: Optional[str]) -> List[str]:
         """
-        Parse period string into year, month, quarter.
-        
-        Formats:
-            "2026-07" -> (2026, 7, None)
-            "2026-Q2" -> (2026, None, 2)
-            "2026" -> (2026, None, None)
+        Get list of categories to search for.
+        Maps GHG Emissions subcategories to actual emission record categories.
         """
-        if not period:
-            return None, None, None
+        sub_lower = (subcategory or "").lower()
         
-        try:
-            if "-Q" in period:
-                # Quarterly: "2026-Q2"
-                parts = period.split("-Q")
-                return int(parts[0]), None, int(parts[1])
-            elif "-" in period:
-                # Monthly: "2026-07"
-                parts = period.split("-")
-                return int(parts[0]), int(parts[1]), None
-            else:
-                # Annual: "2026"
-                return int(period), None, None
-        except (ValueError, IndexError):
-            return None, None, None
+        # Check for Scope mappings
+        for scope_key, scope_categories in SCOPE_CATEGORY_MAP.items():
+            if scope_key in sub_lower:
+                return scope_categories
+        
+        # Return original category/subcategory
+        if subcategory:
+            return [subcategory]
+        return [category] if category else []
     
     @staticmethod
-    def _build_period_conditions(
-        year: Optional[int],
-        month: Optional[int],
-        quarter: Optional[int],
-    ) -> List[Dict]:
+    def _build_standard_period_filter(period: Dict[str, Any]) -> Optional[Dict]:
         """
-        Build MongoDB $and conditions for reporting_period object matching.
+        Build period filter for standard records (environment, social, governance).
+        These use object format: {year: 2026, month: "October"}
+        """
+        year = period.get("year")
+        month = period.get("month")
+        quarter = period.get("quarter")
+        period_string = period.get("string", "")
         
-        The reporting_period in DB looks like:
-        {
-            "reporting_type": "monthly",
-            "year": 2026,
-            "month": "6" or "June" or 6,
-            "quarter": "Q1" or 1,
-            ...
-        }
-        """
         conditions = []
         
+        # String format match (fallback)
+        if period_string:
+            string_variants = [period_string]
+            if month:
+                string_variants.extend([
+                    f"{year}-{month:02d}",
+                    f"{year}-{month}",
+                ])
+            if year:
+                next_year = year + 1
+                string_variants.extend([
+                    f"FY {year}-{str(next_year)[-2:]}",
+                    f"FY{year}-{str(next_year)[-2:]}",
+                    f"FY {year-1}-{str(year)[-2:]}",
+                ])
+            conditions.append({"reporting_period": {"$in": string_variants}})
+        
+        # Object format match (primary for environment_records)
         if year:
-            # Year can be int or string
-            conditions.append({
-                "$or": [
-                    {"reporting_period.year": year},
-                    {"reporting_period.year": str(year)},
-                ]
-            })
-        
-        if month:
-            # Month can be: number (6), string number ("6"), or name ("June", "Jun")
-            month_variants = [
-                month,           # 6
-                str(month),      # "6"
-                f"{month:02d}",  # "06"
-            ]
+            year_variants = [year, str(year)]
+            year_condition = {"reporting_period.year": {"$in": year_variants}}
             
-            # Add month names
-            month_names = [
-                "january", "february", "march", "april", "may", "june",
-                "july", "august", "september", "october", "november", "december"
-            ]
-            if 1 <= month <= 12:
-                month_variants.append(month_names[month - 1])  # "june"
-                month_variants.append(month_names[month - 1].capitalize())  # "June"
-                month_variants.append(month_names[month - 1][:3])  # "jun"
-                month_variants.append(month_names[month - 1][:3].capitalize())  # "Jun"
-            
-            conditions.append({
-                "reporting_period.month": {"$in": month_variants}
-            })
+            if month:
+                month_variants = RecordChecker._get_month_variants(month)
+                month_condition = {"reporting_period.month": {"$in": month_variants}}
+                conditions.append({"$and": [year_condition, month_condition]})
+            elif quarter:
+                quarter_variants = [quarter, str(quarter), f"Q{quarter}"]
+                quarter_condition = {"reporting_period.quarter": {"$in": quarter_variants}}
+                conditions.append({"$and": [year_condition, quarter_condition]})
+            else:
+                conditions.append(year_condition)
         
-        if quarter:
-            # Quarter can be: 1, "1", "Q1"
-            quarter_variants = [
-                quarter,
-                str(quarter),
-                f"Q{quarter}",
-            ]
-            conditions.append({
-                "reporting_period.quarter": {"$in": quarter_variants}
-            })
+        if not conditions:
+            return None
         
-        return conditions
+        return {"$or": conditions}
+    
+    @staticmethod
+    def _get_month_variants(month: int) -> List:
+        """Get all possible representations of a month number."""
+        variants = [month, str(month), f"{month:02d}"]
+        
+        if 1 <= month <= 12:
+            variants.append(MONTH_NAMES[month - 1])
+            variants.append(MONTH_NAMES[month - 1].capitalize())
+            variants.append(MONTH_ABBREV[month - 1])
+            variants.append(MONTH_ABBREV[month - 1].capitalize())
+        
+        return variants
+    
+    @staticmethod
+    def _build_category_filter(categories: List[str]) -> Optional[Dict]:
+        """Build category filter with regex for case-insensitive matching."""
+        if not categories:
+            return None
+        
+        if len(categories) == 1:
+            return {"category": {"$regex": f"^{re.escape(categories[0])}$", "$options": "i"}}
+        
+        # Multiple categories (for Scope mappings)
+        return {
+            "$or": [
+                {"category": {"$regex": f"^{re.escape(cat)}$", "$options": "i"}}
+                for cat in categories
+            ]
+        }
     
     @staticmethod
     def _parse_datetime(value) -> Optional[datetime]:
@@ -446,12 +616,11 @@ class ProgressCalculator:
         category: str,
         subcategory: Optional[str],
         facilities: List[Dict],
-        periods: List[str],
+        periods: List[Dict],
         due_day: int = 15,
     ) -> ProgressResult:
         """
         Calculate facility-level progress.
-        
         Total tasks = facilities × periods
         """
         result = ProgressResult()
@@ -471,7 +640,7 @@ class ProgressCalculator:
                     if record_date and (not result.last_updated or record_date > result.last_updated):
                         result.last_updated = record_date
                 else:
-                    due_date = PeriodGenerator.get_period_due_date(period, due_day)
+                    due_date = PeriodGenerator.get_due_date(period, due_day)
                     if due_date and due_date < now:
                         result.overdue += 1
                     else:
@@ -485,15 +654,12 @@ class ProgressCalculator:
         category: str,
         subcategory: Optional[str],
         facilities: List[Dict],
-        periods: List[str],
+        periods: List[Dict],
         due_day: int = 15,
     ) -> ProgressResult:
         """
         Calculate organization-level progress.
-        
-        Each period satisfied by EITHER:
-        - One org-level record, OR
-        - All facility-level records
+        Each period satisfied by EITHER org-level record OR all facility records.
         """
         result = ProgressResult()
         now = datetime.now(timezone.utc)
@@ -530,7 +696,7 @@ class ProgressCalculator:
                 result.completed += facilities_completed
                 remaining = num_facilities - facilities_completed
                 
-                due_date = PeriodGenerator.get_period_due_date(period, due_day)
+                due_date = PeriodGenerator.get_due_date(period, due_day)
                 if due_date and due_date < now:
                     result.overdue += remaining
                 else:
@@ -547,14 +713,7 @@ class ProgressCalculator:
 # ============================================================================
 
 class ProgressCalculationEngine:
-    """
-    Main orchestrator for progress calculation.
-    
-    Usage:
-        engine = ProgressCalculationEngine()
-        progress = await engine.get_assignment_progress(assignment_id)
-        progress = await engine.get_category_progress(org_id, category)
-    """
+    """Main orchestrator for progress calculation."""
     
     def __init__(self):
         self._assignments = db["esg_assignments"]
@@ -562,10 +721,7 @@ class ProgressCalculationEngine:
     
     async def get_assignment_progress(self, assignment_id: str) -> Dict[str, Any]:
         """Get progress for a single assignment."""
-        assignment = await self._assignments.find_one(
-            {"id": assignment_id},
-            {"_id": 0}
-        )
+        assignment = await self._assignments.find_one({"id": assignment_id}, {"_id": 0})
         
         if not assignment:
             return ProgressResult.empty().to_dict()
@@ -580,10 +736,7 @@ class ProgressCalculationEngine:
         sub_subcategory: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Get aggregated progress for a category."""
-        query = {
-            "organization_id": organization_id,
-            "category": category,
-        }
+        query = {"organization_id": organization_id, "category": category}
         if subcategory:
             query["subcategory"] = subcategory
         if sub_subcategory:
@@ -703,9 +856,7 @@ async def get_category_progress(
     subcategory: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Get progress for a category."""
-    return await get_progress_engine().get_category_progress(
-        organization_id, category, subcategory
-    )
+    return await get_progress_engine().get_category_progress(organization_id, category, subcategory)
 
 
 async def get_bulk_progress(
