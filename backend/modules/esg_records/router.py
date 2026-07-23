@@ -14,6 +14,7 @@ from core_platform.auth import get_current_user
 from .service import esg_records_service
 from .ghg_integration import get_ghg_integration_service
 from .category_config_service import category_config_service
+from .detailed_progress_service import detailed_progress_service
 from .contracts import (
     ESG_SECTION, REPORTING_TYPE, 
     CreateRecordRequest, UpdateRecordRequest, RecordListFilters
@@ -48,6 +49,90 @@ async def get_category_frequency_config(
     )
     
     return config
+
+
+@router.get("/category-config/frequency/all")
+async def list_all_frequency_configs(
+    org_only: bool = Query(False, description="If true, only return org-specific configs"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    List all frequency configurations.
+    Admin endpoint to view all configured frequency settings.
+    """
+    org_id = current_user.get("organization_id") if org_only else None
+    configs = await category_config_service.list_configs(org_id=org_id)
+    return {"configs": configs, "total": len(configs)}
+
+
+@router.post("/category-config/frequency")
+async def set_category_frequency_config(
+    category: str = Query(..., description="Category name"),
+    allowed_frequencies: List[str] = Query(..., description="List of allowed frequencies"),
+    default_frequency: str = Query(..., description="Default frequency"),
+    subcategory: Optional[str] = Query(None, description="Subcategory name (optional)"),
+    org_specific: bool = Query(False, description="If true, config is org-specific"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Set frequency configuration for a category/subcategory.
+    
+    Admin endpoint to configure allowed frequencies.
+    - Set org_specific=true for org-level overrides
+    - Set subcategory for subcategory-specific configs
+    
+    Valid frequencies: daily, weekly, monthly, quarterly, half_yearly, yearly
+    """
+    # Check admin role
+    user_role = current_user.get("role", "").lower()
+    if user_role not in ["admin", "super_admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    org_id = current_user.get("organization_id") if org_specific else None
+    
+    try:
+        config = await category_config_service.set_frequency_config(
+            category=category,
+            allowed_frequencies=allowed_frequencies,
+            default_frequency=default_frequency,
+            subcategory=subcategory,
+            org_id=org_id
+        )
+        return {"message": "Configuration saved", "config": config}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/category-config/frequency")
+async def delete_category_frequency_config(
+    category: str = Query(..., description="Category name"),
+    subcategory: Optional[str] = Query(None, description="Subcategory name (optional)"),
+    org_specific: bool = Query(False, description="If true, delete org-specific config"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Delete a frequency configuration.
+    
+    Admin endpoint to remove a custom frequency config.
+    After deletion, the category will fall back to default or hardcoded values.
+    """
+    # Check admin role
+    user_role = current_user.get("role", "").lower()
+    if user_role not in ["admin", "super_admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    org_id = current_user.get("organization_id") if org_specific else None
+    
+    deleted = await category_config_service.delete_frequency_config(
+        category=category,
+        subcategory=subcategory,
+        org_id=org_id
+    )
+    
+    if deleted:
+        return {"message": "Configuration deleted"}
+    else:
+        raise HTTPException(status_code=404, detail="Configuration not found")
 
 
 # =============================================================================
@@ -1247,3 +1332,64 @@ async def get_period_fill_status(
         "pending": len(periods) - filled,
         "periods": periods,
     }
+
+
+
+# =============================================================================
+# Detailed Progress Endpoint (Period × Facility Matrix)
+# =============================================================================
+
+@router.get("/detailed-progress/{category}/{subcategory}")
+async def get_detailed_subcategory_progress(
+    category: str,
+    subcategory: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get detailed period-by-period progress for a subcategory.
+    
+    Returns a matrix showing:
+    - Each reporting period with its status (filled, pending, overdue)
+    - For facility-level assignments: per-facility breakdown for each period
+    - Summary counts: total, completed, partial, overdue, pending
+    
+    This enables admins to see exactly which month/quarter data is missing
+    and which facilities are lagging behind.
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    result = await detailed_progress_service.get_subcategory_detail(
+        org_id=org_id,
+        category=category,
+        subcategory=subcategory,
+    )
+    
+    return result
+
+
+@router.get("/detailed-progress/{category}")
+async def get_detailed_category_progress(
+    category: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get detailed period-by-period progress for a category (all subcategories combined).
+    
+    Returns a matrix showing:
+    - Each reporting period with its status (filled, pending, overdue)
+    - For facility-level assignments: per-facility breakdown for each period
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    # For category-level, we pass empty string for subcategory
+    result = await detailed_progress_service.get_subcategory_detail(
+        org_id=org_id,
+        category=category,
+        subcategory="",  # Category level - no specific subcategory
+    )
+    
+    return result

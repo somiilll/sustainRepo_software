@@ -7,7 +7,7 @@ import requests
 import os
 import uuid
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://assignment-cascade.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://esg-tracker-matrix.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 SUPER_ADMIN = {"email": "superadmin@ecotrack.com", "password": "SuperAdmin123!"}

@@ -84,6 +84,7 @@ import {
 } from '../utils/reportingYearUtils';
 import DataCoverageGrid from './DataCoverageGrid';
 import TaskCalendarGrid from './TaskCalendarGrid';
+import DetailedProgressView from './DetailedProgressView';
 import { AssignmentWizard } from './assignment-wizard';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -183,6 +184,9 @@ export default function ESGRecordsTracker({
   
   // Expanded categories
   const [expandedCategories, setExpandedCategories] = useState({});
+  
+  // Expanded detailed progress view (for period/facility breakdown)
+  const [expandedDetailedView, setExpandedDetailedView] = useState(null); // { category, subcategory }
   
   // Feature flags (fetch from org)
   const [multiLevelApprovalEnabled, setMultiLevelApprovalEnabled] = useState(false);
@@ -1535,35 +1539,68 @@ export default function ESGRecordsTracker({
                           {effectiveAssignment?.status ? getStatusBadge(effectiveAssignment.status) : '-'}
                         </TableCell>
                         <TableCell className="text-right">
-                          {/* Assign button - Admin only */}
-                          {isUserAdmin && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openAssignModal({ 
-                                category: cat.category, 
-                                subcategory: subcat.subcategory,
-                                assignChildren: true,
-                                // Pass existing assignment for pre-fill (use own or inherited)
-                                ...(subcat.assignment || {})
-                              })}
-                              title={subcat.assignment ? "Edit Assignment" : "Assign (includes all sub-subcategories)"}
-                            >
-                              <UserPlus className="w-4 h-4" />
-                            </Button>
-                          )}
-                          {subcat.assignment && isUserAdmin && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => sendReminder(subcat.assignment.id)}
-                              title="Send Reminder"
-                            >
-                              <Bell className="w-4 h-4" />
-                            </Button>
-                          )}
+                          <div className="flex justify-end gap-1">
+                            {/* View Details button - shows period/facility breakdown */}
+                            {effectiveAssignment && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  const detailKey = `${cat.category}|${subcat.subcategory}`;
+                                  setExpandedDetailedView(
+                                    expandedDetailedView === detailKey ? null : detailKey
+                                  );
+                                }}
+                                title="View Period/Facility Details"
+                                className={expandedDetailedView === `${cat.category}|${subcat.subcategory}` ? 'bg-emerald-100' : ''}
+                                data-testid={`view-details-${cat.category}-${subcat.subcategory}`}
+                              >
+                                <Calendar className="w-4 h-4" />
+                              </Button>
+                            )}
+                            {/* Assign button - Admin only */}
+                            {isUserAdmin && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openAssignModal({ 
+                                  category: cat.category, 
+                                  subcategory: subcat.subcategory,
+                                  assignChildren: true,
+                                  // Pass existing assignment for pre-fill (use own or inherited)
+                                  ...(subcat.assignment || {})
+                                })}
+                                title={subcat.assignment ? "Edit Assignment" : "Assign (includes all sub-subcategories)"}
+                              >
+                                <UserPlus className="w-4 h-4" />
+                              </Button>
+                            )}
+                            {subcat.assignment && isUserAdmin && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => sendReminder(subcat.assignment.id)}
+                                title="Send Reminder"
+                              >
+                                <Bell className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
+
+                      {/* Detailed Progress View for Subcategory */}
+                      {expandedDetailedView === `${cat.category}|${subcat.subcategory}` && (
+                        <TableRow className="bg-stone-50">
+                          <TableCell colSpan={8} className="py-3 px-4">
+                            <DetailedProgressView
+                              category={cat.category}
+                              subcategory={subcat.subcategory}
+                              onClose={() => setExpandedDetailedView(null)}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      )}
 
                       {/* Sub-subcategories */}
                       {expandedCategories[`${cat.category}-${subcat.subcategory}`] && 

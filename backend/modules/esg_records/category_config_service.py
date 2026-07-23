@@ -193,6 +193,32 @@ class CategoryConfigService:
         configs = await self._collection.find(query, {"_id": 0}).to_list(500)
         return configs
     
+    async def delete_frequency_config(
+        self,
+        category: str,
+        subcategory: Optional[str] = None,
+        org_id: Optional[str] = None
+    ) -> bool:
+        """
+        Delete a frequency configuration.
+        
+        Returns True if deleted, False if not found.
+        """
+        query = {"category": category}
+        
+        if subcategory:
+            query["subcategory"] = subcategory
+        else:
+            query["subcategory"] = None
+        
+        if org_id:
+            query["org_id"] = org_id
+        else:
+            query["org_id"] = {"$exists": False}
+        
+        result = await self._collection.delete_one(query)
+        return result.deleted_count > 0
+    
     def _format_response(self, config: Dict) -> Dict[str, Any]:
         """Format config response."""
         return {
