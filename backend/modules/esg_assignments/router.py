@@ -549,3 +549,80 @@ async def check_and_update_completion(
     )
     
     return result
+
+
+
+# ============================================
+# PROGRESS CALCULATION ENDPOINTS
+# ============================================
+
+@router.get("/progress/{assignment_id}")
+async def get_assignment_progress(
+    assignment_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get detailed progress for a single assignment.
+    
+    Returns:
+        {
+            "progress_percentage": float,
+            "completed_tasks": int,
+            "total_tasks": int,
+            "pending_tasks": int,
+            "overdue_tasks": int,
+            "last_updated": str (ISO datetime)
+        }
+    """
+    from .progress_engine import get_assignment_progress
+    
+    progress = await get_assignment_progress(assignment_id)
+    return progress
+
+
+@router.get("/progress/category/{category}")
+async def get_category_progress_endpoint(
+    category: str,
+    subcategory: Optional[str] = None,
+    sub_subcategory: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get aggregated progress for a category.
+    """
+    from .progress_engine import get_progress_engine
+    
+    engine = get_progress_engine()
+    progress = await engine.get_category_progress(
+        organization_id=current_user["organization_id"],
+        category=category,
+        subcategory=subcategory,
+        sub_subcategory=sub_subcategory,
+    )
+    return progress
+
+
+@router.post("/progress/bulk")
+async def get_bulk_progress_endpoint(
+    categories: List[dict],
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get progress for multiple categories in bulk.
+    
+    Request body:
+        [
+            {"category": "Energy", "subcategory": "Consumption"},
+            {"category": "Water"},
+            ...
+        ]
+    
+    Returns dict keyed by "category|subcategory|sub_subcategory"
+    """
+    from .progress_engine import get_bulk_progress
+    
+    progress = await get_bulk_progress(
+        organization_id=current_user["organization_id"],
+        categories=categories,
+    )
+    return progress

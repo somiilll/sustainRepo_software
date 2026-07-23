@@ -323,22 +323,65 @@ export default function ESGRecordsTracker({
       if (statusFilter !== 'all') params.status = statusFilter;
       if (stalenessFilter !== 'all') params.staleness = stalenessFilter;
 
-      const [assignRes, statsRes, completionRes] = await Promise.all([
+      const [assignRes, statsRes] = await Promise.all([
         axios.get(`${API}/api/esg-records/tracker/${section}`, { headers, params }),
         axios.get(`${API}/api/esg-records/tracker/${section}/stats`, { headers, params }),
-        axios.get(`${API}/api/esg-records/tasks/completion-by-category`, { headers, params: { reporting_period: reportingPeriod } }).catch(() => ({ data: { completion_stats: [] } })),
       ]);
 
       setAssignments(assignRes.data.assignments || []);
       setStats(statsRes.data);
       
-      // Build completion stats lookup by category key
-      const completionMap = {};
-      for (const stat of (completionRes.data.completion_stats || [])) {
-        const key = [stat.category, stat.subcategory, stat.sub_subcategory].filter(Boolean).join('|');
-        completionMap[key] = stat;
+      // Fetch progress stats using new progress engine
+      try {
+        // Build category list for bulk progress fetch
+        const categoryList = [];
+        for (const cat of categories) {
+          categoryList.push({ category: cat.category });
+          for (const subcat of (cat.subcategories || [])) {
+            categoryList.push({ category: cat.category, subcategory: subcat.subcategory });
+            for (const subsub of (subcat.sub_subcategories || [])) {
+              categoryList.push({ 
+                category: cat.category, 
+                subcategory: subcat.subcategory, 
+                sub_subcategory: subsub.sub_subcategory 
+              });
+            }
+          }
+        }
+        
+        if (categoryList.length > 0) {
+          const progressRes = await axios.post(
+            `${API}/api/esg-assignments/progress/bulk`,
+            categoryList,
+            { headers }
+          );
+          setCompletionStats(progressRes.data || {});
+        }
+      } catch (progressError) {
+        console.warn('Progress API not available, using fallback:', progressError);
+        // Fallback to old completion stats endpoint
+        try {
+          const completionRes = await axios.get(
+            `${API}/api/esg-records/tasks/completion-by-category`, 
+            { headers, params: { reporting_period: reportingPeriod } }
+          );
+          const completionMap = {};
+          for (const stat of (completionRes.data.completion_stats || [])) {
+            const key = [stat.category, stat.subcategory, stat.sub_subcategory].filter(Boolean).join('|');
+            completionMap[key] = {
+              progress_percentage: stat.completion_pct || 0,
+              completed_tasks: stat.completed || 0,
+              total_tasks: stat.total || 0,
+              pending_tasks: (stat.total || 0) - (stat.completed || 0),
+              overdue_tasks: 0,
+              last_updated: null,
+            };
+          }
+          setCompletionStats(completionMap);
+        } catch {
+          setCompletionStats({});
+        }
       }
-      setCompletionStats(completionMap);
     } catch (error) {
       console.error('Failed to fetch tracker data:', error);
       // Use mock data if endpoint doesn't exist yet
@@ -1065,12 +1108,15 @@ export default function ESGRecordsTracker({
               </TableRow>
             ) : (
               categoryHierarchy.map(cat => {
-                // Get completion stats for this category
+                // Get completion stats for this category (now from progress engine)
                 const catCompletionKey = cat.category;
                 const catCompletion = completionStats[catCompletionKey] || {};
-                const completionPct = Math.round(catCompletion.completion_pct || 0);
-                const totalTasks = catCompletion.total || 0;
-                const completedTasks = catCompletion.completed || 0;
+                const completionPct = Math.round(catCompletion.progress_percentage || 0);
+                const totalTasks = catCompletion.total_tasks || 0;
+                const completedTasks = catCompletion.completed_tasks || 0;
+                const pendingTasks = catCompletion.pending_tasks || 0;
+                const overdueTasks = catCompletion.overdue_tasks || 0;
+                const lastUpdated = catCompletion.last_updated || cat.assignment?.updated_at;
                 
                 return (
                 <React.Fragment key={cat.category}>
@@ -1091,7 +1137,17 @@ export default function ESGRecordsTracker({
                           )}
                         </Button>
                         <Layers className="w-4 h-4 text-emerald-600" />
-                        <span className="font-medium">{cat.category}</span>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{cat.category}</span>
+                          {/* Task summary under category name */}
+                          {totalTasks > 0 && (
+                            <div className="flex gap-3 text-xs mt-0.5">
+                              <span className="text-yellow-600">Pending: {pendingTasks}</span>
+                              <span className="text-red-600">Overdue: {overdueTasks}</span>
+                              <span className="text-green-600">Completed: {completedTasks}</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -1106,26 +1162,38 @@ export default function ESGRecordsTracker({
                       {cat.assignment?.filling_frequency || '-'}
                     </TableCell>
                     <TableCell>
-                      {/* Progress Bar */}
+                      {/* Progress Bar with tooltip */}
                       {totalTasks > 0 ? (
-                        <div className="flex items-center gap-2 min-w-[140px]">
+                        <div 
+                          className="flex items-center gap-2 min-w-[160px] cursor-help"
+                          title={`Completed: ${completedTasks}\nPending: ${pendingTasks}\nOverdue: ${overdueTasks}`}
+                        >
                           <Progress value={completionPct} className="h-2 flex-1" />
                           <span className="text-xs text-text-muted whitespace-nowrap">
-                            {completedTasks}/{totalTasks} ({completionPct}%)
+                            {completionPct}%
                           </span>
                         </div>
                       ) : (
                         <span className="text-xs text-text-muted">-</span>
                       )}
+                      {totalTasks > 0 && (
+                        <div className="text-xs text-text-muted mt-0.5">
+                          {completedTasks} / {totalTasks} Tasks
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell>
-                      {/* Last Updated */}
-                      {cat.assignment?.updated_at ? (
+                      {/* Last Updated with date and time */}
+                      {lastUpdated ? (
                         <span className="text-xs text-text-muted">
-                          {new Date(cat.assignment.updated_at).toLocaleDateString('en-IN', { 
+                          {new Date(lastUpdated).toLocaleDateString('en-IN', { 
                             day: '2-digit', 
                             month: 'short', 
                             year: 'numeric' 
+                          })}, {new Date(lastUpdated).toLocaleTimeString('en-IN', {
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true
                           })}
                         </span>
                       ) : (
@@ -1197,16 +1265,20 @@ export default function ESGRecordsTracker({
 
                   {/* Subcategories */}
                   {expandedCategories[cat.category] && Object.values(cat.subcategories).map(subcat => {
-                    // Get completion for subcategory
+                    // Get completion for subcategory (now from progress engine)
                     const subCompletionKey = [cat.category, subcat.subcategory].filter(Boolean).join('|');
                     const subCompletion = completionStats[subCompletionKey] || {};
-                    const subCompletionPct = Math.round(subCompletion.completion_pct || 0);
-                    const subTotalTasks = subCompletion.total || 0;
-                    const subCompletedTasks = subCompletion.completed || 0;
+                    const subCompletionPct = Math.round(subCompletion.progress_percentage || 0);
+                    const subTotalTasks = subCompletion.total_tasks || 0;
+                    const subCompletedTasks = subCompletion.completed_tasks || 0;
+                    const subPendingTasks = subCompletion.pending_tasks || 0;
+                    const subOverdueTasks = subCompletion.overdue_tasks || 0;
+                    const subLastUpdated = subCompletion.last_updated;
                     
                     // Use parent category assignment if subcategory doesn't have its own
                     const effectiveAssignment = subcat.assignment || cat.assignment;
                     const isInherited = !subcat.assignment && cat.assignment;
+                    const lastUpdated = subLastUpdated || effectiveAssignment?.updated_at;
                     
                     return (
                     <React.Fragment key={`${cat.category}-${subcat.subcategory}`}>
@@ -1240,26 +1312,38 @@ export default function ESGRecordsTracker({
                         </TableCell>
                         <TableCell>{effectiveAssignment?.filling_frequency || '-'}</TableCell>
                         <TableCell>
-                          {/* Subcategory Progress Bar */}
+                          {/* Subcategory Progress Bar with tooltip */}
                           {subTotalTasks > 0 ? (
-                            <div className="flex items-center gap-2 min-w-[140px]">
-                              <Progress value={subCompletionPct} className="h-2 flex-1" />
-                              <span className="text-xs text-text-muted whitespace-nowrap">
-                                {subCompletedTasks}/{subTotalTasks} ({subCompletionPct}%)
-                              </span>
+                            <div 
+                              className="cursor-help"
+                              title={`Completed: ${subCompletedTasks}\nPending: ${subPendingTasks}\nOverdue: ${subOverdueTasks}`}
+                            >
+                              <div className="flex items-center gap-2 min-w-[140px]">
+                                <Progress value={subCompletionPct} className="h-2 flex-1" />
+                                <span className="text-xs text-text-muted whitespace-nowrap">
+                                  {subCompletionPct}%
+                                </span>
+                              </div>
+                              <div className="text-xs text-text-muted mt-0.5">
+                                {subCompletedTasks} / {subTotalTasks} Tasks
+                              </div>
                             </div>
                           ) : (
                             <span className="text-xs text-text-muted">-</span>
                           )}
                         </TableCell>
                         <TableCell>
-                          {/* Last Updated */}
-                          {effectiveAssignment?.updated_at ? (
+                          {/* Last Updated with date and time */}
+                          {lastUpdated ? (
                             <span className="text-xs text-text-muted">
-                              {new Date(effectiveAssignment.updated_at).toLocaleDateString('en-IN', { 
+                              {new Date(lastUpdated).toLocaleDateString('en-IN', { 
                                 day: '2-digit', 
                                 month: 'short', 
                                 year: 'numeric' 
+                              })}, {new Date(lastUpdated).toLocaleTimeString('en-IN', {
+                                hour: 'numeric',
+                                minute: '2-digit',
+                                hour12: true
                               })}
                             </span>
                           ) : (
@@ -1307,12 +1391,15 @@ export default function ESGRecordsTracker({
                           const subsubEffectiveAssignment = subsub.assignment || subcat.assignment || cat.assignment;
                           const subsubIsInherited = !subsub.assignment && (subcat.assignment || cat.assignment);
                           
-                          // Get completion for sub-subcategory
+                          // Get completion for sub-subcategory (now from progress engine)
                           const subsubCompletionKey = [cat.category, subcat.subcategory, subsub.sub_subcategory].filter(Boolean).join('|');
                           const subsubCompletion = completionStats[subsubCompletionKey] || {};
-                          const subsubCompletionPct = Math.round(subsubCompletion.completion_pct || 0);
-                          const subsubTotalTasks = subsubCompletion.total || 0;
-                          const subsubCompletedTasks = subsubCompletion.completed || 0;
+                          const subsubCompletionPct = Math.round(subsubCompletion.progress_percentage || 0);
+                          const subsubTotalTasks = subsubCompletion.total_tasks || 0;
+                          const subsubCompletedTasks = subsubCompletion.completed_tasks || 0;
+                          const subsubPendingTasks = subsubCompletion.pending_tasks || 0;
+                          const subsubOverdueTasks = subsubCompletion.overdue_tasks || 0;
+                          const subsubLastUpdated = subsubCompletion.last_updated || subsubEffectiveAssignment?.updated_at;
                           
                           return (
                           <TableRow key={`${cat.category}-${subcat.subcategory}-${subsub.sub_subcategory}`} className="bg-stone-25">
@@ -1340,26 +1427,38 @@ export default function ESGRecordsTracker({
                             </TableCell>
                             <TableCell>{subsubEffectiveAssignment?.filling_frequency || '-'}</TableCell>
                             <TableCell>
-                              {/* Sub-subcategory Progress Bar */}
+                              {/* Sub-subcategory Progress Bar with tooltip */}
                               {subsubTotalTasks > 0 ? (
-                                <div className="flex items-center gap-2 min-w-[140px]">
-                                  <Progress value={subsubCompletionPct} className="h-2 flex-1" />
-                                  <span className="text-xs text-text-muted whitespace-nowrap">
-                                    {subsubCompletedTasks}/{subsubTotalTasks} ({subsubCompletionPct}%)
-                                  </span>
+                                <div 
+                                  className="cursor-help"
+                                  title={`Completed: ${subsubCompletedTasks}\nPending: ${subsubPendingTasks}\nOverdue: ${subsubOverdueTasks}`}
+                                >
+                                  <div className="flex items-center gap-2 min-w-[140px]">
+                                    <Progress value={subsubCompletionPct} className="h-2 flex-1" />
+                                    <span className="text-xs text-text-muted whitespace-nowrap">
+                                      {subsubCompletionPct}%
+                                    </span>
+                                  </div>
+                                  <div className="text-xs text-text-muted mt-0.5">
+                                    {subsubCompletedTasks} / {subsubTotalTasks} Tasks
+                                  </div>
                                 </div>
                               ) : (
                                 <span className="text-xs text-text-muted">-</span>
                               )}
                             </TableCell>
                             <TableCell>
-                              {/* Last Updated */}
-                              {subsubEffectiveAssignment?.updated_at ? (
+                              {/* Last Updated with date and time */}
+                              {subsubLastUpdated ? (
                                 <span className="text-xs text-text-muted">
-                                  {new Date(subsubEffectiveAssignment.updated_at).toLocaleDateString('en-IN', { 
+                                  {new Date(subsubLastUpdated).toLocaleDateString('en-IN', { 
                                     day: '2-digit', 
                                     month: 'short', 
                                     year: 'numeric' 
+                                  })}, {new Date(subsubLastUpdated).toLocaleTimeString('en-IN', {
+                                    hour: 'numeric',
+                                    minute: '2-digit',
+                                    hour12: true
                                   })}
                                 </span>
                               ) : (

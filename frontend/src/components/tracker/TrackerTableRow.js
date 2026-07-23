@@ -64,12 +64,15 @@ export default function TrackerTableRow({
     setPeriodExpanded(true);
   };
   
-  // Get completion stats key
+  // Get completion stats key (now from progress engine)
   const completionKey = [category, subcategory, sub_subcategory].filter(Boolean).join('|');
   const completion = completionStats[completionKey] || {};
-  const completionPct = Math.round(completion.completion_pct || 0);
-  const totalTasks = completion.total || 0;
-  const completedTasks = completion.completed || 0;
+  const completionPct = Math.round(completion.progress_percentage || 0);
+  const totalTasks = completion.total_tasks || 0;
+  const completedTasks = completion.completed_tasks || 0;
+  const pendingTasks = completion.pending_tasks || 0;
+  const overdueTasks = completion.overdue_tasks || 0;
+  const lastUpdated = completion.last_updated || assignment?.updated_at;
   
   // Get assignment info
   const assignmentInfo = getAssignmentInfo(assignments, categories, category, subcategory);
@@ -133,25 +136,37 @@ export default function TrackerTableRow({
       {/* Progress Bar */}
       <TableCell>
         {totalTasks > 0 ? (
-          <div className="flex items-center gap-2 min-w-[140px]">
-            <Progress value={completionPct} className="h-2 flex-1" />
-            <span className="text-xs text-text-muted whitespace-nowrap">
-              {completedTasks}/{totalTasks} ({completionPct}%)
-            </span>
+          <div 
+            className="cursor-help"
+            title={`Completed: ${completedTasks}\nPending: ${pendingTasks}\nOverdue: ${overdueTasks}`}
+          >
+            <div className="flex items-center gap-2 min-w-[140px]">
+              <Progress value={completionPct} className="h-2 flex-1" />
+              <span className="text-xs text-text-muted whitespace-nowrap">
+                {completionPct}%
+              </span>
+            </div>
+            <div className="text-xs text-text-muted mt-0.5">
+              {completedTasks} / {totalTasks} Tasks
+            </div>
           </div>
         ) : (
           <span className="text-xs text-text-muted">-</span>
         )}
       </TableCell>
       
-      {/* Last Updated */}
+      {/* Last Updated with date and time */}
       <TableCell>
-        {assignment?.updated_at ? (
+        {lastUpdated ? (
           <span className="text-xs text-text-muted">
-            {new Date(assignment.updated_at).toLocaleDateString('en-IN', { 
+            {new Date(lastUpdated).toLocaleDateString('en-IN', { 
               day: '2-digit', 
               month: 'short', 
               year: 'numeric' 
+            })}, {new Date(lastUpdated).toLocaleTimeString('en-IN', {
+              hour: 'numeric',
+              minute: '2-digit',
+              hour12: true
             })}
           </span>
         ) : (
