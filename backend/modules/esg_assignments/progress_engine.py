@@ -159,6 +159,15 @@ class RecordChecker:
         "compliance": "governance_records",
     }
     
+    # Month name to number mapping
+    MONTH_MAP = {
+        "january": 1, "february": 2, "march": 3, "april": 4,
+        "may": 5, "june": 6, "july": 7, "august": 8,
+        "september": 9, "october": 10, "november": 11, "december": 12,
+        "jan": 1, "feb": 2, "mar": 3, "apr": 4,
+        "jun": 6, "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+    }
+    
     @staticmethod
     def get_collection(category: str):
         """Get MongoDB collection for a category."""
@@ -180,6 +189,9 @@ class RecordChecker:
     ) -> Tuple[bool, Optional[datetime]]:
         """
         Check if a record exists.
+        
+        Args:
+            period: Format "YYYY-MM" for monthly, "YYYY-Q1" for quarterly, "YYYY" for annual
         
         Returns:
             (has_data: bool, last_updated: datetime or None)
@@ -209,28 +221,45 @@ class RecordChecker:
         facility_id: Optional[str],
         period: str,
     ) -> Dict:
-        """Build MongoDB query for record lookup."""
+        """
+        Build MongoDB query for record lookup.
+        
+        Handles reporting_period as an object:
+        {
+            "reporting_type": "monthly",
+            "year": 2026,
+            "month": "6" or "June",
+            ...
+        }
+        """
+        # Parse period string to year/month/quarter
+        year, month, quarter = RecordChecker._parse_period(period)
+        
+        # Build reporting_period query conditions
+        period_conditions = RecordChecker._build_period_conditions(year, month, quarter)
+        
+        # Base query
         query = {
-            "$or": [
-                {"org_id": org_id},
-                {"organization_id": org_id},
-            ],
-            "reporting_period": period,
-            "is_current": {"$ne": False},
-            "status": {"$ne": "draft"},
+            "org_id": org_id,  # Records use org_id, not organization_id
+            "is_current": True,  # Only current records
         }
         
+        # Add period conditions
+        if period_conditions:
+            query["$and"] = period_conditions
+        
+        # Handle facility_id
         if facility_id:
             query["facility_id"] = facility_id
         else:
-            query["$and"] = [
-                {"$or": [
-                    {"facility_id": {"$exists": False}},
-                    {"facility_id": None},
-                    {"facility_id": ""},
-                ]}
+            # Org-level: no facility or null/empty facility
+            query["$or"] = [
+                {"facility_id": {"$exists": False}},
+                {"facility_id": None},
+                {"facility_id": ""},
             ]
         
+        # Add category/subcategory filters
         if category:
             query["category"] = {"$regex": f"^{category}$", "$options": "i"}
         
@@ -238,6 +267,99 @@ class RecordChecker:
             query["subcategory"] = {"$regex": f"^{subcategory}$", "$options": "i"}
         
         return query
+    
+    @staticmethod
+    def _parse_period(period: str) -> Tuple[Optional[int], Optional[int], Optional[int]]:
+        """
+        Parse period string into year, month, quarter.
+        
+        Formats:
+            "2026-07" -> (2026, 7, None)
+            "2026-Q2" -> (2026, None, 2)
+            "2026" -> (2026, None, None)
+        """
+        if not period:
+            return None, None, None
+        
+        try:
+            if "-Q" in period:
+                # Quarterly: "2026-Q2"
+                parts = period.split("-Q")
+                return int(parts[0]), None, int(parts[1])
+            elif "-" in period:
+                # Monthly: "2026-07"
+                parts = period.split("-")
+                return int(parts[0]), int(parts[1]), None
+            else:
+                # Annual: "2026"
+                return int(period), None, None
+        except (ValueError, IndexError):
+            return None, None, None
+    
+    @staticmethod
+    def _build_period_conditions(
+        year: Optional[int],
+        month: Optional[int],
+        quarter: Optional[int],
+    ) -> List[Dict]:
+        """
+        Build MongoDB $and conditions for reporting_period object matching.
+        
+        The reporting_period in DB looks like:
+        {
+            "reporting_type": "monthly",
+            "year": 2026,
+            "month": "6" or "June" or 6,
+            "quarter": "Q1" or 1,
+            ...
+        }
+        """
+        conditions = []
+        
+        if year:
+            # Year can be int or string
+            conditions.append({
+                "$or": [
+                    {"reporting_period.year": year},
+                    {"reporting_period.year": str(year)},
+                ]
+            })
+        
+        if month:
+            # Month can be: number (6), string number ("6"), or name ("June", "Jun")
+            month_variants = [
+                month,           # 6
+                str(month),      # "6"
+                f"{month:02d}",  # "06"
+            ]
+            
+            # Add month names
+            month_names = [
+                "january", "february", "march", "april", "may", "june",
+                "july", "august", "september", "october", "november", "december"
+            ]
+            if 1 <= month <= 12:
+                month_variants.append(month_names[month - 1])  # "june"
+                month_variants.append(month_names[month - 1].capitalize())  # "June"
+                month_variants.append(month_names[month - 1][:3])  # "jun"
+                month_variants.append(month_names[month - 1][:3].capitalize())  # "Jun"
+            
+            conditions.append({
+                "reporting_period.month": {"$in": month_variants}
+            })
+        
+        if quarter:
+            # Quarter can be: 1, "1", "Q1"
+            quarter_variants = [
+                quarter,
+                str(quarter),
+                f"Q{quarter}",
+            ]
+            conditions.append({
+                "reporting_period.quarter": {"$in": quarter_variants}
+            })
+        
+        return conditions
     
     @staticmethod
     def _parse_datetime(value) -> Optional[datetime]:
