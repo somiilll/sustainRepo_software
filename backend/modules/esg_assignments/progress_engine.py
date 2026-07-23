@@ -188,18 +188,36 @@ class RecordChecker:
     """Checks if ESG records exist in various collections."""
     
     COLLECTION_MAP = {
+        # emission_records
         "emission": "emission_records",
         "ghg": "emission_records",
         "scope": "emission_records",
+        
+        # social_records
         "social": "social_records",
         "employee": "social_records",
         "worker": "social_records",
         "health": "social_records",
         "safety": "social_records",
+        "complaint": "social_records",
+        "training": "social_records",
+        
+        # governance_records
         "governance": "governance_records",
         "board": "governance_records",
         "ethic": "governance_records",
         "compliance": "governance_records",
+        "corruption": "governance_records",
+        "anti-corruption": "governance_records",
+        "competitive": "governance_records",
+        "financial": "governance_records",
+        "procurement": "governance_records",
+        "incident": "governance_records",
+        
+        # environment_records (explicit mappings)
+        "energy": "environment_records",
+        "waste": "environment_records",
+        "water": "environment_records",
     }
     
     # Map scope names to emission_records scope field values
