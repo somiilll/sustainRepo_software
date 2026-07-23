@@ -704,12 +704,12 @@ async def get_tasks_for_user(
                (t.get("category"), None) in valid_cats
         ]
     
-    # Enrich tasks with assignment details (filling_frequency, start_date, end_date)
+    # Enrich tasks with assignment details (filling_frequency, start_date, end_date, requires_approval)
     assignment_ids = list(set(t.get("assignment_id") for t in tasks if t.get("assignment_id")))
     if assignment_ids:
         assignments = await db["esg_assignments"].find(
             {"id": {"$in": assignment_ids}},
-            {"_id": 0, "id": 1, "filling_frequency": 1, "start_date": 1, "end_date": 1, "due_config": 1}
+            {"_id": 0, "id": 1, "filling_frequency": 1, "start_date": 1, "end_date": 1, "due_config": 1, "requires_approval": 1}
         ).to_list(len(assignment_ids))
         
         assignment_map = {a["id"]: a for a in assignments}
@@ -719,6 +719,7 @@ async def get_tasks_for_user(
             task["filling_frequency"] = assignment.get("filling_frequency")
             task["assignment_start_date"] = assignment.get("start_date")
             task["assignment_end_date"] = assignment.get("end_date")
+            task["requires_approval"] = assignment.get("requires_approval", False)
     
     # Filter out parent category tasks if that category has subcategories
     # Get categories that have subcategories defined

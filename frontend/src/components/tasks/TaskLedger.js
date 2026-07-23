@@ -1,23 +1,56 @@
 /**
  * Task Ledger Component
  * Displays tasks in a table/ledger format with columns:
- * Category, Subcategory, Period, Due, Status, Action
+ * Category, Subcategory, Facility, Period, Due, Status, Approval, Action
  */
 
 import React from 'react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { ArrowRight, Eye, ClipboardList, Building2 } from 'lucide-react';
-import { TaskStatusBadges } from './StatusBadge';
-import { formatDueDate, formatPeriodRange, categorizeTask } from './utils';
+import { ArrowRight, Eye, ClipboardList, Pencil } from 'lucide-react';
+import { OperationalStatusBadge, ApprovalStatusBadge } from './StatusBadge';
+import { formatDueDate, categorizeTask } from './utils';
 import { TASK_TYPE } from './constants';
+
+/**
+ * Format period to show like "June '26" if it's a full month
+ */
+function formatPeriodDisplay(task) {
+  if (!task.period_start) return task.period_label || '-';
+  
+  const start = new Date(task.period_start);
+  const end = task.period_end ? new Date(task.period_end) : start;
+  
+  // Check if it spans a full month (1st to last day)
+  const startDay = start.getDate();
+  const endDay = end.getDate();
+  const startMonth = start.getMonth();
+  const endMonth = end.getMonth();
+  const startYear = start.getFullYear();
+  const endYear = end.getFullYear();
+  
+  // Get last day of the end month
+  const lastDayOfMonth = new Date(endYear, endMonth + 1, 0).getDate();
+  
+  // If same month and spans 1st to last day, show "Month 'YY"
+  if (startMonth === endMonth && startYear === endYear && startDay === 1 && endDay === lastDayOfMonth) {
+    const monthName = start.toLocaleDateString('en-US', { month: 'long' });
+    const shortYear = startYear.toString().slice(-2);
+    return `${monthName} '${shortYear}`;
+  }
+  
+  // Otherwise show date range
+  const formatOpts = { month: 'short', day: 'numeric' };
+  return `${start.toLocaleDateString('en-US', formatOpts)} - ${end.toLocaleDateString('en-US', formatOpts)}`;
+}
 
 export default function TaskLedger({ 
   tasks, 
   filters,
   onFillTask, 
   onViewTask,
+  onEditTask,
   emptyMessage = 'No tasks found',
   hasAssignments = false,
 }) {
@@ -84,12 +117,14 @@ export default function TaskLedger({
       {/* Table Header */}
       <div className="bg-stone-50 border-b border-stone-200">
         <div className="grid grid-cols-12 gap-2 px-4 py-3 text-xs font-medium text-stone-600 uppercase tracking-wider">
-          <div className="col-span-3">Category / Subcategory</div>
-          <div className="col-span-2">Facility</div>
-          <div className="col-span-2">Period</div>
+          <div className="col-span-2">Category</div>
+          <div className="col-span-2">Subcategory</div>
+          <div className="col-span-1">Facility</div>
+          <div className="col-span-1">Period</div>
           <div className="col-span-2">Due</div>
-          <div className="col-span-2">Status</div>
-          <div className="col-span-1 text-right">Action</div>
+          <div className="col-span-1">Status</div>
+          <div className="col-span-1">Approval</div>
+          <div className="col-span-2 text-right">Action</div>
         </div>
       </div>
 
@@ -101,6 +136,7 @@ export default function TaskLedger({
             task={task} 
             onFill={onFillTask}
             onView={onViewTask}
+            onEdit={onEditTask || onFillTask}
           />
         ))}
       </div>
@@ -108,15 +144,17 @@ export default function TaskLedger({
   );
 }
 
-function TaskLedgerRow({ task, onFill, onView }) {
+function TaskLedgerRow({ task, onFill, onView, onEdit }) {
   const dueInfo = formatDueDate(task, { showTime: true, showRelative: false });
-  const periodRange = formatPeriodRange(task);
+  const periodDisplay = formatPeriodDisplay(task);
   const taskType = categorizeTask(task);
   
-  // Determine if task is completed or approved (no fill button)
+  // Determine if task is completed or approved
   const isCompleted = task.status === 'completed';
   const isApproved = task.approval_status === 'approved';
-  const showFillButton = !isCompleted && !isApproved;
+  
+  // Check if approval is required
+  const requiresApproval = task.requires_approval === true;
   
   // Check if user can edit
   const role = task.user_role || 'editor';
@@ -129,14 +167,11 @@ function TaskLedgerRow({ task, onFill, onView }) {
       }`}
       data-testid={`task-ledger-row-${task.id}`}
     >
-      {/* Category / Subcategory with Tags */}
-      <div className="col-span-3">
+      {/* Category with Tags */}
+      <div className="col-span-2">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-medium text-sm text-text-primary">
-            {task.category}
-            {task.subcategory && (
-              <span className="text-stone-400 font-normal"> › {task.subcategory}</span>
-            )}
+          <span className="text-sm text-text-primary">
+            {task.category || '-'}
           </span>
           {/* Backfill/Future Tags */}
           {taskType === TASK_TYPE.BACKFILL && (
@@ -152,28 +187,30 @@ function TaskLedgerRow({ task, onFill, onView }) {
         </div>
       </div>
 
-      {/* Facility */}
+      {/* Subcategory */}
       <div className="col-span-2">
-        {task.facility_name ? (
-          <div className="flex items-center gap-1 text-sm text-blue-600">
-            <Building2 className="w-3.5 h-3.5" />
-            <span>{task.facility_name}</span>
-          </div>
-        ) : (
-          <span className="text-sm text-stone-400">Org-level</span>
-        )}
+        <span className="text-sm text-text-primary">
+          {task.subcategory || '-'}
+        </span>
+      </div>
+
+      {/* Facility */}
+      <div className="col-span-1">
+        <span className="text-sm text-text-primary">
+          {task.facility_name || 'Org-level'}
+        </span>
       </div>
 
       {/* Period */}
-      <div className="col-span-2">
-        <span className="text-sm text-text-primary">{periodRange || task.period_label || '-'}</span>
+      <div className="col-span-1">
+        <span className="text-sm text-text-primary">{periodDisplay}</span>
       </div>
 
       {/* Due Date */}
       <div className="col-span-2">
         <span className={`text-sm ${
           dueInfo.isOverdue ? 'text-red-600 font-medium' : 
-          dueInfo.isUrgent ? 'text-orange-600' : 'text-text-muted'
+          dueInfo.isUrgent ? 'text-orange-600' : 'text-text-primary'
         }`}>
           {task.due_at 
             ? new Date(task.due_at).toLocaleString('en-US', { 
@@ -192,13 +229,49 @@ function TaskLedgerRow({ task, onFill, onView }) {
       </div>
 
       {/* Status */}
-      <div className="col-span-2">
-        <TaskStatusBadges task={task} />
+      <div className="col-span-1">
+        <OperationalStatusBadge status={task.status} />
+      </div>
+
+      {/* Approval Status */}
+      <div className="col-span-1">
+        {requiresApproval ? (
+          <ApprovalStatusBadge status={task.approval_status} />
+        ) : (
+          <span className="text-sm text-stone-400">-</span>
+        )}
       </div>
 
       {/* Action */}
-      <div className="col-span-1 text-right">
-        {showFillButton && canEdit ? (
+      <div className="col-span-2 text-right flex items-center justify-end gap-2">
+        {isCompleted ? (
+          <>
+            {/* View button for completed tasks */}
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => onView?.(task)}
+              className="gap-1 text-stone-600 h-7 text-xs"
+              data-testid={`task-view-btn-${task.id}`}
+            >
+              <Eye className="w-3 h-3" />
+              View
+            </Button>
+            {/* Edit button for completed tasks (if can edit and not approved) */}
+            {canEdit && !isApproved && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onEdit?.(task)}
+                className="gap-1 h-7 text-xs"
+                data-testid={`task-edit-btn-${task.id}`}
+              >
+                <Pencil className="w-3 h-3" />
+                Edit
+              </Button>
+            )}
+          </>
+        ) : canEdit ? (
           <Button
             size="sm"
             onClick={() => onFill(task)}
