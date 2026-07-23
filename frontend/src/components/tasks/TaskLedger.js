@@ -123,7 +123,7 @@ export default function TaskLedger({
           <div className="col-span-1">Period</div>
           <div className="col-span-2">Due</div>
           <div className="col-span-1">Status</div>
-          <div className="col-span-1">Approval</div>
+          <div className="col-span-1">Approval Status</div>
           <div className="col-span-2 text-right">Action</div>
         </div>
       </div>

@@ -5,7 +5,7 @@
  * Refactored to use modular task components.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
@@ -125,6 +125,16 @@ export default function MyTasks({
     }
   };
 
+  // Determine which items to show based on entityType
+  const itemsToShow = useMemo(() => {
+    if (entityType === ENTITY_TYPE.RECORD) {
+      return tasks; // Only metrics
+    } else if (entityType === ENTITY_TYPE.QUESTION) {
+      return questions; // Only disclosures
+    }
+    return [...tasks, ...questions]; // Both
+  }, [entityType, tasks, questions]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -147,7 +157,7 @@ export default function MyTasks({
 
       {/* Ledger View - For all task types */}
       <TaskLedger
-        tasks={[...tasks, ...questions]}
+        tasks={itemsToShow}
         filters={filters}
         onFillTask={handleFillTask}
         onViewTask={handleViewTask}
