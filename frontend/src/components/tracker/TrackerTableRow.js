@@ -116,11 +116,6 @@ export default function TrackerTableRow({
         </Badge>
       </TableCell>
       
-      {/* Facility */}
-      <TableCell>
-        {assignment?.facility_name || '-'}
-      </TableCell>
-      
       {/* Assigned To */}
       <TableCell>
         <AssigneeDisplay 
@@ -135,15 +130,30 @@ export default function TrackerTableRow({
         {assignment?.filling_frequency || '-'}
       </TableCell>
       
-      {/* Completion */}
+      {/* Progress Bar */}
       <TableCell>
         {totalTasks > 0 ? (
-          <div className="flex items-center gap-2 min-w-[120px]">
+          <div className="flex items-center gap-2 min-w-[140px]">
             <Progress value={completionPct} className="h-2 flex-1" />
             <span className="text-xs text-text-muted whitespace-nowrap">
-              {completedTasks}/{totalTasks}
+              {completedTasks}/{totalTasks} ({completionPct}%)
             </span>
           </div>
+        ) : (
+          <span className="text-xs text-text-muted">-</span>
+        )}
+      </TableCell>
+      
+      {/* Last Updated */}
+      <TableCell>
+        {assignment?.updated_at ? (
+          <span className="text-xs text-text-muted">
+            {new Date(assignment.updated_at).toLocaleDateString('en-IN', { 
+              day: '2-digit', 
+              month: 'short', 
+              year: 'numeric' 
+            })}
+          </span>
         ) : (
           <span className="text-xs text-text-muted">-</span>
         )}

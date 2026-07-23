@@ -1048,10 +1048,10 @@ export default function ESGRecordsTracker({
             <TableRow>
               <TableHead className="w-[300px]">Category / Subcategory</TableHead>
               <TableHead>Level</TableHead>
-              <TableHead>Facility</TableHead>
               <TableHead>Assigned To</TableHead>
               <TableHead>Frequency</TableHead>
-              <TableHead>Completion</TableHead>
+              <TableHead>Progress</TableHead>
+              <TableHead>Last Updated</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -1100,23 +1100,34 @@ export default function ESGRecordsTracker({
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {cat.assignment?.facility_name || '-'}
-                    </TableCell>
-                    <TableCell>
                       {renderAssigneeDisplay(cat.category)}
                     </TableCell>
                     <TableCell>
                       {cat.assignment?.filling_frequency || '-'}
                     </TableCell>
                     <TableCell>
-                      {/* Completion Progress */}
+                      {/* Progress Bar */}
                       {totalTasks > 0 ? (
-                        <div className="flex items-center gap-2 min-w-[120px]">
+                        <div className="flex items-center gap-2 min-w-[140px]">
                           <Progress value={completionPct} className="h-2 flex-1" />
                           <span className="text-xs text-text-muted whitespace-nowrap">
-                            {completedTasks}/{totalTasks}
+                            {completedTasks}/{totalTasks} ({completionPct}%)
                           </span>
                         </div>
+                      ) : (
+                        <span className="text-xs text-text-muted">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {/* Last Updated */}
+                      {cat.assignment?.updated_at ? (
+                        <span className="text-xs text-text-muted">
+                          {new Date(cat.assignment.updated_at).toLocaleDateString('en-IN', { 
+                            day: '2-digit', 
+                            month: 'short', 
+                            year: 'numeric' 
+                          })}
+                        </span>
                       ) : (
                         <span className="text-xs text-text-muted">-</span>
                       )}
@@ -1224,20 +1235,33 @@ export default function ESGRecordsTracker({
                             {effectiveAssignment?.assignment_level === 'facility' ? 'Facility' : 'Org'}
                           </Badge>
                         </TableCell>
-                        <TableCell>{effectiveAssignment?.facility_name || '-'}</TableCell>
                         <TableCell>
                           {renderAssigneeDisplay(cat.category, subcat.subcategory)}
                         </TableCell>
                         <TableCell>{effectiveAssignment?.filling_frequency || '-'}</TableCell>
                         <TableCell>
-                          {/* Subcategory Completion Progress */}
+                          {/* Subcategory Progress Bar */}
                           {subTotalTasks > 0 ? (
-                            <div className="flex items-center gap-2 min-w-[120px]">
+                            <div className="flex items-center gap-2 min-w-[140px]">
                               <Progress value={subCompletionPct} className="h-2 flex-1" />
                               <span className="text-xs text-text-muted whitespace-nowrap">
-                                {subCompletedTasks}/{subTotalTasks}
+                                {subCompletedTasks}/{subTotalTasks} ({subCompletionPct}%)
                               </span>
                             </div>
+                          ) : (
+                            <span className="text-xs text-text-muted">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {/* Last Updated */}
+                          {effectiveAssignment?.updated_at ? (
+                            <span className="text-xs text-text-muted">
+                              {new Date(effectiveAssignment.updated_at).toLocaleDateString('en-IN', { 
+                                day: '2-digit', 
+                                month: 'short', 
+                                year: 'numeric' 
+                              })}
+                            </span>
                           ) : (
                             <span className="text-xs text-text-muted">-</span>
                           )}
@@ -1302,7 +1326,6 @@ export default function ESGRecordsTracker({
                                 {subsubEffectiveAssignment?.assignment_level === 'facility' ? 'Facility' : 'Org'}
                               </Badge>
                             </TableCell>
-                            <TableCell>{subsubEffectiveAssignment?.facility_name || '-'}</TableCell>
                             <TableCell>
                               {subsubEffectiveAssignment?.assigned_to_name ? (
                                 <div className="flex flex-col">
@@ -1317,14 +1340,28 @@ export default function ESGRecordsTracker({
                             </TableCell>
                             <TableCell>{subsubEffectiveAssignment?.filling_frequency || '-'}</TableCell>
                             <TableCell>
-                              {/* Sub-subcategory Completion Progress */}
+                              {/* Sub-subcategory Progress Bar */}
                               {subsubTotalTasks > 0 ? (
-                                <div className="flex items-center gap-2 min-w-[100px]">
+                                <div className="flex items-center gap-2 min-w-[140px]">
                                   <Progress value={subsubCompletionPct} className="h-2 flex-1" />
                                   <span className="text-xs text-text-muted whitespace-nowrap">
-                                    {subsubCompletedTasks}/{subsubTotalTasks}
+                                    {subsubCompletedTasks}/{subsubTotalTasks} ({subsubCompletionPct}%)
                                   </span>
                                 </div>
+                              ) : (
+                                <span className="text-xs text-text-muted">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {/* Last Updated */}
+                              {subsubEffectiveAssignment?.updated_at ? (
+                                <span className="text-xs text-text-muted">
+                                  {new Date(subsubEffectiveAssignment.updated_at).toLocaleDateString('en-IN', { 
+                                    day: '2-digit', 
+                                    month: 'short', 
+                                    year: 'numeric' 
+                                  })}
+                                </span>
                               ) : (
                                 <span className="text-xs text-text-muted">-</span>
                               )}
