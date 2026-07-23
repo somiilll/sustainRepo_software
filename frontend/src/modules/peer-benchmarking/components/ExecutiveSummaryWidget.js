@@ -18,9 +18,17 @@ export const ExecutiveSummaryWidget = ({ myCompany, competitors, onSummaryGenera
     setError(null);
 
     try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Not authenticated. Please log in again.');
+      }
+
       const response = await fetch(`${API_BASE}/api/benchmarking/generate-summary`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
           myCompany: { name: myCompany.name, metrics: myCompany.metrics },
           competitors: competitors.map(c => ({ name: c.name, year: c.year, metrics: c.metrics }))
@@ -28,7 +36,8 @@ export const ExecutiveSummaryWidget = ({ myCompany, competitors, onSummaryGenera
       });
 
       if (!response.ok) {
-        throw new Error('Server returned an error generating the summary.');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Server returned an error generating the summary.');
       }
 
       const data = await response.json();
@@ -36,7 +45,7 @@ export const ExecutiveSummaryWidget = ({ myCompany, competitors, onSummaryGenera
       if (onSummaryGenerated) onSummaryGenerated(data);
     } catch (err) {
       console.error(err);
-      setError('Could not generate AI Executive Briefing. Please check your API configuration.');
+      setError(err.message || 'Could not generate AI Executive Briefing.');
     } finally {
       setLoading(false);
     }

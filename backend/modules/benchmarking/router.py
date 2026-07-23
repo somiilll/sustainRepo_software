@@ -2,21 +2,31 @@
 Peer Benchmarking Module Router
 
 Provides endpoints for:
-- Extracting ESG metrics from PDF reports
+- Fetching internal company ESG data (My Company baseline)
+- Extracting ESG metrics from competitor PDF reports
 - Generating AI-powered executive summaries
 """
 
 import os
 import json
-from fastapi import APIRouter, File, UploadFile, HTTPException
+import asyncio
+import logging
+from datetime import datetime, timezone
+from fastapi import APIRouter, File, UploadFile, HTTPException, Depends
 from pydantic import BaseModel
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+import httpx
+
+from shared.database.mongo import db
+from modules.auth.dependencies import get_current_user
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/benchmarking", tags=["Peer Benchmarking"])
 
-# Check for OpenAI API key
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-LLAMA_CLOUD_API_KEY = os.environ.get("LLAMA_CLOUD_API_KEY")
+# Use dedicated API keys for Peer Benchmarking
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY_PEER_BENCHMARKING")
+LLAMA_CLOUD_API_KEY = os.environ.get("LLAMA_CLOUD_API_KEY_PEER_BENCHMARKING")
 
 
 class SummaryRequest(BaseModel):
@@ -24,39 +34,303 @@ class SummaryRequest(BaseModel):
     competitors: List[Dict[str, Any]]
 
 
-@router.post("/extract")
-async def extract_metrics(report: UploadFile = File(...)):
+# Define JSON Schema for Structured Metric Extraction
+METRIC_SCHEMA_NUMBER = {
+    "type": "object",
+    "properties": {
+        "rawTextFound": {"type": ["string", "null"], "description": "The exact raw text/snippet found in the report."},
+        "reasoning": {"type": ["string", "null"], "description": "Step-by-step reasoning for how you derived the value."},
+        "extractedValue": {"type": ["number", "null"], "description": "The raw extracted numerical value."},
+        "reportedUnit": {"type": ["string", "null"], "description": "The exact unit used in the report."},
+        "normalizedValue": {"type": ["number", "null"], "description": "The final normalized value."},
+        "normalizedUnit": {"type": ["string", "null"], "description": "The unit of the normalizedValue."},
+        "page": {"type": ["number", "null"]}
+    },
+    "required": ["rawTextFound", "reasoning", "extractedValue", "reportedUnit", "normalizedValue", "normalizedUnit", "page"],
+    "additionalProperties": False
+}
+
+METRIC_SCHEMA_BOOLEAN = {
+    "type": "object",
+    "properties": {
+        "rawTextFound": {"type": ["string", "null"]},
+        "reasoning": {"type": ["string", "null"]},
+        "extractedValue": {"type": ["boolean", "null"]},
+        "reportedUnit": {"type": ["string", "null"]},
+        "normalizedValue": {"type": ["boolean", "null"]},
+        "normalizedUnit": {"type": ["string", "null"]},
+        "page": {"type": ["number", "null"]}
+    },
+    "required": ["rawTextFound", "reasoning", "extractedValue", "reportedUnit", "normalizedValue", "normalizedUnit", "page"],
+    "additionalProperties": False
+}
+
+JSON_SCHEMA = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "esg_metrics_extraction",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "scope1": {**METRIC_SCHEMA_NUMBER, "description": "Total Scope 1 GHG emissions in tCO2e."},
+                "scope2": {**METRIC_SCHEMA_NUMBER, "description": "Total Scope 2 GHG emissions in tCO2e."},
+                "emissionIntensityPerTurnover": {**METRIC_SCHEMA_NUMBER, "description": "Scope 1 & 2 emission intensity per rupee turnover."},
+                "treatedWaterDischarged": {**METRIC_SCHEMA_NUMBER, "description": "Percentage of treated water discharged."},
+                "renewableEnergy": {**METRIC_SCHEMA_NUMBER, "description": "Renewable energy as percentage of total energy consumption."},
+                "wasteRecycled": {**METRIC_SCHEMA_NUMBER, "description": "Percentage of total waste recycled."},
+                "hazardousWaste": {**METRIC_SCHEMA_NUMBER, "description": "Total hazardous waste generated."},
+                "wasteIntensity": {**METRIC_SCHEMA_NUMBER, "description": "Waste intensity metric."},
+                "ltirEmployee": {**METRIC_SCHEMA_NUMBER, "description": "Lost Time Injury Frequency Rate (LTIFR) for employees."},
+                "ltirWorker": {**METRIC_SCHEMA_NUMBER, "description": "Lost Time Injury Frequency Rate (LTIFR) for workers."},
+                "dataPrivacyPolicy": {**METRIC_SCHEMA_BOOLEAN, "description": "Does the company have a public Data Privacy Policy?"},
+                "disciplinaryAction": {**METRIC_SCHEMA_NUMBER, "description": "Number of disciplinary actions taken by authorities."},
+                "daysAccountsPayable": {**METRIC_SCHEMA_NUMBER, "description": "Days payable outstanding (DPO)."}
+            },
+            "required": [
+                "scope1", "scope2", "emissionIntensityPerTurnover", "treatedWaterDischarged", "renewableEnergy",
+                "wasteRecycled", "hazardousWaste", "wasteIntensity", "ltirEmployee", "ltirWorker",
+                "dataPrivacyPolicy", "disciplinaryAction", "daysAccountsPayable"
+            ],
+            "additionalProperties": False
+        },
+        "strict": True
+    }
+}
+
+
+@router.get("/my-company")
+async def get_my_company_data(
+    current_user: dict = Depends(get_current_user),
+):
     """
-    Extracts ESG metrics from uploaded PDF report.
-    Falls back to mock data if API keys are not configured.
+    Fetches internal ESG data for the user's organization to use as 'My Company' baseline.
+    Aggregates data from emissions, environment, social, and governance records.
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization found")
+
+    # Get organization details
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+    org_name = org.get("name", "My Company") if org else "My Company"
+    industry = org.get("industry") or org.get("sector") or "Manufacturing"
+
+    # Get current fiscal year
+    current_year = datetime.now().year
+    reporting_year = f"FY{current_year-1}-{current_year}"
+
+    # Initialize metrics
+    metrics = {
+        "scope1": create_empty_metric(),
+        "scope2": create_empty_metric(),
+        "emissionIntensityPerTurnover": create_empty_metric(),
+        "treatedWaterDischarged": create_empty_metric(),
+        "renewableEnergy": create_empty_metric(),
+        "wasteRecycled": create_empty_metric(),
+        "hazardousWaste": create_empty_metric(),
+        "wasteIntensity": create_empty_metric(),
+        "ltirEmployee": create_empty_metric(),
+        "ltirWorker": create_empty_metric(),
+        "dataPrivacyPolicy": create_empty_metric(),
+        "disciplinaryAction": create_empty_metric(),
+        "daysAccountsPayable": create_empty_metric(),
+    }
+
+    # 1. Fetch GHG Emissions data (Scope 1 & 2)
+    try:
+        scope1_total = 0
+        scope2_total = 0
+        
+        emission_records = await db.emission_records.find(
+            {"organization_id": org_id},
+            {"_id": 0, "scope": 1, "co2e_emissions": 1, "total_emissions": 1}
+        ).to_list(1000)
+
+        for record in emission_records:
+            scope = str(record.get("scope", "")).lower()
+            emissions_val = record.get("co2e_emissions") or record.get("total_emissions") or 0
+            if scope == "scope1" or scope == "scope 1" or "1" in scope and "scope" in scope:
+                scope1_total += emissions_val
+            elif scope == "scope2" or scope == "scope 2" or "2" in scope and "scope" in scope:
+                scope2_total += emissions_val
+
+        if scope1_total > 0:
+            metrics["scope1"] = create_metric(round(scope1_total, 2), "tCO2e", "Aggregated from internal emission records")
+        if scope2_total > 0:
+            metrics["scope2"] = create_metric(round(scope2_total, 2), "tCO2e", "Aggregated from internal emission records")
+
+    except Exception as e:
+        logger.warning(f"Error fetching emissions: {e}")
+
+    # 2. Fetch Environment records (Energy, Water, Waste)
+    try:
+        env_records = await db.environment_records.find(
+            {"org_id": org_id},
+            {"_id": 0, "category": 1, "subcategory": 1, "field_values": 1}
+        ).to_list(500)
+
+        for record in env_records:
+            category = (record.get("category") or "").lower()
+            subcategory = (record.get("subcategory") or "").lower()
+            field_values = record.get("field_values") or {}
+
+            # Renewable Energy
+            if "energy" in category and ("renewable" in subcategory or "renewable" in category):
+                for key, val in field_values.items():
+                    if isinstance(val, (int, float)) and val > 0:
+                        metrics["renewableEnergy"] = create_metric(val, "%", f"From {category}/{subcategory}")
+                        break
+
+            # Water discharge
+            if "water" in category and "discharge" in subcategory:
+                for key, val in field_values.items():
+                    if isinstance(val, (int, float)) and val > 0:
+                        metrics["treatedWaterDischarged"] = create_metric(val, "%", f"From {category}/{subcategory}")
+                        break
+
+            # Waste recycled
+            if "waste" in category:
+                if "recycl" in subcategory or "recover" in subcategory:
+                    for key, val in field_values.items():
+                        if isinstance(val, (int, float)) and val > 0:
+                            metrics["wasteRecycled"] = create_metric(val, "%", f"From {category}/{subcategory}")
+                            break
+                elif "hazardous" in subcategory:
+                    for key, val in field_values.items():
+                        if isinstance(val, (int, float)) and val > 0:
+                            metrics["hazardousWaste"] = create_metric(val, "tons", f"From {category}/{subcategory}")
+                            break
+
+    except Exception as e:
+        logger.warning(f"Error fetching environment records: {e}")
+
+    # 3. Fetch Social records (Safety metrics)
+    try:
+        social_records = await db.social_records.find(
+            {"org_id": org_id},
+            {"_id": 0, "category": 1, "subcategory": 1, "field_values": 1}
+        ).to_list(500)
+
+        for record in social_records:
+            category = (record.get("category") or "").lower()
+            subcategory = (record.get("subcategory") or "").lower()
+            field_values = record.get("field_values") or {}
+
+            # LTIR / Safety metrics
+            if "safety" in category or "health" in category or "ltir" in subcategory or "ltifr" in subcategory:
+                for key, val in field_values.items():
+                    key_lower = key.lower()
+                    if isinstance(val, (int, float)):
+                        if "employee" in key_lower and val > 0:
+                            metrics["ltirEmployee"] = create_metric(val, "rate", f"From {category}/{subcategory}")
+                        elif "worker" in key_lower and val > 0:
+                            metrics["ltirWorker"] = create_metric(val, "rate", f"From {category}/{subcategory}")
+
+    except Exception as e:
+        logger.warning(f"Error fetching social records: {e}")
+
+    # 4. Fetch Governance records
+    try:
+        gov_records = await db.governance_records.find(
+            {"org_id": org_id},
+            {"_id": 0, "category": 1, "subcategory": 1, "field_values": 1}
+        ).to_list(500)
+
+        for record in gov_records:
+            category = (record.get("category") or "").lower()
+            subcategory = (record.get("subcategory") or "").lower()
+            field_values = record.get("field_values") or {}
+
+            # Data Privacy Policy
+            if "privacy" in category or "privacy" in subcategory or "data protection" in subcategory:
+                for key, val in field_values.items():
+                    if isinstance(val, bool):
+                        metrics["dataPrivacyPolicy"] = create_metric(val, None, f"From {category}/{subcategory}")
+                        break
+                    elif isinstance(val, str) and val.lower() in ["yes", "true", "compliant"]:
+                        metrics["dataPrivacyPolicy"] = create_metric(True, None, f"From {category}/{subcategory}")
+                        break
+
+            # Disciplinary actions
+            if "disciplinary" in category or "disciplinary" in subcategory or "bribery" in subcategory:
+                for key, val in field_values.items():
+                    if isinstance(val, (int, float)):
+                        metrics["disciplinaryAction"] = create_metric(val, "count", f"From {category}/{subcategory}")
+                        break
+
+    except Exception as e:
+        logger.warning(f"Error fetching governance records: {e}")
+
+    return {
+        "id": "my-company",
+        "name": org_name,
+        "industry": industry,
+        "year": reporting_year,
+        "fileName": "Internal ESG Data",
+        "metrics": metrics,
+        "data_source": "internal"
+    }
+
+
+def create_empty_metric():
+    return {
+        "rawTextFound": None,
+        "reasoning": "No data found in internal records",
+        "extractedValue": None,
+        "reportedUnit": None,
+        "normalizedValue": None,
+        "normalizedUnit": None,
+        "page": None
+    }
+
+
+def create_metric(value, unit, reasoning):
+    return {
+        "rawTextFound": str(value),
+        "reasoning": reasoning,
+        "extractedValue": value,
+        "reportedUnit": unit,
+        "normalizedValue": value,
+        "normalizedUnit": unit,
+        "page": None
+    }
+
+
+@router.post("/extract")
+async def extract_metrics(
+    report: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Extracts ESG metrics from uploaded PDF report using LlamaParse and OpenAI.
     """
     if not report.filename.endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Only PDF files are supported.")
 
+    if not OPENAI_API_KEY or not LLAMA_CLOUD_API_KEY:
+        raise HTTPException(
+            status_code=500, 
+            detail="API keys not configured. Please contact administrator."
+        )
+
     try:
-        content = await report.read()
-        
-        # If OpenAI key not configured, return mock data
-        if not OPENAI_API_KEY or not LLAMA_CLOUD_API_KEY:
-            return {"metrics": generate_mock_metrics()}
-        
-        # Import OpenAI only if key is available
         from openai import OpenAI
-        import httpx
-        import asyncio
         
+        content = await report.read()
         openai_client = OpenAI(api_key=OPENAI_API_KEY)
-        
-        # Parse PDF with LlamaParse
+
+        # 1. Parse PDF with LlamaParse
         headers = {"Authorization": f"Bearer {LLAMA_CLOUD_API_KEY}"}
         parsing_instruction = (
             "Pay special attention to tables, infographics, metric callout boxes, and charts throughout the document.\n"
-            "1. TABLES: Extract all tabular data cleanly into markdown tables. Preserve all numbers, decimal places, and thousands separators without dropping digits.\n"
-            "2. INFOGRAPHICS & CALLOUT BOXES: Do not skip infographics, visual stat cards, or key-highlight boxes. Convert all text, numbers, and units inside visual infographics into clear markdown text."
+            "1. TABLES: Extract all tabular data cleanly into markdown tables. Preserve all numbers, decimal places, and thousands separators without dropping digits. Keep table notes and column units attached to the table.\n"
+            "2. INFOGRAPHICS & CALLOUT BOXES: Do not skip infographics, visual stat cards, or key-highlight boxes. Convert all text, numbers, and units inside visual infographics into clear markdown text or bullet points so no visual metric is missed."
         )
 
         files = {"file": (report.filename, content, report.content_type or "application/pdf")}
         data = {"parsing_instruction": parsing_instruction}
+
+        logger.info(f"Starting PDF extraction for: {report.filename}")
 
         async with httpx.AsyncClient(timeout=300.0) as client:
             upload_res = await client.post(
@@ -67,14 +341,17 @@ async def extract_metrics(report: UploadFile = File(...)):
             )
 
             if upload_res.status_code != 200:
+                logger.error(f"LlamaParse upload failed: {upload_res.text}")
                 raise HTTPException(status_code=500, detail=f"LlamaParse upload failed: {upload_res.text}")
 
             job_id = upload_res.json().get("id")
+            logger.info(f"LlamaParse job created: {job_id}")
 
             # Poll job status
             full_markdown_text = ""
             while True:
                 await asyncio.sleep(2)
+
                 status_res = await client.get(
                     f"https://api.cloud.llamaindex.ai/api/parsing/job/{job_id}",
                     headers=headers
@@ -82,23 +359,45 @@ async def extract_metrics(report: UploadFile = File(...)):
                 status_data = status_res.json()
 
                 if status_data.get("status") == "SUCCESS":
-                    md_res = await client.get(
-                        f"https://api.cloud.llamaindex.ai/api/parsing/job/{job_id}/result/markdown",
-                        headers=headers
-                    )
-                    full_markdown_text = md_res.json().get("markdown", "")
+                    # Fetch JSON result to construct page-marked markdown
+                    try:
+                        json_res = await client.get(
+                            f"https://api.cloud.llamaindex.ai/api/parsing/job/{job_id}/result/json",
+                            headers=headers
+                        )
+                        json_result = json_res.json()
+                        pages = json_result.get("pages", [])
+                        if pages:
+                            full_markdown_text = "\n\n".join([
+                                f"--- PAGE BREAK (Page {p.get('page', i+1)}) ---\n{p.get('md') or p.get('text') or ''}"
+                                for i, p in enumerate(pages)
+                            ])
+                        else:
+                            raise Exception("No pages found in JSON result")
+                    except Exception:
+                        # Fallback to markdown endpoint
+                        md_res = await client.get(
+                            f"https://api.cloud.llamaindex.ai/api/parsing/job/{job_id}/result/markdown",
+                            headers=headers
+                        )
+                        full_markdown_text = md_res.json().get("markdown", "")
                     break
                 elif status_data.get("status") == "ERROR":
                     raise HTTPException(status_code=500, detail="LlamaParse job processing failed.")
 
-        # Extract with OpenAI
+        logger.info(f"PDF parsed successfully, extracting metrics with OpenAI")
+
+        # 2. Extract structured JSON with OpenAI
         system_prompt = (
             "You are an expert ESG and Sustainability data analyst.\n"
-            "Extract the exact requested metrics from the provided document markdown.\n"
-            "Return JSON with these fields: scope1, scope2, emissionIntensityPerTurnover, treatedWaterDischarged, "
-            "renewableEnergy, wasteRecycled, hazardousWaste, wasteIntensity, ltirEmployee, ltirWorker, "
-            "dataPrivacyPolicy, disciplinaryAction, daysAccountsPayable.\n"
-            "Each field should have: rawTextFound, reasoning, extractedValue, reportedUnit, normalizedValue, normalizedUnit, page."
+            "Extract the exact requested metrics from the provided document markdown.\n\n"
+            "CRITICAL INSTRUCTIONS:\n"
+            "1. REASONING FIRST: Extract the raw text snippet first. Then, write out your reasoning before outputting final values.\n"
+            "2. TEMPORAL & BOUNDARY DISAMBIGUATION: Always extract data for the MOST RECENT reporting year. Always extract Consolidated data if available.\n"
+            "3. MISSING vs ZERO: If a table explicitly uses '-', 'Nil', 'None', or 'NA', determine if it implies 0 or 'Not Tracked'. If 0, output 0. If Not Tracked, output null.\n"
+            "4. NORMALIZATION: Output normalizedValue alongside raw extractedValue (GHG to 'tCO2e', Financials to 'Absolute INR', Water to 'kL').\n"
+            "5. CALCULATION: If not explicitly stated but underlying data exists, CALCULATE it.\n"
+            "6. PAGE: Provide the approximate page number based on ---PAGE BREAK--- markers."
         )
 
         completion = openai_client.chat.completions.create(
@@ -107,45 +406,34 @@ async def extract_metrics(report: UploadFile = File(...)):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": full_markdown_text}
             ],
-            response_format={"type": "json_object"}
+            response_format=JSON_SCHEMA
         )
 
         extracted_data = json.loads(completion.choices[0].message.content)
+        logger.info(f"Metrics extracted successfully for: {report.filename}")
+        
         return {"metrics": extracted_data}
 
     except HTTPException as he:
         raise he
     except Exception as e:
-        print(f"Extraction error: {e}")
-        # Return mock data on any error
-        return {"metrics": generate_mock_metrics()}
+        logger.error(f"Extraction error: {e}")
+        raise HTTPException(status_code=500, detail=f"Extraction failed: {str(e)}")
 
 
 @router.post("/generate-summary")
-async def generate_summary(req: SummaryRequest):
+async def generate_summary(
+    req: SummaryRequest,
+    current_user: dict = Depends(get_current_user),
+):
     """
     Generates Executive ESG Summary & Strategic Action Roadmap
     """
     if not OPENAI_API_KEY:
-        # Return mock summary if no API key
-        return {
-            "headline": "Your company shows strong environmental performance with opportunities for social metric improvements.",
-            "strengths": [
-                "Leading renewable energy adoption at 45% vs peer average of 35%",
-                "Zero disciplinary actions indicating strong governance practices",
-                "Lower emission intensity compared to industry peers"
-            ],
-            "gaps": [
-                "LTIR rates higher than top performers in the sector",
-                "Waste recycling rate below peer benchmark",
-                "Days accounts payable could be optimized"
-            ],
-            "recommendations": [
-                "Implement enhanced workplace safety programs to reduce LTIR by 20%",
-                "Invest in circular economy initiatives to boost waste recycling to 80%",
-                "Review supply chain payment terms for better working capital efficiency"
-            ]
-        }
+        raise HTTPException(
+            status_code=500, 
+            detail="OpenAI API key not configured. Please contact administrator."
+        )
 
     try:
         from openai import OpenAI
@@ -180,36 +468,5 @@ Produce a JSON response with the following exact structure:
         summary = json.loads(completion.choices[0].message.content)
         return summary
     except Exception as e:
+        logger.error(f"Summary generation error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to generate summary: {str(e)}")
-
-
-def generate_mock_metrics():
-    """Generate mock ESG metrics for testing without API keys"""
-    import random
-    
-    def mock_metric(val, unit):
-        return {
-            "rawTextFound": str(val),
-            "reasoning": "Mock data generated for testing",
-            "extractedValue": val,
-            "reportedUnit": unit,
-            "normalizedValue": val,
-            "normalizedUnit": unit,
-            "page": random.randint(5, 50)
-        }
-    
-    return {
-        "scope1": mock_metric(random.randint(8000, 20000), "tCO2e"),
-        "scope2": mock_metric(random.randint(3000, 8000), "tCO2e"),
-        "emissionIntensityPerTurnover": mock_metric(round(random.uniform(0.03, 0.1), 4), "tCO2e/INR"),
-        "treatedWaterDischarged": mock_metric(random.randint(70, 95), "%"),
-        "renewableEnergy": mock_metric(random.randint(25, 60), "%"),
-        "wasteRecycled": mock_metric(random.randint(50, 85), "%"),
-        "hazardousWaste": mock_metric(random.randint(80, 200), "tons"),
-        "wasteIntensity": mock_metric(round(random.uniform(1.5, 4), 2), "tons/INR"),
-        "ltirEmployee": mock_metric(round(random.uniform(0.5, 2.5), 2), "rate"),
-        "ltirWorker": mock_metric(round(random.uniform(1, 3.5), 2), "rate"),
-        "dataPrivacyPolicy": mock_metric(random.choice([True, True, True, False]), None),
-        "disciplinaryAction": mock_metric(random.randint(0, 3), "count"),
-        "daysAccountsPayable": mock_metric(random.randint(30, 60), "days")
-    }

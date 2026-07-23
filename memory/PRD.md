@@ -35,11 +35,17 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
 - [x] Assignment completion tracking with date overlap logic
 - [x] Internal Data AI Phase 1
 - [x] **Peer Benchmarking Module** (July 2025)
-  - Upload PDF reports for ESG metric extraction
-  - Compare company vs competitors
-  - Radar chart visualization
+  - Upload PDF reports for ESG metric extraction (LlamaParse + GPT-4o)
+  - **Internal company data fetched from database** (not mocked)
+  - Compare company vs competitors with radar charts
   - AI-powered executive summary generation
   - Printable report export
+
+### Data Sources for Peer Benchmarking "My Company"
+- `emission_records` → Scope 1 & Scope 2 emissions
+- `environment_records` → Renewable energy, treated water, waste recycled, hazardous waste
+- `social_records` → LTIR employee & worker safety metrics
+- `governance_records` → Data privacy policy, disciplinary actions
 
 ### Recent Cleanup (July 2025)
 - [x] Removed obsolete TaskCard.js
@@ -57,7 +63,7 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
 - [ ] Module Access Super Admin UI (toggle enabled_access/module_access)
 - [ ] Overdue tasks cron job (auto-mark when due_at passes)
 - [ ] Executive Dashboard enhancements (PDF export, fullscreen, drill-down)
-- [ ] Enable real PDF extraction (requires LLAMA_CLOUD_API_KEY, OPENAI_API_KEY)
+- [ ] Test PDF extraction with real competitor reports
 
 ### P2 - Medium Priority
 - [ ] Assignment Lifecycle Management (Archived/Superseded states)
@@ -85,16 +91,16 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
 - `/app/frontend/src/modules/peer-benchmarking/components/ComparisonView.js` - Comparison table
 - `/app/frontend/src/modules/peer-benchmarking/components/RadarChartWidget.js` - Radar chart
 - `/app/frontend/src/modules/peer-benchmarking/components/ExecutiveSummaryWidget.js` - AI summary
-- `/app/backend/modules/benchmarking/router.py` - Backend API (MOCKED without API keys)
+- `/app/backend/modules/benchmarking/router.py` - Backend API (real API keys configured)
 
 ## 3rd Party Integrations
-- OpenAI `gpt-5.6-sol` (requires user API key)
-- OpenAI `text-embedding-3-large` (requires user API key)
+- OpenAI `gpt-5.6-sol` (requires user API key) - Internal Data AI
+- OpenAI `text-embedding-3-large` (requires user API key) - Internal Data AI
+- OpenAI `gpt-4o` (OPENAI_API_KEY_PEER_BENCHMARKING) - Peer Benchmarking
+- LlamaParse (LLAMA_CLOUD_API_KEY_PEER_BENCHMARKING) - PDF extraction
 - Cloudflare R2 Storage (requires user API key)
 - Resend Emails (requires user API key)
-- LlamaParse for PDF extraction (requires LLAMA_CLOUD_API_KEY)
 
 ## Known Issues
 - Water Withdrawal KPIs missing filters (BLOCKED - user requested delay)
 - Potential collection mismatch: `users` vs `users_esg` in assignees_service.py
-- Peer Benchmarking PDF extraction is MOCKED (needs LLAMA_CLOUD_API_KEY + OPENAI_API_KEY)

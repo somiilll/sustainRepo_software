@@ -4,7 +4,7 @@ import { METRIC_LABELS } from '../types';
 import { RadarChartWidget } from './RadarChartWidget';
 import { ExecutiveSummaryWidget } from './ExecutiveSummaryWidget';
 import { PrintableReport } from './PrintableReport';
-import { AlertCircle, Trash2 } from 'lucide-react';
+import { AlertCircle, Trash2, Loader2, Database, RefreshCw } from 'lucide-react';
 
 const METRIC_UNITS = {
   scope1: 'tCO2e',
@@ -23,13 +23,23 @@ const METRIC_UNITS = {
 };
 
 export const ComparisonView = () => {
-  const { myCompany, savedReports, removeReport } = useBenchmarking();
+  const { myCompany, savedReports, removeReport, loading, error, refreshMyCompany } = useBenchmarking();
   const [comp1Id, setComp1Id] = useState(savedReports[0]?.id || '');
   const [comp2Id, setComp2Id] = useState(savedReports[1]?.id || '');
   const [execSummary, setExecSummary] = useState(null);
 
   const comp1 = savedReports.find(r => r.id === comp1Id);
   const comp2 = savedReports.find(r => r.id === comp2Id);
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-400 mr-3" />
+        <span className="text-stone-400">Loading internal company data...</span>
+      </div>
+    );
+  }
 
   const isLowerBetter = (metric) => {
     return ['scope1', 'scope2', 'emissionIntensityPerTurnover', 'hazardousWaste', 'wasteIntensity', 'ltirEmployee', 'ltirWorker', 'disciplinaryAction'].includes(metric);
@@ -193,6 +203,27 @@ export const ComparisonView = () => {
         savedReports={savedReports}
         executiveSummary={execSummary}
       />
+
+      {/* Internal Data Indicator */}
+      {myCompany.data_source === 'internal' && (
+        <div className="glass-panel p-4 mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Database className="w-5 h-5 text-emerald-400" />
+            <div>
+              <span className="text-emerald-400 font-semibold">{myCompany.name}</span>
+              <span className="text-stone-400 text-sm ml-2">• {myCompany.industry} • {myCompany.year}</span>
+              <p className="text-xs text-stone-500">Data sourced from your internal ESG records</p>
+            </div>
+          </div>
+          <button 
+            onClick={refreshMyCompany}
+            className="btn-secondary flex items-center gap-2 text-sm"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh Data
+          </button>
+        </div>
+      )}
 
       <RadarChartWidget />
 

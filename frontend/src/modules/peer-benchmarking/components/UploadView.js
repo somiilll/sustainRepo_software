@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { UploadCloud, FileText, CheckCircle, Loader } from 'lucide-react';
+import { UploadCloud, FileText, CheckCircle, Loader, AlertTriangle } from 'lucide-react';
 import { useBenchmarking } from '../context/BenchmarkingContext';
 import { INDUSTRY_SECTORS } from '../types';
-import { generateMockExtraction } from '../data/mockData';
 
 const API_BASE = process.env.REACT_APP_BACKEND_URL || '';
 
@@ -15,31 +14,46 @@ export const UploadView = () => {
   const [extractedReport, setExtractedReport] = useState(null);
   const [reportName, setReportName] = useState('');
   const [reportYear, setReportYear] = useState(new Date().getFullYear().toString());
+  const [error, setError] = useState(null);
 
   const handleFileDrop = (e) => {
     e.preventDefault();
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       setFile(e.dataTransfer.files[0]);
+      setError(null);
     }
   };
 
-  const simulateExtraction = async () => {
+  const handleExtraction = async () => {
     if (!file) return;
     setIsExtracting(true);
     setProgress(20);
+    setError(null);
 
     try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Not authenticated. Please log in again.');
+      }
+
       const formData = new FormData();
       formData.append('report', file);
 
-      setProgress(50);
+      setProgress(40);
+      
       const response = await fetch(`${API_BASE}/api/benchmarking/extract`, {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
         body: formData,
       });
 
+      setProgress(80);
+
       if (!response.ok) {
-        throw new Error(`Server returned ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `Server returned ${response.status}`);
       }
 
       const data = await response.json();
@@ -55,20 +69,9 @@ export const UploadView = () => {
       };
 
       setExtractedReport(newReport);
-    } catch (error) {
-      console.error("Extraction failed", error);
-      // Fallback to mock extraction
-      const mockMetrics = generateMockExtraction(industry, file.name);
-      setProgress(100);
-      const newReport = {
-        id: Math.random().toString(36).substr(2, 9),
-        name: reportName || `${file.name.replace('.pdf', '')} - Extracted`,
-        industry,
-        year: reportYear,
-        fileName: file.name,
-        metrics: mockMetrics
-      };
-      setExtractedReport(newReport);
+    } catch (err) {
+      console.error("Extraction failed", err);
+      setError(err.message || 'Extraction failed. Please try again.');
     } finally {
       setIsExtracting(false);
     }
@@ -90,15 +93,24 @@ export const UploadView = () => {
       setFile(null);
       setExtractedReport(null);
       setReportName('');
+      setError(null);
       alert('Report saved successfully! Go to Comparison view to analyze.');
     }
+  };
+
+  const handleReset = () => {
+    setFile(null);
+    setExtractedReport(null);
+    setReportName('');
+    setError(null);
+    setProgress(0);
   };
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
       {/* Left Panel - Upload */}
       <div className="glass-panel p-6">
-        <h2 className="text-2xl font-bold mb-6">Upload Document</h2>
+        <h2 className="text-2xl font-bold mb-6">Upload Competitor Report</h2>
         
         <div className="mb-4">
           <label className="block text-sm text-stone-400 mb-2">Industry Sector</label>
@@ -114,6 +126,13 @@ export const UploadView = () => {
           </select>
         </div>
 
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-4 flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-400 shrink-0" />
+            <span className="text-red-300 text-sm">{error}</span>
+          </div>
+        )}
+
         {!file && (
           <div
             className="upload-zone"
@@ -122,16 +141,19 @@ export const UploadView = () => {
             onClick={() => {
               const input = document.createElement('input');
               input.type = 'file';
-              input.accept = '.pdf,.docx';
+              input.accept = '.pdf';
               input.onchange = (e) => {
-                if (e.target.files[0]) setFile(e.target.files[0]);
+                if (e.target.files[0]) {
+                  setFile(e.target.files[0]);
+                  setError(null);
+                }
               };
               input.click();
             }}
           >
             <UploadCloud className="w-12 h-12 text-stone-500 mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">Drag & Drop Report Here</h3>
-            <p className="text-stone-500 text-sm">or click to browse files (PDF, DOCX)</p>
+            <p className="text-stone-500 text-sm">or click to browse files (PDF only)</p>
           </div>
         )}
 
@@ -139,27 +161,54 @@ export const UploadView = () => {
           <div className="bg-stone-800/50 rounded-lg p-4">
             <div className="flex items-center gap-3 mb-4">
               <FileText className="w-8 h-8 text-blue-400" />
-              <div>
+              <div className="flex-1">
                 <h3 className="font-semibold">{file.name}</h3>
                 <p className="text-sm text-stone-500">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
               </div>
+              <button 
+                onClick={handleReset}
+                className="text-stone-400 hover:text-stone-200 text-sm"
+              >
+                Remove
+              </button>
             </div>
 
             {isExtracting ? (
               <div>
                 <div className="flex items-center gap-2 text-blue-400 mb-2">
                   <Loader className="w-4 h-4 animate-spin" />
-                  <span>Extracting metrics...{progress}%</span>
+                  <span>Extracting ESG metrics from PDF... {progress}%</span>
                 </div>
                 <div className="progress-container">
                   <div className="progress-bar" style={{ width: `${progress}%` }}></div>
                 </div>
+                <p className="text-xs text-stone-500 mt-2">
+                  This may take 1-2 minutes depending on document size.
+                </p>
               </div>
             ) : (
-              <button onClick={simulateExtraction} className="btn-primary w-full">
-                Start Extraction
+              <button onClick={handleExtraction} className="btn-primary w-full">
+                Start AI Extraction
               </button>
             )}
+          </div>
+        )}
+
+        {extractedReport && (
+          <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4">
+            <div className="flex items-center gap-2 text-emerald-400 mb-2">
+              <CheckCircle className="w-5 h-5" />
+              <span className="font-semibold">Extraction Complete!</span>
+            </div>
+            <p className="text-sm text-stone-400">
+              Review the extracted data on the right and save to your dashboard.
+            </p>
+            <button 
+              onClick={handleReset}
+              className="btn-secondary w-full mt-3"
+            >
+              Upload Another Report
+            </button>
           </div>
         )}
       </div>
@@ -171,48 +220,64 @@ export const UploadView = () => {
         {!extractedReport ? (
           <div className="text-center py-12 text-stone-500">
             <FileText className="w-16 h-16 mx-auto mb-4 opacity-30" />
-            <p>Upload a report to see extracted metrics</p>
+            <p>Upload a competitor's ESG report to extract metrics</p>
+            <p className="text-sm mt-2 text-stone-600">
+              Supports annual reports, sustainability reports, and BRSR filings
+            </p>
           </div>
         ) : (
           <div className="animate-fade-in">
             <div className="mb-4">
-              <label className="block text-sm text-stone-400 mb-2">Save As (Company Name)</label>
+              <label className="block text-sm text-stone-400 mb-2">Company Name *</label>
               <input
                 type="text"
                 className="input-field"
-                placeholder="e.g. Competitor A FY23"
+                placeholder="e.g. Competitor A"
                 value={reportName}
                 onChange={(e) => setReportName(e.target.value)}
               />
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm text-stone-400 mb-2">Financial Year (e.g. FY23-24)</label>
+              <label className="block text-sm text-stone-400 mb-2">Financial Year</label>
               <input
                 type="text"
                 className="input-field"
+                placeholder="e.g. FY23-24"
                 value={reportYear}
                 onChange={(e) => setReportYear(e.target.value)}
               />
             </div>
 
-            <h4 className="text-sm font-semibold text-stone-400 mb-3">Metrics Found</h4>
-            <div className="space-y-2 mb-4">
-              {Object.entries(extractedReport.metrics).slice(0, 6).map(([key, data]) => (
+            <h4 className="text-sm font-semibold text-stone-400 mb-3">Extracted Metrics</h4>
+            <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
+              {Object.entries(extractedReport.metrics).map(([key, data]) => (
                 <div key={key} className="flex items-center justify-between bg-stone-800/30 p-2 rounded">
-                  <span className="text-sm text-stone-300">{key}</span>
+                  <span className="text-sm text-stone-300 capitalize">
+                    {key.replace(/([A-Z])/g, ' $1').trim()}
+                  </span>
                   <div className="text-right">
-                    <span className="text-emerald-400 font-semibold">
+                    <span className={`font-semibold ${
+                      data?.normalizedValue !== undefined && data?.normalizedValue !== null 
+                        ? 'text-emerald-400' 
+                        : 'text-stone-500'
+                    }`}>
                       {data?.normalizedValue !== undefined && data?.normalizedValue !== null 
-                        ? data.normalizedValue.toString() 
+                        ? (typeof data.normalizedValue === 'boolean' 
+                            ? (data.normalizedValue ? 'Yes' : 'No')
+                            : data.normalizedValue.toLocaleString())
                         : 'N/A'}
                     </span>
-                    <span className="text-xs text-stone-500 ml-2">(Pg {data?.page || '?'})</span>
+                    {data?.normalizedUnit && (
+                      <span className="text-xs text-stone-500 ml-1">{data.normalizedUnit}</span>
+                    )}
+                    {data?.page && (
+                      <span className="text-xs text-stone-600 ml-2">(Pg {data.page})</span>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
-            <p className="text-xs text-stone-500 mb-4">+ {Object.keys(extractedReport.metrics).length - 6} more metrics extracted</p>
 
             <button onClick={handleSave} className="btn-primary w-full flex items-center justify-center gap-2">
               <CheckCircle className="w-4 h-4" />
