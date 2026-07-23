@@ -1,114 +1,80 @@
-# ESG Platform — Product Requirements Document
+# ESG Platform - Product Requirements Document
 
 ## Original Problem Statement
-Build a comprehensive ESG (Environment, Social, Governance) platform with premium dashboards, materiality assessment, GHG emissions tracking, BRSR/GRI reporting, workflow management, and evidence upload capabilities.
+Build a comprehensive ESG (Environmental, Social, Governance) platform with:
+- Materiality Assessment UI
+- Premium Environment, Social, and Governance Dashboards
+- BRSR Reporting (Section B and Section C)
+- Internal Data AI using GPT integration
+- Assignment-aware data access and completion logic
+- V2 Assignment architecture (one assignment linked to multiple assignees)
 
 ## Core Architecture
-- **Frontend**: React + Shadcn/UI + Recharts + Tailwind CSS
-- **Backend**: FastAPI + MongoDB
-- **Storage**: Cloudflare R2 (evidence uploads)
-- **Integrations**: OpenAI (RAG), Resend (emails), LlamaParse (document parsing)
+
+### V2 Assignment System
+- **Assignments** are central objects stored in `esg_assignments`
+- **Assignees** are linked via `esg_assignment_assignees` collection
+- **Tasks** are generated from assignments via `task_engine.py`
+- **Completion** is tracked via overlapping date logic (not exact period match)
+
+### Key Collections
+- `esg_assignments`: id, start_date, end_date, reporting_period
+- `esg_assignment_assignees`: assignment_id, user_id, role
+- `esg_tasks`: Generated tasks linked to assignees
+- `emission_records`: ESG data points with facility_id and reporting_period
 
 ## What's Been Implemented
 
-### KPI Assignment-Based Access Control (Completed 2026-07-22)
-- **GHG Subcategory Restrictions**: User assignments for GHG Emissions subcategories (Scope 1/2/3/Biogenic/Sinks) restrict data access to only assigned scope types
-- **Facility-Level Restrictions**: Facility-level assignments restrict users to only view/create data for assigned facilities
-- **Organization-Level Access**: Org-level assignments grant access to all facilities
-- **Admin Bypass**: Admins always have full access regardless of assignments
-- **Completion Tracking**: Per-facility completion tracking for org-level assignments; marked complete when all facilities have at least one record
-- **New Backend APIs**: `/api/esg-assignments/kpi-access/ghg`, `/kpi-access/facilities`, `/kpi-access/facilities/list`, `/assignments/{id}/progress`
-- **New Frontend Hooks**: `useGHGAccess`, `useFacilityAccess`, `useAssignmentProgress` in `/app/frontend/src/hooks/useKPIAccess.js`
-- **Integrated Pages**: Emissions.js (scope tab + facility filtering), Sinks.js (access warning + facility filtering)
+### Completed Features
+- [x] V2 Assignment Architecture
+- [x] Task generation from V2 assignments (task_engine.py)
+- [x] Automatic task completion on emission save
+- [x] TaskLedger.js UI component (ledger-style table)
+- [x] BRSR/GRI tab filtering by entityType
+- [x] Assignment completion tracking with date overlap logic
+- [x] Internal Data AI Phase 1
 
-### Multi-User Assignment Bug Fix (Completed 2026-07-22)
-- Fixed race condition in ESGRecordsTracker.js where parallel API calls caused only one user to be assigned
-- Changed from `.map()` + `Promise.all` to sequential `for` loop with `await`
-- Fixed assignment modal to read from `assignees[]` array instead of single `assigned_to_user_id` when loading existing assignments
+### Recent Cleanup (July 2025)
+- [x] Removed obsolete TaskCard.js
+- [x] Removed obsolete TaskGroupedView.js
+- [x] Updated tasks/index.js exports
 
-### Internal Data AI (Phase 1 — Built 2026-07-20)
-- Intelligent analytics assistant in RepoPilot (toggle: Document AI / Internal Data AI)
-- GPT-5.6-sol for intent detection + response formatting; text-embedding-3-large for entity resolution
-- 15 intents, 8 service modules, facility-level permission filtering
-- Architecture: User Question → Embeddings → Intent Detection → Planner → Service Calls → Response Builder → Rich UI
+## Prioritized Backlog
 
-### Dashboards & Analytics
-- Executive Dashboard (GHG Scope 1/2/3 with base-year comparison)
-- Environment Dashboard (Emissions, Energy, Water, Waste KPIs + charts)
-- **Energy Dashboard** (4 KPIs + 5 charts: Monthly Trend, Source Breakdown, Renewable vs Non, Facility-wise, Intensity) — Rebuilt 2026-07-18 to reuse esg-analytics + environment-detail APIs
-- **Water Dashboard** (4 KPIs + 7 charts: Monthly Trend, Source Donut, Source Trend, Flow Overview, Discharge Destinations, Recycling Gauge, Monthly Recycled) — Built 2026-07-18
-- **Waste Dashboard** (6 KPIs + 7 charts: Monthly Trend, Composition Donut, Haz vs Non-Haz Trend, Recovery Trend, Disposal Trend, Flow Overview, Recovery Gauge) — Built 2026-07-18
-- Social Dashboard (Workforce, Training, Complaints, Health & Safety)
-- Governance Dashboard (AP Days, Anti-Competitive, Data Breaches, Violations)
-- ESG Summary Dashboard (combined view)
-- All dashboards filter out `pending_approval` and `rejected` records
+### P0 - Critical (Testing Debt)
+- [ ] Backend testing for task engine & completion flows
+- [ ] Frontend testing for TaskLedger UI
+- [ ] Internal Data AI Phase 2 verification
 
-### Sidebar Restructuring (Completed 2026-07-17)
-- Dashboards relocated under respective modules:
-  - GHG Module → Analysis (`/ghg/analysis`)
-  - Environment → Analysis (`/environment/analysis`)
-  - Social → Analysis (`/social/analysis`)
-  - Governance → Analysis (`/governance/analysis`)
-- 4 wrapper pages created: `GHGAnalysis.jsx`, `EnvironmentAnalysis.jsx`, `SocialAnalysis.jsx`, `GovernanceAnalysis.jsx`
-- Routes added to `App.js`
+### P1 - High Priority
+- [ ] Module Access Super Admin UI (toggle enabled_access/module_access)
+- [ ] Overdue tasks cron job (auto-mark when due_at passes)
+- [ ] Executive Dashboard enhancements (PDF export, fullscreen, drill-down)
 
-### Data Entry & Approvals
-- ESG Records CRUD with category-scoped pagination
-- Approval workflow (assign approvers by category/subcategory)
-- Evidence file upload via Cloudflare R2 (`esg-metrics-dev` bucket)
-- Stats endpoint (draft/submitted/approved counts per section)
+### P2 - Medium Priority
+- [ ] Assignment Lifecycle Management (Archived/Superseded states)
+- [ ] Dashboard Scope 1 & 3 Emissions Deduplication
+- [ ] Carbon Intensity Calculation fix
+- [ ] SOC 2 Compliance (MFA, rate limiting, CSP headers)
+- [ ] Dynamic ESG Disclosure Engine
+- [ ] Sentry Error Monitoring
+- [ ] SBTi target validation rules
+- [ ] Dark mode fine-tuning
+- [ ] Materiality cutoff backend persistence
 
-### Reporting
-- BRSR Module with edit mode and reporting year sync
-- BRSR progress tracking (question_key matching)
-- GRI Module placeholder
-- Reports page
+## Key Files Reference
+- `/app/backend/modules/esg_records/task_engine.py` - Task generation
+- `/app/backend/modules/emissions/router.py` - Emission saves & task completion
+- `/app/backend/modules/esg_assignments/completion_tracking.py` - Assignment completion
+- `/app/frontend/src/components/tasks/TaskLedger.js` - Main task display UI
+- `/app/frontend/src/components/MyTasks.js` - Task container component
 
-### Workflow
-- Workflow Tracker, My Task, Approver Queue
-- MyTasks component with Fill Now, BRSR tagging, group tracking
+## 3rd Party Integrations
+- OpenAI `gpt-5.6-sol` (requires user API key)
+- OpenAI `text-embedding-3-large` (requires user API key)
+- Cloudflare R2 Storage (requires user API key)
+- Resend Emails (requires user API key)
 
-### Dashboards & Analytics
-
-### Other Features
-- Materiality Assessment UI
-- Bulk Upload, OCR Detection placeholder
-- Voluntary Targets (Environment, Social, Governance)
-- SBTi Targets
-- Repo-Pilot (RAG document Q&A)
-- User Management, Audit Trails, Facilities
-- Super Admin dashboard with org/admin management
-- Water Flow & Waste Management gradient area charts
-
-## Pending Issues
-1. **P1**: Module Access Super Admin UI (toggle modules per org) — NOT STARTED
-2. **P2**: Dashboard Scope 1 & 3 Emissions deduplication bug — NOT STARTED
-4. **P2**: Carbon Intensity Calculation discrepancy — NOT STARTED
-
-## Upcoming Tasks (P1)
-- Cron job for auto-marking overdue tasks
-- Phase 2 Executive Dashboard (PDF export, fullscreen charts, drill-down)
-- Test Repo Pilot with actual PDF uploads (end-to-end RAG)
-
-## Future/Backlog (P2)
-- Dynamic ESG Disclosure Engine
-- Sentry Error Monitoring
-- MFA for admin users
-- SBTi target validation rules
-- Dark mode fine-tuning
-
-## Known Deferred Items
-- Water Withdrawal KPI seeded filter issue (user asked to delay)
-
-## Key Files
-- `/app/frontend/src/config/sidebarConfig.js` — Sidebar menu config
-- `/app/frontend/src/App.js` — Route definitions
-- `/app/frontend/src/pages/Dashboard.js` — Main dashboard router
-- `/app/frontend/src/pages/{GHG,Environment,Social,Governance}Analysis.jsx` — Module analysis wrappers
-- `/app/frontend/src/hooks/useKPIAccess.js` — KPI assignment-based access hooks
-- `/app/frontend/src/modules/dashboard/` — Dashboard components
-- `/app/backend/modules/dashboards/` — Dashboard API services
-- `/app/backend/modules/esg_records/` — Records CRUD + approvals
-- `/app/backend/modules/esg_assignments/kpi_access_helper.py` — KPI access control logic
-- `/app/backend/modules/esg_assignments/completion_tracking.py` — Assignment completion tracking
-- `/app/backend/r2_storage.py` — Cloudflare R2 integration
+## Known Issues
+- Water Withdrawal KPIs missing filters (BLOCKED - user requested delay)
+- Potential collection mismatch: `users` vs `users_esg` in assignees_service.py

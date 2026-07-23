@@ -11,7 +11,7 @@ import uuid
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://esg-task-engine.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://esg-tracker-v2.preview.emergentagent.com").rstrip("/")
 EMAIL = "goyalsomil2001@gmail.com"
 PASSWORD = "TestUser123!"
 FRAMEWORK = "BRSR"
