@@ -63,10 +63,10 @@ export const RadarChartWidget = () => {
   return (
     <div className="glass-panel p-6" style={{ marginTop: '1.5rem' }}>
       <h3 className="text-xl font-bold mb-2">Benchmarking Radar</h3>
-      <p className="text-stone-400 text-sm mb-4">Compare normalized metrics (Scale 0-100 relative to max)</p>
+      <p style={{ color: '#64748b' }} className="text-sm mb-4">Compare normalized metrics (Scale 0-100 relative to max)</p>
 
       <div className="mb-4">
-        <span className="text-sm text-stone-400 mr-2">Select Metrics (up to 6)</span>
+        <span style={{ color: '#64748b' }} className="text-sm mr-2">Select Metrics (up to 6)</span>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
           {Object.keys(METRIC_LABELS).map(key => {
             if (['dataPrivacyPolicy'].includes(key)) return null;
@@ -81,11 +81,16 @@ export const RadarChartWidget = () => {
                     setSelectedMetrics(prev => [...prev, key]);
                   }
                 }}
-                className={`px-3 py-1 text-xs rounded-full border transition-colors ${
-                  isSelected 
-                    ? 'border-blue-500 bg-blue-500/20 text-blue-400' 
-                    : 'border-stone-600 text-stone-400 hover:border-stone-500'
-                }`}
+                style={isSelected ? {
+                  border: '1px solid #16a34a',
+                  background: '#dcfce7',
+                  color: '#166534'
+                } : {
+                  border: '1px solid #cbd5e1',
+                  background: '#f8fafc',
+                  color: '#475569'
+                }}
+                className="px-3 py-1 text-xs rounded-full transition-colors hover:border-slate-400"
               >
                 {SHORT_LABELS[key]}
               </button>
@@ -96,36 +101,41 @@ export const RadarChartWidget = () => {
 
       <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
         <div style={{ width: '180px' }}>
-          <div className="text-sm text-stone-400 mb-2">Select Peers:</div>
+          <div style={{ color: '#64748b' }} className="text-sm mb-2">Select Peers:</div>
           {savedReports.map(r => (
             <div
               key={r.id}
               onClick={() => toggleCompetitor(r.id)}
-              className={`cursor-pointer p-2 rounded mb-1 text-sm transition-colors ${
-                selectedCompetitors.includes(r.id) 
-                  ? 'bg-blue-500/20 text-blue-400' 
-                  : 'bg-stone-800 text-stone-400 hover:bg-stone-700'
-              }`}
+              style={selectedCompetitors.includes(r.id) ? {
+                background: '#dcfce7',
+                color: '#166534',
+                cursor: 'pointer'
+              } : {
+                background: '#f1f5f9',
+                color: '#475569',
+                cursor: 'pointer'
+              }}
+              className="p-2 rounded mb-1 text-sm transition-colors hover:bg-slate-200"
             >
               {r.name} {r.year}
             </div>
           ))}
           {savedReports.length === 0 && (
-            <p className="text-stone-500 text-xs">No peers saved yet. Upload reports first.</p>
+            <p style={{ color: '#94a3b8' }} className="text-xs">No peers saved yet. Upload reports first.</p>
           )}
         </div>
 
         <div style={{ flex: 1, height: 380 }}>
           <ResponsiveContainer width="100%" height="100%">
             <RadarChart data={chartData}>
-              <PolarGrid stroke="rgba(255,255,255,0.1)" />
-              <PolarAngleAxis dataKey="subject" tick={{ fill: '#94a3b8', fontSize: 11 }} />
+              <PolarGrid stroke="rgba(0,0,0,0.1)" />
+              <PolarAngleAxis dataKey="subject" tick={{ fill: '#475569', fontSize: 11 }} />
               <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: '#64748b', fontSize: 10 }} />
               <Tooltip 
-                contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
-                labelStyle={{ color: '#f8fafc' }}
+                contentStyle={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px' }}
+                labelStyle={{ color: '#1e293b' }}
               />
-              <Legend wrapperStyle={{ color: '#94a3b8' }} />
+              <Legend wrapperStyle={{ color: '#475569' }} />
               <Radar name="My Company" dataKey="My Company" stroke={colors[0]} fill={colors[0]} fillOpacity={0.3} />
               {savedReports.filter(r => selectedCompetitors.includes(r.id)).map((r, i) => (
                 <Radar key={r.id} name={r.name} dataKey={r.name} stroke={colors[(i + 1) % colors.length]} fill={colors[(i + 1) % colors.length]} fillOpacity={0.2} />

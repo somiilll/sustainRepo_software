@@ -56,10 +56,10 @@ export const ExecutiveSummaryWidget = ({ myCompany, competitors, onSummaryGenera
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
         <div>
           <h3 className="text-xl font-bold flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-purple-400" />
+            <Sparkles className="w-5 h-5" style={{ color: '#9333ea' }} />
             Executive AI Briefing
           </h3>
-          <p className="text-stone-400 text-sm">Automated C-Suite Benchmarking & Gap Analysis</p>
+          <p style={{ color: '#64748b' }} className="text-sm">Automated C-Suite Benchmarking & Gap Analysis</p>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
           {summary && (
@@ -84,50 +84,50 @@ export const ExecutiveSummaryWidget = ({ myCompany, competitors, onSummaryGenera
       </div>
 
       {error && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-4 flex items-center gap-3">
-          <AlertTriangle className="w-5 h-5 text-red-400" />
-          <span className="text-red-300">{error}</span>
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca' }} className="rounded-lg p-4 mb-4 flex items-center gap-3">
+          <AlertTriangle className="w-5 h-5" style={{ color: '#dc2626' }} />
+          <span style={{ color: '#dc2626' }}>{error}</span>
         </div>
       )}
 
       {!summary && !loading && !error && (
-        <div className="bg-stone-800/50 rounded-lg p-6 text-center text-stone-400">
+        <div style={{ background: '#f1f5f9', color: '#475569' }} className="rounded-lg p-6 text-center">
           Click <strong>&quot;Generate Executive Briefing&quot;</strong> to run an AI-powered gap analysis comparing {myCompany.name} against {competitors.map(c => c.name).join(' & ') || 'selected competitors'}.
         </div>
       )}
 
       {summary && (
         <div className="space-y-4 animate-fade-in">
-          <div className="bg-blue-500/10 border-l-4 border-blue-500 p-4 rounded-r-lg">
-            <h4 className="font-semibold text-blue-400 mb-1">Executive Headline</h4>
-            <p className="text-stone-200">{summary.headline}</p>
+          <div style={{ background: '#eff6ff', borderLeft: '4px solid #3b82f6' }} className="p-4 rounded-r-lg">
+            <h4 className="font-semibold mb-1" style={{ color: '#2563eb' }}>Executive Headline</h4>
+            <p style={{ color: '#1e293b' }}>{summary.headline}</p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4">
-              <h4 className="font-semibold text-emerald-400 flex items-center gap-2 mb-3">
+            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0' }} className="rounded-lg p-4">
+              <h4 className="font-semibold flex items-center gap-2 mb-3" style={{ color: '#16a34a' }}>
                 <ShieldCheck className="w-4 h-4" />
                 Competitive Advantages
               </h4>
               <ul className="space-y-2">
                 {summary.strengths.map((s, idx) => (
-                  <li key={idx} className="text-stone-300 text-sm flex items-start gap-2">
-                    <span className="text-emerald-400 mt-1">•</span>
+                  <li key={idx} style={{ color: '#334155' }} className="text-sm flex items-start gap-2">
+                    <span style={{ color: '#16a34a' }} className="mt-1">•</span>
                     {s}
                   </li>
                 ))}
               </ul>
             </div>
 
-            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
-              <h4 className="font-semibold text-red-400 flex items-center gap-2 mb-3">
+            <div style={{ background: '#fef2f2', border: '1px solid #fecaca' }} className="rounded-lg p-4">
+              <h4 className="font-semibold flex items-center gap-2 mb-3" style={{ color: '#dc2626' }}>
                 <AlertTriangle className="w-4 h-4" />
                 Critical Benchmark Gaps
               </h4>
               <ul className="space-y-2">
                 {summary.gaps.map((g, idx) => (
-                  <li key={idx} className="text-stone-300 text-sm flex items-start gap-2">
-                    <span className="text-red-400 mt-1">•</span>
+                  <li key={idx} style={{ color: '#334155' }} className="text-sm flex items-start gap-2">
+                    <span style={{ color: '#dc2626' }} className="mt-1">•</span>
                     {g}
                   </li>
                 ))}
@@ -135,15 +135,15 @@ export const ExecutiveSummaryWidget = ({ myCompany, competitors, onSummaryGenera
             </div>
           </div>
 
-          <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
-            <h4 className="font-semibold text-amber-400 flex items-center gap-2 mb-3">
+          <div style={{ background: '#fffbeb', border: '1px solid #fde68a' }} className="rounded-lg p-4">
+            <h4 className="font-semibold flex items-center gap-2 mb-3" style={{ color: '#d97706' }}>
               <Target className="w-4 h-4" />
               Strategic Action Plan (Next 12-24 Months)
             </h4>
             <ol className="space-y-2">
               {summary.recommendations.map((r, idx) => (
-                <li key={idx} className="text-stone-300 text-sm flex items-start gap-3">
-                  <span className="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded text-xs font-semibold">{idx + 1}</span>
+                <li key={idx} style={{ color: '#334155' }} className="text-sm flex items-start gap-3">
+                  <span style={{ background: '#fef3c7', color: '#d97706' }} className="px-2 py-0.5 rounded text-xs font-semibold">{idx + 1}</span>
                   {r}
                 </li>
               ))}

@@ -193,16 +193,17 @@ export const UploadView = () => {
         )}
 
         {file && !extractedReport && (
-          <div className="bg-stone-800/50 rounded-lg p-4">
+          <div style={{ background: '#f1f5f9' }} className="rounded-lg p-4">
             <div className="flex items-center gap-3 mb-4">
-              <FileText className="w-8 h-8 text-blue-400" />
+              <FileText className="w-8 h-8" style={{ color: '#2563eb' }} />
               <div className="flex-1">
-                <h3 className="font-semibold">{file.name}</h3>
-                <p className="text-sm text-stone-500">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                <h3 className="font-semibold" style={{ color: '#1e293b' }}>{file.name}</h3>
+                <p className="text-sm" style={{ color: '#64748b' }}>{(file.size / 1024 / 1024).toFixed(2)} MB</p>
               </div>
               <button 
                 onClick={handleReset}
-                className="text-stone-400 hover:text-stone-200 text-sm"
+                style={{ color: '#64748b' }}
+                className="hover:text-slate-800 text-sm"
               >
                 Remove
               </button>
@@ -210,14 +211,14 @@ export const UploadView = () => {
 
             {isExtracting ? (
               <div>
-                <div className="flex items-center gap-2 text-blue-400 mb-2">
+                <div className="flex items-center gap-2 mb-2" style={{ color: '#2563eb' }}>
                   <Loader className="w-4 h-4 animate-spin" />
                   <span>Extracting ESG metrics from PDF... {progress}%</span>
                 </div>
                 <div className="progress-container">
                   <div className="progress-bar" style={{ width: `${progress}%` }}></div>
                 </div>
-                <p className="text-xs text-stone-500 mt-2">
+                <p className="text-xs mt-2" style={{ color: '#64748b' }}>
                   This may take 1-2 minutes depending on document size.
                 </p>
               </div>
@@ -230,12 +231,12 @@ export const UploadView = () => {
         )}
 
         {extractedReport && (
-          <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4">
-            <div className="flex items-center gap-2 text-emerald-400 mb-2">
+          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0' }} className="rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-2" style={{ color: '#16a34a' }}>
               <CheckCircle className="w-5 h-5" />
               <span className="font-semibold">Extraction Complete!</span>
             </div>
-            <p className="text-sm text-stone-400">
+            <p className="text-sm" style={{ color: '#64748b' }}>
               Review the extracted data on the right and save to your dashboard.
             </p>
             <button 
@@ -253,49 +254,49 @@ export const UploadView = () => {
         <h2 className="text-2xl font-bold mb-6">Extracted Data</h2>
 
         {!extractedReport ? (
-          <div className="text-center py-12 text-stone-500">
+          <div className="text-center py-12" style={{ color: '#64748b' }}>
             <FileText className="w-16 h-16 mx-auto mb-4 opacity-30" />
             <p>Upload a competitor&apos;s ESG report to extract metrics</p>
-            <p className="text-sm mt-2 text-stone-600">
+            <p className="text-sm mt-2" style={{ color: '#94a3b8' }}>
               Supports annual reports, sustainability reports, and BRSR filings
             </p>
           </div>
         ) : (
           <div className="animate-fade-in">
-            <div className="mb-4 bg-stone-800/30 p-3 rounded">
+            <div className="mb-4 p-3 rounded" style={{ background: '#f8fafc' }}>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-stone-400">Company:</span>
-                <span className="font-semibold">{extractedReport.name}</span>
+                <span className="text-sm" style={{ color: '#64748b' }}>Company:</span>
+                <span className="font-semibold" style={{ color: '#1e293b' }}>{extractedReport.name}</span>
               </div>
               <div className="flex justify-between items-center mt-1">
-                <span className="text-sm text-stone-400">Year:</span>
-                <span className="text-stone-300">{extractedReport.year}</span>
+                <span className="text-sm" style={{ color: '#64748b' }}>Year:</span>
+                <span style={{ color: '#334155' }}>{extractedReport.year}</span>
               </div>
               <div className="flex justify-between items-center mt-1">
-                <span className="text-sm text-stone-400">Industry:</span>
-                <span className="text-stone-300">{extractedReport.industry}</span>
+                <span className="text-sm" style={{ color: '#64748b' }}>Industry:</span>
+                <span style={{ color: '#334155' }}>{extractedReport.industry}</span>
               </div>
               {extractedReport.storage_path && (
                 <div className="flex justify-between items-center mt-1">
-                  <span className="text-sm text-stone-400">Storage:</span>
-                  <span className="text-xs text-emerald-400">Saved to cloud</span>
+                  <span className="text-sm" style={{ color: '#64748b' }}>Storage:</span>
+                  <span className="text-xs" style={{ color: '#16a34a' }}>Saved to cloud</span>
                 </div>
               )}
             </div>
 
-            <h4 className="text-sm font-semibold text-stone-400 mb-3">Extracted Metrics</h4>
+            <h4 className="text-sm font-semibold mb-3" style={{ color: '#64748b' }}>Extracted Metrics</h4>
             <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
               {Object.entries(extractedReport.metrics).map(([key, data]) => (
-                <div key={key} className="flex items-center justify-between bg-stone-800/30 p-2 rounded">
-                  <span className="text-sm text-stone-300 capitalize">
+                <div key={key} className="flex items-center justify-between p-2 rounded" style={{ background: '#f8fafc' }}>
+                  <span className="text-sm capitalize" style={{ color: '#334155' }}>
                     {key.replace(/([A-Z])/g, ' $1').trim()}
                   </span>
                   <div className="text-right">
-                    <span className={`font-semibold ${
-                      data?.normalizedValue !== undefined && data?.normalizedValue !== null 
-                        ? 'text-emerald-400' 
-                        : 'text-stone-500'
-                    }`}>
+                    <span className="font-semibold" style={{ 
+                      color: data?.normalizedValue !== undefined && data?.normalizedValue !== null 
+                        ? '#16a34a' 
+                        : '#94a3b8'
+                    }}>
                       {data?.normalizedValue !== undefined && data?.normalizedValue !== null 
                         ? (typeof data.normalizedValue === 'boolean' 
                             ? (data.normalizedValue ? 'Yes' : 'No')
@@ -303,10 +304,10 @@ export const UploadView = () => {
                         : 'N/A'}
                     </span>
                     {data?.normalizedUnit && (
-                      <span className="text-xs text-stone-500 ml-1">{data.normalizedUnit}</span>
+                      <span className="text-xs ml-1" style={{ color: '#64748b' }}>{data.normalizedUnit}</span>
                     )}
                     {data?.page && (
-                      <span className="text-xs text-stone-600 ml-2">(Pg {data.page})</span>
+                      <span className="text-xs ml-2" style={{ color: '#94a3b8' }}>(Pg {data.page})</span>
                     )}
                   </div>
                 </div>

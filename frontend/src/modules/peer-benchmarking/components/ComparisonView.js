@@ -483,8 +483,8 @@ export const ComparisonView = () => {
                       <div className="space-y-1">
                         {bars.map((bar, idx) => (
                           <div key={idx} className="flex items-center gap-2">
-                            <span className="text-xs w-6 text-slate-400">{bar.label}</span>
-                            <div className="flex-1 h-3 bg-slate-700 rounded-full overflow-hidden">
+                            <span className="text-xs w-6" style={{ color: '#64748b' }}>{bar.label}</span>
+                            <div className="flex-1 h-3 rounded-full overflow-hidden" style={{ background: '#e2e8f0' }}>
                               <div
                                 className="h-full rounded-full transition-all duration-300"
                                 style={{
@@ -497,7 +497,7 @@ export const ComparisonView = () => {
                         ))}
                       </div>
                     ) : (
-                      <span className="text-xs text-slate-500">No data</span>
+                      <span className="text-xs" style={{ color: '#94a3b8' }}>No data</span>
                     )}
                   </td>
                   
@@ -516,12 +516,12 @@ export const ComparisonView = () => {
                         {reasoningNotes.map((note, idx) => (
                           <div key={idx} className="border-l-2 pl-2" style={{ borderColor: note.color }}>
                             <span className="font-semibold" style={{ color: note.color }}>{note.name}:</span>
-                            <span className="text-slate-400 ml-1 break-words">{note.text}</span>
+                            <span style={{ color: '#475569' }} className="ml-1 break-words">{note.text}</span>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <span className="text-slate-500 italic">No reasoning available</span>
+                      <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>No reasoning available</span>
                     )}
                   </td>
                 </tr>
@@ -537,10 +537,10 @@ export const ComparisonView = () => {
           <h3 className="text-xl font-bold mb-4">Manage Saved Reports</h3>
           <div className="grid grid-cols-3 gap-4">
             {savedReports.map(r => (
-              <div key={r.id} className="bg-stone-800/50 rounded-lg p-4 flex justify-between items-start">
+              <div key={r.id} style={{ background: '#f1f5f9' }} className="rounded-lg p-4 flex justify-between items-start">
                 <div>
-                  <h4 className="font-semibold">{r.name}</h4>
-                  <p className="text-sm text-stone-400">{r.industry} • {r.year} • {r.fileName}</p>
+                  <h4 className="font-semibold" style={{ color: '#1e293b' }}>{r.name}</h4>
+                  <p className="text-sm" style={{ color: '#64748b' }}>{r.industry} • {r.year} • {r.fileName}</p>
                 </div>
                 <button
                   onClick={() => {
@@ -550,7 +550,8 @@ export const ComparisonView = () => {
                       if (comp2Id === r.id) setComp2Id('');
                     }
                   }}
-                  className="text-red-400 hover:text-red-300 p-1"
+                  style={{ color: '#dc2626' }}
+                  className="hover:opacity-70 p-1"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>

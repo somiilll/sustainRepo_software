@@ -218,13 +218,36 @@
   background: #f8fafc !important;
 }
 
-.benchmarking-app-container .text-stone-300,
+.benchmarking-app-container .bg-slate-700 {
+  background: #e2e8f0 !important;
+}
+
+.benchmarking-app-container .text-slate-400 {
+  color: #64748b !important;
+}
+
+.benchmarking-app-container .text-slate-500 {
+  color: #64748b !important;
+}
+
+.benchmarking-app-container .text-stone-200 {
+  color: #1e293b !important;
+}
+
+.benchmarking-app-container .text-stone-300 {
+  color: #334155 !important;
+}
+
 .benchmarking-app-container .text-stone-400 {
   color: #64748b !important;
 }
 
 .benchmarking-app-container .text-stone-500 {
   color: #94a3b8 !important;
+}
+
+.benchmarking-app-container .text-stone-600 {
+  color: #475569 !important;
 }
 
 .benchmarking-app-container .text-emerald-400 {
@@ -247,8 +270,24 @@
   color: #d97706 !important;
 }
 
+.benchmarking-app-container .text-red-300 {
+  color: #dc2626 !important;
+}
+
 .benchmarking-app-container .border-stone-600 {
-  border-color: #e2e8f0 !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* Select dropdowns in table headers */
+.data-table select {
+  background: white !important;
+  color: #1e293b !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+.data-table select option {
+  background: white !important;
+  color: #1e293b !important;
 }
 
 .benchmarking-app-container .bg-blue-500\/20 {
