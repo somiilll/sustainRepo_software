@@ -358,12 +358,7 @@ export default function DetailedProgressView({
                 {data.periods?.map((period) => (
                   <TableRow key={period.label}>
                     <TableCell className="sticky left-0 bg-white z-10 font-medium">
-                      <div className="flex flex-col">
-                        <span>{period.label}</span>
-                        {period.is_overdue && (
-                          <span className="text-xs text-red-600">Overdue</span>
-                        )}
-                      </div>
+                      <span>{period.label}</span>
                     </TableCell>
                     {period.facility_statuses?.map((fs) => (
                       <TableCell key={fs.facility_id} className="p-1">
