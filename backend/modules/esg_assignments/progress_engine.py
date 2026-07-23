@@ -271,9 +271,10 @@ class RecordChecker:
                 org_id, category, subcategory, facility_id, period
             )
         else:
-            # Get categories to search (handles Scope 1/2/3 mapping for non-emission)
-            search_categories = RecordChecker._get_search_categories(category, subcategory)
-            query = RecordChecker._build_standard_query(org_id, search_categories, facility_id, period)
+            # Standard records have separate category and subcategory fields
+            query = RecordChecker._build_standard_query_with_subcategory(
+                org_id, category, subcategory, facility_id, period
+            )
         
         record = await collection.find_one(
             query,
@@ -378,13 +379,18 @@ class RecordChecker:
         return {"reporting_period": {"$in": variants}}
     
     @staticmethod
-    def _build_standard_query(
+    def _build_standard_query_with_subcategory(
         org_id: str,
-        categories: List[str],
+        category: str,
+        subcategory: Optional[str],
         facility_id: Optional[str],
         period: Dict[str, Any],
     ) -> Dict:
-        """Build MongoDB query for standard records (environment, social, governance)."""
+        """Build MongoDB query for standard records (environment, social, governance).
+        
+        Standard records have separate 'category' and 'subcategory' fields.
+        For example: category='Water', subcategory='Discharge'
+        """
         
         # Organization filter - handle both org_id and organization_id
         org_filter = {
@@ -406,8 +412,10 @@ class RecordChecker:
         # Period filter
         period_filter = RecordChecker._build_standard_period_filter(period)
         
-        # Category filter
-        category_filter = RecordChecker._build_category_filter(categories)
+        # Category and Subcategory filters - search actual fields, not mapped categories
+        # Standard records have: category='Water', subcategory='Discharge'
+        category_filter = {"category": {"$regex": f"^{re.escape(category)}$", "$options": "i"}} if category else None
+        subcategory_filter = {"subcategory": {"$regex": f"^{re.escape(subcategory)}$", "$options": "i"}} if subcategory else None
         
         # Facility filter
         if facility_id:
@@ -429,6 +437,9 @@ class RecordChecker:
         
         if category_filter:
             query["$and"].append(category_filter)
+        
+        if subcategory_filter:
+            query["$and"].append(subcategory_filter)
         
         return query
     
@@ -659,10 +670,30 @@ class ProgressCalculator:
     ) -> ProgressResult:
         """
         Calculate organization-level progress.
-        Each period satisfied by EITHER org-level record OR all facility records.
+        
+        Logic:
+        - If org-level record exists for a period → 1 task completed
+        - If NO org-level record exists:
+          - Check if ANY facility-level records exist for this category/subcategory
+          - If NO facility records exist → count as 1 task (pending org-level entry)
+          - If facility records DO exist → expand to facility count
         """
         result = ProgressResult()
         now = datetime.now(timezone.utc)
+        
+        # First, check if ANY facility-level records exist for this category/subcategory
+        # This determines whether we should use facility-level counting when org record is missing
+        has_any_facility_records = False
+        for facility in facilities:
+            for period in periods:
+                has_fac_data, _ = await RecordChecker.check_exists(
+                    org_id, category, subcategory, facility.get("id"), period
+                )
+                if has_fac_data:
+                    has_any_facility_records = True
+                    break
+            if has_any_facility_records:
+                break
         
         for period in periods:
             # Check org-level record first
@@ -671,12 +702,14 @@ class ProgressCalculator:
             )
             
             if has_org_record:
+                # Org-level record exists - count as 1 task completed
                 result.total += 1
                 result.completed += 1
                 if org_date and (not result.last_updated or org_date > result.last_updated):
                     result.last_updated = org_date
-            else:
-                # Need all facility records
+            elif has_any_facility_records:
+                # No org record, but facility-level reporting is being used
+                # Expand to require all facilities
                 num_facilities = max(len(facilities), 1)
                 result.total += num_facilities
                 
@@ -704,6 +737,14 @@ class ProgressCalculator:
                 
                 if period_last_updated and (not result.last_updated or period_last_updated > result.last_updated):
                     result.last_updated = period_last_updated
+            else:
+                # No org record and no facility records exist - just 1 pending org-level task
+                result.total += 1
+                due_date = PeriodGenerator.get_due_date(period, due_day)
+                if due_date and due_date < now:
+                    result.overdue += 1
+                else:
+                    result.pending += 1
         
         return result
 
