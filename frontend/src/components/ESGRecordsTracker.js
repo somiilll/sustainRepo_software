@@ -333,17 +333,37 @@ export default function ESGRecordsTracker({
       
       // Fetch progress stats using new progress engine
       try {
-        // Build category list for bulk progress fetch
+        // Build category list for bulk progress fetch from categories state
+        // categories is a flat list like: [{category: "Water", subcategory: "Withdrawal"}, ...]
+        const categorySet = new Set();
         const categoryList = [];
+        
         for (const cat of categories) {
-          categoryList.push({ category: cat.category });
-          for (const subcat of (cat.subcategories || [])) {
-            categoryList.push({ category: cat.category, subcategory: subcat.subcategory });
-            for (const subsub of (subcat.sub_subcategories || [])) {
+          // Add category level
+          const catKey = cat.category;
+          if (catKey && !categorySet.has(catKey)) {
+            categorySet.add(catKey);
+            categoryList.push({ category: catKey });
+          }
+          
+          // Add subcategory level
+          if (cat.subcategory) {
+            const subKey = `${catKey}|${cat.subcategory}`;
+            if (!categorySet.has(subKey)) {
+              categorySet.add(subKey);
+              categoryList.push({ category: catKey, subcategory: cat.subcategory });
+            }
+          }
+          
+          // Add sub-subcategory level
+          if (cat.sub_subcategory) {
+            const subsubKey = `${catKey}|${cat.subcategory}|${cat.sub_subcategory}`;
+            if (!categorySet.has(subsubKey)) {
+              categorySet.add(subsubKey);
               categoryList.push({ 
-                category: cat.category, 
-                subcategory: subcat.subcategory, 
-                sub_subcategory: subsub.sub_subcategory 
+                category: catKey, 
+                subcategory: cat.subcategory, 
+                sub_subcategory: cat.sub_subcategory 
               });
             }
           }
@@ -399,7 +419,7 @@ export default function ESGRecordsTracker({
       setLoading(false);
       setRefreshing(false);
     }
-  }, [reportingPeriod, section, framework, categoryFilter, facilityFilter, userFilter, statusFilter, stalenessFilter, categories.length]);
+  }, [reportingPeriod, section, framework, categoryFilter, facilityFilter, userFilter, statusFilter, stalenessFilter, categories]);
 
   useEffect(() => {
     fetchTrackerData();
