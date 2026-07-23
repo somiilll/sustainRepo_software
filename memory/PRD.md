@@ -18,11 +18,20 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
 - **Tasks** are generated from assignments via `task_engine.py`
 - **Completion** is tracked via overlapping date logic (not exact period match)
 
+### Unified ESG Metrics Service (NEW)
+- **Location**: `/app/backend/services/esg_metrics_service.py`
+- **Purpose**: Centralized data fetching and calculations for all ESG metrics
+- **Used by**: Peer Benchmarking (can extend to Dashboard, Targets, Internal Data AI)
+- **Date Filtering**: Uses `reporting_period` field with start_date/end_date parameters
+
 ### Key Collections
 - `esg_assignments`: id, start_date, end_date, reporting_period
 - `esg_assignment_assignees`: assignment_id, user_id, role
 - `esg_tasks`: Generated tasks linked to assignees
 - `emission_records`: ESG data points with facility_id and reporting_period
+- `environment_records`: Water, Waste, Energy data
+- `social_records`: Health & Safety, Training data
+- `governance_records`: Financial, Compliance data
 
 ## What's Been Implemented
 
@@ -36,21 +45,31 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
 - [x] Internal Data AI Phase 1
 - [x] **Peer Benchmarking Module** (July 2025)
   - Upload PDF reports for ESG metric extraction (LlamaParse + GPT-4o)
-  - **Internal company data fetched from database** (not mocked)
-  - Compare company vs competitors with radar charts
+  - Internal company data fetched via unified ESGMetricsService
+  - Date range filtering with From/To date pickers
+  - Radar chart visualization
   - AI-powered executive summary generation
   - Printable report export
 
-### Data Sources for Peer Benchmarking "My Company"
-- `emission_records` → Scope 1 & Scope 2 emissions
-- `environment_records` → Renewable energy, treated water, waste recycled, hazardous waste
-- `social_records` → LTIR employee & worker safety metrics
-- `governance_records` → Data privacy policy, disciplinary actions
+### ESG Metrics Calculations (via ESGMetricsService)
+| Metric | Formula | Data Source |
+|--------|---------|-------------|
+| Scope 1/2 Emissions | Sum of records | `emission_records` |
+| Emission Intensity | total_emissions / turnover | `emission_records` + `governance_records` |
+| Treated Water Discharged % | treated / total × 100 | `environment_records` (Water/Discharge) |
+| Waste Recycled % | recovered / generated × 100 | `environment_records` (Waste) |
+| Hazardous Waste | Sum of hazardous_waste_generated | `environment_records` (Waste/Generated) |
+| Waste Intensity | total_waste / turnover | `environment_records` + `governance_records` |
+| LTIR Employee | (injuries / hours) × 1,000,000 | `social_records` (Health & Safety) |
+| LTIR Worker | (injuries / hours) × 1,000,000 | `social_records` (Health & Safety) |
+| Days Accounts Payable | (AP × 365) / COGS | `governance_records` |
+| Data Privacy Policy | Boolean from records | `governance_records` |
+| Disciplinary Actions | Count from records | `governance_records` |
 
-### Recent Cleanup (July 2025)
-- [x] Removed obsolete TaskCard.js
-- [x] Removed obsolete TaskGroupedView.js
-- [x] Updated tasks/index.js exports
+### Field Mappings
+- **Treated Water**: `quantity_discharged_with_treatment_done` OR sum of primary+secondary+tertiary treatment
+- **Waste Recycled**: `quantity` from "Recovered / Diverted from disposal" subcategory
+- **LTIR**: `no_of_loss_time_injuries` / `total_hours_worked` from Health & Safety Incidents
 
 ## Prioritized Backlog
 
@@ -63,7 +82,7 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
 - [ ] Module Access Super Admin UI (toggle enabled_access/module_access)
 - [ ] Overdue tasks cron job (auto-mark when due_at passes)
 - [ ] Executive Dashboard enhancements (PDF export, fullscreen, drill-down)
-- [ ] Test PDF extraction with real competitor reports
+- [ ] Extend ESGMetricsService usage to Dashboard, Targets, Internal Data AI
 
 ### P2 - Medium Priority
 - [ ] Assignment Lifecycle Management (Archived/Superseded states)
@@ -78,6 +97,9 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
 
 ## Key Files Reference
 
+### Unified Services
+- `/app/backend/services/esg_metrics_service.py` - **NEW** Centralized ESG metrics calculations
+
 ### Task System
 - `/app/backend/modules/esg_records/task_engine.py` - Task generation
 - `/app/backend/modules/emissions/router.py` - Emission saves & task completion
@@ -88,10 +110,16 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
 ### Peer Benchmarking Module
 - `/app/frontend/src/modules/peer-benchmarking/` - Frontend module
 - `/app/frontend/src/modules/peer-benchmarking/components/UploadView.js` - PDF upload
-- `/app/frontend/src/modules/peer-benchmarking/components/ComparisonView.js` - Comparison table
+- `/app/frontend/src/modules/peer-benchmarking/components/ComparisonView.js` - Comparison with date pickers
 - `/app/frontend/src/modules/peer-benchmarking/components/RadarChartWidget.js` - Radar chart
 - `/app/frontend/src/modules/peer-benchmarking/components/ExecutiveSummaryWidget.js` - AI summary
-- `/app/backend/modules/benchmarking/router.py` - Backend API (real API keys configured)
+- `/app/backend/modules/benchmarking/router.py` - Backend API using ESGMetricsService
+
+### Existing Dashboard Services (can be consolidated)
+- `/app/backend/modules/dashboards/social_detail_service.py` - LTIR calculations
+- `/app/backend/modules/dashboards/governance_detail_service.py` - Days AP calculations
+- `/app/backend/modules/esg_records/services/dashboard/water_service.py` - Water metrics
+- `/app/backend/modules/esg_records/services/dashboard/waste_service.py` - Waste metrics
 
 ## 3rd Party Integrations
 - OpenAI `gpt-5.6-sol` (requires user API key) - Internal Data AI
@@ -103,4 +131,5 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
 
 ## Known Issues
 - Water Withdrawal KPIs missing filters (BLOCKED - user requested delay)
-- Potential collection mismatch: `users` vs `users_esg` in assignees_service.py
+- Emission Intensity shows null if turnover not populated in governance_records
+- Waste Intensity shows null if turnover not populated in governance_records

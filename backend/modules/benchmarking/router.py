@@ -19,6 +19,7 @@ import httpx
 
 from shared.database.mongo import db
 from modules.auth.dependencies import get_current_user
+from services.esg_metrics_service import ESGMetricsService, get_benchmarking_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -113,31 +114,48 @@ async def get_date_range(
     max_date = None
     
     try:
-        # Get date range from emission records
-        pipeline = [
-            {"$match": {"organization_id": org_id}},
-            {"$group": {
-                "_id": None,
-                "min_date": {"$min": "$created_at"},
-                "max_date": {"$max": "$created_at"}
-            }}
-        ]
-        result = await db.emission_records.aggregate(pipeline).to_list(1)
-        if result:
-            min_date = result[0].get("min_date")
-            max_date = result[0].get("max_date")
+        # Get date range from emission records using reporting_period
+        periods = await db.emission_records.distinct(
+            "reporting_period",
+            {"organization_id": org_id}
+        )
+        
+        # Extract dates from various period formats
+        dates = []
+        for period in periods:
+            if isinstance(period, dict):
+                year = period.get("year")
+                month = period.get("month", 1)
+                if year:
+                    try:
+                        dates.append(datetime(int(year), int(month) if isinstance(month, int) else 1, 1))
+                    except:
+                        pass
+            elif isinstance(period, str):
+                # Try to parse "YYYY-MM" format
+                try:
+                    if len(period) >= 7 and "-" in period:
+                        parts = period.split("-")
+                        dates.append(datetime(int(parts[0]), int(parts[1]), 1))
+                except:
+                    pass
+        
+        if dates:
+            min_date = min(dates)
+            max_date = max(dates)
+            
     except Exception as e:
         logger.warning(f"Error fetching date range: {e}")
 
-    # Default to current year if no data
+    # Default to reasonable range if no data
     if not min_date:
-        min_date = datetime(datetime.now().year - 1, 4, 1, tzinfo=timezone.utc)  # Start of previous FY
+        min_date = datetime(datetime.now().year - 2, 4, 1)
     if not max_date:
-        max_date = datetime.now(timezone.utc)
+        max_date = datetime.now()
 
     return {
-        "min_date": min_date.isoformat() if hasattr(min_date, 'isoformat') else str(min_date),
-        "max_date": max_date.isoformat() if hasattr(max_date, 'isoformat') else str(max_date)
+        "min_date": min_date.strftime("%Y-%m-%d"),
+        "max_date": max_date.strftime("%Y-%m-%d")
     }
 
 
@@ -149,8 +167,8 @@ async def get_my_company_data(
 ):
     """
     Fetches internal ESG data for the user's organization to use as 'My Company' baseline.
-    Aggregates data from emissions, environment, social, and governance records.
-    Optionally filters by date range (start_date and end_date in YYYY-MM-DD format).
+    Uses the unified ESGMetricsService for all calculations.
+    Filters by reporting_period based on start_date and end_date (YYYY-MM-DD format).
     """
     org_id = current_user.get("organization_id")
     if not org_id:
@@ -161,202 +179,27 @@ async def get_my_company_data(
     org_name = org.get("name", "My Company") if org else "My Company"
     industry = org.get("industry") or org.get("sector") or "Manufacturing"
 
-    # Parse dates
-    start_dt = None
-    end_dt = None
-    
-    if start_date:
-        try:
-            start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
-        except:
-            try:
-                start_dt = datetime.strptime(start_date, "%Y-%m-%d")
-                start_dt = start_dt.replace(tzinfo=timezone.utc)
-            except:
-                pass
-    
-    if end_date:
-        try:
-            end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
-        except:
-            try:
-                end_dt = datetime.strptime(end_date, "%Y-%m-%d")
-                # Set to end of day
-                end_dt = end_dt.replace(hour=23, minute=59, second=59, tzinfo=timezone.utc)
-            except:
-                pass
-
     # Determine display period
-    if start_dt and end_dt:
-        reporting_year = f"{start_dt.strftime('%d %b %Y')} - {end_dt.strftime('%d %b %Y')}"
-    elif start_dt:
-        reporting_year = f"From {start_dt.strftime('%d %b %Y')}"
-    elif end_dt:
-        reporting_year = f"Until {end_dt.strftime('%d %b %Y')}"
+    if start_date and end_date:
+        try:
+            start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+            end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+            reporting_year = f"{start_dt.strftime('%d %b %Y')} - {end_dt.strftime('%d %b %Y')}"
+        except:
+            reporting_year = f"{start_date} - {end_date}"
+    elif start_date:
+        reporting_year = f"From {start_date}"
+    elif end_date:
+        reporting_year = f"Until {end_date}"
     else:
         reporting_year = "All Data"
 
-    # Initialize metrics
-    metrics = {
-        "scope1": create_empty_metric(),
-        "scope2": create_empty_metric(),
-        "emissionIntensityPerTurnover": create_empty_metric(),
-        "treatedWaterDischarged": create_empty_metric(),
-        "renewableEnergy": create_empty_metric(),
-        "wasteRecycled": create_empty_metric(),
-        "hazardousWaste": create_empty_metric(),
-        "wasteIntensity": create_empty_metric(),
-        "ltirEmployee": create_empty_metric(),
-        "ltirWorker": create_empty_metric(),
-        "dataPrivacyPolicy": create_empty_metric(),
-        "disciplinaryAction": create_empty_metric(),
-        "daysAccountsPayable": create_empty_metric(),
-    }
-
-    # Build date filter - using string comparison since created_at is stored as ISO string
-    def build_date_filter(start, end, date_field="created_at"):
-        conditions = {}
-        if start or end:
-            date_query = {}
-            # Use ISO string format for comparison since field is stored as string
-            if start:
-                date_query["$gte"] = start.isoformat()
-            if end:
-                date_query["$lte"] = end.isoformat()
-            if date_query:
-                conditions[date_field] = date_query
-        return conditions
-
-    date_filter = build_date_filter(start_dt, end_dt)
-
-    # 1. Fetch GHG Emissions data (Scope 1 & 2)
-    try:
-        scope1_total = 0
-        scope2_total = 0
-        
-        query = {"organization_id": org_id}
-        query.update(date_filter)
-        
-        emission_records = await db.emission_records.find(
-            query,
-            {"_id": 0, "scope": 1, "co2e_emissions": 1, "total_emissions": 1}
-        ).to_list(1000)
-
-        for record in emission_records:
-            scope = str(record.get("scope", "")).lower()
-            emissions_val = record.get("co2e_emissions") or record.get("total_emissions") or 0
-            if scope == "scope1" or scope == "scope 1" or "1" in scope and "scope" in scope:
-                scope1_total += emissions_val
-            elif scope == "scope2" or scope == "scope 2" or "2" in scope and "scope" in scope:
-                scope2_total += emissions_val
-
-        date_desc = reporting_year if reporting_year != "All Data" else "all"
-        if scope1_total > 0:
-            metrics["scope1"] = create_metric(round(scope1_total, 2), "tCO2e", f"Aggregated from {date_desc} emission records")
-        if scope2_total > 0:
-            metrics["scope2"] = create_metric(round(scope2_total, 2), "tCO2e", f"Aggregated from {date_desc} emission records")
-
-    except Exception as e:
-        logger.warning(f"Error fetching emissions: {e}")
-
-    # 2. Fetch Environment records (Energy, Water, Waste)
-    try:
-        env_records = await db.environment_records.find(
-            {"org_id": org_id},
-            {"_id": 0, "category": 1, "subcategory": 1, "field_values": 1}
-        ).to_list(500)
-
-        for record in env_records:
-            category = (record.get("category") or "").lower()
-            subcategory = (record.get("subcategory") or "").lower()
-            field_values = record.get("field_values") or {}
-
-            # Renewable Energy
-            if "energy" in category and ("renewable" in subcategory or "renewable" in category):
-                for key, val in field_values.items():
-                    if isinstance(val, (int, float)) and val > 0:
-                        metrics["renewableEnergy"] = create_metric(val, "%", f"From {category}/{subcategory}")
-                        break
-
-            # Water discharge
-            if "water" in category and "discharge" in subcategory:
-                for key, val in field_values.items():
-                    if isinstance(val, (int, float)) and val > 0:
-                        metrics["treatedWaterDischarged"] = create_metric(val, "%", f"From {category}/{subcategory}")
-                        break
-
-            # Waste recycled
-            if "waste" in category:
-                if "recycl" in subcategory or "recover" in subcategory:
-                    for key, val in field_values.items():
-                        if isinstance(val, (int, float)) and val > 0:
-                            metrics["wasteRecycled"] = create_metric(val, "%", f"From {category}/{subcategory}")
-                            break
-                elif "hazardous" in subcategory:
-                    for key, val in field_values.items():
-                        if isinstance(val, (int, float)) and val > 0:
-                            metrics["hazardousWaste"] = create_metric(val, "tons", f"From {category}/{subcategory}")
-                            break
-
-    except Exception as e:
-        logger.warning(f"Error fetching environment records: {e}")
-
-    # 3. Fetch Social records (Safety metrics)
-    try:
-        social_records = await db.social_records.find(
-            {"org_id": org_id},
-            {"_id": 0, "category": 1, "subcategory": 1, "field_values": 1}
-        ).to_list(500)
-
-        for record in social_records:
-            category = (record.get("category") or "").lower()
-            subcategory = (record.get("subcategory") or "").lower()
-            field_values = record.get("field_values") or {}
-
-            # LTIR / Safety metrics
-            if "safety" in category or "health" in category or "ltir" in subcategory or "ltifr" in subcategory:
-                for key, val in field_values.items():
-                    key_lower = key.lower()
-                    if isinstance(val, (int, float)):
-                        if "employee" in key_lower and val > 0:
-                            metrics["ltirEmployee"] = create_metric(val, "rate", f"From {category}/{subcategory}")
-                        elif "worker" in key_lower and val > 0:
-                            metrics["ltirWorker"] = create_metric(val, "rate", f"From {category}/{subcategory}")
-
-    except Exception as e:
-        logger.warning(f"Error fetching social records: {e}")
-
-    # 4. Fetch Governance records
-    try:
-        gov_records = await db.governance_records.find(
-            {"org_id": org_id},
-            {"_id": 0, "category": 1, "subcategory": 1, "field_values": 1}
-        ).to_list(500)
-
-        for record in gov_records:
-            category = (record.get("category") or "").lower()
-            subcategory = (record.get("subcategory") or "").lower()
-            field_values = record.get("field_values") or {}
-
-            # Data Privacy Policy
-            if "privacy" in category or "privacy" in subcategory or "data protection" in subcategory:
-                for key, val in field_values.items():
-                    if isinstance(val, bool):
-                        metrics["dataPrivacyPolicy"] = create_metric(val, None, f"From {category}/{subcategory}")
-                        break
-                    elif isinstance(val, str) and val.lower() in ["yes", "true", "compliant"]:
-                        metrics["dataPrivacyPolicy"] = create_metric(True, None, f"From {category}/{subcategory}")
-                        break
-
-            # Disciplinary actions
-            if "disciplinary" in category or "disciplinary" in subcategory or "bribery" in subcategory:
-                for key, val in field_values.items():
-                    if isinstance(val, (int, float)):
-                        metrics["disciplinaryAction"] = create_metric(val, "count", f"From {category}/{subcategory}")
-                        break
-
-    except Exception as e:
-        logger.warning(f"Error fetching governance records: {e}")
+    # Use the unified ESG Metrics Service
+    metrics = await get_benchmarking_metrics(
+        org_id=org_id,
+        start_date=start_date,
+        end_date=end_date
+    )
 
     return {
         "id": "my-company",
@@ -366,30 +209,6 @@ async def get_my_company_data(
         "fileName": "Internal ESG Data",
         "metrics": metrics,
         "data_source": "internal"
-    }
-
-
-def create_empty_metric():
-    return {
-        "rawTextFound": None,
-        "reasoning": "No data found in internal records",
-        "extractedValue": None,
-        "reportedUnit": None,
-        "normalizedValue": None,
-        "normalizedUnit": None,
-        "page": None
-    }
-
-
-def create_metric(value, unit, reasoning):
-    return {
-        "rawTextFound": str(value),
-        "reasoning": reasoning,
-        "extractedValue": value,
-        "reportedUnit": unit,
-        "normalizedValue": value,
-        "normalizedUnit": unit,
-        "page": None
     }
 
 
