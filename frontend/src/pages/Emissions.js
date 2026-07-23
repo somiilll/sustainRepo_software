@@ -3223,10 +3223,6 @@ export default function Emissions() {
           setFilterCalculationMethod={setFilterCalculationMethod}
           filterDateRange={filterDateRange}
           setFilterDateRange={setFilterDateRange}
-          sortBy={sortBy}
-          setSortBy={setSortBy}
-          sortOrder={sortOrder}
-          setSortOrder={setSortOrder}
           facilities={facilities}
           uniqueCategories={uniqueCategories}
           uniqueCalculationMethods={uniqueCalculationMethods}
