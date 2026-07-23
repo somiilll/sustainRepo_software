@@ -145,6 +145,12 @@ const sidebarConfig = [
     path: '/reports',
   },
   {
+    key: 'peer_benchmarking',
+    label: 'Peer Benchmarking',
+    icon: 'GitCompareArrows',
+    path: '/peer-benchmarking',
+  },
+  {
     key: 'users',
     label: 'Users',
     icon: 'Users',

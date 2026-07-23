@@ -8,6 +8,7 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
 - Internal Data AI using GPT integration
 - Assignment-aware data access and completion logic
 - V2 Assignment architecture (one assignment linked to multiple assignees)
+- Peer Benchmarking for competitor ESG comparison
 
 ## Core Architecture
 
@@ -33,6 +34,12 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
 - [x] BRSR/GRI tab filtering by entityType
 - [x] Assignment completion tracking with date overlap logic
 - [x] Internal Data AI Phase 1
+- [x] **Peer Benchmarking Module** (July 2025)
+  - Upload PDF reports for ESG metric extraction
+  - Compare company vs competitors
+  - Radar chart visualization
+  - AI-powered executive summary generation
+  - Printable report export
 
 ### Recent Cleanup (July 2025)
 - [x] Removed obsolete TaskCard.js
@@ -50,6 +57,7 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
 - [ ] Module Access Super Admin UI (toggle enabled_access/module_access)
 - [ ] Overdue tasks cron job (auto-mark when due_at passes)
 - [ ] Executive Dashboard enhancements (PDF export, fullscreen, drill-down)
+- [ ] Enable real PDF extraction (requires LLAMA_CLOUD_API_KEY, OPENAI_API_KEY)
 
 ### P2 - Medium Priority
 - [ ] Assignment Lifecycle Management (Archived/Superseded states)
@@ -63,18 +71,30 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
 - [ ] Materiality cutoff backend persistence
 
 ## Key Files Reference
+
+### Task System
 - `/app/backend/modules/esg_records/task_engine.py` - Task generation
 - `/app/backend/modules/emissions/router.py` - Emission saves & task completion
 - `/app/backend/modules/esg_assignments/completion_tracking.py` - Assignment completion
 - `/app/frontend/src/components/tasks/TaskLedger.js` - Main task display UI
 - `/app/frontend/src/components/MyTasks.js` - Task container component
 
+### Peer Benchmarking Module
+- `/app/frontend/src/modules/peer-benchmarking/` - Frontend module
+- `/app/frontend/src/modules/peer-benchmarking/components/UploadView.js` - PDF upload
+- `/app/frontend/src/modules/peer-benchmarking/components/ComparisonView.js` - Comparison table
+- `/app/frontend/src/modules/peer-benchmarking/components/RadarChartWidget.js` - Radar chart
+- `/app/frontend/src/modules/peer-benchmarking/components/ExecutiveSummaryWidget.js` - AI summary
+- `/app/backend/modules/benchmarking/router.py` - Backend API (MOCKED without API keys)
+
 ## 3rd Party Integrations
 - OpenAI `gpt-5.6-sol` (requires user API key)
 - OpenAI `text-embedding-3-large` (requires user API key)
 - Cloudflare R2 Storage (requires user API key)
 - Resend Emails (requires user API key)
+- LlamaParse for PDF extraction (requires LLAMA_CLOUD_API_KEY)
 
 ## Known Issues
 - Water Withdrawal KPIs missing filters (BLOCKED - user requested delay)
 - Potential collection mismatch: `users` vs `users_esg` in assignees_service.py
+- Peer Benchmarking PDF extraction is MOCKED (needs LLAMA_CLOUD_API_KEY + OPENAI_API_KEY)

@@ -68,6 +68,7 @@ import ESGTargetsTab from './components/ESGTargetsTab';
 import WorkflowApproverQueue from './pages/WorkflowApproverQueue';
 import WorkflowTracker from './pages/WorkflowTracker';
 import WorkflowMyTask from './pages/WorkflowMyTask';
+import PeerBenchmarking from './pages/PeerBenchmarking';
 import { initializeCategoryModules } from './modules/emissions';
 
 // Initialize the emissions Category Registry once at app boot.
@@ -311,6 +312,7 @@ const AppRoutes = () => {
           <Route path="bulk-upload" element={<Navigate to="/uploads/bulk" replace />} />
           <Route path="base-year-emissions" element={<Navigate to="/targets/voluntary/ghg" replace />} />
           <Route path="reports" element={<Reports />} />
+          <Route path="peer-benchmarking" element={<PeerBenchmarking />} />
           <Route path="users" element={
             <AdminRoute>
               <UserManagement />
