@@ -443,8 +443,8 @@ export default function OrganizationDetails() {
         headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
       });
       
-      // Use /view endpoint for public access (for img tags)
-      const logoUrl = `${BACKEND_URL}${response.data.url}/view`;
+      // Store relative path (like evidences) - frontend will prepend BACKEND_URL at display time
+      const logoUrl = `${response.data.url}/view`;
       setFormData({ ...formData, logo: logoUrl });
       setLogoError(false);
       toast.success('Logo uploaded successfully');
@@ -491,10 +491,10 @@ export default function OrganizationDetails() {
           headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
         });
         
-        // Use /view endpoint for images, regular for other files
+        // Store relative path (like evidences) - frontend will prepend BACKEND_URL at display time
         const fileUrl = file.type.startsWith('image/') 
-          ? `${BACKEND_URL}${response.data.url}/view`
-          : `${BACKEND_URL}${response.data.url}`;
+          ? `${response.data.url}/view`
+          : response.data.url;
         
         newAttachments.push({ 
           name: file.name, 
