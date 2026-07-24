@@ -75,6 +75,13 @@ class ProgressResult:
         return round((self.completed / self.total) * 100, 1)
     
     def to_dict(self) -> Dict:
+        last_updated_str = None
+        if self.last_updated:
+            if isinstance(self.last_updated, datetime):
+                last_updated_str = self.last_updated.isoformat()
+            else:
+                last_updated_str = str(self.last_updated)
+        
         return {
             "total": self.total,
             "filled": self.completed,
@@ -82,7 +89,7 @@ class ProgressResult:
             "pending": self.pending,
             "overdue": self.overdue,
             "percentage": self.percentage,
-            "last_updated": self.last_updated.isoformat() if self.last_updated else None,
+            "last_updated": last_updated_str,
             "period_details": self.period_details,
         }
     

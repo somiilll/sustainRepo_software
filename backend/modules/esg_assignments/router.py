@@ -507,22 +507,23 @@ async def get_accessible_facilities(
 # ============================================
 
 @router.get("/assignments/{assignment_id}/progress")
-async def get_assignment_progress(
+async def get_assignment_progress_detailed(
     assignment_id: str,
     current_user: dict = Depends(get_current_user),
 ):
     """
     Get detailed progress information for an assignment.
-    
-    For organization-level assignments, shows per-facility completion status.
+    Uses CompletionService as single source of truth.
     """
-    from .completion_tracking import completion_tracking_service
+    from .completion_service import completion_service
+    from shared.database.mongo import db
     
-    progress = await completion_tracking_service.get_assignment_progress(
-        assignment_id=assignment_id,
-    )
+    assignment = await db.esg_assignments.find_one({"id": assignment_id}, {"_id": 0})
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Assignment not found")
     
-    return progress
+    progress = await completion_service.get_assignment_progress(assignment, include_period_details=True)
+    return progress.to_dict()
 
 
 @router.post("/assignments/check-completion")
@@ -534,21 +535,10 @@ async def check_and_update_completion(
     current_user: dict = Depends(get_admin_user),
 ):
     """
-    Manually trigger completion check for assignments (Admin only).
-    
-    Normally this is called automatically when records are submitted.
+    DEPRECATED: Completion is now computed on-the-fly by CompletionService.
+    This endpoint is kept for backward compatibility but does nothing.
     """
-    from .completion_tracking import completion_tracking_service
-    
-    result = await completion_tracking_service.check_and_update_completion(
-        organization_id=current_user["organization_id"],
-        category=category,
-        subcategory=subcategory,
-        facility_id=facility_id,
-        reporting_period=reporting_period,
-    )
-    
-    return result
+    return {"message": "Completion is now computed on-the-fly. No manual check needed."}
 
 
 
@@ -557,27 +547,33 @@ async def check_and_update_completion(
 # ============================================
 
 @router.get("/progress/{assignment_id}")
-async def get_assignment_progress(
+async def get_assignment_progress_summary(
     assignment_id: str,
     current_user: dict = Depends(get_current_user),
 ):
     """
-    Get detailed progress for a single assignment.
+    Get progress summary for a single assignment.
+    Uses CompletionService as single source of truth.
     
     Returns:
         {
-            "progress_percentage": float,
-            "completed_tasks": int,
-            "total_tasks": int,
-            "pending_tasks": int,
-            "overdue_tasks": int,
+            "percentage": float,
+            "completed": int,
+            "total": int,
+            "pending": int,
+            "overdue": int,
             "last_updated": str (ISO datetime)
         }
     """
-    from .progress_engine import get_assignment_progress
+    from .completion_service import completion_service
+    from shared.database.mongo import db
     
-    progress = await get_assignment_progress(assignment_id)
-    return progress
+    assignment = await db.esg_assignments.find_one({"id": assignment_id}, {"_id": 0})
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    
+    progress = await completion_service.get_assignment_progress(assignment)
+    return progress.to_dict()
 
 
 @router.get("/progress/category/{category}")
@@ -589,17 +585,53 @@ async def get_category_progress_endpoint(
 ):
     """
     Get aggregated progress for a category.
+    Uses CompletionService as single source of truth.
     """
-    from .progress_engine import get_progress_engine
+    from .completion_service import completion_service
+    from shared.database.mongo import db
     
-    engine = get_progress_engine()
-    progress = await engine.get_category_progress(
-        organization_id=current_user["organization_id"],
-        category=category,
-        subcategory=subcategory,
-        sub_subcategory=sub_subcategory,
-    )
-    return progress
+    # Find all assignments for this category
+    query = {
+        "organization_id": current_user["organization_id"],
+        "category": category,
+    }
+    if subcategory:
+        query["subcategory"] = subcategory
+    if sub_subcategory:
+        query["sub_subcategory"] = sub_subcategory
+    
+    assignments = await db.esg_assignments.find(query, {"_id": 0}).to_list(500)
+    
+    if not assignments:
+        return {"total": 0, "completed": 0, "pending": 0, "overdue": 0, "percentage": 0.0}
+    
+    # Aggregate progress from all assignments
+    total = 0
+    completed = 0
+    pending = 0
+    overdue = 0
+    last_updated = None
+    
+    for assignment in assignments:
+        progress = await completion_service.get_assignment_progress(assignment)
+        total += progress.total
+        completed += progress.completed
+        pending += progress.pending
+        overdue += progress.overdue
+        if progress.last_updated and (not last_updated or progress.last_updated > last_updated):
+            last_updated = progress.last_updated
+    
+    percentage = round((completed / total) * 100, 1) if total > 0 else 0.0
+    
+    return {
+        "total": total,
+        "completed": completed,
+        "filled": completed,
+        "pending": pending,
+        "overdue": overdue,
+        "percentage": percentage,
+        "last_updated": last_updated.isoformat() if last_updated else None,
+    }
 
 
 @router.post("/progress/bulk")
@@ -609,6 +641,7 @@ async def get_bulk_progress_endpoint(
 ):
     """
     Get progress for multiple categories in bulk.
+    Uses CompletionService as single source of truth.
     
     Request body:
         [
@@ -619,10 +652,53 @@ async def get_bulk_progress_endpoint(
     
     Returns dict keyed by "category|subcategory|sub_subcategory"
     """
-    from .progress_engine import get_bulk_progress
+    from .completion_service import completion_service
+    from shared.database.mongo import db
     
-    progress = await get_bulk_progress(
-        organization_id=current_user["organization_id"],
-        categories=categories,
-    )
-    return progress
+    org_id = current_user["organization_id"]
+    result = {}
+    
+    for cat_info in categories:
+        category = cat_info.get("category", "")
+        subcategory = cat_info.get("subcategory")
+        sub_subcategory = cat_info.get("sub_subcategory")
+        
+        key = "|".join(filter(None, [category, subcategory, sub_subcategory]))
+        
+        # Find assignments for this category
+        query = {"organization_id": org_id, "category": category}
+        if subcategory:
+            query["subcategory"] = subcategory
+        if sub_subcategory:
+            query["sub_subcategory"] = sub_subcategory
+        
+        assignments = await db.esg_assignments.find(query, {"_id": 0}).to_list(500)
+        
+        if not assignments:
+            result[key] = {"total": 0, "completed": 0, "filled": 0, "pending": 0, "overdue": 0, "percentage": 0.0}
+            continue
+        
+        # Aggregate
+        total = completed = pending = overdue = 0
+        last_updated = None
+        
+        for assignment in assignments:
+            progress = await completion_service.get_assignment_progress(assignment)
+            total += progress.total
+            completed += progress.completed
+            pending += progress.pending
+            overdue += progress.overdue
+            if progress.last_updated and (not last_updated or progress.last_updated > last_updated):
+                last_updated = progress.last_updated
+        
+        result[key] = {
+            "total": total,
+            "completed": completed,
+            "filled": completed,
+            "pending": pending,
+            "overdue": overdue,
+            "percentage": round((completed / total) * 100, 1) if total > 0 else 0.0,
+            "last_updated": last_updated.isoformat() if last_updated else None,
+        }
+    
+    return result
