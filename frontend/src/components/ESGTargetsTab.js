@@ -443,24 +443,24 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
         
         {showFilters && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4 pt-4 border-t border-stone-200">
-            <Select value={filters.category} onValueChange={(v) => setFilters(f => ({ ...f, category: v }))}>
+            <Select value={filters.category || "all"} onValueChange={(v) => setFilters(f => ({ ...f, category: v === "all" ? "" : v }))}>
               <SelectTrigger>
                 <SelectValue placeholder="All Categories" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Categories</SelectItem>
+                <SelectItem value="all">All Categories</SelectItem>
                 {categories.map(cat => (
                   <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
             
-            <Select value={filters.status} onValueChange={(v) => setFilters(f => ({ ...f, status: v }))}>
+            <Select value={filters.status || "all"} onValueChange={(v) => setFilters(f => ({ ...f, status: v === "all" ? "" : v }))}>
               <SelectTrigger>
                 <SelectValue placeholder="All Statuses" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Statuses</SelectItem>
+                <SelectItem value="all">All Statuses</SelectItem>
                 <SelectItem value="draft">Draft</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="completed">Completed</SelectItem>
@@ -470,12 +470,12 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
               </SelectContent>
             </Select>
             
-            <Select value={filters.facility_id} onValueChange={(v) => setFilters(f => ({ ...f, facility_id: v }))}>
+            <Select value={filters.facility_id || "all"} onValueChange={(v) => setFilters(f => ({ ...f, facility_id: v === "all" ? "" : v }))}>
               <SelectTrigger>
                 <SelectValue placeholder="All Facilities" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Facilities</SelectItem>
+                <SelectItem value="all">All Facilities</SelectItem>
                 {facilities.map(f => (
                   <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
                 ))}

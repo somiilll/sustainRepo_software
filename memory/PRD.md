@@ -1,85 +1,158 @@
-# ESG Platform — Product Requirements Document
+# ESG Platform - Product Requirements Document
 
 ## Original Problem Statement
-Build a comprehensive ESG (Environment, Social, Governance) platform with premium dashboards, materiality assessment, GHG emissions tracking, BRSR/GRI reporting, workflow management, and evidence upload capabilities.
+Build a comprehensive ESG (Environmental, Social, Governance) platform with:
+- Materiality Assessment UI
+- Premium Environment, Social, and Governance Dashboards
+- BRSR Reporting (Section B and Section C)
+- Internal Data AI using GPT integration
+- Assignment-aware data access and completion logic
+- V2 Assignment architecture (one assignment linked to multiple assignees)
+- Peer Benchmarking for competitor ESG comparison
 
 ## Core Architecture
-- **Frontend**: React + Shadcn/UI + Recharts + Tailwind CSS
-- **Backend**: FastAPI + MongoDB
-- **Storage**: Cloudflare R2 (evidence uploads)
-- **Integrations**: OpenAI (RAG), Resend (emails), LlamaParse (document parsing)
+
+### V2 Assignment System
+- **Assignments** are central objects stored in `esg_assignments`
+- **Assignees** are linked via `esg_assignment_assignees` collection
+- **Tasks** are generated from assignments via `task_engine.py`
+- **Completion** is tracked via overlapping date logic (not exact period match)
+
+### Unified ESG Metrics Service (NEW)
+- **Location**: `/app/backend/services/esg_metrics_service.py`
+- **Purpose**: Centralized data fetching and calculations for all ESG metrics
+- **Used by**: Peer Benchmarking (can extend to Dashboard, Targets, Internal Data AI)
+- **Date Filtering**: Uses `reporting_period` field with start_date/end_date parameters
+
+### Key Collections
+- `esg_assignments`: id, start_date, end_date, reporting_period
+- `esg_assignment_assignees`: assignment_id, user_id, role
+- `esg_tasks`: Generated tasks linked to assignees
+- `emission_records`: ESG data points with facility_id and reporting_period
+- `environment_records`: Water, Waste, Energy data
+- `social_records`: Health & Safety, Training data
+- `governance_records`: Financial, Compliance data
 
 ## What's Been Implemented
 
-### Dashboards & Analytics
-- Executive Dashboard (GHG Scope 1/2/3 with base-year comparison)
-- Environment Dashboard (Emissions, Energy, Water, Waste KPIs + charts)
-- Social Dashboard (Workforce, Training, Complaints, Health & Safety)
-- Governance Dashboard (AP Days, Anti-Competitive, Data Breaches, Violations)
-- ESG Summary Dashboard (combined view)
-- All dashboards filter out `pending_approval` and `rejected` records
+### Completed Features
+- [x] V2 Assignment Architecture
+- [x] Task generation from V2 assignments (task_engine.py)
+- [x] Automatic task completion on emission save
+- [x] TaskLedger.js UI component (ledger-style table)
+- [x] BRSR/GRI tab filtering by entityType
+- [x] Assignment completion tracking with date overlap logic
+- [x] Internal Data AI Phase 1
+- [x] **Peer Benchmarking Module** (July 2025)
+  - Upload PDF reports for ESG metric extraction (LlamaParse + GPT-4o)
+  - Internal company data fetched via unified ESGMetricsService
+  - Date range filtering with From/To date pickers
+  - Radar chart visualization
+  - AI-powered executive summary generation
+  - Printable report export
+- [x] **Progress Engine V2** (July 2025)
+  - Handles emission_records schema (facility_id only, string dates, scope field)
+  - Handles environment_records schema (org_id, dict dates, is_current field)
+  - Smart org-level calculation: only expands to facility count if facility records exist
+  - GHG Emissions Scope 1 progress: 14.3% (2/14 tasks)
+  - Water/Discharge progress: 75% (3/4 tasks)
+- [x] **ESG Records Tracker UI Updates** (July 2025)
+  - Status column shows colored boxes: Orange (Pending), Red (Overdue), Green (Completed)
+  - Tooltips on hover for each status box
+  - Removed Stale stat card from overview (now 5 cards)
 
-### Sidebar Restructuring (Completed 2026-07-17)
-- Dashboards relocated under respective modules:
-  - GHG Module → Analysis (`/ghg/analysis`)
-  - Environment → Analysis (`/environment/analysis`)
-  - Social → Analysis (`/social/analysis`)
-  - Governance → Analysis (`/governance/analysis`)
-- 4 wrapper pages created: `GHGAnalysis.jsx`, `EnvironmentAnalysis.jsx`, `SocialAnalysis.jsx`, `GovernanceAnalysis.jsx`
-- Routes added to `App.js`
+### ESG Metrics Calculations (via ESGMetricsService)
+| Metric | Formula | Data Source |
+|--------|---------|-------------|
+| Scope 1/2 Emissions | Sum of records | `emission_records` |
+| Emission Intensity | total_emissions / turnover | `emission_records` + `governance_records` |
+| Treated Water Discharged % | treated / total × 100 | `environment_records` (Water/Discharge) |
+| Waste Recycled % | recovered / generated × 100 | `environment_records` (Waste) |
+| Hazardous Waste | Sum of hazardous_waste_generated | `environment_records` (Waste/Generated) |
+| Waste Intensity | total_waste / turnover | `environment_records` + `governance_records` |
+| LTIR Employee | (injuries / hours) × 1,000,000 | `social_records` (Health & Safety) |
+| LTIR Worker | (injuries / hours) × 1,000,000 | `social_records` (Health & Safety) |
+| Days Accounts Payable | (AP × 365) / COGS | `governance_records` |
+| Data Privacy Policy | Boolean from records | `governance_records` |
+| Disciplinary Actions | Count from records | `governance_records` |
 
-### Data Entry & Approvals
-- ESG Records CRUD with category-scoped pagination
-- Approval workflow (assign approvers by category/subcategory)
-- Evidence file upload via Cloudflare R2 (`esg-metrics-dev` bucket)
-- Stats endpoint (draft/submitted/approved counts per section)
+### Field Mappings
+- **Treated Water**: `quantity_discharged_with_treatment_done` OR sum of primary+secondary+tertiary treatment
+- **Waste Recycled**: `quantity` from "Recovered / Diverted from disposal" subcategory
+- **LTIR**: `no_of_loss_time_injuries` / `total_hours_worked` from Health & Safety Incidents
 
-### Reporting
-- BRSR Module with edit mode and reporting year sync
-- BRSR progress tracking (question_key matching)
-- GRI Module placeholder
-- Reports page
+## Prioritized Backlog
 
-### Workflow
-- Workflow Tracker, My Task, Approver Queue
-- MyTasks component with Fill Now, BRSR tagging, group tracking
+### P0 - Critical (Testing Debt)
+- [ ] Backend testing for task engine & completion flows
+- [ ] Frontend testing for TaskLedger UI
+- [ ] Internal Data AI Phase 2 verification
 
-### Other Features
-- Materiality Assessment UI
-- Bulk Upload, OCR Detection placeholder
-- Voluntary Targets (Environment, Social, Governance)
-- SBTi Targets
-- Repo-Pilot (RAG document Q&A)
-- User Management, Audit Trails, Facilities
-- Super Admin dashboard with org/admin management
-- Water Flow & Waste Management gradient area charts
+### P1 - High Priority
+- [ ] Module Access Super Admin UI (toggle enabled_access/module_access)
+- [ ] Overdue tasks cron job (auto-mark when due_at passes)
+- [ ] Executive Dashboard enhancements (PDF export, fullscreen, drill-down)
+- [ ] Extend ESGMetricsService usage to Dashboard, Targets, Internal Data AI
 
-## Pending Issues
-1. **P1**: Module Access Super Admin UI (toggle modules per org) — NOT STARTED
-2. **P2**: Dashboard Scope 1 & 3 Emissions deduplication bug — NOT STARTED
-3. **P2**: Carbon Intensity Calculation discrepancy — NOT STARTED
+### P2 - Medium Priority
+- [ ] Assignment Lifecycle Management (Archived/Superseded states)
+- [ ] Dashboard Scope 1 & 3 Emissions Deduplication
+- [ ] Carbon Intensity Calculation fix
+- [ ] SOC 2 Compliance (MFA, rate limiting, CSP headers)
+- [ ] Dynamic ESG Disclosure Engine
+- [ ] Sentry Error Monitoring
+- [ ] SBTi target validation rules
+- [ ] Dark mode fine-tuning
+- [ ] Materiality cutoff backend persistence
 
-## Upcoming Tasks (P1)
-- Cron job for auto-marking overdue tasks
-- Phase 2 Executive Dashboard (PDF export, fullscreen charts, drill-down)
-- Test Repo Pilot with actual PDF uploads (end-to-end RAG)
+## Key Files Reference
 
-## Future/Backlog (P2)
-- Dynamic ESG Disclosure Engine
-- Sentry Error Monitoring
-- MFA for admin users
-- SBTi target validation rules
-- Dark mode fine-tuning
+### Unified Services
+- `/app/backend/services/esg_metrics_service.py` - **NEW** Centralized ESG metrics calculations
 
-## Known Deferred Items
-- Water Withdrawal KPI seeded filter issue (user asked to delay)
+### Task System
+- `/app/backend/modules/esg_records/task_engine.py` - Task generation
+- `/app/backend/modules/emissions/router.py` - Emission saves & task completion
+- `/app/backend/modules/esg_assignments/completion_tracking.py` - Assignment completion
+- `/app/frontend/src/components/tasks/TaskLedger.js` - Main task display UI
+- `/app/frontend/src/components/MyTasks.js` - Task container component
 
-## Key Files
-- `/app/frontend/src/config/sidebarConfig.js` — Sidebar menu config
-- `/app/frontend/src/App.js` — Route definitions
-- `/app/frontend/src/pages/Dashboard.js` — Main dashboard router
-- `/app/frontend/src/pages/{GHG,Environment,Social,Governance}Analysis.jsx` — Module analysis wrappers
-- `/app/frontend/src/modules/dashboard/` — Dashboard components
-- `/app/backend/modules/dashboards/` — Dashboard API services
-- `/app/backend/modules/esg_records/` — Records CRUD + approvals
-- `/app/backend/r2_storage.py` — Cloudflare R2 integration
+### Peer Benchmarking Module
+- `/app/frontend/src/modules/peer-benchmarking/` - Frontend module
+- `/app/frontend/src/modules/peer-benchmarking/components/UploadView.js` - PDF upload
+- `/app/frontend/src/modules/peer-benchmarking/components/ComparisonView.js` - Comparison with date pickers
+- `/app/frontend/src/modules/peer-benchmarking/components/RadarChartWidget.js` - Radar chart
+- `/app/frontend/src/modules/peer-benchmarking/components/ExecutiveSummaryWidget.js` - AI summary
+- `/app/backend/modules/benchmarking/router.py` - Backend API using ESGMetricsService
+
+### Existing Dashboard Services (can be consolidated)
+- `/app/backend/modules/dashboards/social_detail_service.py` - LTIR calculations
+- `/app/backend/modules/dashboards/governance_detail_service.py` - Days AP calculations
+- `/app/backend/modules/esg_records/services/dashboard/water_service.py` - Water metrics
+- `/app/backend/modules/esg_records/services/dashboard/waste_service.py` - Waste metrics
+
+## 3rd Party Integrations
+- OpenAI `gpt-5.6-sol` (requires user API key) - Internal Data AI
+- OpenAI `text-embedding-3-large` (requires user API key) - Internal Data AI
+- OpenAI `gpt-4o` (OPENAI_API_KEY_PEER_BENCHMARKING) - Peer Benchmarking
+- LlamaParse (LLAMA_CLOUD_API_KEY_PEER_BENCHMARKING) - PDF extraction
+- Cloudflare R2 Storage (requires user API key)
+- Resend Emails (requires user API key)
+
+## Recent Updates (July 2025)
+
+### Reporting Period Storage Fix
+- **Problem**: For monthly records in FY context, Jan/Feb/Mar were stored with FY start year (e.g., `year: 2026` for Feb FY 2026-2027) instead of actual calendar year (`year: 2027`)
+- **Solution**: 
+  1. Updated `ESGRecordsDataEntry.js` save logic to calculate actual calendar year based on month
+  2. Updated display logic to show simple "Month Year" format (e.g., "Feb 2027") instead of "Feb FY 2026-2027"
+  3. Created and ran migration script to fix existing data (14 records updated)
+- **Files Changed**:
+  - `/app/frontend/src/components/ESGRecordsDataEntry.js` - Save & display logic
+  - `/app/frontend/src/components/ESGRecords.js` - Display format
+  - `/app/backend/scripts/migrate_reporting_periods.py` - Migration script (NEW)
+
+## Known Issues
+- Water Withdrawal KPIs missing filters (BLOCKED - user requested delay)
+- Emission Intensity shows null if turnover not populated in governance_records
+- Waste Intensity shows null if turnover not populated in governance_records

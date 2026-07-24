@@ -197,6 +197,13 @@ api_router.include_router(sbti_targets_router, prefix="/sbti-targets", tags=["SB
 from modules.repo_pilot.router import router as repo_pilot_router
 api_router.include_router(repo_pilot_router, prefix="/repo-pilot", tags=["Repo Pilot"])
 
+from modules.internal_data_ai.router import router as internal_ai_router
+api_router.include_router(internal_ai_router, tags=["Internal Data AI"])
+
+# Peer Benchmarking Module
+from modules.benchmarking.router import router as benchmarking_router
+api_router.include_router(benchmarking_router, tags=["Peer Benchmarking"])
+
 # Run module contract verifier at import time. Phase B1: log-only, will be
 # escalated to fail-fast in dev once all modules expose their contracts.
 verify_module_contracts()

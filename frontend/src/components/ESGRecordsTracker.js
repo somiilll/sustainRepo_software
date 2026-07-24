@@ -29,6 +29,12 @@ import { Label } from './ui/label';
 import { Progress } from './ui/progress';
 import { Checkbox } from './ui/checkbox';
 import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from './ui/tooltip';
+import { 
   Select, 
   SelectContent, 
   SelectItem, 
@@ -70,6 +76,7 @@ import {
   Calendar,
   MoreHorizontal,
   X,
+  Search,
 } from 'lucide-react';
 import { 
   generateReportingYears, 
@@ -77,6 +84,8 @@ import {
 } from '../utils/reportingYearUtils';
 import DataCoverageGrid from './DataCoverageGrid';
 import TaskCalendarGrid from './TaskCalendarGrid';
+import DetailedProgressView from './DetailedProgressView';
+import { AssignmentWizard } from './assignment-wizard';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -176,6 +185,9 @@ export default function ESGRecordsTracker({
   // Expanded categories
   const [expandedCategories, setExpandedCategories] = useState({});
   
+  // Expanded detailed progress view (for period/facility breakdown)
+  const [expandedDetailedView, setExpandedDetailedView] = useState(null); // { category, subcategory }
+  
   // Feature flags (fetch from org)
   const [multiLevelApprovalEnabled, setMultiLevelApprovalEnabled] = useState(false);
   const [approvalWorkflowEnabled, setApprovalWorkflowEnabled] = useState(false);
@@ -183,6 +195,7 @@ export default function ESGRecordsTracker({
   // Assignment modal
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [assigningItem, setAssigningItem] = useState(null);
+  const [userSearchQuery, setUserSearchQuery] = useState(''); // Search filter for users
   const [assignForm, setAssignForm] = useState({
     assigned_user_ids: [],
     assignment_level: 'organization',
@@ -228,6 +241,7 @@ export default function ESGRecordsTracker({
       approval_chain: [],
     });
     setAssigningItem(null);
+    setUserSearchQuery('');
   };
 
   // Fetch organization and set reporting period (only if not overridden)
@@ -320,22 +334,85 @@ export default function ESGRecordsTracker({
       if (statusFilter !== 'all') params.status = statusFilter;
       if (stalenessFilter !== 'all') params.staleness = stalenessFilter;
 
-      const [assignRes, statsRes, completionRes] = await Promise.all([
+      const [assignRes, statsRes] = await Promise.all([
         axios.get(`${API}/api/esg-records/tracker/${section}`, { headers, params }),
         axios.get(`${API}/api/esg-records/tracker/${section}/stats`, { headers, params }),
-        axios.get(`${API}/api/esg-records/tasks/completion-by-category`, { headers, params: { reporting_period: reportingPeriod } }).catch(() => ({ data: { completion_stats: [] } })),
       ]);
 
       setAssignments(assignRes.data.assignments || []);
       setStats(statsRes.data);
       
-      // Build completion stats lookup by category key
-      const completionMap = {};
-      for (const stat of (completionRes.data.completion_stats || [])) {
-        const key = [stat.category, stat.subcategory, stat.sub_subcategory].filter(Boolean).join('|');
-        completionMap[key] = stat;
+      // Fetch progress stats using new progress engine
+      try {
+        // Build category list for bulk progress fetch from categories state
+        // categories is a flat list like: [{category: "Water", subcategory: "Withdrawal"}, ...]
+        const categorySet = new Set();
+        const categoryList = [];
+        
+        for (const cat of categories) {
+          // Add category level
+          const catKey = cat.category;
+          if (catKey && !categorySet.has(catKey)) {
+            categorySet.add(catKey);
+            categoryList.push({ category: catKey });
+          }
+          
+          // Add subcategory level
+          if (cat.subcategory) {
+            const subKey = `${catKey}|${cat.subcategory}`;
+            if (!categorySet.has(subKey)) {
+              categorySet.add(subKey);
+              categoryList.push({ category: catKey, subcategory: cat.subcategory });
+            }
+          }
+          
+          // Add sub-subcategory level
+          if (cat.sub_subcategory) {
+            const subsubKey = `${catKey}|${cat.subcategory}|${cat.sub_subcategory}`;
+            if (!categorySet.has(subsubKey)) {
+              categorySet.add(subsubKey);
+              categoryList.push({ 
+                category: catKey, 
+                subcategory: cat.subcategory, 
+                sub_subcategory: cat.sub_subcategory 
+              });
+            }
+          }
+        }
+        
+        if (categoryList.length > 0) {
+          const progressRes = await axios.post(
+            `${API}/api/esg-assignments/progress/bulk`,
+            categoryList,
+            { headers }
+          );
+          setCompletionStats(progressRes.data || {});
+        }
+      } catch (progressError) {
+        console.warn('Progress API not available, using fallback:', progressError);
+        // Fallback to old completion stats endpoint
+        try {
+          const completionRes = await axios.get(
+            `${API}/api/esg-records/tasks/completion-by-category`, 
+            { headers, params: { reporting_period: reportingPeriod } }
+          );
+          const completionMap = {};
+          for (const stat of (completionRes.data.completion_stats || [])) {
+            const key = [stat.category, stat.subcategory, stat.sub_subcategory].filter(Boolean).join('|');
+            completionMap[key] = {
+              progress_percentage: stat.completion_pct || 0,
+              completed_tasks: stat.completed || 0,
+              total_tasks: stat.total || 0,
+              pending_tasks: (stat.total || 0) - (stat.completed || 0),
+              overdue_tasks: 0,
+              last_updated: null,
+            };
+          }
+          setCompletionStats(completionMap);
+        } catch {
+          setCompletionStats({});
+        }
       }
-      setCompletionStats(completionMap);
     } catch (error) {
       console.error('Failed to fetch tracker data:', error);
       // Use mock data if endpoint doesn't exist yet
@@ -353,7 +430,7 @@ export default function ESGRecordsTracker({
       setLoading(false);
       setRefreshing(false);
     }
-  }, [reportingPeriod, section, framework, categoryFilter, facilityFilter, userFilter, statusFilter, stalenessFilter, categories.length]);
+  }, [reportingPeriod, section, framework, categoryFilter, facilityFilter, userFilter, statusFilter, stalenessFilter, categories]);
 
   useEffect(() => {
     fetchTrackerData();
@@ -408,17 +485,26 @@ export default function ESGRecordsTracker({
               facility_name: facilities.find(f => f.id === a.facility_id)?.name || ''
             };
           }
-          if (a.assigned_to_user_id && !facilityAssignmentsData[a.facility_id].user_ids.includes(a.assigned_to_user_id)) {
+          // Read from assignees array (new model) or fallback to assigned_to_user_id (legacy)
+          const assigneeUserIds = a.assignees?.map(assignee => assignee.user_id) || [];
+          if (assigneeUserIds.length > 0) {
+            assigneeUserIds.forEach(userId => {
+              if (userId && !facilityAssignmentsData[a.facility_id].user_ids.includes(userId)) {
+                facilityAssignmentsData[a.facility_id].user_ids.push(userId);
+              }
+            });
+          } else if (a.assigned_to_user_id && !facilityAssignmentsData[a.facility_id].user_ids.includes(a.assigned_to_user_id)) {
+            // Fallback for legacy assignments
             facilityAssignmentsData[a.facility_id].user_ids.push(a.assigned_to_user_id);
           }
         }
       });
     }
     
-    // For organization-level, get existing user IDs
+    // For organization-level, get existing user IDs from assignees array
     const orgLevelAssignments = categoryAssignments.filter(a => !a.facility_id);
     const existingUserIds = orgLevelAssignments
-      .map(a => a.assigned_to_user_id)
+      .flatMap(a => a.assignees?.map(assignee => assignee.user_id) || [a.assigned_to_user_id])
       .filter(Boolean);
     
     // Get first assignment for other field defaults
@@ -511,7 +597,7 @@ export default function ESGRecordsTracker({
         return config;
       };
 
-      // For facility-level, create one assignment per user per facility
+      // For facility-level, send all facility assignments in one request
       if (assignForm.assignment_level === 'facility') {
         const facilityAssignments = Object.entries(assignForm.facility_assignments || {})
           .filter(([_, fa]) => fa?.user_ids?.length > 0);
@@ -522,86 +608,78 @@ export default function ESGRecordsTracker({
           return;
         }
         
-        let isFirst = true;
+        // Build facility_assignments object: { facility_id: [user_ids], ... }
+        const facilityAssignmentsMap = {};
         for (const [facilityId, fa] of facilityAssignments) {
-          // Create assignment for each user in this facility
-          for (const userId of fa.user_ids) {
-            await axios.post(
-              `${API}/api/esg-records/assignments`,
-              {
-                entity_type: 'record_category',
-                entity_id: `${entityId}_${facilityId}`,
-                category: assigningItem.category,
-                subcategory: assigningItem.subcategory || null,
-                sub_subcategory: assigningItem.sub_subcategory || null,
-                assign_children: !assigningItem.subcategory,
-                assignment_level: 'facility',
-                facility_id: facilityId,
-                assigned_to_user_id: userId,
-                reporting_period: reportingPeriod,
-                start_date: assignForm.start_date || null,
-                end_date: assignForm.end_date || null,
-                timezone: assignForm.timezone || 'Asia/Kolkata',
-                filling_frequency: assignForm.filling_frequency || null,
-                due_config: buildDueConfig(),
-                reminder_enabled: assignForm.reminder_enabled,
-                reminder_config: assignForm.reminder_enabled ? {
-                  frequency: assignForm.reminder_frequency,
-                  days_before_due: [7, 3, 1],
-                  repeat_overdue: true,
-                } : null,
-                requires_approval: fa.requires_approval && !!fa.approver_id,
-                approver_id: fa.requires_approval ? fa.approver_id : null,
-                approval_chain: [],
-                replace_existing: isFirst,
-              },
-              { headers }
-            );
-            isFirst = false;
-          }
+          facilityAssignmentsMap[facilityId] = fa.user_ids;
         }
+        
+        await axios.post(
+          `${API}/api/esg-records/assignments`,
+          {
+            entity_type: 'record_category',
+            entity_id: entityId,
+            category: assigningItem.category,
+            subcategory: assigningItem.subcategory || null,
+            sub_subcategory: assigningItem.sub_subcategory || null,
+            assign_children: !assigningItem.subcategory,
+            assignment_level: 'facility',
+            facility_assignments: facilityAssignmentsMap,
+            reporting_period: reportingPeriod,
+            start_date: assignForm.start_date || null,
+            end_date: assignForm.end_date || null,
+            timezone: assignForm.timezone || 'Asia/Kolkata',
+            filling_frequency: assignForm.filling_frequency || null,
+            due_config: buildDueConfig(),
+            reminder_enabled: assignForm.reminder_enabled,
+            reminder_config: assignForm.reminder_enabled ? {
+              frequency: assignForm.reminder_frequency,
+              days_before_due: [7, 3, 1],
+              repeat_overdue: true,
+            } : null,
+            requires_approval: assignForm.requires_approval,
+            approval_chain: assignForm.requires_approval && multiLevelApprovalEnabled ? assignForm.approval_chain : [],
+          },
+          { headers }
+        );
+        
         const totalAssignments = facilityAssignments.reduce((sum, [_, fa]) => sum + (fa.user_ids?.length || 0), 0);
         toast.success(`Created ${totalAssignments} assignment(s) across ${facilityAssignments.length} facility(ies)`);
       } else {
-        // Organization level - create assignment for each selected user
+        // Organization level - send all users in one request (new V2 API)
         const isParentCategory = !assigningItem.subcategory;
-        const promises = assignForm.assigned_user_ids.map((userId, index) => 
-          axios.post(
-            `${API}/api/esg-records/assignments`,
-            {
-              entity_type: 'record_category',
-              entity_id: entityId,
-              category: assigningItem.category,
-              subcategory: assigningItem.subcategory || null,
-              sub_subcategory: assigningItem.sub_subcategory || null,
-              assign_children: isParentCategory,
-              assignment_level: assignForm.assignment_level,
-              facility_id: null,
-              assigned_to_user_id: userId,
-              reporting_period: reportingPeriod,
-              start_date: assignForm.start_date || null,
-              end_date: assignForm.end_date || null,
-              timezone: assignForm.timezone || 'Asia/Kolkata',
-              filling_frequency: assignForm.filling_frequency || null,
-              due_config: buildDueConfig(),
-              reminder_enabled: assignForm.reminder_enabled,
-              reminder_config: assignForm.reminder_enabled ? {
-                frequency: assignForm.reminder_frequency,
-                days_before_due: [7, 3, 1],
-                repeat_overdue: true,
-              } : null,
-              requires_approval: assignForm.requires_approval,
-              approver_id: assignForm.requires_approval && !multiLevelApprovalEnabled ? assignForm.approver_id : null,
-              approval_chain: assignForm.requires_approval && multiLevelApprovalEnabled ? assignForm.approval_chain : [],
-              replace_existing: index === 0,
-            },
-            { headers }
-          )
+        
+        await axios.post(
+          `${API}/api/esg-records/assignments`,
+          {
+            entity_type: 'record_category',
+            entity_id: entityId,
+            category: assigningItem.category,
+            subcategory: assigningItem.subcategory || null,
+            sub_subcategory: assigningItem.sub_subcategory || null,
+            assign_children: isParentCategory,
+            assignment_level: 'organization',
+            facility_id: null,
+            user_ids: assignForm.assigned_user_ids,  // V2: array of user IDs
+            reporting_period: reportingPeriod,
+            start_date: assignForm.start_date || null,
+            end_date: assignForm.end_date || null,
+            timezone: assignForm.timezone || 'Asia/Kolkata',
+            filling_frequency: assignForm.filling_frequency || null,
+            due_config: buildDueConfig(),
+            reminder_enabled: assignForm.reminder_enabled,
+            reminder_config: assignForm.reminder_enabled ? {
+              frequency: assignForm.reminder_frequency,
+              days_before_due: [7, 3, 1],
+              repeat_overdue: true,
+            } : null,
+            requires_approval: assignForm.requires_approval,
+            approver_id: assignForm.requires_approval && !multiLevelApprovalEnabled ? assignForm.approver_id : null,
+            approval_chain: assignForm.requires_approval && multiLevelApprovalEnabled ? assignForm.approval_chain : [],
+          },
+          { headers }
         );
-
-        for (const promise of promises) {
-          await promise;
-        }
+        
         toast.success(`Assignment saved for ${assignForm.assigned_user_ids.length} user(s)`);
       }
       
@@ -611,7 +689,147 @@ export default function ESGRecordsTracker({
       setTimeout(() => fetchTrackerData(true), 100);
     } catch (error) {
       console.error('Failed to save assignment:', error);
-      toast.error(error.response?.data?.detail || 'Failed to save assignment');
+      // Handle Pydantic validation errors which come as array of {type, loc, msg, input, ctx}
+      const detail = error.response?.data?.detail;
+      const errorMsg = Array.isArray(detail) 
+        ? detail.map(e => e.msg || e.message || JSON.stringify(e)).join(', ') 
+        : (typeof detail === 'string' ? detail : 'Failed to save assignment');
+      toast.error(errorMsg);
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  // Handle wizard submit - adapts wizard form to existing API
+  const handleWizardSubmit = async (wizardForm) => {
+    setAssigning(true);
+    try {
+      // Build entity_id from category hierarchy
+      const entityId = [
+        assigningItem.category,
+        assigningItem.subcategory,
+        assigningItem.sub_subcategory
+      ].filter(Boolean).join('_') || assigningItem.category;
+
+      // Build due_config based on frequency
+      const buildDueConfig = () => {
+        const freq = wizardForm.filling_frequency;
+        if (!freq) return null;
+        
+        const config = {
+          type: freq,
+          time: wizardForm.due_time || '17:00',
+          timezone: wizardForm.timezone || 'Asia/Kolkata',
+        };
+        
+        if (['monthly', 'quarterly', 'half_yearly', 'yearly'].includes(freq)) {
+          config.day_of_month = parseInt(wizardForm.due_day_of_month) || 15;
+        }
+        if (freq === 'weekly') {
+          config.day_of_week = wizardForm.due_day_of_week || 'friday';
+        }
+        
+        return config;
+      };
+
+      // For facility-level, send all facility assignments in one request
+      if (wizardForm.assignment_level === 'facility') {
+        const facilityAssignments = Object.entries(wizardForm.facility_assignments || {})
+          .filter(([_, fa]) => fa?.user_ids?.length > 0);
+        
+        if (facilityAssignments.length === 0) {
+          toast.error('Please assign at least one facility to a user');
+          return;
+        }
+        
+        // Build facility_assignments object: { facility_id: [user_ids], ... }
+        const facilityAssignmentsMap = {};
+        for (const [facilityId, fa] of facilityAssignments) {
+          facilityAssignmentsMap[facilityId] = fa.user_ids;
+        }
+        
+        await axios.post(
+          `${API}/api/esg-records/assignments`,
+          {
+            entity_type: 'record_category',
+            entity_id: entityId,
+            category: assigningItem.category,
+            subcategory: assigningItem.subcategory || null,
+            sub_subcategory: assigningItem.sub_subcategory || null,
+            assign_children: !assigningItem.subcategory,
+            assignment_level: 'facility',
+            facility_assignments: facilityAssignmentsMap,
+            reporting_period: reportingPeriod,
+            start_date: wizardForm.start_date || null,
+            end_date: wizardForm.end_date || null,
+            timezone: wizardForm.timezone || 'Asia/Kolkata',
+            filling_frequency: wizardForm.filling_frequency || null,
+            due_config: buildDueConfig(),
+            reminder_enabled: wizardForm.reminder_enabled,
+            reminder_config: wizardForm.reminder_enabled ? {
+              frequency: wizardForm.reminder_frequency,
+              days_before_due: [7, 3, 1],
+              repeat_overdue: true,
+            } : null,
+            requires_approval: wizardForm.requires_approval,
+            approval_chain: wizardForm.requires_approval && multiLevelApprovalEnabled ? wizardForm.approval_chain : [],
+          },
+          { headers }
+        );
+        
+        const totalAssignments = facilityAssignments.reduce((sum, [_, fa]) => sum + (fa.user_ids?.length || 0), 0);
+        toast.success(`Created ${totalAssignments} assignment(s) across ${facilityAssignments.length} facility(ies)`);
+      } else {
+        // Organization level
+        const isParentCategory = !assigningItem.subcategory;
+        
+        await axios.post(
+          `${API}/api/esg-records/assignments`,
+          {
+            entity_type: 'record_category',
+            entity_id: entityId,
+            category: assigningItem.category,
+            subcategory: assigningItem.subcategory || null,
+            sub_subcategory: assigningItem.sub_subcategory || null,
+            assign_children: isParentCategory,
+            assignment_level: 'organization',
+            facility_id: null,
+            user_ids: wizardForm.assigned_user_ids,
+            reporting_period: reportingPeriod,
+            start_date: wizardForm.start_date || null,
+            end_date: wizardForm.end_date || null,
+            timezone: wizardForm.timezone || 'Asia/Kolkata',
+            filling_frequency: wizardForm.filling_frequency || null,
+            due_config: buildDueConfig(),
+            reminder_enabled: wizardForm.reminder_enabled,
+            reminder_config: wizardForm.reminder_enabled ? {
+              frequency: wizardForm.reminder_frequency,
+              days_before_due: [7, 3, 1],
+              repeat_overdue: true,
+            } : null,
+            requires_approval: wizardForm.requires_approval,
+            approver_id: wizardForm.requires_approval && !multiLevelApprovalEnabled ? wizardForm.approver_id : null,
+            approval_chain: wizardForm.requires_approval && multiLevelApprovalEnabled ? wizardForm.approval_chain : [],
+          },
+          { headers }
+        );
+        
+        toast.success(`Assignment saved for ${wizardForm.assigned_user_ids.length} user(s)`);
+      }
+      
+      setShowAssignModal(false);
+      resetAssignForm();
+      setAssignments([]);
+      setTimeout(() => fetchTrackerData(true), 100);
+    } catch (error) {
+      console.error('Failed to save assignment:', error);
+      // Handle Pydantic validation errors which come as array of {type, loc, msg, input, ctx}
+      const detail = error.response?.data?.detail;
+      const errorMsg = Array.isArray(detail) 
+        ? detail.map(e => e.msg || e.message || JSON.stringify(e)).join(', ') 
+        : (typeof detail === 'string' ? detail : 'Failed to save assignment');
+      toast.error(errorMsg);
+      throw error; // Re-throw to let wizard handle the error state
     } finally {
       setAssigning(false);
     }
@@ -621,13 +839,15 @@ export default function ESGRecordsTracker({
   const sendReminder = async (assignmentId) => {
     try {
       await axios.post(
-        `${API}/api/esg-records/assignments/${assignmentId}/remind`,
+        `${API}/api/esg-assignments/assignments/${assignmentId}/remind`,
         {},
         { headers }
       );
       toast.success('Reminder sent');
     } catch (error) {
-      toast.error('Failed to send reminder');
+      console.error('Send reminder error:', error);
+      const errorMsg = error.response?.data?.detail || 'Failed to send reminder';
+      toast.error(errorMsg);
     }
   };
 
@@ -933,7 +1153,7 @@ export default function ESGRecordsTracker({
   return (
     <div className="space-y-6">
       {/* Stats Overview */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card className="p-4">
           <div className="text-2xl font-bold text-text-primary">{stats?.total_categories || 0}</div>
           <div className="text-sm text-text-muted">Total Categories</div>
@@ -953,10 +1173,6 @@ export default function ESGRecordsTracker({
         <Card className="p-4">
           <div className="text-2xl font-bold text-red-600">{stats?.overdue || 0}</div>
           <div className="text-sm text-text-muted">Overdue</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-2xl font-bold text-orange-600">{stats?.stale || 0}</div>
-          <div className="text-sm text-text-muted">Stale</div>
         </Card>
       </div>
 
@@ -1042,10 +1258,10 @@ export default function ESGRecordsTracker({
             <TableRow>
               <TableHead className="w-[300px]">Category / Subcategory</TableHead>
               <TableHead>Level</TableHead>
-              <TableHead>Facility</TableHead>
               <TableHead>Assigned To</TableHead>
               <TableHead>Frequency</TableHead>
-              <TableHead>Completion</TableHead>
+              <TableHead>Progress</TableHead>
+              <TableHead>Last Updated</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -1059,12 +1275,15 @@ export default function ESGRecordsTracker({
               </TableRow>
             ) : (
               categoryHierarchy.map(cat => {
-                // Get completion stats for this category
+                // Get completion stats for this category (now from progress engine)
                 const catCompletionKey = cat.category;
                 const catCompletion = completionStats[catCompletionKey] || {};
-                const completionPct = Math.round(catCompletion.completion_pct || 0);
-                const totalTasks = catCompletion.total || 0;
-                const completedTasks = catCompletion.completed || 0;
+                const completionPct = Math.round(catCompletion.progress_percentage || 0);
+                const totalTasks = catCompletion.total_tasks || 0;
+                const completedTasks = catCompletion.completed_tasks || 0;
+                const pendingTasks = catCompletion.pending_tasks || 0;
+                const overdueTasks = catCompletion.overdue_tasks || 0;
+                const lastUpdated = catCompletion.last_updated || cat.assignment?.updated_at;
                 
                 return (
                 <React.Fragment key={cat.category}>
@@ -1094,29 +1313,90 @@ export default function ESGRecordsTracker({
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {cat.assignment?.facility_name || '-'}
-                    </TableCell>
-                    <TableCell>
                       {renderAssigneeDisplay(cat.category)}
                     </TableCell>
                     <TableCell>
                       {cat.assignment?.filling_frequency || '-'}
                     </TableCell>
                     <TableCell>
-                      {/* Completion Progress */}
+                      {/* Progress Bar with tooltip */}
                       {totalTasks > 0 ? (
-                        <div className="flex items-center gap-2 min-w-[120px]">
+                        <div 
+                          className="flex items-center gap-2 min-w-[160px] cursor-help"
+                          title={`Completed: ${completedTasks}\nPending: ${pendingTasks}\nOverdue: ${overdueTasks}`}
+                        >
                           <Progress value={completionPct} className="h-2 flex-1" />
                           <span className="text-xs text-text-muted whitespace-nowrap">
-                            {completedTasks}/{totalTasks}
+                            {completionPct}%
                           </span>
                         </div>
                       ) : (
                         <span className="text-xs text-text-muted">-</span>
                       )}
+                      {totalTasks > 0 && (
+                        <div className="text-xs text-text-muted mt-0.5">
+                          {completedTasks} / {totalTasks} Tasks
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell>
-                      {renderCategoryStatusBadge(cat.category, { completed: completedTasks, total: totalTasks })}
+                      {/* Last Updated with date and time */}
+                      {lastUpdated ? (
+                        <span className="text-xs text-text-muted">
+                          {new Date(lastUpdated).toLocaleDateString('en-IN', { 
+                            day: '2-digit', 
+                            month: 'short', 
+                            year: 'numeric' 
+                          })}, {new Date(lastUpdated).toLocaleTimeString('en-IN', {
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true
+                          })}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-text-muted">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {/* Task Status Boxes - Pending (Orange), Overdue (Red), Completed (Green) */}
+                      {totalTasks > 0 ? (
+                        <TooltipProvider>
+                          <div className="flex items-center gap-1.5">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200 cursor-help">
+                                  {pendingTasks}
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Pending Tasks</p>
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 border border-red-200 cursor-help">
+                                  {overdueTasks}
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Overdue Tasks</p>
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700 border border-green-200 cursor-help">
+                                  {completedTasks}
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Completed Tasks</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </TooltipProvider>
+                      ) : (
+                        renderCategoryStatusBadge(cat.category, { completed: completedTasks, total: totalTasks })
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
@@ -1180,16 +1460,20 @@ export default function ESGRecordsTracker({
 
                   {/* Subcategories */}
                   {expandedCategories[cat.category] && Object.values(cat.subcategories).map(subcat => {
-                    // Get completion for subcategory
+                    // Get completion for subcategory (now from progress engine)
                     const subCompletionKey = [cat.category, subcat.subcategory].filter(Boolean).join('|');
                     const subCompletion = completionStats[subCompletionKey] || {};
-                    const subCompletionPct = Math.round(subCompletion.completion_pct || 0);
-                    const subTotalTasks = subCompletion.total || 0;
-                    const subCompletedTasks = subCompletion.completed || 0;
+                    const subCompletionPct = Math.round(subCompletion.progress_percentage || 0);
+                    const subTotalTasks = subCompletion.total_tasks || 0;
+                    const subCompletedTasks = subCompletion.completed_tasks || 0;
+                    const subPendingTasks = subCompletion.pending_tasks || 0;
+                    const subOverdueTasks = subCompletion.overdue_tasks || 0;
+                    const subLastUpdated = subCompletion.last_updated;
                     
                     // Use parent category assignment if subcategory doesn't have its own
                     const effectiveAssignment = subcat.assignment || cat.assignment;
                     const isInherited = !subcat.assignment && cat.assignment;
+                    const lastUpdated = subLastUpdated || effectiveAssignment?.updated_at;
                     
                     return (
                     <React.Fragment key={`${cat.category}-${subcat.subcategory}`}>
@@ -1218,20 +1502,45 @@ export default function ESGRecordsTracker({
                             {effectiveAssignment?.assignment_level === 'facility' ? 'Facility' : 'Org'}
                           </Badge>
                         </TableCell>
-                        <TableCell>{effectiveAssignment?.facility_name || '-'}</TableCell>
                         <TableCell>
                           {renderAssigneeDisplay(cat.category, subcat.subcategory)}
                         </TableCell>
                         <TableCell>{effectiveAssignment?.filling_frequency || '-'}</TableCell>
                         <TableCell>
-                          {/* Subcategory Completion Progress */}
+                          {/* Subcategory Progress Bar with tooltip */}
                           {subTotalTasks > 0 ? (
-                            <div className="flex items-center gap-2 min-w-[120px]">
-                              <Progress value={subCompletionPct} className="h-2 flex-1" />
-                              <span className="text-xs text-text-muted whitespace-nowrap">
-                                {subCompletedTasks}/{subTotalTasks}
-                              </span>
+                            <div 
+                              className="cursor-help"
+                              title={`Completed: ${subCompletedTasks}\nPending: ${subPendingTasks}\nOverdue: ${subOverdueTasks}`}
+                            >
+                              <div className="flex items-center gap-2 min-w-[140px]">
+                                <Progress value={subCompletionPct} className="h-2 flex-1" />
+                                <span className="text-xs text-text-muted whitespace-nowrap">
+                                  {subCompletionPct}%
+                                </span>
+                              </div>
+                              <div className="text-xs text-text-muted mt-0.5">
+                                {subCompletedTasks} / {subTotalTasks} Tasks
+                              </div>
                             </div>
+                          ) : (
+                            <span className="text-xs text-text-muted">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {/* Last Updated with date and time */}
+                          {lastUpdated ? (
+                            <span className="text-xs text-text-muted">
+                              {new Date(lastUpdated).toLocaleDateString('en-IN', { 
+                                day: '2-digit', 
+                                month: 'short', 
+                                year: 'numeric' 
+                              })}, {new Date(lastUpdated).toLocaleTimeString('en-IN', {
+                                hour: 'numeric',
+                                minute: '2-digit',
+                                hour12: true
+                              })}
+                            </span>
                           ) : (
                             <span className="text-xs text-text-muted">-</span>
                           )}
@@ -1240,25 +1549,68 @@ export default function ESGRecordsTracker({
                           {effectiveAssignment?.status ? getStatusBadge(effectiveAssignment.status) : '-'}
                         </TableCell>
                         <TableCell className="text-right">
-                          {/* Assign button - Admin only */}
-                          {isUserAdmin && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openAssignModal({ 
-                                category: cat.category, 
-                                subcategory: subcat.subcategory,
-                                assignChildren: true,
-                                // Pass existing assignment for pre-fill (use own or inherited)
-                                ...(subcat.assignment || {})
-                              })}
-                              title={subcat.assignment ? "Edit Assignment" : "Assign (includes all sub-subcategories)"}
-                            >
-                              <UserPlus className="w-4 h-4" />
-                            </Button>
-                          )}
+                          <div className="flex justify-end gap-1">
+                            {/* View Details button - shows period/facility breakdown */}
+                            {effectiveAssignment && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  const detailKey = `${cat.category}|${subcat.subcategory}`;
+                                  setExpandedDetailedView(
+                                    expandedDetailedView === detailKey ? null : detailKey
+                                  );
+                                }}
+                                title="View Period/Facility Details"
+                                className={expandedDetailedView === `${cat.category}|${subcat.subcategory}` ? 'bg-emerald-100' : ''}
+                                data-testid={`view-details-${cat.category}-${subcat.subcategory}`}
+                              >
+                                <Calendar className="w-4 h-4" />
+                              </Button>
+                            )}
+                            {/* Assign button - Admin only */}
+                            {isUserAdmin && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openAssignModal({ 
+                                  category: cat.category, 
+                                  subcategory: subcat.subcategory,
+                                  assignChildren: true,
+                                  // Pass existing assignment for pre-fill (use own or inherited)
+                                  ...(subcat.assignment || {})
+                                })}
+                                title={subcat.assignment ? "Edit Assignment" : "Assign (includes all sub-subcategories)"}
+                              >
+                                <UserPlus className="w-4 h-4" />
+                              </Button>
+                            )}
+                            {subcat.assignment && isUserAdmin && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => sendReminder(subcat.assignment.id)}
+                                title="Send Reminder"
+                              >
+                                <Bell className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
+
+                      {/* Detailed Progress View for Subcategory */}
+                      {expandedDetailedView === `${cat.category}|${subcat.subcategory}` && (
+                        <TableRow className="bg-stone-50">
+                          <TableCell colSpan={8} className="py-3 px-4">
+                            <DetailedProgressView
+                              category={cat.category}
+                              subcategory={subcat.subcategory}
+                              onClose={() => setExpandedDetailedView(null)}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      )}
 
                       {/* Sub-subcategories */}
                       {expandedCategories[`${cat.category}-${subcat.subcategory}`] && 
@@ -1267,12 +1619,15 @@ export default function ESGRecordsTracker({
                           const subsubEffectiveAssignment = subsub.assignment || subcat.assignment || cat.assignment;
                           const subsubIsInherited = !subsub.assignment && (subcat.assignment || cat.assignment);
                           
-                          // Get completion for sub-subcategory
+                          // Get completion for sub-subcategory (now from progress engine)
                           const subsubCompletionKey = [cat.category, subcat.subcategory, subsub.sub_subcategory].filter(Boolean).join('|');
                           const subsubCompletion = completionStats[subsubCompletionKey] || {};
-                          const subsubCompletionPct = Math.round(subsubCompletion.completion_pct || 0);
-                          const subsubTotalTasks = subsubCompletion.total || 0;
-                          const subsubCompletedTasks = subsubCompletion.completed || 0;
+                          const subsubCompletionPct = Math.round(subsubCompletion.progress_percentage || 0);
+                          const subsubTotalTasks = subsubCompletion.total_tasks || 0;
+                          const subsubCompletedTasks = subsubCompletion.completed_tasks || 0;
+                          const subsubPendingTasks = subsubCompletion.pending_tasks || 0;
+                          const subsubOverdueTasks = subsubCompletion.overdue_tasks || 0;
+                          const subsubLastUpdated = subsubCompletion.last_updated || subsubEffectiveAssignment?.updated_at;
                           
                           return (
                           <TableRow key={`${cat.category}-${subcat.subcategory}-${subsub.sub_subcategory}`} className="bg-stone-25">
@@ -1286,7 +1641,6 @@ export default function ESGRecordsTracker({
                                 {subsubEffectiveAssignment?.assignment_level === 'facility' ? 'Facility' : 'Org'}
                               </Badge>
                             </TableCell>
-                            <TableCell>{subsubEffectiveAssignment?.facility_name || '-'}</TableCell>
                             <TableCell>
                               {subsubEffectiveAssignment?.assigned_to_name ? (
                                 <div className="flex flex-col">
@@ -1301,14 +1655,40 @@ export default function ESGRecordsTracker({
                             </TableCell>
                             <TableCell>{subsubEffectiveAssignment?.filling_frequency || '-'}</TableCell>
                             <TableCell>
-                              {/* Sub-subcategory Completion Progress */}
+                              {/* Sub-subcategory Progress Bar with tooltip */}
                               {subsubTotalTasks > 0 ? (
-                                <div className="flex items-center gap-2 min-w-[100px]">
-                                  <Progress value={subsubCompletionPct} className="h-2 flex-1" />
-                                  <span className="text-xs text-text-muted whitespace-nowrap">
-                                    {subsubCompletedTasks}/{subsubTotalTasks}
-                                  </span>
+                                <div 
+                                  className="cursor-help"
+                                  title={`Completed: ${subsubCompletedTasks}\nPending: ${subsubPendingTasks}\nOverdue: ${subsubOverdueTasks}`}
+                                >
+                                  <div className="flex items-center gap-2 min-w-[140px]">
+                                    <Progress value={subsubCompletionPct} className="h-2 flex-1" />
+                                    <span className="text-xs text-text-muted whitespace-nowrap">
+                                      {subsubCompletionPct}%
+                                    </span>
+                                  </div>
+                                  <div className="text-xs text-text-muted mt-0.5">
+                                    {subsubCompletedTasks} / {subsubTotalTasks} Tasks
+                                  </div>
                                 </div>
+                              ) : (
+                                <span className="text-xs text-text-muted">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {/* Last Updated with date and time */}
+                              {subsubLastUpdated ? (
+                                <span className="text-xs text-text-muted">
+                                  {new Date(subsubLastUpdated).toLocaleDateString('en-IN', { 
+                                    day: '2-digit', 
+                                    month: 'short', 
+                                    year: 'numeric' 
+                                  })}, {new Date(subsubLastUpdated).toLocaleTimeString('en-IN', {
+                                    hour: 'numeric',
+                                    minute: '2-digit',
+                                    hour12: true
+                                  })}
+                                </span>
                               ) : (
                                 <span className="text-xs text-text-muted">-</span>
                               )}
@@ -1334,6 +1714,16 @@ export default function ESGRecordsTracker({
                                   <UserPlus className="w-4 h-4" />
                                 </Button>
                               )}
+                              {subsub.assignment && isUserAdmin && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => sendReminder(subsub.assignment.id)}
+                                  title="Send Reminder"
+                                >
+                                  <Bell className="w-4 h-4" />
+                                </Button>
+                              )}
                             </TableCell>
                           </TableRow>
                         )})
@@ -1347,584 +1737,25 @@ export default function ESGRecordsTracker({
         </Table>
       </Card>
 
-      {/* Assignment Modal */}
-      <Dialog open={showAssignModal} onOpenChange={(open) => {
-        setShowAssignModal(open);
-        if (!open) resetAssignForm();
-      }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <UserPlus className="w-5 h-5 text-emerald-600" />
-              Assign Metric Category
-            </DialogTitle>
-            <DialogDescription asChild>
-              <div className="text-sm text-text-muted">
-                <div className="p-3 bg-stone-50 rounded-lg border text-text-primary mt-2">
-                  <span className="font-medium">{assigningItem?.category}</span>
-                  {assigningItem?.subcategory && <span> → {assigningItem.subcategory}</span>}
-                  {assigningItem?.sub_subcategory && <span> → {assigningItem.sub_subcategory}</span>}
-                </div>
-              </div>
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            {/* Assignment Level */}
-            <div className="space-y-2">
-              <Label>Assignment Level *</Label>
-              <Select 
-                value={assignForm.assignment_level} 
-                onValueChange={(v) => setAssignForm(prev => ({ ...prev, assignment_level: v, facility_id: '' }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="organization">Organization Level</SelectItem>
-                  <SelectItem value="facility">Facility Level</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Facility (if facility level) - Show all facilities with per-facility assignment */}
-            {assignForm.assignment_level === 'facility' && (
-              <div className="space-y-3">
-                <Label>Assign Per Facility *</Label>
-                <p className="text-xs text-text-muted">Select users, approval settings for each facility. Leave empty to skip.</p>
-                <div className="border rounded-lg max-h-80 overflow-y-auto divide-y">
-                  {facilities.map(fac => {
-                    const facAssign = assignForm.facility_assignments?.[fac.id] || { user_ids: [], approver_id: '', requires_approval: false };
-                    return (
-                      <div key={fac.id} className="p-3 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-sm">{fac.name}</span>
-                          <Badge variant="outline" className="text-xs">{fac.type || 'Facility'}</Badge>
-                        </div>
-                        
-                        {/* Multi-user selection for this facility */}
-                        <div className="space-y-1">
-                          <Label className="text-xs text-text-muted">Assignees</Label>
-                          <div className="flex flex-wrap gap-1 min-h-[32px] p-2 border rounded bg-stone-50">
-                            {(facAssign.user_ids || []).map(uid => {
-                              const u = users.find(user => user.id === uid);
-                              return u ? (
-                                <Badge key={uid} variant="secondary" className="text-xs flex items-center gap-1">
-                                  {u.full_name || u.name || u.email}
-                                  <X 
-                                    className="w-3 h-3 cursor-pointer hover:text-red-500" 
-                                    onClick={() => setAssignForm(prev => ({
-                                      ...prev,
-                                      facility_assignments: {
-                                        ...prev.facility_assignments,
-                                        [fac.id]: {
-                                          ...prev.facility_assignments?.[fac.id],
-                                          user_ids: (prev.facility_assignments?.[fac.id]?.user_ids || []).filter(id => id !== uid),
-                                          facility_name: fac.name
-                                        }
-                                      }
-                                    }))}
-                                  />
-                                </Badge>
-                              ) : null;
-                            })}
-                            {(facAssign.user_ids || []).length === 0 && (
-                              <span className="text-xs text-text-muted">No assignees</span>
-                            )}
-                          </div>
-                          <Select 
-                            value="__select__"
-                            onValueChange={(v) => {
-                              if (v && v !== '__select__') {
-                                setAssignForm(prev => {
-                                  const current = prev.facility_assignments?.[fac.id]?.user_ids || [];
-                                  if (!current.includes(v)) {
-                                    return {
-                                      ...prev,
-                                      facility_assignments: {
-                                        ...prev.facility_assignments,
-                                        [fac.id]: {
-                                          ...prev.facility_assignments?.[fac.id],
-                                          user_ids: [...current, v],
-                                          facility_name: fac.name
-                                        }
-                                      }
-                                    };
-                                  }
-                                  return prev;
-                                });
-                              }
-                            }}
-                          >
-                            <SelectTrigger className="h-8 text-sm">
-                              <SelectValue placeholder="+ Add assignee" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__select__" disabled>Select user...</SelectItem>
-                              {users.filter(u => !(facAssign.user_ids || []).includes(u.id)).map(u => (
-                                <SelectItem key={u.id} value={u.id}>
-                                  {u.full_name || u.name || u.email}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        
-                        {/* Per-facility approval toggle and approver */}
-                        <div className="flex items-center gap-3 pt-2 border-t">
-                          <Checkbox 
-                            id={`approval-${fac.id}`}
-                            checked={facAssign.requires_approval || false}
-                            onCheckedChange={(checked) => setAssignForm(prev => ({
-                              ...prev,
-                              facility_assignments: {
-                                ...prev.facility_assignments,
-                                [fac.id]: { 
-                                  ...prev.facility_assignments?.[fac.id], 
-                                  requires_approval: checked,
-                                  approver_id: checked ? prev.facility_assignments?.[fac.id]?.approver_id : '',
-                                  facility_name: fac.name 
-                                }
-                              }
-                            }))}
-                          />
-                          <Label htmlFor={`approval-${fac.id}`} className="text-xs cursor-pointer">Requires approval</Label>
-                          
-                          {facAssign.requires_approval && (
-                            <Select 
-                              value={facAssign.approver_id || '__none__'} 
-                              onValueChange={(v) => setAssignForm(prev => ({
-                                ...prev,
-                                facility_assignments: {
-                                  ...prev.facility_assignments,
-                                  [fac.id]: { 
-                                    ...prev.facility_assignments?.[fac.id], 
-                                    approver_id: v === '__none__' ? '' : v,
-                                    facility_name: fac.name 
-                                  }
-                                }
-                              }))}
-                            >
-                              <SelectTrigger className="h-7 text-xs flex-1">
-                                <SelectValue placeholder="Select approver" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="__none__">Select approver...</SelectItem>
-                                {users.map(u => (
-                                  <SelectItem key={u.id} value={u.id}>
-                                    {u.full_name || u.name || u.email}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                {Object.values(assignForm.facility_assignments || {}).filter(fa => fa?.user_ids?.length > 0).length > 0 && (
-                  <div className="text-xs text-emerald-600">
-                    {Object.values(assignForm.facility_assignments || {}).filter(fa => fa?.user_ids?.length > 0).length} facility(ies) with assignments
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Multi-user selection - only for organization level */}
-            {assignForm.assignment_level !== 'facility' && (
-            <div className="space-y-2">
-              <Label>Assign To *</Label>
-              <div className="border rounded-lg max-h-48 overflow-y-auto">
-                {users.map(u => (
-                  <div 
-                    key={u.id}
-                    className="flex items-center gap-3 p-2 hover:bg-stone-50 cursor-pointer border-b last:border-b-0"
-                    onClick={() => {
-                      const ids = assignForm.assigned_user_ids;
-                      if (ids.includes(u.id)) {
-                        setAssignForm(prev => ({ ...prev, assigned_user_ids: ids.filter(id => id !== u.id) }));
-                      } else {
-                        setAssignForm(prev => ({ ...prev, assigned_user_ids: [...ids, u.id] }));
-                      }
-                    }}
-                  >
-                    <Checkbox 
-                      checked={assignForm.assigned_user_ids.includes(u.id)}
-                      onCheckedChange={() => {
-                        const ids = assignForm.assigned_user_ids;
-                        if (ids.includes(u.id)) {
-                          setAssignForm(prev => ({ ...prev, assigned_user_ids: ids.filter(id => id !== u.id) }));
-                        } else {
-                          setAssignForm(prev => ({ ...prev, assigned_user_ids: [...ids, u.id] }));
-                        }
-                      }}
-                    />
-                    <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-sm font-medium text-emerald-700">
-                      {(u.full_name || u.name || u.email)?.charAt(0) || '?'}
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-medium text-sm">{u.full_name || u.name || 'No Name'}</div>
-                      <div className="text-xs text-text-muted">{u.email}</div>
-                    </div>
-                    <Badge variant="outline" className="text-xs">{u.role}</Badge>
-                  </div>
-                ))}
-              </div>
-              {assignForm.assigned_user_ids.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {assignForm.assigned_user_ids.map(id => {
-                    const u = users.find(user => user.id === id);
-                    return u ? (
-                      <Badge key={id} variant="secondary" className="text-xs flex items-center gap-1">
-                        {u.full_name || u.name || u.email}
-                        <X 
-                          className="w-3 h-3 cursor-pointer hover:text-red-500" 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setAssignForm(prev => ({ ...prev, assigned_user_ids: prev.assigned_user_ids.filter(uid => uid !== id) }));
-                          }}
-                        />
-                      </Badge>
-                    ) : null;
-                  })}
-                </div>
-              )}
-            </div>
-            )}
-
-            {/* Reporting Period Info */}
-            <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="text-xs text-blue-600 font-medium mb-1">Reporting Period</div>
-              <div className="text-sm font-medium text-blue-800">{reportingPeriod}</div>
-            </div>
-
-            {/* Start Date & End Date */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Start Date *</Label>
-                <Input
-                  type="date"
-                  value={assignForm.start_date}
-                  onChange={(e) => setAssignForm(prev => ({ ...prev, start_date: e.target.value }))}
-                />
-                <p className="text-xs text-text-muted">First day data is expected</p>
-              </div>
-              <div className="space-y-2">
-                <Label>End Date</Label>
-                <Input
-                  type="date"
-                  value={assignForm.end_date}
-                  onChange={(e) => setAssignForm(prev => ({ ...prev, end_date: e.target.value }))}
-                />
-                <p className="text-xs text-text-muted">Cannot exceed reporting year</p>
-              </div>
-            </div>
-
-            {/* Filling Frequency */}
-            <div className="space-y-2">
-              <Label>Filling Frequency *</Label>
-              <Select 
-                value={assignForm.filling_frequency} 
-                onValueChange={(v) => setAssignForm(prev => ({ ...prev, filling_frequency: v }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select frequency" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="daily">Daily</SelectItem>
-                  <SelectItem value="weekly">Weekly</SelectItem>
-                  <SelectItem value="monthly">Monthly</SelectItem>
-                  <SelectItem value="quarterly">Quarterly</SelectItem>
-                  <SelectItem value="half_yearly">Half Yearly</SelectItem>
-                  <SelectItem value="yearly">Yearly</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Due Time & Timezone (show when frequency selected) */}
-            {assignForm.filling_frequency && (
-              <div className="space-y-3 p-3 border rounded-lg bg-amber-50">
-                <Label className="text-sm font-medium text-amber-800">Due Schedule Configuration</Label>
-                
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label className="text-xs">Due Time</Label>
-                    <Input
-                      type="time"
-                      value={assignForm.due_time}
-                      onChange={(e) => setAssignForm(prev => ({ ...prev, due_time: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs">Timezone</Label>
-                    <Select 
-                      value={assignForm.timezone} 
-                      onValueChange={(v) => setAssignForm(prev => ({ ...prev, timezone: v }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TIMEZONES.map(tz => (
-                          <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {/* Weekly: Day of Week */}
-                {assignForm.filling_frequency === 'weekly' && (
-                  <div className="space-y-2">
-                    <Label className="text-xs">Due Day of Week</Label>
-                    <Select 
-                      value={assignForm.due_day_of_week} 
-                      onValueChange={(v) => setAssignForm(prev => ({ ...prev, due_day_of_week: v }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="monday">Monday</SelectItem>
-                        <SelectItem value="tuesday">Tuesday</SelectItem>
-                        <SelectItem value="wednesday">Wednesday</SelectItem>
-                        <SelectItem value="thursday">Thursday</SelectItem>
-                        <SelectItem value="friday">Friday</SelectItem>
-                        <SelectItem value="saturday">Saturday</SelectItem>
-                        <SelectItem value="sunday">Sunday</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {/* Monthly/Quarterly/Half-Yearly/Yearly: Day of Month */}
-                {['monthly', 'quarterly', 'half_yearly', 'yearly'].includes(assignForm.filling_frequency) && (
-                  <div className="space-y-2">
-                    <Label className="text-xs">Due Day of Month</Label>
-                    <Select 
-                      value={String(assignForm.due_day_of_month)} 
-                      onValueChange={(v) => setAssignForm(prev => ({ ...prev, due_day_of_month: parseInt(v) }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {[...Array(31)].map((_, i) => (
-                          <SelectItem key={i+1} value={String(i+1)}>{i+1}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-amber-700">Auto-adjusts for shorter months (e.g., 31 → 28 for Feb)</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Reminder Settings */}
-            <div className="space-y-3 p-3 border rounded-lg bg-stone-50">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="reminder_enabled"
-                  checked={assignForm.reminder_enabled}
-                  onCheckedChange={(checked) => setAssignForm(prev => ({
-                    ...prev, 
-                    reminder_enabled: checked,
-                    reminder_frequency: checked ? prev.reminder_frequency : ''
-                  }))}
-                />
-                <Label htmlFor="reminder_enabled" className="text-sm cursor-pointer">
-                  Enable reminders
-                </Label>
-              </div>
-              
-              {assignForm.reminder_enabled && (
-                <div className="space-y-2 mt-2">
-                  <Label className="text-sm">Reminder Frequency *</Label>
-                  <Select 
-                    value={assignForm.reminder_frequency} 
-                    onValueChange={(v) => setAssignForm(prev => ({ ...prev, reminder_frequency: v }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select reminder frequency" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="daily">Daily</SelectItem>
-                      <SelectItem value="weekly">Weekly</SelectItem>
-                      <SelectItem value="monthly">Monthly</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            </div>
-
-            {/* Approval Settings */}
-            {(approvalWorkflowEnabled || multiLevelApprovalEnabled) && (
-              <div className="space-y-3 p-3 border rounded-lg bg-violet-50">
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="requires_approval"
-                    checked={assignForm.requires_approval}
-                    onCheckedChange={(checked) => setAssignForm(prev => ({
-                      ...prev, 
-                      requires_approval: checked,
-                      approver_id: checked ? prev.approver_id : '',
-                      approval_chain: checked ? prev.approval_chain : []
-                    }))}
-                  />
-                  <Label htmlFor="requires_approval" className="text-sm cursor-pointer">
-                    {multiLevelApprovalEnabled 
-                      ? 'Requires multi-level approval before finalization'
-                      : 'Requires approval before finalization'
-                    }
-                  </Label>
-                </div>
-                
-                {/* Single-level approval - only show for organization level */}
-                {assignForm.requires_approval && !multiLevelApprovalEnabled && approvalWorkflowEnabled && assignForm.assignment_level !== 'facility' && (
-                  <div className="space-y-2 mt-3">
-                    <Label className="text-sm">Select Approver *</Label>
-                    <Select 
-                      value={assignForm.approver_id} 
-                      onValueChange={(v) => setAssignForm(prev => ({ ...prev, approver_id: v }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select approver" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {users.map(u => (
-                          <SelectItem key={u.id} value={u.id}>
-                            <div className="flex items-center gap-2">
-                              <div className="w-6 h-6 rounded-full bg-violet-100 flex items-center justify-center text-xs font-medium text-violet-700">
-                                {(u.full_name || u.name || u.email)?.charAt(0) || '?'}
-                              </div>
-                              <div>
-                                <span className="font-medium">{u.full_name || u.name || u.email}</span>
-                                <span className="text-xs text-text-muted ml-2">({u.role})</span>
-                              </div>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-                
-                {/* Info for facility-level approval */}
-                {assignForm.requires_approval && assignForm.assignment_level === 'facility' && (
-                  <p className="text-xs text-text-muted mt-2">Approvers are configured per-facility above</p>
-                )}
-                
-                {/* Multi-level approval chain builder - only for organization level */}
-                {assignForm.requires_approval && multiLevelApprovalEnabled && assignForm.assignment_level !== 'facility' && (
-                  <div className="space-y-3 mt-3">
-                    <Label className="text-sm">Approval Chain * <span className="text-xs text-text-muted">(in order)</span></Label>
-                    
-                    {/* Current approval chain */}
-                    {assignForm.approval_chain.length > 0 && (
-                      <div className="space-y-2">
-                        {assignForm.approval_chain.map((approverId, index) => {
-                          const approver = users.find(u => u.id === approverId);
-                          return (
-                            <div key={approverId} className="flex items-center gap-2 p-2 bg-white rounded border">
-                              <Badge variant="outline" className="bg-violet-100 text-violet-700">
-                                Level {index + 1}
-                              </Badge>
-                              <div className="flex-1 flex items-center gap-2">
-                                <div className="w-6 h-6 rounded-full bg-violet-200 flex items-center justify-center text-xs font-medium text-violet-700">
-                                  {(approver?.full_name || approver?.name)?.charAt(0) || '?'}
-                                </div>
-                                <span className="text-sm font-medium">{approver?.full_name || approver?.name || approver?.email || 'Unknown'}</span>
-                                <span className="text-xs text-text-muted">({approver?.role})</span>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  const newChain = assignForm.approval_chain.filter((_, i) => i !== index);
-                                  setAssignForm(prev => ({ ...prev, approval_chain: newChain }));
-                                }}
-                              >
-                                <X className="w-4 h-4 text-red-500" />
-                              </Button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                    
-                    {/* Add approver dropdown */}
-                    <Select 
-                      value="" 
-                      onValueChange={(userId) => {
-                        if (userId && !assignForm.approval_chain.includes(userId)) {
-                          setAssignForm(prev => ({
-                            ...prev, 
-                            approval_chain: [...prev.approval_chain, userId]
-                          }));
-                        }
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={`Add Level ${assignForm.approval_chain.length + 1} Approver`} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {users
-                          .filter(u => !assignForm.approval_chain.includes(u.id))
-                          .map(u => (
-                            <SelectItem key={u.id} value={u.id}>
-                              <div className="flex items-center gap-2">
-                                <div className="w-6 h-6 rounded-full bg-stone-100 flex items-center justify-center text-xs font-medium">
-                                  {(u.full_name || u.name || u.email)?.charAt(0) || '?'}
-                                </div>
-                                <div>
-                                  <span className="font-medium">{u.full_name || u.name || u.email}</span>
-                                  <span className="text-xs text-text-muted ml-2">({u.role})</span>
-                                </div>
-                              </div>
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                    
-                    {assignForm.approval_chain.length === 0 && (
-                      <p className="text-xs text-text-muted">Add approvers in the order they should review (e.g., Manager → Director → VP)</p>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => {
-              setShowAssignModal(false);
-              resetAssignForm();
-            }}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleAssign}
-              disabled={
-                assigning || 
-                assignForm.assigned_user_ids.length === 0 || 
-                (assignForm.assignment_level === 'facility' && !assignForm.facility_id) ||
-                (assignForm.requires_approval && multiLevelApprovalEnabled && assignForm.assignment_level !== 'facility' && assignForm.approval_chain.length === 0) ||
-                (assignForm.requires_approval && !multiLevelApprovalEnabled && approvalWorkflowEnabled && assignForm.assignment_level !== 'facility' && !assignForm.approver_id) ||
-                (assignForm.reminder_enabled && !assignForm.reminder_frequency)
-              }
-            >
-              {assigning ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Assigning...</>
-              ) : assignForm.assignment_level === 'facility' ? (
-                <><UserPlus className="w-4 h-4 mr-2" /> Save Facility Assignments</>
-              ) : (
-                <><UserPlus className="w-4 h-4 mr-2" /> Assign to {assignForm.assigned_user_ids.length} User{assignForm.assigned_user_ids.length !== 1 ? 's' : ''}</>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Assignment Wizard */}
+      <AssignmentWizard
+        open={showAssignModal}
+        onOpenChange={(open) => {
+          setShowAssignModal(open);
+          if (!open) resetAssignForm();
+        }}
+        category={assigningItem?.category}
+        subcategory={assigningItem?.subcategory}
+        subSubcategory={assigningItem?.sub_subcategory}
+        facilities={facilities}
+        users={users}
+        reportingPeriod={reportingPeriod}
+        approvalWorkflowEnabled={approvalWorkflowEnabled}
+        multiLevelApprovalEnabled={multiLevelApprovalEnabled}
+        initialData={assignForm}
+        authToken={token}
+        onSubmit={handleWizardSubmit}
+      />
     </div>
   );
 }

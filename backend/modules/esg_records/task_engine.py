@@ -42,6 +42,111 @@ class TaskType(str, Enum):
     FUTURE = "future"           # Future periods
 
 
+
+async def _check_data_exists_for_task(
+    db: AsyncIOMotorDatabase,
+    organization_id: str,
+    facility_id: Optional[str],
+    category: str,
+    subcategory: str,
+    period_key: str,
+) -> bool:
+    """
+    Check if data already exists for a given task period.
+    
+    This is called when creating tasks to determine if the task should
+    be automatically marked as completed because data was submitted
+    before the assignment was created.
+    
+    Handles:
+    - GHG Emissions: Checks emission_records by facility_id and scope
+    - Water/Environment: Checks environment_records by org_id
+    - Social: Checks social_records by org_id
+    - Governance: Checks governance_records by org_id
+    """
+    cat_lower = category.lower() if category else ""
+    sub_lower = subcategory.lower() if subcategory else ""
+    
+    # GHG Emissions - check emission_records
+    if "ghg" in cat_lower or "emission" in cat_lower or "scope" in sub_lower:
+        query = {"reporting_period": period_key}
+        
+        if facility_id:
+            query["facility_id"] = facility_id
+        
+        # Map subcategory to scope
+        if "scope 1" in sub_lower:
+            query["scope"] = "scope1"
+        elif "scope 2" in sub_lower:
+            query["scope"] = "scope2"
+        elif "scope 3" in sub_lower:
+            query["scope"] = "scope3"
+        elif "biogenic" in sub_lower:
+            query["scope"] = "biogenic"
+        
+        count = await db["emission_records"].count_documents(query)
+        return count > 0
+    
+    # Water and Environment - check environment_records
+    if "water" in cat_lower or "energy" in cat_lower:
+        query = {
+            "$or": [
+                {"org_id": organization_id},
+                {"organization_id": organization_id},
+            ],
+            "category": {"$regex": f"^{category}$", "$options": "i"},
+        }
+        if subcategory:
+            query["subcategory"] = {"$regex": f"^{subcategory}$", "$options": "i"}
+        
+        # Check period - environment_records use dict format {year, month}
+        try:
+            parts = period_key.split("-")
+            if len(parts) >= 2:
+                year = int(parts[0])
+                month = int(parts[1])
+                query["reporting_period.year"] = year
+                query["reporting_period.month"] = {"$in": [str(month), month]}
+        except (ValueError, IndexError):
+            pass
+        
+        count = await db["environment_records"].count_documents(query)
+        return count > 0
+    
+    # Social records
+    if any(k in cat_lower or k in sub_lower for k in ["social", "employee", "worker", "health", "safety", "complaint", "training"]):
+        query = {
+            "$or": [
+                {"org_id": organization_id},
+                {"organization_id": organization_id},
+            ],
+            "category": {"$regex": f"^{category}$", "$options": "i"},
+        }
+        if subcategory:
+            query["subcategory"] = {"$regex": f"^{subcategory}$", "$options": "i"}
+        
+        count = await db["social_records"].count_documents(query)
+        return count > 0
+    
+    # Governance records
+    if any(k in cat_lower or k in sub_lower for k in ["governance", "board", "ethic", "compliance", "corruption", "financial"]):
+        query = {
+            "$or": [
+                {"org_id": organization_id},
+                {"organization_id": organization_id},
+            ],
+            "category": {"$regex": f"^{category}$", "$options": "i"},
+        }
+        if subcategory:
+            query["subcategory"] = {"$regex": f"^{subcategory}$", "$options": "i"}
+        
+        count = await db["governance_records"].count_documents(query)
+        return count > 0
+    
+    return False
+
+
+
 def get_last_day_of_month(year: int, month: int) -> int:
     """Get the last day of a given month, handling leap years."""
     return calendar.monthrange(year, month)[1]
@@ -377,23 +482,33 @@ async def generate_tasks_for_assignment(
     """
     Generate reporting tasks for an assignment using SHARED TASK model.
     
-    NEW ARCHITECTURE:
+    NEW ARCHITECTURE (V2):
     - ONE task per org/facility/category/subcategory/period (organizational obligation)
     - User assignments are tracked in esg_task_assignees collection
     - Tasks are NOT duplicated per user
+    - Assignees are fetched from esg_assignment_assignees collection (V2 model)
     
     This function:
     1. Generates task periods based on frequency
     2. Upserts tasks (creates if not exists, skips if exists)
-    3. Creates assignee entries linking user to tasks
+    3. Fetches assignees from esg_assignment_assignees and links them to tasks
     """
     assignment_id = assignment.get("id")
     org_id = assignment.get("organization_id")
-    user_id = assignment.get("assigned_to_user_id")
     facility_id = assignment.get("facility_id")
     category = assignment.get("category")
     subcategory = assignment.get("subcategory")
     sub_subcategory = assignment.get("sub_subcategory")
+    
+    # V2: Fetch assignees from esg_assignment_assignees collection
+    assignees = await db["esg_assignment_assignees"].find(
+        {"assignment_id": assignment_id, "removed_at": None},
+        {"_id": 0, "user_id": 1, "user_name": 1, "user_email": 1, "role": 1}
+    ).to_list(100)
+    
+    if not assignees:
+        # Log warning but continue - tasks can exist without assignees initially
+        print(f"[TaskEngine] Warning: No assignees found for assignment {assignment_id}")
     
     # Parse dates
     start_date = parse_date(assignment.get("start_date"))
@@ -459,8 +574,22 @@ async def generate_tasks_for_assignment(
             # Create new task (organizational obligation)
             task_id = str(uuid.uuid4())
             
+            # Check if data already exists for this period/facility
+            # This handles cases where data was submitted before the assignment was created
+            data_exists = await _check_data_exists_for_task(
+                db=db,
+                organization_id=org_id,
+                facility_id=facility_id,
+                category=category,
+                subcategory=subcategory,
+                period_key=period["period_key"],
+            )
+            
             # Determine initial status
-            if period["is_backfill"]:
+            if data_exists:
+                # Data already exists - mark as completed
+                status = TaskStatus.COMPLETED.value
+            elif period["is_backfill"]:
                 status = TaskStatus.BACKFILL_PENDING.value
             elif period["task_type"] == TaskType.FUTURE.value:
                 status = TaskStatus.PENDING.value
@@ -486,7 +615,7 @@ async def generate_tasks_for_assignment(
                 "task_type": period["task_type"],
                 "is_backfill": period["is_backfill"],
                 "status": status,
-                "submitted_at": None,
+                "submitted_at": datetime.now(tz.utc) if data_exists else None,
                 "approved_at": None,
                 "skipped_reason": None,
                 "created_at": now,
@@ -496,8 +625,12 @@ async def generate_tasks_for_assignment(
             await db["esg_reporting_tasks"].insert_one(task_doc)
             tasks_created += 1
         
-        # Create assignee entry (link user to task) - upsert to avoid duplicates
-        if user_id:
+        # V2: Create assignee entries for ALL assignees from esg_assignment_assignees
+        for assignee in assignees:
+            user_id = assignee.get("user_id")
+            if not user_id:
+                continue
+                
             assignee_exists = await db["esg_task_assignees"].find_one({
                 "task_id": task_id,
                 "user_id": user_id,
@@ -510,11 +643,11 @@ async def generate_tasks_for_assignment(
                     "assignment_id": assignment_id,
                     "organization_id": org_id,
                     "user_id": user_id,
-                    "user_name": assignment.get("user_name"),
-                    "user_email": assignment.get("user_email"),
-                    "role": "editor",
-                    "assigned_by_user_id": assignment.get("assigned_by_user_id"),
-                    "assigned_by_name": assignment.get("assigned_by_name"),
+                    "user_name": assignee.get("user_name"),
+                    "user_email": assignee.get("user_email"),
+                    "role": assignee.get("role", "editor"),
+                    "assigned_by_user_id": assignment.get("created_by_user_id"),
+                    "assigned_by_name": None,
                     "is_active": True,
                     "created_at": now,
                     "updated_at": now,
@@ -690,12 +823,12 @@ async def get_tasks_for_user(
                (t.get("category"), None) in valid_cats
         ]
     
-    # Enrich tasks with assignment details (filling_frequency, start_date, end_date)
+    # Enrich tasks with assignment details (filling_frequency, start_date, end_date, requires_approval)
     assignment_ids = list(set(t.get("assignment_id") for t in tasks if t.get("assignment_id")))
     if assignment_ids:
         assignments = await db["esg_assignments"].find(
             {"id": {"$in": assignment_ids}},
-            {"_id": 0, "id": 1, "filling_frequency": 1, "start_date": 1, "end_date": 1, "due_config": 1}
+            {"_id": 0, "id": 1, "filling_frequency": 1, "start_date": 1, "end_date": 1, "due_config": 1, "requires_approval": 1}
         ).to_list(len(assignment_ids))
         
         assignment_map = {a["id"]: a for a in assignments}
@@ -705,6 +838,7 @@ async def get_tasks_for_user(
             task["filling_frequency"] = assignment.get("filling_frequency")
             task["assignment_start_date"] = assignment.get("start_date")
             task["assignment_end_date"] = assignment.get("end_date")
+            task["requires_approval"] = assignment.get("requires_approval", False)
     
     # Filter out parent category tasks if that category has subcategories
     # Get categories that have subcategories defined
@@ -942,3 +1076,76 @@ async def get_task_assignees(
     ).to_list(100)
     
     return assignees
+
+
+
+async def sync_task_statuses_with_data(
+    db: AsyncIOMotorDatabase,
+    organization_id: str,
+) -> Dict[str, Any]:
+    """
+    Sync existing task statuses with actual data records.
+    
+    For tasks that are not completed but have data in the corresponding
+    records collection, update the task status to completed.
+    
+    This fixes the discrepancy where data was submitted but the task
+    wasn't updated (e.g., via bulk upload or before the task existed).
+    
+    Returns summary of updates made.
+    """
+    # Find all non-completed tasks for this organization
+    non_completed_tasks = await db["esg_reporting_tasks"].find({
+        "organization_id": organization_id,
+        "status": {"$nin": ["completed", "skipped"]},
+    }, {"_id": 0}).to_list(5000)
+    
+    updated_count = 0
+    updated_tasks = []
+    
+    for task in non_completed_tasks:
+        task_id = task.get("id")
+        category = task.get("category", "")
+        subcategory = task.get("subcategory", "")
+        facility_id = task.get("facility_id")
+        period_key = task.get("period_key", "")
+        
+        # Check if data exists for this task
+        data_exists = await _check_data_exists_for_task(
+            db=db,
+            organization_id=organization_id,
+            facility_id=facility_id,
+            category=category,
+            subcategory=subcategory,
+            period_key=period_key,
+        )
+        
+        if data_exists:
+            # Update task to completed
+            await db["esg_reporting_tasks"].update_one(
+                {"id": task_id},
+                {
+                    "$set": {
+                        "status": TaskStatus.COMPLETED.value,
+                        "completed_at": datetime.now(tz.utc),
+                        "updated_at": datetime.now(tz.utc),
+                        "sync_note": "Auto-completed: data exists in records",
+                    }
+                }
+            )
+            updated_count += 1
+            updated_tasks.append({
+                "task_id": task_id,
+                "period_key": period_key,
+                "category": category,
+                "subcategory": subcategory,
+                "facility_id": facility_id,
+                "old_status": task.get("status"),
+                "new_status": "completed",
+            })
+    
+    return {
+        "tasks_checked": len(non_completed_tasks),
+        "tasks_updated": updated_count,
+        "updated_tasks": updated_tasks,
+    }

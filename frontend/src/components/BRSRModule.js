@@ -3,10 +3,8 @@
  * 
  * Business Responsibility & Sustainability Reporting module.
  * Tabs:
- * - Tracking: My Tasks + Admin Tracker for disclosures
- * - Environment: Section C Environment questions
- * - Social: Section C Social questions
- * - Governance: Section C Governance questions
+ * - Section B: Management & Process Disclosures
+ * - Section C: Principle-wise Performance Disclosures (P1-P9)
  */
 
 import React, { useState, useEffect } from 'react';
@@ -17,23 +15,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Label } from './ui/label';
 import { 
   BarChart3,
-  Leaf,
-  Users,
-  Shield,
   Pencil,
-  X
+  X,
+  ClipboardList
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { generateReportingYears, getCurrentReportingYear } from '../utils/reportingYearUtils';
-import TrackingModule from './TrackingModule';
 import ESGQuestionnaire from './ESGQuestionnaire';
+import BRSRSectionC from './BRSRSectionC';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
 export default function BRSRModule() {
   const { token } = useAuth();
   
-  const [activeTab, setActiveTab] = useState('environment');
+  const [activeTab, setActiveTab] = useState('section_b');
   const [reportingPeriod, setReportingPeriod] = useState('');
   const [reportingYears, setReportingYears] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
@@ -96,45 +92,30 @@ export default function BRSRModule() {
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="bg-stone-100 p-1 rounded-lg">
-          <TabsTrigger value="environment" className="gap-2" data-testid="brsr-environment-tab">
-            <Leaf className="w-4 h-4" />
-            Environment
+          <TabsTrigger value="section_b" className="gap-2" data-testid="brsr-section-b-tab">
+            <ClipboardList className="w-4 h-4" />
+            Section B
           </TabsTrigger>
-          <TabsTrigger value="social" className="gap-2" data-testid="brsr-social-tab">
-            <Users className="w-4 h-4" />
-            Social
-          </TabsTrigger>
-          <TabsTrigger value="governance" className="gap-2" data-testid="brsr-governance-tab">
-            <Shield className="w-4 h-4" />
-            Governance
+          <TabsTrigger value="section_c" className="gap-2" data-testid="brsr-section-c-tab">
+            <BarChart3 className="w-4 h-4" />
+            Section C
           </TabsTrigger>
         </TabsList>
 
-        {/* Environment */}
-        <TabsContent value="environment" className="mt-6">
+        {/* Section B - Management & Process Disclosures */}
+        <TabsContent value="section_b" className="mt-6">
           <ESGQuestionnaire 
             framework="BRSR"
-            section="environment"
+            section="section_b"
             isEditing={isEditing}
             reportingYear={reportingPeriod}
           />
         </TabsContent>
 
-        {/* Social */}
-        <TabsContent value="social" className="mt-6">
-          <ESGQuestionnaire 
+        {/* Section C - Principle-wise Performance Disclosures */}
+        <TabsContent value="section_c" className="mt-6">
+          <BRSRSectionC
             framework="BRSR"
-            section="social"
-            isEditing={isEditing}
-            reportingYear={reportingPeriod}
-          />
-        </TabsContent>
-
-        {/* Governance */}
-        <TabsContent value="governance" className="mt-6">
-          <ESGQuestionnaire 
-            framework="BRSR"
-            section="governance"
             isEditing={isEditing}
             reportingYear={reportingPeriod}
           />

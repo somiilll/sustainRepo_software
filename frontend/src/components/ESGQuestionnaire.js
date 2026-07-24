@@ -373,7 +373,7 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
 }
 
 // Individual Question Renderer
-function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {}, historicalData = null }) {
+export function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {}, historicalData = null }) {
   const { type, question, description, placeholder, options, table_columns, required, conditional, visible_if } = config;
 
   // Check if question should be hidden based on conditional logic

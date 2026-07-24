@@ -92,7 +92,7 @@ class TrackingService:
     def _get_display_name(self, config: Optional[dict], q_key: str) -> str:
         """
         Get the display name for a disclosure from config.
-        Priority: label > description (full text) > formatted key
+        Priority: label > question > description > formatted key
         Returns full text - truncation should be handled by frontend.
         """
         if not config:
@@ -102,12 +102,14 @@ class TrackingService:
         if label:
             return label
         
+        question = config.get("question")
+        if question:
+            return question
+        
         desc = config.get("description")
         if desc:
-            # Return full description - let frontend handle truncation
-            # For single-sentence descriptions, return the first sentence
             first_sentence = desc.split('.')[0]
-            if len(first_sentence) < len(desc) - 1:  # There's more after first sentence
+            if len(first_sentence) < len(desc) - 1:
                 return first_sentence + "."
             return desc
         
@@ -148,9 +150,9 @@ class TrackingService:
         
         # Build query based on domain
         if domain == TrackingDomain.ALL:
-            # Fetch all sections
+            # Fetch all sections including BRSR section_b/section_c
             configs = await self._configs.find(
-                {"section": {"$in": ["environment", "social", "governance"]}},
+                {"section": {"$in": ["environment", "social", "governance", "section_a", "section_b", "section_c"]}},
                 {"_id": 0}
             ).to_list(5000)
         else:
@@ -161,10 +163,14 @@ class TrackingService:
             ).to_list(1000)
         
         # Group configs by framework
-        # Note: Configs without framework field are treated as BRSR
+        # Note: Configs use either "framework" (string) or "frameworks" (array)
         framework_configs: Dict[str, List[dict]] = {}
         for config in configs:
-            fw = (config.get("framework") or "brsr").lower()
+            fw = (config.get("framework") or "").lower()
+            if not fw:
+                # Check frameworks array
+                fws = config.get("frameworks") or []
+                fw = fws[0].lower() if fws else "brsr"
             if fw not in framework_configs:
                 framework_configs[fw] = []
             framework_configs[fw].append(config)
@@ -324,26 +330,29 @@ class TrackingService:
         
         # Build section filter based on domain
         if domain == TrackingDomain.ALL:
-            section_filter = {"$in": ["environment", "social", "governance"]}
+            section_filter = {"$in": ["environment", "social", "governance", "section_a", "section_b", "section_c"]}
         else:
             section_filter = domain_section_map.get(domain)
         
         # Get all configs for this framework and domain
-        # Note: Some configs may not have 'framework' field - treat them as BRSR by default
-        config_query = {
-            "section": section_filter,
-            "$or": [
-                {"framework": {"$regex": f"^{framework_id}$", "$options": "i"}},
-                {"framework": None},  # Legacy configs without framework field
-                {"framework": {"$exists": False}},  # Legacy configs without framework field
-            ]
-        }
-        
-        # If not BRSR, only get configs with explicit framework match
-        if framework_id.lower() != "brsr":
+        # Handle both "framework" (string) and "frameworks" (array) fields
+        if framework_id.lower() == "brsr":
             config_query = {
                 "section": section_filter,
-                "framework": {"$regex": f"^{framework_id}$", "$options": "i"},
+                "$or": [
+                    {"framework": {"$regex": f"^{framework_id}$", "$options": "i"}},
+                    {"frameworks": {"$regex": f"^{framework_id}$", "$options": "i"}},
+                    {"framework": None},
+                    {"framework": {"$exists": False}},
+                ]
+            }
+        else:
+            config_query = {
+                "section": section_filter,
+                "$or": [
+                    {"framework": {"$regex": f"^{framework_id}$", "$options": "i"}},
+                    {"frameworks": {"$regex": f"^{framework_id}$", "$options": "i"}},
+                ]
             }
         
         configs = await self._configs.find(config_query, {"_id": 0}).to_list(5000)
@@ -518,7 +527,7 @@ class TrackingService:
         
         # Build section filter based on domain
         if domain == TrackingDomain.ALL:
-            section_filter = {"$in": ["environment", "social", "governance"]}
+            section_filter = {"$in": ["environment", "social", "governance", "section_a", "section_b", "section_c"]}
         else:
             section_filter = domain_section_map.get(domain)
         
@@ -529,38 +538,46 @@ class TrackingService:
         )
         stale_threshold = org.get("stale_threshold_days", DEFAULT_STALE_THRESHOLD_DAYS) if org else DEFAULT_STALE_THRESHOLD_DAYS
         
-        # Build config query - handle missing framework field for BRSR
+        # Build config query - handle both "framework" and "frameworks" fields
+        fw_match = [
+            {"framework": {"$regex": f"^{framework_id}$", "$options": "i"}},
+            {"frameworks": {"$regex": f"^{framework_id}$", "$options": "i"}},
+        ]
+        if framework_id.lower() == "brsr":
+            fw_match.extend([{"framework": None}, {"framework": {"$exists": False}}])
+
         if framework_id.lower() == "brsr":
             config_query = {
                 "section": section_filter,
-                "$or": [
-                    {"framework": {"$regex": f"^{framework_id}$", "$options": "i"}},
-                    {"framework": None},
-                    {"framework": {"$exists": False}},
-                ],
+                "$or": fw_match,
                 "$and": [
                     {"$or": [
                         {"brsr_principle": section_id},
                         {"brsr_section": section_id},
+                        {"section": section_id},
                         {"topic": section_id},
                     ]}
                 ]
             }
         elif framework_id.upper() == "GRI":
-            # For GRI, section_id is the disclosure_id
             config_query = {
                 "section": section_filter,
-                "framework": {"$regex": f"^{framework_id}$", "$options": "i"},
+                "$or": [
+                    {"framework": {"$regex": f"^{framework_id}$", "$options": "i"}},
+                    {"frameworks": {"$regex": f"^{framework_id}$", "$options": "i"}},
+                ],
                 "disclosure_id": section_id,
             }
         else:
             config_query = {
                 "section": section_filter,
-                "framework": {"$regex": f"^{framework_id}$", "$options": "i"},
-                "$or": [
-                    {"brsr_section": section_id},
-                    {"topic": section_id},
-                    {"brsr_principle": section_id},
+                "$or": fw_match,
+                "$and": [
+                    {"$or": [
+                        {"brsr_section": section_id},
+                        {"topic": section_id},
+                        {"brsr_principle": section_id},
+                    ]}
                 ]
             }
         
@@ -586,6 +603,39 @@ class TrackingService:
             {"_id": 0}
         ).to_list(5000)
         
+        # Get all assignment IDs for batch fetching assignees
+        assignment_ids = [a.get("id") for a in raw_assignments if a.get("id")]
+        
+        # Fetch assignees from esg_assignment_assignees table (new model)
+        assignees_cursor = db.esg_assignment_assignees.find(
+            {"assignment_id": {"$in": assignment_ids}, "removed_at": None},
+            {"_id": 0, "assignment_id": 1, "user_id": 1, "role": 1}
+        )
+        raw_assignees = await assignees_cursor.to_list(10000)
+        
+        # Group assignees by assignment_id
+        assignees_by_assignment = {}
+        for assignee in raw_assignees:
+            aid = assignee["assignment_id"]
+            if aid not in assignees_by_assignment:
+                assignees_by_assignment[aid] = []
+            assignees_by_assignment[aid].append(assignee)
+        
+        # Get user details for all assignees
+        all_user_ids = list(set([a["user_id"] for a in raw_assignees]))
+        # Also include legacy assigned_to_user_id
+        for a in raw_assignments:
+            if a.get("assigned_to_user_id"):
+                all_user_ids.append(a["assigned_to_user_id"])
+        all_user_ids = list(set(all_user_ids))
+        
+        users_cursor = db.users.find(
+            {"id": {"$in": all_user_ids}},
+            {"_id": 0, "id": 1, "full_name": 1, "name": 1, "email": 1}
+        )
+        users_list = await users_cursor.to_list(1000)
+        user_map_local = {u["id"]: u for u in users_list}
+        
         # Aggregate assignments by entity_id (question_key) for multi-assignee display
         assignment_map = {}
         for a in raw_assignments:
@@ -596,22 +646,34 @@ class TrackingService:
                     "assignees": [],
                 }
             
-            # Add assignee to the list
-            if a.get("assigned_to_user_id"):
-                user = await db.users.find_one(
-                    {"id": a["assigned_to_user_id"]},
-                    {"_id": 0, "full_name": 1, "name": 1, "email": 1}
-                )
+            assignment_id = a.get("id")
+            
+            # First, try to get assignees from the new esg_assignment_assignees table
+            if assignment_id and assignment_id in assignees_by_assignment:
+                for assignee in assignees_by_assignment[assignment_id]:
+                    user = user_map_local.get(assignee["user_id"])
+                    assignee_entry = {
+                        "user_id": assignee["user_id"],
+                        "user_name": user.get("full_name") or user.get("name") if user else None,
+                        "user_email": user.get("email") if user else None,
+                        "role": assignee.get("role", "editor"),
+                        "assignment_id": assignment_id,
+                    }
+                    existing_ids = [x["user_id"] for x in assignment_map[entity_id]["assignees"]]
+                    if assignee_entry["user_id"] not in existing_ids:
+                        assignment_map[entity_id]["assignees"].append(assignee_entry)
+            
+            # Fallback: use legacy assigned_to_user_id if no assignees found
+            if not assignment_map[entity_id]["assignees"] and a.get("assigned_to_user_id"):
+                user = user_map_local.get(a["assigned_to_user_id"])
                 assignee_entry = {
                     "user_id": a["assigned_to_user_id"],
                     "user_name": user.get("full_name") or user.get("name") if user else None,
                     "user_email": user.get("email") if user else None,
                     "role": a.get("role", "editor"),
-                    "assignment_id": a.get("id"),
+                    "assignment_id": assignment_id,
                 }
-                existing_ids = [x["user_id"] for x in assignment_map[entity_id]["assignees"]]
-                if assignee_entry["user_id"] not in existing_ids:
-                    assignment_map[entity_id]["assignees"].append(assignee_entry)
+                assignment_map[entity_id]["assignees"].append(assignee_entry)
         
         # Set primary assignee name for backward compatibility
         for entity_id, asgn in assignment_map.items():
@@ -908,39 +970,41 @@ class TrackingService:
         """
         Bulk assign disclosures in a section or framework.
         
-        Skips already assigned disclosures if skip_already_assigned=True.
+        Uses the same assignment model as KPI metrics:
+        - esg_assignments (one per question/work item)
+        - esg_assignment_assignees (many-to-many for users)
+        
+        Supports:
+        - Multiple assignees per question
+        - Replacing assignees on reassignment
+        - Updating all fields (due_date, reminder, approval) on reassignment
         """
-        from modules.esg_assignments.service import assignment_service
-        from modules.esg_assignments.models import (
-            CreateAssignmentRequest,
-            EntityType,
-            AssignmentLevel,
-            AssignmentRole,
-            FillingFrequency,
-        )
+        from modules.esg_assignments.assignment_service_v2 import assignment_service_v2
         
         domain_section_map = {
             TrackingDomain.ENVIRONMENT: "environment",
             TrackingDomain.SOCIAL: "social",
             TrackingDomain.GOVERNANCE: "governance",
         }
-        section = domain_section_map.get(domain)
         
-        # Build config query - handle missing framework field for BRSR
-        if request.framework_id.lower() == "brsr":
-            config_query = {
-                "section": section,
-                "$or": [
-                    {"framework": {"$regex": f"^{request.framework_id}$", "$options": "i"}},
-                    {"framework": None},
-                    {"framework": {"$exists": False}},
-                ]
-            }
+        # For BRSR "all" domain, include section_b/section_c
+        if domain == TrackingDomain.ALL:
+            section_val = {"$in": ["environment", "social", "governance", "section_a", "section_b", "section_c"]}
         else:
-            config_query = {
-                "section": section,
-                "framework": {"$regex": f"^{request.framework_id}$", "$options": "i"},
-            }
+            section_val = domain_section_map.get(domain)
+        
+        # Build config query - handle both "framework" and "frameworks" fields
+        fw_match = [
+            {"framework": {"$regex": f"^{request.framework_id}$", "$options": "i"}},
+            {"frameworks": {"$regex": f"^{request.framework_id}$", "$options": "i"}},
+        ]
+        if request.framework_id.lower() == "brsr":
+            fw_match.extend([{"framework": None}, {"framework": {"$exists": False}}])
+        
+        config_query = {
+            "section": section_val,
+            "$or": fw_match,
+        }
         
         if request.section_id:
             if "$or" in config_query:
@@ -976,19 +1040,31 @@ class TrackingService:
                     filtered_configs.append(c)
             configs = filtered_configs
         
-        # Get existing assignments
-        existing_assignments = {}
-        if not request.skip_already_assigned or True:  # Always fetch for potential update
-            existing = await self._assignments.find(
-                {
-                    "organization_id": organization_id,
-                    "reporting_period": reporting_period,
-                    "entity_type": "question",
-                },
-                {"_id": 0, "entity_id": 1, "id": 1}
-            ).to_list(5000)
-            existing_assignments = {a["entity_id"]: a["id"] for a in existing}
+        # Get user IDs - support both legacy single user and new multiple users
+        user_ids = request.assigned_user_ids or []
+        if request.assigned_to_user_id and request.assigned_to_user_id not in user_ids:
+            user_ids.append(request.assigned_to_user_id)
         
+        if not user_ids:
+            return {
+                "success": False,
+                "error": "No users specified for assignment",
+                "created_count": 0,
+                "updated_count": 0,
+                "skipped_count": 0,
+            }
+        
+        # Get existing assignments to determine create vs update
+        existing_assignments = {}
+        existing = await self._assignments.find(
+            {
+                "organization_id": organization_id,
+                "reporting_period": reporting_period,
+                "entity_type": "question",
+            },
+            {"_id": 0, "entity_id": 1, "id": 1}
+        ).to_list(5000)
+        existing_assignments = {a["entity_id"]: a["id"] for a in existing}
         existing_keys = set(existing_assignments.keys())
         
         # Create/Update assignments
@@ -1005,63 +1081,43 @@ class TrackingService:
                 skipped_count += 1
                 continue
             
-            try:
-                role = AssignmentRole(request.role) if request.role else AssignmentRole.OWNER
-            except (ValueError, KeyError):
-                role = AssignmentRole.OWNER
+            # Build assignment data (similar to KPI metrics)
+            assignment_data = {
+                "organization_id": organization_id,
+                "entity_type": "question",  # Required for read path compatibility
+                "entity_id": q_key,  # Required for read path compatibility
+                "category": "disclosure",  # Virtual category for disclosures
+                "subcategory": request.framework_id,  # Framework as subcategory
+                "sub_subcategory": q_key,  # Question key as sub_subcategory
+                "facility_id": None,  # Disclosures are org-level
+                "reporting_period": reporting_period,
+                "assignment_level": "organization",
+                "start_date": request.start_date,
+                "end_date": request.end_date,
+                "timezone": request.timezone or "Asia/Kolkata",
+                "filling_frequency": request.filling_frequency,
+                "due_config": request.due_config,
+                "due_date": request.due_date.isoformat() if request.due_date else None,
+                "reminder_enabled": request.reminder_enabled,
+                "reminder_config": request.reminder_config,
+                "reminder_frequency": request.reminder_frequency,  # Add reminder frequency
+                "requires_approval": request.requires_approval,
+                "approval_chain": request.approval_chain or [],
+                "framework_id": request.framework_id,
+                "group_assignment_id": group_id,
+            }
             
-            try:
-                freq = FillingFrequency(request.filling_frequency) if request.filling_frequency else None
-            except (ValueError, KeyError):
-                freq = None
-            
-            # Parse reminder frequency if provided
-            reminder_freq = None
-            if request.reminder_frequency:
-                try:
-                    from modules.esg_assignments.models import ReminderFrequency
-                    reminder_freq = ReminderFrequency(request.reminder_frequency)
-                except (ValueError, KeyError):
-                    reminder_freq = None
-            
-            create_req = CreateAssignmentRequest(
-                entity_type=EntityType.QUESTION,
-                assignment_level=AssignmentLevel.QUESTION,
-                entity_id=q_key,
-                reporting_period=reporting_period,
-                assigned_to_user_id=request.assigned_to_user_id,
-                role=role,
-                due_date=request.due_date,
-                framework_id=request.framework_id,
-                requires_approval=request.requires_approval,
-                approval_chain=request.approval_chain,  # Multi-level approval chain
-                filling_frequency=freq,
-                reminder_enabled=request.reminder_enabled,
-                reminder_frequency=reminder_freq,
-                reminder_config=request.reminder_config,
+            # Use assignment_service_v2 which handles multiple assignees properly
+            assignment, is_new = await assignment_service_v2.create_or_update_assignment(
+                data=assignment_data,
+                user_ids=user_ids,
+                created_by_user_id=assigned_by_user_id,
             )
             
-            # Check if this is a reassignment (existing assignment for this question)
-            existing_assignment_id = existing_assignments.get(q_key)
-            if existing_assignment_id and not request.skip_already_assigned:
-                # Update existing assignment (reassign)
-                from modules.esg_assignments.models import ReassignRequest
-                await assignment_service.reassign(
-                    assignment_id=existing_assignment_id,
-                    organization_id=organization_id,
-                    request=ReassignRequest(new_user_id=request.assigned_to_user_id),
-                    reassigned_by_user_id=assigned_by_user_id,
-                )
-                updated_count += 1
-            else:
-                # Create new assignment
-                await assignment_service.create_assignment(
-                    organization_id=organization_id,
-                    request=create_req,
-                    assigned_by_user_id=assigned_by_user_id,
-                    group_assignment_id=group_id,
-                )
+            if is_new:
                 created_count += 1
+            else:
+                updated_count += 1
         
         return {
             "success": True,

@@ -988,7 +988,10 @@ class ESGRecordsService:
         # Build query
         query = {"org_id": org_id, "is_current": True}
         
-        if filters.category:
+        # Handle single category or multiple categories
+        if filters.categories and len(filters.categories) > 0:
+            query["category"] = {"$in": filters.categories}
+        elif filters.category:
             query["category"] = filters.category
         if filters.subcategory:
             query["subcategory"] = filters.subcategory
@@ -1483,9 +1486,38 @@ class ESGRecordsService:
                     "assignees": [],  # New: list of all assignees
                 }
             
-            # Add this assignment's user to the assignees list
-            if assignment.get("assigned_to_user_id"):
+            # Fetch assignees from the new esg_assignment_assignees table
+            assignment_assignees = await db.esg_assignment_assignees.find(
+                {"assignment_id": assignment.get("id"), "removed_at": None},
+                {"_id": 0}
+            ).to_list(100)
+            
+            for assignee_record in assignment_assignees:
+                user_id = assignee_record.get("user_id")
+                if not user_id:
+                    continue
+                    
                 # Get user details
+                user = await db.users.find_one(
+                    {"id": user_id},
+                    {"_id": 0, "full_name": 1, "name": 1, "email": 1}
+                )
+                assignee_entry = {
+                    "user_id": user_id,
+                    "user_name": user.get("full_name") or user.get("name") if user else None,
+                    "user_email": user.get("email") if user else None,
+                    "role": assignee_record.get("role", "editor"),
+                    "assignment_id": assignment.get("id"),
+                    "assigned_at": assignee_record.get("assigned_at"),
+                }
+                
+                # Avoid duplicates
+                existing_ids = [a["user_id"] for a in grouped[key]["assignees"]]
+                if user_id not in existing_ids:
+                    grouped[key]["assignees"].append(assignee_entry)
+            
+            # Fallback: check legacy assigned_to_user_id for backwards compatibility
+            if not grouped[key]["assignees"] and assignment.get("assigned_to_user_id"):
                 user = await db.users.find_one(
                     {"id": assignment["assigned_to_user_id"]},
                     {"_id": 0, "full_name": 1, "name": 1, "email": 1}
@@ -1494,14 +1526,10 @@ class ESGRecordsService:
                     "user_id": assignment["assigned_to_user_id"],
                     "user_name": user.get("full_name") or user.get("name") if user else None,
                     "user_email": user.get("email") if user else None,
-                    "role": "editor",  # Default role for legacy assignments
+                    "role": "editor",
                     "assignment_id": assignment.get("id"),
                 }
-                
-                # Avoid duplicates
-                existing_ids = [a["user_id"] for a in grouped[key]["assignees"]]
-                if assignee_entry["user_id"] not in existing_ids:
-                    grouped[key]["assignees"].append(assignee_entry)
+                grouped[key]["assignees"].append(assignee_entry)
 
         # Convert grouped dict back to list
         aggregated_assignments = list(grouped.values())

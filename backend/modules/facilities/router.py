@@ -94,9 +94,8 @@ async def get_facilities(current_user: dict = Depends(get_current_user)):
             {"organization_id": org_id},
             {"_id": 0},
         ).to_list(1000)
-    else:  # user
-        assigned = current_user.get("assigned_facilities", [])
-        facilities = await db.facilities.find({"id": {"$in": assigned}}, {"_id": 0}).to_list(1000)
+    else:  # user - Facilities module is admin-only, but return empty for users
+        facilities = []
     return [FacilityResponse(**f) for f in facilities]
 
 
@@ -106,8 +105,9 @@ async def get_facility(facility_id: str, current_user: dict = Depends(get_curren
     if not facility:
         raise HTTPException(status_code=404, detail="Facility not found")
 
-    if current_user["role"] == "user" and facility_id not in current_user.get("assigned_facilities", []):
-        raise HTTPException(status_code=403, detail="Not authorized")
+    # Facilities module is admin-only
+    if current_user["role"] == "user":
+        raise HTTPException(status_code=403, detail="Facilities management is only accessible to admins")
     if current_user["role"] == "admin" and facility["organization_id"] != current_user.get("organization_id"):
         raise HTTPException(status_code=403, detail="Not authorized")
 
@@ -120,8 +120,9 @@ async def update_facility(facility_id: str, facility_data: FacilityCreate, curre
     if not facility:
         raise HTTPException(status_code=404, detail="Facility not found")
 
-    if current_user["role"] == "user" and facility_id not in current_user.get("assigned_facilities", []):
-        raise HTTPException(status_code=403, detail="Not authorized")
+    # Facilities module is admin-only
+    if current_user["role"] == "user":
+        raise HTTPException(status_code=403, detail="Facilities management is only accessible to admins")
     if current_user["role"] == "admin" and facility["organization_id"] != current_user.get("organization_id"):
         raise HTTPException(status_code=403, detail="Not authorized")
 
@@ -257,9 +258,9 @@ async def get_facility_production(
     if not facility:
         raise HTTPException(status_code=404, detail="Facility not found")
 
-    # Authorization check
-    if current_user["role"] == "user" and facility_id not in current_user.get("assigned_facilities", []):
-        raise HTTPException(status_code=403, detail="Not authorized")
+    # Authorization check - Facilities module is admin-only
+    if current_user["role"] == "user":
+        raise HTTPException(status_code=403, detail="Facilities management is only accessible to admins")
     if current_user["role"] == "admin" and facility["organization_id"] != current_user.get("organization_id"):
         raise HTTPException(status_code=403, detail="Not authorized")
 
@@ -351,9 +352,9 @@ async def save_facility_production(
     if not facility:
         raise HTTPException(status_code=404, detail="Facility not found")
 
-    # Authorization check
-    if current_user["role"] == "user" and facility_id not in current_user.get("assigned_facilities", []):
-        raise HTTPException(status_code=403, detail="Not authorized")
+    # Authorization check - Facilities module is admin-only
+    if current_user["role"] == "user":
+        raise HTTPException(status_code=403, detail="Facilities management is only accessible to admins")
     if current_user["role"] == "admin" and facility["organization_id"] != current_user.get("organization_id"):
         raise HTTPException(status_code=403, detail="Not authorized")
 

@@ -455,64 +455,56 @@ export default function ESGTrackingTab({
     
     setAssigning(true);
     try {
-      // Create assignment for each selected user
-      let totalCreated = 0;
-      let totalSkipped = 0;
-      let totalUpdated = 0;
-      
-      for (const userId of assignForm.assigned_user_ids) {
-        // Build approval chain based on enabled feature
-        let approvalChain = null;
-        if (assignForm.requires_approval) {
-          if (multiLevelApprovalEnabled && assignForm.approval_chain.length > 0) {
-            approvalChain = assignForm.approval_chain;
-          } else if (approvalWorkflowEnabled && assignForm.approver_id) {
-            // Single-level approval: convert to chain with one approver
-            approvalChain = [assignForm.approver_id];
-          }
+      // Build approval chain based on enabled feature
+      let approvalChain = null;
+      if (assignForm.requires_approval) {
+        if (multiLevelApprovalEnabled && assignForm.approval_chain.length > 0) {
+          approvalChain = assignForm.approval_chain;
+        } else if (approvalWorkflowEnabled && assignForm.approver_id) {
+          // Single-level approval: convert to chain with one approver
+          approvalChain = [assignForm.approver_id];
         }
-        
-        const payload = {
-          framework_id: selectedFramework.framework_id,
-          assigned_to_user_id: userId,
-          due_date: assignForm.due_date || null,
-          filling_frequency: assignForm.filling_frequency || null,
-          reminder_enabled: assignForm.reminder_enabled,
-          reminder_frequency: assignForm.reminder_frequency || null,
-          requires_approval: assignForm.requires_approval,
-          // Multi-level approval chain (ordered list of approver user IDs)
-          approval_chain: approvalChain,
-          skip_already_assigned: true,
-        };
-        
-        // If assigning a specific question
-        if (assigningItem?.question_key || assigningItem?.disclosure_id) {
-          // Prefer question_key for precise matching, fallback to disclosure_id
-          payload.disclosure_ids = [assigningItem.question_key || assigningItem.disclosure_id];
-          payload.skip_already_assigned = false;
-        }
-        // If assigning a whole section
-        else if (assigningItem?.section_id) {
-          payload.section_id = assigningItem.section_id;
-        }
-        // If bulk assigning remaining
-        else if (assigningItem?.bulk) {
-          payload.section_id = selectedSection?.section_id;
-        }
-        
-        // Use the disclosure's actual domain if available, otherwise use current page domain
-        const targetDomain = assigningItem?.domain || domain;
-        
-        const res = await axios.post(
-          `${API}/tracking/${targetDomain}/assign?reporting_period=${encodeURIComponent(reportingPeriod)}`,
-          payload,
-          { headers: getAuthHeader() }
-        );
-        
-        totalCreated += res.data.created_count || 0;
-        totalSkipped += res.data.skipped_count || 0;
-        totalUpdated += res.data.updated_count || 0;
       }
+      
+      // Build payload with all users in a single request
+      const payload = {
+        framework_id: selectedFramework.framework_id,
+        assigned_user_ids: assignForm.assigned_user_ids,  // All users in one request
+        due_date: assignForm.due_date || null,
+        filling_frequency: assignForm.filling_frequency || null,
+        reminder_enabled: assignForm.reminder_enabled,
+        reminder_frequency: assignForm.reminder_frequency || null,
+        requires_approval: assignForm.requires_approval,
+        approval_chain: approvalChain,
+        skip_already_assigned: true,
+      };
+      
+      // If assigning a specific question
+      if (assigningItem?.question_key || assigningItem?.disclosure_id) {
+        payload.disclosure_ids = [assigningItem.question_key || assigningItem.disclosure_id];
+        payload.skip_already_assigned = false;  // Allow reassignment for specific questions
+      }
+      // If assigning a whole section
+      else if (assigningItem?.section_id) {
+        payload.section_id = assigningItem.section_id;
+      }
+      // If bulk assigning remaining
+      else if (assigningItem?.bulk) {
+        payload.section_id = selectedSection?.section_id;
+      }
+      
+      // Always use the component's domain prop for the API URL
+      const targetDomain = domain;
+      
+      const res = await axios.post(
+        `${API}/tracking/${targetDomain}/assign?reporting_period=${encodeURIComponent(reportingPeriod)}`,
+        payload,
+        { headers: getAuthHeader() }
+      );
+      
+      const totalCreated = res.data.created_count || 0;
+      const totalSkipped = res.data.skipped_count || 0;
+      const totalUpdated = res.data.updated_count || 0;
       
       const messages = [];
       if (totalCreated > 0) messages.push(`${totalCreated} assigned`);
@@ -531,7 +523,12 @@ export default function ESGTrackingTab({
       fetchFrameworkSummary();
     } catch (error) {
       console.error('Failed to assign:', error);
-      toast.error(error.response?.data?.detail || 'Failed to assign questions');
+      // Handle Pydantic validation errors which come as array of {type, loc, msg, input, ctx}
+      const detail = error.response?.data?.detail;
+      const errorMsg = Array.isArray(detail) 
+        ? detail.map(e => e.msg || e.message || JSON.stringify(e)).join(', ') 
+        : (typeof detail === 'string' ? detail : 'Failed to assign questions');
+      toast.error(errorMsg);
     } finally {
       setAssigning(false);
     }
@@ -557,7 +554,12 @@ export default function ESGTrackingTab({
       toast.success(`Reminder sent to ${disclosure.assigned_to_user_name || disclosure.assigned_to_user_email}`);
     } catch (error) {
       console.error('Failed to send reminder:', error);
-      toast.error(error.response?.data?.detail || 'Failed to send reminder');
+      // Handle Pydantic validation errors which come as array of {type, loc, msg, input, ctx}
+      const detail = error.response?.data?.detail;
+      const errorMsg = Array.isArray(detail) 
+        ? detail.map(e => e.msg || e.message || JSON.stringify(e)).join(', ') 
+        : (typeof detail === 'string' ? detail : 'Failed to send reminder');
+      toast.error(errorMsg);
     } finally {
       setSendingReminder(null);
     }
@@ -588,7 +590,10 @@ export default function ESGTrackingTab({
     }
     
     setAssignForm({
-      assigned_user_ids: item.assigned_to_user_id ? [item.assigned_to_user_id] : [],
+      // Pre-populate with ALL current assignees, not just the primary one
+      assigned_user_ids: item.assignees?.length > 0 
+        ? item.assignees.map(a => a.user_id) 
+        : (item.assigned_to_user_id ? [item.assigned_to_user_id] : []),
       due_date: formattedDueDate,
       filling_frequency: item.filling_frequency || '',
       reminder_enabled: !!(item.reminder_enabled || item.last_reminder_sent_at),
@@ -922,9 +927,23 @@ export default function ESGTrackingTab({
                       <TableCell>
                         {disc.is_assigned ? (
                           <div className="text-sm">
-                            <div className="font-medium">{disc.assigned_to_user_name || 'Unknown'}</div>
-                            {disc.assigned_to_user_email && (
-                              <div className="text-xs text-text-muted">{disc.assigned_to_user_email}</div>
+                            {disc.assignees?.length > 1 ? (
+                              <>
+                                <div className="font-medium">
+                                  {disc.assignees[0]?.user_name || disc.assigned_to_user_name || 'Unknown'}
+                                  <span className="text-text-muted font-normal"> + {disc.assignees.length - 1} other{disc.assignees.length > 2 ? 's' : ''}</span>
+                                </div>
+                                <div className="text-xs text-text-muted">
+                                  {disc.assignees.map(a => a.user_name || a.user_email).join(', ')}
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="font-medium">{disc.assignees?.[0]?.user_name || disc.assigned_to_user_name || 'Unknown'}</div>
+                                {(disc.assignees?.[0]?.user_email || disc.assigned_to_user_email) && (
+                                  <div className="text-xs text-text-muted">{disc.assignees?.[0]?.user_email || disc.assigned_to_user_email}</div>
+                                )}
+                              </>
                             )}
                           </div>
                         ) : (

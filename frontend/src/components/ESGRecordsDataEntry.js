@@ -52,7 +52,8 @@ import {
   Plus, Search, Filter, History, FileText, Upload, 
   ChevronLeft, ChevronRight, Loader2, Building2, Calendar,
   Trash2, Edit2, Eye, X, Save, FileEdit, RefreshCw,
-  CheckCircle2, Clock, AlertTriangle, Lock, Link2, Paperclip, Download
+  CheckCircle2, Clock, AlertTriangle, Lock, Link2, Paperclip, Download,
+  ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -60,6 +61,28 @@ const API = BACKEND_URL;
 
 // Months for monthly reporting
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+// Sortable header component for table columns
+const SortableTableHead = ({ label, sortKey, currentSort, onSort, className = '' }) => {
+  const isActive = currentSort.key === sortKey;
+  const Icon = isActive ? (currentSort.direction === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
+  
+  return (
+    <TableHead className={className}>
+      <button
+        onClick={() => onSort(sortKey)}
+        className="flex items-center gap-1 hover:text-stone-900 transition-colors"
+      >
+        <span>{label}</span>
+        <Icon className={`w-3 h-3 ${isActive ? 'text-emerald-600' : 'text-stone-400'}`} />
+      </button>
+    </TableHead>
+  );
+};
+
+// "Others" is a virtual category that groups: Climate Change, Material, Other Emissions
+const OTHERS_CATEGORIES = ['Climate Change', 'Material', 'Other Emissions'];
+const isOthersCategory = (category) => category === 'Others';
 
 /**
  * ESG Records Data Entry
@@ -98,6 +121,9 @@ export default function ESGRecordsDataEntry({
     facility_id: '',
     search: ''
   });
+  
+  // Sorting state
+  const [sort, setSort] = useState({ key: null, direction: 'desc' });
   
   // Modal states
   const [showVersionsModal, setShowVersionsModal] = useState(false);
@@ -241,9 +267,13 @@ export default function ESGRecordsDataEntry({
     if (mode === 'add' && preFilterCategory) {
       const periodFields = getPeriodFieldsFromDate(preFilterPeriodStart, preFilterFrequency);
       console.log('ESGRecordsDataEntry - preFilterPeriodStart:', preFilterPeriodStart, 'preFilterFrequency:', preFilterFrequency, 'periodFields:', periodFields);
+      
+      // Don't pre-set category for "Others" - let user choose from Climate Change, Material, Other Emissions
+      const categoryToSet = isOthersCategory(preFilterCategory) ? '' : preFilterCategory;
+      
       setFormData(prev => ({
         ...prev,
-        category: preFilterCategory,
+        category: categoryToSet,
         subcategory: preFilterSubcategory || '',
         reporting_type: preFilterFrequency ? getReportingTypeFromFrequency(preFilterFrequency) : prev.reporting_type,
         ...periodFields,
@@ -253,7 +283,8 @@ export default function ESGRecordsDataEntry({
 
   // Fetch category config when categories are loaded and preFilter is set (for add mode)
   useEffect(() => {
-    if (mode === 'add' && preFilterCategory && categories.length > 0) {
+    // Skip fetching category config for "Others" since it's a virtual category
+    if (mode === 'add' && preFilterCategory && categories.length > 0 && !isOthersCategory(preFilterCategory)) {
       fetchAddFormCategory(preFilterCategory, preFilterSubcategory || '');
     }
   }, [preFilterCategory, preFilterSubcategory, categories, mode]);
@@ -304,6 +335,66 @@ export default function ESGRecordsDataEntry({
     }
   };
 
+  // Handle sort toggle
+  const handleSort = (key) => {
+    setSort(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  // Get period string for sorting
+  const getPeriodSortValue = (record) => {
+    const rp = record.reporting_period || {};
+    const year = rp.year || rp.financial_year || rp.calendar_year || 0;
+    const month = rp.month || '00';
+    const quarter = rp.quarter || '';
+    // Create sortable string: YYYY-MM or YYYY-QQ
+    if (quarter) {
+      const qNum = quarter.replace('Q', '');
+      return `${year}-Q${qNum}`;
+    }
+    return `${year}-${String(month).padStart(2, '0')}`;
+  };
+
+  // Sorted records
+  const sortedRecords = useMemo(() => {
+    if (!sort.key) return records;
+    
+    return [...records].sort((a, b) => {
+      let aVal, bVal;
+      
+      switch (sort.key) {
+        case 'category':
+          aVal = `${a.category || ''} ${a.subcategory || ''}`.toLowerCase();
+          bVal = `${b.category || ''} ${b.subcategory || ''}`.toLowerCase();
+          break;
+        case 'facility':
+          aVal = (a.facility_name || 'zzz').toLowerCase(); // 'zzz' puts Org Level at end
+          bVal = (b.facility_name || 'zzz').toLowerCase();
+          break;
+        case 'period':
+          aVal = getPeriodSortValue(a);
+          bVal = getPeriodSortValue(b);
+          break;
+        case 'status':
+          aVal = (a.operational_status || a.status || '').toLowerCase();
+          bVal = (b.operational_status || b.status || '').toLowerCase();
+          break;
+        case 'updated':
+          aVal = a.updated_at || a.created_at || '';
+          bVal = b.updated_at || b.created_at || '';
+          break;
+        default:
+          return 0;
+      }
+      
+      if (aVal < bVal) return sort.direction === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sort.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [records, sort]);
+
   const fetchRecords = async () => {
     setLoading(true);
     try {
@@ -312,7 +403,14 @@ export default function ESGRecordsDataEntry({
         limit: pagination.limit,
         framework
       };
-      if (filters.category) params.category = filters.category;
+      
+      // Handle "Others" as a virtual category that maps to multiple real categories
+      if (isOthersCategory(filters.category) || isOthersCategory(preFilterCategory)) {
+        params.categories = OTHERS_CATEGORIES.join(',');
+      } else if (filters.category) {
+        params.category = filters.category;
+      }
+      
       if (filters.status) params.status = filters.status;
       if (filters.facility_id) params.facility_id = filters.facility_id;
       if (filters.search) params.search = filters.search;
@@ -347,7 +445,12 @@ export default function ESGRecordsDataEntry({
   const fetchStats = async () => {
     try {
       const params = {};
-      if (filters.category) params.category = filters.category;
+      // Handle "Others" as a virtual category
+      if (isOthersCategory(filters.category) || isOthersCategory(preFilterCategory)) {
+        params.categories = OTHERS_CATEGORIES.join(',');
+      } else if (filters.category) {
+        params.category = filters.category;
+      }
       if (filters.subcategory) params.subcategory = filters.subcategory;
       const res = await axios.get(`${API}/api/esg-records/stats/${section}`, { params, headers });
       setStats(res.data);
@@ -409,7 +512,19 @@ export default function ESGRecordsDataEntry({
       if (formData.reporting_type === 'daily' || formData.reporting_type === 'weekly') {
         reportingPeriod.date = formData.reporting_date;
       } else if (formData.reporting_type === 'monthly') {
-        reportingPeriod.year = formData.reporting_year;
+        // For financial year, calculate actual calendar year based on month
+        // FY runs Apr-Mar, so Jan/Feb/Mar belong to the next calendar year
+        let actualYear = formData.reporting_year;
+        if (reportingYearType === 'financial_year') {
+          const monthNum = typeof formData.reporting_month === 'number' 
+            ? formData.reporting_month 
+            : MONTHS.indexOf(formData.reporting_month) + 1;
+          // Jan (1), Feb (2), Mar (3) belong to next calendar year in FY
+          if (monthNum >= 1 && monthNum <= 3) {
+            actualYear = formData.reporting_year + 1;
+          }
+        }
+        reportingPeriod.year = actualYear;
         reportingPeriod.month = formData.reporting_month;
       } else if (formData.reporting_type === 'quarterly') {
         reportingPeriod.year = formData.reporting_year;
@@ -614,7 +729,19 @@ export default function ESGRecordsDataEntry({
       if (editData.reporting_type === 'daily' || editData.reporting_type === 'weekly') {
         reportingPeriod.date = editData.reporting_date;
       } else if (editData.reporting_type === 'monthly') {
-        reportingPeriod.year = editData.reporting_year;
+        // For financial year, calculate actual calendar year based on month
+        // FY runs Apr-Mar, so Jan/Feb/Mar belong to the next calendar year
+        let actualYear = editData.reporting_year;
+        if (reportingYearType === 'financial_year') {
+          const monthNum = typeof editData.reporting_month === 'number' 
+            ? editData.reporting_month 
+            : MONTHS.indexOf(editData.reporting_month) + 1;
+          // Jan (1), Feb (2), Mar (3) belong to next calendar year in FY
+          if (monthNum >= 1 && monthNum <= 3) {
+            actualYear = editData.reporting_year + 1;
+          }
+        }
+        reportingPeriod.year = actualYear;
         reportingPeriod.month = editData.reporting_month;
       } else if (editData.reporting_type === 'quarterly') {
         reportingPeriod.year = editData.reporting_year;
@@ -762,15 +889,21 @@ export default function ESGRecordsDataEntry({
                 setFormData(prev => ({ ...prev, category: v, subcategory: '', field_values: {} }));
                 fetchAddFormCategory(v, '');
               }}
-              disabled={!!preFilterCategory}
+              disabled={!!preFilterCategory && !isOthersCategory(preFilterCategory)}
             >
               <SelectTrigger className={formErrors.category ? 'border-red-500' : ''}>
                 <SelectValue placeholder="Select category" />
               </SelectTrigger>
               <SelectContent>
-                {[...new Set(categories.map(c => c.category))].map(cat => (
-                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                ))}
+                {/* When preFilterCategory is "Others", show only the OTHERS_CATEGORIES */}
+                {isOthersCategory(preFilterCategory)
+                  ? OTHERS_CATEGORIES.map(cat => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))
+                  : [...new Set(categories.map(c => c.category))].map(cat => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))
+                }
               </SelectContent>
             </Select>
             {formErrors.category && <p className="text-xs text-red-500">{formErrors.category}</p>}
@@ -851,7 +984,10 @@ export default function ESGRecordsDataEntry({
               </SelectTrigger>
               <SelectContent>
                 {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i + 1).map(year => (
-                  <SelectItem key={year} value={String(year)}>{reportingYearType === 'financial_year' ? `FY ${year}-${year + 1}` : (formData.reporting_type === 'yearly' ? `CY ${year}` : year)}</SelectItem>
+                  <SelectItem key={year} value={String(year)}>
+                    {/* For yearly: show FY/CY label. For monthly/quarterly: show FY label to help user know which FY they're entering */}
+                    {reportingYearType === 'financial_year' ? `FY ${year}-${year + 1}` : (formData.reporting_type === 'yearly' ? `CY ${year}` : year)}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -1102,11 +1238,11 @@ export default function ESGRecordsDataEntry({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Category</TableHead>
-              <TableHead>Facility</TableHead>
-              <TableHead>Period</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Updated</TableHead>
+              <SortableTableHead label="Category" sortKey="category" currentSort={sort} onSort={handleSort} />
+              <SortableTableHead label="Facility" sortKey="facility" currentSort={sort} onSort={handleSort} />
+              <SortableTableHead label="Period" sortKey="period" currentSort={sort} onSort={handleSort} />
+              <SortableTableHead label="Status" sortKey="status" currentSort={sort} onSort={handleSort} />
+              <SortableTableHead label="Updated" sortKey="updated" currentSort={sort} onSort={handleSort} />
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -1124,21 +1260,28 @@ export default function ESGRecordsDataEntry({
                 </TableCell>
               </TableRow>
             ) : (
-              records.map(record => {
+              sortedRecords.map(record => {
                 const hasDraft = drafts.some(d => d.record_id === record.id);
                 const isImported = record.source_type === 'ghg_import';
                 const isLocked = record.is_locked || isImported;
                 const reportingPeriod = record.reporting_period || {};
                 const reportingMonth = reportingPeriod.month;
                 const reportingYear = reportingPeriod.year;
-                const isFY = reportingYearType === 'financial_year';
-                const fyLabel = reportingYear ? `FY ${reportingYear}-${reportingYear + 1}` : '-';
-                const yearDisplay = isFY && reportingYear ? fyLabel : (reportingYear || '-');
-                const periodLabel = reportingPeriod.reporting_type === 'yearly'
-                  ? (reportingPeriod.financial_year || reportingPeriod.calendar_year || fyLabel)
-                  : reportingPeriod.reporting_type === 'quarterly'
-                    ? `${reportingPeriod.quarter || ''} ${yearDisplay}`.trim()
-                    : `${reportingMonth ? MONTHS[Number(reportingMonth) - 1] || reportingMonth : ''} ${yearDisplay}`.trim() || '-';
+                
+                // For monthly/quarterly: show simple "Month Year" or "Q1 Year" format
+                // For yearly: show "FY XXXX-XX" or "CY XXXX"
+                let periodLabel = '-';
+                if (reportingPeriod.reporting_type === 'yearly') {
+                  periodLabel = reportingPeriod.financial_year || reportingPeriod.calendar_year || `FY ${reportingYear}-${reportingYear + 1}`;
+                } else if (reportingPeriod.reporting_type === 'quarterly') {
+                  periodLabel = `${reportingPeriod.quarter || ''} ${reportingYear || ''}`.trim();
+                } else if (reportingPeriod.reporting_type === 'monthly' || reportingPeriod.reporting_type === 'daily') {
+                  // Simple format: "June 2026" or "Feb 2027"
+                  const monthDisplay = reportingMonth 
+                    ? (MONTHS[Number(reportingMonth) - 1] || reportingMonth)
+                    : '';
+                  periodLabel = `${monthDisplay} ${reportingYear || ''}`.trim() || '-';
+                }
                 
                 return (
                   <TableRow key={record.id} className={`${hasDraft ? 'bg-yellow-50' : ''} ${isImported ? 'bg-emerald-50/30' : ''}`}>

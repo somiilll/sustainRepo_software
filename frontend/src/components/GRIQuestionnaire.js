@@ -813,6 +813,44 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
 
   return (
     <div className="space-y-4">
+      {/* Overall Progress Summary */}
+      {(() => {
+        const overall = disclosures.reduce((acc, d) => {
+          const c = getDisclosureCompletion(d);
+          acc.total += c.total;
+          acc.completed += c.completed;
+          return acc;
+        }, { total: 0, completed: 0 });
+        const overallPct = overall.total > 0 ? Math.round((overall.completed / overall.total) * 100) : 0;
+        const completedDisclosures = disclosures.filter(d => getDisclosureCompletion(d).percentage === 100).length;
+
+        return (
+          <div className="flex items-center justify-between p-4 bg-stone-50 rounded-lg border" data-testid="gri-progress-summary">
+            <div className="flex items-center gap-4">
+              <div>
+                <p className="text-sm font-semibold text-stone-800">
+                  {section === 'environment' ? 'GRI 300 – Environment' : section === 'social' ? 'GRI 400 – Social' : 'GRI 200 – Governance'}
+                </p>
+                <p className="text-xs text-stone-500 mt-0.5">
+                  {disclosures.length} disclosures · {overall.total} questions · {completedDisclosures} disclosures complete
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {overallPct === 100
+                ? <CheckCircle2 className="w-5 h-5 text-green-600" />
+                : <Circle className="w-5 h-5 text-stone-300" />}
+              <div className="w-32 h-2 rounded-full bg-stone-200 overflow-hidden">
+                <div className="h-full rounded-full bg-blue-600 transition-all duration-500" style={{ width: `${overallPct}%` }} />
+              </div>
+              <span className="text-sm font-medium tabular-nums text-stone-700 w-20 text-right">
+                {overall.completed}/{overall.total} ({overallPct}%)
+              </span>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Header with Reporting Year Selector */}
       <Card className="p-4 bg-blue-50/50 border-blue-100">
         <div className="flex items-start justify-between gap-4">
@@ -863,37 +901,43 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
               {/* Disclosure Header */}
               <CollapsibleTrigger asChild>
                 <button
-                  className="w-full p-4 flex items-center justify-between hover:bg-stone-50 transition-colors text-left"
+                  className="w-full px-4 py-3 flex items-center justify-between hover:bg-stone-50 transition-colors text-left"
                   data-testid={`disclosure-trigger-${disclosure.disclosure_id}`}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
                     {isOpen ? (
-                      <ChevronDown className="w-5 h-5 text-stone-400" />
+                      <ChevronDown className="w-4 h-4 text-stone-400 shrink-0" />
                     ) : (
-                      <ChevronRight className="w-5 h-5 text-stone-400" />
+                      <ChevronRight className="w-4 h-4 text-stone-400 shrink-0" />
                     )}
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs font-mono bg-blue-50 text-blue-700 border-blue-200">
-                          {disclosure.disclosure_id}
-                        </Badge>
-                        <span className="font-medium text-text-primary">
-                          {disclosure.disclosure_name}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="secondary" className="text-xs">
-                          {disclosure.material_topic}
-                        </Badge>
-                        <span className="text-xs text-text-muted">
-                          {disclosure.questions.length} question{disclosure.questions.length !== 1 ? 's' : ''}
-                        </span>
-                      </div>
-                    </div>
+                    <Badge variant="outline" className="text-xs font-mono bg-blue-50 text-blue-700 border-blue-200 shrink-0">
+                      {disclosure.disclosure_id}
+                    </Badge>
+                    <span className="font-medium text-text-primary text-sm truncate">
+                      {disclosure.disclosure_name}
+                    </span>
+                    <Badge variant="secondary" className="text-[10px] shrink-0 hidden sm:inline-flex">
+                      {disclosure.material_topic}
+                    </Badge>
+                    {/* <span className="text-[11px] text-text-muted shrink-0">
+                      {disclosure.questions.length}q
+                    </span> */}
                   </div>
                   
-                  {/* Completion Badge */}
-                  <div className="flex items-center gap-2">
+                  {/* Completion Badge + Progress */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-20 h-1.5 rounded-full bg-stone-100 overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${completion.percentage}%`,
+                          backgroundColor: completion.percentage === 100 ? '#059669' : completion.completed > 0 ? '#f59e0b' : '#d6d3d1',
+                        }}
+                      />
+                    </div>
+                    <span className="text-xs tabular-nums text-stone-500 w-16 text-right">
+                      {completion.completed}/{completion.total}
+                    </span>
                     {completion.percentage === 100 ? (
                       <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
                         <CheckCircle2 className="w-3 h-3 mr-1" />
@@ -901,12 +945,11 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
                       </Badge>
                     ) : completion.completed > 0 ? (
                       <Badge variant="outline" className="text-amber-600 border-amber-200">
-                        {completion.completed}/{completion.total}
+                        {completion.percentage}%
                       </Badge>
                     ) : (
                       <Badge variant="outline" className="text-stone-400">
-                        <Circle className="w-3 h-3 mr-1" />
-                        Not Started
+                        0%
                       </Badge>
                     )}
                   </div>

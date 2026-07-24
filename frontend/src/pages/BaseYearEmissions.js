@@ -6,6 +6,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
+import { Badge } from '../components/ui/badge';
 import {
   Dialog,
   DialogContent,
@@ -35,7 +36,12 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table';
-import { Building, Building2, CalendarClock, Check, X, Loader2, History, Plus, AlertTriangle, Info, Eye, FileText, Trash2, Edit2, Leaf, AlertCircle, PlusCircle } from 'lucide-react';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '../components/ui/collapsible';
+import { Building, Building2, CalendarClock, Check, X, Loader2, History, Plus, AlertTriangle, Info, Eye, FileText, Trash2, Edit2, Leaf, AlertCircle, PlusCircle, ChevronDown, ChevronRight, Search, MapPin, Filter } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -109,6 +115,12 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
   const [biogenicFuels, setBiogenicFuels] = useState([]); // Fuel names for Biogenic (Direct)
   const [biogenicIndirectCategories] = useState(['C3', 'C8', 'C10', 'C11', 'C13', 'C14']); // Fixed categories for Biogenic (Indirect)
   const [biogenicIndirectSubcategories, setBiogenicIndirectSubcategories] = useState([]); // Subcategories for Biogenic (Indirect)
+
+  // Accordion and filter states for redesigned UI
+  const [expandedFacility, setExpandedFacility] = useState(null); // Only one facility expanded at a time
+  const [expandedOrganization, setExpandedOrganization] = useState(false); // Organization accordion state
+  const [facilitySearch, setFacilitySearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'configured', 'pending', 'missing'
 
   // Check if organization has Scope 3 access
   const hasScope3Access = organization?.enabled_access?.includes('scope1_2_3') || false;
@@ -1413,6 +1425,83 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
     ? facilities.filter(f => (user.assigned_facilities || []).includes(f.id))
     : facilities;
 
+  // Get facility status based on base year configuration
+  const getFacilityStatus = (facilityId) => {
+    const scope12Record = getEntityRecord('facility', facilityId, 'scope12');
+    const scope3Record = hasScope3Access ? getEntityRecord('facility', facilityId, 'scope3') : null;
+    
+    if (hasScope3Access) {
+      if (scope12Record && scope3Record) return 'configured';
+      if (scope12Record || scope3Record) return 'pending';
+      return 'missing';
+    } else {
+      return scope12Record ? 'configured' : 'missing';
+    }
+  };
+
+  // Filter facilities by search and status
+  const filteredFacilities = visibleFacilities.filter(facility => {
+    // Search filter
+    const searchLower = facilitySearch.toLowerCase();
+    const matchesSearch = !facilitySearch || 
+      facility.name?.toLowerCase().includes(searchLower) ||
+      facility.city?.toLowerCase().includes(searchLower) ||
+      facility.state?.toLowerCase().includes(searchLower);
+    
+    if (!matchesSearch) return false;
+    
+    // Status filter
+    if (statusFilter === 'all') return true;
+    const facilityStatus = getFacilityStatus(facility.id);
+    return facilityStatus === statusFilter;
+  });
+
+  // Get status badge - returns JSX (not a component to avoid reconciliation issues)
+  const getStatusBadge = (status) => {
+    const config = {
+      configured: { label: 'Configured', className: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+      pending: { label: 'Pending', className: 'bg-amber-100 text-amber-700 border-amber-200' },
+      missing: { label: 'Missing', className: 'bg-stone-100 text-stone-600 border-stone-200' }
+    };
+    const { label, className } = config[status] || config.missing;
+    return <Badge variant="outline" className={`text-xs ${className}`}>{label}</Badge>;
+  };
+
+  // Handle accordion toggle - only one can be open (facilities collapse when org opens and vice versa)
+  const handleAccordionToggle = (facilityId) => {
+    if (expandedFacility === facilityId) {
+      setExpandedFacility(null);
+    } else {
+      setExpandedFacility(facilityId);
+      setExpandedOrganization(false); // Collapse org when facility opens
+    }
+  };
+
+  // Handle organization accordion toggle
+  const handleOrgAccordionToggle = () => {
+    if (expandedOrganization) {
+      setExpandedOrganization(false);
+    } else {
+      setExpandedOrganization(true);
+      setExpandedFacility(null); // Collapse facilities when org opens
+    }
+  };
+
+  // Get organization status based on base year configuration
+  const getOrganizationStatus = () => {
+    if (!organization) return 'missing';
+    const scope12Record = getEntityRecord('organization', organization.id, 'scope12');
+    const scope3Record = hasScope3Access ? getEntityRecord('organization', organization.id, 'scope3') : null;
+    
+    if (hasScope3Access) {
+      if (scope12Record && scope3Record) return 'configured';
+      if (scope12Record || scope3Record) return 'pending';
+      return 'missing';
+    } else {
+      return scope12Record ? 'configured' : 'missing';
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -1532,6 +1621,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
 
   return (
     <div className="space-y-6">
+      {/* Page Header */}
       {!hideTopHeader && (
         <div>
           <h1 className="text-2xl font-heading font-bold text-text-primary">Base Year Emissions</h1>
@@ -1541,77 +1631,426 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
         </div>
       )}
 
-      {/* Info Banner */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
-        <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
-        <div className="text-sm text-blue-800">
-          <p className="font-medium">What is Base Year Emissions?</p>
-          <p className="mt-1">
-            Base year emissions serve as a reference point for tracking your organization's GHG reduction progress over time. 
-            {hasScope3Access 
-              ? <>Configure base years for <strong>Scope 1 & 2</strong> (direct and energy emissions) and <strong>Scope 3</strong> (value chain emissions).</>
-              : <>Configure base years for <strong>Scope 1 & 2</strong> (direct and energy emissions).</>
-            }
-          </p>
-        </div>
-      </div>
-
-      {/* Organization Section - Visible to all users (read-only for non-admins) */}
-      {(user?.role === 'admin' || user?.role === 'user') && organization && (
-        <div className="space-y-3">
+      {/* ========== UNIFIED BASE YEAR SECTION ========== */}
+      <div className="space-y-4">
+        {/* Section Header with Search and Filter */}
+        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
           <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
-            <Building className="w-5 h-5" />
-            Organization - {organization.name}
-            {user?.role === 'user' && (
-              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">(View Only)</span>
-            )}
+            <Building2 className="w-5 h-5 text-primary" />
+            Base Years
           </h2>
-          <Card>
-            <CardContent className="pt-4">
-              <div className={`grid gap-4 ${hasScope3Access ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                {renderScopeGroupCard('organization', organization.id, organization.name, 'scope12')}
-                {hasScope3Access && renderScopeGroupCard('organization', organization.id, organization.name, 'scope3')}
-              </div>
-            </CardContent>
-          </Card>
+          
+          {/* Search and Filter Controls */}
+          <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+            {/* Search Box */}
+            <div className="relative flex-1 sm:flex-initial sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+              <Input
+                type="text"
+                placeholder="Search..."
+                value={facilitySearch}
+                onChange={(e) => setFacilitySearch(e.target.value)}
+                className="pl-9 h-9 text-sm"
+              />
+            </div>
+            
+            {/* Filter Chips */}
+            <div className="flex gap-2 items-center">
+              {['all', 'configured', 'pending', 'missing'].map((filter) => (
+                <button
+                  key={filter}
+                  onClick={() => setStatusFilter(filter)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+                    statusFilter === filter
+                      ? 'bg-primary text-white'
+                      : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                  }`}
+                >
+                  {filter === 'all' ? 'All' : filter.charAt(0).toUpperCase() + filter.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
-      )}
 
-      {/* Facilities Cards */}
-      <div className="space-y-3">
-        <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
-          <Building2 className="w-5 h-5" />
-          Facilities
-        </h2>
-        
-        {visibleFacilities.length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-center text-text-muted">
+        {/* Unified Accordion List */}
+        <div className="border border-stone-200 rounded-xl overflow-hidden bg-white shadow-sm">
+          
+          {/* ========== ORGANIZATION ROW ========== */}
+          {(user?.role === 'admin' || user?.role === 'user') && organization && (statusFilter === 'all' || statusFilter === getOrganizationStatus()) && (
+            <div className="bg-gradient-to-r from-primary/5 to-transparent">
+              {/* Organization Collapsed Row */}
+              <button
+                onClick={handleOrgAccordionToggle}
+                className={`w-full px-4 py-3 flex items-center gap-4 hover:bg-stone-50/50 transition-colors text-left ${expandedOrganization ? 'bg-stone-50/50' : ''}`}
+              >
+                {/* Expand/Collapse Icon */}
+                <div className="flex-shrink-0">
+                  {expandedOrganization ? (
+                    <ChevronDown className="w-5 h-5 text-text-muted" />
+                  ) : (
+                    <ChevronRight className="w-5 h-5 text-text-muted" />
+                  )}
+                </div>
+                
+                {/* Organization Name */}
+                <div className="min-w-0 w-40 sm:w-48">
+                  <div className="flex items-center gap-2">
+                    <Building className="w-4 h-4 text-primary flex-shrink-0" />
+                    <p className="font-semibold text-text-primary truncate">{organization.name}</p>
+                  </div>
+                </div>
+                
+                {/* Type Column */}
+                <div className="hidden sm:block min-w-[100px]">
+                  <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs">
+                    Organization
+                  </Badge>
+                </div>
+                
+                {/* Spacer - pushes scope cards to the right */}
+                <div className="w-40" />
+                
+                {/* Scope 1 & 2 Base Year - Clickable Card */}
+                <div 
+                  className="hidden sm:block min-w-[120px] p-2 rounded-lg bg-blue-50/50 border border-blue-100 hover:bg-blue-100/50 transition-colors cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const record = getEntityRecord('organization', organization.id, 'scope12');
+                    if (record) {
+                      setViewRecord(record);
+                      setShowViewDialog(true);
+                    } else if (user?.role === 'admin') {
+                      handleEntityClick('organization', organization.id, organization.name, 'scope12');
+                    }
+                  }}
+                >
+                  <p className="text-xs text-blue-600 font-medium">Scope 1 & 2</p>
+                  <p className="text-sm font-semibold text-text-primary">
+                    {getEntityRecord('organization', organization.id, 'scope12')?.base_year || '—'}
+                  </p>
+                </div>
+
+                 <div className="w-20" />
+                
+                {/* Scope 3 Base Year - Clickable Card */}
+                {hasScope3Access && (
+                  <div 
+                    className="hidden sm:block min-w-[120px] p-2 rounded-lg bg-purple-50/50 border border-purple-100 hover:bg-purple-100/50 transition-colors cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const record = getEntityRecord('organization', organization.id, 'scope3');
+                      if (record) {
+                        setViewRecord(record);
+                        setShowViewDialog(true);
+                      } else if (user?.role === 'admin') {
+                        handleEntityClick('organization', organization.id, organization.name, 'scope3');
+                      }
+                    }}
+                  >
+                    <p className="text-xs text-purple-600 font-medium">Scope 3</p>
+                    <p className="text-sm font-semibold text-text-primary">
+                      {getEntityRecord('organization', organization.id, 'scope3')?.base_year || '—'}
+                    </p>
+                  </div>
+                )}
+                
+                {/* Gap before status */}
+                <div className="flex-1" />
+                
+                {/* Status Badge */}
+                <div className="flex-shrink-0">
+                  {getStatusBadge(getOrganizationStatus())}
+                </div>
+                
+                {/* View Only Badge for users */}
+                {user?.role === 'user' && (
+                  <Badge variant="outline" className="text-xs bg-stone-50 flex-shrink-0">View Only</Badge>
+                )}
+              </button>
+              
+              {/* Organization Expanded Content */}
+              {expandedOrganization && (
+                <div className="px-4 py-4 bg-stone-50/50 border-t border-stone-100">
+                  <div className={`grid gap-4 ${hasScope3Access ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 max-w-md'}`}>
+                    {/* Scope 1 & 2 Panel */}
+                    {(() => {
+                      const scope12Record = getEntityRecord('organization', organization.id, 'scope12');
+                      const isOrgReadOnly = user?.role === 'user';
+                      return (
+                        <div className="bg-white rounded-lg border border-stone-200 p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <Badge className="bg-blue-100 text-blue-700 border-blue-200">Scope 1 & 2</Badge>
+                            {scope12Record ? (
+                              <span className="font-semibold text-text-primary">{scope12Record.base_year}</span>
+                            ) : (
+                              getStatusBadge("missing")
+                            )}
+                          </div>
+                          
+                          {scope12Record ? (
+                            <div className="flex flex-wrap gap-2">
+                              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); handleViewHistory(scope12Record); }}>
+                                <History className="w-3 h-3 mr-1" /> History
+                              </Button>
+                              {!isOrgReadOnly && (
+                                <>
+                                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope12'); handleEditEmissions(scope12Record); }}>
+                                    <Edit2 className="w-3 h-3 mr-1" /> Edit
+                                  </Button>
+                                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope12'); handleChangeYear(scope12Record); }}>
+                                    <CalendarClock className="w-3 h-3 mr-1" /> Change
+                                  </Button>
+                                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50" onClick={(e) => { e.stopPropagation(); handleDeleteRecord(scope12Record.id); }}>
+                                    <Trash2 className="w-3 h-3 mr-1" /> Delete
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          ) : !isOrgReadOnly ? (
+                            <Button variant="outline" size="sm" className="text-xs" onClick={(e) => { e.stopPropagation(); handleEntityClick('organization', organization.id, organization.name, 'scope12'); }}>
+                              <Plus className="w-3 h-3 mr-1" /> Set Up Base Year
+                            </Button>
+                          ) : (
+                            <p className="text-xs text-text-muted">Not configured</p>
+                          )}
+                        </div>
+                      );
+                    })()}
+                    
+                    {/* Scope 3 Panel (if enabled) */}
+                    {hasScope3Access && (() => {
+                      const scope3Record = getEntityRecord('organization', organization.id, 'scope3');
+                      const isOrgReadOnly = user?.role === 'user';
+                      return (
+                        <div className="bg-white rounded-lg border border-stone-200 p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <Badge className="bg-purple-100 text-purple-700 border-purple-200">Scope 3</Badge>
+                            {scope3Record ? (
+                              <span className="font-semibold text-text-primary">{scope3Record.base_year}</span>
+                            ) : (
+                              getStatusBadge("missing")
+                            )}
+                          </div>
+                          
+                          {scope3Record ? (
+                            <div className="flex flex-wrap gap-2">
+                              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); handleViewHistory(scope3Record); }}>
+                                <History className="w-3 h-3 mr-1" /> History
+                              </Button>
+                              {!isOrgReadOnly && (
+                                <>
+                                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope3'); handleEditEmissions(scope3Record); }}>
+                                    <Edit2 className="w-3 h-3 mr-1" /> Edit
+                                  </Button>
+                                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope3'); handleChangeYear(scope3Record); }}>
+                                    <CalendarClock className="w-3 h-3 mr-1" /> Change
+                                  </Button>
+                                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50" onClick={(e) => { e.stopPropagation(); handleDeleteRecord(scope3Record.id); }}>
+                                    <Trash2 className="w-3 h-3 mr-1" /> Delete
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          ) : !isOrgReadOnly ? (
+                            <Button variant="outline" size="sm" className="text-xs" onClick={(e) => { e.stopPropagation(); handleEntityClick('organization', organization.id, organization.name, 'scope3'); }}>
+                              <Plus className="w-3 h-3 mr-1" /> Set Up Base Year
+                            </Button>
+                          ) : (
+                            <p className="text-xs text-text-muted">Not configured</p>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* ========== FACILITY ROWS ========== */}
+          {visibleFacilities.length === 0 ? (
+            <div className="py-8 text-center text-text-muted border-t border-stone-100">
               {user?.role === 'user' 
                 ? 'No facilities assigned to you yet.'
                 : 'No facilities found. Add facilities first.'}
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2">
-            {visibleFacilities.map(facility => (
-              <Card key={facility.id}>
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base">{facility.name}</CardTitle>
-                    <CardDescription className="text-xs">{facility.city}, {facility.state}</CardDescription>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className={`grid gap-3 ${hasScope3Access ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                    {renderScopeGroupCard('facility', facility.id, facility.name, 'scope12', true)}
-                    {hasScope3Access && renderScopeGroupCard('facility', facility.id, facility.name, 'scope3', true)}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+            </div>
+          ) : filteredFacilities.length === 0 ? (
+            <div className="py-8 text-center text-text-muted border-t border-stone-100">
+              No facilities match your search or filter criteria.
+            </div>
+          ) : (
+            filteredFacilities.map((facility) => {
+              const isExpanded = expandedFacility === facility.id;
+              const facilityStatus = getFacilityStatus(facility.id);
+              const scope12Record = getEntityRecord('facility', facility.id, 'scope12');
+              const scope3Record = hasScope3Access ? getEntityRecord('facility', facility.id, 'scope3') : null;
+              
+              return (
+                <div key={facility.id} className="border-t border-stone-100">
+                  {/* Collapsed Row */}
+                  <button
+                    onClick={() => handleAccordionToggle(facility.id)}
+                    className={`w-full px-4 py-3 flex items-center gap-4 hover:bg-stone-50 transition-colors text-left ${isExpanded ? 'bg-stone-50' : ''}`}
+                  >
+                    {/* Expand/Collapse Icon */}
+                    <div className="flex-shrink-0">
+                      {isExpanded ? (
+                        <ChevronDown className="w-5 h-5 text-text-muted" />
+                      ) : (
+                        <ChevronRight className="w-5 h-5 text-text-muted" />
+                      )}
+                    </div>
+                    
+                    {/* Facility Name & Location */}
+                    <div className="min-w-0 w-40 sm:w-48">
+                      <p className="font-medium text-text-primary truncate">{facility.name}</p>
+                      <p className="text-xs text-text-muted flex items-center gap-1 truncate">
+                        <MapPin className="w-3 h-3" />
+                        {facility.city}, {facility.state}
+                      </p>
+                    </div>
+                    
+                    {/* Type Column */}
+                    <div className="hidden sm:block min-w-[100px]">
+                      <Badge variant="outline" className="bg-stone-50 text-stone-600 border-stone-200 text-xs">
+                        Facility
+                      </Badge>
+                    </div>
+                    
+                    {/* Spacer - pushes scope cards to the right */}
+                    <div className="w-40" />
+                    
+                    {/* Scope 1 & 2 Base Year - Clickable Card */}
+                    <div 
+                      className="hidden sm:block min-w-[120px] p-2 rounded-lg bg-blue-50/50 border border-blue-100 hover:bg-blue-100/50 transition-colors cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (scope12Record) {
+                          setViewRecord(scope12Record);
+                          setShowViewDialog(true);
+                        } else {
+                          handleEntityClick('facility', facility.id, facility.name, 'scope12');
+                        }
+                      }}
+                    >
+                      <p className="text-xs text-blue-600 font-medium">Scope 1 & 2</p>
+                      <p className="text-sm font-semibold text-text-primary">
+                        {scope12Record?.base_year || '—'}
+                      </p>
+                    </div>
+
+                    <div className="w-20" />
+                    
+                    {/* Scope 3 Base Year - Clickable Card */}
+                    {hasScope3Access && (
+                      <div 
+                        className="hidden sm:block min-w-[120px] p-2 rounded-lg bg-purple-50/50 border border-purple-100 hover:bg-purple-100/50 transition-colors cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (scope3Record) {
+                            setViewRecord(scope3Record);
+                            setShowViewDialog(true);
+                          } else {
+                            handleEntityClick('facility', facility.id, facility.name, 'scope3');
+                          }
+                        }}
+                      >
+                        <p className="text-xs text-purple-600 font-medium">Scope 3</p>
+                        <p className="text-sm font-semibold text-text-primary">
+                          {scope3Record?.base_year || '—'}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Gap before status */}
+                    <div className="flex-1" />
+                    
+                    {/* Status Badge */}
+                    <div className="flex-shrink-0">
+                      {getStatusBadge(facilityStatus)}
+                    </div>
+                  </button>
+                  
+                  {/* Expanded Content */}
+                  {isExpanded && (
+                    <div className="px-4 py-4 bg-stone-50/50 border-t border-stone-100">
+                      <div className={`grid gap-4 ${hasScope3Access ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 max-w-md'}`}>
+                        {/* Scope 1 & 2 Section */}
+                        <div className="bg-white rounded-lg border border-stone-200 p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <Badge className="bg-blue-100 text-blue-700 border-blue-200">Scope 1 & 2</Badge>
+                            {scope12Record ? (
+                              <span className="font-semibold text-text-primary">{scope12Record.base_year}</span>
+                            ) : (
+                              getStatusBadge("missing")
+                            )}
+                          </div>
+                          
+                          {scope12Record ? (
+                            <div className="flex flex-wrap gap-2">
+                              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); handleViewHistory(scope12Record); }}>
+                                <History className="w-3 h-3 mr-1" /> History
+                              </Button>
+                              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope12'); handleEditEmissions(scope12Record); }}>
+                                <Edit2 className="w-3 h-3 mr-1" /> Edit
+                              </Button>
+                              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope12'); handleChangeYear(scope12Record); }}>
+                                <CalendarClock className="w-3 h-3 mr-1" /> Change
+                              </Button>
+                              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50" onClick={(e) => { e.stopPropagation(); handleDeleteRecord(scope12Record.id); }}>
+                                <Trash2 className="w-3 h-3 mr-1" /> Delete
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button variant="outline" size="sm" className="text-xs" onClick={(e) => { e.stopPropagation(); handleEntityClick('facility', facility.id, facility.name, 'scope12'); }}>
+                              <Plus className="w-3 h-3 mr-1" /> Set Up Base Year
+                            </Button>
+                          )}
+                        </div>
+                        
+                        {/* Scope 3 Section */}
+                        {hasScope3Access && (
+                          <div className="bg-white rounded-lg border border-stone-200 p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <Badge className="bg-purple-100 text-purple-700 border-purple-200">Scope 3</Badge>
+                              {scope3Record ? (
+                                <span className="font-semibold text-text-primary">{scope3Record.base_year}</span>
+                              ) : (
+                                getStatusBadge("missing")
+                              )}
+                            </div>
+                            
+                            {scope3Record ? (
+                              <div className="flex flex-wrap gap-2">
+                                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); handleViewHistory(scope3Record); }}>
+                                  <History className="w-3 h-3 mr-1" /> History
+                                </Button>
+                                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope3'); handleEditEmissions(scope3Record); }}>
+                                  <Edit2 className="w-3 h-3 mr-1" /> Edit
+                                </Button>
+                                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope3'); handleChangeYear(scope3Record); }}>
+                                  <CalendarClock className="w-3 h-3 mr-1" /> Change
+                                </Button>
+                                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50" onClick={(e) => { e.stopPropagation(); handleDeleteRecord(scope3Record.id); }}>
+                                  <Trash2 className="w-3 h-3 mr-1" /> Delete
+                                </Button>
+                              </div>
+                            ) : (
+                              <Button variant="outline" size="sm" className="text-xs" onClick={(e) => { e.stopPropagation(); handleEntityClick('facility', facility.id, facility.name, 'scope3'); }}>
+                                <Plus className="w-3 h-3 mr-1" /> Set Up Base Year
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
 
       {/* Setup Dialog */}
@@ -1892,7 +2331,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                 <div className="py-4 text-center text-text-muted">
                   <AlertTriangle className="w-8 h-8 mx-auto mb-2 text-amber-500" />
                   <p>No emission categories found.</p>
-                  <p className="text-xs mt-1">Click "Add Category" to manually add base year emissions.</p>
+                  <p className="text-xs mt-1">Click &quot;Add Category&quot; to manually add base year emissions.</p>
                 </div>
               ) : emissionsData.length > 0 && (
                 <div className="max-h-72 overflow-y-auto border rounded-lg">
@@ -2254,7 +2693,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
               <div className="py-4 text-center text-text-muted">
                 <AlertTriangle className="w-8 h-8 mx-auto mb-2 text-amber-500" />
                 <p>No emission data found.</p>
-                <p className="text-xs mt-1">Click "Add Category" to manually add base year emissions.</p>
+                <p className="text-xs mt-1">Click &quot;Add Category&quot; to manually add base year emissions.</p>
               </div>
             ) : emissionsData.length > 0 && (
               <div className="max-h-72 overflow-y-auto border rounded-lg">
