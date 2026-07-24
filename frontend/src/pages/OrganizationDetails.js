@@ -331,11 +331,8 @@ export default function OrganizationDetails() {
         }
       }
       
-      // Handle logo URL - ensure it has the full URL if it's a relative path
-      let logoUrl = response.data.logo || '';
-      if (logoUrl && !logoUrl.startsWith('http') && !logoUrl.startsWith('data:')) {
-        logoUrl = `${BACKEND_URL}${logoUrl.startsWith('/') ? '' : '/'}${logoUrl}`;
-      }
+      // Keep logo URL as stored in DB (relative path) - use getFullLogoUrl() for display only
+      const logoUrl = response.data.logo || '';
       
       setFormData({
         name: response.data.name,
@@ -792,7 +789,7 @@ export default function OrganizationDetails() {
                 <div className="flex items-center gap-4">
                   {formData.logo && !logoError ? (
                     <img 
-                      src={formData.logo} 
+                      src={getFullLogoUrl(formData.logo)} 
                       alt="Logo preview" 
                       className="w-16 h-16 object-contain border border-stone-200 rounded-lg"
                       onError={() => setLogoError(true)}
