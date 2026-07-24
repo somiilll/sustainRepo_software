@@ -625,12 +625,17 @@ async def get_category_progress_endpoint(
     
     return {
         "total": total,
+        "total_tasks": total,
         "completed": completed,
+        "completed_tasks": completed,
         "filled": completed,
         "pending": pending,
+        "pending_tasks": pending,
         "overdue": overdue,
+        "overdue_tasks": overdue,
         "percentage": percentage,
-        "last_updated": last_updated.isoformat() if last_updated else None,
+        "progress_percentage": percentage,
+        "last_updated": last_updated.isoformat() if isinstance(last_updated, datetime) else str(last_updated) if last_updated else None,
     }
 
 
@@ -693,12 +698,17 @@ async def get_bulk_progress_endpoint(
         
         result[key] = {
             "total": total,
+            "total_tasks": total,
             "completed": completed,
+            "completed_tasks": completed,
             "filled": completed,
             "pending": pending,
+            "pending_tasks": pending,
             "overdue": overdue,
+            "overdue_tasks": overdue,
             "percentage": round((completed / total) * 100, 1) if total > 0 else 0.0,
-            "last_updated": last_updated.isoformat() if last_updated else None,
+            "progress_percentage": round((completed / total) * 100, 1) if total > 0 else 0.0,
+            "last_updated": last_updated.isoformat() if isinstance(last_updated, datetime) else str(last_updated) if last_updated else None,
         }
     
     return result
