@@ -80,6 +80,10 @@ const SortableTableHead = ({ label, sortKey, currentSort, onSort, className = ''
   );
 };
 
+// "Others" is a virtual category that groups: Climate Change, Material, Other Emissions
+const OTHERS_CATEGORIES = ['Climate Change', 'Material', 'Other Emissions'];
+const isOthersCategory = (category) => category === 'Others';
+
 /**
  * ESG Records Data Entry
  * 
@@ -263,9 +267,13 @@ export default function ESGRecordsDataEntry({
     if (mode === 'add' && preFilterCategory) {
       const periodFields = getPeriodFieldsFromDate(preFilterPeriodStart, preFilterFrequency);
       console.log('ESGRecordsDataEntry - preFilterPeriodStart:', preFilterPeriodStart, 'preFilterFrequency:', preFilterFrequency, 'periodFields:', periodFields);
+      
+      // Don't pre-set category for "Others" - let user choose from Climate Change, Material, Other Emissions
+      const categoryToSet = isOthersCategory(preFilterCategory) ? '' : preFilterCategory;
+      
       setFormData(prev => ({
         ...prev,
-        category: preFilterCategory,
+        category: categoryToSet,
         subcategory: preFilterSubcategory || '',
         reporting_type: preFilterFrequency ? getReportingTypeFromFrequency(preFilterFrequency) : prev.reporting_type,
         ...periodFields,
@@ -275,7 +283,8 @@ export default function ESGRecordsDataEntry({
 
   // Fetch category config when categories are loaded and preFilter is set (for add mode)
   useEffect(() => {
-    if (mode === 'add' && preFilterCategory && categories.length > 0) {
+    // Skip fetching category config for "Others" since it's a virtual category
+    if (mode === 'add' && preFilterCategory && categories.length > 0 && !isOthersCategory(preFilterCategory)) {
       fetchAddFormCategory(preFilterCategory, preFilterSubcategory || '');
     }
   }, [preFilterCategory, preFilterSubcategory, categories, mode]);
@@ -394,7 +403,14 @@ export default function ESGRecordsDataEntry({
         limit: pagination.limit,
         framework
       };
-      if (filters.category) params.category = filters.category;
+      
+      // Handle "Others" as a virtual category that maps to multiple real categories
+      if (isOthersCategory(filters.category) || isOthersCategory(preFilterCategory)) {
+        params.categories = OTHERS_CATEGORIES.join(',');
+      } else if (filters.category) {
+        params.category = filters.category;
+      }
+      
       if (filters.status) params.status = filters.status;
       if (filters.facility_id) params.facility_id = filters.facility_id;
       if (filters.search) params.search = filters.search;
@@ -429,7 +445,12 @@ export default function ESGRecordsDataEntry({
   const fetchStats = async () => {
     try {
       const params = {};
-      if (filters.category) params.category = filters.category;
+      // Handle "Others" as a virtual category
+      if (isOthersCategory(filters.category) || isOthersCategory(preFilterCategory)) {
+        params.categories = OTHERS_CATEGORIES.join(',');
+      } else if (filters.category) {
+        params.category = filters.category;
+      }
       if (filters.subcategory) params.subcategory = filters.subcategory;
       const res = await axios.get(`${API}/api/esg-records/stats/${section}`, { params, headers });
       setStats(res.data);
@@ -868,15 +889,21 @@ export default function ESGRecordsDataEntry({
                 setFormData(prev => ({ ...prev, category: v, subcategory: '', field_values: {} }));
                 fetchAddFormCategory(v, '');
               }}
-              disabled={!!preFilterCategory}
+              disabled={!!preFilterCategory && !isOthersCategory(preFilterCategory)}
             >
               <SelectTrigger className={formErrors.category ? 'border-red-500' : ''}>
                 <SelectValue placeholder="Select category" />
               </SelectTrigger>
               <SelectContent>
-                {[...new Set(categories.map(c => c.category))].map(cat => (
-                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                ))}
+                {/* When preFilterCategory is "Others", show only the OTHERS_CATEGORIES */}
+                {isOthersCategory(preFilterCategory)
+                  ? OTHERS_CATEGORIES.map(cat => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))
+                  : [...new Set(categories.map(c => c.category))].map(cat => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))
+                }
               </SelectContent>
             </Select>
             {formErrors.category && <p className="text-xs text-red-500">{formErrors.category}</p>}

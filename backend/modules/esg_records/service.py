@@ -988,7 +988,10 @@ class ESGRecordsService:
         # Build query
         query = {"org_id": org_id, "is_current": True}
         
-        if filters.category:
+        # Handle single category or multiple categories
+        if filters.categories and len(filters.categories) > 0:
+            query["category"] = {"$in": filters.categories}
+        elif filters.category:
             query["category"] = filters.category
         if filters.subcategory:
             query["subcategory"] = filters.subcategory

@@ -207,6 +207,7 @@ async def create_record(
 async def list_records(
     section: ESG_SECTION,
     category: Optional[str] = None,
+    categories: Optional[str] = Query(None, description="Comma-separated list of categories (e.g., 'Climate Change,Material,Other Emissions')"),
     subcategory: Optional[str] = None,
     reporting_type: Optional[REPORTING_TYPE] = None,
     facility_id: Optional[str] = None,
@@ -265,8 +266,14 @@ async def list_records(
                 "message": "No categories assigned to you"
             }
     
+    # Parse comma-separated categories if provided
+    categories_list = None
+    if categories:
+        categories_list = [c.strip() for c in categories.split(",") if c.strip()]
+    
     filters = RecordListFilters(
         category=category,
+        categories=categories_list,
         subcategory=subcategory,
         reporting_type=reporting_type,
         facility_id=facility_id,
@@ -297,6 +304,13 @@ async def list_records(
             category=category,
             facility_id=facility_id
         )
+        
+        # Filter by categories list if provided (for "Others" page)
+        if categories_list and imported_records:
+            imported_records = [
+                r for r in imported_records
+                if r.get("category", "") in categories_list
+            ]
         
         # Filter imported records based on search if provided
         if search and imported_records:

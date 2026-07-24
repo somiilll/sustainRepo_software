@@ -277,8 +277,7 @@ const AppRoutes = () => {
           <Route path="environment/water" element={<Environment preFilterCategory="Water" />} />
           <Route path="environment/waste" element={<Environment preFilterCategory="Waste" />} />
           <Route path="environment/biodiversity" element={<Environment preFilterCategory="Biodiversity" />} />
-          <Route path="environment/climate-change" element={<Environment preFilterCategory="Climate Change" />} />
-          <Route path="environment/material" element={<Environment preFilterCategory="Material" />} />
+          <Route path="environment/others" element={<Environment preFilterCategory="Others" />} />
           <Route path="environment/analysis" element={<EnvironmentAnalysis />} />
           <Route path="environment/energy/analysis" element={<EnergyAnalysis />} />
           <Route path="environment/water/analysis" element={<WaterAnalysis />} />
