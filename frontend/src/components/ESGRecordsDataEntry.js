@@ -957,7 +957,10 @@ export default function ESGRecordsDataEntry({
               </SelectTrigger>
               <SelectContent>
                 {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i + 1).map(year => (
-                  <SelectItem key={year} value={String(year)}>{reportingYearType === 'financial_year' ? `FY ${year}-${year + 1}` : (formData.reporting_type === 'yearly' ? `CY ${year}` : year)}</SelectItem>
+                  <SelectItem key={year} value={String(year)}>
+                    {/* For yearly: show FY/CY label. For monthly/quarterly: show FY label to help user know which FY they're entering */}
+                    {reportingYearType === 'financial_year' ? `FY ${year}-${year + 1}` : (formData.reporting_type === 'yearly' ? `CY ${year}` : year)}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
