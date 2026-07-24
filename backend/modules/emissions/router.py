@@ -49,88 +49,16 @@ async def _mark_emission_task_completed(
     user_id: str,
 ) -> dict:
     """
-    Mark the corresponding ESG reporting task as completed when an emission record is saved.
+    DEPRECATED: Task status is now computed on-the-fly by CompletionService.
     
-    Finds the task by matching:
-    - organization_id
-    - facility_id
-    - category: "GHG Emissions"
-    - subcategory: mapped from scope (e.g., scope1 -> "GHG Emissions - Scope 1")
-    - period_key: matches the emission's reporting_period (e.g., "2026-07")
+    This function is kept as a no-op for backward compatibility during the transition.
+    Task status should NOT be stored/synced - it's derived from actual data existence.
     
-    Returns summary of updates made.
+    The CompletionService.get_task_status() method computes status in real-time by
+    checking if emission_records exist for the given org/facility/scope/period.
     """
-    from datetime import timezone as tz
-    
-    # Map scope to subcategory
-    scope_to_subcategory = {
-        "scope1": "GHG Emissions - Scope 1",
-        "scope2": "GHG Emissions - Scope 2", 
-        "scope3": "GHG Emissions - Scope 3",
-        "biogenic": "GHG Emissions - Biogenic (Direct)",
-    }
-    subcategory = scope_to_subcategory.get(scope.lower() if scope else "", None)
-    
-    if not subcategory:
-        return {"updated": False, "reason": f"Unknown scope: {scope}"}
-    
-    # Find matching task - first try facility-level, then org-level
-    task_query = {
-        "organization_id": organization_id,
-        "facility_id": facility_id,
-        "category": "GHG Emissions",
-        "subcategory": subcategory,
-        "period_key": reporting_period,
-    }
-    
-    task = await db["esg_reporting_tasks"].find_one(task_query, {"_id": 0, "id": 1, "status": 1})
-    
-    # If no facility-level task found, try org-level task (facility_id = None)
-    if not task and facility_id:
-        org_level_query = {
-            "organization_id": organization_id,
-            "facility_id": None,
-            "category": "GHG Emissions",
-            "subcategory": subcategory,
-            "period_key": reporting_period,
-        }
-        task = await db["esg_reporting_tasks"].find_one(org_level_query, {"_id": 0, "id": 1, "status": 1})
-        if task:
-            logger.info(f"[TASK_COMPLETION] Found org-level task for facility emission: {task['id']}")
-    
-    if not task:
-        logger.info(f"[TASK_COMPLETION] No task found for query: {task_query}")
-        return {"updated": False, "reason": "No matching task found"}
-    
-    task_id = task["id"]
-    current_status = task.get("status", "pending")
-    
-    # Skip if already completed
-    if current_status == "completed":
-        return {"updated": False, "reason": "Task already completed", "task_id": task_id}
-    
-    # Update task to completed
-    now = datetime.now(tz.utc)
-    update_result = await db["esg_reporting_tasks"].update_one(
-        {"id": task_id},
-        {
-            "$set": {
-                "status": "completed",
-                "completed_at": now,
-                "completed_by_user_id": user_id,
-                "updated_at": now,
-            }
-        }
-    )
-    
-    logger.info(f"[TASK_COMPLETION] Marked task {task_id} as completed for {subcategory} period {reporting_period}")
-    
-    return {
-        "updated": update_result.modified_count > 0,
-        "task_id": task_id,
-        "previous_status": current_status,
-        "new_status": "completed",
-    }
+    logger.debug(f"[TASK_COMPLETION] Skipped (status now computed): org={organization_id}, scope={scope}, period={reporting_period}")
+    return {"updated": False, "reason": "Task status is now computed on-the-fly by CompletionService"}
 
 
 # Module-level audit logger reference. Resolved lazily so it picks up the

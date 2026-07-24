@@ -2,11 +2,15 @@
 ESG Reporting Task Generation Engine
 
 Generates individual trackable tasks from assignments based on scheduling configuration.
+
+NOTE: Task status is now COMPUTED at query time by CompletionService.
+The status stored in tasks is a cached value that may be stale.
+Always use CompletionService.get_task_status() for accurate status.
+
 Supports:
 - Historical backfill tasks
 - Active/future tasks with due dates
 - Timezone-aware scheduling
-- Status management
 """
 
 from datetime import datetime, timedelta, timezone as tz
@@ -42,7 +46,6 @@ class TaskType(str, Enum):
     FUTURE = "future"           # Future periods
 
 
-
 async def _check_data_exists_for_task(
     db: AsyncIOMotorDatabase,
     organization_id: str,
@@ -54,97 +57,23 @@ async def _check_data_exists_for_task(
     """
     Check if data already exists for a given task period.
     
+    DELEGATES TO CompletionService for consistency across the platform.
+    
     This is called when creating tasks to determine if the task should
     be automatically marked as completed because data was submitted
     before the assignment was created.
-    
-    Handles:
-    - GHG Emissions: Checks emission_records by facility_id and scope
-    - Water/Environment: Checks environment_records by org_id
-    - Social: Checks social_records by org_id
-    - Governance: Checks governance_records by org_id
     """
-    cat_lower = category.lower() if category else ""
-    sub_lower = subcategory.lower() if subcategory else ""
+    # Import here to avoid circular imports
+    from modules.esg_assignments.completion_service import DataChecker
     
-    # GHG Emissions - check emission_records
-    if "ghg" in cat_lower or "emission" in cat_lower or "scope" in sub_lower:
-        query = {"reporting_period": period_key}
-        
-        if facility_id:
-            query["facility_id"] = facility_id
-        
-        # Map subcategory to scope
-        if "scope 1" in sub_lower:
-            query["scope"] = "scope1"
-        elif "scope 2" in sub_lower:
-            query["scope"] = "scope2"
-        elif "scope 3" in sub_lower:
-            query["scope"] = "scope3"
-        elif "biogenic" in sub_lower:
-            query["scope"] = "biogenic"
-        
-        count = await db["emission_records"].count_documents(query)
-        return count > 0
-    
-    # Water and Environment - check environment_records
-    if "water" in cat_lower or "energy" in cat_lower:
-        query = {
-            "$or": [
-                {"org_id": organization_id},
-                {"organization_id": organization_id},
-            ],
-            "category": {"$regex": f"^{category}$", "$options": "i"},
-        }
-        if subcategory:
-            query["subcategory"] = {"$regex": f"^{subcategory}$", "$options": "i"}
-        
-        # Check period - environment_records use dict format {year, month}
-        try:
-            parts = period_key.split("-")
-            if len(parts) >= 2:
-                year = int(parts[0])
-                month = int(parts[1])
-                query["reporting_period.year"] = year
-                query["reporting_period.month"] = {"$in": [str(month), month]}
-        except (ValueError, IndexError):
-            pass
-        
-        count = await db["environment_records"].count_documents(query)
-        return count > 0
-    
-    # Social records
-    if any(k in cat_lower or k in sub_lower for k in ["social", "employee", "worker", "health", "safety", "complaint", "training"]):
-        query = {
-            "$or": [
-                {"org_id": organization_id},
-                {"organization_id": organization_id},
-            ],
-            "category": {"$regex": f"^{category}$", "$options": "i"},
-        }
-        if subcategory:
-            query["subcategory"] = {"$regex": f"^{subcategory}$", "$options": "i"}
-        
-        count = await db["social_records"].count_documents(query)
-        return count > 0
-    
-    # Governance records
-    if any(k in cat_lower or k in sub_lower for k in ["governance", "board", "ethic", "compliance", "corruption", "financial"]):
-        query = {
-            "$or": [
-                {"org_id": organization_id},
-                {"organization_id": organization_id},
-            ],
-            "category": {"$regex": f"^{category}$", "$options": "i"},
-        }
-        if subcategory:
-            query["subcategory"] = {"$regex": f"^{subcategory}$", "$options": "i"}
-        
-        count = await db["governance_records"].count_documents(query)
-        return count > 0
-    
-    return False
-
+    has_data, _ = await DataChecker.check_exists(
+        organization_id=organization_id,
+        category=category,
+        subcategory=subcategory,
+        facility_id=facility_id,
+        period_key=period_key,
+    )
+    return has_data
 
 
 def get_last_day_of_month(year: int, month: int) -> int:
@@ -760,7 +689,13 @@ async def get_tasks_for_user(
     Get all tasks assigned to a user via esg_task_assignees join.
     
     New architecture: Tasks are organizational obligations, users are linked via esg_task_assignees.
+    
+    IMPORTANT: Task status is now COMPUTED on-the-fly using CompletionService,
+    not read from the stored task.status field (which may be stale).
     """
+    # Import CompletionService for computed status
+    from modules.esg_assignments.completion_service import completion_service
+    
     # Step 1: Get task IDs this user is assigned to
     assignee_query = {
         "user_id": user_id,
@@ -779,14 +714,11 @@ async def get_tasks_for_user(
     task_ids = [a["task_id"] for a in user_assignees]
     assignee_map = {a["task_id"]: a for a in user_assignees}
     
-    # Step 2: Query tasks by IDs
+    # Step 2: Query tasks by IDs (don't filter by status here - we compute it)
     task_query = {
         "id": {"$in": task_ids},
         "organization_id": organization_id,
     }
-    
-    if status_filter:
-        task_query["status"] = {"$in": status_filter}
     
     if not include_backfill:
         task_query["is_backfill"] = False
@@ -796,10 +728,19 @@ async def get_tasks_for_user(
         {"_id": 0}
     ).sort("due_at", 1).to_list(500)
     
-    # Add assignee role info to each task
+    # Step 3: Compute status for each task using CompletionService
     for task in tasks:
+        computed_status = await completion_service.get_task_status(task)
+        task["status"] = computed_status.value  # Override stored status with computed
+        task["computed_status"] = computed_status.value  # Also add explicit field
+        
+        # Add assignee role info
         assignee_info = assignee_map.get(task["id"], {})
         task["user_role"] = assignee_info.get("role", "editor")
+    
+    # Step 4: Apply status filter AFTER computing status
+    if status_filter:
+        tasks = [t for t in tasks if t.get("status") in status_filter]
     
     # If domain filter is specified, we need to filter based on category's section
     if domain and domain != 'all':

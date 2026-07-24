@@ -3,6 +3,9 @@ Assignment Progress Calculation Engine
 
 A clean, modular engine for calculating real progress based on actual data collection tasks.
 
+NOTE: This module now delegates to CompletionService for data existence checks
+to ensure consistency across the platform.
+
 Supports:
 - Multiple reporting_period formats (object, string, FY format)
 - Both org_id and organization_id keys
@@ -14,6 +17,7 @@ from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
 from shared.database.mongo import db
+from modules.esg_assignments.completion_service import DataChecker, CompletionService, completion_service
 import logging
 import re
 
@@ -318,7 +322,7 @@ class RecordChecker:
         Build query specifically for emission_records collection.
         
         Key differences from standard records:
-        - NO org_id/organization_id field - must query by facility_id
+        - Has organization_id field - MUST filter by it
         - NO is_current field
         - Uses 'scope' field (scope1, scope2, scope3) 
         - Uses string reporting_period format (e.g., "2026-07")
@@ -326,23 +330,12 @@ class RecordChecker:
         """
         conditions = []
         
-        # Facility filter - emission_records ALWAYS requires facility_id
+        # CRITICAL: Always filter by organization_id
+        conditions.append({"organization_id": org_id})
+        
+        # Facility filter
         if facility_id:
             conditions.append({"facility_id": facility_id})
-        else:
-            # For org-level check, we need to find ALL facilities for this org
-            # and check if ANY facility has data
-            org_facilities = await db["facilities"].find(
-                {"organization_id": org_id},
-                {"_id": 0, "id": 1}
-            ).to_list(500)
-            
-            if org_facilities:
-                facility_ids = [f["id"] for f in org_facilities]
-                conditions.append({"facility_id": {"$in": facility_ids}})
-            else:
-                # No facilities found - query will return empty
-                return {"facility_id": "__NO_MATCH__"}
         
         # Period filter - emission_records uses string format like "2026-07"
         period_filter = RecordChecker._build_emission_period_filter(period)

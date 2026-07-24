@@ -12,13 +12,23 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
 
 ## Core Architecture
 
+### CompletionService - Single Source of Truth (NEW Dec 2024)
+- **Location**: `/app/backend/modules/esg_assignments/completion_service.py`
+- **Purpose**: THE single authority for all completion/progress calculations
+- **Key Methods**:
+  - `is_period_complete()` - Check if data exists for a period
+  - `get_task_status()` - Compute task status (not read from DB)
+  - `get_assignment_progress()` - Calculate filled/total/percentage
+- **Used by**: My Tasks, Progress Engine, Tracker, Dashboard
+- **Philosophy**: Task status is COMPUTED from actual data, not stored
+
 ### V2 Assignment System
 - **Assignments** are central objects stored in `esg_assignments`
 - **Assignees** are linked via `esg_assignment_assignees` collection
 - **Tasks** are generated from assignments via `task_engine.py`
-- **Completion** is tracked via overlapping date logic (not exact period match)
+- **Completion** is computed on-the-fly by CompletionService (not stored)
 
-### Unified ESG Metrics Service (NEW)
+### Unified ESG Metrics Service
 - **Location**: `/app/backend/services/esg_metrics_service.py`
 - **Purpose**: Centralized data fetching and calculations for all ESG metrics
 - **Used by**: Peer Benchmarking (can extend to Dashboard, Targets, Internal Data AI)
