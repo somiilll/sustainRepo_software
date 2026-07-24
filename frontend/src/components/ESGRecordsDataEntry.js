@@ -52,7 +52,8 @@ import {
   Plus, Search, Filter, History, FileText, Upload, 
   ChevronLeft, ChevronRight, Loader2, Building2, Calendar,
   Trash2, Edit2, Eye, X, Save, FileEdit, RefreshCw,
-  CheckCircle2, Clock, AlertTriangle, Lock, Link2, Paperclip, Download
+  CheckCircle2, Clock, AlertTriangle, Lock, Link2, Paperclip, Download,
+  ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -60,6 +61,24 @@ const API = BACKEND_URL;
 
 // Months for monthly reporting
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+// Sortable header component for table columns
+const SortableTableHead = ({ label, sortKey, currentSort, onSort, className = '' }) => {
+  const isActive = currentSort.key === sortKey;
+  const Icon = isActive ? (currentSort.direction === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
+  
+  return (
+    <TableHead className={className}>
+      <button
+        onClick={() => onSort(sortKey)}
+        className="flex items-center gap-1 hover:text-stone-900 transition-colors"
+      >
+        <span>{label}</span>
+        <Icon className={`w-3 h-3 ${isActive ? 'text-emerald-600' : 'text-stone-400'}`} />
+      </button>
+    </TableHead>
+  );
+};
 
 /**
  * ESG Records Data Entry
@@ -98,6 +117,9 @@ export default function ESGRecordsDataEntry({
     facility_id: '',
     search: ''
   });
+  
+  // Sorting state
+  const [sort, setSort] = useState({ key: null, direction: 'desc' });
   
   // Modal states
   const [showVersionsModal, setShowVersionsModal] = useState(false);
@@ -303,6 +325,66 @@ export default function ESGRecordsDataEntry({
       if (mode === 'add') setLoading(false);
     }
   };
+
+  // Handle sort toggle
+  const handleSort = (key) => {
+    setSort(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  // Get period string for sorting
+  const getPeriodSortValue = (record) => {
+    const rp = record.reporting_period || {};
+    const year = rp.year || rp.financial_year || rp.calendar_year || 0;
+    const month = rp.month || '00';
+    const quarter = rp.quarter || '';
+    // Create sortable string: YYYY-MM or YYYY-QQ
+    if (quarter) {
+      const qNum = quarter.replace('Q', '');
+      return `${year}-Q${qNum}`;
+    }
+    return `${year}-${String(month).padStart(2, '0')}`;
+  };
+
+  // Sorted records
+  const sortedRecords = useMemo(() => {
+    if (!sort.key) return records;
+    
+    return [...records].sort((a, b) => {
+      let aVal, bVal;
+      
+      switch (sort.key) {
+        case 'category':
+          aVal = `${a.category || ''} ${a.subcategory || ''}`.toLowerCase();
+          bVal = `${b.category || ''} ${b.subcategory || ''}`.toLowerCase();
+          break;
+        case 'facility':
+          aVal = (a.facility_name || 'zzz').toLowerCase(); // 'zzz' puts Org Level at end
+          bVal = (b.facility_name || 'zzz').toLowerCase();
+          break;
+        case 'period':
+          aVal = getPeriodSortValue(a);
+          bVal = getPeriodSortValue(b);
+          break;
+        case 'status':
+          aVal = (a.operational_status || a.status || '').toLowerCase();
+          bVal = (b.operational_status || b.status || '').toLowerCase();
+          break;
+        case 'updated':
+          aVal = a.updated_at || a.created_at || '';
+          bVal = b.updated_at || b.created_at || '';
+          break;
+        default:
+          return 0;
+      }
+      
+      if (aVal < bVal) return sort.direction === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sort.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [records, sort]);
 
   const fetchRecords = async () => {
     setLoading(true);
@@ -1102,11 +1184,11 @@ export default function ESGRecordsDataEntry({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Category</TableHead>
-              <TableHead>Facility</TableHead>
-              <TableHead>Period</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Updated</TableHead>
+              <SortableTableHead label="Category" sortKey="category" currentSort={sort} onSort={handleSort} />
+              <SortableTableHead label="Facility" sortKey="facility" currentSort={sort} onSort={handleSort} />
+              <SortableTableHead label="Period" sortKey="period" currentSort={sort} onSort={handleSort} />
+              <SortableTableHead label="Status" sortKey="status" currentSort={sort} onSort={handleSort} />
+              <SortableTableHead label="Updated" sortKey="updated" currentSort={sort} onSort={handleSort} />
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -1124,7 +1206,7 @@ export default function ESGRecordsDataEntry({
                 </TableCell>
               </TableRow>
             ) : (
-              records.map(record => {
+              sortedRecords.map(record => {
                 const hasDraft = drafts.some(d => d.record_id === record.id);
                 const isImported = record.source_type === 'ghg_import';
                 const isLocked = record.is_locked || isImported;

@@ -1,4 +1,4 @@
-<analysis>**original_problem_statement**: Complete the Materiality Assessment UI, design premium ESG Dashboards, fix analytics mapping bugs, build missing UI, fix progress_engine calculation bugs, redesign the Assignment dialog into a step-by-step wizard, implement category-level filling frequency config, and build a detailed period/facility-level subcategory progress view.
+<analysis>**original_problem_statement**: Complete the Materiality Assessment UI, design premium ESG Dashboards, fix analytics mapping bugs, build missing UI, fix progress_engine calculation bugs, redesign the Assignment dialog into a step-by-step wizard, implement category-level filling frequency config, build a detailed period/facility-level subcategory progress view, and enhance data grids (GHG & KPI logs) with advanced sorting and metadata columns.
 PRODUCT REQUIREMENTS ADDED:
 1) Implement premium Dashboards (Energy, Water, Waste).
 2) Restructure BRSR Reporting into Section B and C.
@@ -8,27 +8,71 @@ PRODUCT REQUIREMENTS ADDED:
 **User's preferred language**: English (INSTRUCT next agent to respond in English only)
 
 **what currently exists?** 
-A heavily refactored ESG platform with an accurate fractional progress calculation engine () that correctly handles  schema mismatches (e.g.,  vs ) and maps disparate collections (Environment, Social, Governance) correctly. The frontend features a newly built, modular  (a 4-step stepper-based dialog) with conditional approval workflows. A new category-specific frequency configuration service allows setting allowable filling frequencies per category/subcategory. 
+A heavily refactored ESG platform with an accurate fractional progress calculation engine, conditional Assignment Wizard, and dynamic frequency configs. In this session, a new  matrix component was added to the Tracker to show period-vs-facility completion. The task tracking system has been synced with emission record data. Data tables (GHG Emissions & KPI logs) now feature single-line filtering, comprehensive column sorting (including tCO₂e), and Last Updated At timestamps.
 
 **Last working item**: 
-    - Last item agent was working: Building a detailed progress tracking feature at the subcategory level. The user requested that the tracker view display exactly which month/quarter/day data is filled or overdue, along with a detailed facility-level breakdown (showing which facilities are assigned, unassigned, and their individual pending/overdue data statuses). Agent just created the file  to handle the backend matrix but wrote no code yet.
-    - Status: IN PROGRESS
-    - Agent Testing Done: N
-    - Which testing method agent to use? testing_agent_v3_fork
+    - Last item agent was working: Adding sorting functionality on column headers (Category, Facility, Period, Status, Updated) for KPI metrics logs inside .
+    - Status: USER VERIFICATION PENDING
+    - Agent Testing Done: Y (Visual verification via screenshots attempted)
+    - Which testing method agent to use?  (Needs troubleshooting as it repeatedly halted).
     - User Testing Done: N
 
 **All Pending/In progress Issue list**: 
-  Issue 1: Missing testing coverage for Assignment Wizard and Frequency endpoints (Priority: P0)
-     - Attempted fixes: Agent invoked , but it was terminated/halted early before conducting proper frontend interactions and backend regressions for the wizard flow.
-     - Next debug checklist: Run comprehensive E2E testing on the  UI flows and the backend frequency config endpoints.
-     - Why fix this issue and what will be achieved with the fix? Secures the highly complex new assignment UI against regressions.
-     - Status: TESTING PENDING
+  Issue 1: Testing Subagent Halting Prematurely (Priority: P0)
+     - Attempted fixes: Main agent called  multiple times to verify the Assignment Wizard, Frequency configs, Detailed Progress bugs, and UI grid changes. The subagent consistently terminates/halts after initial environment exploration without modifying files or generating test reports.
+     - Next debug checklist: Troubleshoot why the testing subagent is failing to execute Playwright scripts or backend tests. Consider splitting test instructions into smaller, highly specific chunks or running manual backend tests using ============================= test session starts ==============================
+platform linux -- Python 3.11.15, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+plugins: asyncio-1.3.0, anyio-4.12.1
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 771 items / 5 errors
+
+==================================== ERRORS ====================================
+_________ ERROR collecting backend/tests/test_assignments_v2_model.py __________
+backend/tests/test_assignments_v2_model.py:15: in <module>
+    BASE_URL = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen os>:679: in __getitem__
+    ???
+E   KeyError: 'REACT_APP_BACKEND_URL'
+________ ERROR collecting backend/tests/test_baseline_mapping_iter93.py ________
+backend/tests/test_baseline_mapping_iter93.py:6: in <module>
+    BASE_URL = os.environ.get('REACT_APP_BACKEND_URL').rstrip('/')
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'rstrip'
+____________ ERROR collecting backend/tests/test_energy_service.py _____________
+backend/tests/test_energy_service.py:6: in <module>
+    BASE_URL = os.environ.get('REACT_APP_BACKEND_URL').rstrip('/')
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'rstrip'
+_________ ERROR collecting backend/tests/test_internal_ai_analytics.py _________
+backend/tests/test_internal_ai_analytics.py:17: in <module>
+    BASE_URL = os.environ.get("REACT_APP_BACKEND_URL").rstrip("/")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'rstrip'
+____________ ERROR collecting backend/tests/test_iter64_features.py ____________
+backend/tests/test_iter64_features.py:13: in <module>
+    BASE_URL = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen os>:679: in __getitem__
+    ???
+E   KeyError: 'REACT_APP_BACKEND_URL'
+=========================== short test summary info ============================
+ERROR backend/tests/test_assignments_v2_model.py - KeyError: 'REACT_APP_BACKE...
+ERROR backend/tests/test_baseline_mapping_iter93.py - AttributeError: 'NoneTy...
+ERROR backend/tests/test_energy_service.py - AttributeError: 'NoneType' objec...
+ERROR backend/tests/test_internal_ai_analytics.py - AttributeError: 'NoneType...
+ERROR backend/tests/test_iter64_features.py - KeyError: 'REACT_APP_BACKEND_URL'
+!!!!!!!!!!!!!!!!!!! Interrupted: 5 errors during collection !!!!!!!!!!!!!!!!!!!!
+============================== 5 errors in 3.82s ===============================.
+     - Why fix this issue and what will be achieved with the fix? Ensures code stability; currently, massive changes have zero automated regression coverage.
+     - Status: BLOCKED
      - Is recurring issue? Y
      - Should Test frontend/backend/both after fix? Both
      - Blocked on other issue: None
 
   Issue 2: Unverified Testing for Peer Benchmarking UI and Progress Engine (Priority: P1)
-     - Attempted fixes: Carried over from previous session. Testing subagent aborted.
+     - Attempted fixes: Carried over. Testing subagent aborted.
      - Next debug checklist: Explicitly test the  endpoint.
      - Status: TESTING PENDING
      - Is recurring issue? Y
@@ -42,14 +86,7 @@ A heavily refactored ESG platform with an accurate fractional progress calculati
      - Should Test frontend/backend/both after fix? Both
 
 **In progress Task List**: 
-  Task 1: Detailed period/facility-level Subcategory Progress View (Priority: P0)
-     - Where to resume: Implement the logic in the newly created  to return a period vs facility status matrix. Then update  to render this detail view when a subcategory is expanded.
-     - What will be achieved with this? Admins will see exactly who is lagging on which data point (by month/quarter and by facility) right inside the Tracker.
-     - Status: IN PROGRESS
-     - Should Test frontend/backend/both after fix? Both
-     - Blocked on something: None
-
-  Task 2: Unify Targets and Internal Data AI to use Dashboard Services (Priority: P1)
+  Task 1: Unify Targets and Internal Data AI to use Dashboard Services (Priority: P1)
      - Where to resume:  was deleted. Ensure remaining modules rely on .
      - What will be achieved with this? Eliminates duplicated calculation logic.
      - Status: NOT STARTED
@@ -72,13 +109,14 @@ A heavily refactored ESG platform with an accurate fractional progress calculati
     - P2: Backend persistence for materiality cutoff values per organization.
 
 **Completed work in this session**
-- Fixed  schema mismatches for  ( instead of , string dates, scope handling) (DONE).
-- Fixed  Water/Discharge subcategory querying mapping (DONE).
-- Fixed an inflation bug in  where missing org-level records incorrectly expanded required tasks by facility count when no facility records existed (DONE).
-- Added UI colored status boxes (Pending, Overdue, Completed) with Radix Tooltips to the Tracker Status column and removed the stale card (DONE).
-- Fixed  in  so Social and Governance records (like Anti-corruption) are queried from the correct collections (DONE).
-- Completely redesigned the Assignment dialog into a modular 4-step Stepper () with Summary panels, dynamic facility cards, and timeline UI (DONE).
-- Created  and endpoints to enforce specific filling frequencies (e.g., Monthly/Yearly) per category and subcategory (DONE).
+- Implemented  API in  (DONE).
+- Created and integrated  inside  for nested period/facility matrix (DONE).
+- Fixed Matrix Bug: Filtered out unassigned facilities to display them strictly as 'unassigned' rather than pending/overdue in the detailed matrix (DONE).
+- Fixed Task Sync Bug: Updated  to auto-complete tasks if records already exist during creation, and exposed a  endpoint for retroactively syncing tasks with existing  (DONE).
+- Removed duplicate Overdue text under period labels in matrix view (DONE).
+- Added Last Updated At column and comprehensive column sorting (Facility, Period, Category, Sub-category, Quantity, Activity, Method, Activity/Fuel, Type, tCO₂e, Last Updated) to GHG logs in  (DONE).
+- Reorganized GHG Emissions Filters into a compact, single-line format and removed separate sort dropdowns in  (DONE).
+- Added column sorting capabilities (Category, Facility, Period, Status, Updated) to KPI metrics logs in  (DONE).
 
 **Earlier issues found/mentioned but not fixed**
    Issue 1: Potential Collection Mismatch
@@ -92,70 +130,72 @@ A heavily refactored ESG platform with an accurate fractional progress calculati
   - Recurrence count: 26
   - Status: BLOCKED (User explicitly asked to delay fixing this).
   - Testing agent  prematurely or being skipped entirely.
-  - Recurrence count: 7
-  - Status: TESTING PENDING (Testing subagents keep dropping out early when tasked with regression tests).
+  - Recurrence count: 10 (Agent tried 3 times in this session alone, failed every time).
+  - Status: BLOCKED (Major hurdle for QA sign-off on recent features).
 
 **Code Architecture**
 /app/
 ├── backend/
 │   ├── modules/
 │   │   ├── esg_records/
-│   │   │   ├── category_config_service.py (NEW - handles dynamic frequency config)
-│   │   │   ├── detailed_progress_service.py (NEW - WIP for detailed tracker logic)
+│   │   │   ├── detailed_progress_service.py (Provides period vs facility matrix)
+│   │   │   ├── task_engine.py (Generates & syncs individual esg_reporting_tasks)
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── assignment-wizard/ (NEW - modular wizard logic)
-│   │   │   │   ├── AssignmentWizard.jsx, StepSelectLevel.jsx, StepAssignUsers.jsx, StepSchedule.jsx, StepReview.jsx, useAssignmentWizard.js
+│   │   │   ├── DetailedProgressView.js (NEW - Renders the nested subcategory matrix)
+│   │   │   ├── ESGRecordsTracker.js (Main Tracker view containing the DetailedProgressView)
+│   │   │   ├── ESGRecordsDataEntry.js (KPI Metrics Logs)
+│   │   ├── pages/
+│   │   │   ├── emissions/
+│   │   │   │   ├── components/EmissionDataGrid.jsx (GHG Log Table)
+│   │   │   │   ├── EmissionFilters.js
 
 **Key Technical Concepts**
-- **Progress Calculation Logic**: The  handles fraction-based task completion. It properly checks  (using ) versus  (using  and dict-based dates).
-- **Category Configurations**: A database-driven fallback system dictating which filling frequencies (e.g., Monthly, Quarterly) are permitted for specific categories/subcategories during assignment.
+- **Progress Calculation vs Task Status**: The Detailed Progress matrix dynamically computes completion by checking  existence on the fly. The Task List reads static statuses from . These are now synced via  hooks.
+- **Frontend Sorting**: Reusable SortableTableHead/SortableHeader patterns are now extensively used in  and  utilizing  for client-side sorting.
 
 **key DB schema**
-  - : Keys heavily off  (no ), string-based  (e.g., ), and uses case-sensitive string matching for categories.
-  -  (New): Stores  to override hardcoded platform defaults.
+  - : Contains core user data; keyed by  and string .
+  - : Stores individual generated task objects assigned to users. Must be kept in sync with actual data submissions (via  properties and sync scripts).
 
 **changes in tech stack**
   - None
 
 **All files of reference** 
-  -  (Must implement logic here)
-  -  (Must inject subcategory view here)
-  - 
-  - 
-  - 
+  -  (Fixed facility assignment logic & datetime bugs)
+  -  (NEW - detailed matrix logic)
+  -  (Added sync endpoints and task status interceptors)
+  -  (GHG table sorting & columns)
+  -  (Single line UI refactor)
+  -  (KPI metrics log sorting)
 
 **Areas that need refactoring**: 
-  -  is extremely bloated (>1700 lines). The new detailed subcategory progress UI should ideally be broken out into its own dedicated child component instead of being shoved into the main tracker file.
+  - The  infrastructure needs to be investigated as to why it repeatedly aborts tests on this application scope.
 
 **key api endpoints**
-  -  (Fetches allowable frequencies)
-  -  (Admin upsert for frequencies)
-  -  (High-level progress calculation)
-  - *Needs creation*:  (For the WIP task)
+  -  (Matrix Progress fetch)
+  -  (Admin trigger to retroactively sync task statuses with submitted records)
 
 **Critical Info for New Agent** 
-- You MUST start your session by implementing the logic in . The user wants to click a subcategory in the frontend and see a matrix of months/quarters vs facilities to see exactly who missed what data.
-- The  has been successfully implemented and tested locally. Do NOT rewrite it.
-- Your testing sub-agent calls have been halting prematurely. Ensure you give it explicit, narrow instructions to test the new endpoints.
+- Do NOT rewrite  or , they are fully functioning as per user spec (handles missing facility edge cases cleanly). 
+- All new tracking UI elements rely heavily on . When querying ,  does not exist.
+- **TESTING BLOCKER**: You will likely need to employ alternative testing (curl scripts, python , screenshot tools, or manual pytest suites) if  continues to abort without generating test reports. 
 
 **documents and test reports created in this job** 
   - /app/memory/PRD.md
 
 **Last 10 User Messages and any pending HUMAN messages** 
- 1. User: Asked for UI tweaks on the assignment tracking box (remove stale card, add colored boxes). (Resolved)
- 2. User: Reported Anti-corruption progress showing 0%. (Resolved - mapped governance_records).
- 3. User: Gave a massive 11-point UX overhaul request for the Assignment Modal. (Resolved)
- 4. User: Instructed to use Option A (build a stepper). (Resolved - built )
- 5. User: Reported 5 bugs on the new wizard (duplicate close buttons, approval workflow placement, empty reassign boxes). (Resolved)
- 6. User: Asked if filling frequency is derived from ESG Config dynamically. (Resolved - agent built )
- 7. User: Pointed out GHG Scope 1 was showing Quarterly, which shouldn't be allowed. (Resolved)
- 8. User: Instructed to fix the config via Database admin endpoints (Option B). (Resolved)
- 9. **PENDING**: User asked to build a detailed tracker view for subcategories showing exactly which month/quarter/day data is filled/overdue, and a facility-level breakdown of who is assigned/unassigned. (Agent just created the blank file).
+ 1. User: Report bug - Scope 2 facility matrix showing overdue for unassigned facilities. (Resolved)
+ 2. User: Report bug - Task list says overdue but matrix says completed for June 2026. Sync them up. (Resolved)
+ 3. User: Remove duplicate 'Overdue' text below the period label in tracker matrix. (Resolved)
+ 4. User: GHG logs - add Last Updated At column and add sorting to multiple specific headers. (Resolved)
+ 5. User: Add sorting to tCO₂e column in GHG logs. (Resolved)
+ 6. User: GHG emissions filters - remove Sort By and Order dropdowns, put all filters in one line. (Resolved)
+ 7. User: KPI metrics logs - add sort on column header (Category, Facility, Period, Status, Updated). (Resolved - Pending Testing)
 
 **Project Health Check:**
-- Broken ( is an empty stub).
+- Broken: Regression Automated Testing is broken due to persistent subagent failure.
 
 **3rd Party Integrations** 
   - OpenAI  (Extraction) — requires User API Key
@@ -163,21 +203,13 @@ A heavily refactored ESG platform with an accurate fractional progress calculati
   - LlamaParse API (PDF Parsing) — requires User API Key
 
 **Testing status**
-  - Testing agent used after significant changes: YES (But halted prematurely).
+  - Testing agent used after significant changes: YES (But halted/terminated prematurely 3 times with no tests run).
   - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: 
-  - Known regressions: None documented.
+  - Test files created: None generated in this session.
+  - Known regressions: None identified, but untested.
 
 **Credentials to test flow:**
   - Admin:  () — ORG1 Admin.
 
 **What agent forgot to execute**
-- The agent created  for the final user request but didn't write any actual backend logic or implement the frontend rendering for the detailed subcategory breakdown.
-
-**Debugging checklist for current issue**
-    Issue: Detailed period/facility-level Subcategory Progress View
-    
-    1. Write logic inside  to evaluate assignments for a specific subcategory.
-    2. Generate a payload that returns rows of reporting periods (e.g., July 2026, August 2026) and columns/details of facility assignments, marking each node as filled, pending, or overdue based on , , etc.
-    3. Update  to expose this service.
-    4. In  (or ideally a new clean child component), render a nested matrix/table when an admin expands a subcategory row.</analysis>
+- Because the  failed, the agent technically forgot or failed to ensure proper e2e verification of the newly synced task statuses and complex frontend matrices. Alternative testing fallbacks weren't thoroughly written.</analysis>
