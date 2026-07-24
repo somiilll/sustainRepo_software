@@ -57,6 +57,9 @@ import MyAssignments from './pages/MyAssignments';
 import PlaceholderPage from './pages/PlaceholderPage';
 import GHGAnalysis from './pages/GHGAnalysis';
 import EnvironmentAnalysis from './pages/EnvironmentAnalysis';
+import EnergyAnalysis from './pages/EnergyAnalysis';
+import WaterAnalysis from './pages/WaterAnalysis';
+import WasteAnalysis from './pages/WasteAnalysis';
 import SocialAnalysis from './pages/SocialAnalysis';
 import GovernanceAnalysis from './pages/GovernanceAnalysis';
 import MaterialityAssessment from './pages/MaterialityAssessment';
@@ -65,6 +68,7 @@ import ESGTargetsTab from './components/ESGTargetsTab';
 import WorkflowApproverQueue from './pages/WorkflowApproverQueue';
 import WorkflowTracker from './pages/WorkflowTracker';
 import WorkflowMyTask from './pages/WorkflowMyTask';
+import PeerBenchmarking from './pages/PeerBenchmarking';
 import { initializeCategoryModules } from './modules/emissions';
 
 // Initialize the emissions Category Registry once at app boot.
@@ -273,9 +277,11 @@ const AppRoutes = () => {
           <Route path="environment/water" element={<Environment preFilterCategory="Water" />} />
           <Route path="environment/waste" element={<Environment preFilterCategory="Waste" />} />
           <Route path="environment/biodiversity" element={<Environment preFilterCategory="Biodiversity" />} />
-          <Route path="environment/climate-change" element={<Environment preFilterCategory="Climate Change" />} />
-          <Route path="environment/material" element={<Environment preFilterCategory="Material" />} />
+          <Route path="environment/others" element={<Environment preFilterCategory="Others" />} />
           <Route path="environment/analysis" element={<EnvironmentAnalysis />} />
+          <Route path="environment/energy/analysis" element={<EnergyAnalysis />} />
+          <Route path="environment/water/analysis" element={<WaterAnalysis />} />
+          <Route path="environment/waste/analysis" element={<WasteAnalysis />} />
           <Route path="social" element={<Social />} />
           <Route path="social/analysis" element={<SocialAnalysis />} />
           <Route path="hr-workforce" element={<HRWorkforce />} />
@@ -305,6 +311,7 @@ const AppRoutes = () => {
           <Route path="bulk-upload" element={<Navigate to="/uploads/bulk" replace />} />
           <Route path="base-year-emissions" element={<Navigate to="/targets/voluntary/ghg" replace />} />
           <Route path="reports" element={<Reports />} />
+          <Route path="peer-benchmarking" element={<PeerBenchmarking />} />
           <Route path="users" element={
             <AdminRoute>
               <UserManagement />

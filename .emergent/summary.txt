@@ -1,181 +1,215 @@
-<analysis>### Handover Summary
-
-**original_problem_statement**: 
-Implement a Generic ESG KPI Definition Engine (Super Admin) - a configuration-driven, future-proof engine to define reusable ESG metrics/KPIs for targets, dashboards, analytics, and reports without hardcoding.
-PRODUCT REQUIREMENTS ADDED IN THIS SESSION:
-1) Update Executive ESG Dashboard KPI cards to exactly 10 specific metrics (Total Emissions, GHG Intensity, Energy Intensity, Renewable Energy %, Water Recycled, Waste Recovery, Employees + Diversity, LTIFR, AP Days, Employee Turnover).
-2) Implement a 7-row Executive Dashboard layout with specific charts (GHG Trend, Energy Mix, Water Flow, Workforce Trend, LTIFR Trend, AP Days, Data Breach Trend, etc.) using Recharts.
-3) Fix ESG Data Entry bugs related to period validation, Financial Year string formatting, and month rendering.
+<analysis>**original_problem_statement**: Complete the Materiality Assessment UI, design premium ESG Dashboards, fix analytics mapping bugs, build missing UI, fix progress_engine calculation bugs, redesign the Assignment dialog into a step-by-step wizard, implement category-level filling frequency config, build a detailed period/facility-level subcategory progress view, and enhance data grids (GHG & KPI logs) with advanced sorting and metadata columns.
+PRODUCT REQUIREMENTS ADDED:
+1) Implement premium Dashboards (Energy, Water, Waste).
+2) Restructure BRSR Reporting into Section B and C.
+3) Build SustainRepo Internal Data AI.
+4) Detailed period/facility-level Subcategory Progress breakdown matrix for the Tracker.
 
 **User's preferred language**: English (INSTRUCT next agent to respond in English only)
 
 **what currently exists?** 
-A robust, modular ESG platform with a dynamic KPI engine. The platform includes a newly refactored  featuring a top row of 10 targeted KPI cards and a comprehensive 7-row analytics layout using Recharts. A central  governs the UI/UX. The ESG Data Entry form has been patched to handle nested period validation and correct Financial Year/Month string rendering.
+A heavily refactored ESG platform with an accurate fractional progress calculation engine, conditional Assignment Wizard, and dynamic frequency configs. In this session, a new  matrix component was added to the Tracker to show period-vs-facility completion. The task tracking system has been synced with emission record data. Data tables (GHG Emissions & KPI logs) now feature single-line filtering, comprehensive column sorting (including tCO₂e), and Last Updated At timestamps.
 
 **Last working item**: 
-    - **Last item agent was working**: Fixing three bugs in the ESG Data Entry flow: 1) Monthly entries saving without month validation. 2) Financial Year yearly entries showing as 2025 instead of FY 2025-2026. 3) Month not rendering in the Data Entry table. The main agent applied the code fixes and verified via screenshot, but the  prepared the test environment and halted before executing the functional tests.
-    - **Status**: TESTING PENDING
-    - **Agent Testing Done**: N (Code patched, but  explicitly reported Functional test execution not started)
-    - **Which testing method agent to use?**: testing_agent
-    - **User Testing Done**: N
+    - Last item agent was working: Adding sorting functionality on column headers (Category, Facility, Period, Status, Updated) for KPI metrics logs inside .
+    - Status: USER VERIFICATION PENDING
+    - Agent Testing Done: Y (Visual verification via screenshots attempted)
+    - Which testing method agent to use?  (Needs troubleshooting as it repeatedly halted).
+    - User Testing Done: N
 
-**All Pending/In progress Issue list**:
-  Issue 1: Functional Testing for ESG Data Entry Period Fixes (Priority: P0)
-     - Attempted fixes: Main agent patched , , and .
-     - Next debug checklist: Instruct  to resume and execute the functional Playwright/Pytest flow for the ESG Data Entry period validation.
-     - Why fix this issue and what will be achieved with the fix? Verifies the code patches actually resolve the user-reported data entry bugs without regressions.
+**All Pending/In progress Issue list**: 
+  Issue 1: Testing Subagent Halting Prematurely (Priority: P0)
+     - Attempted fixes: Main agent called  multiple times to verify the Assignment Wizard, Frequency configs, Detailed Progress bugs, and UI grid changes. The subagent consistently terminates/halts after initial environment exploration without modifying files or generating test reports.
+     - Next debug checklist: Troubleshoot why the testing subagent is failing to execute Playwright scripts or backend tests. Consider splitting test instructions into smaller, highly specific chunks or running manual backend tests using ============================= test session starts ==============================
+platform linux -- Python 3.11.15, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+plugins: asyncio-1.3.0, anyio-4.12.1
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 771 items / 5 errors
+
+==================================== ERRORS ====================================
+_________ ERROR collecting backend/tests/test_assignments_v2_model.py __________
+backend/tests/test_assignments_v2_model.py:15: in <module>
+    BASE_URL = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen os>:679: in __getitem__
+    ???
+E   KeyError: 'REACT_APP_BACKEND_URL'
+________ ERROR collecting backend/tests/test_baseline_mapping_iter93.py ________
+backend/tests/test_baseline_mapping_iter93.py:6: in <module>
+    BASE_URL = os.environ.get('REACT_APP_BACKEND_URL').rstrip('/')
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'rstrip'
+____________ ERROR collecting backend/tests/test_energy_service.py _____________
+backend/tests/test_energy_service.py:6: in <module>
+    BASE_URL = os.environ.get('REACT_APP_BACKEND_URL').rstrip('/')
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'rstrip'
+_________ ERROR collecting backend/tests/test_internal_ai_analytics.py _________
+backend/tests/test_internal_ai_analytics.py:17: in <module>
+    BASE_URL = os.environ.get("REACT_APP_BACKEND_URL").rstrip("/")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'rstrip'
+____________ ERROR collecting backend/tests/test_iter64_features.py ____________
+backend/tests/test_iter64_features.py:13: in <module>
+    BASE_URL = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen os>:679: in __getitem__
+    ???
+E   KeyError: 'REACT_APP_BACKEND_URL'
+=========================== short test summary info ============================
+ERROR backend/tests/test_assignments_v2_model.py - KeyError: 'REACT_APP_BACKE...
+ERROR backend/tests/test_baseline_mapping_iter93.py - AttributeError: 'NoneTy...
+ERROR backend/tests/test_energy_service.py - AttributeError: 'NoneType' objec...
+ERROR backend/tests/test_internal_ai_analytics.py - AttributeError: 'NoneType...
+ERROR backend/tests/test_iter64_features.py - KeyError: 'REACT_APP_BACKEND_URL'
+!!!!!!!!!!!!!!!!!!! Interrupted: 5 errors during collection !!!!!!!!!!!!!!!!!!!!
+============================== 5 errors in 3.82s ===============================.
+     - Why fix this issue and what will be achieved with the fix? Ensures code stability; currently, massive changes have zero automated regression coverage.
+     - Status: BLOCKED
+     - Is recurring issue? Y
+     - Should Test frontend/backend/both after fix? Both
+     - Blocked on other issue: None
+
+  Issue 2: Unverified Testing for Peer Benchmarking UI and Progress Engine (Priority: P1)
+     - Attempted fixes: Carried over. Testing subagent aborted.
+     - Next debug checklist: Explicitly test the  endpoint.
+     - Status: TESTING PENDING
+     - Is recurring issue? Y
+     - Should Test frontend/backend/both after fix? Both
+
+  Issue 3: Internal Data AI Phase 2 Verification (Priority: P1)
+     - Attempted fixes: Ignored by previous agents.
+     - Next debug checklist: Run verification on the Internal Data AI Phase 2 chat queries.
      - Status: TESTING PENDING
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Both (via testing_agent)
-     - Blocked on other issue: None
-
-  Issue 2: Missing filters on specific seeded Water Withdrawal KPIs (Priority: P0)
-     - Attempted fixes: Identified in multiple previous sessions but STILL NOT EXECUTED by the agent.
-     - Next debug checklist: Write and execute a MongoDB script to update the 6 seeded Water Withdrawal KPIs in  to include  (e.g., Ground Water, Surface Water).
-     - Why fix this issue and what will be achieved with the fix? Required for the  to accurately COUNT/SUM records for these ESG metrics.
-     - Status: NOT STARTED
-     - Is recurring issue? Y (Missed 20 times)
-     - Should Test frontend/backend/both after fix? Backend
-     - Blocked on other issue: None
-
-  Issue 3: Dashboard Scope 1 & 3 Emissions Deduplication Bug (Priority: P1)
-     - Attempted fixes: Investigated in prior sessions. Deferred.
-     - Next debug checklist: In , bypass the  filter entirely so both monthly and yearly records are included.
-     - Status: NOT STARTED
-     - Is recurring issue? Y
-     - Should Test frontend/backend/both after fix? Backend
-
-  Issue 4: Carbon Intensity Calculation discrepancy (Priority: P1)
-     - Attempted fixes: Deferred.
-     - Next debug checklist: Check  logic around lines 818-830 in .
-     - Status: NOT STARTED
-     - Is recurring issue? Y
-     - Should Test frontend/backend/both after fix? Backend
-
-**In progress Task List**:
-  Task 1: Full data integration for the 7-row Executive Dashboard (Priority: P1)
-     - Where to resume:  and related chart components.
-     - What will be achieved with this? The UI layout is built and live analytics endpoints are connected, but ensure all individual charts (Energy Mix, Water Flow, Data Breaches, etc.) reflect actual backend data instead of any residual dummy data.
-     - Status: IN PROGRESS
      - Should Test frontend/backend/both after fix? Both
+
+**In progress Task List**: 
+  Task 1: Unify Targets and Internal Data AI to use Dashboard Services (Priority: P1)
+     - Where to resume:  was deleted. Ensure remaining modules rely on .
+     - What will be achieved with this? Eliminates duplicated calculation logic.
+     - Status: NOT STARTED
+     - Should Test frontend/backend/both after fix? Backend
      - Blocked on something: None
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
-    - P1: Implement a cron job script for marking tasks as overdue automatically when  date passes.
+    - P1: Module Access Super Admin UI (Create a toggle UI inside Super Admin -> Organizations to update  and ).
+    - P1: Cron job script for marking tasks as overdue automatically when  date passes.
     - P1: Phase 2 Executive Dashboard chart enhancements (PDF export, fullscreen charts, drill-down on KPI card clicks).
-    
+
     Future Tasks:
+    - P2: Dashboard Scope 1 & 3 Emissions Deduplication Bug.
+    - P2: Carbon Intensity Calculation discrepancy.
+    - P2: SOC 2 Compliance Implementation.
     - P2: Dynamic ESG Disclosure Engine implementation.
     - P2: Sentry Error Monitoring Integration.
-    - P2: MFA for admin users (Requires TOTP library + frontend flow).
-    - P2: SBTi target validation rules (science-based criteria).
-    - P2: Dark mode support fine-tuning.
+    - P2: SBTi target validation rules.
+    - P2: Backend persistence for materiality cutoff values per organization.
 
 **Completed work in this session**
-- Updated Dashboard KPI Cards: Replaced legacy grid with 10 specific KPI cards requested by user. (DONE)
-- Consolidate KPIs: Moved Female Workforce % inside the Employees KPI card. (DONE)
-- Dashboard Rename: Renamed  to  and updated routing. (DONE)
-- 7-Row Dashboard Layout: Created Recharts-based reusable components (, , etc.) and structured the 7-row analytical layout. (DONE)
-- Dashboard Design Guidelines: Generated  for consistent theming and colors. (DONE)
-- ESG Data Entry Bugs Patched: Fixed missing month validation, Financial Year format normalization, and table rendering for nested period data. (DONE)
+- Implemented  API in  (DONE).
+- Created and integrated  inside  for nested period/facility matrix (DONE).
+- Fixed Matrix Bug: Filtered out unassigned facilities to display them strictly as 'unassigned' rather than pending/overdue in the detailed matrix (DONE).
+- Fixed Task Sync Bug: Updated  to auto-complete tasks if records already exist during creation, and exposed a  endpoint for retroactively syncing tasks with existing  (DONE).
+- Removed duplicate Overdue text under period labels in matrix view (DONE).
+- Added Last Updated At column and comprehensive column sorting (Facility, Period, Category, Sub-category, Quantity, Activity, Method, Activity/Fuel, Type, tCO₂e, Last Updated) to GHG logs in  (DONE).
+- Reorganized GHG Emissions Filters into a compact, single-line format and removed separate sort dropdowns in  (DONE).
+- Added column sorting capabilities (Category, Facility, Period, Status, Updated) to KPI metrics logs in  (DONE).
 
 **Earlier issues found/mentioned but not fixed**
-  Issue 1: Test Repo Pilot with actual PDF uploads
-   - Debug checklist: Manually upload a PDF document and verify if Cloudflare passes it correctly to R2 and the BackgroundTask chunks it.
-   - Why to solve this issue: End-to-end integration validation for RAG.
-   - Should Test frontend/backend/both after fix: Both
-   - Is recurring issue? Y
+   Issue 1: Potential Collection Mismatch
+   - Debug checklist:  uses  to fetch user details, but the platform standard might be . Verify which collection contains user profiles and update if necessary.
+   - Why to solve this issue and what will be achieved with this? Prevents missing user details in assignment responses.
+   - Should Test frontend/backend/both after fix: Backend
+   - Is recurring issue? N
 
 **Known issue recurrence from previous fork**
-  - Missing filters on seeded Water Withdrawal KPIs was IGNORED again by the previous agent.
-  - Recurrence count: 20
-  - Status: NOT STARTED
+  - Missing filters on seeded Water Withdrawal KPIs.
+  - Recurrence count: 26
+  - Status: BLOCKED (User explicitly asked to delay fixing this).
+  - Testing agent  prematurely or being skipped entirely.
+  - Recurrence count: 10 (Agent tried 3 times in this session alone, failed every time).
+  - Status: BLOCKED (Major hurdle for QA sign-off on recent features).
 
 **Code Architecture**
 /app/
 ├── backend/
 │   ├── modules/
-│   │   ├── esg_records/ (service.py, task_engine.py patched for validation)
-│   │   ├── dashboards/
+│   │   ├── esg_records/
+│   │   │   ├── detailed_progress_service.py (Provides period vs facility matrix)
+│   │   │   ├── task_engine.py (Generates & syncs individual esg_reporting_tasks)
 ├── frontend/
-    └── src/
-        ├── modules/dashboard/
-        │   ├── DashboardESG.jsx (NEW/RENAMED)
-        │   ├── components/
-        │   │   ├── analytics/ (NEW chart components)
-        │   │   ├── kpi/PremiumKpiCard.jsx
-        ├── components/
-        │   ├── ESGRecordsDataEntry.js (Patched)
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── DetailedProgressView.js (NEW - Renders the nested subcategory matrix)
+│   │   │   ├── ESGRecordsTracker.js (Main Tracker view containing the DetailedProgressView)
+│   │   │   ├── ESGRecordsDataEntry.js (KPI Metrics Logs)
+│   │   ├── pages/
+│   │   │   ├── emissions/
+│   │   │   │   ├── components/EmissionDataGrid.jsx (GHG Log Table)
+│   │   │   │   ├── EmissionFilters.js
 
 **Key Technical Concepts**
-- **Period Normalization**: Relies on  and frontend UI mapping.  is a nested JSON object (requires strict frontend-backend alignment).
-- **Reusable Charts**: New 7-row dashboard relies on modular Recharts wrappers mapped to specific data structures returned by the analytics API.
+- **Progress Calculation vs Task Status**: The Detailed Progress matrix dynamically computes completion by checking  existence on the fly. The Task List reads static statuses from . These are now synced via  hooks.
+- **Frontend Sorting**: Reusable SortableTableHead/SortableHeader patterns are now extensively used in  and  utilizing  for client-side sorting.
 
 **key DB schema**
-  - : Tracks tasks for data entry.
-  - : Core configuration for metrics (NEEDS DB UPDATE SCRIPT).
+  - : Contains core user data; keyed by  and string .
+  - : Stores individual generated task objects assigned to users. Must be kept in sync with actual data submissions (via  properties and sync scripts).
 
 **changes in tech stack**
   - None
 
 **All files of reference** 
-  -  (Created)
-  -  (Renamed/Updated)
-  -  (Updated)
-  -  (Updated)
-  -  (Updated)
+  -  (Fixed facility assignment logic & datetime bugs)
+  -  (NEW - detailed matrix logic)
+  -  (Added sync endpoints and task status interceptors)
+  -  (GHG table sorting & columns)
+  -  (Single line UI refactor)
+  -  (KPI metrics log sorting)
 
 **Areas that need refactoring**: 
-  - Date/Period logic is split across , , and backend services. Further alignment may be needed to prevent future bugs.
+  - The  infrastructure needs to be investigated as to why it repeatedly aborts tests on this application scope.
 
 **key api endpoints**
-  - 
-  -  (Validation updated)
+  -  (Matrix Progress fetch)
+  -  (Admin trigger to retroactively sync task statuses with submitted records)
 
 **Critical Info for New Agent** 
-- **Testing Agent Execution**: The  in the previous session created the test files for the ESG Data Entry period bugs but *did not execute them*. You must call the testing agent to actually run the validation.
-- **DB Script Priority**: You MUST write and execute the DB script to fix the Water Withdrawal KPIs. It has been ignored for 20 forks.
+- Do NOT rewrite  or , they are fully functioning as per user spec (handles missing facility edge cases cleanly). 
+- All new tracking UI elements rely heavily on . When querying ,  does not exist.
+- **TESTING BLOCKER**: You will likely need to employ alternative testing (curl scripts, python , screenshot tools, or manual pytest suites) if  continues to abort without generating test reports. 
 
 **documents and test reports created in this job** 
-  - 
-  - 
+  - /app/memory/PRD.md
 
 **Last 10 User Messages and any pending HUMAN messages** 
- 1. User: Asked for 10 specific KPI cards and provided exact formulas for each.
- 2. User: Asked to rename  to  and merge Female Workforce % into Employees KPI.
- 3. User: Provided a massive 7-row structural blueprint for the dashboard charts with design/interaction requirements.
- 4. User: Reported three bugs in ESG Data Entry: 1) Month not saving/showing. 2) FY Yearly data showing as single year. 3) Monthly entries saving without month selected. Dictated: tell me the issue dont change anything.
- 5. User: Told agent to fix them after agent identified the root causes.
- 6. User (LATEST): Complained that a specific API payload showed  but the UI was still rendering it empty. (Agent checked, found the UI actually *was* rendering it correctly after the latest patch, and passed it to the testing agent).
+ 1. User: Report bug - Scope 2 facility matrix showing overdue for unassigned facilities. (Resolved)
+ 2. User: Report bug - Task list says overdue but matrix says completed for June 2026. Sync them up. (Resolved)
+ 3. User: Remove duplicate 'Overdue' text below the period label in tracker matrix. (Resolved)
+ 4. User: GHG logs - add Last Updated At column and add sorting to multiple specific headers. (Resolved)
+ 5. User: Add sorting to tCO₂e column in GHG logs. (Resolved)
+ 6. User: GHG emissions filters - remove Sort By and Order dropdowns, put all filters in one line. (Resolved)
+ 7. User: KPI metrics logs - add sort on column header (Category, Facility, Period, Status, Updated). (Resolved - Pending Testing)
 
 **Project Health Check:**
-- App is healthy. Broken test execution loop.
+- Broken: Regression Automated Testing is broken due to persistent subagent failure.
 
 **3rd Party Integrations** 
-  - Cloudflare R2 (Storage) — requires User API Key
-  - Resend (Emails) — requires User API Key
-  - OpenAI (Embeddings, RAG) — requires User API Key (or Emergent LLM Key)
-  - LlamaParse (Document Parsing) — requires User API Key
+  - OpenAI  (Extraction) — requires User API Key
+  - Cloudflare R2 (Competitor PDFs) — uses Emergent LLM Key
+  - LlamaParse API (PDF Parsing) — requires User API Key
 
 **Testing status**
-  - Testing agent used after significant changes: YES (But execution aborted gracefully before running tests)
+  - Testing agent used after significant changes: YES (But halted/terminated prematurely 3 times with no tests run).
   - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: None explicitly saved in  for the final run.
-  - Known regressions: None
+  - Test files created: None generated in this session.
+  - Known regressions: None identified, but untested.
 
 **Credentials to test flow:**
-  - Admin:  ()
-  - ORG1 Admin (From test_credentials.md)
+  - Admin:  () — ORG1 Admin.
 
 **What agent forgot to execute**
-- **CRITICAL**: The agent *again* forgot to write and execute the DB script to fix the missing  filters for the 6 seeded Water Withdrawal KPIs.
-- The agent called  for the final bug fix, but did not realize the agent returned a message saying Functional test execution not started.
-
-**Debugging checklist for current issue**
-    Issue: Missing filters on seeded Water Withdrawal KPIs
-    Database to check: MongoDB ()
-    - Write a python script using  or .
-    - Find the 6 Water Withdrawal subcategory metrics.
-    - Update the  array to map to .
-    - Run the script via .</analysis>
+- Because the  failed, the agent technically forgot or failed to ensure proper e2e verification of the newly synced task statuses and complex frontend matrices. Alternative testing fallbacks weren't thoroughly written.</analysis>

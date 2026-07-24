@@ -110,8 +110,8 @@ def get_financial_year(month: int, year: int) -> str:
     """
     Get financial year string for a given month and year.
     FY runs April-March (Indian FY).
-    April 2024 → FY 2024-25
-    January 2025 → FY 2024-25
+    April 2024 → FY 2024-2025
+    January 2025 → FY 2024-2025
     """
     if month >= 4:  # April onwards
         start_year = year
@@ -120,7 +120,7 @@ def get_financial_year(month: int, year: int) -> str:
         start_year = year - 1
         end_year = year
     
-    return f"FY {start_year}-{str(end_year)[-2:]}"
+    return f"FY {start_year}-{end_year}"
 
 
 def get_emission_subcategory(scope: str) -> str:
@@ -265,7 +265,7 @@ class GHGIntegrationService:
             # Parse FY from period
             month, year = parse_reporting_period(period)
             if year:
-                fy = f"FY {year}-{str(year + 1)[-2:]}"
+                fy = f"FY {year}-{year + 1}"
             else:
                 continue
             
@@ -734,7 +734,7 @@ class GHGIntegrationService:
             period = em.get("reporting_period", "")
             month, year = parse_reporting_period(period)
             if year:
-                fy = f"FY {year}-{str(year + 1)[-2:]}"
+                fy = f"FY {year}-{year + 1}"
             else:
                 continue
             

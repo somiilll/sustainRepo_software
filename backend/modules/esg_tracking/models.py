@@ -125,7 +125,9 @@ class BulkAssignRequest(BaseModel):
     framework_id: str
     section_id: Optional[str] = None  # If None, assign all in framework
     disclosure_ids: Optional[List[str]] = None  # If None, assign all unassigned
-    assigned_to_user_id: str
+    # Support both single user (legacy) and multiple users
+    assigned_to_user_id: Optional[str] = None  # Legacy single user
+    assigned_user_ids: Optional[List[str]] = None  # Multiple users (preferred)
     role: str = "owner"
     # New scheduling fields
     start_date: Optional[str] = None  # ISO date string

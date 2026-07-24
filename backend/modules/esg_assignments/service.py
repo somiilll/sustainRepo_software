@@ -12,6 +12,7 @@ Core business logic for managing ESG assignments, including:
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone, timedelta
 import uuid
+from fastapi import HTTPException
 from shared.database.mongo import db
 from .models import (
     EntityType, AssignmentLevel, AssignmentRole, AssignmentStatus,
@@ -765,6 +766,109 @@ class AssignmentService:
             return {k: v for k, v in doc.items() if k != "_id"}
         
         return doc
+
+    async def send_reminder_for_assignment(
+        self,
+        assignment_id: str,
+        organization_id: str,
+        sent_by_user_id: str,
+    ) -> Dict[str, Any]:
+        """
+        Send a reminder email for a specific assignment.
+        """
+        import logging
+        from datetime import datetime, timezone
+        from shared.helpers.email import send_email
+        from shared.notifications import create_notification
+        from .email_templates import assignment_reminder_email
+        
+        # Find the assignment
+        assignment = await self._assignments.find_one({
+            "id": assignment_id,
+            "organization_id": organization_id,
+        })
+        
+        if not assignment:
+            raise HTTPException(status_code=404, detail="Assignment not found")
+        
+        # Get assigned user
+        assigned_user = await self._users.find_one(
+            {"id": assignment.get("assigned_to_user_id")},
+            {"email": 1, "name": 1, "full_name": 1, "id": 1}
+        )
+        
+        if not assigned_user or not assigned_user.get("email"):
+            raise HTTPException(status_code=400, detail="Assigned user not found or has no email")
+        
+        # Get sender name
+        sender = await self._users.find_one(
+            {"id": sent_by_user_id},
+            {"name": 1, "full_name": 1, "email": 1}
+        )
+        sender_name = "Admin"
+        if sender:
+            sender_name = sender.get("full_name") or sender.get("name") or sender.get("email", "").split("@")[0]
+        
+        user_name = assigned_user.get("full_name") or assigned_user.get("name") or assigned_user.get("email", "").split("@")[0]
+        
+        # Format entity_id for display (replace underscores with spaces, title case)
+        raw_entity_id = assignment.get("entity_id", "Task")
+        entity_id_display = raw_entity_id.replace("_", " ").replace("-", " ").title()
+        
+        # Format reporting period with dates if available
+        reporting_period = assignment.get("reporting_period", "")
+        start_date = assignment.get("start_date")
+        end_date = assignment.get("end_date")
+        
+        if start_date and end_date:
+            try:
+                from datetime import datetime as dt
+                start_dt = dt.fromisoformat(start_date.replace("Z", "+00:00")) if isinstance(start_date, str) else start_date
+                end_dt = dt.fromisoformat(end_date.replace("Z", "+00:00")) if isinstance(end_date, str) else end_date
+                reporting_period = f"{start_dt.strftime('%b %d, %Y')} - {end_dt.strftime('%b %d, %Y')}"
+            except Exception:
+                pass  # Keep original reporting_period if date parsing fails
+        
+        # Send email
+        try:
+            email_body = assignment_reminder_email(
+                user_name=user_name,
+                entity_type=assignment.get("entity_type", ""),
+                entity_id=entity_id_display,
+                status=assignment.get("status", "pending"),
+                due_date=assignment.get("due_date"),
+                reporting_period=reporting_period,
+            )
+            
+            await send_email(
+                to_email=assigned_user["email"],
+                subject=f"Reminder: {entity_id_display} - ESG Assignment",
+                body=email_body,
+            )
+            logging.info(f"Reminder email sent to {assigned_user['email']} for assignment {assignment_id}")
+            
+            # Create in-app notification
+            await create_notification(
+                user_id=assigned_user["id"],
+                org_id=organization_id,
+                title="Reminder",
+                message=f"Reminder: {entity_id_display} is pending your action",
+                notification_type="reminder",
+                link="/environment",
+                metadata={"assignment_id": assignment_id, "entity_id": entity_id_display},
+            )
+            
+            # Update last_reminder_sent_at
+            await self._assignments.update_one(
+                {"id": assignment_id},
+                {"$set": {"last_reminder_sent_at": datetime.now(timezone.utc)}}
+            )
+            
+            return {"success": True, "message": "Reminder sent successfully"}
+            
+        except Exception as e:
+            logging.error(f"Failed to send reminder for assignment {assignment_id}: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to send reminder: {str(e)}")
     
     async def _send_assignment_notifications(
         self,

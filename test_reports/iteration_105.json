@@ -1,0 +1,38 @@
+{
+  "summary": "Verified BRSR question assignment fixes via backend API tests (3/3 pass). Bugs are FIXED: (1) reassigning updates due_date correctly, (2) reassigning to a new set of users replaces cleanly (only new set present), (3) adding a user to existing assignment preserves all listed users. Verified end-to-end via POST /api/tracking/all/assign and READ via GET /api/tracking/all/frameworks/brsr/sections/SECTION_B.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_brsr_assignment_fix.py",
+    "/app/test_reports/pytest/brsr_assignment_fix.xml"
+  ],
+  "test_scenarios_verified": [
+    "Assign question to 2 users with due_date - both users appear in assignees[] and due_date persisted",
+    "Reassign same question to users B & C (replacing A & B) - assignees == {B, C} exactly; due_date updated",
+    "Reassign with 3 users - all 3 appear in assignees list (no drop)"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "assignment_service_v2._build_unique_key correctly branches on entity_type=='question' for disclosures vs record_category for KPI metrics - clean.",
+    "READ path in esg_tracking/service.py now sources assignees from esg_assignment_assignees collection with legacy assigned_to_user_id fallback - good backward compat.",
+    "bulk_assign_disclosures passes entity_type='question' & entity_id=q_key to assignment_service_v2 - honored by the create path (line 170 in assignment_service_v2.py).",
+    "Note: existing_assignments dict is built but only used implicitly via skip_already_assigned; since create_or_update_assignment handles upsert internally this is fine but slightly redundant.",
+    "Minor: replace_assignees is called with new_user_ids in the update branch - confirmed via test_2 that old users are removed and new set is exact."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_brsr_assignment_fix.py (new)"
+  ],
+  "success_rate": {"backend": "100% (3/3)", "frontend": "N/A - backend-only functional verification; UI smoke test confirmed dashboard loads after login"},
+  "test_credentials": "goyalsomil2001@gmail.com / TestUser123! (admin, ORG1)",
+  "seed_data_creation": "Assignment created on first available SECTION_B disclosure for FY 2026-2027; assignees are mutated across the 3 tests (not cleaned up but no impact - later reassign fully replaces).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Correct users endpoint is GET /api/admin/users (not /api/users). BRSR SECTION_B disclosures under FY 2026-2027 have entity_type='question' assignments; assignees are stored in esg_assignment_assignees collection with removed_at=null for active ones. Bulk assign endpoint: POST /api/tracking/all/assign?reporting_period=... with BulkAssignRequest body (framework_id, section_id, disclosure_ids, assigned_user_ids, due_date, skip_already_assigned)."
+}

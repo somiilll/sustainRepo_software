@@ -1,0 +1,25 @@
+{
+  "summary": "Frontend UI test of Base Year Emissions page redesign. All 3 requested features work: (1) Info banner removed, (2) 'Type' column with 'Organization'/'Facility' badges present after name column, (3) Scope 1&2 and Scope 3 base-year cards are clickable and correctly open Version History dialog for configured records (verified for ORG1 with FY 2017-2018 for Scope1&2 and FY 2020-2021 for Scope 3, and for Facility A with FY 2024-2025). Hover backgrounds (bg-blue-50/50, bg-purple-50/50 with darker hover) are applied via className.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Base Year Emissions", "issues": ["Minor: recharts warnings 'width(-1) height(-1)' and React 'key inside spread props' warnings observed on dashboard/hidden charts (pre-existing, not related to this change)"]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "BaseYearEmissions.js is 3296 lines — should be split into smaller components (accordion row, scope card, dialogs) for maintainability.",
+    "Scope card onClick logic is duplicated between organization row and facility row (lines ~1712-1748 vs ~1914-1949); extract into a shared renderClickableScopeCard component to satisfy DRY."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A", "frontend": "100%"},
+  "test_credentials": "goyalsomil2001@gmail.com / TestUser123! (ORG1 admin)",
+  "seed_data_creation": "None; used existing ORG1 org and facilities.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Base Year Emissions page shows unified accordion with columns: [expand] [Name] [Type badge] [Scope 1&2 card] [Scope 3 card] [Status]. Clicking scope cards fires handleViewHistory (if configured) or handleEntityClick (if not, admin only). Version History dialog opens with role='dialog'. Setup dialog not tested for empty rows because the priority feature (clickability) already validated with configured records.",
+  "rca of the issue": "N/A - no bugs found; features implemented correctly."
+}

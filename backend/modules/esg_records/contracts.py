@@ -230,6 +230,7 @@ def _validate_reporting_period(period: ReportingPeriod) -> None:
 class RecordListFilters(BaseModel):
     """Filters for listing records."""
     category: Optional[str] = None
+    categories: Optional[List[str]] = None  # Support multiple categories (e.g., for "Others")
     subcategory: Optional[str] = None
     reporting_type: Optional[REPORTING_TYPE] = None
     facility_id: Optional[str] = None

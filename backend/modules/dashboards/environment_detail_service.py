@@ -188,7 +188,7 @@ async def get_environment_detail(
 
     water_records = await db.environment_records.find(
         {**org_query, "category": "Water"},
-        {"_id": 0, "subcategory": 1, "field_values": 1},
+        {"_id": 0, "subcategory": 1, "field_values": 1, "reporting_period": 1},
     ).to_list(5000)
 
     # Source key mappings
@@ -215,16 +215,23 @@ async def get_environment_detail(
     water_sources: Dict[str, float] = {}
     water_discharge_sources: Dict[str, float] = {}
     water_consumption_sources: Dict[str, float] = {}
+    water_monthly_sources: Dict[str, Dict[str, float]] = {}  # period -> {source_name -> value}
+
+    from modules.dashboards.esg_analytics_service import record_month
 
     for wr in water_records:
         sub = (wr.get("subcategory") or "").lower()
         fv = wr.get("field_values") or {}
+        period_key = record_month(wr)
 
         if sub == "withdrawal":
             for key, label in WITHDRAWAL_KEYS.items():
                 val = float(fv.get(key) or 0)
                 if val > 0:
                     water_sources[label] = water_sources.get(label, 0) + val
+                    if period_key:
+                        water_monthly_sources.setdefault(period_key, {})
+                        water_monthly_sources[period_key][label] = water_monthly_sources[period_key].get(label, 0) + val
         elif sub == "discharge":
             for key, label in DISCHARGE_KEYS.items():
                 val = float(fv.get(key) or 0)
@@ -254,19 +261,25 @@ async def get_environment_detail(
     water_discharge_list = _sorted_sources(water_discharge_sources)
     water_consumption_list = _sorted_sources(water_consumption_sources)
 
+    # Build sorted monthly source trend
+    all_source_names = sorted(water_sources.keys())
+    water_monthly_sources_list = []
+    for period_k in sorted(water_monthly_sources.keys()):
+        entry = {"period": period_k}
+        for src_name in all_source_names:
+            entry[src_name] = round(water_monthly_sources[period_k].get(src_name, 0), 2)
+        water_monthly_sources_list.append(entry)
+
     # --- Waste type breakdown ---
     waste_records = await db.environment_records.find(
         {**org_query, "category": "Waste"},
-        {"_id": 0, "subcategory": 1, "field_values": 1},
+        {"_id": 0, "subcategory": 1, "field_values": 1, "reporting_period": 1},
     ).to_list(5000)
 
     hazardous_waste = {"generated": 0.0, "recovered": 0.0, "disposed": 0.0}
     non_hazardous_waste = {"generated": 0.0, "recovered": 0.0, "disposed": 0.0}
+    waste_monthly: Dict[str, Dict[str, float]] = {}  # period -> metrics
 
-    # Waste field_values use keys like:
-    #   hazardous_waste_generated, non_hazardous_waste_generated
-    #   hazardous_waste_disposed, non_hazardous_waste_disposed
-    #   hazardous_waste_recovered, non_hazardous_waste_recovered
     WASTE_FIELD_MAP = {
         "hazardous_waste_generated": ("hazardous", "generated"),
         "non_hazardous_waste_generated": ("non_hazardous", "generated"),
@@ -278,13 +291,24 @@ async def get_environment_detail(
 
     for wr in waste_records:
         fv = wr.get("field_values") or {}
+        period_key = record_month(wr)
         found_mapped = False
+        haz_g = haz_r = haz_d = nhaz_g = nhaz_r = nhaz_d = 0.0
+
         for field_key, (waste_type, metric) in WASTE_FIELD_MAP.items():
             val = float(fv.get(field_key) or 0)
             if val > 0:
                 target = hazardous_waste if waste_type == "hazardous" else non_hazardous_waste
                 target[metric] += val
                 found_mapped = True
+                if waste_type == "hazardous":
+                    if metric == "generated": haz_g += val
+                    elif metric == "recovered": haz_r += val
+                    elif metric == "disposed": haz_d += val
+                else:
+                    if metric == "generated": nhaz_g += val
+                    elif metric == "recovered": nhaz_r += val
+                    elif metric == "disposed": nhaz_d += val
 
         # Fallback: if no mapped keys found, try subcategory + quantity
         if not found_mapped:
@@ -295,10 +319,112 @@ async def get_environment_detail(
                 target = hazardous_waste if is_haz else non_hazardous_waste
                 if "generated" in sub:
                     target["generated"] += qty
+                    if is_haz: haz_g += qty
+                    else: nhaz_g += qty
                 elif "recovered" in sub or "diverted" in sub:
                     target["recovered"] += qty
+                    if is_haz: haz_r += qty
+                    else: nhaz_r += qty
                 elif "disposal" in sub or "disposed" in sub:
                     target["disposed"] += qty
+                    if is_haz: haz_d += qty
+                    else: nhaz_d += qty
+
+        # Accumulate monthly data
+        if period_key and (haz_g + haz_r + haz_d + nhaz_g + nhaz_r + nhaz_d) > 0:
+            if period_key not in waste_monthly:
+                waste_monthly[period_key] = {
+                    "haz_generated": 0, "haz_recovered": 0, "haz_disposed": 0,
+                    "nhaz_generated": 0, "nhaz_recovered": 0, "nhaz_disposed": 0,
+                }
+            waste_monthly[period_key]["haz_generated"] += haz_g
+            waste_monthly[period_key]["haz_recovered"] += haz_r
+            waste_monthly[period_key]["haz_disposed"] += haz_d
+            waste_monthly[period_key]["nhaz_generated"] += nhaz_g
+            waste_monthly[period_key]["nhaz_recovered"] += nhaz_r
+            waste_monthly[period_key]["nhaz_disposed"] += nhaz_d
+
+    waste_monthly_list = []
+    for pk in sorted(waste_monthly.keys()):
+        m = waste_monthly[pk]
+        waste_monthly_list.append({
+            "period": pk,
+            "haz_generated": round(m["haz_generated"], 2),
+            "haz_recovered": round(m["haz_recovered"], 2),
+            "haz_disposed": round(m["haz_disposed"], 2),
+            "nhaz_generated": round(m["nhaz_generated"], 2),
+            "nhaz_recovered": round(m["nhaz_recovered"], 2),
+            "nhaz_disposed": round(m["nhaz_disposed"], 2),
+        })
+
+    # --- Energy source breakdown & facility energy from GHG integration ---
+    energy_source_breakdown = []
+    facility_energy = []
+    try:
+        from modules.esg_records.ghg_integration import get_ghg_integration_service
+        ghg_svc = get_ghg_integration_service(db)
+        energy_records = await ghg_svc.get_energy_from_ghg(
+            org_id=org_id,
+            facility_ids=facility_ids,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+        source_map: Dict[str, float] = {}
+        fac_map: Dict[str, Dict] = {}
+
+        # Resolve facility names for labelling
+        fac_name_cache: Dict[str, str] = {}
+
+        for rec in energy_records:
+            fv = rec.get("field_values") or {}
+            energy_val = float(fv.get("total_energy") or 0)
+            energy_unit = fv.get("energy_unit", "MWh")
+            if energy_unit == "TJ":
+                energy_val *= 277.778  # TJ → MWh
+
+            subcat = rec.get("subcategory") or ""
+            if "Electricity" in subcat:
+                source_name = "Electricity"
+            elif "Fuel" in subcat:
+                source_name = "Fuel"
+            elif "Heating" in subcat:
+                source_name = "Heating & Steam"
+            else:
+                source_name = "Other"
+
+            source_map[source_name] = source_map.get(source_name, 0) + energy_val
+
+            fac_id = rec.get("facility_id") or ""
+            fac_name = rec.get("facility_name") or fac_id
+            is_renewable = rec.get("sub_subcategory", "") == "Renewable"
+
+            if fac_id:
+                fac_name_cache[fac_id] = fac_name
+                if fac_id not in fac_map:
+                    fac_map[fac_id] = {"name": fac_name, "total": 0.0, "renewable": 0.0}
+                fac_map[fac_id]["total"] += energy_val
+                if is_renewable:
+                    fac_map[fac_id]["renewable"] += energy_val
+
+        energy_source_breakdown = sorted(
+            [{"name": k, "value": round(v, 2)} for k, v in source_map.items() if v > 0],
+            key=lambda x: -x["value"],
+        )
+        facility_energy = sorted(
+            [
+                {
+                    "name": v["name"],
+                    "total": round(v["total"], 2),
+                    "renewable_pct": round(v["renewable"] / v["total"] * 100, 1) if v["total"] > 0 else 0,
+                }
+                for v in fac_map.values()
+                if v["total"] > 0
+            ],
+            key=lambda x: -x["total"],
+        )
+    except Exception:
+        pass
 
     return {
         "scope1_breakdown": fmt_breakdown(scope1_breakdown),
@@ -309,6 +435,10 @@ async def get_environment_detail(
         "water_sources": water_sources_list,
         "water_discharge_sources": water_discharge_list,
         "water_consumption_sources": water_consumption_list,
+        "water_monthly_sources": water_monthly_sources_list,
         "hazardous_waste": hazardous_waste,
         "non_hazardous_waste": non_hazardous_waste,
+        "waste_monthly": waste_monthly_list,
+        "energy_source_breakdown": energy_source_breakdown,
+        "facility_energy": facility_energy,
     }

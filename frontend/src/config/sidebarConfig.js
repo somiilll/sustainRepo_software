@@ -12,12 +12,12 @@ const sidebarConfig = [
     icon: 'LayoutDashboard',
     path: '/dashboard',
   },
-  // {
-  //   key: 'organization',
-  //   label: 'Organization',
-  //   icon: 'Building2',
-  //   path: '/organization',
-  // },
+  {
+    key: 'organization',
+    label: 'Organization',
+    icon: 'Building2',
+    path: '/organization',
+  },
   {
     key: 'facilities',
     label: 'Facilities',
@@ -42,19 +42,20 @@ const sidebarConfig = [
           { key: 'environment.ghg.base_year', label: 'Base Year', icon: 'CalendarDays', path: '/ghg/base-year' },
           { key: 'environment.ghg.analysis', label: 'Analysis', icon: 'BarChart3', path: '/ghg/analysis' },
       ] },
-      { key: 'environment.energy', label: 'Energy', icon: 'Zap', path: '/environment/energy' },
-      { key: 'environment.water', label: 'Water', icon: 'Droplets', path: '/environment/water' },
-      { key: 'environment.waste', label: 'Waste', icon: 'Trash2', path: '/environment/waste' },
+      { key: 'environment.energy', label: 'Energy', icon: 'Zap', children: [
+          { key: 'environment.energy.kpi', label: 'KPI', icon: 'FileText', path: '/environment/energy' },
+          { key: 'environment.energy.analysis', label: 'Analysis', icon: 'BarChart3', path: '/environment/energy/analysis' },
+      ] },
+      { key: 'environment.water', label: 'Water', icon: 'Droplets', children: [
+          { key: 'environment.water.kpi', label: 'KPI', icon: 'FileText', path: '/environment/water' },
+          { key: 'environment.water.analysis', label: 'Analysis', icon: 'BarChart3', path: '/environment/water/analysis' },
+      ] },
+      { key: 'environment.waste', label: 'Waste', icon: 'Trash2', children: [
+          { key: 'environment.waste.kpi', label: 'KPI', icon: 'FileText', path: '/environment/waste' },
+          { key: 'environment.waste.analysis', label: 'Analysis', icon: 'BarChart3', path: '/environment/waste/analysis' },
+      ] },
       { key: 'environment.biodiversity', label: 'Biodiversity', icon: 'TreeDeciduous', path: '/environment/biodiversity' },
-      {
-        key: 'environment.others',
-        label: 'Others',
-        icon: 'Leaf',
-        children: [
-          { key: 'environment.others.climate_change', label: 'Climate Change', path: '/environment/climate-change' },
-          { key: 'environment.others.material', label: 'Material', path: '/environment/material' },
-        ],
-      },
+      { key: 'environment.others', label: 'Others', icon: 'Leaf', path: '/environment/others' },
       { key: 'environment.analysis', label: 'Analysis', icon: 'BarChart3', path: '/environment/analysis' },
     ],
   },
@@ -120,7 +121,7 @@ const sidebarConfig = [
         label: 'Voluntary Targets',
         icon: 'Sprout',
         children: [
-          // { key: 'targets.voluntary.ghg', label: 'GHG Targets', path: '/targets/voluntary/ghg' },
+          { key: 'targets.voluntary.ghg', label: 'GHG Targets', path: '/targets/voluntary/ghg' },
           { key: 'targets.voluntary.environment', label: 'Environment Targets', path: '/targets/voluntary/environment' },
           { key: 'targets.voluntary.social', label: 'Social Targets', path: '/targets/voluntary/social' },
           { key: 'targets.voluntary.governance', label: 'Governance Targets', path: '/targets/voluntary/governance' },
@@ -134,6 +135,12 @@ const sidebarConfig = [
     label: 'Reports',
     icon: 'FileBarChart',
     path: '/reports',
+  },
+  {
+    key: 'peer_benchmarking',
+    label: 'Peer Benchmarking',
+    icon: 'GitCompareArrows',
+    path: '/peer-benchmarking',
   },
   {
     key: 'users',

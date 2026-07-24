@@ -13,6 +13,8 @@ import uuid
 from core_platform.auth import get_current_user
 from .service import esg_records_service
 from .ghg_integration import get_ghg_integration_service
+from .category_config_service import category_config_service
+from .detailed_progress_service import detailed_progress_service
 from .contracts import (
     ESG_SECTION, REPORTING_TYPE, 
     CreateRecordRequest, UpdateRecordRequest, RecordListFilters
@@ -20,6 +22,117 @@ from .contracts import (
 from shared.database import get_database
 
 router = APIRouter(prefix="/esg-records", tags=["ESG Records"])
+
+
+# =============================================================================
+# Category Configuration Endpoints
+# =============================================================================
+
+@router.get("/category-config/frequency")
+async def get_category_frequency_config(
+    category: str = Query(..., description="Category name (e.g., 'Water', 'GHG Emissions')"),
+    subcategory: Optional[str] = Query(None, description="Subcategory name (e.g., 'Discharge')"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get allowed reporting frequencies for a category/subcategory.
+    
+    Returns the list of allowed frequencies and the default frequency.
+    Uses category-specific defaults, falls back to all frequencies if not configured.
+    """
+    org_id = current_user.get("organization_id")
+    
+    config = await category_config_service.get_frequency_config(
+        category=category,
+        subcategory=subcategory,
+        org_id=org_id
+    )
+    
+    return config
+
+
+@router.get("/category-config/frequency/all")
+async def list_all_frequency_configs(
+    org_only: bool = Query(False, description="If true, only return org-specific configs"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    List all frequency configurations.
+    Admin endpoint to view all configured frequency settings.
+    """
+    org_id = current_user.get("organization_id") if org_only else None
+    configs = await category_config_service.list_configs(org_id=org_id)
+    return {"configs": configs, "total": len(configs)}
+
+
+@router.post("/category-config/frequency")
+async def set_category_frequency_config(
+    category: str = Query(..., description="Category name"),
+    allowed_frequencies: List[str] = Query(..., description="List of allowed frequencies"),
+    default_frequency: str = Query(..., description="Default frequency"),
+    subcategory: Optional[str] = Query(None, description="Subcategory name (optional)"),
+    org_specific: bool = Query(False, description="If true, config is org-specific"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Set frequency configuration for a category/subcategory.
+    
+    Admin endpoint to configure allowed frequencies.
+    - Set org_specific=true for org-level overrides
+    - Set subcategory for subcategory-specific configs
+    
+    Valid frequencies: daily, weekly, monthly, quarterly, half_yearly, yearly
+    """
+    # Check admin role
+    user_role = current_user.get("role", "").lower()
+    if user_role not in ["admin", "super_admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    org_id = current_user.get("organization_id") if org_specific else None
+    
+    try:
+        config = await category_config_service.set_frequency_config(
+            category=category,
+            allowed_frequencies=allowed_frequencies,
+            default_frequency=default_frequency,
+            subcategory=subcategory,
+            org_id=org_id
+        )
+        return {"message": "Configuration saved", "config": config}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/category-config/frequency")
+async def delete_category_frequency_config(
+    category: str = Query(..., description="Category name"),
+    subcategory: Optional[str] = Query(None, description="Subcategory name (optional)"),
+    org_specific: bool = Query(False, description="If true, delete org-specific config"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Delete a frequency configuration.
+    
+    Admin endpoint to remove a custom frequency config.
+    After deletion, the category will fall back to default or hardcoded values.
+    """
+    # Check admin role
+    user_role = current_user.get("role", "").lower()
+    if user_role not in ["admin", "super_admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    org_id = current_user.get("organization_id") if org_specific else None
+    
+    deleted = await category_config_service.delete_frequency_config(
+        category=category,
+        subcategory=subcategory,
+        org_id=org_id
+    )
+    
+    if deleted:
+        return {"message": "Configuration deleted"}
+    else:
+        raise HTTPException(status_code=404, detail="Configuration not found")
 
 
 # =============================================================================
@@ -94,6 +207,7 @@ async def create_record(
 async def list_records(
     section: ESG_SECTION,
     category: Optional[str] = None,
+    categories: Optional[str] = Query(None, description="Comma-separated list of categories (e.g., 'Climate Change,Material,Other Emissions')"),
     subcategory: Optional[str] = None,
     reporting_type: Optional[REPORTING_TYPE] = None,
     facility_id: Optional[str] = None,
@@ -152,8 +266,14 @@ async def list_records(
                 "message": "No categories assigned to you"
             }
     
+    # Parse comma-separated categories if provided
+    categories_list = None
+    if categories:
+        categories_list = [c.strip() for c in categories.split(",") if c.strip()]
+    
     filters = RecordListFilters(
         category=category,
+        categories=categories_list,
         subcategory=subcategory,
         reporting_type=reporting_type,
         facility_id=facility_id,
@@ -184,6 +304,13 @@ async def list_records(
             category=category,
             facility_id=facility_id
         )
+        
+        # Filter by categories list if provided (for "Others" page)
+        if categories_list and imported_records:
+            imported_records = [
+                r for r in imported_records
+                if r.get("category", "") in categories_list
+            ]
         
         # Filter imported records based on search if provided
         if search and imported_records:
@@ -499,7 +626,7 @@ async def get_dashboard_metrics(
             start_year = int(start_date[:4])
             start_month = int(start_date[5:7])
             fy_start = start_year if start_month >= 4 else start_year - 1
-            financial_year = f"FY {fy_start}-{str(fy_start + 1)[-2:]}"
+            financial_year = f"FY {fy_start}-{fy_start + 1}"
         except (ValueError, IndexError):
             pass
     
@@ -592,11 +719,22 @@ async def create_record_assignment(
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Create or update a record category assignment.
-    Supports multiple assignments per category (multi-user).
+    Create or update a record category assignment (V2 - New Data Model).
+    
+    This endpoint uses the new assignment model where:
+    - One assignment per work item (category/facility/period)
+    - Assignees tracked separately in esg_assignment_assignees
+    
+    Supports:
+    - Organization-level assignments (all facilities)
+    - Facility-level assignments (specific facilities)
+    - Multiple users per assignment
+    - Switching between org and facility level
     
     Admin only - regular users cannot assign tasks.
     """
+    from modules.esg_assignments.assignment_service_v2 import assignment_service_v2
+    
     org_id = current_user.get("organization_id")
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization assigned")
@@ -607,14 +745,140 @@ async def create_record_assignment(
         raise HTTPException(status_code=403, detail="Only admins can create assignments")
     
     user_id = current_user.get("id")
+    assignment_level = data.get("assignment_level", "organization")
     
-    assignment = await esg_records_service.create_assignment(
-        org_id=org_id,
-        assigned_by_user_id=user_id,
-        data=data,
-    )
+    try:
+        if assignment_level == "facility":
+            # Facility-level: expects facility_assignments dict
+            # { facility_id: [user_ids], ... }
+            facility_assignments = data.get("facility_assignments", {})
+            
+            if not facility_assignments:
+                # Single facility assignment (legacy format)
+                facility_id = data.get("facility_id")
+                user_ids = data.get("user_ids", [])
+                if data.get("assigned_to_user_id"):
+                    user_ids = [data.get("assigned_to_user_id")]
+                
+                if facility_id and user_ids:
+                    facility_assignments = {facility_id: user_ids}
+            
+            if not facility_assignments:
+                raise HTTPException(status_code=400, detail="No facility assignments provided")
+            
+            # Extract common assignment properties
+            assignment_data = {
+                "start_date": data.get("start_date"),
+                "end_date": data.get("end_date"),
+                "timezone": data.get("timezone", "Asia/Kolkata"),
+                "filling_frequency": data.get("filling_frequency"),
+                "due_config": data.get("due_config"),
+                "reminder_enabled": data.get("reminder_enabled", False),
+                "reminder_config": data.get("reminder_config"),
+                "requires_approval": data.get("requires_approval", False),
+                "approval_chain": data.get("approval_chain", []),
+            }
+            
+            result = await assignment_service_v2.replace_org_with_facility_assignments(
+                organization_id=org_id,
+                category=data.get("category"),
+                subcategory=data.get("subcategory"),
+                sub_subcategory=data.get("sub_subcategory"),
+                reporting_period=data.get("reporting_period"),
+                facility_assignments=facility_assignments,
+                assignment_data=assignment_data,
+                created_by_user_id=user_id,
+            )
+            
+            return {
+                "message": f"Created {result['created_facility_level']} facility-level assignments",
+                "deleted_org_level": result["deleted_org_level"],
+                "assignments": result["assignments"],
+            }
+        
+        else:
+            # Organization-level assignment
+            user_ids = data.get("user_ids", data.get("assigned_user_ids", []))
+            if data.get("assigned_to_user_id"):
+                user_ids = [data.get("assigned_to_user_id")]
+            
+            if not user_ids:
+                raise HTTPException(status_code=400, detail="No users provided for assignment")
+            
+            # Check if switching from facility to org level
+            existing_facility_assignments = await assignment_service_v2._assignments.find({
+                "organization_id": org_id,
+                "category": data.get("category"),
+                "subcategory": data.get("subcategory"),
+                "sub_subcategory": data.get("sub_subcategory"),
+                "reporting_period": data.get("reporting_period"),
+                "facility_id": {"$ne": None},
+            }).to_list(10)
+            
+            if existing_facility_assignments:
+                # Switching from facility to org level
+                assignment_data = {
+                    "start_date": data.get("start_date"),
+                    "end_date": data.get("end_date"),
+                    "timezone": data.get("timezone", "Asia/Kolkata"),
+                    "filling_frequency": data.get("filling_frequency"),
+                    "due_config": data.get("due_config"),
+                    "reminder_enabled": data.get("reminder_enabled", False),
+                    "reminder_config": data.get("reminder_config"),
+                    "requires_approval": data.get("requires_approval", False),
+                    "approval_chain": data.get("approval_chain", []),
+                }
+                
+                result = await assignment_service_v2.replace_facility_with_org_assignment(
+                    organization_id=org_id,
+                    category=data.get("category"),
+                    subcategory=data.get("subcategory"),
+                    sub_subcategory=data.get("sub_subcategory"),
+                    reporting_period=data.get("reporting_period"),
+                    user_ids=user_ids,
+                    assignment_data=assignment_data,
+                    created_by_user_id=user_id,
+                )
+                
+                return {
+                    "message": "Switched to organization-level assignment",
+                    "deleted_facility_level": result["deleted_facility_level"],
+                    "assignment": result["assignment"],
+                }
+            
+            # Normal org-level assignment (create or update)
+            assignment_data = {
+                "organization_id": org_id,
+                "category": data.get("category"),
+                "subcategory": data.get("subcategory"),
+                "sub_subcategory": data.get("sub_subcategory"),
+                "facility_id": None,
+                "reporting_period": data.get("reporting_period"),
+                "assignment_level": "organization",
+                "start_date": data.get("start_date"),
+                "end_date": data.get("end_date"),
+                "timezone": data.get("timezone", "Asia/Kolkata"),
+                "filling_frequency": data.get("filling_frequency"),
+                "due_config": data.get("due_config"),
+                "reminder_enabled": data.get("reminder_enabled", False),
+                "reminder_config": data.get("reminder_config"),
+                "requires_approval": data.get("requires_approval", False),
+                "approval_chain": data.get("approval_chain", []),
+            }
+            
+            assignment, is_new = await assignment_service_v2.create_or_update_assignment(
+                data=assignment_data,
+                user_ids=user_ids,
+                created_by_user_id=user_id,
+            )
+            
+            return {
+                "message": "Assignment created" if is_new else "Assignment updated",
+                "assignment": assignment,
+            }
     
-    return {"message": "Assignment saved", "assignment": assignment}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/assignments/{assignment_id}/remind")
@@ -945,8 +1209,38 @@ async def refresh_overdue_tasks(
     return result
 
 
+@router.post("/tasks/sync-with-data")
+async def sync_task_statuses_with_data_endpoint(
+    current_user: dict = Depends(get_current_user),
+    db = Depends(get_database),
+):
+    """
+    Sync task statuses with actual data records.
+    
+    For tasks that are not completed but have data in the corresponding
+    records collection, update the task status to completed.
+    
+    This fixes discrepancies where data was submitted but the task
+    wasn't updated (e.g., via bulk upload or before the task existed).
+    
+    Admin only.
+    """
+    from .task_engine import sync_task_statuses_with_data
+    
+    # Only admins can trigger this
+    if current_user.get("role") not in ["admin", "super_admin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    result = await sync_task_statuses_with_data(db=db, organization_id=org_id)
+    
+    return result
 
-@router.get("/tasks/completion-by-category")
+
+
 async def get_completion_by_category(
     reporting_period: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
@@ -1082,3 +1376,64 @@ async def get_period_fill_status(
         "pending": len(periods) - filled,
         "periods": periods,
     }
+
+
+
+# =============================================================================
+# Detailed Progress Endpoint (Period × Facility Matrix)
+# =============================================================================
+
+@router.get("/detailed-progress/{category}/{subcategory}")
+async def get_detailed_subcategory_progress(
+    category: str,
+    subcategory: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get detailed period-by-period progress for a subcategory.
+    
+    Returns a matrix showing:
+    - Each reporting period with its status (filled, pending, overdue)
+    - For facility-level assignments: per-facility breakdown for each period
+    - Summary counts: total, completed, partial, overdue, pending
+    
+    This enables admins to see exactly which month/quarter data is missing
+    and which facilities are lagging behind.
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    result = await detailed_progress_service.get_subcategory_detail(
+        org_id=org_id,
+        category=category,
+        subcategory=subcategory,
+    )
+    
+    return result
+
+
+@router.get("/detailed-progress/{category}")
+async def get_detailed_category_progress(
+    category: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get detailed period-by-period progress for a category (all subcategories combined).
+    
+    Returns a matrix showing:
+    - Each reporting period with its status (filled, pending, overdue)
+    - For facility-level assignments: per-facility breakdown for each period
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    # For category-level, we pass empty string for subcategory
+    result = await detailed_progress_service.get_subcategory_detail(
+        org_id=org_id,
+        category=category,
+        subcategory="",  # Category level - no specific subcategory
+    )
+    
+    return result

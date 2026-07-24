@@ -33,7 +33,7 @@ const generateFYOptions = () => {
   const currentYear = new Date().getFullYear();
   return Array.from({ length: 10 }, (_, i) => {
     const startYear = currentYear - i + 1;
-    return `FY ${startYear}-${String(startYear + 1).slice(-2)}`;
+    return `FY ${startYear}-${startYear + 1}`;
   });
 };
 
@@ -214,11 +214,12 @@ export default function ESGRecords({ section, framework = 'BRSR' }) {
         return period.date + (period.time ? ` ${period.time}` : '');
       case 'monthly':
         // Handle both string month names and numeric months
+        // Simple format: "June 2026" (year is actual calendar year)
         let monthDisplay = period.month;
         if (typeof period.month === 'number') {
           monthDisplay = MONTH_NAMES[period.month - 1] || period.month;
         }
-        return `${monthDisplay}-${period.year}`;
+        return `${monthDisplay} ${period.year}`;
       case 'quarterly':
         return `${period.quarter} ${period.year}`;
       case 'yearly':

@@ -25,7 +25,7 @@ from dotenv import load_dotenv
 # Load backend env so we have MONGO_URL / DB_NAME
 load_dotenv("/app/backend/.env")
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://green-data-hub-2.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://determined-leavitt-6.preview.emergentagent.com").rstrip("/")
 MONGO_URL = os.environ["MONGO_URL"]
 DB_NAME = os.environ["DB_NAME"]
 

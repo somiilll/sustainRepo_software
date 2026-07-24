@@ -1,0 +1,40 @@
+{
+  "summary": "Backend-only testing of Peer Benchmarking metric consistency vs Dashboard. All 6 tests passed. /api/benchmarking/my-company now reuses dashboard services and returns identical values to /api/dashboard/{social,governance,environment}-detail endpoints for ORG1.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_peer_benchmarking_consistency.py",
+    "/app/test_reports/pytest/peer_benchmarking.xml"
+  ],
+  "verified_values": {
+    "wasteRecycled_pct": {"peer_benchmarking": 27.12, "env_detail_computed": 27.12, "gen": 427900.0, "recovered": 116032.0},
+    "ltifr": {"peer_benchmarking": 102.35, "social_detail": 102.35},
+    "disciplinaryAction_corruption_cases": {"peer_benchmarking": 5, "governance_detail": 5},
+    "daysAccountsPayable": {"peer_benchmarking": 352.8, "governance_detail": 352.8},
+    "scope1_tCO2e": 1329.15,
+    "scope2_tCO2e": 532.89
+  },
+  "action_items": [],
+  "critical_code_review_comments": [
+    "peer_benchmarking_service.py cleanly reuses EmissionsMetricsService, EnergyMetricsService, WaterMetricsService, WasteMetricsService, social_detail_service, governance_detail_service - eliminates duplicate calc paths.",
+    "Response schema in router.py matches the metric shape produced by create_metric() - required OpenAI JSON schema fields (rawTextFound, reasoning, extractedValue, reportedUnit, normalizedValue, normalizedUnit, page) all populated for internal data.",
+    "Minor: OPENAI_API_KEY_PEER_BENCHMARKING and LLAMA_CLOUD_API_KEY_PEER_BENCHMARKING gated behind /extract endpoint only, not touched by /my-company - good separation.",
+    "Minor: docstring in router.py still references 'unified ESGMetricsService' - update to 'PeerBenchmarkingService'."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_peer_benchmarking_consistency.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "N/A (backend only)"},
+  "test_credentials": "goyalsomil2001@gmail.com / TestUser123! (ORG1 admin)",
+  "seed_data_creation": "None - used existing ORG1 data",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Peer benchmarking /api/benchmarking/my-company is verified consistent with dashboard endpoints. Dashboard endpoints require start_date & end_date query params (YYYY-MM-DD) or return 422. Use 2020-01-01 -> 2030-12-31 to get full-range values matching peer benchmarking defaults."
+}

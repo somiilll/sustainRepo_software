@@ -41,6 +41,85 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+async def _mark_emission_task_completed(
+    organization_id: str,
+    facility_id: str,
+    scope: str,
+    reporting_period: str,
+    user_id: str,
+) -> dict:
+    """
+    Mark the corresponding ESG reporting task as completed when an emission record is saved.
+    
+    Finds the task by matching:
+    - organization_id
+    - facility_id
+    - category: "GHG Emissions"
+    - subcategory: mapped from scope (e.g., scope1 -> "GHG Emissions - Scope 1")
+    - period_key: matches the emission's reporting_period (e.g., "2026-07")
+    
+    Returns summary of updates made.
+    """
+    from datetime import timezone as tz
+    
+    # Map scope to subcategory
+    scope_to_subcategory = {
+        "scope1": "GHG Emissions - Scope 1",
+        "scope2": "GHG Emissions - Scope 2", 
+        "scope3": "GHG Emissions - Scope 3",
+        "biogenic": "GHG Emissions - Biogenic (Direct)",
+    }
+    subcategory = scope_to_subcategory.get(scope.lower() if scope else "", None)
+    
+    if not subcategory:
+        return {"updated": False, "reason": f"Unknown scope: {scope}"}
+    
+    # Find matching task
+    task_query = {
+        "organization_id": organization_id,
+        "facility_id": facility_id,
+        "category": "GHG Emissions",
+        "subcategory": subcategory,
+        "period_key": reporting_period,
+    }
+    
+    task = await db["esg_reporting_tasks"].find_one(task_query, {"_id": 0, "id": 1, "status": 1})
+    
+    if not task:
+        logger.info(f"[TASK_COMPLETION] No task found for query: {task_query}")
+        return {"updated": False, "reason": "No matching task found"}
+    
+    task_id = task["id"]
+    current_status = task.get("status", "pending")
+    
+    # Skip if already completed
+    if current_status == "completed":
+        return {"updated": False, "reason": "Task already completed", "task_id": task_id}
+    
+    # Update task to completed
+    now = datetime.now(tz.utc)
+    update_result = await db["esg_reporting_tasks"].update_one(
+        {"id": task_id},
+        {
+            "$set": {
+                "status": "completed",
+                "completed_at": now,
+                "completed_by_user_id": user_id,
+                "updated_at": now,
+            }
+        }
+    )
+    
+    logger.info(f"[TASK_COMPLETION] Marked task {task_id} as completed for {subcategory} period {reporting_period}")
+    
+    return {
+        "updated": update_result.modified_count > 0,
+        "task_id": task_id,
+        "previous_status": current_status,
+        "new_status": "completed",
+    }
+
+
 # Module-level audit logger reference. Resolved lazily so it picks up the
 # instance initialized by server.py on app startup.
 def _audit_logger():
@@ -66,11 +145,30 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
         logger.warning(f"[EMISSION_CREATE] Facility not found: {record_data.facility_id}")
         raise HTTPException(status_code=404, detail="Facility not found")
     
-    # Check access
-    if current_user["role"] == "user" and record_data.facility_id not in current_user.get("assigned_facilities", []):
+    org_id = facility.get("organization_id")
+    user_id = current_user.get("id")
+    user_role = current_user.get("role", "user")
+    
+    # Admin org check
+    if user_role == "admin" and org_id != current_user.get("organization_id"):
         raise HTTPException(status_code=403, detail="Not authorized")
-    if current_user["role"] == "admin" and facility["organization_id"] != current_user.get("organization_id"):
-        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # KPI Assignment-based access control (admins bypass)
+    if user_role not in ["admin", "super_admin"]:
+        from modules.esg_assignments.kpi_access_helper import kpi_access_helper
+        can_access, reason = await kpi_access_helper.can_access_emission(
+            user_id=user_id,
+            organization_id=org_id,
+            scope=record_data.scope.lower() if record_data.scope else "",
+            facility_id=record_data.facility_id,
+            reporting_period=record_data.reporting_period,
+        )
+        if not can_access:
+            logger.warning(f"[EMISSION_CREATE] Access denied: user={user_id}, reason={reason}")
+            raise HTTPException(
+                status_code=403,
+                detail=f"You don't have access to create {record_data.scope} emissions for this facility. Check your KPI assignments."
+            )
     
     # Validate frequency_type
     frequency_type = record_data.frequency_type or "monthly"
@@ -372,6 +470,41 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
         }
     )
     
+    # Update assignment completion status (best-effort)
+    try:
+        from modules.esg_assignments.completion_tracking import completion_tracking_service
+        # Map scope to subcategory for completion tracking
+        scope_to_subcategory = {
+            "scope1": "GHG Emissions - Scope 1",
+            "scope2": "GHG Emissions - Scope 2",
+            "scope3": "GHG Emissions - Scope 3",
+            "biogenic": "GHG Emissions - Biogenic (Direct)",
+        }
+        subcategory = scope_to_subcategory.get(record_data.scope.lower() if record_data.scope else "", None)
+        await completion_tracking_service.on_record_submitted(
+            organization_id=record_dict["organization_id"],
+            category="GHG Emissions",
+            facility_id=record_data.facility_id,
+            subcategory=subcategory,
+            reporting_period=record_data.reporting_period,
+        )
+    except Exception as e:
+        logger.warning(f"[EMISSION_CREATE] Completion tracking failed: {e}")
+    
+    # Mark corresponding task as completed (best-effort)
+    try:
+        task_result = await _mark_emission_task_completed(
+            organization_id=record_dict["organization_id"],
+            facility_id=record_data.facility_id,
+            scope=record_data.scope,
+            reporting_period=record_data.reporting_period,
+            user_id=current_user.get("id"),
+        )
+        if task_result.get("updated"):
+            logger.info(f"[EMISSION_CREATE] Task marked completed: {task_result}")
+    except Exception as e:
+        logger.warning(f"[EMISSION_CREATE] Task completion failed: {e}")
+    
     return EmissionRecordResponse(**record_dict)
 
 # Phase B4: GET /emissions moved to modules/emissions/router.py
@@ -642,6 +775,8 @@ async def get_emission_records(
 ):
     query = {}
     org_id = current_user.get("organization_id")
+    user_id = current_user.get("id")
+    user_role = current_user.get("role", "user")
     
     if facility_id:
         query["facility_id"] = facility_id
@@ -653,18 +788,28 @@ async def get_emission_records(
     # Use the new fetch_emissions_for_user which combines approved + pending
     records = await fetch_emissions_for_user(current_user, query)
     
+    # KPI Assignment-based filtering (admins bypass)
+    if user_role not in ["admin", "super_admin"]:
+        from modules.esg_assignments.kpi_access_helper import kpi_access_helper
+        records = await kpi_access_helper.filter_emissions_by_access(
+            user_id=user_id,
+            organization_id=org_id,
+            records=records,
+            reporting_period=reporting_period,
+        )
+    
     # Filter out biogenic records from non-biogenic scope tabs
     # Biogenic records should ONLY appear in the biogenic tab
     if scope and scope != "biogenic":
         records = [r for r in records if r.get("scope") != "biogenic"]
     
     # Filter out rejected records for regular users (admins can see them)
-    if current_user["role"] == "user":
+    if user_role == "user":
         from modules.approvals.emission_flow_v2 import REJECTED_STATUSES
         records = [r for r in records if r.get("approval_status") not in REJECTED_STATUSES]
     
     # Filter out biogenic records with biogenic_scope_selection='scope3' for orgs without scope3 access
-    if current_user["role"] != "super_admin" and org_id:
+    if user_role != "super_admin" and org_id:
         organization = await db.organizations.find_one({"id": org_id}, {"_id": 0, "enabled_access": 1})
         enabled_access = organization.get("enabled_access") if organization else None
         if enabled_access is None:
@@ -746,13 +891,21 @@ async def get_emission_record(record_id: str, current_user: dict = Depends(get_c
             record_org = fac.get("organization_id") if fac else None
         if record_org and record_org != org_id:
             raise HTTPException(status_code=403, detail="Not authorized")
-    else:  # regular user
-        assigned = current_user.get("assigned_facilities", []) or []
+    else:  # regular user - use KPI access control
+        from modules.esg_assignments.kpi_access_helper import kpi_access_helper
+        can_access, reason = await kpi_access_helper.can_access_emission(
+            user_id=current_user.get("id"),
+            organization_id=current_user.get("organization_id"),
+            scope=record.get("scope", "").lower(),
+            facility_id=record.get("facility_id"),
+            reporting_period=record.get("reporting_period"),
+        )
+        # Also allow users to access their own pending records
         is_own_pending = (
             record.get("approval_status", "approved") != "approved"
             and record.get("submitted_by") == current_user.get("id")
         )
-        if record.get("facility_id") not in assigned and not is_own_pending:
+        if not can_access and not is_own_pending:
             raise HTTPException(status_code=403, detail="Not authorized")
 
     return EmissionRecordResponse(**record)

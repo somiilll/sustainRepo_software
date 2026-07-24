@@ -327,6 +327,24 @@ async def get_response_versions(
 # REMINDER ENDPOINTS (Admin only)
 # ============================================
 
+@router.post("/assignments/{assignment_id}/remind")
+async def send_assignment_reminder(
+    assignment_id: str,
+    current_user: dict = Depends(get_admin_user),
+):
+    """
+    Send a reminder email for a specific assignment (Admin only).
+    
+    Sends an email to the assigned user reminding them about the pending task.
+    """
+    result = await assignment_service.send_reminder_for_assignment(
+        assignment_id=assignment_id,
+        organization_id=current_user["organization_id"],
+        sent_by_user_id=current_user["id"],
+    )
+    return result
+
+
 @router.post("/reminders/process")
 async def process_reminders(
     current_user: dict = Depends(get_admin_user),
@@ -405,3 +423,206 @@ async def get_entity_assignment(
     )
     
     return {"assignment": assignment}
+
+
+
+# ============================================
+# KPI ACCESS ENDPOINTS
+# ============================================
+
+@router.get("/kpi-access/ghg")
+async def get_ghg_access(
+    reporting_period: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get user's GHG emissions access based on their KPI assignments.
+    
+    Returns allowed scopes, facility restrictions, and sinks access.
+    Used by frontend to filter UI elements.
+    """
+    from .kpi_access_helper import kpi_access_helper
+    
+    access_info = await kpi_access_helper.get_allowed_ghg_scopes(
+        user_id=current_user["id"],
+        organization_id=current_user["organization_id"],
+        reporting_period=reporting_period,
+    )
+    
+    return access_info
+
+
+@router.get("/kpi-access/facilities")
+async def get_facility_access(
+    category: str,
+    subcategory: Optional[str] = None,
+    reporting_period: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get user's facility access for a specific KPI category.
+    
+    Returns allowed facility IDs or indicates full access.
+    """
+    from .kpi_access_helper import kpi_access_helper
+    
+    access_info = await kpi_access_helper.get_allowed_facilities(
+        user_id=current_user["id"],
+        organization_id=current_user["organization_id"],
+        category=category,
+        subcategory=subcategory,
+        reporting_period=reporting_period,
+    )
+    
+    return access_info
+
+
+@router.get("/kpi-access/facilities/list")
+async def get_accessible_facilities(
+    category: str,
+    subcategory: Optional[str] = None,
+    reporting_period: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get the actual facility documents user can access for a category.
+    
+    Returns list of facility objects with id, name, etc.
+    """
+    from .kpi_access_helper import kpi_access_helper
+    
+    facilities = await kpi_access_helper.get_accessible_facilities_list(
+        user_id=current_user["id"],
+        organization_id=current_user["organization_id"],
+        category=category,
+        subcategory=subcategory,
+        reporting_period=reporting_period,
+    )
+    
+    return {"facilities": facilities, "total": len(facilities)}
+
+
+# ============================================
+# COMPLETION TRACKING ENDPOINTS
+# ============================================
+
+@router.get("/assignments/{assignment_id}/progress")
+async def get_assignment_progress(
+    assignment_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get detailed progress information for an assignment.
+    
+    For organization-level assignments, shows per-facility completion status.
+    """
+    from .completion_tracking import completion_tracking_service
+    
+    progress = await completion_tracking_service.get_assignment_progress(
+        assignment_id=assignment_id,
+    )
+    
+    return progress
+
+
+@router.post("/assignments/check-completion")
+async def check_and_update_completion(
+    category: str,
+    subcategory: Optional[str] = None,
+    facility_id: Optional[str] = None,
+    reporting_period: Optional[str] = None,
+    current_user: dict = Depends(get_admin_user),
+):
+    """
+    Manually trigger completion check for assignments (Admin only).
+    
+    Normally this is called automatically when records are submitted.
+    """
+    from .completion_tracking import completion_tracking_service
+    
+    result = await completion_tracking_service.check_and_update_completion(
+        organization_id=current_user["organization_id"],
+        category=category,
+        subcategory=subcategory,
+        facility_id=facility_id,
+        reporting_period=reporting_period,
+    )
+    
+    return result
+
+
+
+# ============================================
+# PROGRESS CALCULATION ENDPOINTS
+# ============================================
+
+@router.get("/progress/{assignment_id}")
+async def get_assignment_progress(
+    assignment_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get detailed progress for a single assignment.
+    
+    Returns:
+        {
+            "progress_percentage": float,
+            "completed_tasks": int,
+            "total_tasks": int,
+            "pending_tasks": int,
+            "overdue_tasks": int,
+            "last_updated": str (ISO datetime)
+        }
+    """
+    from .progress_engine import get_assignment_progress
+    
+    progress = await get_assignment_progress(assignment_id)
+    return progress
+
+
+@router.get("/progress/category/{category}")
+async def get_category_progress_endpoint(
+    category: str,
+    subcategory: Optional[str] = None,
+    sub_subcategory: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get aggregated progress for a category.
+    """
+    from .progress_engine import get_progress_engine
+    
+    engine = get_progress_engine()
+    progress = await engine.get_category_progress(
+        organization_id=current_user["organization_id"],
+        category=category,
+        subcategory=subcategory,
+        sub_subcategory=sub_subcategory,
+    )
+    return progress
+
+
+@router.post("/progress/bulk")
+async def get_bulk_progress_endpoint(
+    categories: List[dict],
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get progress for multiple categories in bulk.
+    
+    Request body:
+        [
+            {"category": "Energy", "subcategory": "Consumption"},
+            {"category": "Water"},
+            ...
+        ]
+    
+    Returns dict keyed by "category|subcategory|sub_subcategory"
+    """
+    from .progress_engine import get_bulk_progress
+    
+    progress = await get_bulk_progress(
+        organization_id=current_user["organization_id"],
+        categories=categories,
+    )
+    return progress
