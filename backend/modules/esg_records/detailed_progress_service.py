@@ -244,7 +244,7 @@ class DetailedProgressService:
                 next_period = current + relativedelta(months=6)
             elif frequency == "yearly":
                 period_end = current + relativedelta(years=1, days=-1)
-                label = f"FY {current.year}-{str(current.year + 1)[-2:]}"
+                label = f"FY {current.year}-{current.year + 1}"
                 due_date = period_end + relativedelta(days=30)
                 next_period = current + relativedelta(years=1)
             else:

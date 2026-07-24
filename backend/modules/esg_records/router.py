@@ -612,7 +612,7 @@ async def get_dashboard_metrics(
             start_year = int(start_date[:4])
             start_month = int(start_date[5:7])
             fy_start = start_year if start_month >= 4 else start_year - 1
-            financial_year = f"FY {fy_start}-{str(fy_start + 1)[-2:]}"
+            financial_year = f"FY {fy_start}-{fy_start + 1}"
         except (ValueError, IndexError):
             pass
     

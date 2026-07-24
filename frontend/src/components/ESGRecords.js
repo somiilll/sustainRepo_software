@@ -33,7 +33,7 @@ const generateFYOptions = () => {
   const currentYear = new Date().getFullYear();
   return Array.from({ length: 10 }, (_, i) => {
     const startYear = currentYear - i + 1;
-    return `FY ${startYear}-${String(startYear + 1).slice(-2)}`;
+    return `FY ${startYear}-${startYear + 1}`;
   });
 };
 
