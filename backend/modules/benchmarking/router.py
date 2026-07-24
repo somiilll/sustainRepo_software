@@ -393,6 +393,12 @@ async def extract_metrics(
             detail="LlamaParse API key not configured. Please contact administrator."
         )
 
+    # Fetch organization name for storage path
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0, "name": 1})
+    org_name = org.get("name", org_id) if org else org_id
+    # Sanitize org name for use in file path (replace spaces and special chars)
+    org_name_safe = "".join(c if c.isalnum() or c in ('-', '_') else '_' for c in org_name)
+
     try:
         from openai import OpenAI
         
@@ -401,7 +407,7 @@ async def extract_metrics(
         openai_client = OpenAI(api_key=OPENAI_API_KEY)
         
         # 1. Store PDF in R2 storage
-        storage_path = f"{org_id}/competitors/{competitor_id}.pdf"
+        storage_path = f"{org_name_safe}/competitors/{competitor_id}.pdf"
         try:
             storage_result = put_object(storage_path, content, "application/pdf")
             logger.info(f"PDF stored in R2: {R2_BUCKET_PEER_BENCHMARKING}/{storage_result.get('path')}")
