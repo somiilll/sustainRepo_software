@@ -927,9 +927,23 @@ export default function ESGTrackingTab({
                       <TableCell>
                         {disc.is_assigned ? (
                           <div className="text-sm">
-                            <div className="font-medium">{disc.assigned_to_user_name || 'Unknown'}</div>
-                            {disc.assigned_to_user_email && (
-                              <div className="text-xs text-text-muted">{disc.assigned_to_user_email}</div>
+                            {disc.assignees?.length > 1 ? (
+                              <>
+                                <div className="font-medium">
+                                  {disc.assignees[0]?.user_name || disc.assigned_to_user_name || 'Unknown'}
+                                  <span className="text-text-muted font-normal"> + {disc.assignees.length - 1} other{disc.assignees.length > 2 ? 's' : ''}</span>
+                                </div>
+                                <div className="text-xs text-text-muted">
+                                  {disc.assignees.map(a => a.user_name || a.user_email).join(', ')}
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="font-medium">{disc.assignees?.[0]?.user_name || disc.assigned_to_user_name || 'Unknown'}</div>
+                                {(disc.assignees?.[0]?.user_email || disc.assigned_to_user_email) && (
+                                  <div className="text-xs text-text-muted">{disc.assignees?.[0]?.user_email || disc.assigned_to_user_email}</div>
+                                )}
+                              </>
                             )}
                           </div>
                         ) : (
