@@ -603,6 +603,39 @@ class TrackingService:
             {"_id": 0}
         ).to_list(5000)
         
+        # Get all assignment IDs for batch fetching assignees
+        assignment_ids = [a.get("id") for a in raw_assignments if a.get("id")]
+        
+        # Fetch assignees from esg_assignment_assignees table (new model)
+        assignees_cursor = db.esg_assignment_assignees.find(
+            {"assignment_id": {"$in": assignment_ids}, "removed_at": None},
+            {"_id": 0, "assignment_id": 1, "user_id": 1, "role": 1}
+        )
+        raw_assignees = await assignees_cursor.to_list(10000)
+        
+        # Group assignees by assignment_id
+        assignees_by_assignment = {}
+        for assignee in raw_assignees:
+            aid = assignee["assignment_id"]
+            if aid not in assignees_by_assignment:
+                assignees_by_assignment[aid] = []
+            assignees_by_assignment[aid].append(assignee)
+        
+        # Get user details for all assignees
+        all_user_ids = list(set([a["user_id"] for a in raw_assignees]))
+        # Also include legacy assigned_to_user_id
+        for a in raw_assignments:
+            if a.get("assigned_to_user_id"):
+                all_user_ids.append(a["assigned_to_user_id"])
+        all_user_ids = list(set(all_user_ids))
+        
+        users_cursor = db.users.find(
+            {"id": {"$in": all_user_ids}},
+            {"_id": 0, "id": 1, "full_name": 1, "name": 1, "email": 1}
+        )
+        users_list = await users_cursor.to_list(1000)
+        user_map_local = {u["id"]: u for u in users_list}
+        
         # Aggregate assignments by entity_id (question_key) for multi-assignee display
         assignment_map = {}
         for a in raw_assignments:
@@ -613,22 +646,34 @@ class TrackingService:
                     "assignees": [],
                 }
             
-            # Add assignee to the list
-            if a.get("assigned_to_user_id"):
-                user = await db.users.find_one(
-                    {"id": a["assigned_to_user_id"]},
-                    {"_id": 0, "full_name": 1, "name": 1, "email": 1}
-                )
+            assignment_id = a.get("id")
+            
+            # First, try to get assignees from the new esg_assignment_assignees table
+            if assignment_id and assignment_id in assignees_by_assignment:
+                for assignee in assignees_by_assignment[assignment_id]:
+                    user = user_map_local.get(assignee["user_id"])
+                    assignee_entry = {
+                        "user_id": assignee["user_id"],
+                        "user_name": user.get("full_name") or user.get("name") if user else None,
+                        "user_email": user.get("email") if user else None,
+                        "role": assignee.get("role", "editor"),
+                        "assignment_id": assignment_id,
+                    }
+                    existing_ids = [x["user_id"] for x in assignment_map[entity_id]["assignees"]]
+                    if assignee_entry["user_id"] not in existing_ids:
+                        assignment_map[entity_id]["assignees"].append(assignee_entry)
+            
+            # Fallback: use legacy assigned_to_user_id if no assignees found
+            if not assignment_map[entity_id]["assignees"] and a.get("assigned_to_user_id"):
+                user = user_map_local.get(a["assigned_to_user_id"])
                 assignee_entry = {
                     "user_id": a["assigned_to_user_id"],
                     "user_name": user.get("full_name") or user.get("name") if user else None,
                     "user_email": user.get("email") if user else None,
                     "role": a.get("role", "editor"),
-                    "assignment_id": a.get("id"),
+                    "assignment_id": assignment_id,
                 }
-                existing_ids = [x["user_id"] for x in assignment_map[entity_id]["assignees"]]
-                if assignee_entry["user_id"] not in existing_ids:
-                    assignment_map[entity_id]["assignees"].append(assignee_entry)
+                assignment_map[entity_id]["assignees"].append(assignee_entry)
         
         # Set primary assignee name for backward compatibility
         for entity_id, asgn in assignment_map.items():
@@ -1039,7 +1084,8 @@ class TrackingService:
             # Build assignment data (similar to KPI metrics)
             assignment_data = {
                 "organization_id": organization_id,
-                "entity_type": "question",
+                "entity_type": "question",  # Required for read path compatibility
+                "entity_id": q_key,  # Required for read path compatibility
                 "category": "disclosure",  # Virtual category for disclosures
                 "subcategory": request.framework_id,  # Framework as subcategory
                 "sub_subcategory": q_key,  # Question key as sub_subcategory
@@ -1054,6 +1100,7 @@ class TrackingService:
                 "due_date": request.due_date.isoformat() if request.due_date else None,
                 "reminder_enabled": request.reminder_enabled,
                 "reminder_config": request.reminder_config,
+                "reminder_frequency": request.reminder_frequency,  # Add reminder frequency
                 "requires_approval": request.requires_approval,
                 "approval_chain": request.approval_chain or [],
                 "framework_id": request.framework_id,

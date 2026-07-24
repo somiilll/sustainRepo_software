@@ -51,7 +51,19 @@ class AssignmentServiceV2:
         Build the unique key query for an assignment.
         
         This identifies a unique work item.
+        For disclosures: uses entity_type + entity_id + reporting_period
+        For KPI metrics: uses category + subcategory + sub_subcategory + facility_id + reporting_period
         """
+        # If entity_type is "question" (disclosure), use entity_id as the key
+        if data.get("entity_type") == "question":
+            return {
+                "organization_id": data.get("organization_id"),
+                "entity_type": "question",
+                "entity_id": data.get("entity_id"),
+                "reporting_period": data.get("reporting_period"),
+            }
+        
+        # Default: KPI metrics use category/subcategory hierarchy
         return {
             "organization_id": data.get("organization_id"),
             "category": data.get("category"),
@@ -101,10 +113,13 @@ class AssignmentServiceV2:
                 "timezone": data.get("timezone", "Asia/Kolkata"),
                 "filling_frequency": data.get("filling_frequency"),
                 "due_config": data.get("due_config"),
+                "due_date": data.get("due_date"),  # Add due_date to update
                 "reminder_enabled": data.get("reminder_enabled", False),
                 "reminder_config": data.get("reminder_config"),
+                "reminder_frequency": data.get("reminder_frequency"),  # Add reminder_frequency
                 "requires_approval": data.get("requires_approval", False),
                 "approval_chain": data.get("approval_chain", []),
+                "framework_id": data.get("framework_id"),  # Add framework_id
                 "updated_at": now,
             }
             
@@ -138,19 +153,21 @@ class AssignmentServiceV2:
             # Create new assignment
             assignment_id = str(uuid.uuid4())
             
-            # Build entity_id for reference
-            entity_id = "_".join(filter(None, [
-                data.get("category"),
-                data.get("subcategory"),
-                data.get("sub_subcategory"),
-            ]))
-            if data.get("facility_id"):
-                entity_id = f"{entity_id}_{data.get('facility_id')}"
+            # Build entity_id for reference (only if not provided by caller)
+            entity_id = data.get("entity_id")
+            if not entity_id:
+                entity_id = "_".join(filter(None, [
+                    data.get("category"),
+                    data.get("subcategory"),
+                    data.get("sub_subcategory"),
+                ]))
+                if data.get("facility_id"):
+                    entity_id = f"{entity_id}_{data.get('facility_id')}"
             
             assignment_doc = {
                 "id": assignment_id,
                 "organization_id": data.get("organization_id"),
-                "entity_type": "record_category",
+                "entity_type": data.get("entity_type", "record_category"),  # Honor caller's entity_type
                 "entity_id": entity_id,
                 "category": data.get("category"),
                 "subcategory": data.get("subcategory"),
@@ -164,10 +181,14 @@ class AssignmentServiceV2:
                 "timezone": data.get("timezone", "Asia/Kolkata"),
                 "filling_frequency": data.get("filling_frequency"),
                 "due_config": data.get("due_config"),
+                "due_date": data.get("due_date"),
                 "reminder_enabled": data.get("reminder_enabled", False),
                 "reminder_config": data.get("reminder_config"),
+                "reminder_frequency": data.get("reminder_frequency"),
                 "requires_approval": data.get("requires_approval", False),
                 "approval_chain": data.get("approval_chain", []),
+                "framework_id": data.get("framework_id"),
+                "group_assignment_id": data.get("group_assignment_id"),
                 "created_by_user_id": created_by_user_id,
                 "created_at": now,
                 "updated_at": now,
