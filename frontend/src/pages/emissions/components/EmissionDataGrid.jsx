@@ -315,20 +315,20 @@ export default function EmissionDataGrid({
               {/* Scope 3 Row */}
               {activeScope === 'scope3' && (
                 <>
-                  <div className="w-36 flex-shrink-0">
+                  <div className="w-36 flex-shrink-0 text-left">
                     <p className="text-sm font-medium text-text-primary truncate" title={facility?.name}>
                       {facility?.name || 'Unknown'}
                     </p>
                   </div>
-                  <div className="w-24 flex-shrink-0 text-sm text-text-secondary truncate flex items-center gap-1" title={emission.reporting_period}>
+                  <div className="w-24 flex-shrink-0 text-left text-sm text-text-secondary truncate" title={emission.reporting_period}>
                     {emission.reporting_period || reportingYear}
                   </div>
-                  <div className="w-52 flex-shrink-0">
+                  <div className="w-52 flex-shrink-0 text-left">
                     <p className="text-sm text-text-primary truncate" title={emission.category}>
                       {emission.category}
                     </p>
                   </div>
-                  <div className="flex-1 min-w-[120px] pl-2 flex items-center gap-2">
+                  <div className="flex-1 min-w-[120px] pl-2 text-left flex items-center gap-2">
                     <p className="text-sm text-text-primary truncate" title={activityDisplay}>
                       {activityDisplay}
                     </p>
@@ -342,17 +342,17 @@ export default function EmissionDataGrid({
                       <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Has Evidence" />
                     )}
                   </div>
-                  <div className="w-20 flex-shrink-0 text-center">
+                  <div className="w-20 flex-shrink-0 text-left">
                     <span className="inline-flex px-2 py-0.5 bg-stone-100 text-stone-700 text-xs font-medium rounded">
                       {methodDisplay}
                     </span>
                   </div>
-                  <div className="w-28 flex-shrink-0 text-right">
+                  <div className="w-28 flex-shrink-0 text-left">
                     <span className="text-sm font-semibold text-primary">
                       {totalEmissions.toFixed(4)}
                     </span>
                   </div>
-                  <div className="w-32 flex-shrink-0 text-xs text-text-secondary">
+                  <div className="w-32 flex-shrink-0 text-left text-xs text-text-secondary">
                     {formatLastUpdated(emission)}
                   </div>
                 </>
@@ -361,20 +361,20 @@ export default function EmissionDataGrid({
               {/* Scope 1 & 2 Row */}
               {(activeScope === 'scope1' || activeScope === 'scope2') && (
                 <>
-                  <div className="w-36 flex-shrink-0">
+                  <div className="w-36 flex-shrink-0 text-left">
                     <p className="text-sm font-medium text-text-primary truncate" title={facility?.name}>
                       {facility?.name || 'Unknown'}
                     </p>
                   </div>
-                  <div className="w-24 flex-shrink-0 text-sm text-text-secondary truncate flex items-center gap-1" title={emission.reporting_period}>
+                  <div className="w-24 flex-shrink-0 text-left text-sm text-text-secondary truncate" title={emission.reporting_period}>
                     {emission.reporting_period || reportingYear}
                   </div>
-                  <div className="w-44 flex-shrink-0">
+                  <div className="w-44 flex-shrink-0 text-left">
                     <p className="text-sm text-text-primary truncate" title={emission.category}>
                       {emission.category}
                     </p>
                   </div>
-                  <div className="flex-1 min-w-[140px] flex items-center gap-2">
+                  <div className="flex-1 min-w-[140px] text-left flex items-center gap-2">
                     <p className="text-sm text-text-primary truncate" title={activityDisplay}>
                       {activityDisplay}
                     </p>
@@ -388,15 +388,15 @@ export default function EmissionDataGrid({
                       <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Has Evidence" />
                     )}
                   </div>
-                  <div className="w-32 flex-shrink-0 text-right text-sm text-text-secondary">
+                  <div className="w-32 flex-shrink-0 text-left text-sm text-text-secondary">
                     {getQuantityDisplay()}
                   </div>
-                  <div className="w-28 flex-shrink-0 text-right">
+                  <div className="w-28 flex-shrink-0 text-left">
                     <span className="text-sm font-semibold text-primary">
                       {totalEmissions.toFixed(4)}
                     </span>
                   </div>
-                  <div className="w-32 flex-shrink-0 text-xs text-text-secondary">
+                  <div className="w-32 flex-shrink-0 text-left text-xs text-text-secondary">
                     {formatLastUpdated(emission)}
                   </div>
                 </>
@@ -405,25 +405,25 @@ export default function EmissionDataGrid({
               {/* Biogenic Row */}
               {activeScope === 'biogenic' && (
                 <>
-                  <div className="w-36 flex-shrink-0">
+                  <div className="w-36 flex-shrink-0 text-left">
                     <p className="text-sm font-medium text-text-primary truncate" title={facility?.name}>
                       {facility?.name || 'Unknown'}
                     </p>
                   </div>
-                  <div className="w-24 flex-shrink-0 text-sm text-text-secondary truncate flex items-center gap-1" title={emission.reporting_period}>
+                  <div className="w-24 flex-shrink-0 text-left text-sm text-text-secondary truncate" title={emission.reporting_period}>
                     {emission.reporting_period || reportingYear}
                   </div>
-                  <div className="w-20 flex-shrink-0">
+                  <div className="w-20 flex-shrink-0 text-left">
                     <span className="inline-flex px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded">
                       {biogenicScope === 'scope1' ? 'Direct' : biogenicScope === 'scope3' ? 'Indirect' : biogenicScope}
                     </span>
                   </div>
-                  <div className="w-36 flex-shrink-0">
+                  <div className="w-36 flex-shrink-0 text-left">
                     <p className="text-sm text-text-primary truncate" title={emission.category}>
                       {emission.category}
                     </p>
                   </div>
-                  <div className="flex-1 min-w-[120px] flex items-center gap-2">
+                  <div className="flex-1 min-w-[120px] text-left flex items-center gap-2">
                     <p className="text-sm text-text-primary truncate" title={
                       biogenicScope === 'scope3'
                         ? activityDisplay
@@ -443,7 +443,7 @@ export default function EmissionDataGrid({
                       <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Has Evidence" />
                     )}
                   </div>
-                  <div className="w-20 flex-shrink-0 text-center">
+                  <div className="w-20 flex-shrink-0 text-left">
                     {biogenicScope === 'scope3' ? (
                       <span className="inline-flex px-2 py-0.5 bg-stone-100 text-stone-700 text-xs font-medium rounded">
                         {methodDisplay}
@@ -452,12 +452,12 @@ export default function EmissionDataGrid({
                       <span className="text-xs text-stone-400">-</span>
                     )}
                   </div>
-                  <div className="w-28 flex-shrink-0 text-right">
+                  <div className="w-28 flex-shrink-0 text-left">
                     <span className="text-sm font-semibold text-primary">
                       {totalEmissions.toFixed(4)}
                     </span>
                   </div>
-                  <div className="w-32 flex-shrink-0 text-xs text-text-secondary">
+                  <div className="w-32 flex-shrink-0 text-left text-xs text-text-secondary">
                     {formatLastUpdated(emission)}
                   </div>
                 </>
