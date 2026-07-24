@@ -925,16 +925,16 @@ class TrackingService:
         """
         Bulk assign disclosures in a section or framework.
         
-        Skips already assigned disclosures if skip_already_assigned=True.
+        Uses the same assignment model as KPI metrics:
+        - esg_assignments (one per question/work item)
+        - esg_assignment_assignees (many-to-many for users)
+        
+        Supports:
+        - Multiple assignees per question
+        - Replacing assignees on reassignment
+        - Updating all fields (due_date, reminder, approval) on reassignment
         """
-        from modules.esg_assignments.service import assignment_service
-        from modules.esg_assignments.models import (
-            CreateAssignmentRequest,
-            EntityType,
-            AssignmentLevel,
-            AssignmentRole,
-            FillingFrequency,
-        )
+        from modules.esg_assignments.assignment_service_v2 import assignment_service_v2
         
         domain_section_map = {
             TrackingDomain.ENVIRONMENT: "environment",
@@ -995,19 +995,31 @@ class TrackingService:
                     filtered_configs.append(c)
             configs = filtered_configs
         
-        # Get existing assignments
-        existing_assignments = {}
-        if not request.skip_already_assigned or True:  # Always fetch for potential update
-            existing = await self._assignments.find(
-                {
-                    "organization_id": organization_id,
-                    "reporting_period": reporting_period,
-                    "entity_type": "question",
-                },
-                {"_id": 0, "entity_id": 1, "id": 1}
-            ).to_list(5000)
-            existing_assignments = {a["entity_id"]: a["id"] for a in existing}
+        # Get user IDs - support both legacy single user and new multiple users
+        user_ids = request.assigned_user_ids or []
+        if request.assigned_to_user_id and request.assigned_to_user_id not in user_ids:
+            user_ids.append(request.assigned_to_user_id)
         
+        if not user_ids:
+            return {
+                "success": False,
+                "error": "No users specified for assignment",
+                "created_count": 0,
+                "updated_count": 0,
+                "skipped_count": 0,
+            }
+        
+        # Get existing assignments to determine create vs update
+        existing_assignments = {}
+        existing = await self._assignments.find(
+            {
+                "organization_id": organization_id,
+                "reporting_period": reporting_period,
+                "entity_type": "question",
+            },
+            {"_id": 0, "entity_id": 1, "id": 1}
+        ).to_list(5000)
+        existing_assignments = {a["entity_id"]: a["id"] for a in existing}
         existing_keys = set(existing_assignments.keys())
         
         # Create/Update assignments
@@ -1024,63 +1036,41 @@ class TrackingService:
                 skipped_count += 1
                 continue
             
-            try:
-                role = AssignmentRole(request.role) if request.role else AssignmentRole.OWNER
-            except (ValueError, KeyError):
-                role = AssignmentRole.OWNER
+            # Build assignment data (similar to KPI metrics)
+            assignment_data = {
+                "organization_id": organization_id,
+                "entity_type": "question",
+                "category": "disclosure",  # Virtual category for disclosures
+                "subcategory": request.framework_id,  # Framework as subcategory
+                "sub_subcategory": q_key,  # Question key as sub_subcategory
+                "facility_id": None,  # Disclosures are org-level
+                "reporting_period": reporting_period,
+                "assignment_level": "organization",
+                "start_date": request.start_date,
+                "end_date": request.end_date,
+                "timezone": request.timezone or "Asia/Kolkata",
+                "filling_frequency": request.filling_frequency,
+                "due_config": request.due_config,
+                "due_date": request.due_date.isoformat() if request.due_date else None,
+                "reminder_enabled": request.reminder_enabled,
+                "reminder_config": request.reminder_config,
+                "requires_approval": request.requires_approval,
+                "approval_chain": request.approval_chain or [],
+                "framework_id": request.framework_id,
+                "group_assignment_id": group_id,
+            }
             
-            try:
-                freq = FillingFrequency(request.filling_frequency) if request.filling_frequency else None
-            except (ValueError, KeyError):
-                freq = None
-            
-            # Parse reminder frequency if provided
-            reminder_freq = None
-            if request.reminder_frequency:
-                try:
-                    from modules.esg_assignments.models import ReminderFrequency
-                    reminder_freq = ReminderFrequency(request.reminder_frequency)
-                except (ValueError, KeyError):
-                    reminder_freq = None
-            
-            create_req = CreateAssignmentRequest(
-                entity_type=EntityType.QUESTION,
-                assignment_level=AssignmentLevel.QUESTION,
-                entity_id=q_key,
-                reporting_period=reporting_period,
-                assigned_to_user_id=request.assigned_to_user_id,
-                role=role,
-                due_date=request.due_date,
-                framework_id=request.framework_id,
-                requires_approval=request.requires_approval,
-                approval_chain=request.approval_chain,  # Multi-level approval chain
-                filling_frequency=freq,
-                reminder_enabled=request.reminder_enabled,
-                reminder_frequency=reminder_freq,
-                reminder_config=request.reminder_config,
+            # Use assignment_service_v2 which handles multiple assignees properly
+            assignment, is_new = await assignment_service_v2.create_or_update_assignment(
+                data=assignment_data,
+                user_ids=user_ids,
+                created_by_user_id=assigned_by_user_id,
             )
             
-            # Check if this is a reassignment (existing assignment for this question)
-            existing_assignment_id = existing_assignments.get(q_key)
-            if existing_assignment_id and not request.skip_already_assigned:
-                # Update existing assignment (reassign)
-                from modules.esg_assignments.models import ReassignRequest
-                await assignment_service.reassign(
-                    assignment_id=existing_assignment_id,
-                    organization_id=organization_id,
-                    request=ReassignRequest(new_user_id=request.assigned_to_user_id),
-                    reassigned_by_user_id=assigned_by_user_id,
-                )
-                updated_count += 1
-            else:
-                # Create new assignment
-                await assignment_service.create_assignment(
-                    organization_id=organization_id,
-                    request=create_req,
-                    assigned_by_user_id=assigned_by_user_id,
-                    group_assignment_id=group_id,
-                )
+            if is_new:
                 created_count += 1
+            else:
+                updated_count += 1
         
         return {
             "success": True,
