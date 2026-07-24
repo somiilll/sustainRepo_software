@@ -8,7 +8,7 @@ Provides endpoints for:
 - Managing saved competitor benchmarks
 
 Storage:
-- PDFs: Cloudflare R2 (peer-benchmarking-dev bucket via Emergent Object Storage)
+- PDFs: Cloudflare R2 (direct boto3 integration)
 - Metrics: MongoDB (competitor_benchmarks collection)
 
 AI Model: gpt-5.6-luna for ESG metric parsing and executive summaries
@@ -19,12 +19,14 @@ import json
 import asyncio
 import logging
 import uuid
-import requests
 from datetime import datetime, timezone
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Query
 from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
 import httpx
+import boto3
+from botocore.config import Config
+from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -38,59 +40,78 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/benchmarking", tags=["Peer Benchmarking"])
 
 # API Keys
-EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY_PEER_BENCHMARKING")
 LLAMA_CLOUD_API_KEY = os.environ.get("LLAMA_CLOUD_API_KEY_PEER_BENCHMARKING")
 
-# R2 Storage Configuration
-STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
-APP_NAME = "peer-benchmarking-dev"
-_storage_key = None
+# Cloudflare R2 Storage Configuration (Direct boto3)
+R2_ACCOUNT_ID = os.environ.get("R2_ACCOUNT_ID")
+R2_ACCESS_KEY_ID = os.environ.get("R2_ACCESS_KEY_ID")
+R2_SECRET_ACCESS_KEY = os.environ.get("R2_SECRET_ACCESS_KEY")
+R2_ENDPOINT_URL = os.environ.get("R2_ENDPOINT_URL")
+R2_BUCKET_PEER_BENCHMARKING = os.environ.get("R2_BUCKET_PEER_BENCHMARKING", "peer-benchmarking-dev")
+
+# Lazy-initialized S3 client for R2
+_s3_client = None
 
 
-def init_storage():
-    """Initialize R2 storage. Call once at startup or on first use."""
-    global _storage_key
-    if _storage_key:
-        return _storage_key
+def get_s3_client():
+    """Get or initialize the S3 client for Cloudflare R2."""
+    global _s3_client
+    if _s3_client:
+        return _s3_client
     
-    if not EMERGENT_LLM_KEY:
-        raise Exception("EMERGENT_LLM_KEY not configured")
+    if not all([R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_ENDPOINT_URL]):
+        raise Exception("Cloudflare R2 credentials not configured (R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_ENDPOINT_URL)")
     
-    resp = requests.post(
-        f"{STORAGE_URL}/init",
-        json={"emergent_key": EMERGENT_LLM_KEY},
-        timeout=30
+    _s3_client = boto3.client(
+        "s3",
+        endpoint_url=R2_ENDPOINT_URL,
+        aws_access_key_id=R2_ACCESS_KEY_ID,
+        aws_secret_access_key=R2_SECRET_ACCESS_KEY,
+        config=Config(
+            signature_version="s3v4",
+            retries={"max_attempts": 3, "mode": "standard"}
+        )
     )
-    resp.raise_for_status()
-    _storage_key = resp.json()["storage_key"]
-    logger.info("R2 storage initialized successfully")
-    return _storage_key
+    logger.info("Cloudflare R2 S3 client initialized successfully")
+    return _s3_client
 
 
 def put_object(path: str, data: bytes, content_type: str) -> dict:
-    """Upload file to R2 storage."""
-    key = init_storage()
-    resp = requests.put(
-        f"{STORAGE_URL}/objects/{path}",
-        headers={"X-Storage-Key": key, "Content-Type": content_type},
-        data=data,
-        timeout=120
-    )
-    resp.raise_for_status()
-    return resp.json()
+    """Upload file to Cloudflare R2 storage."""
+    client = get_s3_client()
+    try:
+        client.put_object(
+            Bucket=R2_BUCKET_PEER_BENCHMARKING,
+            Key=path,
+            Body=data,
+            ContentType=content_type
+        )
+        logger.info(f"File uploaded to R2: {R2_BUCKET_PEER_BENCHMARKING}/{path}")
+        return {
+            "path": path,
+            "bucket": R2_BUCKET_PEER_BENCHMARKING,
+            "size": len(data)
+        }
+    except ClientError as e:
+        logger.error(f"R2 upload error: {e}")
+        raise Exception(f"Failed to upload to R2: {str(e)}")
 
 
 def get_object(path: str) -> tuple:
-    """Download file from R2 storage. Returns (content_bytes, content_type)."""
-    key = init_storage()
-    resp = requests.get(
-        f"{STORAGE_URL}/objects/{path}",
-        headers={"X-Storage-Key": key},
-        timeout=60
-    )
-    resp.raise_for_status()
-    return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
+    """Download file from Cloudflare R2 storage. Returns (content_bytes, content_type)."""
+    client = get_s3_client()
+    try:
+        response = client.get_object(
+            Bucket=R2_BUCKET_PEER_BENCHMARKING,
+            Key=path
+        )
+        content = response["Body"].read()
+        content_type = response.get("ContentType", "application/octet-stream")
+        return content, content_type
+    except ClientError as e:
+        logger.error(f"R2 download error: {e}")
+        raise Exception(f"Failed to download from R2: {str(e)}")
 
 
 class SummaryRequest(BaseModel):
@@ -380,10 +401,10 @@ async def extract_metrics(
         openai_client = OpenAI(api_key=OPENAI_API_KEY)
         
         # 1. Store PDF in R2 storage
-        storage_path = f"{APP_NAME}/{org_id}/competitors/{competitor_id}.pdf"
+        storage_path = f"{org_id}/competitors/{competitor_id}.pdf"
         try:
             storage_result = put_object(storage_path, content, "application/pdf")
-            logger.info(f"PDF stored in R2: {storage_result.get('path')}")
+            logger.info(f"PDF stored in R2: {R2_BUCKET_PEER_BENCHMARKING}/{storage_result.get('path')}")
         except Exception as e:
             logger.error(f"R2 storage error: {e}")
             raise HTTPException(status_code=500, detail=f"Failed to store PDF: {str(e)}")
