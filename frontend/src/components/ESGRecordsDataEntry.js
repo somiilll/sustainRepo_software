@@ -491,7 +491,19 @@ export default function ESGRecordsDataEntry({
       if (formData.reporting_type === 'daily' || formData.reporting_type === 'weekly') {
         reportingPeriod.date = formData.reporting_date;
       } else if (formData.reporting_type === 'monthly') {
-        reportingPeriod.year = formData.reporting_year;
+        // For financial year, calculate actual calendar year based on month
+        // FY runs Apr-Mar, so Jan/Feb/Mar belong to the next calendar year
+        let actualYear = formData.reporting_year;
+        if (reportingYearType === 'financial_year') {
+          const monthNum = typeof formData.reporting_month === 'number' 
+            ? formData.reporting_month 
+            : MONTHS.indexOf(formData.reporting_month) + 1;
+          // Jan (1), Feb (2), Mar (3) belong to next calendar year in FY
+          if (monthNum >= 1 && monthNum <= 3) {
+            actualYear = formData.reporting_year + 1;
+          }
+        }
+        reportingPeriod.year = actualYear;
         reportingPeriod.month = formData.reporting_month;
       } else if (formData.reporting_type === 'quarterly') {
         reportingPeriod.year = formData.reporting_year;
@@ -696,7 +708,19 @@ export default function ESGRecordsDataEntry({
       if (editData.reporting_type === 'daily' || editData.reporting_type === 'weekly') {
         reportingPeriod.date = editData.reporting_date;
       } else if (editData.reporting_type === 'monthly') {
-        reportingPeriod.year = editData.reporting_year;
+        // For financial year, calculate actual calendar year based on month
+        // FY runs Apr-Mar, so Jan/Feb/Mar belong to the next calendar year
+        let actualYear = editData.reporting_year;
+        if (reportingYearType === 'financial_year') {
+          const monthNum = typeof editData.reporting_month === 'number' 
+            ? editData.reporting_month 
+            : MONTHS.indexOf(editData.reporting_month) + 1;
+          // Jan (1), Feb (2), Mar (3) belong to next calendar year in FY
+          if (monthNum >= 1 && monthNum <= 3) {
+            actualYear = editData.reporting_year + 1;
+          }
+        }
+        reportingPeriod.year = actualYear;
         reportingPeriod.month = editData.reporting_month;
       } else if (editData.reporting_type === 'quarterly') {
         reportingPeriod.year = editData.reporting_year;
@@ -1213,14 +1237,21 @@ export default function ESGRecordsDataEntry({
                 const reportingPeriod = record.reporting_period || {};
                 const reportingMonth = reportingPeriod.month;
                 const reportingYear = reportingPeriod.year;
-                const isFY = reportingYearType === 'financial_year';
-                const fyLabel = reportingYear ? `FY ${reportingYear}-${reportingYear + 1}` : '-';
-                const yearDisplay = isFY && reportingYear ? fyLabel : (reportingYear || '-');
-                const periodLabel = reportingPeriod.reporting_type === 'yearly'
-                  ? (reportingPeriod.financial_year || reportingPeriod.calendar_year || fyLabel)
-                  : reportingPeriod.reporting_type === 'quarterly'
-                    ? `${reportingPeriod.quarter || ''} ${yearDisplay}`.trim()
-                    : `${reportingMonth ? MONTHS[Number(reportingMonth) - 1] || reportingMonth : ''} ${yearDisplay}`.trim() || '-';
+                
+                // For monthly/quarterly: show simple "Month Year" or "Q1 Year" format
+                // For yearly: show "FY XXXX-XX" or "CY XXXX"
+                let periodLabel = '-';
+                if (reportingPeriod.reporting_type === 'yearly') {
+                  periodLabel = reportingPeriod.financial_year || reportingPeriod.calendar_year || `FY ${reportingYear}-${reportingYear + 1}`;
+                } else if (reportingPeriod.reporting_type === 'quarterly') {
+                  periodLabel = `${reportingPeriod.quarter || ''} ${reportingYear || ''}`.trim();
+                } else if (reportingPeriod.reporting_type === 'monthly' || reportingPeriod.reporting_type === 'daily') {
+                  // Simple format: "June 2026" or "Feb 2027"
+                  const monthDisplay = reportingMonth 
+                    ? (MONTHS[Number(reportingMonth) - 1] || reportingMonth)
+                    : '';
+                  periodLabel = `${monthDisplay} ${reportingYear || ''}`.trim() || '-';
+                }
                 
                 return (
                   <TableRow key={record.id} className={`${hasDraft ? 'bg-yellow-50' : ''} ${isImported ? 'bg-emerald-50/30' : ''}`}>

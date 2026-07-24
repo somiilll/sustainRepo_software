@@ -139,6 +139,19 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
 - Cloudflare R2 Storage (requires user API key)
 - Resend Emails (requires user API key)
 
+## Recent Updates (July 2025)
+
+### Reporting Period Storage Fix
+- **Problem**: For monthly records in FY context, Jan/Feb/Mar were stored with FY start year (e.g., `year: 2026` for Feb FY 2026-2027) instead of actual calendar year (`year: 2027`)
+- **Solution**: 
+  1. Updated `ESGRecordsDataEntry.js` save logic to calculate actual calendar year based on month
+  2. Updated display logic to show simple "Month Year" format (e.g., "Feb 2027") instead of "Feb FY 2026-2027"
+  3. Created and ran migration script to fix existing data (14 records updated)
+- **Files Changed**:
+  - `/app/frontend/src/components/ESGRecordsDataEntry.js` - Save & display logic
+  - `/app/frontend/src/components/ESGRecords.js` - Display format
+  - `/app/backend/scripts/migrate_reporting_periods.py` - Migration script (NEW)
+
 ## Known Issues
 - Water Withdrawal KPIs missing filters (BLOCKED - user requested delay)
 - Emission Intensity shows null if turnover not populated in governance_records
