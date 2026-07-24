@@ -74,7 +74,7 @@ async def _mark_emission_task_completed(
     if not subcategory:
         return {"updated": False, "reason": f"Unknown scope: {scope}"}
     
-    # Find matching task
+    # Find matching task - first try facility-level, then org-level
     task_query = {
         "organization_id": organization_id,
         "facility_id": facility_id,
@@ -84,6 +84,19 @@ async def _mark_emission_task_completed(
     }
     
     task = await db["esg_reporting_tasks"].find_one(task_query, {"_id": 0, "id": 1, "status": 1})
+    
+    # If no facility-level task found, try org-level task (facility_id = None)
+    if not task and facility_id:
+        org_level_query = {
+            "organization_id": organization_id,
+            "facility_id": None,
+            "category": "GHG Emissions",
+            "subcategory": subcategory,
+            "period_key": reporting_period,
+        }
+        task = await db["esg_reporting_tasks"].find_one(org_level_query, {"_id": 0, "id": 1, "status": 1})
+        if task:
+            logger.info(f"[TASK_COMPLETION] Found org-level task for facility emission: {task['id']}")
     
     if not task:
         logger.info(f"[TASK_COMPLETION] No task found for query: {task_query}")
