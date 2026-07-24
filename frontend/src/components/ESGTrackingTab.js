@@ -590,7 +590,10 @@ export default function ESGTrackingTab({
     }
     
     setAssignForm({
-      assigned_user_ids: item.assigned_to_user_id ? [item.assigned_to_user_id] : [],
+      // Pre-populate with ALL current assignees, not just the primary one
+      assigned_user_ids: item.assignees?.length > 0 
+        ? item.assignees.map(a => a.user_id) 
+        : (item.assigned_to_user_id ? [item.assigned_to_user_id] : []),
       due_date: formattedDueDate,
       filling_frequency: item.filling_frequency || '',
       reminder_enabled: !!(item.reminder_enabled || item.last_reminder_sent_at),
