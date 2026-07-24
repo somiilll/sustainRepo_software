@@ -689,7 +689,12 @@ export default function ESGRecordsTracker({
       setTimeout(() => fetchTrackerData(true), 100);
     } catch (error) {
       console.error('Failed to save assignment:', error);
-      toast.error(error.response?.data?.detail || 'Failed to save assignment');
+      // Handle Pydantic validation errors which come as array of {type, loc, msg, input, ctx}
+      const detail = error.response?.data?.detail;
+      const errorMsg = Array.isArray(detail) 
+        ? detail.map(e => e.msg || e.message || JSON.stringify(e)).join(', ') 
+        : (typeof detail === 'string' ? detail : 'Failed to save assignment');
+      toast.error(errorMsg);
     } finally {
       setAssigning(false);
     }
@@ -818,7 +823,12 @@ export default function ESGRecordsTracker({
       setTimeout(() => fetchTrackerData(true), 100);
     } catch (error) {
       console.error('Failed to save assignment:', error);
-      toast.error(error.response?.data?.detail || 'Failed to save assignment');
+      // Handle Pydantic validation errors which come as array of {type, loc, msg, input, ctx}
+      const detail = error.response?.data?.detail;
+      const errorMsg = Array.isArray(detail) 
+        ? detail.map(e => e.msg || e.message || JSON.stringify(e)).join(', ') 
+        : (typeof detail === 'string' ? detail : 'Failed to save assignment');
+      toast.error(errorMsg);
       throw error; // Re-throw to let wizard handle the error state
     } finally {
       setAssigning(false);
