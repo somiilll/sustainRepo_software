@@ -531,7 +531,12 @@ export default function ESGTrackingTab({
       fetchFrameworkSummary();
     } catch (error) {
       console.error('Failed to assign:', error);
-      toast.error(error.response?.data?.detail || 'Failed to assign questions');
+      // Handle Pydantic validation errors which come as array of {type, loc, msg, input, ctx}
+      const detail = error.response?.data?.detail;
+      const errorMsg = Array.isArray(detail) 
+        ? detail.map(e => e.msg || e.message || JSON.stringify(e)).join(', ') 
+        : (typeof detail === 'string' ? detail : 'Failed to assign questions');
+      toast.error(errorMsg);
     } finally {
       setAssigning(false);
     }
@@ -557,7 +562,12 @@ export default function ESGTrackingTab({
       toast.success(`Reminder sent to ${disclosure.assigned_to_user_name || disclosure.assigned_to_user_email}`);
     } catch (error) {
       console.error('Failed to send reminder:', error);
-      toast.error(error.response?.data?.detail || 'Failed to send reminder');
+      // Handle Pydantic validation errors which come as array of {type, loc, msg, input, ctx}
+      const detail = error.response?.data?.detail;
+      const errorMsg = Array.isArray(detail) 
+        ? detail.map(e => e.msg || e.message || JSON.stringify(e)).join(', ') 
+        : (typeof detail === 'string' ? detail : 'Failed to send reminder');
+      toast.error(errorMsg);
     } finally {
       setSendingReminder(null);
     }
