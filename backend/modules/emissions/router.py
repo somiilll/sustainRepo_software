@@ -411,28 +411,10 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
         }
     )
     
-    # Update assignment completion status (best-effort)
-    try:
-        from modules.esg_assignments.completion_tracking import completion_tracking_service
-        # Map scope to subcategory for completion tracking
-        scope_to_subcategory = {
-            "scope1": "GHG Emissions - Scope 1",
-            "scope2": "GHG Emissions - Scope 2",
-            "scope3": "GHG Emissions - Scope 3",
-            "biogenic": "GHG Emissions - Biogenic (Direct)",
-        }
-        subcategory = scope_to_subcategory.get(record_data.scope.lower() if record_data.scope else "", None)
-        await completion_tracking_service.on_record_submitted(
-            organization_id=record_dict["organization_id"],
-            category="GHG Emissions",
-            facility_id=record_data.facility_id,
-            subcategory=subcategory,
-            reporting_period=record_data.reporting_period,
-        )
-    except Exception as e:
-        logger.warning(f"[EMISSION_CREATE] Completion tracking failed: {e}")
+    # NOTE: Completion tracking removed - status is now computed on-the-fly by CompletionService
+    # No need to sync task status on record submission
     
-    # Mark corresponding task as completed (best-effort)
+    # Mark corresponding task as completed (best-effort) - now a no-op
     try:
         task_result = await _mark_emission_task_completed(
             organization_id=record_dict["organization_id"],
