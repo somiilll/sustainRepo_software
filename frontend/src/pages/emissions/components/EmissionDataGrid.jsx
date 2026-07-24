@@ -158,26 +158,26 @@ export default function EmissionDataGrid({
           {/* Scope 3 Headers */}
           {activeScope === 'scope3' && (
             <>
-              <div className="w-36 flex-shrink-0">
-                <SortableHeader label="Facility" sortKey="facility" currentSort={sort} onSort={handleSort} />
+              <div className="w-36 flex-shrink-0 text-center">
+                <SortableHeader label="Facility" sortKey="facility" currentSort={sort} onSort={handleSort} className="justify-center" />
               </div>
-              <div className="w-24 flex-shrink-0">
-                <SortableHeader label="Period" sortKey="period" currentSort={sort} onSort={handleSort} />
+              <div className="w-24 flex-shrink-0 text-center">
+                <SortableHeader label="Period" sortKey="period" currentSort={sort} onSort={handleSort} className="justify-center" />
               </div>
-              <div className="w-52 flex-shrink-0">
-                <SortableHeader label="Category" sortKey="category" currentSort={sort} onSort={handleSort} />
+              <div className="w-52 flex-shrink-0 text-center">
+                <SortableHeader label="Category" sortKey="category" currentSort={sort} onSort={handleSort} className="justify-center" />
               </div>
-              <div className="flex-1 min-w-[120px] pl-2">
-                <SortableHeader label="Activity" sortKey="activity" currentSort={sort} onSort={handleSort} />
+              <div className="flex-1 min-w-[120px] pl-2 text-center">
+                <SortableHeader label="Activity" sortKey="activity" currentSort={sort} onSort={handleSort} className="justify-center" />
               </div>
               <div className="w-20 flex-shrink-0 text-center">
                 <SortableHeader label="Method" sortKey="method" currentSort={sort} onSort={handleSort} className="justify-center" />
               </div>
-              <div className="w-28 flex-shrink-0 text-right">
-                <SortableHeader label="tCO₂e" sortKey="emissions" currentSort={sort} onSort={handleSort} className="justify-end normal-case" />
+              <div className="w-28 flex-shrink-0 text-center">
+                <SortableHeader label="tCO₂e" sortKey="emissions" currentSort={sort} onSort={handleSort} className="justify-center normal-case" />
               </div>
-              <div className="w-32 flex-shrink-0">
-                <SortableHeader label="Last Updated" sortKey="lastUpdated" currentSort={sort} onSort={handleSort} />
+              <div className="w-32 flex-shrink-0 text-center">
+                <SortableHeader label="Last Updated" sortKey="lastUpdated" currentSort={sort} onSort={handleSort} className="justify-center" />
               </div>
               <div className="w-28 flex-shrink-0 text-center">Actions</div>
             </>
@@ -185,26 +185,26 @@ export default function EmissionDataGrid({
           {/* Scope 1 & 2 Headers */}
           {(activeScope === 'scope1' || activeScope === 'scope2') && (
             <>
-              <div className="w-36 flex-shrink-0">
-                <SortableHeader label="Facility" sortKey="facility" currentSort={sort} onSort={handleSort} />
+              <div className="w-36 flex-shrink-0 text-center">
+                <SortableHeader label="Facility" sortKey="facility" currentSort={sort} onSort={handleSort} className="justify-center" />
               </div>
-              <div className="w-24 flex-shrink-0">
-                <SortableHeader label="Period" sortKey="period" currentSort={sort} onSort={handleSort} />
+              <div className="w-24 flex-shrink-0 text-center">
+                <SortableHeader label="Period" sortKey="period" currentSort={sort} onSort={handleSort} className="justify-center" />
               </div>
-              <div className="w-44 flex-shrink-0">
-                <SortableHeader label="Category" sortKey="category" currentSort={sort} onSort={handleSort} />
+              <div className="w-44 flex-shrink-0 text-center">
+                <SortableHeader label="Category" sortKey="category" currentSort={sort} onSort={handleSort} className="justify-center" />
               </div>
-              <div className="flex-1 min-w-[140px]">
-                <SortableHeader label="Sub-category" sortKey="subcategory" currentSort={sort} onSort={handleSort} />
+              <div className="flex-1 min-w-[140px] text-center">
+                <SortableHeader label="Sub-category" sortKey="subcategory" currentSort={sort} onSort={handleSort} className="justify-center" />
               </div>
-              <div className="w-32 flex-shrink-0 text-right">
-                <SortableHeader label="Quantity" sortKey="quantity" currentSort={sort} onSort={handleSort} className="justify-end" />
+              <div className="w-32 flex-shrink-0 text-center">
+                <SortableHeader label="Quantity" sortKey="quantity" currentSort={sort} onSort={handleSort} className="justify-center" />
               </div>
-              <div className="w-28 flex-shrink-0 text-right">
-                <SortableHeader label="tCO₂e" sortKey="emissions" currentSort={sort} onSort={handleSort} className="justify-end normal-case" />
+              <div className="w-28 flex-shrink-0 text-center">
+                <SortableHeader label="tCO₂e" sortKey="emissions" currentSort={sort} onSort={handleSort} className="justify-center normal-case" />
               </div>
-              <div className="w-32 flex-shrink-0">
-                <SortableHeader label="Last Updated" sortKey="lastUpdated" currentSort={sort} onSort={handleSort} />
+              <div className="w-32 flex-shrink-0 text-center">
+                <SortableHeader label="Last Updated" sortKey="lastUpdated" currentSort={sort} onSort={handleSort} className="justify-center" />
               </div>
               <div className="w-28 flex-shrink-0 text-center">Actions</div>
             </>
@@ -212,29 +212,29 @@ export default function EmissionDataGrid({
           {/* Biogenic Headers */}
           {activeScope === 'biogenic' && (
             <>
-              <div className="w-36 flex-shrink-0">
-                <SortableHeader label="Facility" sortKey="facility" currentSort={sort} onSort={handleSort} />
+              <div className="w-36 flex-shrink-0 text-center">
+                <SortableHeader label="Facility" sortKey="facility" currentSort={sort} onSort={handleSort} className="justify-center" />
               </div>
-              <div className="w-24 flex-shrink-0">
-                <SortableHeader label="Period" sortKey="period" currentSort={sort} onSort={handleSort} />
+              <div className="w-24 flex-shrink-0 text-center">
+                <SortableHeader label="Period" sortKey="period" currentSort={sort} onSort={handleSort} className="justify-center" />
               </div>
-              <div className="w-20 flex-shrink-0">
-                <SortableHeader label="Type" sortKey="type" currentSort={sort} onSort={handleSort} />
+              <div className="w-20 flex-shrink-0 text-center">
+                <SortableHeader label="Type" sortKey="type" currentSort={sort} onSort={handleSort} className="justify-center" />
               </div>
-              <div className="w-36 flex-shrink-0">
-                <SortableHeader label="Category" sortKey="category" currentSort={sort} onSort={handleSort} />
+              <div className="w-36 flex-shrink-0 text-center">
+                <SortableHeader label="Category" sortKey="category" currentSort={sort} onSort={handleSort} className="justify-center" />
               </div>
-              <div className="flex-1 min-w-[120px]">
-                <SortableHeader label="Activity / Fuel" sortKey="activityFuel" currentSort={sort} onSort={handleSort} />
+              <div className="flex-1 min-w-[120px] text-center">
+                <SortableHeader label="Activity / Fuel" sortKey="activityFuel" currentSort={sort} onSort={handleSort} className="justify-center" />
               </div>
               <div className="w-20 flex-shrink-0 text-center">
                 <SortableHeader label="Method" sortKey="method" currentSort={sort} onSort={handleSort} className="justify-center" />
               </div>
-              <div className="w-28 flex-shrink-0 text-right">
-                <SortableHeader label="tCO₂e" sortKey="emissions" currentSort={sort} onSort={handleSort} className="justify-end normal-case" />
+              <div className="w-28 flex-shrink-0 text-center">
+                <SortableHeader label="tCO₂e" sortKey="emissions" currentSort={sort} onSort={handleSort} className="justify-center normal-case" />
               </div>
-              <div className="w-32 flex-shrink-0">
-                <SortableHeader label="Last Updated" sortKey="lastUpdated" currentSort={sort} onSort={handleSort} />
+              <div className="w-32 flex-shrink-0 text-center">
+                <SortableHeader label="Last Updated" sortKey="lastUpdated" currentSort={sort} onSort={handleSort} className="justify-center" />
               </div>
               <div className="w-28 flex-shrink-0 text-center">Actions</div>
             </>

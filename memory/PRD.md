@@ -44,12 +44,13 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
 - [x] Assignment completion tracking with date overlap logic
 - [x] Internal Data AI Phase 1
 - [x] **Peer Benchmarking Module** (July 2025)
-  - Upload PDF reports for ESG metric extraction (LlamaParse + GPT-4o)
+  - Upload PDF reports for ESG metric extraction (LlamaParse + GPT-5.6-luna)
   - Internal company data fetched via unified ESGMetricsService
   - Date range filtering with From/To date pickers
   - Radar chart visualization
   - AI-powered executive summary generation
   - Printable report export
+  - **R2 Storage Migration (Dec 2025)**: Migrated from EMERGENT_LLM_KEY proxy to direct Cloudflare R2 via boto3
 - [x] **Progress Engine V2** (July 2025)
   - Handles emission_records schema (facility_id only, string dates, scope field)
   - Handles environment_records schema (org_id, dict dates, is_current field)
