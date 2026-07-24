@@ -500,8 +500,10 @@ export default function ESGTrackingTab({
           payload.section_id = selectedSection?.section_id;
         }
         
-        // Use the disclosure's actual domain if available, otherwise use current page domain
-        const targetDomain = assigningItem?.domain || domain;
+        // Always use the component's domain prop for the API URL
+        // Framework sections (section_b, section_c, GRI disclosures) are for UI navigation only
+        // ESG domains (environment, social, governance, all) are for API routing
+        const targetDomain = domain;
         
         const res = await axios.post(
           `${API}/tracking/${targetDomain}/assign?reporting_period=${encodeURIComponent(reportingPeriod)}`,
