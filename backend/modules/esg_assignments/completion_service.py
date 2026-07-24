@@ -33,6 +33,8 @@ class TaskStatus(str, Enum):
     PENDING = "pending"
     OVERDUE = "overdue"
     BACKFILL_PENDING = "backfill_pending"
+    REJECTED = "rejected"  # Data submitted but rejected, needs changes
+    PENDING_APPROVAL = "pending_approval"  # Data submitted, awaiting approval
 
 
 class PeriodStatus:
@@ -107,6 +109,9 @@ class DataChecker:
     Checks if data exists for a given org/category/subcategory/facility/period.
     
     This is the CORE logic - everything else builds on top of this.
+    
+    Returns: (has_data, last_updated, approval_status)
+    - approval_status can be: None, "pending", "approved", "rejected"
     """
     
     @staticmethod
@@ -116,11 +121,11 @@ class DataChecker:
         subcategory: Optional[str],
         facility_id: Optional[str],
         period_key: str,
-    ) -> Tuple[bool, Optional[datetime]]:
+    ) -> Tuple[bool, Optional[datetime], Optional[str]]:
         """
         Check if data exists for the given parameters.
         
-        Returns: (has_data: bool, last_updated: datetime or None)
+        Returns: (has_data: bool, last_updated: datetime or None, approval_status: str or None)
         """
         cat_lower = (category or "").lower()
         sub_lower = (subcategory or "").lower()
@@ -153,15 +158,28 @@ class DataChecker:
         subcategory: Optional[str],
         facility_id: Optional[str],
         period_key: str,
-    ) -> Tuple[bool, Optional[datetime]]:
-        """Check GHG emission_records."""
+    ) -> Tuple[bool, Optional[datetime], Optional[str]]:
+        """
+        Check GHG emission_records.
+        
+        Returns: (has_data, last_updated, approval_status)
+        """
         query = {
             "organization_id": organization_id,
             "reporting_period": period_key,
         }
         
+        # IMPORTANT: Explicitly filter by facility_id
+        # - If facility_id is provided: match that specific facility
+        # - If facility_id is None: match records with no facility (org-level entry)
         if facility_id:
             query["facility_id"] = facility_id
+        else:
+            # Org-level check: only match records without facility_id
+            query["$or"] = [
+                {"facility_id": None},
+                {"facility_id": {"$exists": False}},
+            ]
         
         # Map subcategory to scope
         sub_lower = (subcategory or "").lower()
@@ -174,17 +192,18 @@ class DataChecker:
         elif "biogenic" in sub_lower:
             query["scope"] = "biogenic"
         
-        # Get most recent record
+        # Get most recent record with approval_status
         record = await db.emission_records.find_one(
             query,
-            {"_id": 0, "updated_at": 1, "created_at": 1},
+            {"_id": 0, "updated_at": 1, "created_at": 1, "approval_status": 1},
             sort=[("updated_at", -1)]
         )
         
         if record:
             last_updated = record.get("updated_at") or record.get("created_at")
-            return True, last_updated
-        return False, None
+            approval_status = record.get("approval_status")
+            return True, last_updated, approval_status
+        return False, None, None
     
     @staticmethod
     async def _check_environment(
@@ -193,8 +212,12 @@ class DataChecker:
         subcategory: Optional[str],
         facility_id: Optional[str],
         period_key: str,
-    ) -> Tuple[bool, Optional[datetime]]:
-        """Check environment_records (Water, Energy, Waste, etc.)."""
+    ) -> Tuple[bool, Optional[datetime], Optional[str]]:
+        """
+        Check environment_records (Water, Energy, Waste, etc.).
+        
+        Returns: (has_data, last_updated, approval_status)
+        """
         query = {
             "$or": [
                 {"organization_id": organization_id},
@@ -236,14 +259,15 @@ class DataChecker:
         
         record = await db.environment_records.find_one(
             query,
-            {"_id": 0, "updated_at": 1, "created_at": 1},
+            {"_id": 0, "updated_at": 1, "created_at": 1, "approval_status": 1},
             sort=[("updated_at", -1)]
         )
         
         if record:
             last_updated = record.get("updated_at") or record.get("created_at")
-            return True, last_updated
-        return False, None
+            approval_status = record.get("approval_status")
+            return True, last_updated, approval_status
+        return False, None, None
     
     @staticmethod
     async def _check_social(
@@ -252,8 +276,12 @@ class DataChecker:
         subcategory: Optional[str],
         facility_id: Optional[str],
         period_key: str,
-    ) -> Tuple[bool, Optional[datetime]]:
-        """Check social_records."""
+    ) -> Tuple[bool, Optional[datetime], Optional[str]]:
+        """
+        Check social_records.
+        
+        Returns: (has_data, last_updated, approval_status)
+        """
         query = {
             "$or": [
                 {"organization_id": organization_id},
@@ -283,14 +311,15 @@ class DataChecker:
         
         record = await db.social_records.find_one(
             query,
-            {"_id": 0, "updated_at": 1, "created_at": 1},
+            {"_id": 0, "updated_at": 1, "created_at": 1, "approval_status": 1},
             sort=[("updated_at", -1)]
         )
         
         if record:
             last_updated = record.get("updated_at") or record.get("created_at")
-            return True, last_updated
-        return False, None
+            approval_status = record.get("approval_status")
+            return True, last_updated, approval_status
+        return False, None, None
     
     @staticmethod
     async def _check_governance(
@@ -299,8 +328,12 @@ class DataChecker:
         subcategory: Optional[str],
         facility_id: Optional[str],
         period_key: str,
-    ) -> Tuple[bool, Optional[datetime]]:
-        """Check governance_records."""
+    ) -> Tuple[bool, Optional[datetime], Optional[str]]:
+        """
+        Check governance_records.
+        
+        Returns: (has_data, last_updated, approval_status)
+        """
         query = {
             "$or": [
                 {"organization_id": organization_id},
@@ -316,14 +349,15 @@ class DataChecker:
         
         record = await db.governance_records.find_one(
             query,
-            {"_id": 0, "updated_at": 1, "created_at": 1},
+            {"_id": 0, "updated_at": 1, "created_at": 1, "approval_status": 1},
             sort=[("updated_at", -1)]
         )
         
         if record:
             last_updated = record.get("updated_at") or record.get("created_at")
-            return True, last_updated
-        return False, None
+            approval_status = record.get("approval_status")
+            return True, last_updated, approval_status
+        return False, None, None
 
 
 # =============================================================================
@@ -485,7 +519,7 @@ class CompletionService:
         period_key: str,
     ) -> bool:
         """Check if a period is complete (has data)."""
-        has_data, _ = await DataChecker.check_exists(
+        has_data, _, _ = await DataChecker.check_exists(
             organization_id, category, subcategory, facility_id, period_key
         )
         return has_data
@@ -496,9 +530,17 @@ class CompletionService:
         assignment_created_at: Optional[datetime] = None,
     ) -> TaskStatus:
         """
-        Compute task status from underlying data.
+        Compute task status from underlying data and approval status.
         
         This is COMPUTED, not read from task.status field.
+        
+        Status priority:
+        1. If data exists and rejected -> REJECTED
+        2. If data exists and pending_approval -> PENDING_APPROVAL
+        3. If data exists and approved/no status -> COMPLETED
+        4. If no data and backfill -> BACKFILL_PENDING
+        5. If no data and overdue -> OVERDUE
+        6. If no data -> PENDING
         """
         org_id = task.get("organization_id")
         facility_id = task.get("facility_id")
@@ -509,12 +551,18 @@ class CompletionService:
         period_end = task.get("period_end")
         is_backfill = task.get("is_backfill", False)
         
-        # Check if data exists
-        has_data, _ = await DataChecker.check_exists(
+        # Check if data exists and get approval status
+        has_data, _, approval_status = await DataChecker.check_exists(
             org_id, category, subcategory, facility_id, period_key
         )
         
         if has_data:
+            # Check approval status
+            if approval_status == "rejected":
+                return TaskStatus.REJECTED
+            elif approval_status == "pending" or approval_status == "pending_approval":
+                return TaskStatus.PENDING_APPROVAL
+            # approved or no status = completed
             return TaskStatus.COMPLETED
         
         now = datetime.now(timezone.utc)
@@ -601,7 +649,7 @@ class CompletionService:
         
         for period in periods:
             period_key = period["period_key"]
-            has_data, last_updated = await DataChecker.check_exists(
+            has_data, last_updated, _ = await DataChecker.check_exists(
                 org_id, category, subcategory, facility_id, period_key
             )
             
@@ -666,7 +714,7 @@ class CompletionService:
         has_any_facility_records = False
         for facility in facilities:
             for period in periods:
-                has_data, _ = await DataChecker.check_exists(
+                has_data, _, _ = await DataChecker.check_exists(
                     org_id, category, subcategory, facility.get("id"), period["period_key"]
                 )
                 if has_data:
@@ -681,7 +729,7 @@ class CompletionService:
             period_end = period.get("period_end")
             
             # Check org-level record first (facility_id=None)
-            has_org_record, org_last_updated = await DataChecker.check_exists(
+            has_org_record, org_last_updated, _ = await DataChecker.check_exists(
                 org_id, category, subcategory, None, period_key
             )
             
@@ -710,7 +758,7 @@ class CompletionService:
                     fac_id = facility.get("id")
                     fac_name = facility.get("name", "Unknown")
                     
-                    has_fac_data, fac_last_updated = await DataChecker.check_exists(
+                    has_fac_data, fac_last_updated, _ = await DataChecker.check_exists(
                         org_id, category, subcategory, fac_id, period_key
                     )
                     
