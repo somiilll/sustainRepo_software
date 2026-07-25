@@ -757,6 +757,22 @@ class ESGRecordsService:
         if not current:
             return None
         
+        # =========================================================================
+        # RESUBMISSION RULE: Rejected records cannot be edited
+        # User must create a brand-new submission after rejection
+        # =========================================================================
+        if current.get("approval_status") == "rejected":
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "REJECTED_RECORD_EDIT_NOT_ALLOWED",
+                    "message": "This record was rejected. You cannot edit a rejected record. Please create a new submission instead.",
+                    "rejection_reason": current.get("rejection_reason"),
+                    "rejected_at": current.get("rejected_at"),
+                    "suggestion": "Create a new record with the corrected data.",
+                }
+            )
+        
         # Track changed fields
         changed_fields = []
         update_data = {}
@@ -1090,21 +1106,172 @@ class ESGRecordsService:
         record_id: str,
         org_id: str,
         user_id: Optional[str] = None,
-    ) -> bool:
+        force_delete: bool = False,  # Admin-only: bypass approval workflow
+    ) -> Dict[str, Any]:
         """
-        Hard delete a record from database.
-        Also reverts the associated task status back to 'pending' and cancels approval requests.
+        Delete a record - with approval workflow support.
+        
+        DELETE APPROVAL WORKFLOW:
+        1. If record has approval workflow enabled, create DELETE approval request
+        2. Record is NOT deleted until approval is granted
+        3. Record is marked with `pending_deletion=True` while awaiting approval
+        4. If approved: Record is hard deleted
+        5. If rejected: pending_deletion flag is removed, record remains
+        
+        Args:
+            section: ESG section (environment, social, governance)
+            record_id: Record ID to delete
+            org_id: Organization ID
+            user_id: User requesting deletion
+            force_delete: Admin bypass for immediate deletion
+        
+        Returns:
+            Dict with status: 'deleted', 'pending_approval', or 'not_found'
         """
         collection = self._get_records_collection(section)
         
-        # First, get the record details to find the associated task
+        # First, get the record details
         record = await collection.find_one(
             {"id": record_id, "org_id": org_id, "is_current": True},
             {"_id": 0}
         )
         
         if not record:
-            return False
+            return {"status": "not_found", "message": "Record not found"}
+        
+        # Check if this record requires approval workflow
+        # Look up the assignment to see if approval is required
+        requires_approval = False
+        assignment = None
+        
+        if not force_delete:
+            assignment = await self._find_assignment_for_record(record, org_id)
+            if assignment and assignment.get("requires_approval"):
+                requires_approval = True
+        
+        # If approval required and record is already approved, create DELETE approval request
+        if requires_approval and record.get("approval_status") == "approved":
+            return await self._create_delete_approval_request(
+                collection, record, assignment, org_id, user_id
+            )
+        
+        # Otherwise, perform immediate deletion
+        return await self._perform_hard_delete(collection, record, org_id)
+    
+    async def _create_delete_approval_request(
+        self,
+        collection,
+        record: Dict[str, Any],
+        assignment: Dict[str, Any],
+        org_id: str,
+        user_id: str,
+    ) -> Dict[str, Any]:
+        """
+        Create a DELETE approval request instead of deleting immediately.
+        
+        The record remains visible but marked as pending_deletion.
+        Dashboards/KPIs should continue including the record until deletion is approved.
+        """
+        record_id = record.get("id")
+        now = datetime.now(timezone.utc).isoformat()
+        
+        # Check if there's already a pending delete request
+        existing_delete_request = await db.approval_requests.find_one({
+            "entity_id": record_id,
+            "request_type": "delete",
+            "status": "pending",
+        })
+        
+        if existing_delete_request:
+            return {
+                "status": "already_pending",
+                "message": "A delete approval request is already pending for this record.",
+                "approval_request_id": existing_delete_request.get("id"),
+            }
+        
+        # Mark record as pending deletion
+        await collection.update_one(
+            {"id": record_id},
+            {"$set": {
+                "pending_deletion": True,
+                "deletion_requested_by": user_id,
+                "deletion_requested_at": now,
+            }}
+        )
+        
+        # Get approver info from assignment
+        approver_id = assignment.get("approver_id")
+        approval_chain = assignment.get("approval_chain", [])
+        
+        if approval_chain and len(approval_chain) > 0:
+            first_item = approval_chain[0]
+            current_approvers = [first_item] if isinstance(first_item, str) else [first_item.get("approver_id")]
+            total_levels = len(approval_chain)
+        elif approver_id:
+            current_approvers = [approver_id]
+            total_levels = 1
+        else:
+            # No approver configured - auto-approve deletion
+            return await self._perform_hard_delete(collection, record, org_id)
+        
+        # Get submitter info
+        submitter = await db.users.find_one({"id": user_id}, {"_id": 0, "email": 1, "full_name": 1})
+        
+        # Create approval request
+        approval_request = {
+            "id": str(uuid.uuid4()),
+            "organization_id": org_id,
+            "workflow_id": f"delete_{assignment.get('id')}",
+            "workflow_name": f"ESG Record Delete Approval - {record.get('category')}",
+            
+            "entity_type": "esg_record",
+            "entity_id": record_id,
+            "entity_subtype": record.get("category"),
+            "request_type": "delete",  # Distinguish from create/edit requests
+            
+            "entity_snapshot": {
+                "category": record.get("category"),
+                "subcategory": record.get("subcategory"),
+                "facility_id": record.get("facility_id"),
+                "reporting_period": record.get("reporting_period"),
+                "field_values": record.get("field_values"),
+            },
+            
+            "submitted_by": user_id,
+            "submitted_by_email": submitter.get("email", "") if submitter else "",
+            "submitted_by_name": submitter.get("full_name", "") if submitter else "",
+            "submitted_at": now,
+            "submission_comment": "Deletion requested",
+            
+            "status": "pending",
+            "current_level": 1,
+            "current_approvers": current_approvers,
+            "total_levels": total_levels,
+            
+            "steps_completed": [],
+            "created_at": now,
+            "updated_at": now,
+        }
+        
+        await db.approval_requests.insert_one(approval_request)
+        
+        return {
+            "status": "pending_approval",
+            "message": "Delete request submitted for approval. Record will be deleted once approved.",
+            "approval_request_id": approval_request["id"],
+            "approvers": current_approvers,
+        }
+    
+    async def _perform_hard_delete(
+        self,
+        collection,
+        record: Dict[str, Any],
+        org_id: str,
+    ) -> Dict[str, Any]:
+        """
+        Perform actual hard delete of a record.
+        """
+        record_id = record.get("id")
         
         # Hard delete the record
         result = await collection.delete_one(
@@ -1131,8 +1298,37 @@ class ESGRecordsService:
                 },
                 {"$set": {"status": "cancelled", "updated_at": datetime.now(timezone.utc).isoformat()}}
             )
+            
+            return {"status": "deleted", "message": "Record deleted successfully"}
         
-        return result.deleted_count > 0
+        return {"status": "error", "message": "Failed to delete record"}
+    
+    async def _find_assignment_for_record(
+        self,
+        record: Dict[str, Any],
+        org_id: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Find the assignment that governs this record."""
+        query = {
+            "organization_id": org_id,
+            "category": record.get("category"),
+            "subcategory": record.get("subcategory"),
+        }
+        
+        # Check facility-level first, then org-level
+        if record.get("facility_id"):
+            facility_assignment = await db.esg_assignments.find_one(
+                {**query, "facility_id": record.get("facility_id")},
+                {"_id": 0}
+            )
+            if facility_assignment:
+                return facility_assignment
+        
+        # Fall back to org-level
+        return await db.esg_assignments.find_one(
+            {**query, "facility_id": None},
+            {"_id": 0}
+        )
     
     async def _revert_task_to_pending(
         self,

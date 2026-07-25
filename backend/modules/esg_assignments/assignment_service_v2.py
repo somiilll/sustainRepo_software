@@ -72,6 +72,97 @@ class AssignmentServiceV2:
             "facility_id": data.get("facility_id"),  # null for org-level
             "reporting_period": data.get("reporting_period"),
         }
+
+    async def _validate_no_assignment_conflict(self, data: Dict[str, Any]) -> None:
+        """
+        Validate that there's no conflicting assignment.
+        
+        CONFLICT RULES:
+        1. Cannot have org-level assignment if facility-level assignments exist for same category/period
+        2. Cannot have facility-level assignment if org-level assignment exists for same category/period
+        3. Cannot have overlapping assignments for the same facility/category/period
+        
+        This ensures clear ownership and prevents confusion about who is responsible.
+        
+        Raises:
+            HTTPException(409): If conflicting assignment exists
+        """
+        from fastapi import HTTPException
+        
+        org_id = data.get("organization_id")
+        category = data.get("category")
+        subcategory = data.get("subcategory")
+        sub_subcategory = data.get("sub_subcategory")
+        facility_id = data.get("facility_id")
+        reporting_period = data.get("reporting_period")
+        assignment_level = data.get("assignment_level", "organization")
+        
+        # Only validate for record_category assignments (not disclosures)
+        if data.get("entity_type") == "question":
+            return
+        
+        base_query = {
+            "organization_id": org_id,
+            "category": category,
+            "subcategory": subcategory,
+            "sub_subcategory": sub_subcategory,
+            "reporting_period": reporting_period,
+        }
+        
+        if assignment_level == "organization" or not facility_id:
+            # Creating org-level: Check if any facility-level assignments exist
+            facility_assignments = await self._assignments.find(
+                {**base_query, "facility_id": {"$ne": None}},
+                {"_id": 0, "id": 1, "facility_id": 1}
+            ).to_list(100)
+            
+            if facility_assignments:
+                facility_ids = [a.get("facility_id") for a in facility_assignments]
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "error": "ASSIGNMENT_CONFLICT",
+                        "message": f"Cannot create org-level assignment. Facility-level assignments already exist for {len(facility_assignments)} facilities.",
+                        "conflict_type": "org_vs_facility",
+                        "existing_facility_ids": facility_ids,
+                        "suggestion": "Delete existing facility-level assignments first, or use facility-level assignment for remaining facilities.",
+                    }
+                )
+        else:
+            # Creating facility-level: Check if org-level assignment exists
+            org_assignment = await self._assignments.find_one(
+                {**base_query, "facility_id": None},
+                {"_id": 0, "id": 1}
+            )
+            
+            if org_assignment:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "error": "ASSIGNMENT_CONFLICT",
+                        "message": "Cannot create facility-level assignment. An org-level assignment already exists for this category/period.",
+                        "conflict_type": "facility_vs_org",
+                        "existing_assignment_id": org_assignment.get("id"),
+                        "suggestion": "Delete the org-level assignment first, then create facility-level assignments.",
+                    }
+                )
+            
+            # Also check for duplicate facility assignment
+            duplicate = await self._assignments.find_one(
+                {**base_query, "facility_id": facility_id},
+                {"_id": 0, "id": 1}
+            )
+            
+            if duplicate:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "error": "DUPLICATE_ASSIGNMENT",
+                        "message": "An assignment already exists for this facility/category/period.",
+                        "existing_assignment_id": duplicate.get("id"),
+                    }
+                )
+
     
     async def create_or_update_assignment(
         self,
@@ -87,6 +178,7 @@ class AssignmentServiceV2:
         1. Finding or creating the assignment document
         2. Updating assignment properties
         3. Managing assignees (via assignees_service)
+        4. Validating for conflicting assignments (org + facility overlap)
         
         Args:
             data: Assignment properties (category, facility_id, etc.)
@@ -95,9 +187,19 @@ class AssignmentServiceV2:
         
         Returns:
             (assignment_doc, is_new): The assignment and whether it was newly created
+        
+        Raises:
+            HTTPException(409): If conflicting assignment exists
         """
+        from fastapi import HTTPException
+        
         now = datetime.now(timezone.utc)
         unique_key = self._build_unique_key(data)
+        
+        # =========================================================================
+        # CONFLICT VALIDATION: Prevent org-level + facility-level overlap
+        # =========================================================================
+        await self._validate_no_assignment_conflict(data)
         
         # Check for existing assignment
         existing = await self._assignments.find_one(unique_key, {"_id": 0})

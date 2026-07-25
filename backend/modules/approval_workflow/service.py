@@ -682,6 +682,69 @@ class ApprovalWorkflowService:
             entity_type = request.get("entity_type")
             entity_id = request.get("entity_id")
             entity_subtype = request.get("entity_subtype")  # This is the section (environment, social, governance)
+            request_type = request.get("request_type")  # 'delete', 'create', 'edit'
+            
+            # Handle DELETE approval - actually delete the record
+            if entity_type == "esg_record" and request_type == "delete":
+                try:
+                    collection_map = {
+                        "environment": "environment_records",
+                        "social": "social_records",
+                        "governance": "governance_records",
+                        "Energy": "environment_records",
+                        "Water": "environment_records",
+                        "Waste": "environment_records",
+                    }
+                    collection_name = collection_map.get(entity_subtype)
+                    
+                    if collection_name:
+                        # Get record details before deletion for task reversion
+                        record = await db[collection_name].find_one(
+                            {"id": entity_id, "is_current": True},
+                            {"_id": 0}
+                        )
+                        
+                        if record:
+                            # Hard delete the record
+                            await db[collection_name].delete_one({"id": entity_id, "is_current": True})
+                            logger.info(f"Delete approved: Hard deleted ESG record {entity_id}")
+                            
+                            # Revert associated task
+                            org_id = record.get("organization_id") or record.get("org_id")
+                            rp = record.get("reporting_period") or {}
+                            period_key = None
+                            rp_type = rp.get("reporting_type") or rp.get("type")
+                            if rp_type == "monthly":
+                                month = rp.get("month")
+                                month_num = int(month) if str(month).isdigit() else 1
+                                period_key = f"{rp.get('year')}-{str(month_num).zfill(2)}"
+                            elif rp_type == "yearly":
+                                period_key = str(rp.get("year"))
+                            
+                            if period_key:
+                                task_query = {
+                                    "organization_id": org_id,
+                                    "category": record.get("category"),
+                                    "period_key": period_key,
+                                }
+                                if record.get("subcategory"):
+                                    task_query["subcategory"] = record.get("subcategory")
+                                if record.get("facility_id"):
+                                    task_query["facility_id"] = record.get("facility_id")
+                                
+                                await db.esg_reporting_tasks.update_many(
+                                    task_query,
+                                    {"$set": {"status": "pending", "approval_status": None, "updated_at": _now_iso()}}
+                                )
+                                logger.info(f"Reverted task to pending for deleted record")
+                except Exception as e:
+                    logger.error(f"Failed to process delete approval: {e}")
+                    import traceback
+                    traceback.print_exc()
+                
+                # Get the updated request
+                updated_request = await db[REQUESTS_COLLECTION].find_one({"id": request_id}, {"_id": 0})
+                return (True, "Delete request approved. Record has been permanently deleted.", updated_request)
             
             if entity_type == "esg_record" and entity_id and entity_subtype:
                 try:
@@ -869,24 +932,61 @@ class ApprovalWorkflowService:
         """
         Update the source entity (task or assignment) status when rejected.
         Sets status=reopened, approval_status=rejected.
+        
+        For DELETE requests: Clears pending_deletion flag, record remains active.
+        For CREATE/EDIT requests: Marks record as rejected, user must resubmit.
         """
         entity_type = request.get("entity_type")
         entity_id = request.get("entity_id")
         org_id = request.get("organization_id")
+        request_type = request.get("request_type")  # 'delete', 'create', 'edit'
         rejector_id = rejector.get("id")
         now = _now_iso()
         
-        update_doc = {
-            "status": "reopened",
-            "approval_status": "rejected",
-            "rejected_at": now,
-            "rejected_by_user_id": rejector_id,
-            "updated_at": now,
-        }
-        if comment:
-            update_doc["rejection_reason"] = comment
-        
         try:
+            # Handle DELETE rejection - clear pending_deletion, keep record active
+            if entity_type == "esg_record" and request_type == "delete":
+                entity_subtype = request.get("entity_subtype")
+                collection_map = {
+                    "environment": "environment_records",
+                    "social": "social_records",
+                    "governance": "governance_records",
+                    "Energy": "environment_records",
+                    "Water": "environment_records",
+                    "Waste": "environment_records",
+                }
+                collection_name = collection_map.get(entity_subtype)
+                
+                if collection_name:
+                    # Clear pending_deletion flag, keep the record active
+                    await db[collection_name].update_one(
+                        {"id": entity_id, "is_current": True},
+                        {"$set": {
+                            "pending_deletion": False,
+                            "deletion_rejected_at": now,
+                            "deletion_rejected_by": rejector_id,
+                            "deletion_rejection_reason": comment,
+                            "updated_at": now,
+                        },
+                        "$unset": {
+                            "deletion_requested_by": "",
+                            "deletion_requested_at": "",
+                        }}
+                    )
+                    logger.info(f"Delete rejected: Cleared pending_deletion on {collection_name} record {entity_id}")
+                return  # Don't continue to normal rejection handling
+            
+            # Normal rejection handling (create/edit requests)
+            update_doc = {
+                "status": "reopened",
+                "approval_status": "rejected",
+                "rejected_at": now,
+                "rejected_by_user_id": rejector_id,
+                "updated_at": now,
+            }
+            if comment:
+                update_doc["rejection_reason"] = comment
+            
             if entity_type == "esg_record":
                 # ESG records are stored in section-specific collections
                 entity_subtype = request.get("entity_subtype")  # environment, social, governance
