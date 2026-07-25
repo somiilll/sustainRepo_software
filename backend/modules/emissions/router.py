@@ -41,26 +41,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-async def _mark_emission_task_completed(
-    organization_id: str,
-    facility_id: str,
-    scope: str,
-    reporting_period: str,
-    user_id: str,
-) -> dict:
-    """
-    DEPRECATED: Task status is now computed on-the-fly by CompletionService.
-    
-    This function is kept as a no-op for backward compatibility during the transition.
-    Task status should NOT be stored/synced - it's derived from actual data existence.
-    
-    The CompletionService.get_task_status() method computes status in real-time by
-    checking if emission_records exist for the given org/facility/scope/period.
-    """
-    logger.debug(f"[TASK_COMPLETION] Skipped (status now computed): org={organization_id}, scope={scope}, period={reporting_period}")
-    return {"updated": False, "reason": "Task status is now computed on-the-fly by CompletionService"}
-
-
 # Module-level audit logger reference. Resolved lazily so it picks up the
 # instance initialized by server.py on app startup.
 def _audit_logger():
@@ -411,22 +391,20 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
         }
     )
     
-    # NOTE: Completion tracking removed - status is now computed on-the-fly by CompletionService
-    # No need to sync task status on record submission
-    
-    # Mark corresponding task as completed (best-effort) - now a no-op
+    # Submit for approval if workflow enabled
     try:
-        task_result = await _mark_emission_task_completed(
+        from modules.approval_workflow.integration import submit_record_for_approval
+        approval_result = await submit_record_for_approval(
+            record_id=record_id,
+            record_type="emission",
+            record_data=record_dict,
             organization_id=record_dict["organization_id"],
-            facility_id=record_data.facility_id,
-            scope=record_data.scope,
-            reporting_period=record_data.reporting_period,
-            user_id=current_user.get("id"),
+            current_user=current_user,
         )
-        if task_result.get("updated"):
-            logger.info(f"[EMISSION_CREATE] Task marked completed: {task_result}")
+        if approval_result.get("submitted"):
+            logger.info(f"[EMISSION_CREATE] Submitted for approval: {approval_result.get('message')}")
     except Exception as e:
-        logger.warning(f"[EMISSION_CREATE] Task completion failed: {e}")
+        logger.warning(f"[EMISSION_CREATE] Approval submission failed: {e}")
     
     return EmissionRecordResponse(**record_dict)
 
