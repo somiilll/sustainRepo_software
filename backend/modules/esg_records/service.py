@@ -466,8 +466,14 @@ class ESGRecordsService:
             approval_chain = assignment.get("approval_chain", [])
             
             # Determine approvers - use approval_chain if available, otherwise single approver
-            if approval_chain:
-                current_approvers = [approval_chain[0].get("approver_id")] if approval_chain else []
+            # Handle both formats: list of strings (user IDs) or list of objects with approver_id
+            if approval_chain and len(approval_chain) > 0:
+                first_item = approval_chain[0]
+                # Check if it's a string (user ID directly) or object
+                if isinstance(first_item, str):
+                    current_approvers = [first_item]
+                else:
+                    current_approvers = [first_item.get("approver_id")] if first_item else []
                 total_levels = len(approval_chain)
             elif approver_id:
                 current_approvers = [approver_id]

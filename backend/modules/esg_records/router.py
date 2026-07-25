@@ -776,6 +776,7 @@ async def create_record_assignment(
                 "reminder_enabled": data.get("reminder_enabled", False),
                 "reminder_config": data.get("reminder_config"),
                 "requires_approval": data.get("requires_approval", False),
+                "approver_id": data.get("approver_id"),  # Single-level approval
                 "approval_chain": data.get("approval_chain", []),
             }
             
@@ -826,6 +827,7 @@ async def create_record_assignment(
                     "reminder_enabled": data.get("reminder_enabled", False),
                     "reminder_config": data.get("reminder_config"),
                     "requires_approval": data.get("requires_approval", False),
+                    "approver_id": data.get("approver_id"),  # Single-level approval
                     "approval_chain": data.get("approval_chain", []),
                 }
                 
@@ -863,6 +865,7 @@ async def create_record_assignment(
                 "reminder_enabled": data.get("reminder_enabled", False),
                 "reminder_config": data.get("reminder_config"),
                 "requires_approval": data.get("requires_approval", False),
+                "approver_id": data.get("approver_id"),  # Single-level approval
                 "approval_chain": data.get("approval_chain", []),
             }
             

@@ -118,7 +118,8 @@ class AssignmentServiceV2:
                 "reminder_config": data.get("reminder_config"),
                 "reminder_frequency": data.get("reminder_frequency"),  # Add reminder_frequency
                 "requires_approval": data.get("requires_approval", False),
-                "approval_chain": data.get("approval_chain", []),
+                "approver_id": data.get("approver_id"),  # Single-level approval
+                "approval_chain": data.get("approval_chain", []),  # Multi-level approval
                 "framework_id": data.get("framework_id"),  # Add framework_id
                 "updated_at": now,
             }
@@ -186,7 +187,8 @@ class AssignmentServiceV2:
                 "reminder_config": data.get("reminder_config"),
                 "reminder_frequency": data.get("reminder_frequency"),
                 "requires_approval": data.get("requires_approval", False),
-                "approval_chain": data.get("approval_chain", []),
+                "approver_id": data.get("approver_id"),  # Single-level approval
+                "approval_chain": data.get("approval_chain", []),  # Multi-level approval
                 "framework_id": data.get("framework_id"),
                 "group_assignment_id": data.get("group_assignment_id"),
                 "created_by_user_id": created_by_user_id,

@@ -1102,6 +1102,7 @@ class TrackingService:
                 "reminder_config": request.reminder_config,
                 "reminder_frequency": request.reminder_frequency,  # Add reminder frequency
                 "requires_approval": request.requires_approval,
+                "approver_id": request.approver_id,  # Single-level approval
                 "approval_chain": request.approval_chain or [],
                 "framework_id": request.framework_id,
                 "group_assignment_id": group_id,
