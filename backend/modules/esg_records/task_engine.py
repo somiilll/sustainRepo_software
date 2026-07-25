@@ -783,16 +783,19 @@ async def update_task_status(
     reason: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Update a task's operational status and optionally approval status.
+    DEPRECATED: Task status is now computed from data, not stored.
     
-    New architecture separates:
-    - status: operational completion (pending → completed)
-    - approval_status: governance state (not_required/pending_approval/approved/rejected)
+    This function now only updates approval_status and metadata.
+    The new_status parameter is ignored - status is computed by CompletionService.
+    
+    Use this function only for:
+    - Setting approval_status (pending_approval, approved, rejected)
+    - Recording metadata (who submitted, rejection reason, etc.)
     """
     now = datetime.now(tz.utc)
     
+    # NOTE: We no longer store task.status - it's computed from data
     update_doc = {
-        "status": new_status,
         "updated_at": now,
     }
     
@@ -800,11 +803,11 @@ async def update_task_status(
     if approval_status:
         update_doc["approval_status"] = approval_status
     
-    # Track completion timestamp
+    # Track completion timestamp (still useful for audit)
     if new_status == TaskStatus.COMPLETED.value:
-        update_doc["completed_at"] = now
+        update_doc["submitted_at"] = now  # Renamed from completed_at for clarity
         if user_id:
-            update_doc["completed_by_user_id"] = user_id
+            update_doc["submitted_by_user_id"] = user_id
     
     # Track approval timestamp
     if approval_status == ApprovalStatus.APPROVED.value:
@@ -812,9 +815,9 @@ async def update_task_status(
         if user_id:
             update_doc["approved_by_user_id"] = user_id
     
-    # Track rejection - ALSO set status to reopened
+    # Track rejection
     if approval_status == ApprovalStatus.REJECTED.value:
-        update_doc["status"] = TaskStatus.REOPENED.value  # Auto-reopen on rejection
+        # NOTE: No longer setting status to reopened - status is computed
         update_doc["rejected_at"] = now
         if user_id:
             update_doc["rejected_by_user_id"] = user_id
@@ -823,6 +826,7 @@ async def update_task_status(
     
     # Track skip reason
     if new_status == TaskStatus.SKIPPED.value:
+        update_doc["skipped_at"] = now
         update_doc["skipped_reason"] = reason
     
     result = await db["esg_reporting_tasks"].update_one(
@@ -922,29 +926,16 @@ async def refresh_overdue_tasks(
     organization_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Cron job helper: Mark pending tasks as overdue if past due date.
-    Only affects non-backfill tasks.
+    DEPRECATED: Task status (including overdue) is now computed from data.
+    
+    Overdue status is determined by CompletionService.get_task_status() which
+    checks if due_at < now AND no data exists.
+    
+    This function is kept for backwards compatibility but does nothing.
+    The overdue calculation is done in completion_service.py lines 682-690.
     """
-    now = datetime.now()
-    
-    query = {
-        "status": TaskStatus.PENDING.value,
-        "is_backfill": False,
-        "due_at": {"$lt": now},
-    }
-    
-    if organization_id:
-        query["organization_id"] = organization_id
-    
-    result = await db["esg_reporting_tasks"].update_many(
-        query,
-        {"$set": {
-            "status": TaskStatus.OVERDUE.value,
-            "updated_at": datetime.now(tz.utc),
-        }}
-    )
-    
-    return {"marked_overdue": result.modified_count}
+    # No-op: Status is computed, not stored
+    return {"marked_overdue": 0, "note": "Status is now computed dynamically"}
 
 
 

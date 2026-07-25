@@ -729,12 +729,11 @@ class ESGRecordsService:
                 return
             
             # Find matching task - use task_assignees for new architecture
-            # First find task by category/period, then verify user is assigned via esg_task_assignees
+            # NOTE: We don't filter by status since status is computed from data
             task_query = {
                 "organization_id": org_id,
                 "category": category,
                 "period_key": period_key,
-                "status": {"$in": ["pending", "backfill_pending", "overdue", "in_progress", "reopened"]},
             }
             if subcategory:
                 task_query["subcategory"] = subcategory
@@ -762,12 +761,12 @@ class ESGRecordsService:
                 if not legacy_task:
                     return
             
-            # Update task with new status architecture
+            # Update task - only approval_status and metadata
+            # NOTE: status is computed from data, not stored
             now = datetime.now(timezone.utc)
             update_doc = {
-                "status": "completed",
-                "completed_at": now,
-                "completed_by_user_id": user_id,
+                "submitted_at": now,
+                "submitted_by_user_id": user_id,
                 "updated_at": now,
                 "approval_status": "pending_approval" if requires_approval else "not_required",
             }
@@ -837,17 +836,18 @@ class ESGRecordsService:
                 task_query["facility_id"] = facility_id
             
             now = datetime.now(timezone.utc).isoformat()
+            # NOTE: We no longer update task.status - it's computed from data
+            # Only clear approval_status since data is being modified
             result = await db.esg_reporting_tasks.update_one(
                 task_query,
                 {"$set": {
-                    "status": "pending",
                     "approval_status": "not_required",
                     "updated_at": now,
                 }}
             )
             
             if result.modified_count > 0:
-                print(f"Reverted task to pending for {category}/{subcategory} period={period_key}")
+                print(f"Cleared approval_status for {category}/{subcategory} period={period_key}")
         except Exception as e:
             print(f"Warning: Failed to revert task to pending: {e}")
 
