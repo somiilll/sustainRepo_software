@@ -124,10 +124,15 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
 
 ### Task System
 - `/app/backend/modules/esg_records/task_engine.py` - Task generation
-- `/app/backend/modules/emissions/router.py` - Emission saves & task completion
-- `/app/backend/modules/esg_assignments/completion_tracking.py` - Assignment completion
+- `/app/backend/modules/emissions/router.py` - Emission saves, task completion & assignment-based approval
+- `/app/backend/modules/esg_assignments/completion_service.py` - Single source of truth for completion
 - `/app/frontend/src/components/tasks/TaskLedger.js` - Main task display UI
 - `/app/frontend/src/components/MyTasks.js` - Task container component
+
+### Approval Workflow
+- `/app/backend/modules/esg_records/service.py` - ESG records approval pattern (reference implementation)
+- `/app/backend/modules/emissions/router.py` - Emission approval via `_create_emission_approval_request()`
+- **Deleted**: `/app/backend/modules/approval_workflow/integration.py` (replaced with assignment-based approval)
 
 ### Peer Benchmarking Module
 - `/app/frontend/src/modules/peer-benchmarking/` - Frontend module
@@ -152,6 +157,15 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
 - Resend Emails (requires user API key)
 
 ## Recent Updates (July 2025)
+
+### Granular Assignment-Based Approval Workflow for Emissions (Dec 2025)
+- **Problem**: Emissions were using a generic org-level approval workflow (`approval_workflow/integration.py`) that didn't support per-category/per-subcategory approval granularity like ESG records
+- **Solution**: 
+  1. Updated `/app/backend/modules/emissions/router.py` to use assignment-based approval logic
+  2. Added `_find_emission_assignment()` to look up user's KPI or record_category assignment
+  3. Added `_create_emission_approval_request()` to create approval requests linked to assignment's `approver_id`
+  4. Deleted `/app/backend/modules/approval_workflow/integration.py` (no longer needed)
+- **Result**: Emissions now follow the same granular approval pattern as Water, Energy, and BRSR questions - approval triggers only when the specific assignment has `requires_approval=True`
 
 ### Reporting Period Storage Fix
 - **Problem**: For monthly records in FY context, Jan/Feb/Mar were stored with FY start year (e.g., `year: 2026` for Feb FY 2026-2027) instead of actual calendar year (`year: 2027`)

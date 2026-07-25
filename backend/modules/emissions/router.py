@@ -41,6 +41,211 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+# =============================================================================
+# Assignment-Based Approval Helpers (Granular per-category approval)
+# Mirrors the pattern in esg_records/service.py for consistency
+# =============================================================================
+
+async def _find_emission_assignment(
+    org_id: str,
+    user_id: str,
+    scope: str,
+    facility_id: Optional[str] = None,
+) -> Optional[dict]:
+    """
+    Find the user's assignment for this emission's scope.
+    Returns the most specific matching assignment.
+    
+    Checks two assignment types:
+    1. KPI assignments (entity_type='kpi') with kpi_identifier like 'scope1', 'scope2', 'scope3'
+    2. Record category assignments (entity_type='record_category') with category='GHG Emissions' and subcategory matching scope
+    """
+    # Normalize scope identifier
+    scope_lower = (scope or "").lower().replace(" ", "")
+    
+    # Map scope names to KPI identifiers
+    scope_to_kpi = {
+        "scope1": "scope1",
+        "scope2": "scope2",
+        "scope3": "scope3",
+        "biogenic": "biogenic",
+    }
+    kpi_identifier = scope_to_kpi.get(scope_lower, scope_lower)
+    
+    # Map scope to subcategory names used in record_category assignments
+    # Format: "GHG Emissions - Scope X"
+    scope_to_subcategory = {
+        "scope1": "GHG Emissions - Scope 1",
+        "scope2": "GHG Emissions - Scope 2",
+        "scope3": "GHG Emissions - Scope 3",
+        "biogenic": "GHG Emissions - Biogenic",
+    }
+    subcategory = scope_to_subcategory.get(scope_lower)
+    
+    assignments = []
+    
+    # Strategy 1: Check KPI assignments
+    kpi_query = {
+        "organization_id": org_id,
+        "assigned_to_user_id": user_id,
+        "entity_type": "kpi",
+        "status": {"$nin": ["completed", "cancelled"]},
+        "kpi_identifier": kpi_identifier,
+    }
+    if facility_id:
+        kpi_query["$or"] = [
+            {"facility_id": facility_id},
+            {"assignment_level": "organization"},
+        ]
+    
+    kpi_assignments = await db.esg_assignments.find(kpi_query, {"_id": 0}).to_list(100)
+    assignments.extend(kpi_assignments)
+    
+    # Strategy 2: Check record_category assignments for GHG Emissions
+    record_cat_query = {
+        "organization_id": org_id,
+        "assigned_to_user_id": user_id,
+        "entity_type": "record_category",
+        "status": {"$nin": ["completed", "cancelled"]},
+        "category": "GHG Emissions",
+    }
+    if subcategory:
+        # Check both exact subcategory match and category-level (no subcategory)
+        record_cat_query["$or"] = [
+            {"subcategory": subcategory},
+            {"subcategory": None},
+            {"subcategory": {"$exists": False}},
+        ]
+    if facility_id:
+        # Combine with facility filter
+        if "$or" in record_cat_query:
+            existing_or = record_cat_query.pop("$or")
+            record_cat_query["$and"] = [
+                {"$or": existing_or},
+                {"$or": [{"facility_id": facility_id}, {"assignment_level": "organization"}]}
+            ]
+        else:
+            record_cat_query["$or"] = [
+                {"facility_id": facility_id},
+                {"assignment_level": "organization"},
+            ]
+    
+    record_cat_assignments = await db.esg_assignments.find(record_cat_query, {"_id": 0}).to_list(100)
+    assignments.extend(record_cat_assignments)
+    
+    if not assignments:
+        return None
+    
+    # Return the most specific assignment (exact subcategory match > exact facility match > org-level)
+    best_match = None
+    best_score = -1
+    
+    for assignment in assignments:
+        score = 0
+        
+        # Subcategory specificity (for record_category)
+        if assignment.get("entity_type") == "record_category":
+            if assignment.get("subcategory") == subcategory:
+                score += 10  # Exact subcategory match
+            elif not assignment.get("subcategory"):
+                score += 5  # Category-level match
+        
+        # Facility specificity
+        if assignment.get("facility_id") == facility_id:
+            score += 2  # Exact facility match
+        elif assignment.get("assignment_level") == "organization":
+            score += 1  # Org-level assignment
+        
+        if score > best_score:
+            best_score = score
+            best_match = assignment
+    
+    return best_match
+
+
+async def _create_emission_approval_request(
+    org_id: str,
+    emission_record: dict,
+    assignment: dict,
+    user_id: str,
+):
+    """
+    Create an approval request for an emission record.
+    Uses the approver_id from the assignment or approval_chain if multi-level.
+    
+    Mirrors the logic from esg_records/service.py _create_approval_request().
+    """
+    approver_id = assignment.get("approver_id")
+    approval_chain = assignment.get("approval_chain", [])
+    
+    # Determine approvers
+    if approval_chain:
+        current_approvers = [approval_chain[0].get("approver_id")] if approval_chain else []
+        total_levels = len(approval_chain)
+    elif approver_id:
+        current_approvers = [approver_id]
+        total_levels = 1
+    else:
+        logger.warning("Assignment requires approval but no approver_id set")
+        return
+    
+    # Get submitter info
+    submitter = await db.users.find_one({"id": user_id}, {"_id": 0, "email": 1, "full_name": 1})
+    submitter_email = submitter.get("email", "") if submitter else ""
+    submitter_name = submitter.get("full_name", "") if submitter else ""
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Build entity snapshot
+    entity_snapshot = {
+        "scope": emission_record.get("scope"),
+        "category": emission_record.get("category"),
+        "sub_category": emission_record.get("sub_category"),
+        "facility_id": emission_record.get("facility_id"),
+        "reporting_period": emission_record.get("reporting_period"),
+        "total_emissions": emission_record.get("total_emissions"),
+        "inputs": emission_record.get("inputs"),
+        "outputs": emission_record.get("outputs"),
+    }
+    
+    # Create approval request document
+    approval_request = {
+        "id": str(uuid.uuid4()),
+        "organization_id": org_id,
+        "workflow_id": f"assignment_{assignment.get('id')}",  # Link to assignment
+        "workflow_name": f"Emission Approval - {emission_record.get('scope')} - {emission_record.get('category')}",
+        
+        # Entity being approved
+        "entity_type": "emission_record",
+        "entity_id": emission_record.get("id"),
+        "entity_subtype": emission_record.get("scope"),
+        "entity_snapshot": entity_snapshot,
+        
+        # Submission info
+        "submitted_by": user_id,
+        "submitted_by_email": submitter_email,
+        "submitted_by_name": submitter_name,
+        "submitted_at": now,
+        "submission_comment": None,
+        
+        # Current state
+        "status": "pending",
+        "current_level": 1,
+        "current_approvers": current_approvers,
+        "total_levels": total_levels,
+        
+        # Progress tracking
+        "steps_completed": [],
+        
+        # Metadata
+        "created_at": now,
+        "updated_at": now,
+    }
+    
+    await db.approval_requests.insert_one(approval_request)
+    logger.info(f"Created emission approval request {approval_request['id']} for record {emission_record.get('id')}")
+
+
 # Module-level audit logger reference. Resolved lazily so it picks up the
 # instance initialized by server.py on app startup.
 def _audit_logger():
@@ -391,20 +596,27 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
         }
     )
     
-    # Submit for approval if workflow enabled
+    # Assignment-based approval workflow (granular per-category approval)
+    # This mirrors the logic in esg_records/service.py _create_approval_request()
     try:
-        from modules.approval_workflow.integration import submit_record_for_approval
-        approval_result = await submit_record_for_approval(
-            record_id=record_id,
-            record_type="emission",
-            record_data=record_dict,
-            organization_id=record_dict["organization_id"],
-            current_user=current_user,
+        # Look up user's assignment for this emission's scope/category
+        assignment = await _find_emission_assignment(
+            org_id=record_dict["organization_id"],
+            user_id=current_user["id"],
+            scope=record_data.scope,
+            facility_id=record_data.facility_id,
         )
-        if approval_result.get("submitted"):
-            logger.info(f"[EMISSION_CREATE] Submitted for approval: {approval_result.get('message')}")
+        
+        if assignment and assignment.get("requires_approval", False):
+            await _create_emission_approval_request(
+                org_id=record_dict["organization_id"],
+                emission_record=record_dict,
+                assignment=assignment,
+                user_id=current_user["id"],
+            )
+            logger.info(f"[EMISSION_CREATE] Created approval request for assignment {assignment.get('id')}")
     except Exception as e:
-        logger.warning(f"[EMISSION_CREATE] Approval submission failed: {e}")
+        logger.warning(f"[EMISSION_CREATE] Assignment-based approval check failed: {e}")
     
     return EmissionRecordResponse(**record_dict)
 
