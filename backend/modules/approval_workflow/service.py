@@ -851,12 +851,21 @@ class ApprovalWorkflowService:
                                 task_query["facility_id"] = record.get("facility_id")
                             
                             # NOTE: We no longer update task.status - it's computed from data
-                            # Only update approval_status for tracking
+                            # Update approval_status and completion ownership fields
+                            # completed_by_user_id/completed_at track who approved and when
+                            task_update = {
+                                "approval_status": "approved",
+                                "updated_at": _now_iso(),
+                                "completed_by_user_id": approver.get("id"),
+                                "completed_at": _now_iso(),
+                                "approved_by_user_id": approver.get("id"),
+                                "approved_at": _now_iso(),
+                            }
                             task_update_result = await db.esg_reporting_tasks.update_many(
                                 task_query,
-                                {"$set": {"approval_status": "approved", "updated_at": _now_iso()}}
+                                {"$set": task_update}
                             )
-                            logger.info(f"Updated {task_update_result.modified_count} task(s) approval_status=approved")
+                            logger.info(f"Updated {task_update_result.modified_count} task(s) approval_status=approved, completed_by={approver.get('id')}")
                             
                 except Exception as e:
                     logger.error(f"Failed to update ESG record/task with approval: {e}")

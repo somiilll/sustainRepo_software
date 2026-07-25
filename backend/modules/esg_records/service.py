@@ -889,6 +889,11 @@ class ESGRecordsService:
             
             # Update task - only approval_status and metadata
             # NOTE: status is computed from data, not stored
+            # 
+            # TASK OWNERSHIP FIELDS:
+            # - submitted_by_user_id / submitted_at: Who submitted the data and when
+            # - completed_by_user_id / completed_at: Set when data is approved (or immediately if no approval)
+            # These provide clear audit trail even after reassignments
             now = datetime.now(timezone.utc)
             update_doc = {
                 "submitted_at": now,
@@ -896,6 +901,11 @@ class ESGRecordsService:
                 "updated_at": now,
                 "approval_status": "pending_approval" if requires_approval else "not_required",
             }
+            
+            # If no approval required, mark as completed immediately
+            if not requires_approval:
+                update_doc["completed_by_user_id"] = user_id
+                update_doc["completed_at"] = now
             
             await db.esg_reporting_tasks.update_one(
                 {"id": task["id"]},

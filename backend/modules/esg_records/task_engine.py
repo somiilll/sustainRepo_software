@@ -495,6 +495,17 @@ async def generate_tasks_for_assignment(
                 "created_with_approval_workflow": assignment.get("requires_approval", False),
                 "created_with_approver_id": assignment.get("approver_id"),
                 "created_with_facility_snapshot": assignment.get("facility_snapshot"),
+                # OWNERSHIP FIELDS: Track who submitted/completed the task
+                # - submitted_by_user_id / submitted_at: Set when data is first submitted
+                # - completed_by_user_id / completed_at: Set when approved (or immediately if no approval)
+                # - approved_by_user_id / approved_at: Set when explicitly approved
+                # These provide clear audit trail even after reassignments
+                "submitted_by_user_id": None,
+                "submitted_at": None,
+                "completed_by_user_id": None,
+                "completed_at": None,
+                "approved_by_user_id": None,
+                "approved_at": None,
                 "created_at": now,
                 "updated_at": now,
             }
