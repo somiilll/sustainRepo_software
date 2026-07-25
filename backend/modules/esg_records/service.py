@@ -305,10 +305,11 @@ class ESGRecordsService:
             query["sub_subcategory"] = sub_subcategory
         
         # Handle facility_id matching
+        facility_conditions = None
         if facility_id:
             query["facility_id"] = facility_id
         else:
-            query["$or"] = [
+            facility_conditions = [
                 {"facility_id": None},
                 {"facility_id": {"$exists": False}},
                 {"record_level": "organization"},
@@ -328,11 +329,27 @@ class ESGRecordsService:
                 query["reporting_period.month"] = {"$in": [month_int, rp_month, str(month_int)]}
             else:
                 query["reporting_period.month"] = rp_month
+        
+        # Build $or conditions carefully to avoid overwriting
+        or_conditions = []
+        if facility_conditions:
+            or_conditions.extend(facility_conditions)
         if rp_type:
-            query["$or"] = [
+            # Add reporting_type conditions to all existing query conditions
+            type_conditions = [
                 {"reporting_period.reporting_type": rp_type},
                 {"reporting_period.type": rp_type},
             ]
+            if or_conditions:
+                # Need $and to combine facility OR with type OR
+                query["$and"] = [
+                    {"$or": or_conditions},
+                    {"$or": type_conditions},
+                ]
+            else:
+                query["$or"] = type_conditions
+        elif or_conditions:
+            query["$or"] = or_conditions
         
         return await collection.find_one(
             query,

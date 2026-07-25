@@ -19,15 +19,46 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
   - `DataChecker.check_exists()` - Check if data exists for a period
   - `completion_service.get_task_status()` - Compute task status (not stored)
   - `completion_service.get_assignment_progress()` - Calculate filled/total/percentage
+  - `calculate_aggregate_approval_status()` - Compute org-level status from facility statuses
 - **Used by**: My Tasks, Progress Engine Router, Tracker, Dashboard
 - **Philosophy**: Task status is COMPUTED from actual data, never stored
-- **Removed**: `_check_data_exists_for_task`, `sync_task_statuses_with_data`, `_mark_emission_task_completed` (all obsolete)
+- **Aggregate Approval Rules**: 
+  - ALL_APPROVED: All facilities approved → Completed
+  - PARTIALLY_APPROVED: Mixed approved/pending → Completed (awaiting some)
+  - ALL_PENDING: All pending → Completed (awaiting approval)
+  - HAS_REJECTION: Any rejected → Rejected (blocks completion)
+
+### Assignment Versioning (Dec 2024)
+- **Version Tracking**: Assignments have `version` field (incremented on update)
+- **Facility Snapshots**: Org-level assignments capture `facility_snapshot` at creation
+- **Task Audit Fields**: Tasks store `assignment_version_at_creation`, `created_with_approval_workflow`, etc.
+- **Smart Update Rules**:
+  - Completed tasks: KEEP with original settings (audit trail preserved)
+  - Pending tasks: REASSIGN to new settings
+  - Future periods: GENERATE new tasks
+
+### Data Integrity Features (Dec 2024)
+- **Optimistic Locking**: Records have `version` field, updates check version match (409 on conflict)
+- **Duplicate Submission Warning**: Creating duplicate record returns warning (not error)
+- **Idempotency**: POST endpoints support `X-Idempotency-Key` header (24h cache)
+- **Transaction Handling**: Assignment creation + task generation with error recovery
 
 ### V2 Assignment System
 - **Assignments** are central objects stored in `esg_assignments`
 - **Assignees** are linked via `esg_assignment_assignees` collection
 - **Tasks** are generated from assignments via `task_engine.py` (metadata only, no status)
 - **Completion** is computed on-the-fly by CompletionService
+- **Conflict Validation**: Cannot have org-level + facility-level assignments for same category/period
+
+### Delete Approval Workflow (Dec 2024)
+- **Flow**: Delete → Create Delete Approval Request → Approve → Hard Delete
+- **Record marked** `pending_deletion=true` while awaiting approval
+- **If rejected**: pending_deletion cleared, record remains active
+
+### Resubmission After Rejection
+- **Rule**: Rejected records CANNOT be edited
+- **User must**: Create a new submission instead
+- **Enforced in**: `esg_records/service.py` update_record()
 
 ### Unified ESG Metrics Service
 - **Location**: `/app/backend/services/esg_metrics_service.py`

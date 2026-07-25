@@ -156,7 +156,9 @@ async def retry_task_generation(
     Useful when task generation fails during assignment creation and 
     assignment is marked with task_generation_pending=True.
     """
-    assignment = await assignment_service.get_assignment(assignment_id)
+    from modules.esg_assignments.assignment_service_v2 import assignment_service_v2
+    
+    assignment = await assignment_service_v2.get_assignment(assignment_id)
     
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
