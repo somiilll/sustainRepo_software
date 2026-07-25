@@ -1016,6 +1016,19 @@ class ApprovalWorkflowService:
             if entity_type == "esg_record":
                 # ESG records are stored in section-specific collections
                 entity_subtype = request.get("entity_subtype")  # environment, social, governance
+                entity_snapshot = request.get("entity_snapshot", {})
+                
+                # =========================================================================
+                # IMMUTABLE EDIT REJECTION: Don't update the source record
+                # If this is an immutable_edit rejection, the record was never mutated.
+                # On rejection, we simply discard the approval request - the record stays
+                # in its approved state with the original field_values.
+                # Only update the approval request status, NOT the underlying record.
+                # =========================================================================
+                if entity_snapshot.get("edit_type") == "immutable_edit":
+                    logger.info(f"Immutable edit rejection - record {entity_id} stays unchanged (approval_status=approved)")
+                    return  # Skip updating the source record
+                
                 collection_map = {
                     "environment": "environment_records",
                     "social": "social_records",

@@ -696,24 +696,35 @@ class ESGRecordsService:
         
         This ensures dashboards always show approved data until new approval.
         """
-        try:
-            approver_id = assignment.get("approver_id")
-            approval_chain = assignment.get("approval_chain", [])
-            
-            # Determine approvers
-            if approval_chain and len(approval_chain) > 0:
-                first_item = approval_chain[0]
-                if isinstance(first_item, str):
-                    current_approvers = [first_item]
-                else:
-                    current_approvers = [first_item.get("approver_id")] if first_item else []
-                total_levels = len(approval_chain)
-            elif approver_id:
-                current_approvers = [approver_id]
-                total_levels = 1
+        from fastapi import HTTPException
+        
+        approver_id = assignment.get("approver_id")
+        approval_chain = assignment.get("approval_chain", [])
+        
+        # Determine approvers
+        if approval_chain and len(approval_chain) > 0:
+            first_item = approval_chain[0]
+            if isinstance(first_item, str):
+                current_approvers = [first_item]
             else:
-                print("Warning: Assignment requires approval but no approver_id set")
-                return
+                current_approvers = [first_item.get("approver_id")] if first_item else []
+            total_levels = len(approval_chain)
+        elif approver_id:
+            current_approvers = [approver_id]
+            total_levels = 1
+        else:
+            # No approver configured - this is a configuration error
+            # Raise an exception so the user sees a real error instead of false "pending approval"
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "NO_APPROVER_CONFIGURED",
+                    "message": "This assignment requires approval but no approver is configured. Please contact your admin to set up an approver.",
+                    "assignment_id": assignment.get("id"),
+                }
+            )
+        
+        try:
             
             # Get submitter info
             submitter = await db.users.find_one({"id": user_id}, {"_id": 0, "email": 1, "full_name": 1})

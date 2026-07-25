@@ -43,6 +43,40 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
 - **Idempotency**: POST endpoints support `X-Idempotency-Key` header (24h cache)
 - **Transaction Handling**: Assignment creation + task generation with error recovery
 
+### Immutable Approved Data Principle (Dec 2024)
+- **Core Rule**: Approved records are NEVER mutated until the edit is approved
+- **Implementation**: When editing an approved record with approval required:
+  1. Record stays unchanged (returns with `_pending_edit` flag)
+  2. `proposed_changes` stored in approval request (`edit_type='immutable_edit'`)
+  3. On approval: `proposed_changes` applied to record
+  4. On rejection: Approval request discarded, record remains approved
+- **Benefits**:
+  - Dashboards always show approved data
+  - No rollback logic needed
+  - Clean audit trail
+- **Files**: `esg_records/service.py`, `approval_workflow/service.py`
+
+### Interpretation-Critical Snapshots (Dec 2024)
+- **Location**: `assignment.interpretation_snapshot`
+- **Purpose**: Capture fields that affect historical interpretation at assignment creation
+- **Snapshot Contains**:
+  - `assignment_level`: org vs facility (affects task structure)
+  - `requires_approval`: prevents retroactive approval requirement changes
+  - `version`: audit anchor point
+  - `facility_snapshot`: captured facility list (affects completion calculation)
+- **NOT Snapshotted** (workflow metadata):
+  - `assignee` (use `completed_by_user_id` on task)
+  - `approval_chain` (frozen in approval request)
+  - `filling_frequency` (tasks already generated)
+  - `start_date/end_date` (tasks have own `period_key`)
+- **Immutability**: interpretation_snapshot is NEVER updated on assignment edits
+
+### Task Lifecycle States (Dec 2024)
+- **ACTIVE**: Normal operational state (pending, completed, etc.)
+- **CANCELLED**: Assignment was deleted, task has no data (audit visible)
+- **ORPHANED**: Assignment was deleted, but task has data (preserved for audit)
+- **ARCHIVED**: Old cancelled tasks after retention period
+
 ### V2 Assignment System
 - **Assignments** are central objects stored in `esg_assignments`
 - **Assignees** are linked via `esg_assignment_assignees` collection
@@ -224,6 +258,28 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
   - `/app/frontend/src/components/ESGRecordsDataEntry.js` - Save & display logic
   - `/app/frontend/src/components/ESGRecords.js` - Display format
   - `/app/backend/scripts/migrate_reporting_periods.py` - Migration script (NEW)
+
+## Four Immutable Architectural Principles
+
+### Principle 1: Records are truth, Tasks are projections
+- Dashboard, KPIs, Reports → Read Records
+- Task Status → Computed from Records
+- Progress → Computed from Records
+
+### Principle 2: Completed work is immutable
+- Assignment changes → May happen
+- Task reassignment → May happen
+- Completed history → NEVER changes
+
+### Principle 3: Pending changes never affect reporting
+- Pending edit → Not in dashboard
+- Pending delete → Still in dashboard
+- Pending approval → Not in KPIs
+- Only APPROVED → Contributes to calculations
+
+### Principle 4: History is append-only
+- Never overwrite. Always append:
+  - created, submitted, approved, rejected, reassigned, superseded, deleted
 
 ## Known Issues
 - Water Withdrawal KPIs missing filters (BLOCKED - user requested delay)

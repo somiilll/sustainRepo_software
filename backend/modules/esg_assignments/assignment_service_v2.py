@@ -207,6 +207,11 @@ class AssignmentServiceV2:
         if existing:
             # =========================================================================
             # ASSIGNMENT VERSIONING: Smart update with audit trail
+            # 
+            # IMPORTANT: interpretation_snapshot is NEVER updated on assignment edits.
+            # It captures the historical context at assignment creation time and remains
+            # immutable. This ensures that completed tasks always use the interpretation
+            # context from when the assignment was created, not the current values.
             # =========================================================================
             assignment_id = existing["id"]
             current_version = existing.get("version", 1)
