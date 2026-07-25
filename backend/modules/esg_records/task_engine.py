@@ -544,12 +544,16 @@ async def regenerate_tasks_for_assignment(
     """
     Regenerate tasks when frequency or dates change on an assignment.
 
-    Strategy:
-    - Keep tasks that have data (status = completed, in_progress, skipped)
-    - Delete unfilled tasks (pending, overdue, backfill_pending)
-    - Generate new task periods from current assignment config
-    - Create only tasks for periods that don't already exist
+    SMART REGENERATION RULES:
+    - Completed tasks (verified by checking actual records): NEVER modify/delete
+    - Pending/overdue tasks (no records): Can be reassigned or deleted
+    - New periods: Generate tasks only for periods that don't already exist
+    - Historical records: Always preserve original assignee and workflow config
+    
+    Status is COMPUTED from actual data records, NOT from stored task.status field.
     """
+    from modules.esg_assignments.completion_service import completion_service, DataChecker
+    
     org_id = assignment.get("organization_id")
     facility_id = assignment.get("facility_id")
     category = assignment.get("category")
@@ -567,31 +571,42 @@ async def regenerate_tasks_for_assignment(
     }
 
     existing_tasks = await db["esg_reporting_tasks"].find(
-        task_query, {"_id": 0, "id": 1, "period_key": 1, "status": 1}
+        task_query, {"_id": 0, "id": 1, "period_key": 1, "status": 1, "due_at": 1, "is_backfill": 1}
     ).to_list(5000)
 
-    # Step 2: Separate filled vs unfilled
-    filled_statuses = {"completed", "in_progress", "skipped"}
-    filled_period_keys = set()
-    unfilled_task_ids = []
+    # Step 2: Check ACTUAL record existence (single source of truth)
+    # Status is computed from data, NOT from stored task.status
+    completed_period_keys = set()
+    pending_task_ids = []
 
-    for t in existing_tasks:
-        if t.get("status") in filled_statuses:
-            filled_period_keys.add(t["period_key"])
+    for task in existing_tasks:
+        period_key = task.get("period_key")
+        
+        # Check if actual data exists for this period (computed status)
+        has_data, _, approval_status = await DataChecker.check_exists(
+            org_id, category, subcategory, facility_id, period_key
+        )
+        
+        if has_data:
+            # Data exists - task is completed (regardless of stored status)
+            completed_period_keys.add(period_key)
         else:
-            unfilled_task_ids.append(t["id"])
+            # No data - task is pending/overdue, can be modified
+            pending_task_ids.append(task["id"])
 
-    # Step 3: Delete unfilled tasks and their assignees
+    # Step 3: Delete only pending tasks (no data) and their assignees
+    # NEVER delete tasks that have actual data records
     deleted_count = 0
-    if unfilled_task_ids:
-        await db["esg_reporting_tasks"].delete_many({"id": {"$in": unfilled_task_ids}})
-        await db["esg_task_assignees"].delete_many({"task_id": {"$in": unfilled_task_ids}})
-        deleted_count = len(unfilled_task_ids)
+    if pending_task_ids:
+        await db["esg_reporting_tasks"].delete_many({"id": {"$in": pending_task_ids}})
+        await db["esg_task_assignees"].delete_many({"task_id": {"$in": pending_task_ids}})
+        deleted_count = len(pending_task_ids)
 
-    # Step 4: Generate new tasks (will skip periods that already have filled tasks)
+    # Step 4: Generate new tasks (will skip periods that already have completed tasks)
     result = await generate_tasks_for_assignment(db, assignment)
-    result["deleted_unfilled"] = deleted_count
-    result["preserved_filled"] = len(filled_period_keys)
+    result["deleted_pending"] = deleted_count
+    result["preserved_completed"] = len(completed_period_keys)
+    result["preserved_period_keys"] = list(completed_period_keys)
 
     return result
 

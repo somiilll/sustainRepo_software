@@ -165,6 +165,20 @@ class AssignmentServiceV2:
                 if data.get("facility_id"):
                     entity_id = f"{entity_id}_{data.get('facility_id')}"
             
+            # Capture facility snapshot for org-level assignments
+            # This ensures historical task completion cannot change retroactively
+            facility_snapshot = None
+            if data.get("assignment_level") == "organization" or not data.get("facility_id"):
+                facilities = await db.facilities.find(
+                    {"organization_id": data.get("organization_id"), "is_deleted": {"$ne": True}},
+                    {"_id": 0, "id": 1, "name": 1}
+                ).to_list(500)
+                facility_snapshot = {
+                    "captured_at": now,
+                    "facility_ids": [f["id"] for f in facilities],
+                    "facility_count": len(facilities),
+                }
+            
             assignment_doc = {
                 "id": assignment_id,
                 "organization_id": data.get("organization_id"),
@@ -175,6 +189,7 @@ class AssignmentServiceV2:
                 "sub_subcategory": data.get("sub_subcategory"),
                 "assignment_level": data.get("assignment_level", "organization"),
                 "facility_id": data.get("facility_id"),
+                "facility_snapshot": facility_snapshot,  # Captured facilities at creation time
                 "reporting_period": data.get("reporting_period"),
                 "status": "pending",
                 "start_date": data.get("start_date"),
@@ -318,6 +333,62 @@ class AssignmentServiceV2:
         )
         
         return True
+
+    async def refresh_facility_snapshot(
+        self,
+        assignment_id: str,
+        updated_by_user_id: str,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Refresh the facility snapshot for an assignment.
+        
+        This should only be called for FUTURE periods. Historical periods
+        should retain the original snapshot to maintain audit integrity.
+        
+        Use case: When new facilities are added and admin explicitly wants
+        to include them in future reporting for this assignment.
+        """
+        assignment = await self._assignments.find_one({"id": assignment_id})
+        if not assignment:
+            return None
+        
+        if assignment.get("assignment_level") != "organization":
+            return {"error": "Facility snapshot only applies to org-level assignments"}
+        
+        now = datetime.now(timezone.utc).isoformat()
+        
+        # Capture current facilities
+        facilities = await db.facilities.find(
+            {"organization_id": assignment.get("organization_id"), "is_deleted": {"$ne": True}},
+            {"_id": 0, "id": 1, "name": 1}
+        ).to_list(500)
+        
+        new_snapshot = {
+            "captured_at": now,
+            "facility_ids": [f["id"] for f in facilities],
+            "facility_count": len(facilities),
+            "refreshed_from": assignment.get("facility_snapshot"),  # Keep history
+        }
+        
+        await self._assignments.update_one(
+            {"id": assignment_id},
+            {"$set": {
+                "facility_snapshot": new_snapshot,
+                "updated_at": now,
+            }}
+        )
+        
+        # Log the refresh
+        await self._log_history(
+            assignment_id=assignment_id,
+            action="facility_snapshot_refreshed",
+            changed_by_user_id=updated_by_user_id,
+            previous_value=assignment.get("facility_snapshot"),
+            new_value=new_snapshot,
+        )
+        
+        return await self.get_assignment(assignment_id)
+
     
     # =========================================================================
     # BULK OPERATIONS

@@ -838,11 +838,35 @@ class ESGRecordsService:
         update_data["updated_by"] = user_id
         update_data["updated_at"] = now
         
-        # Update record
-        await collection.update_one(
-            {"id": record_id, "is_current": True},
+        # OPTIMISTIC LOCKING: Check version hasn't changed since we read it
+        # This prevents race conditions during concurrent updates
+        expected_version = current.get("version", 0)
+        
+        result = await collection.update_one(
+            {
+                "id": record_id,
+                "is_current": True,
+                "version": expected_version  # Only update if version matches
+            },
             {"$set": update_data}
         )
+        
+        # If no document was updated, it means another process modified it
+        if result.modified_count == 0:
+            # Re-fetch to check if record still exists
+            current_record = await collection.find_one({"id": record_id, "is_current": True}, {"_id": 0, "version": 1})
+            if current_record and current_record.get("version") != expected_version:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "error": "CONCURRENT_UPDATE_CONFLICT",
+                        "message": "This record was modified by another user. Please refresh and try again.",
+                        "your_version": expected_version,
+                        "current_version": current_record.get("version"),
+                    }
+                )
+            elif not current_record:
+                return None  # Record was deleted
         
         # Get updated record
         updated = await collection.find_one(

@@ -249,8 +249,10 @@ class DataChecker:
             elif "-" in period_key and len(period_key) == 7:
                 # Monthly: 2026-07
                 year, month = period_key.split("-")
+                month_int = int(month)
                 query["reporting_period.year"] = int(year)
-                query["reporting_period.month"] = {"$in": [int(month), month]}
+                # Handle all month formats: integer (7), string with leading zero ("07"), string without ("7")
+                query["reporting_period.month"] = {"$in": [month_int, month, str(month_int)]}
             else:
                 # Yearly: 2026
                 query["reporting_period.year"] = int(period_key[:4])
@@ -302,8 +304,10 @@ class DataChecker:
         try:
             if "-" in period_key and len(period_key) == 7:
                 year, month = period_key.split("-")
+                month_int = int(month)
                 query["reporting_period.year"] = int(year)
-                query["reporting_period.month"] = {"$in": [int(month), month]}
+                # Handle all month formats: integer (7), string with leading zero ("07"), string without ("7")
+                query["reporting_period.month"] = {"$in": [month_int, month, str(month_int)]}
             else:
                 query["reporting_period.year"] = int(period_key[:4])
         except (ValueError, IndexError):
@@ -590,6 +594,10 @@ class CompletionService:
         Calculate progress for an assignment.
         
         Handles both org-level and facility-level assignments.
+        
+        FACILITY SNAPSHOT: For org-level assignments, uses facility_snapshot if available
+        to ensure historical task completion cannot change retroactively when new facilities
+        are added to the organization.
         """
         org_id = assignment.get("organization_id")
         category = assignment.get("category")
@@ -598,6 +606,7 @@ class CompletionService:
         assignment_level = assignment.get("assignment_level", "organization")
         frequency = assignment.get("filling_frequency", "monthly")
         due_day = assignment.get("filling_due_day", 15)
+        facility_snapshot = assignment.get("facility_snapshot")
         
         # Generate periods
         periods = PeriodGenerator.generate(
@@ -609,13 +618,22 @@ class CompletionService:
         if not periods:
             return ProgressResult.empty()
         
-        # Get facilities if org-level
+        # Get facilities for org-level assignment
         facilities = []
         if assignment_level == "organization" or not facility_id:
-            facilities = await db.facilities.find(
-                {"organization_id": org_id},
-                {"_id": 0, "id": 1, "name": 1}
-            ).to_list(500)
+            # Use facility snapshot if available (ensures historical stability)
+            if facility_snapshot and facility_snapshot.get("facility_ids"):
+                snapshot_facility_ids = facility_snapshot.get("facility_ids", [])
+                facilities = await db.facilities.find(
+                    {"id": {"$in": snapshot_facility_ids}},
+                    {"_id": 0, "id": 1, "name": 1}
+                ).to_list(500)
+            else:
+                # Fallback: query current facilities (for legacy assignments without snapshot)
+                facilities = await db.facilities.find(
+                    {"organization_id": org_id, "is_deleted": {"$ne": True}},
+                    {"_id": 0, "id": 1, "name": 1}
+                ).to_list(500)
         else:
             # Facility-level: just one facility
             fac = await db.facilities.find_one({"id": facility_id}, {"_id": 0, "id": 1, "name": 1})

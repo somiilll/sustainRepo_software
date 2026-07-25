@@ -1,0 +1,33 @@
+{
+  "summary": "Backend-only testing of task/approval workflow architectural refactor (iter 108). All 5 pytest tests passed (100%). Verified: (1) Progress Bar month format fix — Water Withdrawal now correctly returns 4/4 completed and Water Discharge 3/4 via /api/esg-assignments/progress/bulk (previously misreported due to month stored as '7' string vs int comparison). (2) Facility snapshot is captured on new org-level assignment with facility_ids + count. (3) Optimistic locking code path exercised — concurrent PUTs succeed but 409 CONCURRENT_UPDATE_CONFLICT branch is present in service.py L855-867. Under this local run both concurrent requests serialized to 200 (no true race triggered) — code review confirms 409 logic is correct. (4) Smart Task Regeneration — after PUT that triggers regenerate_tasks_for_assignment, tasks for periods with actual record data (2026-07..10 for Water/Withdrawal) are preserved with SAME task IDs (not recreated). Confirms DataChecker-based computed status is used instead of stored task.status.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "PUT /api/esg-assignments/assignments/{id}", "issue": "UpdateAssignmentRequest schema (models.py L128) does NOT include start_date/end_date fields, so callers cannot extend the assignment date range via this endpoint even though service.py L250 lists them as regen triggers. Effectively only filling_frequency/due_date changes can trigger regeneration through the public API."},
+      {"endpoint": "POST /api/esg-records/assignments", "issue": "On create, assignment_service_v2._generate_tasks() calls generate_tasks_for_assignment (not regenerate_tasks_for_assignment), so re-POSTing to update an existing assignment via this endpoint does NOT trigger smart regeneration. Only the legacy PUT path invokes it."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter108_refactor.py",
+    "/app/test_reports/pytest/iter108.xml"
+  ],
+  "action_items": [
+    "Consider adding start_date/end_date/reporting_period_end to UpdateAssignmentRequest so admins can extend/shorten an assignment's date range via PUT (currently they cannot).",
+    "Optimistic locking works correctly by code inspection, but consider adding an explicit ETag/If-Match header or accepting a client-provided expected_version so clients can detect stale reads before the DB race window. Currently the check compares against just-read version, which only catches truly-concurrent DB writes."
+  ],
+  "critical_code_review_comments": [
+    "completion_service.py L253-255 & L308-310: month query uses {\"$in\": [month_int, month, str(month_int)]}. If 'month' is already an int this creates a duplicate but harmless list — fine.",
+    "service.py L845-869 (optimistic locking): correctly filters by {id, is_current, version=expected} and returns 409 with structured payload. However, expected_version is derived from the just-read current record (no client-supplied version), so it only catches concurrent-write races, not stale-read edits by the same client. Consider accepting an 'If-Match'/expected_version from request body for stronger optimistic concurrency.",
+    "assignment_service_v2.py L168-180 (facility_snapshot): correctly captured on CREATE, but NOT refreshed on subsequent create_or_update_assignment when existing assignment is updated (only refresh_facility_snapshot method does that). This is intentional (preserve history) but worth documenting.",
+    "task_engine.py regenerate_tasks_for_assignment L565-575: task_query matches by (org+facility+category+subcategory+sub_subcategory) but not by assignment_id or reporting_period. If two assignments exist for the same category with different reporting_periods (e.g., FY2026 and FY2027), one assignment's regen will touch the OTHER assignment's tasks. This can cause cross-assignment task deletion when only one has been updated. Consider adding assignment_id to the task_query filter."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter108_refactor.py (new)"],
+  "success_rate": {"backend": "100% (5/5)", "frontend": "not tested (backend-only request)"},
+  "test_credentials": "goyalsomil2001@gmail.com / TestUser123!",
+  "seed_data_creation": "One org-level assignment created with reporting_period 'TEST_FY_<uuid>' for facility_snapshot test — cleaned up via direct DB deletion after tests. Optimistic locking test mutated field_values on existing record 4ffc0bba-f950-4987-b974-63c655fab421 (Water Withdrawal 2026-07) and restored to original values.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Water/Withdrawal assignment id=0e3da9dd-bad2-4247-8c47-08fc0bd82835 has 4 monthly tasks for 2026-07..10 with real environment_records data. Water/Discharge assignment id=8e7224a2-fff2-469b-a194-418d6e4d7159 has data for Jun/Jul/Aug 2026 (not Sep). Existing record id 4ffc0bba-f950-4987-b974-63c655fab421 (Water Withdrawal Jul-2026) has version incrementing across tests. Note: PUT /api/esg-assignments/assignments/{id} cannot change start/end_date via schema — use direct DB update or extend UpdateAssignmentRequest if needed to fully test date-range regeneration.",
+  "rca of the issue": "Progress bar bug root cause: environment_records stored reporting_period.month as string like '7' (from earlier frontend/backend inconsistencies), while DataChecker._check_environment previously queried only {\"$in\": [month_int, month]} (int + zero-padded string) — missing the non-padded string variant. Fix (completion_service.py L253-255 & L308-310) adds str(month_int) to the $in list, matching all three formats. Verified via /api/esg-assignments/progress/bulk returning 4/4 for Water Withdrawal (was 1/4 before the fix)."
+}
