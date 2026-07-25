@@ -158,6 +158,22 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
 
 ## Recent Updates (July 2025)
 
+### ESG Assignment Approval Settings Fix (Dec 2025)
+- **Problem**: `requires_approval` and `approver_id` were not being saved when creating ESG assignments, especially for facility-level assignments
+- **Root Causes Found**:
+  1. Backend `assignment_service_v2.py` was missing `approver_id` field in both create and update paths
+  2. Frontend `ESGRecordsTracker.js` was missing `approver_id` in facility-level assignment payloads
+  3. `approval_chain` handling in `esg_records/service.py` and `emissions/router.py` expected objects but received strings
+- **Files Fixed**:
+  - `/app/backend/modules/esg_assignments/assignment_service_v2.py` - Added `approver_id` to create/update paths
+  - `/app/backend/modules/esg_records/router.py` - Added `approver_id` to all 3 assignment_data blocks
+  - `/app/backend/modules/esg_tracking/models.py` - Added `approver_id` to BulkAssignRequest model
+  - `/app/backend/modules/esg_tracking/service.py` - Added `approver_id` to assignment_data
+  - `/app/backend/modules/esg_records/service.py` - Fixed approval_chain to handle string arrays
+  - `/app/backend/modules/emissions/router.py` - Fixed same approval_chain handling
+  - `/app/frontend/src/components/ESGRecordsTracker.js` - Added `approver_id` to facility-level payloads
+- **Test Report**: `/app/test_reports/iteration_107.json` - 100% pass rate
+
 ### Granular Assignment-Based Approval Workflow for Emissions (Dec 2025)
 - **Problem**: Emissions were using a generic org-level approval workflow (`approval_workflow/integration.py`) that didn't support per-category/per-subcategory approval granularity like ESG records
 - **Solution**: 
