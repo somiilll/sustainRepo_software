@@ -638,6 +638,7 @@ export default function ESGRecordsTracker({
               repeat_overdue: true,
             } : null,
             requires_approval: assignForm.requires_approval,
+            approver_id: assignForm.requires_approval && !multiLevelApprovalEnabled ? assignForm.approver_id : null,
             approval_chain: assignForm.requires_approval && multiLevelApprovalEnabled ? assignForm.approval_chain : [],
           },
           { headers }
@@ -772,6 +773,7 @@ export default function ESGRecordsTracker({
               repeat_overdue: true,
             } : null,
             requires_approval: wizardForm.requires_approval,
+            approver_id: wizardForm.requires_approval && !multiLevelApprovalEnabled ? wizardForm.approver_id : null,
             approval_chain: wizardForm.requires_approval && multiLevelApprovalEnabled ? wizardForm.approval_chain : [],
           },
           { headers }
