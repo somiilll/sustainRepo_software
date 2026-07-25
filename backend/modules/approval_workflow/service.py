@@ -759,15 +759,37 @@ class ApprovalWorkflowService:
                     collection_name = collection_map.get(entity_subtype)
                     
                     if collection_name:
-                        # Update the record's status and approval_status (and field_values if edited)
+                        # =========================================================================
+                        # IMMUTABLE EDIT APPROVAL: Apply proposed_changes to the record
+                        # If this is an "immutable_edit", the record was NOT mutated at edit time.
+                        # Now that it's approved, we apply the proposed_changes.
+                        # =========================================================================
+                        entity_snapshot = request.get("entity_snapshot", {})
+                        is_immutable_edit = entity_snapshot.get("edit_type") == "immutable_edit"
+                        proposed_changes = entity_snapshot.get("proposed_changes", {})
+                        
                         record_update = {
                             "updated_at": _now_iso(),
                             "status": "completed",  # Reset status to completed
                             "approval_status": "approved",
                         }
                         
-                        # Update field_values if provided
-                        if updated_data and "field_values" in updated_data:
+                        # Apply proposed_changes for immutable edits
+                        if is_immutable_edit and proposed_changes:
+                            logger.info(f"Applying proposed_changes for immutable edit: {list(proposed_changes.keys())}")
+                            for key, value in proposed_changes.items():
+                                record_update[key] = value
+                            
+                            # Increment version since we're now applying the change
+                            current_record = await db[collection_name].find_one(
+                                {"id": entity_id, "is_current": True},
+                                {"_id": 0, "version": 1}
+                            )
+                            if current_record:
+                                record_update["version"] = current_record.get("version", 0) + 1
+                        
+                        # Update field_values if provided (legacy path)
+                        elif updated_data and "field_values" in updated_data:
                             record_update["field_values"] = updated_data["field_values"]
                         
                         # Also update the entity_snapshot in the approval request to reflect changes

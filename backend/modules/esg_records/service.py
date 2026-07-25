@@ -673,6 +673,121 @@ class ESGRecordsService:
         except Exception as e:
             print(f"Warning: Failed to create approval request: {e}")
 
+
+    async def _create_edit_approval_request(
+        self,
+        org_id: str,
+        record_id: str,
+        current_record: Dict[str, Any],
+        proposed_changes: Dict[str, Any],
+        changes_summary: Optional[List[Dict[str, Any]]],
+        assignment: Dict[str, Any],
+        user_id: str,
+        section: str,
+    ):
+        """
+        Create an approval request for editing an approved record.
+        
+        IMMUTABLE APPROVED DATA PRINCIPLE:
+        - The live record is NOT mutated
+        - proposed_changes are stored in the approval request
+        - On approval: proposed_changes are applied to the record
+        - On rejection: approval request is discarded (no rollback needed)
+        
+        This ensures dashboards always show approved data until new approval.
+        """
+        try:
+            approver_id = assignment.get("approver_id")
+            approval_chain = assignment.get("approval_chain", [])
+            
+            # Determine approvers
+            if approval_chain and len(approval_chain) > 0:
+                first_item = approval_chain[0]
+                if isinstance(first_item, str):
+                    current_approvers = [first_item]
+                else:
+                    current_approvers = [first_item.get("approver_id")] if first_item else []
+                total_levels = len(approval_chain)
+            elif approver_id:
+                current_approvers = [approver_id]
+                total_levels = 1
+            else:
+                print("Warning: Assignment requires approval but no approver_id set")
+                return
+            
+            # Get submitter info
+            submitter = await db.users.find_one({"id": user_id}, {"_id": 0, "email": 1, "full_name": 1})
+            submitter_email = submitter.get("email", "") if submitter else ""
+            submitter_name = submitter.get("full_name", "") if submitter else ""
+            
+            # Get category config for field definitions
+            category_config = await self.get_category_by_name(
+                section,
+                current_record.get("category"),
+                current_record.get("subcategory")
+            )
+            field_definitions = category_config.get("fields", []) if category_config else []
+            
+            now = datetime.now(timezone.utc).isoformat()
+            
+            # Build entity_snapshot with current values AND proposed changes
+            entity_snapshot = {
+                "category": current_record.get("category"),
+                "subcategory": current_record.get("subcategory"),
+                "sub_subcategory": current_record.get("sub_subcategory"),
+                "field_definitions": field_definitions,
+                "reporting_period": current_record.get("reporting_period"),
+                "facility_id": current_record.get("facility_id"),
+                # Edit-specific fields
+                "is_edit": True,
+                "edit_type": "immutable_edit",  # New type indicating record wasn't mutated
+                "current_field_values": current_record.get("field_values", {}),
+                "proposed_changes": proposed_changes,
+                "changes_summary": changes_summary or [],
+            }
+            
+            # Create approval request document
+            approval_request = {
+                "id": str(uuid.uuid4()),
+                "organization_id": org_id,
+                "workflow_id": f"assignment_{assignment.get('id')}",
+                "workflow_name": f"ESG Record Edit Approval - {current_record.get('category')}",
+                
+                # Entity being approved
+                "entity_type": "esg_record",
+                "entity_id": record_id,
+                "entity_subtype": section,
+                "entity_snapshot": entity_snapshot,
+                
+                # Submission info
+                "submitted_by": user_id,
+                "submitted_by_email": submitter_email,
+                "submitted_by_name": submitter_name,
+                "submitted_at": now,
+                "submission_comment": "Edit of approved record (immutable until approval)",
+                
+                # Current state
+                "status": "pending",
+                "current_level": 1,
+                "current_approvers": current_approvers,
+                "total_levels": total_levels,
+                
+                # Progress tracking
+                "steps_completed": [],
+                
+                # Metadata
+                "created_at": now,
+                "updated_at": now,
+            }
+            
+            await db.approval_requests.insert_one(approval_request)
+            print(f"Created immutable edit approval request {approval_request['id']} for record {record_id}")
+            
+        except Exception as e:
+            print(f"Warning: Failed to create edit approval request: {e}")
+            raise
+
+
     
     async def _mark_task_completed(
         self,
@@ -1030,6 +1145,71 @@ class ESGRecordsService:
                 update_data["status"] = incoming_status
                 changed_fields.append("status")
         
+        # =========================================================================
+        # IMMUTABLE APPROVED DATA PRINCIPLE
+        # If editing an approved record WITH approval required:
+        #   - DO NOT mutate the live record
+        #   - Store proposed_changes in approval request
+        #   - On approval: apply changes
+        #   - On rejection: discard request (no rollback needed)
+        # 
+        # This ensures dashboards always show approved data until new approval.
+        # =========================================================================
+        old_approval_status = current.get("approval_status")
+        is_editing_approved_record = (
+            old_approval_status == "approved" and 
+            "field_values" in changed_fields and 
+            requires_approval and
+            not is_admin_override
+        )
+        
+        if is_editing_approved_record:
+            # DON'T MUTATE THE RECORD - create approval request with proposed changes
+            proposed_changes = {}
+            if data.field_values is not None:
+                proposed_changes["field_values"] = data.field_values
+            if data.reporting_period is not None:
+                proposed_changes["reporting_period"] = data.reporting_period.model_dump()
+            if data.evidence_files is not None:
+                proposed_changes["evidence_files"] = data.evidence_files
+            if data.source_of_information is not None:
+                proposed_changes["source_of_information"] = data.source_of_information
+            if data.notes is not None:
+                proposed_changes["notes"] = data.notes
+            
+            # Calculate what changed for the approval UI
+            changes_summary = self._calculate_field_changes(
+                old_values=current.get("field_values", {}),
+                new_values=data.field_values or {},
+                old_record=current,
+                new_record={**current, **proposed_changes},
+            )
+            
+            # Create approval request with proposed changes (record stays unchanged)
+            await self._create_edit_approval_request(
+                org_id=org_id,
+                record_id=record_id,
+                current_record=current,
+                proposed_changes=proposed_changes,
+                changes_summary=changes_summary,
+                assignment=assignment,
+                user_id=user_id,
+                section=section,
+            )
+            
+            print(f"Created edit approval request for approved record {record_id}. Record NOT mutated.")
+            
+            # Return the UNCHANGED record with a flag indicating pending edit
+            return {
+                **current,
+                "_pending_edit": {
+                    "status": "pending_approval",
+                    "proposed_changes": proposed_changes,
+                    "message": "Your edit is pending approval. The current data remains unchanged until approved.",
+                }
+            }
+        
+        # For non-approved records or admin override: proceed with normal update
         # Increment version
         new_version = current["version"] + 1
         update_data["version"] = new_version
@@ -1074,13 +1254,12 @@ class ESGRecordsService:
         
         # Determine if approval request needs to be created
         # Case 1: Status changed to completed from draft/rejected/reopened/pending (new submission)
-        # Case 2: Already approved record is edited (re-submission for approval)
+        # NOTE: Case 2 (edit of approved record) is now handled above via immutable edit path
         new_status = update_data.get("status")
         old_status = current.get("status")
         old_approval_status = current.get("approval_status")
         
         should_create_approval = False
-        is_edit_of_approved = False
         
         print(f"Update record check: new_status={new_status}, old_status={old_status}, old_approval_status={old_approval_status}, changed_fields={changed_fields}")
         
@@ -1088,17 +1267,11 @@ class ESGRecordsService:
             # New submission
             should_create_approval = requires_approval
             print(f"Case 1: New submission, should_create_approval={should_create_approval}")
-        elif old_approval_status == "approved" and "field_values" in changed_fields:
-            # Edit of an approved record - needs re-approval
-            should_create_approval = requires_approval
-            is_edit_of_approved = True
-            print(f"Case 2: Edit of approved record, should_create_approval={should_create_approval}")
-            # Update approval_status back to pending
-            await collection.update_one(
-                {"id": record_id, "is_current": True},
-                {"$set": {"approval_status": "pending_approval" if requires_approval else "not_required"}}
-            )
-            updated["approval_status"] = "pending_approval" if requires_approval else "not_required"
+        # NOTE: Edit of approved record is now handled in the immutable edit path above
+        # If we reach here with an approved record, it means either:
+        # 1. Admin override was used (is_admin_override=True)
+        # 2. No approval required for this assignment
+        # In either case, proceed with normal update flow
         
         # If status changed to completed, mark the task as completed
         if new_status == "completed" and old_status in ["rejected", "draft", "reopened", "pending"]:
@@ -1143,19 +1316,10 @@ class ESGRecordsService:
                 requires_approval=requires_approval,
             )
         
-        # Create approval request if needed
+        # Create approval request if needed (for new submissions only)
+        # NOTE: Edit of approved records is handled in the immutable edit path above
         if should_create_approval and assignment:
-            print(f"Creating approval request for edit={is_edit_of_approved}")
-            # Calculate changes for edit scenarios
-            changes_summary = None
-            if is_edit_of_approved:
-                changes_summary = self._calculate_field_changes(
-                    old_values=current.get("field_values", {}),
-                    new_values=updated.get("field_values", {}),
-                    old_record=current,
-                    new_record=updated,
-                )
-                print(f"Changes summary: {changes_summary}")
+            print(f"Creating approval request for new submission")
             
             await self._create_approval_request(
                 org_id=current.get("org_id"),
@@ -1163,9 +1327,9 @@ class ESGRecordsService:
                 assignment=assignment,
                 user_id=user_id,
                 section=section,
-                is_edit=is_edit_of_approved,
-                changes_summary=changes_summary,
-                previous_snapshot=current if is_edit_of_approved else None,
+                is_edit=False,
+                changes_summary=None,
+                previous_snapshot=None,
             )
         elif should_create_approval and not assignment:
             print("WARNING: should_create_approval=True but no assignment found!")

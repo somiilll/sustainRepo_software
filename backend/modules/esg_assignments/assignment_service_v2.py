@@ -336,6 +336,28 @@ class AssignmentServiceV2:
                     "facility_count": len(facilities),
                 }
             
+            # =========================================================================
+            # INTERPRETATION-CRITICAL SNAPSHOT
+            # Capture only fields that affect historical interpretation:
+            # - facility_ids: affects completion calculation
+            # - assignment_level: org vs facility changes task structure  
+            # - requires_approval: prevents retroactive approval requirement
+            # - version: audit anchor point
+            # 
+            # NOT snapshotted (workflow metadata, not interpretation):
+            # - assignee (store completed_by on task instead)
+            # - approval_chain (frozen in approval request)
+            # - frequency (tasks already generated)
+            # - dates (tasks have their own period_key)
+            # =========================================================================
+            interpretation_snapshot = {
+                "captured_at": now.isoformat(),
+                "assignment_level": data.get("assignment_level", "organization"),
+                "requires_approval": data.get("requires_approval", False),
+                "version": 1,
+                "facility_snapshot": facility_snapshot,
+            }
+            
             assignment_doc = {
                 "id": assignment_id,
                 "organization_id": data.get("organization_id"),
@@ -347,6 +369,7 @@ class AssignmentServiceV2:
                 "assignment_level": data.get("assignment_level", "organization"),
                 "facility_id": data.get("facility_id"),
                 "facility_snapshot": facility_snapshot,  # Captured facilities at creation time
+                "interpretation_snapshot": interpretation_snapshot,  # Immutable historical context
                 "reporting_period": data.get("reporting_period"),
                 "status": "pending",
                 "version": 1,  # Initial version
