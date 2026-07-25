@@ -207,7 +207,7 @@ async def retry_task_generation(
 
 @router.get("/audit/cancelled-tasks")
 async def get_cancelled_tasks(
-    lifecycle_status: str = Query("cancelled", description="Filter by lifecycle status: cancelled, orphaned, archived"),
+    lifecycle_status: str = Query("cancelled", description="Filter by lifecycle status: cancelled, orphaned, archived", pattern="^(cancelled|orphaned|archived)$"),
     category: Optional[str] = Query(None, description="Filter by category"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
@@ -224,6 +224,14 @@ async def get_cancelled_tasks(
     Use this endpoint to see audit trail of tasks that were removed when
     assignments were deleted.
     """
+    # Validate lifecycle_status (extra safeguard beyond regex pattern)
+    valid_statuses = {"cancelled", "orphaned", "archived"}
+    if lifecycle_status not in valid_statuses:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid lifecycle_status. Must be one of: {', '.join(valid_statuses)}"
+        )
+    
     org_id = current_user["organization_id"]
     
     query = {
