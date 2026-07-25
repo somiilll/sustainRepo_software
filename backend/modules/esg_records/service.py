@@ -856,7 +856,8 @@ class ESGRecordsService:
         section: ESG_SECTION,
         record_id: str,
         user_id: str,
-        data: UpdateRecordRequest
+        data: UpdateRecordRequest,
+        is_admin_override: bool = False,  # Set to True for admin bypassing approval workflow
     ) -> Optional[Dict[str, Any]]:
         """
         Update a record (creates new version).
@@ -864,6 +865,12 @@ class ESGRecordsService:
         Dual-status architecture:
         - status: operational completion (completed, draft, reopened)
         - approval_status: governance state (not_required, pending_approval, approved, rejected)
+        
+        CONCURRENCY SAFEGUARDS:
+        1. Rejected records cannot be edited (user must create new submission)
+        2. Records with pending approval cannot be edited (prevents race conditions)
+        3. Multiple pending edit requests are blocked (one approval at a time)
+        4. Admin override is available but with clear warnings
         """
         collection = self._get_records_collection(section)
         now = datetime.now(timezone.utc).isoformat()
@@ -875,6 +882,8 @@ class ESGRecordsService:
         )
         if not current:
             return None
+        
+        org_id = current.get("org_id")
         
         # =========================================================================
         # RESUBMISSION RULE: Rejected records cannot be edited
@@ -889,6 +898,60 @@ class ESGRecordsService:
                     "rejection_reason": current.get("rejection_reason"),
                     "rejected_at": current.get("rejected_at"),
                     "suggestion": "Create a new record with the corrected data.",
+                }
+            )
+        
+        # =========================================================================
+        # PENDING APPROVAL EDIT RULE: Cannot edit records awaiting approval
+        # Prevents race conditions where data changes while approval is pending
+        # =========================================================================
+        if current.get("approval_status") == "pending_approval" and not is_admin_override:
+            # Check if there's an active approval request
+            pending_request = await db.approval_requests.find_one({
+                "entity_id": record_id,
+                "entity_type": "esg_record",
+                "status": {"$in": ["pending", "in_review"]},
+            }, {"_id": 0, "id": 1, "submitted_by": 1, "submitted_at": 1})
+            
+            if pending_request:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "error": "PENDING_APPROVAL_EDIT_NOT_ALLOWED",
+                        "message": "This record has a pending approval request. Wait for approval/rejection before making changes.",
+                        "approval_request_id": pending_request.get("id"),
+                        "submitted_at": pending_request.get("submitted_at"),
+                        "suggestion": "Either wait for the approval decision, or cancel the existing request first.",
+                    }
+                )
+        
+        # =========================================================================
+        # MULTIPLE PENDING EDIT REQUESTS RULE: Only one edit request at a time
+        # If a previous edit is pending approval, block new edits
+        # =========================================================================
+        # Check if there's already a pending EDIT approval request (not create/delete)
+        existing_edit_request = await db.approval_requests.find_one({
+            "entity_id": record_id,
+            "entity_type": "esg_record",
+            "status": {"$in": ["pending", "in_review"]},
+            "entity_snapshot.is_edit": True,  # Specifically check for edit requests
+        }, {"_id": 0, "id": 1, "submitted_by": 1, "submitted_at": 1, "entity_snapshot": 1})
+        
+        if existing_edit_request and not is_admin_override:
+            # Get submitter info for helpful error message
+            submitter_id = existing_edit_request.get("submitted_by")
+            submitter = await db.users.find_one({"id": submitter_id}, {"_id": 0, "full_name": 1, "email": 1})
+            submitter_name = submitter.get("full_name", submitter.get("email", "Unknown")) if submitter else "Unknown"
+            
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "error": "MULTIPLE_PENDING_EDITS_NOT_ALLOWED",
+                    "message": f"This record already has a pending edit request from {submitter_name}. Only one edit can be pending approval at a time.",
+                    "existing_request_id": existing_edit_request.get("id"),
+                    "submitted_by": submitter_name,
+                    "submitted_at": existing_edit_request.get("submitted_at"),
+                    "suggestion": "Wait for the existing edit request to be approved/rejected, or ask an admin to cancel it.",
                 }
             )
         

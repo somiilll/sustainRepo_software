@@ -269,33 +269,107 @@ class AssignmentService:
         assignment_id: str,
         organization_id: str,
         deleted_by_user_id: str,
-    ) -> bool:
-        """Delete an assignment, clean up orphaned tasks and approvals."""
+    ) -> Dict[str, Any]:
+        """
+        Delete an assignment with proper task lifecycle management.
+        
+        TASK LIFECYCLE: ACTIVE -> CANCELLED -> ARCHIVED
+        
+        Instead of hard-deleting tasks, we transition them through a lifecycle:
+        1. ACTIVE: Normal operational state (pending, completed, etc.)
+        2. CANCELLED: Assignment was deleted, but tasks remain visible for audit
+        3. ARCHIVED: (Future) Tasks can be archived after a retention period
+        
+        This ensures auditors can always see what tasks were cancelled and why.
+        
+        Returns:
+            Dict with status info: {"deleted": True, "tasks_cancelled": int, ...}
+        """
         current = await self._assignments.find_one(
             {"id": assignment_id, "organization_id": organization_id}
         )
         
         if not current:
-            return False
+            return {"deleted": False, "error": "Assignment not found"}
         
-        await self._assignments.delete_one({"id": assignment_id})
+        now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
+        
+        # Soft-delete the assignment (mark as cancelled instead of hard delete)
+        await self._assignments.update_one(
+            {"id": assignment_id},
+            {"$set": {
+                "status": "cancelled",
+                "cancelled_at": now_iso,
+                "cancelled_by_user_id": deleted_by_user_id,
+                "updated_at": now,
+            }}
+        )
         
         # Deactivate task assignees linked to this assignment
         from modules.esg_records.task_engine import remove_assignee_for_assignment
         await remove_assignee_for_assignment(db, assignment_id)
         
-        # Soft-delete unfilled tasks (preserve completed data)
-        filled_statuses = ["completed", "in_progress", "skipped"]
-        await db["esg_reporting_tasks"].delete_many({
-            "assignment_id": assignment_id,
-            "status": {"$nin": filled_statuses},
-        })
+        # LIFECYCLE: Transition tasks to CANCELLED status instead of deleting
+        # Preserve ALL tasks (including unfilled ones) for audit trail
+        # Only tasks without actual data submissions get cancelled
+        # Tasks with data remain visible but marked as orphaned
+        
+        # Find all tasks for this assignment
+        tasks = await db["esg_reporting_tasks"].find(
+            {"assignment_id": assignment_id},
+            {"_id": 0, "id": 1, "period_key": 1, "category": 1, "subcategory": 1}
+        ).to_list(1000)
+        
+        tasks_cancelled = 0
+        tasks_with_data = 0
+        
+        for task in tasks:
+            # Check if this task has actual data submitted
+            task_has_data = await self._task_has_data(
+                organization_id=organization_id,
+                category=task.get("category"),
+                subcategory=task.get("subcategory"),
+                facility_id=current.get("facility_id"),
+                period_key=task.get("period_key"),
+            )
+            
+            if task_has_data:
+                # Task has data - mark as orphaned but keep visible
+                await db["esg_reporting_tasks"].update_one(
+                    {"id": task["id"]},
+                    {"$set": {
+                        "lifecycle_status": "orphaned",
+                        "orphaned_reason": "assignment_deleted",
+                        "orphaned_at": now_iso,
+                        "orphaned_by_user_id": deleted_by_user_id,
+                        "updated_at": now_iso,
+                    }}
+                )
+                tasks_with_data += 1
+            else:
+                # Task has no data - mark as cancelled
+                await db["esg_reporting_tasks"].update_one(
+                    {"id": task["id"]},
+                    {"$set": {
+                        "lifecycle_status": "cancelled",
+                        "cancelled_reason": "assignment_deleted",
+                        "cancelled_at": now_iso,
+                        "cancelled_by_user_id": deleted_by_user_id,
+                        "updated_at": now_iso,
+                    }}
+                )
+                tasks_cancelled += 1
         
         # Cancel pending approval requests for this assignment's entity
         entity_id = current.get("entity_id") or current.get("id")
-        await db["approval_requests"].update_many(
+        approval_result = await db["approval_requests"].update_many(
             {"entity_id": entity_id, "status": "pending", "organization_id": organization_id},
-            {"$set": {"status": "cancelled", "updated_at": datetime.now(timezone.utc).isoformat()}},
+            {"$set": {
+                "status": "cancelled",
+                "cancelled_reason": "assignment_deleted",
+                "updated_at": now_iso,
+            }},
         )
         
         # Log history
@@ -306,7 +380,70 @@ class AssignmentService:
             changed_by_user_id=deleted_by_user_id,
         )
         
-        return True
+        return {
+            "deleted": True,
+            "assignment_id": assignment_id,
+            "tasks_cancelled": tasks_cancelled,
+            "tasks_with_data_orphaned": tasks_with_data,
+            "approval_requests_cancelled": approval_result.modified_count,
+            "message": f"Assignment cancelled. {tasks_cancelled} tasks cancelled, {tasks_with_data} tasks with data marked as orphaned."
+        }
+    
+    async def _task_has_data(
+        self,
+        organization_id: str,
+        category: str,
+        subcategory: Optional[str],
+        facility_id: Optional[str],
+        period_key: str,
+    ) -> bool:
+        """
+        Check if a task has actual data submitted (uses CompletionService).
+        """
+        try:
+            from .completion_service import DataChecker
+            has_data, _, _ = await DataChecker.check_exists(
+                organization_id=organization_id,
+                category=category,
+                subcategory=subcategory,
+                facility_id=facility_id,
+                period_key=period_key,
+            )
+            return has_data
+        except Exception as e:
+            print(f"Warning: Failed to check task data: {e}")
+            return False
+    
+    async def archive_cancelled_tasks(
+        self,
+        organization_id: str,
+        older_than_days: int = 90,
+    ) -> int:
+        """
+        Archive cancelled tasks older than specified days.
+        
+        LIFECYCLE: CANCELLED -> ARCHIVED
+        
+        This is intended to be called by a scheduled job to clean up
+        old cancelled tasks while still preserving them in an archived state.
+        
+        Returns: Number of tasks archived
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(days=older_than_days)
+        
+        result = await db["esg_reporting_tasks"].update_many(
+            {
+                "organization_id": organization_id,
+                "lifecycle_status": "cancelled",
+                "cancelled_at": {"$lt": cutoff.isoformat()},
+            },
+            {"$set": {
+                "lifecycle_status": "archived",
+                "archived_at": datetime.now(timezone.utc).isoformat(),
+            }}
+        )
+        
+        return result.modified_count
     
     async def reassign(
         self,

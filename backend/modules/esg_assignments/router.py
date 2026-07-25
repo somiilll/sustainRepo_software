@@ -13,6 +13,7 @@ Provides endpoints for:
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Optional, List
 from datetime import datetime
+from shared.database.mongo import db
 from .models import (
     EntityType, AssignmentLevel, AssignmentRole, AssignmentStatus,
     CreateAssignmentRequest, UpdateAssignmentRequest, BulkAssignmentRequest,
@@ -132,17 +133,33 @@ async def delete_assignment(
     assignment_id: str,
     current_user: dict = Depends(get_admin_user),
 ):
-    """Delete an assignment (Admin only)."""
-    success = await assignment_service.delete_assignment(
+    """
+    Delete an assignment (Admin only).
+    
+    TASK LIFECYCLE: ACTIVE -> CANCELLED -> ARCHIVED
+    
+    Instead of hard-deleting tasks, this endpoint transitions them through a lifecycle:
+    - Tasks with no data are marked as CANCELLED
+    - Tasks with data are marked as ORPHANED (remain visible for audit)
+    
+    Returns details about tasks affected for transparency.
+    """
+    result = await assignment_service.delete_assignment(
         assignment_id=assignment_id,
         organization_id=current_user["organization_id"],
         deleted_by_user_id=current_user["id"],
     )
     
-    if not success:
-        raise HTTPException(status_code=404, detail="Assignment not found")
+    if not result.get("deleted"):
+        raise HTTPException(status_code=404, detail=result.get("error", "Assignment not found"))
     
-    return {"success": True}
+    return {
+        "success": True,
+        "tasks_cancelled": result.get("tasks_cancelled", 0),
+        "tasks_with_data_orphaned": result.get("tasks_with_data_orphaned", 0),
+        "approval_requests_cancelled": result.get("approval_requests_cancelled", 0),
+        "message": result.get("message"),
+    }
 
 
 @router.post("/assignments/{assignment_id}/retry-tasks")
@@ -185,6 +202,56 @@ async def retry_task_generation(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Task generation failed: {str(e)}")
+
+
+
+@router.get("/audit/cancelled-tasks")
+async def get_cancelled_tasks(
+    lifecycle_status: str = Query("cancelled", description="Filter by lifecycle status: cancelled, orphaned, archived"),
+    category: Optional[str] = Query(None, description="Filter by category"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    current_user: dict = Depends(get_admin_user),
+):
+    """
+    Get cancelled/orphaned/archived tasks for audit purposes (Admin only).
+    
+    TASK LIFECYCLE:
+    - CANCELLED: Assignment was deleted, task had no data
+    - ORPHANED: Assignment was deleted, but task had data (preserved for audit)
+    - ARCHIVED: Old cancelled tasks that have been archived after retention period
+    
+    Use this endpoint to see audit trail of tasks that were removed when
+    assignments were deleted.
+    """
+    org_id = current_user["organization_id"]
+    
+    query = {
+        "organization_id": org_id,
+        "lifecycle_status": lifecycle_status,
+    }
+    
+    if category:
+        query["category"] = category
+    
+    # Get total count
+    total = await db.esg_reporting_tasks.count_documents(query)
+    
+    # Get paginated results
+    skip = (page - 1) * page_size
+    tasks = await db.esg_reporting_tasks.find(
+        query,
+        {"_id": 0}
+    ).sort("cancelled_at", -1).skip(skip).limit(page_size).to_list(page_size)
+    
+    return {
+        "tasks": tasks,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "lifecycle_status": lifecycle_status,
+    }
+
 
 
 

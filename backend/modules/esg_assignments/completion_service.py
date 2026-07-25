@@ -35,6 +35,10 @@ class TaskStatus(str, Enum):
     BACKFILL_PENDING = "backfill_pending"
     REJECTED = "rejected"  # Data submitted but rejected, needs changes
     PENDING_APPROVAL = "pending_approval"  # Data submitted, awaiting approval
+    # Lifecycle statuses for deleted assignments
+    CANCELLED = "cancelled"  # Assignment was deleted, task has no data
+    ORPHANED = "orphaned"  # Assignment was deleted, but task has data (preserved for audit)
+    ARCHIVED = "archived"  # Old cancelled tasks that have been archived
 
 
 class AggregateApprovalStatus(str, Enum):
@@ -620,6 +624,7 @@ class CompletionService:
         This is COMPUTED, not read from task.status field.
         
         Status priority:
+        0. If lifecycle_status is set (cancelled/orphaned/archived) -> return that
         1. If data exists and rejected -> REJECTED
         2. If data exists and pending_approval -> PENDING_APPROVAL
         3. If data exists and approved/no status -> COMPLETED
@@ -631,6 +636,15 @@ class CompletionService:
         - Uses aggregate approval status across all facilities
         - See calculate_aggregate_approval_status() for business rules
         """
+        # Check lifecycle status first (for deleted assignments)
+        lifecycle_status = task.get("lifecycle_status")
+        if lifecycle_status == "cancelled":
+            return TaskStatus.CANCELLED
+        elif lifecycle_status == "orphaned":
+            return TaskStatus.ORPHANED
+        elif lifecycle_status == "archived":
+            return TaskStatus.ARCHIVED
+        
         org_id = task.get("organization_id")
         facility_id = task.get("facility_id")
         category = task.get("category")

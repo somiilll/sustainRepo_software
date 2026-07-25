@@ -522,14 +522,36 @@ async def update_record(
     section: ESG_SECTION,
     record_id: str,
     data: UpdateRecordRequest,
+    admin_override: bool = Query(False, description="Admin bypass for pending approval (use with caution)"),
     current_user: dict = Depends(get_current_user)
 ):
-    """Update a record (creates new version)."""
+    """
+    Update a record (creates new version).
+    
+    CONCURRENCY SAFEGUARDS:
+    - Cannot edit records with pending approval (prevents race conditions)
+    - Cannot edit records that were rejected (user must create new submission)
+    - Only one edit request can be pending at a time
+    
+    Admins can use `admin_override=true` to bypass these checks, but this should
+    be used sparingly and only when necessary.
+    """
     org_id = current_user.get("organization_id")
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization assigned")
     
     user_id = current_user.get("id") or current_user.get("user_id")
+    user_role = current_user.get("role", "user")
+    
+    # Admin override only allowed for admin/super_admin roles
+    is_admin_override = False
+    if admin_override:
+        if user_role not in ["admin", "super_admin"]:
+            raise HTTPException(
+                status_code=403,
+                detail="Admin override is only available to admin users"
+            )
+        is_admin_override = True
     
     # Verify record exists and belongs to org
     existing = await esg_records_service.get_record(section, record_id, org_id)
@@ -540,7 +562,8 @@ async def update_record(
         section=section,
         record_id=record_id,
         user_id=user_id,
-        data=data
+        data=data,
+        is_admin_override=is_admin_override,
     )
     
     return {"message": "Record updated", "record": updated}
