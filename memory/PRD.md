@@ -71,6 +71,15 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
   - `start_date/end_date` (tasks have own `period_key`)
 - **Immutability**: interpretation_snapshot is NEVER updated on assignment edits
 
+### Task Ownership Fields (Dec 2024)
+- **Purpose**: Clear audit trail for who submitted/completed tasks, even after reassignments
+- **Fields on `esg_reporting_tasks`**:
+  - `submitted_by_user_id` / `submitted_at`: Who submitted the data and when
+  - `completed_by_user_id` / `completed_at`: Who marked it complete (submitter if no approval, approver if approval required)
+  - `approved_by_user_id` / `approved_at`: Who explicitly approved (set only when approval workflow used)
+- **Immutability**: These fields are NEVER modified after initial set, even if task is reassigned
+- **Files**: `task_engine.py`, `esg_records/service.py`, `approval_workflow/service.py`
+
 ### Task Lifecycle States (Dec 2024)
 - **ACTIVE**: Normal operational state (pending, completed, etc.)
 - **CANCELLED**: Assignment was deleted, task has no data (audit visible)
