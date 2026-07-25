@@ -3,12 +3,17 @@ ESG Records Module - API Router
 
 Reusable router for Environment, Social, and Governance records.
 Includes integration with GHG module for auto-imported records.
+
+IDEMPOTENCY: POST endpoints support X-Idempotency-Key header.
+If a request with the same key was already processed within 24 hours,
+the original response is returned instead of processing again.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Header
 from typing import Optional, List
 from datetime import datetime, timezone
 import uuid
+import hashlib
 
 from core_platform.auth import get_current_user
 from .service import esg_records_service
@@ -20,8 +25,68 @@ from .contracts import (
     CreateRecordRequest, UpdateRecordRequest, RecordListFilters
 )
 from shared.database import get_database
+from shared.database.mongo import db
 
 router = APIRouter(prefix="/esg-records", tags=["ESG Records"])
+
+
+# =============================================================================
+# Idempotency Helper
+# =============================================================================
+
+async def check_idempotency(
+    idempotency_key: Optional[str],
+    org_id: str,
+    operation: str,
+) -> Optional[dict]:
+    """
+    Check if this request was already processed.
+    
+    Returns cached response if found, None otherwise.
+    """
+    if not idempotency_key:
+        return None
+    
+    # Create composite key
+    composite_key = f"{org_id}:{operation}:{idempotency_key}"
+    key_hash = hashlib.sha256(composite_key.encode()).hexdigest()
+    
+    cached = await db.idempotency_cache.find_one(
+        {"key_hash": key_hash},
+        {"_id": 0, "response": 1, "created_at": 1}
+    )
+    
+    if cached:
+        return cached.get("response")
+    
+    return None
+
+
+async def store_idempotency(
+    idempotency_key: str,
+    org_id: str,
+    operation: str,
+    response: dict,
+) -> None:
+    """
+    Store the response for this idempotency key.
+    
+    Entries expire after 24 hours (handled by TTL index).
+    """
+    composite_key = f"{org_id}:{operation}:{idempotency_key}"
+    key_hash = hashlib.sha256(composite_key.encode()).hexdigest()
+    
+    await db.idempotency_cache.update_one(
+        {"key_hash": key_hash},
+        {"$set": {
+            "key_hash": key_hash,
+            "org_id": org_id,
+            "operation": operation,
+            "response": response,
+            "created_at": datetime.now(timezone.utc),
+        }},
+        upsert=True
+    )
 
 
 # =============================================================================
@@ -174,15 +239,33 @@ async def get_category(
 async def create_record(
     section: ESG_SECTION,
     data: CreateRecordRequest,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
 ):
-    """Create a new ESG record. Validates user has active assignment."""
+    """
+    Create a new ESG record. Validates user has active assignment.
+    
+    IDEMPOTENCY: Pass X-Idempotency-Key header to prevent duplicate submissions.
+    If the same key is used within 24 hours, the original response is returned.
+    
+    DUPLICATE WARNING: If a record already exists for the same period/facility,
+    a warning is included in the response (not an error).
+    """
     org_id = current_user.get("organization_id")
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization assigned")
     
     user_id = current_user.get("id") or current_user.get("user_id")
     user_role = current_user.get("role", "")
+    
+    # Check idempotency first
+    if x_idempotency_key:
+        cached_response = await check_idempotency(
+            x_idempotency_key, org_id, f"create_record:{section}"
+        )
+        if cached_response:
+            cached_response["_idempotent"] = True
+            return cached_response
     
     # Admin can create records without assignment, but we still look up assignment
     # to get requires_approval setting
@@ -200,7 +283,19 @@ async def create_record(
     except ValueError as e:
         raise HTTPException(status_code=403, detail=str(e))
     
-    return {"message": "Record created", "record": record}
+    response = {"message": "Record created", "record": record}
+    
+    # Extract warning from record if present
+    if record.get("_warning"):
+        response["warning"] = record.pop("_warning")
+    
+    # Store for idempotency
+    if x_idempotency_key:
+        await store_idempotency(
+            x_idempotency_key, org_id, f"create_record:{section}", response
+        )
+    
+    return response
 
 
 @router.get("/records/{section}")

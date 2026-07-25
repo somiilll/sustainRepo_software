@@ -145,6 +145,47 @@ async def delete_assignment(
     return {"success": True}
 
 
+@router.post("/assignments/{assignment_id}/retry-tasks")
+async def retry_task_generation(
+    assignment_id: str,
+    current_user: dict = Depends(get_admin_user),
+):
+    """
+    Retry task generation for an assignment that previously failed.
+    
+    Useful when task generation fails during assignment creation and 
+    assignment is marked with task_generation_pending=True.
+    """
+    assignment = await assignment_service.get_assignment(assignment_id)
+    
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    
+    if assignment.get("organization_id") != current_user["organization_id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    try:
+        from modules.esg_records.task_engine import generate_tasks_for_assignment
+        from shared.database.mongo import db
+        
+        result = await generate_tasks_for_assignment(db, assignment)
+        
+        # Clear the pending flag
+        await db.esg_assignments.update_one(
+            {"id": assignment_id},
+            {"$unset": {"task_generation_pending": "", "task_generation_error": ""}}
+        )
+        
+        return {
+            "success": True,
+            "message": "Tasks generated successfully",
+            "tasks_created": result.get("created", 0),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Task generation failed: {str(e)}")
+
+
+
 @router.post("/assignments/{assignment_id}/reassign")
 async def reassign_assignment(
     assignment_id: str,

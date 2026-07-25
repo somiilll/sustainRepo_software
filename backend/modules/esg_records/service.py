@@ -172,6 +172,36 @@ class ESGRecordsService:
             record_status = "completed"
             record_approval_status = "pending_approval" if requires_approval else "not_required"
         
+        # =========================================================================
+        # DUPLICATE SUBMISSION PREVENTION
+        # Check if a record already exists for this exact period/facility/category
+        # Return warning (not error) to inform user but allow if they proceed
+        # =========================================================================
+        duplicate_warning = None
+        existing_record = await self._check_duplicate_submission(
+            collection=collection,
+            org_id=org_id,
+            category=data.category,
+            subcategory=data.subcategory,
+            sub_subcategory=data.sub_subcategory,
+            facility_id=data.facility_id,
+            reporting_period=data.reporting_period,
+        )
+        
+        if existing_record:
+            duplicate_warning = {
+                "type": "DUPLICATE_SUBMISSION_WARNING",
+                "message": f"A record already exists for this period. Creating a new submission will replace the previous one.",
+                "existing_record_id": existing_record.get("id"),
+                "existing_created_at": existing_record.get("created_at"),
+                "existing_status": existing_record.get("status"),
+                "existing_approval_status": existing_record.get("approval_status"),
+            }
+            # If existing record is approved, warn more strongly
+            if existing_record.get("approval_status") == "approved":
+                duplicate_warning["severity"] = "high"
+                duplicate_warning["message"] = "WARNING: An APPROVED record already exists for this period. Creating a new submission will mark the old record as superseded."
+        
         record = {
             "id": str(uuid.uuid4()),
             "org_id": org_id,
@@ -235,7 +265,79 @@ class ESGRecordsService:
         
         # Remove MongoDB _id before returning
         record.pop("_id", None)
+        
+        # Include duplicate warning in response if applicable
+        if duplicate_warning:
+            record["_warning"] = duplicate_warning
+        
         return record
+    
+    async def _check_duplicate_submission(
+        self,
+        collection,
+        org_id: str,
+        category: str,
+        subcategory: Optional[str],
+        sub_subcategory: Optional[str],
+        facility_id: Optional[str],
+        reporting_period,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Check if a record already exists for this exact period/facility/category.
+        
+        Returns the existing record if found, None otherwise.
+        """
+        if not reporting_period:
+            return None
+        
+        # Build query to find existing record
+        rp_dict = reporting_period.model_dump() if hasattr(reporting_period, 'model_dump') else reporting_period
+        
+        query = {
+            "org_id": org_id,
+            "category": category,
+            "is_current": True,
+        }
+        
+        if subcategory:
+            query["subcategory"] = subcategory
+        if sub_subcategory:
+            query["sub_subcategory"] = sub_subcategory
+        
+        # Handle facility_id matching
+        if facility_id:
+            query["facility_id"] = facility_id
+        else:
+            query["$or"] = [
+                {"facility_id": None},
+                {"facility_id": {"$exists": False}},
+                {"record_level": "organization"},
+            ]
+        
+        # Match reporting period
+        rp_year = rp_dict.get("year")
+        rp_month = rp_dict.get("month")
+        rp_type = rp_dict.get("reporting_type") or rp_dict.get("type")
+        
+        if rp_year:
+            query["reporting_period.year"] = rp_year
+        if rp_month:
+            # Handle multiple month formats
+            month_int = int(rp_month) if str(rp_month).isdigit() else None
+            if month_int:
+                query["reporting_period.month"] = {"$in": [month_int, rp_month, str(month_int)]}
+            else:
+                query["reporting_period.month"] = rp_month
+        if rp_type:
+            query["$or"] = [
+                {"reporting_period.reporting_type": rp_type},
+                {"reporting_period.type": rp_type},
+            ]
+        
+        return await collection.find_one(
+            query,
+            {"_id": 0, "id": 1, "created_at": 1, "status": 1, "approval_status": 1}
+        )
     
     async def _validate_user_assignment(
         self,

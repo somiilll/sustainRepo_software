@@ -387,12 +387,41 @@ class AssignmentServiceV2:
                     assigned_by_user_id=created_by_user_id,
                 )
             
-            # Generate tasks if scheduling configured
+            # =========================================================================
+            # TRANSACTIONAL TASK GENERATION
+            # Generate tasks atomically with assignment creation
+            # If task generation fails, we still have a valid assignment
+            # but mark it as needing task regeneration
+            # =========================================================================
+            task_generation_success = False
+            task_generation_error = None
+            
             if data.get("start_date") and data.get("filling_frequency"):
-                await self._generate_tasks(assignment_id)
+                try:
+                    await self._generate_tasks(assignment_id)
+                    task_generation_success = True
+                except Exception as e:
+                    task_generation_error = str(e)
+                    # Mark assignment as needing task generation
+                    await self._assignments.update_one(
+                        {"id": assignment_id},
+                        {"$set": {
+                            "task_generation_pending": True,
+                            "task_generation_error": task_generation_error,
+                            "updated_at": datetime.now(timezone.utc).isoformat(),
+                        }}
+                    )
             
             # Fetch with assignees
             assignment = await self.get_assignment(assignment_id)
+            
+            # Add task generation status to response
+            if data.get("start_date") and data.get("filling_frequency"):
+                assignment["_task_generation"] = {
+                    "success": task_generation_success,
+                    "error": task_generation_error,
+                }
+            
             return assignment, True
     
     async def get_assignment(
