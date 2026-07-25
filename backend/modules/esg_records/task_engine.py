@@ -490,6 +490,11 @@ async def generate_tasks_for_assignment(
                 "timezone": due_config.get("timezone", "UTC"),
                 "task_type": period["task_type"],
                 "is_backfill": period["is_backfill"],
+                # VERSIONING: Capture assignment state at task creation
+                "assignment_version_at_creation": assignment.get("version", 1),
+                "created_with_approval_workflow": assignment.get("requires_approval", False),
+                "created_with_approver_id": assignment.get("approver_id"),
+                "created_with_facility_snapshot": assignment.get("facility_snapshot"),
                 "created_at": now,
                 "updated_at": now,
             }
