@@ -7,34 +7,33 @@ PRODUCT REQUIREMENTS ADDED:
 5) Standardize Financial Year format displays to .
 6) Consolidate Climate Change, Material, and Other Emissions into a single Others Environment page.
 7) Replace  object storage with direct Cloudflare R2 integration for Peer Benchmarking using existing user credentials.
-8) Enforce Architectural Invariants: Immutable approved records, V2 Assignment Resolution, and Category Expansion logic.
+8) Enforce Architectural Invariants: Immutable approved records, V2 Assignment Resolution, Category Expansion logic, Questionnaire/BRSR expansion logic.
 
-**User's preferred language**: English (INSTRUCT next agent to respond in English only)
+**User's preferred language**: English
 
-**what currently exists?**
-A highly stable, enterprise-grade ESG reporting workflow. This session formalized critical architectural invariants: Records own truth (tasks are just projections), Approved work is immutable (pending edits generate approval requests with  instead of mutating live data), and History is append-only. The system uses a V2 Assignment Architecture where assignees live in a junction table () queried exclusively through a centralized . Category assignments auto-expand into independent leaf-level subcategory assignments without parent models.
+**what currently exists?** 
+A highly stable, enterprise-grade ESG reporting workflow using V2 Assignment Architecture. The system rigidly enforces Records own truth—tasks no longer persist  or ; these are computed dynamically at runtime via . Questionnaires (BRSR/GRI) are now fully integrated into the assignment system, supporting auto-expansion from Section (e.g., Section B) to individual questions, generating tracking tasks, and resolving via .
 
 **Last working item**:
-    - Last item agent was working: Finalizing the  migration. The agent just executed a bash script to backfill  into the  collection (updated 30 records, deleted 3 orphaned). The next immediate code steps are to re-enable the  filter in  and remove the legacy fallback ().
+    - Last item agent was working: Fixing a 400 error in the My Tasks view for BRSR assignments. The endpoint  requires a . The agent initially made this optional on the backend, but the user explicitly requested that  remain strictly required and that the frontend UI ( / ) must be updated to include a reporting period selector and pass it. The agent reverted the backend change and was about to implement the UI selector.
     - Status: IN PROGRESS
     - Agent Testing Done: N
-    - Which testing method agent to use? backend testing agent
+    - Which testing method agent to use? screenshot tool (for frontend UI changes)
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-  Issue 1: Re-enable organization filter and remove legacy fallback (Priority: P0)
-     - Attempted fixes: Agent successfully ran the DB backfill script to populate  in .
-     - Next debug checklist: Update . Add the  filter back into the MongoDB query. Completely remove the legacy fallback logic that queries  on the assignment document.
-     - Why fix this issue and what will be achieved with the fix? Completes the V2 assignment architecture migration and prevents future regressions using legacy fields.
+  Issue 1: Add Reporting Period selector to My Tasks UI (Priority: P0)
+     - Attempted fixes: Agent tried making  optional in the FastAPI router. User rejected this approach and told the agent to revert it, dictating that the UI must pass the reporting period and allow users to change it.
+     - Next debug checklist: Update  and . Add a period selector (e.g., year/month dropdown or date picker depending on app standard) to the My Tasks view, and pass the selected  parameter to the  call for .
+     - Why fix this issue and what will be achieved with the fix? Fixes a hard crash (400 Bad Request) when users navigate to My Tasks after being assigned BRSR questions.
      - Status: IN PROGRESS
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Backend
-     - Blocked on other issue: None
+     - Should Test frontend/backend/both after fix? Frontend
 
-  Issue 2: Potential Collection Mismatch (Priority: P2)
-     - Attempted fixes: None.
-     - Next debug checklist:  uses  to fetch user details, but the platform standard might be . Verify and fix if needed.
-     - Why fix this issue and what will be achieved with the fix? Prevents missing user details in assignment responses.
+  Issue 2:  missing in  collection (Priority: P1)
+     - Attempted fixes: Agent diagnosed that  () is not inserting . User said dont change anything at the time, prioritizing bug fixes.
+     - Next debug checklist: Update  in  to accept and insert .
+     - Why fix this issue and what will be achieved with the fix? Ensures multi-tenant data isolation at the junction table level.
      - Status: NOT STARTED
      - Is recurring issue? N
      - Should Test frontend/backend/both after fix? Backend
@@ -57,6 +56,7 @@ A highly stable, enterprise-grade ESG reporting workflow. This session formalize
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
+    - P1: Multi-level Approval Flow Implementation (Data model and logic designed in this session; check PRD.md for Future Enhancements).
     - P1: Module Access Super Admin UI (Create a toggle UI inside Super Admin -> Organizations to update  and ).
     - P1: Cron job script for marking tasks as overdue automatically when  date passes.
     - P1: Phase 2 Executive Dashboard chart enhancements (PDF export, fullscreen charts, drill-down on KPI card clicks).
@@ -72,24 +72,26 @@ A highly stable, enterprise-grade ESG reporting workflow. This session formalize
     - P2: Backend persistence for materiality cutoff values per organization.
 
 **Completed work in this session**
-- Assignment Deletion Lifecycle () (DONE)
-- Concurrent Edits & Admin Override Validation (DONE)
-- Immutable Approved Records Architecture (Pending edits no longer mutate effective data; changes stored in ) (DONE)
-- Expanded Historical Snapshots (, ,  now snapshotted to prevent historical drift) (DONE)
-- Task Ownership fields added (, , etc.) (DONE)
-- Category-Level Assignment Expansion (Auto-expands category assignment into discrete leaf-level subcategory assignments) (DONE)
-- Bug 1: Filtered draft records from completion checks in  (DONE)
-- Bug 2 & 4: Fixed  logic for  (Completed - Awaiting Approval) and  (Pending) (DONE)
-- Bug 3: Fixed  UI rendering for object values in approval queue (DONE)
-- Bug 5: Fixed Overdue Count Mismatch (Progress engine now uses  instead of ) (DONE)
-- Bug 6: Fixed V2 Assignment Architecture Mismatch via new  (DONE)
-- Backfilled  into  collection (DONE)
+-  V2 Migration: Re-enabled  filter and fully removed legacy  fallback (DONE)
+- Fixed  in  when  is None (DONE)
+- Fixed Task Overdue logic to properly recognize  as work done (DONE)
+- Records Own Truth Migration: Stripped  and  from  DB storage; they are now fully runtime-computed via  (DONE)
+- Implemented Aggregate Approval Priority Logic () (DONE)
+- Rejected Record Updates: Excluded  records from progress aggregation (unless other non-rejected records exist), disabled frontend editing for rejected records, and added rejection reason display (DONE)
+- Version History: Configured  to create version snapshots on approval and rejection actions (DONE)
+- DataChecker Refactor: Updated query logic to fetch ALL records for a period and resolve the *best* approval status rather than strictly picking the most recently updated one (DONE)
+- Questionnaire (BRSR/GRI) Tracking Integration: Supported , built , and handled dynamic Section->Questions auto-expansion in assignments (DONE)
+- Added , , and  fields to  to fix missing approver UI in Questionnaire Tracker (DONE)
 
 **Earlier issues found/mentioned but not fixed**
-   - None identified.
+   Issue 1: Missing filters on seeded Water Withdrawal KPIs.
+   - Debug checklist: Add appropriate DB filters to prevent showing stale/irrelevant withdrawal data.
+   - Why to solve this issue and what will be achieved with this? Data accuracy.
+   - Should Test frontend/backend/both after fix: Backend
+   - Is recurring issue? Y (User explicitly requested delaying the fix)
 
 **Known issue recurrence from previous fork**
-  - Missing filters on seeded Water Withdrawal KPIs.
+  - Issue recurrence in previous fork: Missing filters on seeded Water Withdrawal KPIs.
   - Recurrence count: 28
   - Status: BLOCKED (User explicitly asked to delay fixing this).
 
@@ -98,77 +100,86 @@ A highly stable, enterprise-grade ESG reporting workflow. This session formalize
 ├── backend/
 │   ├── modules/
 │   │   ├── esg_assignments/
-│   │   │   ├── assignment_resolver.py (NEW - Centralized V2 lookup for assignments)
-│   │   │   ├── assignment_service_v2.py (Handles assignment logic, category expansion)
-│   │   │   ├── completion_service.py (Computes task progress dynamically)
-│   │   │   ├── access_control.py (Permission checks)
+│   │   │   ├── assignment_resolver.py (Central lookup, now supports )
+│   │   │   ├── assignment_service_v2.py (Auto-expands categories & questionnaire sections)
+│   │   │   ├── completion_service.py (Single source of truth for runtime task status computation)
 │   │   ├── esg_records/
-│   │   │   ├── service.py (Immutable records update logic, edit validations)
+│   │   │   ├── task_engine.py (Generates tasks for metrics and questions dynamically)
+│   │   │   ├── service.py
 │   │   ├── approval_workflow/
-│   │   │   ├── service.py (Handles proposed_changes merging on approval)
+│   │   │   ├── service.py (Handles multi-entity approvals and triggers version snapshots)
+│   │   ├── esg_tracking/
+│   │   │   ├── service.py & models.py (Tracker for disclosures/questionnaires)
 
 **Key Technical Concepts**
-- **Immutable Approved Records**: Editing an approved record does NOT mutate it. It creates an  with . The live record is only updated if/when the request is approved.
-- **AssignmentResolver (V2 Architecture)**: Legacy  on the assignment document is deprecated. Lookups MUST go through , which queries the  junction table.
-- **Category Expansion**: Assigning a parent Category (e.g., Water) auto-expands into independent Subcategory assignments. There is no parent-child relationship stored. Category-level progress is aggregated purely at runtime.
-- **Task Projections**: Records own truth. Tasks are projections. Never update  directly.
+- **Records Own Truth**:  and  are NO LONGER persisted on task records. They are exclusively resolved at query-time based on actual database record presence and governance state.
+- **Priority Approval Logic**: When multiple records exist for a single period, the system resolves state using: .
+- **Entity Type Routing**: The entire assignment/task/completion engine has moved from hardcoded metric handling to generic  routing ( vs ).
+- **Multi-Level Approval Flow (Planned)**: Handled entirely by array length on  and a new  index. No breaking schema changes required.
 
 **key DB schema**
   - : 
-  - : Includes  (category vs subcategory metadata), expanded snapshots.
-  - : Stores  for pending edits.
+  - : 
+  - : Questionnaire responses evaluated by DataChecker.
+  - : ONLY stores audit metadata (, , etc.). **Does NOT store status.**
 
 **changes in tech stack**
   - None.
 
 **All files of reference**
-  -  (Created this session, central assignment lookup)
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
+  -  (Updated to handle )
+  -  (Added , priority logic, stripped 500 error)
+  -  (Removed status saving, handles question tasks)
+  -  (Added version snapshots for approve/reject)
+  -  &  (Added approver tracking metadata)
+  -  (Fixed overdue tracking logic)
+  -  (Read-only UI for rejected records with reasons)
+  -  (Target file for P0 UI fix)
+  -  (Target file for P0 UI fix)
 
 **Areas that need refactoring**:
-  - Legacy  field needs to be fully purged from the codebase and DB once the  is strictly enforced everywhere.
+  - Legacy  field needs to be fully purged from DB records as  is strictly enforced.
+  -  needs to insert  on new assignee records.
 
 **key api endpoints**
-  -  (New endpoint computing category progress at runtime)
+  -  (Strictly requires )
+  - 
 
 **Critical Info for New Agent**
-- The database backfill for  inside  was just completed via bash script. You must now immediately update  to use  in its query and strip out the legacy fallback () as requested by the user.
+- **CRITICAL**: The backend was heavily refactored to stop saving  and  to task records. They are fully dynamic. Do NOT attempt to save statuses to .
+- **CRITICAL**: The My Tasks page for BRSR/Questionnaires is currently crashing because the frontend hook  calls  without passing a . The user specifically mandated that this param remain strictly required on the backend, and that the frontend must render a UI dropdown/selector for the user to pick the reporting period. Implement this selector immediately.
 
 **documents and test reports created in this job**
   - 
-  -  through 
+  - 
 
-**Last 10 User Messages and any pending HUMAN messages**
- 1. User: other page submits to 3 categories - check issue dont fixx it... fix bug 4
- 2. Agent fixes Bug 4 UI badges.
- 3. User: fix bug 5. for bug 6 i assigned catgory level... not showing in approval queue... dig deeper dont change anything
- 4. Agent traces Bug 6 to V2 assignment architecture mismatch ( vs legacy ).
- 5. User: Approves diagnosis. Dictates creation of  to replace all legacy lookups. Instructs to update high-impact callers first.
- 6. Agent implements , updates callers. Notes  is missing in  so temp-disables that filter.
- 7. User: Backfill Migration: Add organization_id to esg_assignment_assignees records, then re-enable filter in AssignmentResolver. Remove Legacy: After migration, remove assigned_to_user_id fallback from AssignmentResolver
- 8. Agent executes bash script to backfill  into DB. Session ends before code is updated. (PENDING ACTION ITEM)
+**Last 10 User Messages and any pending HUMAN messages** 
+ 1. User: Reports issue with Tracker progress not updating correctly when updating rejected entries. Wants rejected items to not count as completed progress, and no edit options on UI for rejected items.
+ 2. Agent: Excludes rejected records from progress, adds rejection reason UI, disables editing.
+ 3. User: Approvals/rejections aren't capturing in version history. After rejection, creating a new record doesn't update the task.
+ 4. Agent: Fixes version history snapshots. Upgrades  to pull ALL records and pick the highest priority approval status rather than strictly the most recent update.
+ 5. User: Asks if BRSR/GRI assignments work, how Section B category expands to questions, and how approver workflow functions.
+ 6. Agent: Maps missing features. Implements complete  support across resolver, task generation, expansion, and tracking modules.
+ 7. User: Reports that assigning Section B to someone shows the assignee, but the approver is missing in the tracker response.
+ 8. Agent: Adds missing , ,  to  model and extracts them properly in .
+ 9. User: Reports a 400 Bad Request missing  error when navigating to My Tasks for Section B assignments.
+ 10. User: (After Agent tries to make param optional on backend) Rejects backend workaround. Instructs to keep  strictly required on backend, and that the UI *must* have an option to select/change the reporting period. (PENDING ACTION ITEM)
 
 **Project Health Check:**
-- Stable. No critical breaks. Test suite passing.
+- Broken (Frontend My Tasks view crashes due to missing  parameter).
 
 **3rd Party Integrations**
-  - OpenAI  (Extraction) — requires User API Key
+  - OpenAI (Extraction) — requires User API Key
   - Cloudflare R2 via  — requires User API Key
 
 **Testing status**
-  - Testing agent used after significant changes: YES (Iter 112-119)
+  - Testing agent used after significant changes: YES
   - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: , , , etc.
-  - Known regressions: None
+  - Test files created: None this iteration (Relied on iteration_120 json report)
+  - Known regressions: None (besides the UI missing param mentioned)
 
 **Credentials to test flow:**
   - Admin:  ()
 
 **What agent forgot to execute**
-- The agent ran the database backfill script but timed out before updating the code. You must update  to uncomment/re-add the  filter and remove the  fallback completely.</analysis>
+- The agent reverted the backend change but did not complete the frontend implementation of the  selector in  /  before the session cut off. This must be done immediately.</analysis>

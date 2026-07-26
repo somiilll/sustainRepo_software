@@ -327,7 +327,7 @@ async def get_stale_disclosures(
 
 @router.get("/my-disclosures")
 async def get_my_disclosures(
-    reporting_period: str = Query(..., description="Reporting period"),
+    reporting_period: str = Query(..., description="Reporting period (required for BRSR/GRI tasks)"),
     domain: Optional[TrackingDomain] = Query(None, description="Filter by domain"),
     current_user: dict = Depends(get_current_user),
 ):
@@ -335,6 +335,7 @@ async def get_my_disclosures(
     Get disclosures assigned to the current user.
     
     Available to all users.
+    reporting_period is required for questionnaire tasks.
     """
     from modules.esg_assignments.service import assignment_service
     

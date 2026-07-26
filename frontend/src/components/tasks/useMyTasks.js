@@ -46,9 +46,9 @@ export default function useMyTasks({
       const grouped = groupTasksByCategory(fetchedTasks);
       setGroupedTasks(grouped);
       
-      // Fetch question assignments (disclosures)
+      // Fetch question assignments (disclosures) - only if reportingPeriod is available
       let fetchedQuestions = [];
-      if (entityType === ENTITY_TYPE.QUESTION || entityType === ENTITY_TYPE.ALL) {
+      if ((entityType === ENTITY_TYPE.QUESTION || entityType === ENTITY_TYPE.ALL) && reportingPeriod) {
         try {
           const params = { reporting_period: reportingPeriod };
           if (domain && domain !== 'all') params.domain = domain;

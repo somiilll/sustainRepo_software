@@ -18,7 +18,7 @@ import uuid
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://immutable-records-1.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://completion-engine-v2.preview.emergentagent.com").rstrip("/")
 ADMIN_EMAIL = "goyalsomil2001@gmail.com"
 ADMIN_PASSWORD = "TestUser123!"
 
