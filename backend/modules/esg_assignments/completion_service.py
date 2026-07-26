@@ -714,6 +714,52 @@ class CompletionService:
         
         return TaskStatus.PENDING
 
+    async def get_task_status_with_approval(
+        self,
+        task: Dict[str, Any],
+    ) -> tuple:
+        """
+        Compute both task status and approval status from underlying data.
+        
+        Returns: (TaskStatus, approval_status_string or None)
+        
+        This is the single source of truth - approval_status comes from RECORDS, not tasks.
+        """
+        org_id = task.get("organization_id")
+        facility_id = task.get("facility_id")
+        category = task.get("category")
+        subcategory = task.get("subcategory")
+        period_key = task.get("period_key")
+        
+        # Check if data exists and get approval status from RECORD
+        has_data, _, record_approval_status = await DataChecker.check_exists(
+            org_id, category, subcategory, facility_id, period_key
+        )
+        
+        # Get the computed status
+        computed_status = await self.get_task_status(task)
+        
+        # Determine approval status string from records
+        approval_status = None
+        if has_data:
+            if not facility_id:
+                # Org-level: aggregate across facilities
+                aggregate = await self._get_aggregate_approval_status(
+                    org_id, category, subcategory, period_key
+                )
+                if aggregate == AggregateApprovalStatus.HAS_REJECTION:
+                    approval_status = "rejected"
+                elif aggregate in [AggregateApprovalStatus.ALL_PENDING, AggregateApprovalStatus.PARTIALLY_APPROVED]:
+                    approval_status = "pending_approval"
+                elif aggregate == AggregateApprovalStatus.ALL_APPROVED:
+                    approval_status = "approved"
+                # NOT_REQUIRED = None
+            else:
+                # Facility-level: use direct status from record
+                approval_status = record_approval_status
+        
+        return computed_status, approval_status
+
     async def _get_aggregate_approval_status(
         self,
         org_id: str,

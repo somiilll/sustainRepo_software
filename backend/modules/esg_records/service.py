@@ -859,14 +859,14 @@ class ESGRecordsService:
                 "submitted_at": now,
                 "submitted_by_user_id": user_id,
                 "updated_at": now,
-                "approval_status": "pending_approval" if requires_approval else "not_required",
             }
             
-            # If no approval required, mark as completed immediately
+            # If no approval required, mark as completed immediately (audit trail)
             if not requires_approval:
                 update_doc["completed_by_user_id"] = user_id
                 update_doc["completed_at"] = now
             
+            # NOTE: We no longer store approval_status on tasks - computed from records
             await db.esg_reporting_tasks.update_one(
                 {"id": task["id"]},
                 {"$set": update_doc}
@@ -932,18 +932,18 @@ class ESGRecordsService:
                 task_query["facility_id"] = facility_id
             
             now = datetime.now(timezone.utc).isoformat()
-            # NOTE: We no longer update task.status - it's computed from data
-            # Only clear approval_status since data is being modified
+            # NOTE: task.approval_status is now computed from RECORDS.
+            # When record's reporting_period changes, just update timestamp.
+            # Status will auto-compute correctly from the record.
             result = await db.esg_reporting_tasks.update_one(
                 task_query,
                 {"$set": {
-                    "approval_status": "not_required",
                     "updated_at": now,
                 }}
             )
             
             if result.modified_count > 0:
-                print(f"Cleared approval_status for {category}/{subcategory} period={period_key}")
+                print(f"Updated task timestamp for {category}/{subcategory} period={period_key}")
         except Exception as e:
             print(f"Warning: Failed to revert task to pending: {e}")
 
@@ -1701,12 +1701,13 @@ class ESGRecordsService:
             if not period_key:
                 return
             
-            # Find matching completed task
+            # Find task that has submission data (completed_at is set)
+            # NOTE: task.status is computed from records now, not stored
             task_query = {
                 "organization_id": org_id,
                 "category": category,
                 "period_key": period_key,
-                "status": "completed",  # Only revert completed tasks
+                "completed_at": {"$ne": None},  # Has been submitted at some point
             }
             if subcategory:
                 task_query["subcategory"] = subcategory
@@ -1719,15 +1720,11 @@ class ESGRecordsService:
             if not task:
                 return
             
-            # Determine what status to revert to
-            # If it was a backfill task, revert to backfill_pending, otherwise pending
-            revert_status = "backfill_pending" if task.get("is_backfill") else "pending"
-            
-            # Update task to pending status
+            # NOTE: task.status and approval_status are now computed from RECORDS.
+            # When record is deleted, just clear the audit fields.
+            # Status will auto-compute correctly (no data = pending/backfill_pending).
             now = datetime.now(timezone.utc)
             update_doc = {
-                "status": revert_status,
-                "approval_status": "not_required",
                 "completed_at": None,
                 "completed_by_user_id": None,
                 "updated_at": now,
@@ -1738,7 +1735,7 @@ class ESGRecordsService:
                 {"$set": update_doc}
             )
             
-            print(f"Reverted task {task['id']} to {revert_status} after record deletion")
+            print(f"Cleared task {task['id']} audit fields after record deletion")
         except Exception as e:
             print(f"Warning: Failed to revert task status after record deletion: {e}")
     

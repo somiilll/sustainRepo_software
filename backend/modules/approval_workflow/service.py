@@ -732,13 +732,14 @@ class ApprovalWorkflowService:
                                 if record.get("facility_id"):
                                     task_query["facility_id"] = record.get("facility_id")
                                 
-                                # NOTE: We no longer update task.status - it's computed from data
-                                # Only clear approval_status since record was deleted
+                                # NOTE: task.approval_status is now computed from RECORDS.
+                                # Record is deleted, so task status will auto-compute correctly.
+                                # Just update the timestamp for audit purposes.
                                 await db.esg_reporting_tasks.update_many(
                                     task_query,
-                                    {"$set": {"approval_status": None, "updated_at": _now_iso()}}
+                                    {"$set": {"updated_at": _now_iso()}}
                                 )
-                                logger.info(f"Cleared task approval_status for deleted record")
+                                logger.info(f"Updated task timestamp after record deletion")
                 except Exception as e:
                     logger.error(f"Failed to process delete approval: {e}")
                     import traceback
@@ -850,11 +851,9 @@ class ApprovalWorkflowService:
                             if record.get("facility_id"):
                                 task_query["facility_id"] = record.get("facility_id")
                             
-                            # NOTE: We no longer update task.status - it's computed from data
-                            # Update approval_status and completion ownership fields
-                            # completed_by_user_id/completed_at track who approved and when
+                            # NOTE: task.approval_status is now computed from RECORDS, not stored.
+                            # We only update audit/ownership fields here.
                             task_update = {
-                                "approval_status": "approved",
                                 "updated_at": _now_iso(),
                                 "completed_by_user_id": approver.get("id"),
                                 "completed_at": _now_iso(),
@@ -865,7 +864,7 @@ class ApprovalWorkflowService:
                                 task_query,
                                 {"$set": task_update}
                             )
-                            logger.info(f"Updated {task_update_result.modified_count} task(s) approval_status=approved, completed_by={approver.get('id')}")
+                            logger.info(f"Updated {task_update_result.modified_count} task(s) audit fields, completed_by={approver.get('id')}")
                             
                 except Exception as e:
                     logger.error(f"Failed to update ESG record/task with approval: {e}")
@@ -1070,10 +1069,9 @@ class ApprovalWorkflowService:
                     {"$set": update_doc}
                 )
             elif entity_type == "esg_task":
-                # Directly update the task - only approval_status, NOT status
-                # Task status is computed from data, not stored
+                # NOTE: task.approval_status is now computed from RECORDS.
+                # Only update audit/metadata fields here.
                 task_update = {
-                    "approval_status": "rejected",
                     "rejected_at": now,
                     "rejected_by_user_id": rejector_id,
                     "updated_at": now,

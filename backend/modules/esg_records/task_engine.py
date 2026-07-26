@@ -702,11 +702,13 @@ async def get_tasks_for_user(
         {"_id": 0}
     ).sort("due_at", 1).to_list(500)
     
-    # Step 3: Compute status for each task using CompletionService
+    # Step 3: Compute status AND approval_status for each task using CompletionService
+    # Both are computed from RECORDS - tasks don't store status
     for task in tasks:
-        computed_status = await completion_service.get_task_status(task)
-        task["status"] = computed_status.value  # Override stored status with computed
-        task["computed_status"] = computed_status.value  # Also add explicit field
+        computed_status, computed_approval = await completion_service.get_task_status_with_approval(task)
+        task["status"] = computed_status.value
+        task["computed_status"] = computed_status.value
+        task["approval_status"] = computed_approval  # From records, not stored on task
         
         # Add assignee role info
         assignee_info = assignee_map.get(task["id"], {})
@@ -794,41 +796,35 @@ async def update_task_status(
     reason: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    DEPRECATED: Task status is now computed from data, not stored.
+    DEPRECATED: Task status AND approval_status are now computed from RECORDS, not stored.
     
-    This function now only updates approval_status and metadata.
-    The new_status parameter is ignored - status is computed by CompletionService.
+    This function now only updates audit metadata (timestamps, user IDs).
+    Status is computed by CompletionService.get_task_status_with_approval().
     
     Use this function only for:
-    - Setting approval_status (pending_approval, approved, rejected)
-    - Recording metadata (who submitted, rejection reason, etc.)
+    - Recording metadata (who submitted, when approved, rejection reason, etc.)
     """
     now = datetime.now(tz.utc)
     
-    # NOTE: We no longer store task.status - it's computed from data
+    # NOTE: We no longer store task.status OR approval_status - both computed from records
     update_doc = {
         "updated_at": now,
     }
     
-    # Set approval_status if provided
-    if approval_status:
-        update_doc["approval_status"] = approval_status
-    
-    # Track completion timestamp (still useful for audit)
+    # Track submission timestamp (still useful for audit)
     if new_status == TaskStatus.COMPLETED.value:
-        update_doc["submitted_at"] = now  # Renamed from completed_at for clarity
+        update_doc["submitted_at"] = now
         if user_id:
             update_doc["submitted_by_user_id"] = user_id
     
-    # Track approval timestamp
+    # Track approval timestamp (audit trail, not source of truth)
     if approval_status == ApprovalStatus.APPROVED.value:
         update_doc["approved_at"] = now
         if user_id:
             update_doc["approved_by_user_id"] = user_id
     
-    # Track rejection
+    # Track rejection (audit trail)
     if approval_status == ApprovalStatus.REJECTED.value:
-        # NOTE: No longer setting status to reopened - status is computed
         update_doc["rejected_at"] = now
         if user_id:
             update_doc["rejected_by_user_id"] = user_id
