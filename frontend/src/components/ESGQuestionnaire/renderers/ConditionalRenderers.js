@@ -4,9 +4,12 @@ import { Textarea } from '../../ui/textarea';
 import { Label } from '../../ui/label';
 import { Badge } from '../../ui/badge';
 import { RadioGroup, RadioGroupItem } from '../../ui/radio-group';
+import { normalizeFYResponse } from '../utils/fyNormalization';
 
 export function ConditionalYesNoTextRenderer({ config, value, onChange, isEditing }) {
-  const data = value || { has_value: null, fields: {} };
+  // Normalize FY-suffixed data from backend to simple keys for rendering
+  const normalizedValue = normalizeFYResponse(value);
+  const data = normalizedValue || { has_value: null, fields: {} };
   const fields = config.conditional_fields || [{ key: 'details', label: 'Details', type: 'textarea' }];
 
   const handleToggle = (val) => {
@@ -88,7 +91,9 @@ export function ConditionalYesNoTextRenderer({ config, value, onChange, isEditin
 }
 
 export function YesNoWithDescriptionRenderer({ config, value, onChange, isEditing }) {
-  const data = value || { answer: null, description: '' };
+  // Normalize FY-suffixed data from backend to simple keys for rendering
+  const normalizedValue = normalizeFYResponse(value);
+  const data = normalizedValue || { answer: null, description: '' };
 
   if (!isEditing) {
     return (

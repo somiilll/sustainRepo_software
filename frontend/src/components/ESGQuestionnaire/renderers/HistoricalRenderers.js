@@ -4,6 +4,7 @@ import { Input } from '../../ui/input';
 import { Button } from '../../ui/button';
 import { Plus, Trash2 } from 'lucide-react';
 import { getYearLabelsForTable, replaceYearPlaceholders } from '../../../utils/reportingYearUtils';
+import { normalizeFYResponse } from '../utils/fyNormalization';
 
 /**
  * Helper to get FY/CY labels based on reporting year and organization settings
@@ -227,7 +228,9 @@ export function HistoricalReclaimPercentageTableRenderer({ config, value, onChan
     return label;
   };
   
-  const data = value || rowCategories.reduce((acc, cat) => {
+  // Normalize FY-suffixed data from backend to simple keys for rendering
+  const normalizedValue = normalizeFYResponse(value);
+  const data = normalizedValue || rowCategories.reduce((acc, cat) => {
     acc[cat.key] = {};
     return acc;
   }, {});

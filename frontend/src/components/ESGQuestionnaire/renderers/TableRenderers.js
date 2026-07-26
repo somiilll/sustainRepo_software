@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Badge } from '../../ui/badge';
 import { Plus, Trash2 } from 'lucide-react';
 import { getYearLabelsForTable, replaceYearPlaceholders } from '../../../utils/reportingYearUtils';
+import { normalizeFYResponse } from '../utils/fyNormalization';
 
 /**
  * Helper to get FY/CY labels based on reporting year and organization settings
@@ -139,7 +140,9 @@ export function FYComparisonTableRenderer({ config, value, onChange, isEditing, 
     { key: 'current_fy', label: 'Current FY', type: 'number' },
     { key: 'previous_fy', label: 'Previous FY', type: 'number' }
   ];
-  const data = value || {};
+  // Normalize FY-suffixed data from backend to simple keys for rendering
+  const normalizedValue = normalizeFYResponse(value);
+  const data = normalizedValue || {};
   const fyLabels = getFYLabels(allResponses);
 
   const getColumnLabel = (col) => {
@@ -304,7 +307,9 @@ export function FixedRowTableRenderer({ config, value, onChange, isEditing }) {
   const tableConfig = config.table_config || {};
   const fixedRows = tableConfig.fixed_rows || [];
   const columns = tableConfig.columns || [];
-  const data = value || {};
+  // Normalize FY-suffixed data from backend to simple keys for rendering
+  const normalizedValue = normalizeFYResponse(value);
+  const data = normalizedValue || {};
 
   const handleCellChange = (rowKey, colKey, val) => {
     const newData = { ...data };
@@ -359,7 +364,9 @@ export function GroupedMatrixTableRenderer({ config, value, onChange, isEditing,
     { key: 'current_fy', label: 'Current FY' },
     { key: 'previous_fy', label: 'Previous FY' }
   ];
-  const data = value || {};
+  // Normalize FY-suffixed data from backend to simple keys for rendering
+  const normalizedValue = normalizeFYResponse(value);
+  const data = normalizedValue || {};
   const fyLabels = getFYLabels(allResponses);
 
   const getColumnLabel = (col) => {
