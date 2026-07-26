@@ -2,12 +2,11 @@
 AssignmentResolver - Single Source of Truth for Assignment Resolution
 
 This module provides a centralized way to resolve assignments across the ESG platform.
-It supports both the V2 architecture (esg_assignment_assignees) and legacy architecture
-(assigned_to_user_id) during the migration period.
+Uses V2 architecture exclusively (esg_assignment_assignees).
 
 ARCHITECTURE:
-- V2 (current): Assignees stored in esg_assignment_assignees collection (many-to-many)
-- Legacy: Assignees stored as assigned_to_user_id on assignment document (single user)
+- V2: Assignees stored in esg_assignment_assignees collection (many-to-many)
+- Legacy assigned_to_user_id has been fully deprecated and removed.
 
 USAGE:
     from modules.esg_assignments.assignment_resolver import assignment_resolver
@@ -27,9 +26,6 @@ USAGE:
         category="Water",
         subcategory="Withdrawal",
     )
-
-TODO: Remove legacy assigned_to_user_id fallback after migration is complete.
-      Track migration progress and remove when all assignments use V2 model.
 """
 
 from typing import Optional, Dict, Any, List
@@ -64,9 +60,8 @@ class AssignmentResolver:
         """
         Resolve the assignment that governs a submission.
         
-        This method finds the MOST SPECIFIC matching assignment for the given parameters.
-        It checks V2 architecture (esg_assignment_assignees) first, then falls back to
-        legacy (assigned_to_user_id) for backwards compatibility.
+        This method finds the MOST SPECIFIC matching assignment for the given parameters
+        using the V2 architecture (esg_assignment_assignees) exclusively.
         
         Args:
             organization_id: Organization ID
@@ -107,7 +102,7 @@ class AssignmentResolver:
         elif record_level == "organization":
             base_query["assignment_level"] = "organization"
         
-        # Step 3: Try V2 architecture first (esg_assignment_assignees)
+        # Step 3: V2 architecture (esg_assignment_assignees) - exclusive source of truth
         if v2_assignment_ids:
             v2_query = {**base_query, "id": {"$in": v2_assignment_ids}}
             v2_assignments = await self._assignments.find(v2_query, {"_id": 0}).to_list(100)
@@ -120,20 +115,6 @@ class AssignmentResolver:
                     if include_approval_info:
                         best_match = await self._enrich_with_approval_info(best_match)
                     return best_match
-        
-        # Step 4: Fallback to legacy architecture (assigned_to_user_id)
-        # TODO: Remove this fallback after migration is complete.
-        legacy_query = {**base_query, "assigned_to_user_id": user_id}
-        legacy_assignments = await self._assignments.find(legacy_query, {"_id": 0}).to_list(100)
-        
-        if legacy_assignments:
-            best_match = self._find_best_match(
-                legacy_assignments, subcategory, sub_subcategory
-            )
-            if best_match:
-                if include_approval_info:
-                    best_match = await self._enrich_with_approval_info(best_match)
-                return best_match
         
         return None
     
@@ -251,13 +232,13 @@ class AssignmentResolver:
         # Get V2 assignment IDs
         v2_assignment_ids = await self._get_v2_assignment_ids(organization_id, user_id)
         
-        # Build query
+        if not v2_assignment_ids:
+            return []
+        
+        # Build query using V2 architecture exclusively
         query = {
             "organization_id": organization_id,
-            "$or": [
-                {"id": {"$in": v2_assignment_ids}} if v2_assignment_ids else {"id": None},
-                {"assigned_to_user_id": user_id},  # Legacy fallback
-            ],
+            "id": {"$in": v2_assignment_ids},
         }
         
         if category:
@@ -268,17 +249,11 @@ class AssignmentResolver:
         
         assignments = await self._assignments.find(query, {"_id": 0}).to_list(500)
         
-        # Deduplicate (in case both V2 and legacy match)
-        seen_ids = set()
-        unique_assignments = []
-        for a in assignments:
-            if a["id"] not in seen_ids:
-                seen_ids.add(a["id"])
-                if include_approval_info:
-                    a = await self._enrich_with_approval_info(a)
-                unique_assignments.append(a)
+        if include_approval_info:
+            for i, a in enumerate(assignments):
+                assignments[i] = await self._enrich_with_approval_info(a)
         
-        return unique_assignments
+        return assignments
     
     async def is_user_assigned(
         self,
@@ -315,13 +290,11 @@ class AssignmentResolver:
         """
         Get assignment IDs where user is an assignee (V2 architecture).
         
-        Note: organization_id filter is optional as some legacy data may not have it.
-        We verify org match via the assignment itself.
+        Uses organization_id filter for efficient scoped queries.
         """
-        # Query without org_id filter first (some legacy data missing this field)
-        # TODO: After backfilling organization_id, add it back to query for efficiency
         assignees = await self._assignees.find(
             {
+                "organization_id": organization_id,
                 "user_id": user_id,
                 "$or": [
                     {"removed_at": None},
@@ -340,9 +313,8 @@ class AssignmentResolver:
         assignment: Dict[str, Any],
     ) -> bool:
         """
-        Check if user is assigned to a specific assignment (V2 or legacy).
+        Check if user is assigned to a specific assignment (V2 architecture).
         """
-        # Check V2
         v2_assignee = await self._assignees.find_one({
             "assignment_id": assignment_id,
             "user_id": user_id,
@@ -351,15 +323,7 @@ class AssignmentResolver:
                 {"removed_at": {"$exists": False}},
             ],
         })
-        if v2_assignee:
-            return True
-        
-        # Check legacy
-        # TODO: Remove after migration
-        if assignment.get("assigned_to_user_id") == user_id:
-            return True
-        
-        return False
+        return v2_assignee is not None
     
     def _find_best_match(
         self,
