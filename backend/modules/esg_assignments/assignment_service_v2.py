@@ -180,6 +180,11 @@ class AssignmentServiceV2:
         3. Managing assignees (via assignees_service)
         4. Validating for conflicting assignments (org + facility overlap)
         
+        CATEGORY EXPANSION:
+        If subcategory is not provided (category-level assignment), the system
+        automatically expands it into independent subcategory assignments.
+        No parent assignment is stored - only leaf-level assignments exist.
+        
         Args:
             data: Assignment properties (category, facility_id, etc.)
             user_ids: List of user IDs to assign
@@ -187,6 +192,7 @@ class AssignmentServiceV2:
         
         Returns:
             (assignment_doc, is_new): The assignment and whether it was newly created
+            For category expansion: Returns summary with all created assignments
         
         Raises:
             HTTPException(409): If conflicting assignment exists
@@ -194,6 +200,30 @@ class AssignmentServiceV2:
         from fastapi import HTTPException
         
         now = datetime.now(timezone.utc)
+        
+        # =========================================================================
+        # CATEGORY EXPANSION: If no subcategory provided, expand to all subcategories
+        # This creates independent subcategory assignments - no parent assignment stored
+        # =========================================================================
+        subcategory = data.get("subcategory")
+        category = data.get("category")
+        
+        if not subcategory and category:
+            # Check if this category has subcategories defined
+            subcategories = await self._get_subcategories_for_category(
+                category=category,
+                organization_id=data.get("organization_id"),
+            )
+            
+            if subcategories:
+                # Expand to all subcategories
+                return await self._expand_category_to_subcategories(
+                    data=data,
+                    subcategories=subcategories,
+                    user_ids=user_ids,
+                    created_by_user_id=created_by_user_id,
+                )
+        
         unique_key = self._build_unique_key(data)
         
         # =========================================================================
@@ -378,6 +408,11 @@ class AssignmentServiceV2:
                 "reporting_period": data.get("reporting_period"),
                 "status": "pending",
                 "version": 1,  # Initial version
+                # ASSIGNMENT SOURCE: Track how assignment was created
+                # - "subcategory": Created directly for a specific subcategory
+                # - "category": Created via category expansion (for UI convenience & bulk ops)
+                "assignment_source": data.get("assignment_source", "subcategory"),
+                "expanded_from_category": data.get("expanded_from_category"),  # Set if from expansion
                 "start_date": data.get("start_date"),
                 "end_date": data.get("end_date"),
                 "timezone": data.get("timezone", "Asia/Kolkata"),
@@ -1052,6 +1087,168 @@ class AssignmentServiceV2:
         ).sort("created_at", -1).limit(limit)
         
         return await cursor.to_list(limit)
+
+
+    # =========================================================================
+    # CATEGORY EXPANSION
+    # =========================================================================
+    
+    async def _get_subcategories_for_category(
+        self,
+        category: str,
+        organization_id: str,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get all subcategories for a given category.
+        
+        Source: esg_record_categories collection (Super Admin managed)
+        
+        Returns list of dicts with subcategory and optional sub_subcategory.
+        Returns empty list if no subcategories found (category-level only).
+        """
+        # Query Super Admin-managed category definitions
+        child_categories = await db.esg_record_categories.find(
+            {
+                "category": category,
+                "subcategory": {"$exists": True, "$nin": [None, ""]},
+                "is_active": {"$ne": False},
+            },
+            {"_id": 0, "subcategory": 1, "sub_subcategory": 1}
+        ).to_list(100)
+        
+        if child_categories:
+            return child_categories
+        
+        # Fallback: check environment_records for existing subcategories
+        # This handles cases where esg_record_categories might be empty
+        pipeline = [
+            {"$match": {"category": category, "org_id": organization_id}},
+            {"$group": {
+                "_id": {"subcategory": "$subcategory", "sub_subcategory": "$sub_subcategory"}
+            }},
+            {"$match": {"_id.subcategory": {"$ne": None}}},
+        ]
+        existing = await db.environment_records.aggregate(pipeline).to_list(50)
+        
+        if existing:
+            return [
+                {
+                    "subcategory": doc["_id"]["subcategory"],
+                    "sub_subcategory": doc["_id"].get("sub_subcategory"),
+                }
+                for doc in existing
+                if doc["_id"]["subcategory"]
+            ]
+        
+        return []
+    
+    async def _expand_category_to_subcategories(
+        self,
+        data: Dict[str, Any],
+        subcategories: List[Dict[str, Any]],
+        user_ids: List[str],
+        created_by_user_id: str,
+    ) -> Tuple[Dict[str, Any], bool]:
+        """
+        Expand a category-level assignment into independent subcategory assignments.
+        
+        DESIGN PRINCIPLES:
+        1. No parent assignment is stored - only leaf-level assignments exist
+        2. Each subcategory assignment is fully independent
+        3. assignment_source = "category" for metadata/UI convenience
+        4. Category progress is computed at runtime by grouping subcategory assignments
+        5. Bulk edits work via: UPDATE WHERE category = X
+        
+        After expansion, the system completely forgets that a category was selected.
+        Every existing task, approval, completion, and reporting flow works unchanged.
+        """
+        from fastapi import HTTPException
+        
+        category = data.get("category")
+        created_assignments = []
+        updated_assignments = []
+        errors = []
+        
+        print(f"[CategoryExpansion] Expanding '{category}' to {len(subcategories)} subcategories")
+        
+        for subcat_info in subcategories:
+            subcategory = subcat_info.get("subcategory")
+            sub_subcategory = subcat_info.get("sub_subcategory")
+            
+            if not subcategory:
+                continue
+            
+            # Build data for this subcategory assignment
+            subcat_data = {
+                **data,
+                "subcategory": subcategory,
+                "sub_subcategory": sub_subcategory if sub_subcategory else None,
+                "assignment_source": "category",  # Metadata: created from category expansion
+                "expanded_from_category": category,  # For bulk operations
+            }
+            
+            try:
+                # Create/update the subcategory assignment (recursive call won't expand again)
+                assignment, is_new = await self.create_or_update_assignment(
+                    data=subcat_data,
+                    user_ids=user_ids,
+                    created_by_user_id=created_by_user_id,
+                )
+                
+                if is_new:
+                    created_assignments.append({
+                        "id": assignment.get("id"),
+                        "category": category,
+                        "subcategory": subcategory,
+                        "sub_subcategory": sub_subcategory,
+                    })
+                else:
+                    updated_assignments.append({
+                        "id": assignment.get("id"),
+                        "category": category,
+                        "subcategory": subcategory,
+                        "sub_subcategory": sub_subcategory,
+                    })
+                    
+            except HTTPException as e:
+                errors.append({
+                    "subcategory": subcategory,
+                    "error": str(e.detail),
+                })
+            except Exception as e:
+                errors.append({
+                    "subcategory": subcategory,
+                    "error": str(e),
+                })
+        
+        # Log the expansion to history
+        await self._log_history(
+            assignment_id=None,  # No parent assignment
+            action="category_expanded",
+            changed_by_user_id=created_by_user_id,
+            new_value={
+                "category": category,
+                "subcategories_created": len(created_assignments),
+                "subcategories_updated": len(updated_assignments),
+                "errors": len(errors),
+            },
+        )
+        
+        # Return summary (no parent assignment stored)
+        summary = {
+            "id": None,  # No parent assignment
+            "category": category,
+            "expansion_type": "category_to_subcategories",
+            "assignment_source": "category",
+            "total_subcategories": len(subcategories),
+            "created": created_assignments,
+            "updated": updated_assignments,
+            "errors": errors if errors else None,
+            "message": f"Category '{category}' expanded to {len(created_assignments)} new + {len(updated_assignments)} updated subcategory assignments",
+        }
+        
+        return (summary, True)  # is_new=True for category expansion
+
 
 
 # Singleton instance
