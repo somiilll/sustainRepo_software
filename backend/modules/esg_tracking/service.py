@@ -706,6 +706,7 @@ class TrackingService:
         stale = 0
         last_updated = None
         assigned_user_ids = set()
+        approver_user_ids = set()  # Track approver IDs for name lookup
         
         for config in configs:
             q_key = config.get("question_key")
@@ -719,7 +720,7 @@ class TrackingService:
                 parent_key=None, sub_key=None,
                 item_domain=None,  # Pass the domain from config
             ):
-                nonlocal total, completed, pending, assigned, unassigned, overdue, due_soon, stale, last_updated, assigned_user_ids
+                nonlocal total, completed, pending, assigned, unassigned, overdue, due_soon, stale, last_updated, assigned_user_ids, approver_user_ids
                 
                 total += 1
                 
@@ -774,6 +775,8 @@ class TrackingService:
                 requires_appr = False
                 assignees_list = []  # Multi-assignee support
                 appr_status_val = None  # Approval status from assignment
+                approver_id = None  # Approver user ID
+                approval_chain = []  # Multi-level approval chain
                 
                 if assignment:
                     assigned += 1
@@ -786,6 +789,16 @@ class TrackingService:
                     last_reminder = assignment.get("last_reminder_sent_at")
                     assignees_list = assignment.get("assignees", [])
                     appr_status_val = assignment.get("approval_status", "not_required")
+                    
+                    # Extract approver info
+                    approval_chain = assignment.get("approval_chain", [])
+                    approver_id = assignment.get("approver_id")
+                    # If approver_id not set but approval_chain exists, use first in chain
+                    if not approver_id and approval_chain:
+                        approver_id = approval_chain[0]
+                    
+                    if approver_id:
+                        approver_user_ids.add(approver_id)
                     
                     if assigned_to_user_id:
                         assigned_user_ids.add(assigned_to_user_id)
@@ -868,6 +881,10 @@ class TrackingService:
                     days_since_update=days_since,
                     requires_approval=requires_appr,
                     approval_status=appr_status,
+                    approver_id=approver_id,
+                    approver_name=None,  # Will be populated later with user lookup
+                    approver_email=None,
+                    approval_chain=approval_chain,
                     filling_frequency=filling_freq,
                 )
             
@@ -924,6 +941,20 @@ class TrackingService:
                     user = user_map[disc.assigned_to_user_id]
                     disc.assigned_to_user_name = user.get("name") or user.get("email")
                     disc.assigned_to_user_email = user.get("email")
+        
+        # Populate approver names
+        if approver_user_ids:
+            approver_users = await self._users.find(
+                {"id": {"$in": list(approver_user_ids)}},
+                {"_id": 0, "id": 1, "name": 1, "email": 1}
+            ).to_list(100)
+            approver_map = {u["id"]: u for u in approver_users}
+            
+            for disc in disclosures:
+                if disc.approver_id and disc.approver_id in approver_map:
+                    user = approver_map[disc.approver_id]
+                    disc.approver_name = user.get("name") or user.get("email")
+                    disc.approver_email = user.get("email")
         
         # Build section summary
         assigned_users = []

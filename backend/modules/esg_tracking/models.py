@@ -103,6 +103,10 @@ class DisclosureTrackingItem(BaseModel):
     # Approval status (if applicable)
     requires_approval: bool = False
     approval_status: Optional[str] = None
+    approver_id: Optional[str] = None
+    approver_name: Optional[str] = None
+    approver_email: Optional[str] = None
+    approval_chain: List[str] = Field(default_factory=list)  # Multi-level approval support
     
     # Filling frequency
     filling_frequency: Optional[str] = None
