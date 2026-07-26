@@ -59,9 +59,11 @@ export default function useMyTasks({
           });
           fetchedQuestions = disclosuresRes.data.questions || [];
           
+          // Filter by framework if specified (check both framework and framework_id fields)
           if (framework && fetchedQuestions.length > 0) {
             fetchedQuestions = fetchedQuestions.filter(
-              q => q.framework?.toLowerCase() === framework.toLowerCase()
+              q => (q.framework?.toLowerCase() === framework.toLowerCase()) ||
+                   (q.framework_id?.toLowerCase() === framework.toLowerCase())
             );
           }
         } catch (e) {

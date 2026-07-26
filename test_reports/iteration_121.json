@@ -1,0 +1,58 @@
+{
+  "summary": "Iteration 121 - Verified V2 assignment resolution fix for /api/tracking/my-disclosures and My Task UI. Backend: created /app/backend/tests/test_my_disclosures_v2_iter121.py with 4 pytest tests, ALL 4 PASS. GET /api/tracking/my-disclosures?reporting_period=FY 2026-2027 now returns total_questions=8 (all Section B BRSR disclosures) instead of 1. Verified each question carries both framework_id='brsr' AND the newly-mapped framework='brsr' for FE compatibility. Client-side BRSR filter mimicking useMyTasks logic yields 8/8 questions. Frontend: logged in as admin (goyalsomil2001@gmail.com / TestUser123!), navigated to /workflow/my-task, confirmed default Reporting Period = FY 2026-2027. ESG Metrics tab shows 57 total tasks (includes the 8 BRSR disclosures). Clicked BRSR sub-tab: shows exactly 8 disclosure rows with 8 Fill buttons and stat card '8 Disclosures'. V2 junction table resolution + framework mapping fix is fully working end-to-end.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "WorkflowMyTask / task ledger row for BRSR disclosures",
+        "issue": "BRSR disclosure rows show generic labels 'disclosure' / 'brsr' in CATEGORY/SUBCATEGORY columns instead of the actual BRSR question title (e.g. 'Policy Extend to Value Chain', 'Codes Certifications Standards', 'Commitments Goals Targets'). Backend response provides entity_id and sub_subcategory with the proper identifier - FE just isn't rendering it. Confusing UX because all 8 rows look identical.",
+        "selector": "[data-testid^='task-ledger-row-']",
+        "priority": "MEDIUM"
+      },
+      {
+        "component": "WorkflowMyTask / BRSR tab last row",
+        "issue": "Last (8th) row on BRSR tab shows '-' for both CATEGORY and SUBCATEGORY (all other rows correctly show 'disclosure' / 'brsr'). Suggests one of the 8 assignments returned from the API lacks a category/subcategory field the FE expects, or a mapping/fallback bug in the row renderer.",
+        "selector": "[data-testid^='task-ledger-row-']:last-child",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "WorkflowMyTask",
+        "issues": [
+          "Recharts warning: 'width(-1) and height(-1) of chart should be greater than 0' repeated many times in console (dashboard chart container size)",
+          "React warning: 'A props object containing a key prop is being spread into JSX' on Area/Bar recharts elements - not from this fix but should be cleaned up"
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_my_disclosures_v2_iter121.py",
+    "/app/test_reports/pytest/my_disclosures_iter121.xml"
+  ],
+  "action_items": [
+    "OPTIONAL FE polish: in WorkflowMyTask task ledger, render the BRSR question title from entity_id / sub_subcategory (title-cased with underscores replaced) instead of the generic 'disclosure' / 'brsr' labels so users can distinguish the 8 questions.",
+    "Investigate the last BRSR row rendering '-' / '-' - one question response may be missing an expected field, or the row's fallback branch is wrong."
+  ],
+  "critical_code_review_comments": [
+    "service.get_user_assignments (L557-570) correctly builds assignment_ids from esg_assignment_assignees with removed_at=None, and the $or query (L575-578) preserves legacy assigned_to_user_id fallback. Good backward-compat.",
+    "L605-607 defensive framework mapping: only sets framework if framework_id present AND framework not already set - safe/idempotent.",
+    "user_role logic (L599-603) prefers the V2 junction role over the legacy top-level role - correct precedence.",
+    "useMyTasks.js L64-67 correctly filters on both q.framework and q.framework_id with case-insensitive compare - matches backend contract.",
+    "Minor: the API returns the entire assignment doc including large facility_snapshot arrays and interpretation_snapshot for each of 8 questions. Consider projecting only fields the FE needs to reduce payload size."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_my_disclosures_v2_iter121.py"
+  ],
+  "success_rate": {"backend": "100% (4/4)", "frontend": "100% (BRSR tab renders 8/8 assigned questions)"},
+  "test_credentials": "goyalsomil2001@gmail.com / TestUser123! (admin)",
+  "seed_data_creation": "None - relied on existing FY 2026-2027 Section B assignment (group_assignment_id 9261a9aa-2287-424c-a47e-01625d45fdb3) already present in the admin org.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "The admin org (9067d872-8a3a-4ed9-8494-e3ef04952f7c) has 8 BRSR question assignments for reporting_period 'FY 2026-2027' via V2 junction table (group_assignment_id 9261a9aa-2287-424c-a47e-01625d45fdb3). Any change to get_user_assignments / esg_assignment_assignees resolution should keep total_questions=8 for this fixture. Sample entity_ids: policy_extend_to_value_chain, codes_certifications_standards, commitments_goals_targets. BRSR question labels are NOT rendered in the ledger UI - see action_items.",
+  "rca of the issue": "Root cause: get_user_assignments previously queried esg_assignments with {assigned_to_user_id: user_id} directly, but the V2 flow stores assignees in the esg_assignment_assignees junction table (many-to-many). Only the group-parent assignment had assigned_to_user_id populated (or none), so expanded per-question assignments were invisible to the user. Fix: query the junction table for assignment_ids where user is an active assignee (removed_at=None), then load those assignments via $in, OR-ed with legacy assigned_to_user_id for backward compatibility. Framework mapping (framework_id -> framework) added so the FE useMyTasks filter that historically checked q.framework does not drop V2-shaped responses; FE also updated to check both keys for defense-in-depth."
+}

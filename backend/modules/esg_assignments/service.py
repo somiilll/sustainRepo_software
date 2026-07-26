@@ -552,10 +552,30 @@ class AssignmentService:
         organization_id: str,
         reporting_period: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Get all assignments for a specific user (supports multi-assignee model)"""
+        """Get all assignments for a specific user (supports V2 multi-assignee model)"""
+        
+        # V2 Architecture: First, find all assignment IDs where user is an assignee
+        # Query the esg_assignment_assignees junction table
+        assignee_query = {
+            "user_id": user_id,
+            "removed_at": None,  # Only active assignees
+        }
+        assignee_docs = await db.esg_assignment_assignees.find(
+            assignee_query,
+            {"_id": 0, "assignment_id": 1, "role": 1}
+        ).to_list(1000)
+        
+        # Build map of assignment_id -> role for this user
+        user_assignment_roles = {a["assignment_id"]: a.get("role", "editor") for a in assignee_docs}
+        assignment_ids = list(user_assignment_roles.keys())
+        
+        # Query assignments by IDs from junction table
         query = {
             "organization_id": organization_id,
-            "assigned_to_user_id": user_id,
+            "$or": [
+                {"id": {"$in": assignment_ids}},  # V2: via junction table
+                {"assigned_to_user_id": user_id},  # V1 fallback: legacy direct assignment
+            ]
         }
         
         if reporting_period:
@@ -575,8 +595,16 @@ class AssignmentService:
         for doc in docs:
             doc = await self._populate_user_names(doc)
             
-            # Add user's role in this assignment
-            doc["user_role"] = doc.get("role", "editor")
+            # Add user's role in this assignment (prefer V2 junction table role)
+            assignment_id = doc.get("id")
+            if assignment_id and assignment_id in user_assignment_roles:
+                doc["user_role"] = user_assignment_roles[assignment_id]
+            else:
+                doc["user_role"] = doc.get("role", "editor")
+            
+            # Add framework field for frontend compatibility (maps framework_id -> framework)
+            if doc.get("framework_id") and not doc.get("framework"):
+                doc["framework"] = doc["framework_id"]
             
             if doc.get("entity_type") == EntityType.QUESTION.value:
                 questions.append(doc)
