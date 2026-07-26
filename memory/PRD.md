@@ -71,6 +71,21 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
   - `start_date/end_date` (tasks have own `period_key`)
 - **Immutability**: interpretation_snapshot is NEVER updated on assignment edits
 
+### AssignmentResolver - Single Source of Truth (Dec 2024)
+- **Purpose**: Centralized assignment resolution for the V1→V2 migration
+- **Location**: `/app/backend/modules/esg_assignments/assignment_resolver.py`
+- **Key Methods**:
+  - `resolve()` - Returns assignment or None (checks V2 then legacy)
+  - `require_assignment()` - Returns assignment or raises HTTPException
+  - `get_user_assignments()` - Returns all user's assignments
+- **V2 Architecture**: Assignees in `esg_assignment_assignees` collection (many-to-many)
+- **Legacy Architecture**: `assigned_to_user_id` field on assignment (single user)
+- **Modules Updated**:
+  - `esg_records/service.py` - `_validate_user_assignment` and `update_record`
+  - `access_control.py` - Permission checks
+  - `scheduler.py` - Reminder system
+- **TODO**: Remove legacy fallback after migration complete
+
 ### Category-Level Assignment Expansion (Dec 2024)
 - **Design**: When admin assigns a category (no subcategory), system expands to independent subcategory assignments
 - **No parent assignment**: Only leaf-level (subcategory) assignments exist after expansion

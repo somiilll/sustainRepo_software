@@ -1084,19 +1084,20 @@ class ESGRecordsService:
             changed_fields.append("notes")
         
         # Check if this record's assignment requires approval
-        # Must match exact subcategory to avoid cross-matching different subcategories
-        requires_approval = False
-        assignment_query = {
-            "organization_id": current.get("org_id"),
-            "category": current.get("category"),
-            "entity_type": "record_category",
-        }
-        if current.get("facility_id"):
-            assignment_query["facility_id"] = current.get("facility_id")
-        if current.get("subcategory"):
-            assignment_query["subcategory"] = current.get("subcategory")
+        # USES AssignmentResolver for consistent lookup with create_record
+        from modules.esg_assignments.assignment_resolver import assignment_resolver
         
-        assignment = await db.esg_assignments.find_one(assignment_query, {"_id": 0})
+        requires_approval = False
+        assignment = await assignment_resolver.resolve(
+            organization_id=org_id,
+            user_id=user_id,
+            category=current.get("category"),
+            subcategory=current.get("subcategory"),
+            sub_subcategory=current.get("sub_subcategory"),
+            facility_id=current.get("facility_id"),
+            record_level="facility" if current.get("facility_id") else "organization",
+            include_approval_info=True,
+        )
         
         if assignment:
             requires_approval = assignment.get("requires_approval", False)
