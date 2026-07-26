@@ -1,0 +1,37 @@
+{
+  "summary": "Backend-only regression test for Bug 5 (completion_service.py line 785-789: due_day now read from due_config.day_of_month before falling back to filling_due_day). All 4 pytest cases pass. Verified for admin org (goyalsomil2001@gmail.com) that Climate Change assignments now report correct overdue counts: Adaptation Plan overdue=0 (June filled), Transition Plan overdue=1 (June past-due with no data), total climate overdue=1 -- matching expected behaviour and no longer the buggy value of 4.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "code_review_findings": {
+    "completion_service.py L785-789": "CORRECT. due_day = due_config.day_of_month or filling_due_day or 15. Matches task_engine due-date generation. Fix is minimal and targeted.",
+    "Consumer inconsistency (out of scope but noted)": "/api/esg-records/tasks/period-status/{assignment_id} in esg_records/router.py (lines 1442-1499) still reads t.get('status','pending') from stored task doc and computes is_overdue independently. It does NOT use CompletionService. If any UI/tracker relies on this endpoint's 'overdue' number it can still diverge from the progress endpoint. Recommend routing this through completion_service.get_task_status for consistency.",
+    "Raw task list": "/api/esg-records/assignments/{id}/tasks returns raw task documents that carry no 'status' field (None). Any consumer relying on task.status for overdue counting will misreport 0. Task status should be computed via CompletionService before returning."
+  },
+  "verified_data": {
+    "org_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+    "adaptation_plan_id": "a4976ffc-d95c-43ca-8ea0-95613de7da7d",
+    "transition_plan_id": "2f597f85-93f6-411f-964a-81a0ec57d64a",
+    "adaptation_progress": {"total": 7, "completed": 1, "overdue": 0, "pending": 6},
+    "transition_progress": {"total": 7, "completed": 0, "overdue": 1, "pending": 6},
+    "climate_total_overdue": 1
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_bug5_progress_overdue_iter118.py",
+    "/app/test_reports/pytest/bug5_iter118.xml"
+  ],
+  "action_items": [
+    "OPTIONAL/FOLLOWUP: Update /api/esg-records/tasks/period-status/{assignment_id} and /api/esg-records/assignments/{id}/tasks to derive per-task/period status via CompletionService, so any UI reading the raw task list (which currently has status=None) doesn't fall back to counting 0 overdue and diverge from the progress endpoint."
+  ],
+  "critical_code_review_comments": [
+    "Task list endpoint returns tasks with no computed status - consumers must call completion_service.get_task_status themselves or the completion service should be applied server-side before serialization.",
+    "period-status endpoint duplicates overdue logic instead of delegating to completion_service.get_assignment_progress - risk of future drift."
+  ],
+  "updated_files": ["/app/backend/tests/test_bug5_progress_overdue_iter118.py"],
+  "success_rate": {"backend": "100% (4/4)", "frontend": "N/A"},
+  "test_credentials": "goyalsomil2001@gmail.com / TestUser123! (admin)",
+  "seed_data_creation": "None. Used existing Climate Change assignments in admin org.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Bug 5 fix confirmed. Test file backend/tests/test_bug5_progress_overdue_iter118.py can be reused as regression. If the follow-up (routing task-list and period-status through CompletionService) is picked up, extend this file to also assert task_list computed_status counts match progress endpoint.",
+  "rca of the issue": "Root cause: completion_service.get_assignment_progress previously used assignment.get('filling_due_day', 15) as due_day. For Climate Change assignments the actual due day is stored in due_config.day_of_month (=31) while filling_due_day was None/missing, so due_day defaulted to 15. This caused any period whose period_end.replace(day=min(15,28))=day 15 was in the past to be marked overdue - inflating overdue to 4 for the pair of assignments even when data was submitted for June. Fix reads due_config.day_of_month first (matching task_engine.py) then falls back to filling_due_day then 15. Progress overdue is now 1 (Transition Plan June) as expected."
+}

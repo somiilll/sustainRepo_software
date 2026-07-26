@@ -781,8 +781,12 @@ class CompletionService:
         facility_id = assignment.get("facility_id")
         assignment_level = assignment.get("assignment_level", "organization")
         frequency = assignment.get("filling_frequency", "monthly")
-        due_day = assignment.get("filling_due_day", 15)
         facility_snapshot = assignment.get("facility_snapshot")
+        
+        # Get due_day from due_config (primary) or filling_due_day (fallback)
+        # This must match how tasks are generated in task_engine.py
+        due_config = assignment.get("due_config", {})
+        due_day = due_config.get("day_of_month") or assignment.get("filling_due_day", 15)
         
         # Generate periods
         periods = PeriodGenerator.generate(
