@@ -369,64 +369,24 @@ class ESGRecordsService:
         """
         Check if user has an active assignment for the category at the correct level.
         
+        USES AssignmentResolver - the single source of truth for assignment resolution.
+        This ensures consistency with task generation, permissions, and approval workflows.
+        
         Returns the MOST SPECIFIC matching assignment (prefers exact subcategory match).
         This ensures we get the correct requires_approval setting.
         """
-        # Build query to find matching assignments (get all potential matches)
-        query = {
-            "organization_id": org_id,
-            "assigned_to_user_id": user_id,
-            "entity_type": "record_category",
-            "status": {"$nin": ["completed", "cancelled"]},
-            "category": category,
-        }
+        from modules.esg_assignments.assignment_resolver import assignment_resolver
         
-        # Check facility level match
-        if record_level == "facility" and facility_id:
-            query["$or"] = [
-                {"facility_id": facility_id},  # Exact facility match
-                {"assignment_level": "organization"},  # Org-level can add to any facility
-            ]
-        elif record_level == "organization":
-            # Org-level record: user must have org-level assignment
-            query["assignment_level"] = "organization"
-        
-        # Get all matching assignments for this category
-        assignments = await db.esg_assignments.find(query, {"_id": 0}).to_list(100)
-        
-        if not assignments:
-            return None
-        
-        # Find the most specific matching assignment
-        # Priority: exact match > subcategory match > category-only match
-        best_match = None
-        best_score = -1
-        
-        for assignment in assignments:
-            score = 0
-            a_subcat = assignment.get("subcategory")
-            a_sub_subcat = assignment.get("sub_subcategory")
-            
-            # Exact match on all levels
-            if a_subcat == subcategory and a_sub_subcat == sub_subcategory:
-                score = 3
-            # Subcategory match (sub_subcategory is None in assignment)
-            elif a_subcat == subcategory and a_sub_subcat is None:
-                score = 2
-            # Category-only match (both subcategory and sub_subcategory are None)
-            elif a_subcat is None and a_sub_subcat is None:
-                score = 1
-            # Subcategory matches but we're filling a different sub_subcategory
-            elif a_subcat == subcategory:
-                score = 2
-            else:
-                continue  # No match
-            
-            if score > best_score:
-                best_score = score
-                best_match = assignment
-        
-        return best_match
+        return await assignment_resolver.resolve(
+            organization_id=org_id,
+            user_id=user_id,
+            category=category,
+            subcategory=subcategory,
+            sub_subcategory=sub_subcategory,
+            facility_id=facility_id,
+            record_level=record_level,
+            include_approval_info=True,
+        )
 
     async def _validate_task_period(
         self,

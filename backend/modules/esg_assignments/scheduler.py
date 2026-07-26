@@ -92,13 +92,23 @@ class ReminderScheduler:
             if not overdue:
                 continue
             
-            # Group by user
+            # Group by user - now supports V2 architecture (multiple assignees per assignment)
             by_user = {}
             for a in overdue:
-                user_id = a.get("assigned_to_user_id")
-                if user_id not in by_user:
-                    by_user[user_id] = []
-                by_user[user_id].append(a)
+                # Get assignees from V2 architecture
+                assignee_ids = await self._get_assignment_assignees(a.get("id"), org_id)
+                
+                # Fallback to legacy assigned_to_user_id
+                # TODO: Remove after migration
+                if not assignee_ids:
+                    legacy_user = a.get("assigned_to_user_id")
+                    if legacy_user:
+                        assignee_ids = [legacy_user]
+                
+                for user_id in assignee_ids:
+                    if user_id not in by_user:
+                        by_user[user_id] = []
+                    by_user[user_id].append(a)
             
             # Send email to each user
             for user_id, user_overdue in by_user.items():
@@ -137,12 +147,24 @@ class ReminderScheduler:
         
         Creates in-app notification and sends email.
         Returns True if email was sent successfully.
-        """
-        assigned_user_id = assignment.get("assigned_to_user_id")
-        additional_recipients = assignment.get("reminder_recipients") or []
-        org_id = assignment.get("organization_id")
         
-        all_recipients = [assigned_user_id] + additional_recipients
+        Now supports V2 architecture (multiple assignees per assignment).
+        """
+        # Get assignees from V2 architecture
+        assignment_id = assignment.get("id")
+        org_id = assignment.get("organization_id")
+        assignee_ids = await self._get_assignment_assignees(assignment_id, org_id)
+        
+        # Fallback to legacy assigned_to_user_id
+        # TODO: Remove after migration
+        if not assignee_ids:
+            legacy_user = assignment.get("assigned_to_user_id")
+            if legacy_user:
+                assignee_ids = [legacy_user]
+        
+        additional_recipients = assignment.get("reminder_recipients") or []
+        
+        all_recipients = assignee_ids + additional_recipients
         
         # Get assignment details for notification
         entity_type = assignment.get("entity_type", "")
@@ -250,6 +272,33 @@ class ReminderScheduler:
         ).sort("due_date", 1)
         
         return await cursor.to_list(500)
+
+    async def _get_assignment_assignees(
+        self,
+        assignment_id: str,
+        organization_id: str,
+    ) -> List[str]:
+        """
+        Get assignee user IDs for an assignment (V2 architecture).
+        
+        Note: organization_id filter is optional as some legacy data may not have it.
+        
+        TODO: Remove this method after migration when all uses consolidated.
+        """
+        # Query without org_id filter (some legacy data missing this field)
+        assignees = await db.esg_assignment_assignees.find(
+            {
+                "assignment_id": assignment_id,
+                "$or": [
+                    {"removed_at": None},
+                    {"removed_at": {"$exists": False}},
+                ],
+            },
+            {"_id": 0, "user_id": 1}
+        ).to_list(100)
+        
+        return [a["user_id"] for a in assignees]
+
 
 
 # Singleton instance
