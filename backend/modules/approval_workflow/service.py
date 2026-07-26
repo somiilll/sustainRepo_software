@@ -1709,14 +1709,14 @@ class ApprovalWorkflowService:
                 "organization_id": org_id,
                 "id": response_id,
                 "workflow_id": None,
-                "entity_type": "questionnaire_response",
+                "entity_type": "esg_response",  # Use valid EntityType enum value
                 "entity_id": question_key,
                 "entity_subtype": response.get("framework"),
             },
             ApprovalAction.APPROVE,
             approver,
             comment=comment,
-            previous_status="pending_approval",
+            previous_status="pending",  # Use valid ApprovalStatus enum value
             new_status="approved",
         )
         
@@ -1805,14 +1805,14 @@ class ApprovalWorkflowService:
                 "organization_id": org_id,
                 "id": response_id,
                 "workflow_id": None,
-                "entity_type": "questionnaire_response",
+                "entity_type": "esg_response",  # Use valid EntityType enum value
                 "entity_id": question_key,
                 "entity_subtype": response.get("framework"),
             },
             ApprovalAction.REJECT,
             rejector,
             comment=reason,
-            previous_status="pending_approval",
+            previous_status="pending",  # Use valid ApprovalStatus enum value
             new_status="rejected",
         )
         
@@ -1840,7 +1840,7 @@ class ApprovalWorkflowService:
         return await db[HISTORY_COLLECTION].find(
             {
                 "organization_id": organization_id,
-                "entity_type": "questionnaire_response",
+                "entity_type": "esg_response",  # Match the entity_type we record with
                 "entity_id": question_key,
             },
             {"_id": 0}

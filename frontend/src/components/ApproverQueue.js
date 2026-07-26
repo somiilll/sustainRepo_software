@@ -27,10 +27,13 @@ import {
   RefreshCw,
   FileText,
   ChevronRight,
-  Inbox
+  Inbox,
+  ScrollText,
+  BarChart3
 } from 'lucide-react';
 import { toast } from 'sonner';
 import SubmissionReviewPanel from './SubmissionReviewPanel';
+import QuestionnaireApprovalPanel from './QuestionnaireApprovalPanel';
 import { getCurrentReportingYear, generateReportingYears } from '../utils/reportingYearUtils';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -99,7 +102,7 @@ export default function ApproverQueue() {
         params.section = sectionFilter;
       }
       
-      // Fetch questionnaire submissions
+      // Fetch questionnaire submissions (old system)
       const questionnairePromise = axios.get(
         `${API}/api/esg-questionnaire/submissions/pending`,
         { headers: getAuthHeader(), params }
@@ -117,9 +120,19 @@ export default function ApproverQueue() {
         return { data: { requests: [] } };
       });
       
-      const [questionnaireRes, recordApprovalsRes] = await Promise.all([
+      // Fetch V2 questionnaire response approvals
+      const questionnaireV2Promise = axios.get(
+        `${API}/api/approval-workflows/questionnaire/queue`,
+        { headers: getAuthHeader() }
+      ).catch(err => {
+        console.warn('Failed to fetch V2 questionnaire approvals:', err);
+        return { data: { items: [] } };
+      });
+      
+      const [questionnaireRes, recordApprovalsRes, questionnaireV2Res] = await Promise.all([
         questionnairePromise,
-        recordApprovalsPromise
+        recordApprovalsPromise,
+        questionnaireV2Promise
       ]);
       
       // Transform record approvals to match submission format
@@ -143,10 +156,36 @@ export default function ApproverQueue() {
           _approval_request_id: r.id,
         }));
       
-      // Combine both sources
+      // Transform V2 questionnaire approvals
+      const questionnaireV2Approvals = (questionnaireV2Res.data.items || [])
+        .map(item => ({
+          id: item.id,
+          entity_type: 'questionnaire_response',
+          entity_id: item.question_key,
+          section: item.section_id || 'section_b',
+          question_key: item.question_key,
+          disclosure_name: item.question_name,
+          question_type: item.question_type,
+          field_config: item.field_config,
+          framework: item.framework,
+          reporting_year: item.reporting_year,
+          response_data: item.response_data,
+          submitted_by: item.submitted_by_id,
+          submitted_by_name: item.submitted_by_name,
+          submitted_by_email: item.submitted_by_email,
+          submitted_at: item.submitted_at,
+          status: 'pending_approval',
+          due_date: item.due_date,
+          assignment_id: item.assignment_id,
+          _source: 'questionnaire_approval_v2',
+          _response_id: item.id,
+        }));
+      
+      // Combine all sources
       setSubmissions([
         ...(questionnaireRes.data.submissions || []),
-        ...recordApprovals
+        ...recordApprovals,
+        ...questionnaireV2Approvals
       ]);
     } catch (error) {
       console.error('Failed to fetch submissions:', error);
@@ -362,40 +401,48 @@ export default function ApproverQueue() {
         </div>
       )}
 
-      {/* Review Dialog */}
-      <Dialog 
-        open={selectedQuestion !== null} 
-        onOpenChange={() => setSelectedQuestion(null)}
-      >
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5 text-purple-600" />
-              <span className="font-mono">
-                {selectedQuestion?._source === 'approval_workflow' 
-                  ? selectedQuestion.disclosure_name 
-                  : selectedQuestion?.question_key}
-              </span>
-            </DialogTitle>
-          </DialogHeader>
-          
-          {selectedQuestion && selectedQuestion._source === 'approval_workflow' ? (
-            <RecordApprovalPanel
-              item={selectedQuestion}
-              onClose={() => setSelectedQuestion(null)}
-              onApproved={handleApprovalComplete}
-              getAuthHeader={getAuthHeader}
-            />
-          ) : selectedQuestion ? (
-            <SubmissionReviewPanel
-              questionKey={selectedQuestion.question_key}
-              reportingPeriod={selectedQuestion.reporting_period || reportingPeriod}
-              onClose={() => setSelectedQuestion(null)}
-              onApproved={handleApprovalComplete}
-            />
-          ) : null}
-        </DialogContent>
-      </Dialog>
+      {/* Review Dialog - Handle different item types */}
+      {selectedQuestion && selectedQuestion._source === 'questionnaire_approval_v2' ? (
+        <QuestionnaireApprovalPanel
+          item={selectedQuestion}
+          onClose={() => setSelectedQuestion(null)}
+          onApproved={handleApprovalComplete}
+        />
+      ) : (
+        <Dialog 
+          open={selectedQuestion !== null && selectedQuestion._source !== 'questionnaire_approval_v2'} 
+          onOpenChange={() => setSelectedQuestion(null)}
+        >
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-purple-600" />
+                <span className="font-mono">
+                  {selectedQuestion?._source === 'approval_workflow' 
+                    ? selectedQuestion.disclosure_name 
+                    : selectedQuestion?.question_key}
+                </span>
+              </DialogTitle>
+            </DialogHeader>
+            
+            {selectedQuestion && selectedQuestion._source === 'approval_workflow' ? (
+              <RecordApprovalPanel
+                item={selectedQuestion}
+                onClose={() => setSelectedQuestion(null)}
+                onApproved={handleApprovalComplete}
+                getAuthHeader={getAuthHeader}
+              />
+            ) : selectedQuestion ? (
+              <SubmissionReviewPanel
+                questionKey={selectedQuestion.question_key}
+                reportingPeriod={selectedQuestion.reporting_period || reportingPeriod}
+                onClose={() => setSelectedQuestion(null)}
+                onApproved={handleApprovalComplete}
+              />
+            ) : null}
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
