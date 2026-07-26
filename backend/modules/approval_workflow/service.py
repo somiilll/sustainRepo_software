@@ -46,6 +46,68 @@ def _now_iso() -> str:
     return _now().isoformat()
 
 
+async def _create_approval_version_snapshot(
+    collection_name: str,
+    record_id: str,
+    action: str,  # "approved" or "rejected"
+    user_id: str,
+    rejection_reason: Optional[str] = None,
+):
+    """
+    Create a version snapshot for approval/rejection events.
+    
+    This captures governance state changes in the version history so users
+    can see when a record was approved/rejected and by whom.
+    """
+    import uuid
+    
+    # Map collection to versions collection
+    versions_collection_map = {
+        "environment_records": "environment_records_versions",
+        "social_records": "social_records_versions",
+        "governance_records": "governance_records_versions",
+        "emission_records": "emission_records_versions",
+    }
+    
+    versions_collection = versions_collection_map.get(collection_name)
+    if not versions_collection:
+        logger.warning(f"No versions collection for {collection_name}")
+        return
+    
+    # Get the current record to capture its state
+    record = await db[collection_name].find_one(
+        {"id": record_id},
+        {"_id": 0}
+    )
+    
+    if not record:
+        logger.warning(f"Record {record_id} not found for version snapshot")
+        return
+    
+    # Get current max version
+    current_version = record.get("version", 1)
+    
+    # Create version snapshot
+    version_doc = {
+        "id": str(uuid.uuid4()),
+        "record_id": record_id,
+        "version": current_version,
+        "snapshot": record,
+        "changed_fields": ["approval_status"],
+        "change_reason": f"Record {action}" + (f": {rejection_reason}" if rejection_reason else ""),
+        "change_type": action,  # "approved" or "rejected"
+        "created_by": user_id,
+        "created_at": _now_iso(),
+    }
+    
+    # Add rejection details if rejected
+    if action == "rejected" and rejection_reason:
+        version_doc["rejection_reason"] = rejection_reason
+    
+    await db[versions_collection].insert_one(version_doc)
+    logger.info(f"Created {action} version snapshot for {collection_name} record {record_id}")
+
+
 class ApprovalWorkflowService:
     """Service class for approval workflow operations."""
     
@@ -808,6 +870,14 @@ class ApprovalWorkflowService:
                         )
                         logger.info(f"Updated ESG record {entity_id} status=completed, approval_status=approved")
                         
+                        # Create version snapshot for approval event
+                        await _create_approval_version_snapshot(
+                            collection_name=collection_name,
+                            record_id=entity_id,
+                            action="approved",
+                            user_id=approver.get("id"),
+                        )
+                        
                         # Get the record to find the corresponding task
                         record = await db[collection_name].find_one(
                             {"id": entity_id, "is_current": True},
@@ -883,6 +953,14 @@ class ApprovalWorkflowService:
                         {"$set": record_update}
                     )
                     logger.info(f"Updated emission_record {entity_id} approval_status=approved")
+                    
+                    # Create version snapshot for approval event
+                    await _create_approval_version_snapshot(
+                        collection_name="emission_records",
+                        record_id=entity_id,
+                        action="approved",
+                        user_id=approver.get("id"),
+                    )
                 except Exception as e:
                     logger.error(f"Failed to update emission_record with approval: {e}")
         
@@ -1051,6 +1129,15 @@ class ApprovalWorkflowService:
                         {"$set": update_doc}
                     )
                     logger.info(f"Updated {collection_name} record {entity_id} approval_status to rejected")
+                    
+                    # Create version snapshot for rejection event
+                    await _create_approval_version_snapshot(
+                        collection_name=collection_name,
+                        record_id=entity_id,
+                        action="rejected",
+                        user_id=rejector_id,
+                        rejection_reason=comment,
+                    )
                 else:
                     logger.warning(f"Unknown entity_subtype for esg_record: {entity_subtype}")
             
@@ -1061,6 +1148,15 @@ class ApprovalWorkflowService:
                     {"$set": update_doc}
                 )
                 logger.info(f"Updated emission_record {entity_id} approval_status to rejected")
+                
+                # Create version snapshot for rejection event
+                await _create_approval_version_snapshot(
+                    collection_name="emission_records",
+                    record_id=entity_id,
+                    action="rejected",
+                    user_id=rejector_id,
+                    rejection_reason=comment,
+                )
             
             elif entity_type == "esg_response":
                 # Update the ESG assignment for the question
