@@ -359,3 +359,24 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
 - Water Withdrawal KPIs missing filters (BLOCKED - user requested delay)
 - Emission Intensity shows null if turnover not populated in governance_records
 - Waste Intensity shows null if turnover not populated in governance_records
+
+## Future Enhancements (Backlog)
+
+### Multi-Level Approval Flow (P2 - Deferred)
+- **Current State**: Single-level approval with `approver_id` extracted from `approval_chain[0]`
+- **Future State**: Sequential multi-level approval (L1 → L2 → L3)
+- **Data Model** (backward compatible, no migration needed):
+  - `approval_chain: ["L1_user", "L2_user", "L3_user"]` - already exists
+  - `current_approval_level: 0` - NEW field (default 0 for existing)
+  - `approval_status` stays simple ("pending_approval", "approved", "rejected")
+- **Key Decisions Needed**:
+  1. Rejection behavior: Back to L1 or directly to assignee?
+  2. Skip levels: Can L1 approve AND skip to final?
+  3. Parallel vs sequential approval?
+  4. Delegation support?
+- **Implementation Order**:
+  1. Add `current_approval_level` to records
+  2. Update approval workflow to advance through levels
+  3. Update approval queue for level filtering
+  4. Frontend multi-level assignment UI
+- **No breaking migration**: Code will default missing `current_approval_level` to 0
