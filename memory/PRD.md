@@ -18,15 +18,20 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
 - **Key Methods**:
   - `DataChecker.check_exists()` - Check if data exists for a period
   - `completion_service.get_task_status()` - Compute task status (not stored)
+  - `completion_service.get_task_status_with_approval()` - Compute both status AND approval_status from records
   - `completion_service.get_assignment_progress()` - Calculate filled/total/percentage
   - `calculate_aggregate_approval_status()` - Compute org-level status from facility statuses
 - **Used by**: My Tasks, Progress Engine Router, Tracker, Dashboard
-- **Philosophy**: Task status is COMPUTED from actual data, never stored
-- **Aggregate Approval Rules**: 
-  - ALL_APPROVED: All facilities approved → Completed
-  - PARTIALLY_APPROVED: Mixed approved/pending → Completed (awaiting some)
-  - ALL_PENDING: All pending → Completed (awaiting approval)
-  - HAS_REJECTION: Any rejected → Rejected (blocks completion)
+- **Philosophy**: Task status AND approval_status are COMPUTED from actual data, never stored
+- **Aggregate Approval Rules** (Priority order: approved > pending > rejected): 
+  - ANY approved → ALL_APPROVED (status=completed, approval_status=approved)
+  - NO approved, ANY pending → ALL_PENDING (status=completed, approval_status=pending_approval)
+  - ALL rejected (none approved, none pending) → HAS_REJECTION (status=pending, approval_status=rejected)
+  - NOT_REQUIRED → No approval workflow (status=completed, approval_status=None)
+- **Progress Calculation Rule** (Dec 2024):
+  - `pending_approval` records count as completed (work done, awaiting review)
+  - `approved` records count as completed
+  - `rejected` records do NOT count as completed (need resubmission)
 
 ### Assignment Versioning (Dec 2024)
 - **Version Tracking**: Assignments have `version` field (incremented on update)
@@ -72,19 +77,19 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
 - **Immutability**: interpretation_snapshot is NEVER updated on assignment edits
 
 ### AssignmentResolver - Single Source of Truth (Dec 2024)
-- **Purpose**: Centralized assignment resolution for the V1→V2 migration
+- **Purpose**: Centralized assignment resolution using V2 architecture exclusively
 - **Location**: `/app/backend/modules/esg_assignments/assignment_resolver.py`
 - **Key Methods**:
-  - `resolve()` - Returns assignment or None (checks V2 then legacy)
+  - `resolve()` - Returns assignment or None (V2 architecture only)
   - `require_assignment()` - Returns assignment or raises HTTPException
   - `get_user_assignments()` - Returns all user's assignments
 - **V2 Architecture**: Assignees in `esg_assignment_assignees` collection (many-to-many)
-- **Legacy Architecture**: `assigned_to_user_id` field on assignment (single user)
+  - Query uses `organization_id` filter for efficient scoped lookups
+- **Legacy `assigned_to_user_id`**: REMOVED - V2 is now the exclusive source of truth
 - **Modules Updated**:
   - `esg_records/service.py` - `_validate_user_assignment` and `update_record`
   - `access_control.py` - Permission checks
   - `scheduler.py` - Reminder system
-- **TODO**: Remove legacy fallback after migration complete
 
 ### Category-Level Assignment Expansion (Dec 2024)
 - **Design**: When admin assigns a category (no subcategory), system expands to independent subcategory assignments

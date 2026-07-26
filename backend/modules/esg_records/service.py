@@ -986,13 +986,18 @@ class ESGRecordsService:
         # User must create a brand-new submission after rejection
         # =========================================================================
         if current.get("approval_status") == "rejected":
+            # Coerce datetime fields to isoformat string to avoid JSON serialization errors
+            rejected_at = current.get("rejected_at")
+            if rejected_at and hasattr(rejected_at, 'isoformat'):
+                rejected_at = rejected_at.isoformat()
+            
             raise HTTPException(
                 status_code=400,
                 detail={
                     "error": "REJECTED_RECORD_EDIT_NOT_ALLOWED",
                     "message": "This record was rejected. You cannot edit a rejected record. Please create a new submission instead.",
                     "rejection_reason": current.get("rejection_reason"),
-                    "rejected_at": current.get("rejected_at"),
+                    "rejected_at": rejected_at,
                     "suggestion": "Create a new record with the corrected data.",
                 }
             )
