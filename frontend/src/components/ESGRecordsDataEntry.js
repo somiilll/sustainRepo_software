@@ -780,7 +780,20 @@ export default function ESGRecordsDataEntry({
       fetchDrafts();
     } catch (error) {
       console.error('Failed to update record:', error);
-      toast.error(error.response?.data?.detail || 'Failed to update record');
+      const errorDetail = error.response?.data?.detail;
+      
+      // Handle structured error response (object with error/message)
+      if (errorDetail && typeof errorDetail === 'object') {
+        // Show the message, and if rejection reason exists, show it too
+        const message = errorDetail.message || 'Failed to update record';
+        if (errorDetail.rejection_reason) {
+          toast.error(`${message}\n\nRejection reason: ${errorDetail.rejection_reason}`);
+        } else {
+          toast.error(message);
+        }
+      } else {
+        toast.error(errorDetail || 'Failed to update record');
+      }
     } finally {
       setSaving(prev => ({ ...prev, edit: false }));
     }
@@ -1338,24 +1351,42 @@ export default function ESGRecordsDataEntry({
                             <Lock className="w-4 h-4" />
                           </div>
                         </div>
-                      ) : record.status === 'rejected' ? (
-                        /* Rejected record - show Edit & Resubmit */
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            variant="default"
-                            size="sm"
-                            onClick={() => openEditModal(record)}
-                            className="bg-amber-600 hover:bg-amber-700 gap-1"
-                            title="Edit & Resubmit"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                            Resubmit
-                          </Button>
+                      ) : record.approval_status === 'rejected' ? (
+                        /* Rejected record - show rejection reason, no edit allowed */
+                        <div className="flex items-center justify-end gap-2">
+                          <div className="text-right">
+                            <div className="text-xs text-red-600 font-medium">Rejected</div>
+                            {record.rejection_reason && (
+                              <div className="text-xs text-gray-500 max-w-[200px] truncate" title={record.rejection_reason}>
+                                {record.rejection_reason}
+                              </div>
+                            )}
+                          </div>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => viewVersions(record)}
-                            title="Version History"
+                            title="View History"
+                          >
+                            <History className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ) : record.status === 'rejected' ? (
+                        /* Legacy rejected status - same treatment */
+                        <div className="flex items-center justify-end gap-2">
+                          <div className="text-right">
+                            <div className="text-xs text-red-600 font-medium">Rejected</div>
+                            {record.rejection_reason && (
+                              <div className="text-xs text-gray-500 max-w-[200px] truncate" title={record.rejection_reason}>
+                                {record.rejection_reason}
+                              </div>
+                            )}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => viewVersions(record)}
+                            title="View History"
                           >
                             <History className="w-4 h-4" />
                           </Button>

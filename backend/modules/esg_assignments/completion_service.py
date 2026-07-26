@@ -921,13 +921,19 @@ class CompletionService:
         
         for period in periods:
             period_key = period["period_key"]
-            has_data, last_updated, _ = await DataChecker.check_exists(
+            has_data, last_updated, approval_status = await DataChecker.check_exists(
                 org_id, category, subcategory, facility_id, period_key
             )
             
             result.total += 1
             
-            if has_data:
+            # BUSINESS RULE: Rejected records do NOT count as completed for progress
+            # - pending_approval: counts as completed (work done, awaiting review)
+            # - approved: counts as completed
+            # - rejected: does NOT count (needs resubmission)
+            is_completed_for_progress = has_data and approval_status != "rejected"
+            
+            if is_completed_for_progress:
                 result.completed += 1
                 if last_updated and (not result.last_updated or last_updated > result.last_updated):
                     result.last_updated = last_updated
@@ -947,9 +953,12 @@ class CompletionService:
                 result.period_details.append({
                     "period_key": period_key,
                     "has_data": has_data,
+                    "approval_status": approval_status,
+                    "counts_as_completed": is_completed_for_progress,
                     "facility_breakdown": [{
                         "facility_id": facility_id,
                         "has_data": has_data,
+                        "approval_status": approval_status,
                     }]
                 })
         
@@ -1001,24 +1010,27 @@ class CompletionService:
             period_end = period.get("period_end")
             
             # Check org-level record first (facility_id=None)
-            has_org_record, org_last_updated, _ = await DataChecker.check_exists(
+            has_org_record, org_last_updated, org_approval_status = await DataChecker.check_exists(
                 org_id, category, subcategory, None, period_key
             )
             
+            # BUSINESS RULE: Rejected records do NOT count as completed for progress
+            org_counts_as_completed = has_org_record and org_approval_status != "rejected"
+            
             facility_breakdown = []
             
-            if has_org_record:
-                # Org-level record exists - count as 1 completed
+            if org_counts_as_completed:
+                # Org-level record exists and is not rejected - count as 1 completed
                 result.total += 1
                 result.completed += 1
                 if org_last_updated and (not result.last_updated or org_last_updated > result.last_updated):
                     result.last_updated = org_last_updated
                 
                 if include_details:
-                    facility_breakdown = [{"facility_id": None, "facility_name": "Organization Level", "has_data": True}]
+                    facility_breakdown = [{"facility_id": None, "facility_name": "Organization Level", "has_data": True, "approval_status": org_approval_status}]
             
             elif has_any_facility_records:
-                # No org record, but facility-level reporting is used
+                # No org record (or rejected), but facility-level reporting is used
                 # Expand to require ALL facilities
                 num_facilities = len(facilities)
                 result.total += num_facilities
@@ -1030,11 +1042,14 @@ class CompletionService:
                     fac_id = facility.get("id")
                     fac_name = facility.get("name", "Unknown")
                     
-                    has_fac_data, fac_last_updated, _ = await DataChecker.check_exists(
+                    has_fac_data, fac_last_updated, fac_approval_status = await DataChecker.check_exists(
                         org_id, category, subcategory, fac_id, period_key
                     )
                     
-                    if has_fac_data:
+                    # BUSINESS RULE: Rejected records do NOT count as completed
+                    fac_counts_as_completed = has_fac_data and fac_approval_status != "rejected"
+                    
+                    if fac_counts_as_completed:
                         facilities_completed += 1
                         if fac_last_updated and (not period_last_updated or fac_last_updated > period_last_updated):
                             period_last_updated = fac_last_updated
@@ -1044,6 +1059,8 @@ class CompletionService:
                             "facility_id": fac_id,
                             "facility_name": fac_name,
                             "has_data": has_fac_data,
+                            "approval_status": fac_approval_status,
+                            "counts_as_completed": fac_counts_as_completed,
                         })
                 
                 result.completed += facilities_completed
