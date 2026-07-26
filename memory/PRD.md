@@ -71,6 +71,17 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
   - `start_date/end_date` (tasks have own `period_key`)
 - **Immutability**: interpretation_snapshot is NEVER updated on assignment edits
 
+### Category-Level Assignment Expansion (Dec 2024)
+- **Design**: When admin assigns a category (no subcategory), system expands to independent subcategory assignments
+- **No parent assignment**: Only leaf-level (subcategory) assignments exist after expansion
+- **Metadata Fields**:
+  - `assignment_source`: "category" (from expansion) or "subcategory" (direct)
+  - `expanded_from_category`: Original category name (for UI convenience)
+- **Category Progress**: Computed at runtime via `get_category_progress()` - aggregates all subcategory assignments
+- **Bulk Operations**: `UPDATE WHERE category = "Water"` - no inheritance logic needed
+- **Subcategory Source**: `esg_record_categories` (Super Admin managed) with fallback to `environment_records`
+- **Files**: `assignment_service_v2.py`
+
 ### Task Ownership Fields (Dec 2024)
 - **Purpose**: Clear audit trail for who submitted/completed tasks, even after reassignments
 - **Fields on `esg_reporting_tasks`**:
