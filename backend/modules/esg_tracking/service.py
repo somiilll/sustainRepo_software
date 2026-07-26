@@ -1102,7 +1102,9 @@ class TrackingService:
                 "reminder_config": request.reminder_config,
                 "reminder_frequency": request.reminder_frequency,  # Add reminder frequency
                 "requires_approval": request.requires_approval,
-                "approver_id": request.approver_id,  # Single-level approval
+                # Extract approver_id from approval_chain[0] if not directly provided
+                # This handles frontend sending approval_chain instead of approver_id
+                "approver_id": request.approver_id or (request.approval_chain[0] if request.approval_chain else None),
                 "approval_chain": request.approval_chain or [],
                 "framework_id": request.framework_id,
                 "group_assignment_id": group_id,

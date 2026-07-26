@@ -442,7 +442,9 @@ class AssignmentServiceV2:
                 "reminder_config": data.get("reminder_config"),
                 "reminder_frequency": data.get("reminder_frequency"),
                 "requires_approval": data.get("requires_approval", False),
-                "approver_id": data.get("approver_id"),  # Single-level approval
+                # Extract approver_id from approval_chain[0] if not directly provided
+                # This ensures consistency when frontend sends approval_chain instead of approver_id
+                "approver_id": data.get("approver_id") or (data.get("approval_chain", [])[0] if data.get("approval_chain") else None),
                 "approval_chain": data.get("approval_chain", []),  # Multi-level approval
                 "framework_id": data.get("framework_id"),
                 "group_assignment_id": data.get("group_assignment_id"),
