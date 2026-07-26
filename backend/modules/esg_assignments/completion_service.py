@@ -129,32 +129,27 @@ def calculate_aggregate_approval_status(facility_statuses: List[str]) -> Aggrega
     """
     Calculate aggregate approval status from a list of facility-level approval statuses.
     
-    BUSINESS RULES (documented for clarity):
+    BUSINESS RULES (updated logic - priority order):
     
-    1. If ANY facility is rejected → HAS_REJECTION
-       - Org task shows "Rejected"
-       - User must fix the rejected facility before org completion
-       - Progress: Does NOT count as completed
+    1. If ANY facility is approved → ALL_APPROVED (even if others rejected/pending)
+       - Status: completed, approval_status: approved
+       - Rationale: At least some work is approved
     
-    2. If ALL facilities are approved → ALL_APPROVED
-       - Org task shows "Completed - Approved"
-       - Progress: Counts as completed
+    2. If NO approvals but ANY pending → ALL_PENDING (even if others rejected)
+       - Status: completed, approval_status: pending_approval
+       - Rationale: Work submitted, awaiting review
     
-    3. If ALL facilities are pending_approval → ALL_PENDING
-       - Org task shows "Completed - Awaiting Approval"
-       - Progress: Counts as completed (data exists)
+    3. If ALL rejected (no approved, no pending) → HAS_REJECTION
+       - Status: pending, approval_status: rejected
+       - Rationale: All work rejected, needs resubmission
     
-    4. If SOME approved, SOME pending → PARTIALLY_APPROVED
-       - Org task shows "Completed - Partially Approved"
-       - Progress: Counts as completed (data exists)
-    
-    5. If all are not_required → NOT_REQUIRED
+    4. If all are not_required → NOT_REQUIRED
        - No approval workflow configured
-       - Progress: Counts as completed
+       - Status: completed, approval_status: None
     
     Args:
         facility_statuses: List of approval_status values from facility records
-                          e.g., ["approved", "pending_approval", "approved"]
+                          e.g., ["approved", "pending_approval", "rejected"]
     
     Returns:
         AggregateApprovalStatus enum value
@@ -165,24 +160,24 @@ def calculate_aggregate_approval_status(facility_statuses: List[str]) -> Aggrega
     # Normalize status values
     statuses = set(s.lower() if s else "not_required" for s in facility_statuses)
     
-    # Rule 1: Any rejection blocks everything
-    if "rejected" in statuses:
-        return AggregateApprovalStatus.HAS_REJECTION
+    has_approved = "approved" in statuses
+    has_pending = "pending" in statuses or "pending_approval" in statuses
+    has_rejected = "rejected" in statuses
     
-    # Rule 2: All approved
-    approved_statuses = {"approved", "not_required"}
-    if all(s in approved_statuses for s in statuses):
-        if "approved" in statuses:
-            return AggregateApprovalStatus.ALL_APPROVED
-        return AggregateApprovalStatus.NOT_REQUIRED
+    # Rule 1: ANY approved → treat as approved (highest priority)
+    if has_approved:
+        return AggregateApprovalStatus.ALL_APPROVED
     
-    # Rule 3: All pending
-    pending_statuses = {"pending", "pending_approval"}
-    if all(s in pending_statuses for s in statuses):
+    # Rule 2: No approved, but has pending → pending_approval
+    if has_pending:
         return AggregateApprovalStatus.ALL_PENDING
     
-    # Rule 4: Mixed - some approved, some pending
-    return AggregateApprovalStatus.PARTIALLY_APPROVED
+    # Rule 3: All rejected (no approved, no pending)
+    if has_rejected:
+        return AggregateApprovalStatus.HAS_REJECTION
+    
+    # Rule 4: All not_required
+    return AggregateApprovalStatus.NOT_REQUIRED
 
 
 # =============================================================================
@@ -723,42 +718,73 @@ class CompletionService:
         
         Returns: (TaskStatus, approval_status_string or None)
         
-        This is the single source of truth - approval_status comes from RECORDS, not tasks.
+        BUSINESS RULES:
+        - pending_approval: status=completed, approval_status=pending_approval
+        - rejected but one approved: status=completed, approval_status=approved
+        - rejected and none approved and none pending: status=pending, approval_status=rejected
+        - rejected and none approved but one pending: status=completed, approval_status=pending_approval
+        
+        This is the single source of truth - status AND approval_status come from RECORDS.
         """
         org_id = task.get("organization_id")
         facility_id = task.get("facility_id")
         category = task.get("category")
         subcategory = task.get("subcategory")
         period_key = task.get("period_key")
+        due_at = task.get("due_at")
+        is_backfill = task.get("is_backfill", False)
         
         # Check if data exists and get approval status from RECORD
         has_data, _, record_approval_status = await DataChecker.check_exists(
             org_id, category, subcategory, facility_id, period_key
         )
         
-        # Get the computed status
-        computed_status = await self.get_task_status(task)
+        # If no data exists, return pending/overdue status
+        if not has_data:
+            if due_at:
+                due_datetime = datetime.fromisoformat(due_at.replace("Z", "+00:00")) if isinstance(due_at, str) else due_at
+                if due_datetime.tzinfo is None:
+                    due_datetime = due_datetime.replace(tzinfo=timezone.utc)
+                if datetime.now(timezone.utc) > due_datetime:
+                    return TaskStatus.OVERDUE, None
+            if is_backfill:
+                return TaskStatus.BACKFILL_PENDING, None
+            return TaskStatus.PENDING, None
         
-        # Determine approval status string from records
+        # Data exists - determine approval status
         approval_status = None
-        if has_data:
-            if not facility_id:
-                # Org-level: aggregate across facilities
-                aggregate = await self._get_aggregate_approval_status(
-                    org_id, category, subcategory, period_key
-                )
-                if aggregate == AggregateApprovalStatus.HAS_REJECTION:
-                    approval_status = "rejected"
-                elif aggregate in [AggregateApprovalStatus.ALL_PENDING, AggregateApprovalStatus.PARTIALLY_APPROVED]:
-                    approval_status = "pending_approval"
-                elif aggregate == AggregateApprovalStatus.ALL_APPROVED:
-                    approval_status = "approved"
-                # NOT_REQUIRED = None
-            else:
-                # Facility-level: use direct status from record
-                approval_status = record_approval_status
         
-        return computed_status, approval_status
+        if not facility_id:
+            # Org-level: aggregate across facilities
+            aggregate = await self._get_aggregate_approval_status(
+                org_id, category, subcategory, period_key
+            )
+            if aggregate == AggregateApprovalStatus.HAS_REJECTION:
+                # All rejected, none approved, none pending → status=pending, approval_status=rejected
+                return TaskStatus.PENDING, "rejected"
+            elif aggregate == AggregateApprovalStatus.ALL_PENDING:
+                # Has pending (maybe some rejected) but no approved → status=completed, approval_status=pending_approval
+                return TaskStatus.PENDING_APPROVAL, "pending_approval"
+            elif aggregate == AggregateApprovalStatus.ALL_APPROVED:
+                # Has at least one approved → status=completed, approval_status=approved
+                return TaskStatus.COMPLETED, "approved"
+            elif aggregate == AggregateApprovalStatus.PARTIALLY_APPROVED:
+                # Some approved, some pending → status=completed, approval_status=approved (at least one approved)
+                return TaskStatus.COMPLETED, "approved"
+            else:
+                # NOT_REQUIRED - no approval workflow
+                return TaskStatus.COMPLETED, None
+        else:
+            # Facility-level: use direct status from record
+            if record_approval_status == "rejected":
+                return TaskStatus.PENDING, "rejected"
+            elif record_approval_status in ["pending", "pending_approval"]:
+                return TaskStatus.PENDING_APPROVAL, "pending_approval"
+            elif record_approval_status == "approved":
+                return TaskStatus.COMPLETED, "approved"
+            else:
+                # No approval workflow or not_required
+                return TaskStatus.COMPLETED, None
 
     async def _get_aggregate_approval_status(
         self,
