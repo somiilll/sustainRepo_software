@@ -191,8 +191,50 @@ class DataChecker:
     This is the CORE logic - everything else builds on top of this.
     
     Returns: (has_data, last_updated, approval_status)
-    - approval_status can be: None, "pending", "approved", "rejected"
+    - approval_status can be: None, "pending", "pending_approval", "approved", "rejected"
+    
+    PRIORITY LOGIC: When multiple records exist for the same period, returns the BEST
+    approval_status based on: approved > pending_approval > pending > None > rejected
     """
+    
+    # Priority order for approval statuses (higher = better)
+    APPROVAL_PRIORITY = {
+        "approved": 5,
+        "pending_approval": 4,
+        "pending": 3,
+        None: 2,
+        "not_required": 2,
+        "rejected": 1,
+    }
+    
+    @staticmethod
+    def _get_best_approval_status(records: list) -> Tuple[Optional[datetime], Optional[str]]:
+        """
+        From a list of records, return the best approval_status based on priority.
+        
+        Priority: approved > pending_approval > pending > None > rejected
+        
+        Returns: (last_updated, best_approval_status)
+        """
+        if not records:
+            return None, None
+        
+        best_record = None
+        best_priority = -1
+        
+        for record in records:
+            status = record.get("approval_status")
+            priority = DataChecker.APPROVAL_PRIORITY.get(status, 0)
+            
+            if priority > best_priority:
+                best_priority = priority
+                best_record = record
+        
+        if best_record:
+            last_updated = best_record.get("updated_at") or best_record.get("created_at")
+            return last_updated, best_record.get("approval_status")
+        
+        return None, None
     
     @staticmethod
     async def check_exists(
@@ -245,6 +287,7 @@ class DataChecker:
         Returns: (has_data, last_updated, approval_status)
         
         NOTE: Draft records are excluded - only submitted/completed records count as "has_data"
+        PRIORITY: When multiple records exist, returns best status (approved > pending > rejected)
         """
         query = {
             "organization_id": organization_id,
@@ -276,16 +319,14 @@ class DataChecker:
         elif "biogenic" in sub_lower:
             query["scope"] = "biogenic"
         
-        # Get most recent record with approval_status
-        record = await db.emission_records.find_one(
+        # Get ALL records for this period and find the best approval_status
+        records = await db.emission_records.find(
             query,
-            {"_id": 0, "updated_at": 1, "created_at": 1, "approval_status": 1},
-            sort=[("updated_at", -1)]
-        )
+            {"_id": 0, "updated_at": 1, "created_at": 1, "approval_status": 1}
+        ).to_list(100)
         
-        if record:
-            last_updated = record.get("updated_at") or record.get("created_at")
-            approval_status = record.get("approval_status")
+        if records:
+            last_updated, approval_status = DataChecker._get_best_approval_status(records)
             return True, last_updated, approval_status
         return False, None, None
     
@@ -303,6 +344,7 @@ class DataChecker:
         Returns: (has_data, last_updated, approval_status)
         
         NOTE: Draft records are excluded - only submitted/completed records count as "has_data"
+        PRIORITY: When multiple records exist, returns best status (approved > pending > rejected)
         """
         query = {
             "$or": [
@@ -348,15 +390,14 @@ class DataChecker:
         except (ValueError, IndexError):
             pass
         
-        record = await db.environment_records.find_one(
+        # Get ALL records for this period and find the best approval_status
+        records = await db.environment_records.find(
             query,
-            {"_id": 0, "updated_at": 1, "created_at": 1, "approval_status": 1},
-            sort=[("updated_at", -1)]
-        )
+            {"_id": 0, "updated_at": 1, "created_at": 1, "approval_status": 1}
+        ).to_list(100)
         
-        if record:
-            last_updated = record.get("updated_at") or record.get("created_at")
-            approval_status = record.get("approval_status")
+        if records:
+            last_updated, approval_status = DataChecker._get_best_approval_status(records)
             return True, last_updated, approval_status
         return False, None, None
     
@@ -374,6 +415,7 @@ class DataChecker:
         Returns: (has_data, last_updated, approval_status)
         
         NOTE: Draft records are excluded - only submitted/completed records count as "has_data"
+        PRIORITY: When multiple records exist, returns best status (approved > pending > rejected)
         """
         query = {
             "$or": [
@@ -406,15 +448,14 @@ class DataChecker:
         except (ValueError, IndexError):
             pass
         
-        record = await db.social_records.find_one(
+        # Get ALL records for this period and find the best approval_status
+        records = await db.social_records.find(
             query,
-            {"_id": 0, "updated_at": 1, "created_at": 1, "approval_status": 1},
-            sort=[("updated_at", -1)]
-        )
+            {"_id": 0, "updated_at": 1, "created_at": 1, "approval_status": 1}
+        ).to_list(100)
         
-        if record:
-            last_updated = record.get("updated_at") or record.get("created_at")
-            approval_status = record.get("approval_status")
+        if records:
+            last_updated, approval_status = DataChecker._get_best_approval_status(records)
             return True, last_updated, approval_status
         return False, None, None
     
@@ -432,6 +473,7 @@ class DataChecker:
         Returns: (has_data, last_updated, approval_status)
         
         NOTE: Draft records are excluded - only submitted/completed records count as "has_data"
+        PRIORITY: When multiple records exist, returns best status (approved > pending > rejected)
         """
         query = {
             "$or": [
@@ -448,15 +490,14 @@ class DataChecker:
         if subcategory:
             query["subcategory"] = {"$regex": f"^{subcategory}$", "$options": "i"}
         
-        record = await db.governance_records.find_one(
+        # Get ALL records for this period and find the best approval_status
+        records = await db.governance_records.find(
             query,
-            {"_id": 0, "updated_at": 1, "created_at": 1, "approval_status": 1},
-            sort=[("updated_at", -1)]
-        )
+            {"_id": 0, "updated_at": 1, "created_at": 1, "approval_status": 1}
+        ).to_list(100)
         
-        if record:
-            last_updated = record.get("updated_at") or record.get("created_at")
-            approval_status = record.get("approval_status")
+        if records:
+            last_updated, approval_status = DataChecker._get_best_approval_status(records)
             return True, last_updated, approval_status
         return False, None, None
 
