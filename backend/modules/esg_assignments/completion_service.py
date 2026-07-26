@@ -764,7 +764,7 @@ class CompletionService:
                 return TaskStatus.PENDING, "rejected"
             elif aggregate == AggregateApprovalStatus.ALL_PENDING:
                 # Has pending (maybe some rejected) but no approved → status=completed, approval_status=pending_approval
-                return TaskStatus.PENDING_APPROVAL, "pending_approval"
+                return TaskStatus.COMPLETED, "pending_approval"
             elif aggregate == AggregateApprovalStatus.ALL_APPROVED:
                 # Has at least one approved → status=completed, approval_status=approved
                 return TaskStatus.COMPLETED, "approved"
@@ -779,7 +779,8 @@ class CompletionService:
             if record_approval_status == "rejected":
                 return TaskStatus.PENDING, "rejected"
             elif record_approval_status in ["pending", "pending_approval"]:
-                return TaskStatus.PENDING_APPROVAL, "pending_approval"
+                # Work submitted, awaiting approval → status=completed, approval_status=pending_approval
+                return TaskStatus.COMPLETED, "pending_approval"
             elif record_approval_status == "approved":
                 return TaskStatus.COMPLETED, "approved"
             else:
