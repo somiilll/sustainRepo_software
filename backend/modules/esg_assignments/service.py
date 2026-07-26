@@ -584,6 +584,22 @@ class AssignmentService:
         cursor = self._assignments.find(query, {"_id": 0}).sort("due_date", 1)
         docs = await cursor.to_list(500)
         
+        # Collect all question entity_ids for batch lookup
+        question_entity_ids = [
+            doc.get("entity_id") for doc in docs 
+            if doc.get("entity_type") == EntityType.QUESTION.value and doc.get("entity_id")
+        ]
+        
+        # Fetch question configs for labels/names
+        question_configs = {}
+        if question_entity_ids:
+            configs_cursor = db.esg_question_configs.find(
+                {"question_key": {"$in": question_entity_ids}},
+                {"_id": 0, "question_key": 1, "label": 1, "question": 1, "description": 1, "section": 1, "brsr_section": 1}
+            )
+            configs_list = await configs_cursor.to_list(500)
+            question_configs = {c["question_key"]: c for c in configs_list}
+        
         # Separate by entity type
         questions = []
         records = []
@@ -607,6 +623,16 @@ class AssignmentService:
                 doc["framework"] = doc["framework_id"]
             
             if doc.get("entity_type") == EntityType.QUESTION.value:
+                # Populate question name/label from config
+                entity_id = doc.get("entity_id")
+                if entity_id and entity_id in question_configs:
+                    config = question_configs[entity_id]
+                    doc["question_name"] = config.get("label") or config.get("question") or config.get("description", "")[:100]
+                    doc["section_id"] = config.get("brsr_section") or config.get("section")
+                else:
+                    # Fallback: format entity_id as title
+                    doc["question_name"] = entity_id.replace("_", " ").title() if entity_id else ""
+                    doc["section_id"] = None
                 questions.append(doc)
             else:
                 records.append(doc)

@@ -60,10 +60,21 @@ export default function MyTasks({
   // Navigate to fill the item
   const handleFillTask = (task) => {
     const taskDomain = task.domain || domain || 'environment';
-    const taskFramework = task.framework || 'BRSR';
+    const taskFramework = (task.framework || task.framework_id || 'BRSR').toLowerCase();
     
     if (task.entity_type === 'question') {
-      navigate(`/esg/${taskDomain}?framework=${taskFramework}&question=${task.entity_id}`);
+      // For BRSR questions, navigate to the BRSR module with the correct section tab
+      if (taskFramework === 'brsr') {
+        // Determine section from section_id (e.g., "SECTION_B" -> "section_b")
+        const sectionId = task.section_id?.toLowerCase() || 'section_b';
+        const params = new URLSearchParams();
+        params.set('tab', sectionId);
+        params.set('question', task.entity_id);
+        navigate(`/reporting/brsr?${params.toString()}`);
+      } else {
+        // For GRI or other frameworks
+        navigate(`/esg/${taskDomain}?framework=${taskFramework}&question=${task.entity_id}`);
+      }
     } else {
       const params = new URLSearchParams();
       params.set('tab', 'metrics');
@@ -101,10 +112,20 @@ export default function MyTasks({
   // Edit handler for completed tasks
   const handleEditTask = (task) => {
     const taskDomain = task.domain || domain || 'environment';
-    const taskFramework = task.framework || 'BRSR';
+    const taskFramework = (task.framework || task.framework_id || 'BRSR').toLowerCase();
     
     if (task.entity_type === 'question') {
-      navigate(`/esg/${taskDomain}?framework=${taskFramework}&question=${task.entity_id}&edit=true`);
+      // For BRSR questions, navigate to the BRSR module with the correct section tab
+      if (taskFramework === 'brsr') {
+        const sectionId = task.section_id?.toLowerCase() || 'section_b';
+        const params = new URLSearchParams();
+        params.set('tab', sectionId);
+        params.set('question', task.entity_id);
+        params.set('edit', 'true');
+        navigate(`/reporting/brsr?${params.toString()}`);
+      } else {
+        navigate(`/esg/${taskDomain}?framework=${taskFramework}&question=${task.entity_id}&edit=true`);
+      }
     } else {
       const params = new URLSearchParams();
       params.set('tab', 'metrics');

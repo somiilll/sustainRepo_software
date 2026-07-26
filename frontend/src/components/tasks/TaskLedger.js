@@ -45,6 +45,41 @@ function formatPeriodDisplay(task) {
   return `${start.toLocaleDateString('en-US', formatOpts)} - ${end.toLocaleDateString('en-US', formatOpts)}`;
 }
 
+/**
+ * Format question key to readable title
+ * e.g., "policy_extend_to_value_chain" -> "Policy Extend To Value Chain"
+ */
+function formatQuestionTitle(key) {
+  if (!key) return '-';
+  return key
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+/**
+ * Get display values for a task based on its type
+ * For questions (BRSR/GRI): show question name from backend
+ * For records (metrics): show category and subcategory
+ */
+function getTaskDisplayInfo(task) {
+  if (task.entity_type === 'question') {
+    // For disclosure questions, use the question_name from backend (fetched from esg_question_configs)
+    const questionName = task.question_name || formatQuestionTitle(task.entity_id || task.sub_subcategory);
+    return {
+      primary: questionName,
+      secondary: null, // No subcategory for questions
+      isQuestion: true,
+    };
+  }
+  // For regular metric records
+  return {
+    primary: task.category || '-',
+    secondary: task.subcategory || '-',
+    isQuestion: false,
+  };
+}
+
 export default function TaskLedger({ 
   tasks, 
   filters,
@@ -62,6 +97,8 @@ export default function TaskLedger({
       const matchesSearch = 
         task.category?.toLowerCase().includes(searchLower) ||
         task.subcategory?.toLowerCase().includes(searchLower) ||
+        task.entity_id?.toLowerCase().includes(searchLower) ||
+        task.question_name?.toLowerCase().includes(searchLower) ||
         task.period_label?.toLowerCase().includes(searchLower) ||
         task.facility_name?.toLowerCase().includes(searchLower);
       if (!matchesSearch) return false;
@@ -148,6 +185,7 @@ function TaskLedgerRow({ task, onFill, onView, onEdit }) {
   const dueInfo = formatDueDate(task, { showTime: true, showRelative: false });
   const periodDisplay = formatPeriodDisplay(task);
   const taskType = categorizeTask(task);
+  const displayInfo = getTaskDisplayInfo(task);
   
   // Determine if task is completed or approved
   const isCompleted = task.status === 'completed';
@@ -169,11 +207,13 @@ function TaskLedgerRow({ task, onFill, onView, onEdit }) {
       }`}
       data-testid={`task-ledger-row-${task.id}`}
     >
-      {/* Category with Tags */}
-      <div className="col-span-2">
+      {/* Primary Column (Category for metrics, Question Name for disclosures) */}
+      <div className={displayInfo.isQuestion ? "col-span-4" : "col-span-2"}>
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm text-text-primary">
-            {task.category || '-'}
+          <span className={`text-sm text-text-primary ${displayInfo.isQuestion ? '' : ''}`} title={displayInfo.primary}>
+            {displayInfo.isQuestion && displayInfo.primary.length > 60 
+              ? displayInfo.primary.substring(0, 60) + '...' 
+              : displayInfo.primary}
           </span>
           {/* Backfill/Future Tags */}
           {taskType === TASK_TYPE.BACKFILL && (
@@ -189,12 +229,14 @@ function TaskLedgerRow({ task, onFill, onView, onEdit }) {
         </div>
       </div>
 
-      {/* Subcategory */}
-      <div className="col-span-2">
-        <span className="text-sm text-text-primary">
-          {task.subcategory || '-'}
-        </span>
-      </div>
+      {/* Secondary Column (Subcategory for metrics only - hidden for questions) */}
+      {!displayInfo.isQuestion && (
+        <div className="col-span-2">
+          <span className="text-sm text-text-primary">
+            {displayInfo.secondary}
+          </span>
+        </div>
+      )}
 
       {/* Facility */}
       <div className="col-span-1">
