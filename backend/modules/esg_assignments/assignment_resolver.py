@@ -7,16 +7,24 @@ Uses V2 architecture exclusively (esg_assignment_assignees).
 ARCHITECTURE:
 - V2: Assignees stored in esg_assignment_assignees collection (many-to-many)
 - Legacy assigned_to_user_id has been fully deprecated and removed.
+- Supports both KPI metrics (entity_type="record_category") and questionnaires (entity_type="question")
 
 USAGE:
     from modules.esg_assignments.assignment_resolver import assignment_resolver
 
-    # Get assignment (returns None if not found)
+    # For KPI metrics (Water, Energy, etc.)
     assignment = await assignment_resolver.resolve(
         organization_id=org_id,
         user_id=user_id,
         category="Water",
         subcategory="Withdrawal",
+    )
+
+    # For questionnaires (BRSR, GRI questions)
+    assignment = await assignment_resolver.resolve_question(
+        organization_id=org_id,
+        user_id=user_id,
+        entity_id="brsr_p1_q4",  # question_key
     )
 
     # Get assignment (raises exception if not found)
@@ -40,6 +48,10 @@ class AssignmentResolver:
     
     This is the ONLY place that should resolve "which assignment governs this submission".
     All modules (records, approval, permissions, reminders) should use this resolver.
+    
+    Supports two entity types:
+    - record_category: KPI metrics (Water, Energy, GHG, etc.)
+    - question: BRSR/GRI questionnaire questions
     """
     
     def __init__(self):
@@ -117,6 +129,99 @@ class AssignmentResolver:
                     return best_match
         
         return None
+    
+    async def resolve_question(
+        self,
+        organization_id: str,
+        user_id: str,
+        entity_id: str,  # question_key
+        reporting_period: Optional[str] = None,
+        include_approval_info: bool = True,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Resolve assignment for a questionnaire question.
+        
+        This method finds the assignment for a specific question (BRSR, GRI, etc.)
+        using the V2 architecture (esg_assignment_assignees) exclusively.
+        
+        Args:
+            organization_id: Organization ID
+            user_id: User ID making the submission
+            entity_id: Question key (e.g., "brsr_p1_q4", "gri_302_1")
+            reporting_period: Optional period filter (e.g., "2026")
+            include_approval_info: Whether to include approver details
+        
+        Returns:
+            Assignment document with requires_approval, approver_id, etc.
+            Returns None if no matching assignment found.
+        """
+        # Step 1: Find assignment IDs where user is an assignee (V2 architecture)
+        v2_assignment_ids = await self._get_v2_assignment_ids(organization_id, user_id)
+        
+        if not v2_assignment_ids:
+            return None
+        
+        # Step 2: Build query for question assignment
+        query = {
+            "organization_id": organization_id,
+            "entity_type": "question",
+            "entity_id": entity_id,
+            "status": {"$nin": ["completed", "cancelled"]},
+            "id": {"$in": v2_assignment_ids},
+        }
+        
+        # Optional period filter
+        if reporting_period:
+            query["reporting_period"] = reporting_period
+        
+        # Step 3: Find the assignment
+        assignment = await self._assignments.find_one(query, {"_id": 0})
+        
+        if assignment:
+            if include_approval_info:
+                assignment = await self._enrich_with_approval_info(assignment)
+            return assignment
+        
+        return None
+    
+    async def require_question_assignment(
+        self,
+        organization_id: str,
+        user_id: str,
+        entity_id: str,
+        reporting_period: Optional[str] = None,
+        include_approval_info: bool = True,
+        error_message: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Resolve question assignment or raise HTTPException if not found.
+        
+        Args:
+            Same as resolve_question() plus:
+            error_message: Custom error message (optional)
+        
+        Returns:
+            Assignment document
+        
+        Raises:
+            HTTPException(403): If no matching assignment found
+        """
+        assignment = await self.resolve_question(
+            organization_id=organization_id,
+            user_id=user_id,
+            entity_id=entity_id,
+            reporting_period=reporting_period,
+            include_approval_info=include_approval_info,
+        )
+        
+        if not assignment:
+            msg = error_message or (
+                f"You don't have an active assignment for question {entity_id}. "
+                "Please contact your administrator."
+            )
+            raise HTTPException(status_code=403, detail=msg)
+        
+        return assignment
     
     async def require_assignment(
         self,
@@ -211,6 +316,7 @@ class AssignmentResolver:
         organization_id: str,
         user_id: str,
         category: Optional[str] = None,
+        entity_type: Optional[str] = None,
         status_filter: Optional[List[str]] = None,
         include_approval_info: bool = False,
     ) -> List[Dict[str, Any]]:
@@ -218,11 +324,13 @@ class AssignmentResolver:
         Get all assignments for a user.
         
         Useful for listing user's assignments, checking permissions, etc.
+        Returns both KPI metric assignments and questionnaire assignments.
         
         Args:
             organization_id: Organization ID
             user_id: User ID
-            category: Optional category filter
+            category: Optional category filter (for record_category assignments)
+            entity_type: Optional entity type filter ("record_category" or "question")
             status_filter: Optional list of statuses to exclude
             include_approval_info: Whether to include approver details
         
@@ -241,8 +349,66 @@ class AssignmentResolver:
             "id": {"$in": v2_assignment_ids},
         }
         
+        # Filter by entity_type if specified
+        if entity_type:
+            query["entity_type"] = entity_type
+        
+        # Filter by category (only applies to record_category assignments)
         if category:
             query["category"] = category
+        
+        if status_filter:
+            query["status"] = {"$nin": status_filter}
+        
+        assignments = await self._assignments.find(query, {"_id": 0}).to_list(500)
+        
+        if include_approval_info:
+            for i, a in enumerate(assignments):
+                assignments[i] = await self._enrich_with_approval_info(a)
+        
+        return assignments
+    
+    async def get_user_question_assignments(
+        self,
+        organization_id: str,
+        user_id: str,
+        section: Optional[str] = None,
+        framework: Optional[str] = None,
+        status_filter: Optional[List[str]] = None,
+        include_approval_info: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get all questionnaire assignments for a user.
+        
+        Args:
+            organization_id: Organization ID
+            user_id: User ID
+            section: Optional section filter (e.g., "section_b")
+            framework: Optional framework filter (e.g., "BRSR", "GRI")
+            status_filter: Optional list of statuses to exclude
+            include_approval_info: Whether to include approver details
+        
+        Returns:
+            List of question assignment documents
+        """
+        # Get V2 assignment IDs
+        v2_assignment_ids = await self._get_v2_assignment_ids(organization_id, user_id)
+        
+        if not v2_assignment_ids:
+            return []
+        
+        # Build query for question assignments
+        query = {
+            "organization_id": organization_id,
+            "entity_type": "question",
+            "id": {"$in": v2_assignment_ids},
+        }
+        
+        if section:
+            query["section"] = section
+        
+        if framework:
+            query["framework_id"] = framework
         
         if status_filter:
             query["status"] = {"$nin": status_filter}

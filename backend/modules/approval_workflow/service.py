@@ -1159,11 +1159,28 @@ class ApprovalWorkflowService:
                 )
             
             elif entity_type == "esg_response":
-                # Update the ESG assignment for the question
-                await db.esg_assignments.update_one(
+                # Update the ESG response (questionnaire answer) for rejection
+                await db.esg_responses.update_one(
                     {"id": entity_id, "organization_id": org_id},
                     {"$set": update_doc}
                 )
+                logger.info(f"Updated esg_response {entity_id} approval_status to rejected")
+                
+                # Also update the assignment using AssignmentResolver
+                # Find the question key from the response
+                response = await db.esg_responses.find_one(
+                    {"id": entity_id},
+                    {"_id": 0, "question_key": 1}
+                )
+                if response and response.get("question_key"):
+                    await db.esg_assignments.update_one(
+                        {
+                            "organization_id": org_id,
+                            "entity_type": "question",
+                            "entity_id": response.get("question_key"),
+                        },
+                        {"$set": {"updated_at": now}}
+                    )
             elif entity_type == "esg_task":
                 # NOTE: task.approval_status is now computed from RECORDS.
                 # Only update audit/metadata fields here.

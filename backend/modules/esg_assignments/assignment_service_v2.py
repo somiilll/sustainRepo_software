@@ -202,6 +202,25 @@ class AssignmentServiceV2:
         now = datetime.now(timezone.utc)
         
         # =========================================================================
+        # ENTITY TYPE ROUTING: Handle different assignment types
+        # =========================================================================
+        entity_type = data.get("entity_type", "record_category")
+        
+        # =========================================================================
+        # SECTION EXPANSION: If entity_type="section", expand to all questions
+        # This creates independent question assignments - no parent assignment stored
+        # =========================================================================
+        if entity_type == "section":
+            section_id = data.get("entity_id")  # e.g., "section_b", "section_c"
+            if section_id:
+                return await self._expand_section_to_questions(
+                    data=data,
+                    section_id=section_id,
+                    user_ids=user_ids,
+                    created_by_user_id=created_by_user_id,
+                )
+        
+        # =========================================================================
         # CATEGORY EXPANSION: If no subcategory provided, expand to all subcategories
         # This creates independent subcategory assignments - no parent assignment stored
         # =========================================================================
@@ -1142,6 +1161,165 @@ class AssignmentServiceV2:
         
         return []
     
+    async def _expand_section_to_questions(
+        self,
+        data: Dict[str, Any],
+        section_id: str,
+        user_ids: List[str],
+        created_by_user_id: str,
+    ) -> Tuple[Dict[str, Any], bool]:
+        """
+        Expand a section-level assignment into independent question assignments.
+        
+        DESIGN PRINCIPLES (same as category expansion):
+        1. No parent assignment is stored - only leaf-level question assignments exist
+        2. Each question assignment is fully independent
+        3. assignment_source = "section" for metadata/UI convenience
+        4. Section progress is computed at runtime by grouping question assignments
+        
+        Args:
+            data: Base assignment data (organization_id, dates, approval settings)
+            section_id: Section identifier (e.g., "section_b", "section_c", "gri_300")
+            user_ids: Users to assign
+            created_by_user_id: Admin creating the assignment
+        
+        Returns:
+            (summary, True): Summary of expansion with created/updated assignments
+        """
+        from fastapi import HTTPException
+        
+        organization_id = data.get("organization_id")
+        framework_id = data.get("framework_id", "BRSR")  # Default to BRSR
+        
+        # Get all questions in this section
+        # esg_question_configs stores question definitions
+        questions = await db.esg_question_configs.find(
+            {
+                "$or": [
+                    {"section": section_id},
+                    {"section": section_id.replace("_", " ").title()},  # e.g., "Section B"
+                    {"section_id": section_id},
+                ],
+                "framework_id": {"$in": [framework_id, framework_id.lower(), framework_id.upper()]},
+                "is_active": {"$ne": False},
+            },
+            {"_id": 0, "question_key": 1, "question_id": 1, "title": 1, "section": 1}
+        ).to_list(500)
+        
+        if not questions:
+            # Try without framework filter
+            questions = await db.esg_question_configs.find(
+                {
+                    "$or": [
+                        {"section": section_id},
+                        {"section": section_id.replace("_", " ").title()},
+                        {"section_id": section_id},
+                    ],
+                    "is_active": {"$ne": False},
+                },
+                {"_id": 0, "question_key": 1, "question_id": 1, "title": 1, "section": 1}
+            ).to_list(500)
+        
+        if not questions:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No questions found for section '{section_id}'. Please check the section identifier."
+            )
+        
+        print(f"[SectionExpansion] Expanding '{section_id}' to {len(questions)} questions")
+        
+        created_assignments = []
+        updated_assignments = []
+        errors = []
+        
+        for question in questions:
+            question_key = question.get("question_key") or question.get("question_id")
+            
+            if not question_key:
+                continue
+            
+            # Build data for this question assignment
+            question_data = {
+                **data,
+                "entity_type": "question",
+                "entity_id": question_key,
+                "section": section_id,
+                "framework_id": framework_id,
+                "assignment_source": "section",  # Metadata: created from section expansion
+                "expanded_from_section": section_id,  # For bulk operations
+                "question_title": question.get("title"),  # For display
+            }
+            
+            # Remove category/subcategory fields (not applicable to questions)
+            question_data.pop("category", None)
+            question_data.pop("subcategory", None)
+            question_data.pop("sub_subcategory", None)
+            
+            try:
+                # Create/update the question assignment (recursive call won't expand again)
+                assignment, is_new = await self.create_or_update_assignment(
+                    data=question_data,
+                    user_ids=user_ids,
+                    created_by_user_id=created_by_user_id,
+                )
+                
+                if is_new:
+                    created_assignments.append({
+                        "id": assignment.get("id"),
+                        "entity_type": "question",
+                        "entity_id": question_key,
+                        "question_title": question.get("title"),
+                    })
+                else:
+                    updated_assignments.append({
+                        "id": assignment.get("id"),
+                        "entity_type": "question",
+                        "entity_id": question_key,
+                        "question_title": question.get("title"),
+                    })
+                    
+            except HTTPException as e:
+                errors.append({
+                    "question_key": question_key,
+                    "error": str(e.detail),
+                })
+            except Exception as e:
+                errors.append({
+                    "question_key": question_key,
+                    "error": str(e),
+                })
+        
+        # Log the expansion to history
+        await self._log_history(
+            assignment_id=None,  # No parent assignment
+            action="section_expanded",
+            changed_by_user_id=created_by_user_id,
+            new_value={
+                "section": section_id,
+                "framework_id": framework_id,
+                "questions_created": len(created_assignments),
+                "questions_updated": len(updated_assignments),
+                "errors": len(errors),
+            },
+        )
+        
+        # Return summary (no parent assignment stored)
+        summary = {
+            "id": None,  # No parent assignment
+            "entity_type": "section",
+            "section": section_id,
+            "framework_id": framework_id,
+            "expansion_type": "section_to_questions",
+            "assignment_source": "section",
+            "total_questions": len(questions),
+            "created": created_assignments,
+            "updated": updated_assignments,
+            "errors": errors if errors else None,
+            "message": f"Section '{section_id}' expanded to {len(created_assignments)} new + {len(updated_assignments)} updated question assignments",
+        }
+        
+        return (summary, True)  # is_new=True for section expansion
+
     async def _expand_category_to_subcategories(
         self,
         data: Dict[str, Any],

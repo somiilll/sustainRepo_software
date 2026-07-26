@@ -16,13 +16,18 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
 - **Location**: `/app/backend/modules/esg_assignments/completion_service.py`
 - **Purpose**: THE single authority for all completion/progress calculations
 - **Key Methods**:
-  - `DataChecker.check_exists()` - Check if data exists for a period
+  - `DataChecker.check_exists()` - Check if data exists for a period (supports both KPI and questionnaire)
+  - `DataChecker._check_questionnaire()` - Check esg_responses for questionnaire completion
   - `completion_service.get_task_status()` - Compute task status (not stored)
   - `completion_service.get_task_status_with_approval()` - Compute both status AND approval_status from records
   - `completion_service.get_assignment_progress()` - Calculate filled/total/percentage
+  - `completion_service._calculate_question_progress()` - Progress for questionnaire assignments
   - `calculate_aggregate_approval_status()` - Compute org-level status from facility statuses
 - **Used by**: My Tasks, Progress Engine Router, Tracker, Dashboard
 - **Philosophy**: Task status AND approval_status are COMPUTED from actual data, never stored
+- **Entity Type Support**:
+  - `record_category`: KPI metrics (Water, Energy, GHG, etc.) - checks environment_records, emission_records
+  - `question`: BRSR/GRI questionnaires - checks esg_responses
 - **Aggregate Approval Rules** (Priority order: approved > pending > rejected): 
   - ANY approved → ALL_APPROVED (status=completed, approval_status=approved)
   - NO approved, ANY pending → ALL_PENDING (status=completed, approval_status=pending_approval)
@@ -76,20 +81,49 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
   - `start_date/end_date` (tasks have own `period_key`)
 - **Immutability**: interpretation_snapshot is NEVER updated on assignment edits
 
+### Questionnaire Support (Dec 2024)
+- **Purpose**: Support BRSR/GRI questionnaire assignments with same lifecycle as KPI metrics
+- **Entity Types**: 
+  - `record_category`: KPI metrics (Water, Energy, GHG) - existing
+  - `question`: BRSR/GRI questions - NEW
+  - `section`: Auto-expands to question assignments - NEW
+- **Section Expansion**:
+  - Assigning "Section B" expands to individual question assignments (Q1, Q2, Q3...)
+  - No parent section assignment stored - only leaf-level question assignments
+  - Same pattern as category → subcategory expansion
+  - Questions fetched from `esg_question_configs` collection
+- **Task Generation**:
+  - Question tasks have `entity_type="question"` and `entity_id=question_key`
+  - Tasks stored in same `esg_reporting_tasks` collection
+  - No category/subcategory/facility fields for question tasks
+- **Completion Checking**:
+  - `DataChecker._check_questionnaire()` queries `esg_responses` collection
+  - Same priority logic: approved > pending_approval > rejected
+- **My Tasks Integration**:
+  - Question tasks appear alongside KPI tasks
+  - User doesn't know if task came from Water or BRSR
+- **Files Changed**:
+  - `assignment_resolver.py`: `resolve_question()`, `get_user_question_assignments()`
+  - `assignment_service_v2.py`: `_expand_section_to_questions()`
+  - `completion_service.py`: `_check_questionnaire()`, `_calculate_question_progress()`
+  - `task_engine.py`: `_generate_question_tasks()`
+
 ### AssignmentResolver - Single Source of Truth (Dec 2024)
 - **Purpose**: Centralized assignment resolution using V2 architecture exclusively
 - **Location**: `/app/backend/modules/esg_assignments/assignment_resolver.py`
 - **Key Methods**:
-  - `resolve()` - Returns assignment or None (V2 architecture only)
+  - `resolve()` - Returns KPI metric assignment or None (V2 architecture only)
+  - `resolve_question()` - Returns questionnaire assignment for a question_key
   - `require_assignment()` - Returns assignment or raises HTTPException
-  - `get_user_assignments()` - Returns all user's assignments
+  - `require_question_assignment()` - Returns question assignment or raises HTTPException
+  - `get_user_assignments()` - Returns all user's assignments (both KPI and questionnaire)
+  - `get_user_question_assignments()` - Returns only questionnaire assignments
 - **V2 Architecture**: Assignees in `esg_assignment_assignees` collection (many-to-many)
   - Query uses `organization_id` filter for efficient scoped lookups
 - **Legacy `assigned_to_user_id`**: REMOVED - V2 is now the exclusive source of truth
-- **Modules Updated**:
-  - `esg_records/service.py` - `_validate_user_assignment` and `update_record`
-  - `access_control.py` - Permission checks
-  - `scheduler.py` - Reminder system
+- **Entity Type Support**:
+  - `record_category`: Uses category/subcategory for lookup
+  - `question`: Uses entity_id (question_key) for lookup
 
 ### Category-Level Assignment Expansion (Dec 2024)
 - **Design**: When admin assigns a category (no subcategory), system expands to independent subcategory assignments

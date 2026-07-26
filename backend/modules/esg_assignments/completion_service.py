@@ -243,12 +243,29 @@ class DataChecker:
         subcategory: Optional[str],
         facility_id: Optional[str],
         period_key: str,
+        entity_type: Optional[str] = None,
+        entity_id: Optional[str] = None,
     ) -> Tuple[bool, Optional[datetime], Optional[str]]:
         """
         Check if data exists for the given parameters.
         
+        Supports both KPI metrics (record_category) and questionnaires (question).
+        
+        Args:
+            organization_id: Organization ID
+            category: Category (for metrics) - ignored for questions
+            subcategory: Subcategory (for metrics) - ignored for questions
+            facility_id: Facility ID (for facility-level) - ignored for questions
+            period_key: Period key (e.g., "2026-07", "2026")
+            entity_type: "record_category" (default) or "question"
+            entity_id: Question key (required if entity_type="question")
+        
         Returns: (has_data: bool, last_updated: datetime or None, approval_status: str or None)
         """
+        # Route to questionnaire checker if entity_type is question
+        if entity_type == "question" and entity_id:
+            return await DataChecker._check_questionnaire(organization_id, entity_id, period_key)
+        
         cat_lower = (category or "").lower()
         sub_lower = (subcategory or "").lower()
         
@@ -273,6 +290,52 @@ class DataChecker:
         
         # Default: check environment_records
         return await DataChecker._check_environment(organization_id, category, subcategory, facility_id, period_key)
+    
+    @staticmethod
+    async def _check_questionnaire(
+        organization_id: str,
+        question_key: str,
+        period_key: str,
+    ) -> Tuple[bool, Optional[datetime], Optional[str]]:
+        """
+        Check esg_responses for questionnaire completion.
+        
+        Returns: (has_data, last_updated, approval_status)
+        
+        NOTE: Draft responses are excluded - only submitted/completed responses count.
+        PRIORITY: When multiple responses exist, returns best status (approved > pending > rejected)
+        """
+        query = {
+            "organization_id": organization_id,
+            "question_key": question_key,
+            # EXCLUDE DRAFTS: Only count submitted/completed responses
+            "status": {"$ne": "draft"},
+        }
+        
+        # Parse period_key for matching
+        # esg_responses might store reporting_period as year string or as object
+        if period_key:
+            if len(period_key) == 4:
+                # Yearly: "2026"
+                query["$or"] = [
+                    {"reporting_period": period_key},
+                    {"reporting_period": int(period_key)},
+                    {"reporting_period.year": int(period_key)},
+                ]
+            elif "-" in period_key:
+                # Monthly or quarterly
+                query["reporting_period"] = period_key
+        
+        # Get ALL responses for this question and find the best approval_status
+        records = await db.esg_responses.find(
+            query,
+            {"_id": 0, "updated_at": 1, "created_at": 1, "approval_status": 1}
+        ).to_list(100)
+        
+        if records:
+            last_updated, approval_status = DataChecker._get_best_approval_status(records)
+            return True, last_updated, approval_status
+        return False, None, None
     
     @staticmethod
     async def _check_ghg(
@@ -765,6 +828,7 @@ class CompletionService:
         - rejected and none approved and none pending: status=pending, approval_status=rejected
         - rejected and none approved but one pending: status=completed, approval_status=pending_approval
         
+        Supports both KPI metrics (record_category) and questionnaires (question).
         This is the single source of truth - status AND approval_status come from RECORDS.
         """
         org_id = task.get("organization_id")
@@ -774,10 +838,18 @@ class CompletionService:
         period_key = task.get("period_key")
         due_at = task.get("due_at")
         is_backfill = task.get("is_backfill", False)
+        entity_type = task.get("entity_type", "record_category")
+        entity_id = task.get("entity_id")  # For question tasks
         
         # Check if data exists and get approval status from RECORD
         has_data, _, record_approval_status = await DataChecker.check_exists(
-            org_id, category, subcategory, facility_id, period_key
+            organization_id=org_id,
+            category=category,
+            subcategory=subcategory,
+            facility_id=facility_id,
+            period_key=period_key,
+            entity_type=entity_type,
+            entity_id=entity_id,
         )
         
         # If no data exists, return pending/overdue status
@@ -795,6 +867,18 @@ class CompletionService:
         # Data exists - determine approval status
         approval_status = None
         
+        # Question tasks don't have facility aggregation - use direct status
+        if entity_type == "question":
+            if record_approval_status == "rejected":
+                return TaskStatus.PENDING, "rejected"
+            elif record_approval_status in ["pending", "pending_approval"]:
+                return TaskStatus.COMPLETED, "pending_approval"
+            elif record_approval_status == "approved":
+                return TaskStatus.COMPLETED, "approved"
+            else:
+                return TaskStatus.COMPLETED, None
+        
+        # KPI metrics: check org-level vs facility-level
         if not facility_id:
             # Org-level: aggregate across facilities
             aggregate = await self._get_aggregate_approval_status(
@@ -883,12 +967,21 @@ class CompletionService:
         """
         Calculate progress for an assignment.
         
-        Handles both org-level and facility-level assignments.
+        Handles:
+        - KPI metrics (record_category): org-level and facility-level
+        - Questionnaires (question): single question per assignment
         
         FACILITY SNAPSHOT: For org-level assignments, uses facility_snapshot if available
         to ensure historical task completion cannot change retroactively when new facilities
         are added to the organization.
         """
+        entity_type = assignment.get("entity_type", "record_category")
+        
+        # Route to questionnaire progress if entity_type is question
+        if entity_type == "question":
+            return await self._calculate_question_progress(assignment, include_period_details)
+        
+        # Default: KPI metric progress
         org_id = assignment.get("organization_id")
         category = assignment.get("category")
         subcategory = assignment.get("subcategory")
@@ -1138,6 +1231,86 @@ class CompletionService:
                     "period_key": period_key,
                     "has_data": has_org_record or (has_any_facility_records and facilities_completed > 0),
                     "facility_breakdown": facility_breakdown,
+                })
+        
+        return result
+    
+    async def _calculate_question_progress(
+        self,
+        assignment: Dict[str, Any],
+        include_details: bool = False,
+    ) -> ProgressResult:
+        """
+        Calculate progress for a questionnaire (question) assignment.
+        
+        Questionnaire assignments are simpler than KPI metrics:
+        - No facility breakdown (questions are org-level)
+        - One response per period expected
+        - Progress based on whether response exists and its approval status
+        """
+        result = ProgressResult()
+        now = datetime.now(timezone.utc)
+        
+        org_id = assignment.get("organization_id")
+        entity_id = assignment.get("entity_id")  # question_key
+        frequency = assignment.get("filling_frequency", "yearly")  # Most questions are yearly
+        
+        # Get due_day from due_config
+        due_config = assignment.get("due_config") or {}
+        due_day = due_config.get("day_of_month") or 15
+        
+        # Generate periods
+        periods = PeriodGenerator.generate(
+            assignment.get("start_date"),
+            assignment.get("end_date"),
+            frequency,
+        )
+        
+        if not periods:
+            return ProgressResult.empty()
+        
+        for period in periods:
+            period_key = period["period_key"]
+            
+            # Check if response exists
+            has_data, last_updated, approval_status = await DataChecker.check_exists(
+                organization_id=org_id,
+                category=None,
+                subcategory=None,
+                facility_id=None,
+                period_key=period_key,
+                entity_type="question",
+                entity_id=entity_id,
+            )
+            
+            result.total += 1
+            
+            # BUSINESS RULE: Rejected responses do NOT count as completed
+            is_completed_for_progress = has_data and approval_status != "rejected"
+            
+            if is_completed_for_progress:
+                result.completed += 1
+                if last_updated and (not result.last_updated or last_updated > result.last_updated):
+                    result.last_updated = last_updated
+            else:
+                # Check if overdue
+                period_end = period.get("period_end")
+                if period_end:
+                    due_date = period_end.replace(day=min(due_day, 28))
+                    if due_date.replace(tzinfo=timezone.utc) < now:
+                        result.overdue += 1
+                    else:
+                        result.pending += 1
+                else:
+                    result.pending += 1
+            
+            if include_details:
+                result.period_details.append({
+                    "period_key": period_key,
+                    "has_data": has_data,
+                    "approval_status": approval_status,
+                    "counts_as_completed": is_completed_for_progress,
+                    "entity_id": entity_id,
                 })
         
         return result

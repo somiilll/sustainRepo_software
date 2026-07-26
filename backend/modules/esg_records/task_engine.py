@@ -383,9 +383,14 @@ async def generate_tasks_for_assignment(
     
     NEW ARCHITECTURE (V2):
     - ONE task per org/facility/category/subcategory/period (organizational obligation)
+    - OR ONE task per org/question/period (for questionnaire assignments)
     - User assignments are tracked in esg_task_assignees collection
     - Tasks are NOT duplicated per user
     - Assignees are fetched from esg_assignment_assignees collection (V2 model)
+    
+    ENTITY TYPES:
+    - record_category: KPI metrics (Water, Energy, GHG, etc.)
+    - question: BRSR/GRI questionnaire questions
     
     This function:
     1. Generates task periods based on frequency
@@ -394,6 +399,13 @@ async def generate_tasks_for_assignment(
     """
     assignment_id = assignment.get("id")
     org_id = assignment.get("organization_id")
+    entity_type = assignment.get("entity_type", "record_category")
+    
+    # Route to question task generator if entity_type is question
+    if entity_type == "question":
+        return await _generate_question_tasks(db, assignment)
+    
+    # Default: KPI metric task generation
     facility_id = assignment.get("facility_id")
     category = assignment.get("category")
     subcategory = assignment.get("subcategory")
@@ -550,6 +562,169 @@ async def generate_tasks_for_assignment(
         "assignees_created": assignees_created,
         "date_range": f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}",
         "frequency": frequency,
+    }
+
+
+async def _generate_question_tasks(
+    db: AsyncIOMotorDatabase,
+    assignment: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Generate tasks for a questionnaire (question) assignment.
+    
+    Similar to KPI metric task generation but:
+    - Uses entity_type/entity_id instead of category/subcategory
+    - Questions are typically org-level (no facility breakdown)
+    - Task unique key is org + entity_id + period_key
+    """
+    assignment_id = assignment.get("id")
+    org_id = assignment.get("organization_id")
+    entity_id = assignment.get("entity_id")  # question_key
+    section = assignment.get("section")
+    framework_id = assignment.get("framework_id")
+    
+    # V2: Fetch assignees from esg_assignment_assignees collection
+    assignees = await db["esg_assignment_assignees"].find(
+        {"assignment_id": assignment_id, "removed_at": None},
+        {"_id": 0, "user_id": 1, "user_name": 1, "user_email": 1, "role": 1}
+    ).to_list(100)
+    
+    if not assignees:
+        print(f"[TaskEngine] Warning: No assignees found for question assignment {assignment_id}")
+    
+    # Parse dates
+    start_date = parse_date(assignment.get("start_date"))
+    end_date = parse_date(assignment.get("end_date"))
+    created_at = parse_date(assignment.get("created_at")) or datetime.now()
+    
+    if not start_date:
+        return {"error": "start_date is required for task generation", "tasks_created": 0}
+    
+    if not end_date:
+        end_date = datetime(datetime.now().year, 12, 31)
+    
+    # Questionnaires are typically yearly
+    frequency = assignment.get("filling_frequency", "yearly")
+    
+    due_config = assignment.get("due_config") or {
+        "type": frequency,
+        "time": "17:00",
+        "timezone": assignment.get("timezone", "UTC"),
+    }
+    
+    # Generate task periods
+    task_periods = generate_task_periods(
+        frequency=frequency,
+        start_date=start_date,
+        end_date=end_date,
+        due_config=due_config,
+        assignment_created_at=created_at,
+    )
+    
+    if not task_periods:
+        return {"error": "No task periods generated", "tasks_created": 0}
+    
+    now = datetime.now(tz.utc)
+    tasks_created = 0
+    tasks_existing = 0
+    assignees_created = 0
+    
+    for period in task_periods:
+        # Build unique key for question task
+        task_unique_key = {
+            "organization_id": org_id,
+            "entity_type": "question",
+            "entity_id": entity_id,
+            "period_key": period["period_key"],
+        }
+        
+        # Check if task already exists
+        existing_task = await db["esg_reporting_tasks"].find_one(
+            task_unique_key,
+            {"_id": 0, "id": 1, "status": 1}
+        )
+        
+        if existing_task:
+            task_id = existing_task["id"]
+            tasks_existing += 1
+        else:
+            # Create new question task
+            task_id = str(uuid.uuid4())
+            
+            task_doc = {
+                "id": task_id,
+                "assignment_id": assignment_id,
+                "organization_id": org_id,
+                "entity_type": "question",
+                "entity_id": entity_id,
+                "section": section,
+                "framework_id": framework_id,
+                "question_title": assignment.get("question_title"),
+                # No category/subcategory/facility for question tasks
+                "facility_id": None,
+                "category": None,
+                "subcategory": None,
+                "sub_subcategory": None,
+                "period_key": period["period_key"],
+                "period_label": period["period_label"],
+                "period_start": period["period_start"],
+                "period_end": period["period_end"],
+                "due_at": period["due_at"],
+                "timezone": due_config.get("timezone", "UTC"),
+                "task_type": period["task_type"],
+                "is_backfill": period["is_backfill"],
+                # VERSIONING
+                "assignment_version_at_creation": assignment.get("version", 1),
+                "created_with_approval_workflow": assignment.get("requires_approval", False),
+                "created_with_approver_id": assignment.get("approver_id"),
+                # OWNERSHIP FIELDS
+                "submitted_by_user_id": None,
+                "submitted_at": None,
+                "completed_by_user_id": None,
+                "completed_at": None,
+                "approved_by_user_id": None,
+                "approved_at": None,
+                "created_at": now,
+                "updated_at": now,
+            }
+            
+            await db["esg_reporting_tasks"].insert_one(task_doc)
+            tasks_created += 1
+        
+        # Create assignee entries
+        for assignee in assignees:
+            user_id = assignee.get("user_id")
+            if not user_id:
+                continue
+            
+            assignee_exists = await db["esg_task_assignees"].find_one({
+                "task_id": task_id,
+                "user_id": user_id,
+            })
+            
+            if not assignee_exists:
+                assignee_doc = {
+                    "id": str(uuid.uuid4()),
+                    "task_id": task_id,
+                    "assignment_id": assignment_id,
+                    "user_id": user_id,
+                    "user_name": assignee.get("user_name"),
+                    "user_email": assignee.get("user_email"),
+                    "role": assignee.get("role", "editor"),
+                    "is_active": True,
+                    "assigned_at": now,
+                }
+                await db["esg_task_assignees"].insert_one(assignee_doc)
+                assignees_created += 1
+    
+    return {
+        "assignment_id": assignment_id,
+        "entity_type": "question",
+        "entity_id": entity_id,
+        "tasks_created": tasks_created,
+        "tasks_existing": tasks_existing,
+        "assignees_created": assignees_created,
+        "periods": len(task_periods),
     }
 
 
@@ -719,6 +894,7 @@ async def get_tasks_for_user(
         tasks = [t for t in tasks if t.get("status") in status_filter]
     
     # If domain filter is specified, we need to filter based on category's section
+    # OR include question tasks from BRSR/GRI frameworks
     if domain and domain != 'all':
         # Get all categories for this section/domain
         domain_categories = await db["esg_record_categories"].find(
@@ -733,10 +909,13 @@ async def get_tasks_for_user(
             # Also add just the category for tasks that might not have subcategory
             valid_cats.add((cat.get("category"), None))
         
-        # Filter tasks
+        # Filter tasks: include KPI metrics matching category OR question tasks
+        # Question tasks (entity_type="question") are included for all domains for now
+        # In future, could filter by framework or section
         tasks = [
             t for t in tasks 
-            if (t.get("category"), t.get("subcategory")) in valid_cats or
+            if t.get("entity_type") == "question" or  # Include all question tasks
+               (t.get("category"), t.get("subcategory")) in valid_cats or
                (t.get("category"), None) in valid_cats
         ]
     
@@ -766,9 +945,11 @@ async def get_tasks_for_user(
     categories_with_subs_set = set(categories_with_subs)
     
     # Filter: exclude tasks where category has subcategories but task.subcategory is null/empty
+    # BUT: Don't filter question tasks (they don't have category/subcategory)
     filtered_tasks = [
         t for t in tasks
-        if not (t.get("category") in categories_with_subs_set and not t.get("subcategory"))
+        if t.get("entity_type") == "question" or  # Keep all question tasks
+           not (t.get("category") in categories_with_subs_set and not t.get("subcategory"))
     ]
     
     # Enrich tasks with facility names
