@@ -101,16 +101,19 @@ const APPROVAL_COLORS = {
 
 // Get status badge - updated for dual status architecture
 // When data is submitted and awaiting approval, show BOTH "Completed" AND "Awaiting Approval"
+// When rejected, show "Pending" (needs resubmission) AND "Rejected"
 const StatusBadge = ({ status, approvalStatus, isOverdue, isStale, isDueSoon }) => {
-  if (isOverdue && status !== 'pending_approval' && status !== 'completed') {
-    // Only show overdue if there's no data submitted
+  // Only show overdue/due soon if there's no data submitted (not pending_approval, completed, or rejected)
+  const hasDataSubmitted = ['pending_approval', 'completed', 'rejected'].includes(status);
+  
+  if (isOverdue && !hasDataSubmitted) {
     return (
       <Badge className={`${STATUS_COLORS.overdue} text-xs`}>
         <XCircle className="w-3 h-3 mr-1" /> Overdue
       </Badge>
     );
   }
-  if (isDueSoon && status !== 'pending_approval' && status !== 'completed') {
+  if (isDueSoon && !hasDataSubmitted) {
     return (
       <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-xs">
         <Clock className="w-3 h-3 mr-1" /> Due Soon
@@ -125,6 +128,8 @@ const StatusBadge = ({ status, approvalStatus, isOverdue, isStale, isDueSoon }) 
     not_started: { icon: Circle, label: 'Not Started' },
     // pending_approval means data IS submitted - show as Completed
     pending_approval: { icon: CheckCircle2, label: 'Completed' },
+    // rejected means data was rejected, needs resubmission - show as Pending
+    rejected: { icon: Circle, label: 'Pending' },
   };
   
   const approvalMap = {
@@ -139,14 +144,26 @@ const StatusBadge = ({ status, approvalStatus, isOverdue, isStale, isDueSoon }) 
   
   // Determine effective approval status
   // If status is pending_approval, we know approval is pending
-  const effectiveApprovalStatus = status === 'pending_approval' 
-    ? 'pending_approval' 
-    : approvalStatus;
+  // If status is rejected, we know it was rejected
+  let effectiveApprovalStatus;
+  if (status === 'pending_approval') {
+    effectiveApprovalStatus = 'pending_approval';
+  } else if (status === 'rejected') {
+    effectiveApprovalStatus = 'rejected';
+  } else {
+    effectiveApprovalStatus = approvalStatus;
+  }
   
-  // Use completed color for pending_approval status
-  const effectiveStatusColor = status === 'pending_approval'
-    ? STATUS_COLORS.completed
-    : (STATUS_COLORS[status] || STATUS_COLORS.not_started);
+  // Determine status color
+  // pending_approval uses completed color, rejected uses pending color
+  let effectiveStatusColor;
+  if (status === 'pending_approval') {
+    effectiveStatusColor = STATUS_COLORS.completed;
+  } else if (status === 'rejected') {
+    effectiveStatusColor = STATUS_COLORS.not_started;
+  } else {
+    effectiveStatusColor = STATUS_COLORS[status] || STATUS_COLORS.not_started;
+  }
   
   return (
     <div className="flex items-center gap-1.5 flex-wrap">

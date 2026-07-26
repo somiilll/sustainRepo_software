@@ -873,6 +873,7 @@ export default function ESGRecordsTracker({
 
   // Get status badge - now uses operational status
   // When data is submitted and awaiting approval, show BOTH "Completed" AND "Awaiting Approval"
+  // When rejected, show "Pending" (needs resubmission) AND "Rejected"
   const getStatusBadge = (status, approvalStatus = null) => {
     const labels = {
       pending: 'Pending',
@@ -884,6 +885,8 @@ export default function ESGRecordsTracker({
       backfill_pending: 'Backfill Pending',
       // Special handling: pending_approval means data IS submitted, show as Completed
       pending_approval: 'Completed',
+      // Special handling: rejected means data was rejected, needs resubmission - show as Pending
+      rejected: 'Pending',
     };
     
     const approvalLabels = {
@@ -894,14 +897,26 @@ export default function ESGRecordsTracker({
     
     // Determine the effective status color
     // If pending_approval, use completed color for the status badge
-    const effectiveStatusColor = status === 'pending_approval' 
-      ? STATUS_COLORS.completed 
-      : (STATUS_COLORS[status] || STATUS_COLORS.pending);
+    // If rejected, use pending color (needs resubmission)
+    let effectiveStatusColor;
+    if (status === 'pending_approval') {
+      effectiveStatusColor = STATUS_COLORS.completed;
+    } else if (status === 'rejected') {
+      effectiveStatusColor = STATUS_COLORS.pending;
+    } else {
+      effectiveStatusColor = STATUS_COLORS[status] || STATUS_COLORS.pending;
+    }
     
     // For pending_approval, approvalStatus should also be pending_approval
-    const effectiveApprovalStatus = status === 'pending_approval' 
-      ? 'pending_approval' 
-      : approvalStatus;
+    // For rejected, show the rejected badge
+    let effectiveApprovalStatus;
+    if (status === 'pending_approval') {
+      effectiveApprovalStatus = 'pending_approval';
+    } else if (status === 'rejected') {
+      effectiveApprovalStatus = 'rejected';
+    } else {
+      effectiveApprovalStatus = approvalStatus;
+    }
     
     return (
       <div className="flex items-center gap-1.5 flex-wrap">
