@@ -280,7 +280,15 @@ function TaskLedgerRow({ task, onFill, onView, onEdit }) {
       {/* Approval Status */}
       <div className="col-span-1">
         {hasApprovalStatus ? (
-          <ApprovalStatusBadge approvalStatus={task.approval_status} />
+          <div className="flex flex-col gap-1">
+            <ApprovalStatusBadge approvalStatus={task.approval_status} />
+            {/* Show rejection reason if rejected */}
+            {task.approval_status === 'rejected' && task.rejection_reason && (
+              <span className="text-xs text-red-600 truncate max-w-[150px]" title={task.rejection_reason}>
+                {task.rejection_reason}
+              </span>
+            )}
+          </div>
         ) : (
           <span className="text-sm text-stone-400">-</span>
         )}

@@ -1,0 +1,68 @@
+{
+  "summary": "Iteration 123 - Tested BRSR/GRI questionnaire approval workflow (approval queue, approve/reject, tracking). Wrote /app/backend/tests/test_questionnaire_approval_iter123.py with 11 tests. 8/11 passed. Discovered two CRITICAL bugs: (1) approve_questionnaire_response & reject_questionnaire_response endpoints return 500 due to invalid values passed to ApprovalHistoryEntry pydantic model (workflow_id=None, entity_type='questionnaire_response' not in EntityType enum, previous_status='pending_approval' not in ApprovalStatus enum). (2) New ApprovalModule.js and QuestionnaireApprovalPanel.js components exist but are NOT imported/wired into any route in /app/frontend/src/App.js - the V2 questionnaire approval UI is completely inaccessible to users. Verified: GET /questionnaire/queue works and returns correct shape (question_key, question_name, response_data, submitted_by_name, framework, section_id); framework filter works; auth guard works; reject requires JSON body with 'reason'; nonexistent response_id yields 400; tracking service correctly merges approval_status/rejection_reason from esg_responses (code review); TaskLedger.js displays rejection_reason when approval_status==='rejected' (line 285-289, code review).",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/approval-workflows/questionnaire/{response_id}/approve",
+        "issue": "Returns 500 Internal Server Error on valid request. service.approve_questionnaire_response() at service.py:1707 calls _record_history() with entity_type='questionnaire_response' (not in EntityType enum: esg_response/emission_record/esg_record/facility/target/report/custom), workflow_id=None (ApprovalHistoryEntry requires str), previous_status='pending_approval' (not in ApprovalStatus enum: draft/pending/in_review/approved/rejected/changes_requested/cancelled/expired). Pydantic raises 3 validation errors.",
+        "priority": "CRITICAL"
+      },
+      {
+        "endpoint": "POST /api/approval-workflows/questionnaire/{response_id}/reject",
+        "issue": "Same 500 error as approve - service.py:1803 _record_history() call fails pydantic validation with same 3 issues (workflow_id, entity_type, previous_status). Feature is entirely unusable end-to-end.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "GET /api/approval-workflows/questionnaire/{question_key}/history",
+        "issue": "Depends on approval history being recorded, which never happens due to the 500 bug above. Endpoint itself works but always returns empty until the approve/reject flow is fixed."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "ApprovalModule.js / QuestionnaireApprovalPanel.js",
+        "issue": "New V2 questionnaire approval UI components exist under /app/frontend/src/components/ but are NOT imported anywhere. No route/tab renders <ApprovalModule/>. Existing approval routes /workflow/approver-queue (WorkflowApproverQueue) and /ghg/approvals (ApprovalSection) still use the legacy UI. Users cannot see, edit, approve or reject V2 questionnaire responses from the UI at all. `grep -rn 'import.*ApprovalModule' /app/frontend/src` returns zero results.",
+        "selector": "N/A - no mounted route",
+        "priority": "CRITICAL"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "V2 questionnaire approval end-to-end",
+        "issue": "Cannot verify UI flow (purple border-l, panel open, edit toggle, approve, reject) because the new component is not mounted. Even if it were, both approve and reject endpoints currently 500.",
+        "affected_selectors": ["[class*='border-l-purple-400']", "QuestionnaireApprovalPanel"]
+      }
+    ],
+    "design_issues": [
+      {"screen": "Global", "issues": ["Recurring React warning: 'A props object containing a key prop is being spread into JSX' (pre-existing, noted in iter121/122)."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_questionnaire_approval_iter123.py",
+    "/app/test_reports/pytest/iter123_results.xml"
+  ],
+  "action_items": [
+    "FIX service.py approve_questionnaire_response (line ~1707) and reject_questionnaire_response (line ~1803): change _record_history call arg entity_type from 'questionnaire_response' to 'esg_response' (valid EntityType); previous_status from 'pending_approval' to 'pending' (valid ApprovalStatus) OR make ApprovalHistoryEntry accept these values; also handle workflow_id=None (either make it Optional[str] in ApprovalHistoryEntry model, or pass a sentinel string).",
+    "WIRE the new ApprovalModule component into App.js routing (e.g., replace or add a tab in /workflow/approver-queue or /ghg/approvals, or add a new /approvals/v2 route). Currently users have no way to reach QuestionnaireApprovalPanel.",
+    "After both fixes, retest approve/reject flow end-to-end so version history entries actually get persisted; the /history endpoint will then return real data."
+  ],
+  "critical_code_review_comments": [
+    "service.py:1712 & 1809 pass entity_type='questionnaire_response' which violates the EntityType enum. Either add QUESTIONNAIRE_RESPONSE='questionnaire_response' to the enum, or reuse ESG_RESPONSE.",
+    "ApprovalHistoryEntry requires workflow_id as required str; questionnaire approvals have no workflow document (as documented) — the model should make workflow_id Optional.",
+    "ApprovalStatus enum lacks 'pending_approval'. Questionnaire response uses that literal in esg_responses collection but approval history enum uses 'pending'. Standardize the vocabulary (either add pending_approval or translate before recording).",
+    "ApprovalModule.js is 570+ lines and unused — dead code risk. Either integrate it or remove. Splitting responsibilities (queue rendering vs V1/V2 dispatch) would help maintainability.",
+    "The seeded test path exposed that no unit/integration test was added for the new endpoints; the router lacked coverage which is why the 500 slipped in. Add a regression test alongside these endpoints going forward.",
+    "esg_tracking/service.py correctly merges approval_status & rejection_reason from esg_responses into response_map (lines 597-620) and prefers response.approval_status over assignment.approval_status (line 852-865). Good."
+  ],
+  "updated_files": ["/app/backend/tests/test_questionnaire_approval_iter123.py"],
+  "success_rate": {"backend": "73% (8/11 tests; the 3 failures directly correspond to the CRITICAL approve/reject 500 bug and downstream history)", "frontend": "N/A - V2 UI is not mounted so nothing to interact with"},
+  "test_credentials": "goyalsomil2001@gmail.com / TestUser123! (admin, org 9067d872-8a3a-4ed9-8494-e3ef04952f7c)",
+  "seed_data_creation": "Test creates transient TEST_ITER123_* records in esg_question_configs, esg_assignments, esg_responses (with approval_status='pending_approval'). Module-scoped teardown deletes them plus any esg_responses_versions/approval_history rows created.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Rerun /app/backend/tests/test_questionnaire_approval_iter123.py after main agent fixes _record_history validation errors (entity_type/previous_status/workflow_id) in approve_questionnaire_response & reject_questionnaire_response. Then do a UI test only after ApprovalModule is actually mounted in App.js routing. The API shape tests (queue endpoint, filters, auth, 400s) all pass currently. Bug repro: POST /api/approval-workflows/questionnaire/{valid_pending_id}/reject with {reason: 'x'} => 500; check backend logs for 'ValidationError: 3 validation errors for ApprovalHistoryEntry'.",
+  "rca of the issue": "Root cause: modules/approval_workflow/service.py functions approve_questionnaire_response (line 1707) and reject_questionnaire_response (line 1803) invoke _record_history() which constructs an ApprovalHistoryEntry pydantic model. That model constrains entity_type to the EntityType enum (esg_response/emission_record/esg_record/facility/target/report/custom), previous_status/new_status to the ApprovalStatus enum (draft/pending/in_review/approved/rejected/changes_requested/cancelled/expired), and workflow_id to a non-optional str. The new questionnaire path passes 'questionnaire_response', 'pending_approval', and workflow_id=None respectively, all rejected by pydantic v2 - raising three ValidationErrors, bubbling up as HTTP 500. Reproduction: (1) seed esg_responses with approval_status='pending_approval' and matching esg_assignments where approver_id=<admin>; (2) POST /api/approval-workflows/questionnaire/{response_id}/reject with body {reason:'foo'} using admin JWT; observe 500 + supervisor backend log 'ValidationError: 3 validation errors for ApprovalHistoryEntry'. Mitigation options: (a) extend enums (add ESG_RESPONSE reuse or add QUESTIONNAIRE_RESPONSE / PENDING_APPROVAL), (b) map values before calling _record_history (entity_type='esg_response', previous_status='pending', workflow_id='__questionnaire__'), or (c) relax ApprovalHistoryEntry to accept str for these fields and Optional[str] for workflow_id. Secondary issue: the new ApprovalModule.js is not imported in App.js so the entire V2 UI is invisible - main agent must add routing."
+}

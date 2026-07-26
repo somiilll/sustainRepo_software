@@ -583,7 +583,7 @@ class TrackingService:
         
         configs = await self._configs.find(config_query, {"_id": 0}).to_list(500)
         
-        # Get responses
+        # Get responses from organization_esg_responses (drafts/submissions)
         responses = await self._responses.find(
             {
                 "organization_id": organization_id,
@@ -592,6 +592,30 @@ class TrackingService:
             {"_id": 0}
         ).to_list(5000)
         response_map = {r["question_key"]: r for r in responses}
+        
+        # Also get final/approved responses from esg_responses (includes approval_status)
+        final_responses = await db.esg_responses.find(
+            {
+                "organization_id": organization_id,
+                "reporting_year": reporting_period,
+            },
+            {"_id": 0, "question_key": 1, "approval_status": 1, "rejection_reason": 1, 
+             "value": 1, "updated_at": 1, "submitted_at": 1, "submitted_by": 1}
+        ).to_list(5000)
+        
+        # Merge approval status from esg_responses into response_map
+        for fr in final_responses:
+            qk = fr.get("question_key")
+            if qk:
+                if qk in response_map:
+                    # Merge approval fields into existing response
+                    response_map[qk]["approval_status"] = fr.get("approval_status")
+                    response_map[qk]["rejection_reason"] = fr.get("rejection_reason")
+                    response_map[qk]["submitted_at"] = fr.get("submitted_at")
+                    response_map[qk]["submitted_by"] = fr.get("submitted_by")
+                else:
+                    # Use the esg_responses entry
+                    response_map[qk] = fr
         
         # Get assignments and aggregate by entity_id for multi-assignee support
         raw_assignments = await self._assignments.find(
@@ -825,12 +849,20 @@ class TrackingService:
                 else:
                     unassigned += 1
                 
-                # Approval status - prefer from approval_request, fallback to assignment
+                # Approval status - prefer from esg_responses, then approval_request, fallback to assignment
                 appr_status = None
-                if approval:
+                if response and response.get("approval_status"):
+                    # Get actual approval status from the response itself
+                    appr_status = response.get("approval_status")
+                elif approval:
                     appr_status = approval.get("status")
                 elif appr_status_val:
                     appr_status = appr_status_val  # From assignment's approval_status field
+                
+                # Also check for rejection reason from response
+                rejection_reason = None
+                if response and response.get("rejection_reason"):
+                    rejection_reason = response.get("rejection_reason")
                 
                 # Apply filters
                 if filters:
@@ -885,6 +917,7 @@ class TrackingService:
                     approver_name=None,  # Will be populated later with user lookup
                     approver_email=None,
                     approval_chain=approval_chain,
+                    rejection_reason=rejection_reason,
                     filling_frequency=filling_freq,
                 )
             

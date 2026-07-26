@@ -44,10 +44,13 @@ import {
   ChevronRight,
   Inbox,
   Search,
-  BarChart3
+  BarChart3,
+  ScrollText,
+  User
 } from 'lucide-react';
 import { toast } from 'sonner';
 import SubmissionReviewPanel from './SubmissionReviewPanel';
+import QuestionnaireApprovalPanel from './QuestionnaireApprovalPanel';
 import { getCurrentReportingYear, generateReportingYears } from '../utils/reportingYearUtils';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -122,7 +125,7 @@ export default function ApprovalModule({
         params.entity_type = entityType;
       }
       
-      // Fetch questionnaire submissions
+      // Fetch questionnaire submissions (from old submission system)
       const questionnairePromise = axios.get(
         `${API}/api/esg-questionnaire/submissions/pending`,
         {
@@ -146,9 +149,21 @@ export default function ApprovalModule({
         return { data: { requests: [] } };
       });
       
-      const [questionnaireRes, recordApprovalsRes] = await Promise.all([
+      // Fetch questionnaire response approvals (new V2 system)
+      const questionnaireApprovalsPromise = axios.get(
+        `${API}/api/approval-workflows/questionnaire/queue`,
+        {
+          headers: getAuthHeader(),
+        }
+      ).catch(err => {
+        console.warn('Failed to fetch questionnaire approvals:', err);
+        return { data: { items: [] } };
+      });
+      
+      const [questionnaireRes, recordApprovalsRes, questionnaireApprovalsRes] = await Promise.all([
         questionnairePromise,
-        recordApprovalsPromise
+        recordApprovalsPromise,
+        questionnaireApprovalsPromise
       ]);
       
       // Transform record approvals to match submission format
@@ -174,10 +189,37 @@ export default function ApprovalModule({
           _approval_request_id: r.id,
         }));
       
-      // Combine both sources
+      // Transform questionnaire approvals (V2 system) to match format
+      const questionnaireApprovals = (questionnaireApprovalsRes.data.items || [])
+        .map(item => ({
+          id: item.id,
+          entity_type: 'questionnaire_response',
+          entity_id: item.question_key,
+          section: item.section_id || 'section_b',
+          question_key: item.question_key,
+          disclosure_name: item.question_name,
+          question_type: item.question_type,
+          field_config: item.field_config,
+          framework: item.framework,
+          reporting_year: item.reporting_year,
+          response_data: item.response_data,
+          submitted_by: item.submitted_by_id,
+          submitted_by_name: item.submitted_by_name,
+          submitted_by_email: item.submitted_by_email,
+          submitted_at: item.submitted_at,
+          status: 'pending_approval',
+          due_date: item.due_date,
+          assignment_id: item.assignment_id,
+          // Flag to identify this is from V2 questionnaire approval
+          _source: 'questionnaire_approval_v2',
+          _response_id: item.id,
+        }));
+      
+      // Combine all sources
       const allSubmissions = [
         ...(questionnaireRes.data.submissions || []),
-        ...recordApprovals
+        ...recordApprovals,
+        ...questionnaireApprovals
       ];
       
       setSubmissions(allSubmissions);
@@ -368,109 +410,175 @@ export default function ApprovalModule({
         </Card>
       ) : (
         <div className="space-y-3">
-          {filteredSubmissions.map((questionGroup) => (
-            <Card 
-              key={questionGroup.question_key}
-              className={`p-4 hover:bg-stone-50 transition-colors cursor-pointer ${
-                questionGroup.submissions?.length > 1 ? 'border-l-4 border-l-orange-400' : ''
-              }`}
-              onClick={() => setSelectedQuestion(questionGroup)}
-              data-testid={`queue-item-${questionGroup.question_key}`}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-start gap-4">
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
-                    questionGroup.submissions?.length > 1 
-                      ? 'bg-orange-100' 
-                      : 'bg-purple-100'
-                  }`}>
-                    {questionGroup.submissions?.length > 1 ? (
-                      <Users className="w-5 h-5 text-orange-600" />
-                    ) : (
-                      <FileText className="w-5 h-5 text-purple-600" />
-                    )}
+          {filteredSubmissions.map((questionGroup) => {
+            // Determine item source type
+            const isV2Questionnaire = questionGroup._source === 'questionnaire_approval_v2';
+            const isMetricApproval = questionGroup._source === 'approval_workflow';
+            
+            return (
+              <Card 
+                key={questionGroup.id || questionGroup.question_key}
+                className={`p-4 hover:bg-stone-50 transition-colors cursor-pointer ${
+                  isV2Questionnaire ? 'border-l-4 border-l-purple-400' :
+                  isMetricApproval ? 'border-l-4 border-l-blue-400' :
+                  questionGroup.submissions?.length > 1 ? 'border-l-4 border-l-orange-400' : ''
+                }`}
+                onClick={() => setSelectedQuestion(questionGroup)}
+                data-testid={`queue-item-${questionGroup.question_key || questionGroup.id}`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-start gap-4">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
+                      isV2Questionnaire ? 'bg-purple-100' :
+                      isMetricApproval ? 'bg-blue-100' :
+                      questionGroup.submissions?.length > 1 
+                        ? 'bg-orange-100' 
+                        : 'bg-purple-100'
+                    }`}>
+                      {isV2Questionnaire ? (
+                        <ScrollText className="w-5 h-5 text-purple-600" />
+                      ) : isMetricApproval ? (
+                        <BarChart3 className="w-5 h-5 text-blue-600" />
+                      ) : questionGroup.submissions?.length > 1 ? (
+                        <Users className="w-5 h-5 text-orange-600" />
+                      ) : (
+                        <FileText className="w-5 h-5 text-purple-600" />
+                      )}
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {isV2Questionnaire || isMetricApproval ? (
+                          <span className="text-sm font-medium text-text-primary">
+                            {questionGroup.disclosure_name || questionGroup.question_key}
+                          </span>
+                        ) : (
+                          <span className="font-mono text-sm font-medium text-text-primary">
+                            {questionGroup.question_key}
+                          </span>
+                        )}
+                        {getSectionBadge(questionGroup.section || questionGroup.question_key)}
+                        {isV2Questionnaire && (
+                          <Badge className="bg-purple-100 text-purple-800">
+                            {questionGroup.framework?.toUpperCase() || 'BRSR'}
+                          </Badge>
+                        )}
+                        {isMetricApproval && (
+                          <Badge className="bg-blue-100 text-blue-800">
+                            Metric
+                          </Badge>
+                        )}
+                        {!isV2Questionnaire && !isMetricApproval && entityType === 'all' && getEntityBadge(questionGroup.question_key)}
+                        {questionGroup.submissions?.length > 1 && (
+                          <Badge className="bg-orange-100 text-orange-800">
+                            Merge Required
+                          </Badge>
+                        )}
+                      </div>
+                      
+                      <div className="flex items-center gap-4 text-sm text-text-muted">
+                        {isV2Questionnaire ? (
+                          <>
+                            <span className="flex items-center gap-1">
+                              <User className="w-3 h-3" />
+                              {questionGroup.submitted_by_name || 'Unknown'}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {formatDate(questionGroup.submitted_at)}
+                            </span>
+                          </>
+                        ) : isMetricApproval ? (
+                          <>
+                            <span className="flex items-center gap-1">
+                              <User className="w-3 h-3" />
+                              {questionGroup.submitted_by_name || 'Unknown'}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {formatDate(questionGroup.submitted_at)}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="flex items-center gap-1">
+                              <Users className="w-3 h-3" />
+                              {questionGroup.submissions?.length || 0} submission{(questionGroup.submissions?.length || 0) !== 1 ? 's' : ''}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              Latest: {formatDate(questionGroup.submissions?.[0]?.submitted_at)}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                      
+                      {/* Preview of submitters - only for non-V2 items */}
+                      {!isV2Questionnaire && !isMetricApproval && (
+                        <div className="flex items-center gap-2 mt-2">
+                          {questionGroup.submissions?.slice(0, 3).map((sub, idx) => (
+                            <Badge 
+                              key={sub.id} 
+                              variant="outline" 
+                              className="text-xs"
+                            >
+                              {sub.submitted_by_user_name?.split(' ')[0] || 'User'}
+                            </Badge>
+                          ))}
+                          {(questionGroup.submissions?.length || 0) > 3 && (
+                            <span className="text-xs text-text-muted">
+                              +{questionGroup.submissions.length - 3} more
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-sm font-medium text-text-primary">
-                        {questionGroup.question_key}
-                      </span>
-                      {getSectionBadge(questionGroup.question_key)}
-                      {entityType === 'all' && getEntityBadge(questionGroup.question_key)}
-                      {questionGroup.submissions?.length > 1 && (
-                        <Badge className="bg-orange-100 text-orange-800">
-                          Merge Required
-                        </Badge>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center gap-4 text-sm text-text-muted">
-                      <span className="flex items-center gap-1">
-                        <Users className="w-3 h-3" />
-                        {questionGroup.submissions?.length || 0} submission{(questionGroup.submissions?.length || 0) !== 1 ? 's' : ''}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        Latest: {formatDate(questionGroup.submissions?.[0]?.submitted_at)}
-                      </span>
-                    </div>
-                    
-                    {/* Preview of submitters */}
-                    <div className="flex items-center gap-2 mt-2">
-                      {questionGroup.submissions?.slice(0, 3).map((sub, idx) => (
-                        <Badge 
-                          key={sub.id} 
-                          variant="outline" 
-                          className="text-xs"
-                        >
-                          {sub.submitted_by_user_name?.split(' ')[0] || 'User'}
-                        </Badge>
-                      ))}
-                      {(questionGroup.submissions?.length || 0) > 3 && (
-                        <span className="text-xs text-text-muted">
-                          +{questionGroup.submissions.length - 3} more
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                  <ChevronRight className="w-5 h-5 text-stone-400" />
                 </div>
-                
-                <ChevronRight className="w-5 h-5 text-stone-400" />
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </div>
       )}
 
-      {/* Review Dialog */}
-      <Dialog 
-        open={selectedQuestion !== null} 
-        onOpenChange={() => setSelectedQuestion(null)}
-      >
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5 text-purple-600" />
-              <span className="font-mono">{selectedQuestion?.question_key}</span>
-              {selectedQuestion?.submissions?.length > 1 && (
-                <Badge className="bg-orange-100 text-orange-800 ml-2">
-                  {selectedQuestion.submissions.length} submissions to merge
-                </Badge>
-              )}
-            </DialogTitle>
-          </DialogHeader>
-          
-          {selectedQuestion && (
-            <SubmissionReviewPanel
-              questionKey={selectedQuestion.question_key}
-              reportingPeriod={selectedQuestion.reporting_period || reportingPeriod}
-              onClose={() => setSelectedQuestion(null)}
-              onApproved={handleApprovalComplete}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* Review Dialog - Handle different item types */}
+      {selectedQuestion && selectedQuestion._source === 'questionnaire_approval_v2' ? (
+        <QuestionnaireApprovalPanel
+          item={selectedQuestion}
+          onClose={() => setSelectedQuestion(null)}
+          onApproved={handleApprovalComplete}
+        />
+      ) : (
+        <Dialog 
+          open={selectedQuestion !== null && selectedQuestion._source !== 'questionnaire_approval_v2'} 
+          onOpenChange={() => setSelectedQuestion(null)}
+        >
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-purple-600" />
+                <span className="font-mono">{selectedQuestion?.question_key}</span>
+                {selectedQuestion?.submissions?.length > 1 && (
+                  <Badge className="bg-orange-100 text-orange-800 ml-2">
+                    {selectedQuestion.submissions.length} submissions to merge
+                  </Badge>
+                )}
+              </DialogTitle>
+            </DialogHeader>
+            
+            {selectedQuestion && (
+              <SubmissionReviewPanel
+                questionKey={selectedQuestion.question_key}
+                reportingPeriod={selectedQuestion.reporting_period || reportingPeriod}
+                onClose={() => setSelectedQuestion(null)}
+                onApproved={handleApprovalComplete}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

@@ -107,6 +107,7 @@ class DisclosureTrackingItem(BaseModel):
     approver_name: Optional[str] = None
     approver_email: Optional[str] = None
     approval_chain: List[str] = Field(default_factory=list)  # Multi-level approval support
+    rejection_reason: Optional[str] = None  # Reason for rejection if status is 'rejected'
     
     # Filling frequency
     filling_frequency: Optional[str] = None

@@ -511,3 +511,107 @@ async def reject_request_simple(
         raise HTTPException(status_code=400, detail=message)
     
     return {"message": message, "request": updated}
+
+
+
+# =============================================================================
+# QUESTIONNAIRE RESPONSE APPROVAL ENDPOINTS
+# =============================================================================
+
+@router.get("/questionnaire/queue")
+async def get_questionnaire_approval_queue(
+    framework: Optional[str] = Query(None, description="Filter by framework (BRSR, GRI)"),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get questionnaire responses pending approval for the current user.
+    
+    Returns enriched items with question configs for display.
+    """
+    org_id = current_user.get("organization_id")
+    user_id = current_user.get("id")
+    
+    if not org_id:
+        raise HTTPException(status_code=400, detail="User has no organization")
+    
+    queue = await ApprovalWorkflowService.get_questionnaire_approval_queue(
+        org_id, user_id, framework
+    )
+    
+    return {"items": queue, "total": len(queue)}
+
+
+class QuestionnaireApprovalInput(BaseModel):
+    """Input for questionnaire response approval."""
+    comment: Optional[str] = None
+    updated_response: Optional[dict] = None  # If approver edited the response
+
+
+class QuestionnaireRejectionInput(BaseModel):
+    """Input for questionnaire response rejection."""
+    reason: str
+
+
+@router.post("/questionnaire/{response_id}/approve")
+async def approve_questionnaire_response(
+    response_id: str,
+    data: QuestionnaireApprovalInput = QuestionnaireApprovalInput(),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Approve a questionnaire response.
+    
+    Approver can optionally edit the response before approving.
+    """
+    success, message, updated = await ApprovalWorkflowService.approve_questionnaire_response(
+        response_id,
+        current_user,
+        comment=data.comment,
+        updated_response=data.updated_response,
+    )
+    
+    if not success:
+        raise HTTPException(status_code=400, detail=message)
+    
+    return {"message": message, "response": updated}
+
+
+@router.post("/questionnaire/{response_id}/reject")
+async def reject_questionnaire_response(
+    response_id: str,
+    data: QuestionnaireRejectionInput,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Reject a questionnaire response.
+    
+    Rejection reason is required. The assignee will need to revise and resubmit.
+    """
+    success, message, updated = await ApprovalWorkflowService.reject_questionnaire_response(
+        response_id,
+        current_user,
+        reason=data.reason,
+    )
+    
+    if not success:
+        raise HTTPException(status_code=400, detail=message)
+    
+    return {"message": message, "response": updated}
+
+
+@router.get("/questionnaire/{question_key}/history")
+async def get_questionnaire_response_history(
+    question_key: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Get approval/rejection history for a specific question."""
+    org_id = current_user.get("organization_id")
+    
+    if not org_id:
+        raise HTTPException(status_code=400, detail="User has no organization")
+    
+    history = await ApprovalWorkflowService.get_questionnaire_response_history(
+        question_key, org_id
+    )
+    
+    return {"history": history}

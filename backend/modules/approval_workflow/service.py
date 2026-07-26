@@ -52,6 +52,7 @@ async def _create_approval_version_snapshot(
     action: str,  # "approved" or "rejected"
     user_id: str,
     rejection_reason: Optional[str] = None,
+    extra_metadata: Optional[Dict[str, Any]] = None,
 ):
     """
     Create a version snapshot for approval/rejection events.
@@ -67,6 +68,8 @@ async def _create_approval_version_snapshot(
         "social_records": "social_records_versions",
         "governance_records": "governance_records_versions",
         "emission_records": "emission_records_versions",
+        "esg_responses": "esg_responses_versions",
+        "organization_esg_responses": "esg_responses_versions",
     }
     
     versions_collection = versions_collection_map.get(collection_name)
@@ -76,7 +79,7 @@ async def _create_approval_version_snapshot(
     
     # Get the current record to capture its state
     record = await db[collection_name].find_one(
-        {"id": record_id},
+        {"id": record_id} if collection_name != "esg_responses" else {"question_key": record_id},
         {"_id": 0}
     )
     
@@ -103,6 +106,10 @@ async def _create_approval_version_snapshot(
     # Add rejection details if rejected
     if action == "rejected" and rejection_reason:
         version_doc["rejection_reason"] = rejection_reason
+    
+    # Add any extra metadata (e.g., question_key, framework, section)
+    if extra_metadata:
+        version_doc.update(extra_metadata)
     
     await db[versions_collection].insert_one(version_doc)
     logger.info(f"Created {action} version snapshot for {collection_name} record {record_id}")
@@ -1516,3 +1523,325 @@ class ApprovalWorkflowService:
             sort=[("created_at", -1)]
         )
         return request.get("status") if request else None
+
+
+    # =========================================================================
+    # QUESTIONNAIRE RESPONSE APPROVAL
+    # =========================================================================
+    
+    @staticmethod
+    async def get_questionnaire_approval_queue(
+        organization_id: str,
+        approver_id: str,
+        framework: Optional[str] = None,
+    ) -> List[dict]:
+        """
+        Get questionnaire responses pending approval for the given approver.
+        
+        Returns enriched items with question configs for display.
+        """
+        # Find assignments where:
+        # 1. Current user is the approver
+        # 2. requires_approval is True
+        # 3. Entity type is "question"
+        assignment_query = {
+            "organization_id": organization_id,
+            "entity_type": "question",
+            "requires_approval": True,
+            "$or": [
+                {"approver_id": approver_id},
+                {"approval_chain": approver_id},
+            ]
+        }
+        
+        if framework:
+            assignment_query["framework_id"] = framework.lower()
+        
+        assignments = await db.esg_assignments.find(
+            assignment_query,
+            {"_id": 0}
+        ).to_list(500)
+        
+        if not assignments:
+            return []
+        
+        # Get question keys and reporting periods
+        question_keys = [a.get("entity_id") for a in assignments if a.get("entity_id")]
+        
+        # Find responses that are pending_approval
+        responses_query = {
+            "organization_id": organization_id,
+            "question_key": {"$in": question_keys},
+            "approval_status": "pending_approval",
+        }
+        
+        responses = await db.esg_responses.find(
+            responses_query,
+            {"_id": 0}
+        ).to_list(500)
+        
+        if not responses:
+            return []
+        
+        # Get question configs for labels
+        config_query = {"question_key": {"$in": question_keys}}
+        configs = await db.esg_question_configs.find(
+            config_query,
+            {"_id": 0, "question_key": 1, "label": 1, "question": 1, "description": 1, 
+             "section": 1, "brsr_section": 1, "framework": 1, "type": 1, "field_config": 1}
+        ).to_list(500)
+        config_map = {c["question_key"]: c for c in configs}
+        
+        # Build assignment map for lookup
+        assignment_map = {a["entity_id"]: a for a in assignments}
+        
+        # Get submitter user info
+        submitter_ids = list(set([r.get("submitted_by") for r in responses if r.get("submitted_by")]))
+        submitters = {}
+        if submitter_ids:
+            users = await db.users.find(
+                {"id": {"$in": submitter_ids}},
+                {"_id": 0, "id": 1, "email": 1, "full_name": 1, "name": 1}
+            ).to_list(100)
+            submitters = {u["id"]: u for u in users}
+        
+        # Enrich responses with config and assignment data
+        queue_items = []
+        for response in responses:
+            question_key = response.get("question_key")
+            config = config_map.get(question_key, {})
+            assignment = assignment_map.get(question_key, {})
+            submitter = submitters.get(response.get("submitted_by"), {})
+            
+            queue_items.append({
+                "id": response.get("id"),
+                "question_key": question_key,
+                "question_name": config.get("label") or config.get("question") or config.get("description", "")[:100],
+                "question_type": config.get("type"),
+                "field_config": config.get("field_config"),
+                "section_id": config.get("brsr_section") or config.get("section"),
+                "framework": response.get("framework") or config.get("framework", "BRSR"),
+                "reporting_year": response.get("reporting_year"),
+                "response_data": response.get("response"),
+                "submitted_at": response.get("submitted_at"),
+                "submitted_by_id": response.get("submitted_by"),
+                "submitted_by_name": submitter.get("full_name") or submitter.get("name") or submitter.get("email", ""),
+                "submitted_by_email": submitter.get("email", ""),
+                "assignment_id": assignment.get("id"),
+                "due_date": assignment.get("due_date"),
+                "organization_id": organization_id,
+            })
+        
+        return queue_items
+    
+    @staticmethod
+    async def approve_questionnaire_response(
+        response_id: str,
+        approver: dict,
+        comment: Optional[str] = None,
+        updated_response: Optional[dict] = None,
+    ) -> Tuple[bool, str, Optional[dict]]:
+        """
+        Approve a questionnaire response.
+        
+        Args:
+            response_id: The esg_responses document id
+            approver: Current user dict
+            comment: Optional approval comment
+            updated_response: If approver edited the response, the new value
+        
+        Returns:
+            (success, message, updated_response)
+        """
+        # Get the response
+        response = await db.esg_responses.find_one(
+            {"id": response_id},
+            {"_id": 0}
+        )
+        
+        if not response:
+            return (False, "Response not found", None)
+        
+        if response.get("approval_status") != "pending_approval":
+            return (False, f"Response is not pending approval (status: {response.get('approval_status')})", None)
+        
+        now = _now_iso()
+        question_key = response.get("question_key")
+        org_id = response.get("organization_id")
+        
+        # Prepare update
+        update_data = {
+            "approval_status": "approved",
+            "approved_at": now,
+            "approved_by": approver.get("id"),
+            "approval_comment": comment,
+            "updated_at": now,
+        }
+        
+        # If approver edited the response, update it
+        if updated_response is not None:
+            update_data["response"] = updated_response
+            update_data["edited_by_approver"] = True
+        
+        # Update the response
+        await db.esg_responses.update_one(
+            {"id": response_id},
+            {"$set": update_data}
+        )
+        
+        # Create version snapshot
+        await _create_approval_version_snapshot(
+            collection_name="esg_responses",
+            record_id=question_key,
+            action="approved",
+            user_id=approver.get("id"),
+            extra_metadata={
+                "question_key": question_key,
+                "framework": response.get("framework"),
+                "reporting_year": response.get("reporting_year"),
+                "approval_comment": comment,
+            }
+        )
+        
+        # Record in approval history
+        await ApprovalWorkflowService._record_history(
+            {
+                "organization_id": org_id,
+                "id": response_id,
+                "workflow_id": None,
+                "entity_type": "questionnaire_response",
+                "entity_id": question_key,
+                "entity_subtype": response.get("framework"),
+            },
+            ApprovalAction.APPROVE,
+            approver,
+            comment=comment,
+            previous_status="pending_approval",
+            new_status="approved",
+        )
+        
+        # Update assignment timestamp
+        await db.esg_assignments.update_one(
+            {
+                "organization_id": org_id,
+                "entity_type": "question",
+                "entity_id": question_key,
+            },
+            {"$set": {"updated_at": now}}
+        )
+        
+        updated = await db.esg_responses.find_one({"id": response_id}, {"_id": 0})
+        logger.info(f"Approved questionnaire response {response_id} (question: {question_key})")
+        
+        return (True, "Response approved", updated)
+    
+    @staticmethod
+    async def reject_questionnaire_response(
+        response_id: str,
+        rejector: dict,
+        reason: str,
+    ) -> Tuple[bool, str, Optional[dict]]:
+        """
+        Reject a questionnaire response.
+        
+        Args:
+            response_id: The esg_responses document id
+            rejector: Current user dict
+            reason: Required rejection reason
+        
+        Returns:
+            (success, message, updated_response)
+        """
+        if not reason:
+            return (False, "Rejection reason is required", None)
+        
+        # Get the response
+        response = await db.esg_responses.find_one(
+            {"id": response_id},
+            {"_id": 0}
+        )
+        
+        if not response:
+            return (False, "Response not found", None)
+        
+        if response.get("approval_status") != "pending_approval":
+            return (False, f"Response is not pending approval (status: {response.get('approval_status')})", None)
+        
+        now = _now_iso()
+        question_key = response.get("question_key")
+        org_id = response.get("organization_id")
+        
+        # Update the response
+        update_data = {
+            "approval_status": "rejected",
+            "rejected_at": now,
+            "rejected_by": rejector.get("id"),
+            "rejection_reason": reason,
+            "updated_at": now,
+        }
+        
+        await db.esg_responses.update_one(
+            {"id": response_id},
+            {"$set": update_data}
+        )
+        
+        # Create version snapshot
+        await _create_approval_version_snapshot(
+            collection_name="esg_responses",
+            record_id=question_key,
+            action="rejected",
+            user_id=rejector.get("id"),
+            rejection_reason=reason,
+            extra_metadata={
+                "question_key": question_key,
+                "framework": response.get("framework"),
+                "reporting_year": response.get("reporting_year"),
+            }
+        )
+        
+        # Record in approval history
+        await ApprovalWorkflowService._record_history(
+            {
+                "organization_id": org_id,
+                "id": response_id,
+                "workflow_id": None,
+                "entity_type": "questionnaire_response",
+                "entity_id": question_key,
+                "entity_subtype": response.get("framework"),
+            },
+            ApprovalAction.REJECT,
+            rejector,
+            comment=reason,
+            previous_status="pending_approval",
+            new_status="rejected",
+        )
+        
+        # Update assignment timestamp
+        await db.esg_assignments.update_one(
+            {
+                "organization_id": org_id,
+                "entity_type": "question",
+                "entity_id": question_key,
+            },
+            {"$set": {"updated_at": now}}
+        )
+        
+        updated = await db.esg_responses.find_one({"id": response_id}, {"_id": 0})
+        logger.info(f"Rejected questionnaire response {response_id} (question: {question_key}): {reason}")
+        
+        return (True, "Response rejected", updated)
+    
+    @staticmethod
+    async def get_questionnaire_response_history(
+        question_key: str,
+        organization_id: str,
+    ) -> List[dict]:
+        """Get approval/rejection history for a specific question."""
+        return await db[HISTORY_COLLECTION].find(
+            {
+                "organization_id": organization_id,
+                "entity_type": "questionnaire_response",
+                "entity_id": question_key,
+            },
+            {"_id": 0}
+        ).sort("timestamp", -1).to_list(100)
