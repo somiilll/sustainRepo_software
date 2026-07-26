@@ -7,10 +7,13 @@
 import { TASK_STATUS, TASK_TYPE, APPROVAL_STATUS } from './constants';
 
 /**
- * Check if task is operationally complete
+ * Check if task is operationally complete (work is done)
+ * Includes pending_approval since work IS submitted, just awaiting review
  */
 export const isTaskCompleted = (task) => {
-  return task.status === TASK_STATUS.COMPLETED;
+  return task.status === TASK_STATUS.COMPLETED || 
+         task.status === 'pending_approval' ||
+         task.approval_status === APPROVAL_STATUS.PENDING_APPROVAL;
 };
 
 /**
@@ -22,13 +25,17 @@ export const isAwaitingApproval = (task) => {
 
 /**
  * Determine if a task is overdue (not completed and past due date)
+ * Tasks with pending_approval are NOT overdue - work is done, just awaiting review
  */
 export const isTaskOverdue = (task) => {
   const dueAt = task.due_at || task.due_date;
   if (!dueAt) return false;
   const now = new Date();
-  // Task is overdue only if not completed and past due
-  return new Date(dueAt) < now && task.status !== TASK_STATUS.COMPLETED;
+  // Task is overdue only if not completed AND not pending approval AND past due
+  const workDone = task.status === TASK_STATUS.COMPLETED || 
+                   task.status === 'pending_approval' ||
+                   task.approval_status === APPROVAL_STATUS.PENDING_APPROVAL;
+  return new Date(dueAt) < now && !workDone;
 };
 
 /**
@@ -80,14 +87,17 @@ export const formatDueDate = (task, options = {}) => {
   let text = time ? `${formatted}, ${time}` : formatted;
   let suffix = '';
   
-  // Check if task is completed - completed tasks are never overdue
-  const isCompleted = task.status === TASK_STATUS.COMPLETED;
+  // Check if task work is done - completed OR pending_approval (submitted, awaiting review)
+  // These tasks should NOT show as overdue since the work IS done
+  const isWorkDone = task.status === TASK_STATUS.COMPLETED || 
+                     task.status === 'pending_approval' ||
+                     task.approval_status === APPROVAL_STATUS.PENDING_APPROVAL;
   
-  // Determine overdue status (only if not completed)
+  // Determine overdue status (only if work not done)
   const isPastDue = diffDays < 0;
-  const isOverdue = isPastDue && !isCompleted;
+  const isOverdue = isPastDue && !isWorkDone;
   
-  if (showRelative && !isCompleted) {
+  if (showRelative && !isWorkDone) {
     if (isPastDue) {
       suffix = ' (Overdue)';
     } else if (diffDays <= 7) {
@@ -98,7 +108,7 @@ export const formatDueDate = (task, options = {}) => {
   return {
     text: text + suffix,
     isOverdue,
-    isUrgent: !isCompleted && diffDays >= 0 && diffDays <= 7,
+    isUrgent: !isWorkDone && diffDays >= 0 && diffDays <= 7,
     diffDays,
   };
 };
