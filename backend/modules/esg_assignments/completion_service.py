@@ -785,7 +785,8 @@ class CompletionService:
         
         # Get due_day from due_config (primary) or filling_due_day (fallback)
         # This must match how tasks are generated in task_engine.py
-        due_config = assignment.get("due_config", {})
+        # Note: due_config can be explicitly None in DB, so use `or {}` not default arg
+        due_config = assignment.get("due_config") or {}
         due_day = due_config.get("day_of_month") or assignment.get("filling_due_day", 15)
         
         # Generate periods
