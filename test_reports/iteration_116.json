@@ -1,0 +1,26 @@
+{
+  "summary": "Iteration 116 - Verified 3 bug fixes for draft/pending_approval handling. Backend fix (Bug 1) covered by 8 pytest tests (all pass) validating DataChecker._check_environment/_check_ghg/_check_social/_check_governance exclude status='draft' records, and CompletionService.get_task_status returns PENDING_APPROVAL only when submitted+pending, and NOT COMPLETED/PENDING_APPROVAL when only drafts exist. Frontend loads OK. Bug 2 (StatusBadge dual badge for pending_approval) and Bug 3 (ApproverQueue unit_selector value/unit extraction) verified via code review: ESGTrackingTab.js StatusBadge renders Completed (green) + Awaiting Approval (amber) badges together when status==='pending_approval'; ESGRecordsTracker.js getStatusBadge matches; ApproverQueue.js unit_selector case (lines 654-687) properly reads {value, unit} object with typeof check and defaults, and renders value in number input + unit in select with matching selected option.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_draft_exclusion_iter116.py",
+    "/app/test_reports/pytest/pytest_iter116.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "DataChecker uses hardcoded string 'draft' for status filter across 4 methods - consider a shared constant / enum to avoid drift.",
+    "StatusBadge logic in ESGTrackingTab.js and getStatusBadge in ESGRecordsTracker.js duplicate the pending_approval->Completed dual-badge logic; extract a shared helper to prevent future drift between tracker views.",
+    "ApproverQueue.js unit_selector case: parseFloat('') returns NaN, but the ternary `e.target.value ? parseFloat(e.target.value) : ''` protects against that. Consider also handling numeric strings like '0' correctly (currently '0' is falsy? No, '0' is truthy string - OK).",
+    "CompletionService.get_task_status treats approval_status in ['pending', 'pending_approval'] as PENDING_APPROVAL; ensure DB writers standardize on one value to avoid ambiguity."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_draft_exclusion_iter116.py"
+  ],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "N/A - code review only"},
+  "test_credentials": "Admin goyalsomil2001@gmail.com / TestUser123!",
+  "seed_data_creation": "Tests seed records with test_tag='TEST_ITER116' in environment/emission/social/governance_records for period 2099-01. autouse fixture cleans up before and after each test.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Bug 1 backend regression covered by /app/backend/tests/test_draft_exclusion_iter116.py. Uses pymongo sync for seeding + single dedicated asyncio loop to avoid motor cross-loop issues under pytest-asyncio 1.3. If adding new async DB tests, follow the same pattern (_run helper + module-level _LOOP) to prevent 'Event loop is closed' errors seen when using autouse async fixtures with different loops. Bugs 2 & 3 are pure UI conditional logic - can be visually verified by logging in as admin and inspecting a pending_approval task in ESG Tracker + opening approval queue with a unit_selector field record.",
+  "rca of the issue": "N/A - all three fixes verified working. Bug 1 root cause was that DataChecker was matching ANY environment/emission/social/governance record for a period regardless of status, so drafts were counted as data. Fixed by adding {'status': {'$ne': 'draft'}} filter. Bugs 2 & 3 were pure frontend rendering issues fixed by conditional badge composition and object destructuring for {value, unit} unit_selector state."
+}

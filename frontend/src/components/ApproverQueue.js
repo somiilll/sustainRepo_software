@@ -652,19 +652,28 @@ function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
         break;
         
       case 'unit_selector':
+        // Handle unit_selector which stores {value: number, unit: string}
+        // Ensure we properly extract value and unit from the stored object
+        const unitValue = typeof currentValue === 'object' && currentValue !== null 
+          ? currentValue 
+          : { value: currentValue, unit: '' };
+        
         input = (
           <div className="flex gap-2">
             <input
               type="number"
-              value={currentValue?.value ?? ''}
-              onChange={(e) => handleFieldChange(key, { ...currentValue, value: e.target.value ? parseFloat(e.target.value) : '' })}
+              value={unitValue.value ?? ''}
+              onChange={(e) => handleFieldChange(key, { 
+                ...unitValue, 
+                value: e.target.value ? parseFloat(e.target.value) : '' 
+              })}
               className={`${inputClasses} flex-1`}
               placeholder="Value"
               disabled={processing}
             />
             <select
-              value={currentValue?.unit ?? ''}
-              onChange={(e) => handleFieldChange(key, { ...currentValue, unit: e.target.value })}
+              value={unitValue.unit ?? ''}
+              onChange={(e) => handleFieldChange(key, { ...unitValue, unit: e.target.value })}
               className={`${inputClasses} w-32`}
               disabled={processing}
             >

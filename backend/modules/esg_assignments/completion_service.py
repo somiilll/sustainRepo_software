@@ -248,10 +248,14 @@ class DataChecker:
         Check GHG emission_records.
         
         Returns: (has_data, last_updated, approval_status)
+        
+        NOTE: Draft records are excluded - only submitted/completed records count as "has_data"
         """
         query = {
             "organization_id": organization_id,
             "reporting_period": period_key,
+            # EXCLUDE DRAFTS: Only count submitted/completed records
+            "status": {"$ne": "draft"},
         }
         
         # IMPORTANT: Explicitly filter by facility_id
@@ -302,12 +306,17 @@ class DataChecker:
         Check environment_records (Water, Energy, Waste, etc.).
         
         Returns: (has_data, last_updated, approval_status)
+        
+        NOTE: Draft records are excluded - only submitted/completed records count as "has_data"
         """
         query = {
             "$or": [
                 {"organization_id": organization_id},
                 {"org_id": organization_id},
             ],
+            # EXCLUDE DRAFTS: Only count submitted/completed records
+            # Draft records should NOT mark a task as completed
+            "status": {"$ne": "draft"},
         }
         
         if facility_id:
@@ -368,12 +377,16 @@ class DataChecker:
         Check social_records.
         
         Returns: (has_data, last_updated, approval_status)
+        
+        NOTE: Draft records are excluded - only submitted/completed records count as "has_data"
         """
         query = {
             "$or": [
                 {"organization_id": organization_id},
                 {"org_id": organization_id},
             ],
+            # EXCLUDE DRAFTS: Only count submitted/completed records
+            "status": {"$ne": "draft"},
         }
         
         if facility_id:
@@ -422,12 +435,16 @@ class DataChecker:
         Check governance_records.
         
         Returns: (has_data, last_updated, approval_status)
+        
+        NOTE: Draft records are excluded - only submitted/completed records count as "has_data"
         """
         query = {
             "$or": [
                 {"organization_id": organization_id},
                 {"org_id": organization_id},
             ],
+            # EXCLUDE DRAFTS: Only count submitted/completed records
+            "status": {"$ne": "draft"},
         }
         
         if category:

@@ -872,6 +872,7 @@ export default function ESGRecordsTracker({
   };
 
   // Get status badge - now uses operational status
+  // When data is submitted and awaiting approval, show BOTH "Completed" AND "Awaiting Approval"
   const getStatusBadge = (status, approvalStatus = null) => {
     const labels = {
       pending: 'Pending',
@@ -880,6 +881,9 @@ export default function ESGRecordsTracker({
       reopened: 'Reopened',
       overdue: 'Overdue',
       skipped: 'Skipped',
+      backfill_pending: 'Backfill Pending',
+      // Special handling: pending_approval means data IS submitted, show as Completed
+      pending_approval: 'Completed',
     };
     
     const approvalLabels = {
@@ -888,14 +892,25 @@ export default function ESGRecordsTracker({
       rejected: 'Rejected',
     };
     
+    // Determine the effective status color
+    // If pending_approval, use completed color for the status badge
+    const effectiveStatusColor = status === 'pending_approval' 
+      ? STATUS_COLORS.completed 
+      : (STATUS_COLORS[status] || STATUS_COLORS.pending);
+    
+    // For pending_approval, approvalStatus should also be pending_approval
+    const effectiveApprovalStatus = status === 'pending_approval' 
+      ? 'pending_approval' 
+      : approvalStatus;
+    
     return (
       <div className="flex items-center gap-1.5 flex-wrap">
-        <Badge className={STATUS_COLORS[status] || STATUS_COLORS.pending}>
+        <Badge className={effectiveStatusColor}>
           {labels[status] || status}
         </Badge>
-        {approvalStatus && approvalStatus !== 'not_required' && (
-          <Badge className={APPROVAL_STATUS_COLORS[approvalStatus] || ''}>
-            {approvalLabels[approvalStatus] || approvalStatus}
+        {effectiveApprovalStatus && effectiveApprovalStatus !== 'not_required' && (
+          <Badge className={APPROVAL_STATUS_COLORS[effectiveApprovalStatus] || ''}>
+            {approvalLabels[effectiveApprovalStatus] || effectiveApprovalStatus}
           </Badge>
         )}
       </div>

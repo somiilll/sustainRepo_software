@@ -100,15 +100,17 @@ const APPROVAL_COLORS = {
 };
 
 // Get status badge - updated for dual status architecture
+// When data is submitted and awaiting approval, show BOTH "Completed" AND "Awaiting Approval"
 const StatusBadge = ({ status, approvalStatus, isOverdue, isStale, isDueSoon }) => {
-  if (isOverdue) {
+  if (isOverdue && status !== 'pending_approval' && status !== 'completed') {
+    // Only show overdue if there's no data submitted
     return (
       <Badge className={`${STATUS_COLORS.overdue} text-xs`}>
         <XCircle className="w-3 h-3 mr-1" /> Overdue
       </Badge>
     );
   }
-  if (isDueSoon) {
+  if (isDueSoon && status !== 'pending_approval' && status !== 'completed') {
     return (
       <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-xs">
         <Clock className="w-3 h-3 mr-1" /> Due Soon
@@ -121,6 +123,8 @@ const StatusBadge = ({ status, approvalStatus, isOverdue, isStale, isDueSoon }) 
     in_progress: { icon: Clock, label: 'In Progress' },
     reopened: { icon: AlertCircle, label: 'Reopened' },
     not_started: { icon: Circle, label: 'Not Started' },
+    // pending_approval means data IS submitted - show as Completed
+    pending_approval: { icon: CheckCircle2, label: 'Completed' },
   };
   
   const approvalMap = {
@@ -129,17 +133,29 @@ const StatusBadge = ({ status, approvalStatus, isOverdue, isStale, isDueSoon }) 
     rejected: 'Rejected',
   };
   
+  // Use appropriate config
   const config = statusMap[status] || statusMap.not_started;
   const Icon = config.icon;
   
+  // Determine effective approval status
+  // If status is pending_approval, we know approval is pending
+  const effectiveApprovalStatus = status === 'pending_approval' 
+    ? 'pending_approval' 
+    : approvalStatus;
+  
+  // Use completed color for pending_approval status
+  const effectiveStatusColor = status === 'pending_approval'
+    ? STATUS_COLORS.completed
+    : (STATUS_COLORS[status] || STATUS_COLORS.not_started);
+  
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
-      <Badge className={`${STATUS_COLORS[status] || STATUS_COLORS.not_started} text-xs`}>
+      <Badge className={`${effectiveStatusColor} text-xs`}>
         <Icon className="w-3 h-3 mr-1" /> {config.label}
       </Badge>
-      {approvalStatus && approvalStatus !== 'not_required' && (
-        <Badge className={`${APPROVAL_COLORS[approvalStatus]} text-xs`}>
-          {approvalMap[approvalStatus] || approvalStatus}
+      {effectiveApprovalStatus && effectiveApprovalStatus !== 'not_required' && (
+        <Badge className={`${APPROVAL_COLORS[effectiveApprovalStatus]} text-xs`}>
+          {approvalMap[effectiveApprovalStatus] || effectiveApprovalStatus}
         </Badge>
       )}
     </div>
