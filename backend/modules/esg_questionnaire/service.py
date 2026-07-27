@@ -1051,6 +1051,67 @@ class ESGQuestionnaireService:
                     user_email=changed_by_user_email,
                 )
                 
+                # ALSO save to esg_responses with pending_approval status
+                # This ensures the value is visible in UI while awaiting approval
+                await db.esg_responses.update_one(
+                    {
+                        "organization_id": org_id,
+                        "question_key": question_key,
+                        "reporting_period": reporting_period,
+                    },
+                    {
+                        "$set": {
+                            "value": value,
+                            "status": "pending_approval",
+                            "approval_status": "pending_approval",
+                            "reporting_year": reporting_period,
+                            "updated_at": now_iso,
+                            "updated_by": changed_by_user_id,
+                            "updated_by_name": changed_by_user_name,
+                            "updated_by_email": changed_by_user_email,
+                        },
+                        "$setOnInsert": {
+                            "id": str(uuid.uuid4()),
+                            "organization_id": org_id,
+                            "question_key": question_key,
+                            "reporting_period": reporting_period,
+                            "created_at": now_iso,
+                        }
+                    },
+                    upsert=True
+                )
+                
+                # ALSO save to organization_esg_responses for tracker compatibility
+                config = await self._configs.find_one(
+                    {"question_key": question_key},
+                    {"_id": 0, "section": 1}
+                )
+                section = config.get("section", "environment") if config else "environment"
+                
+                await db.organization_esg_responses.update_one(
+                    {
+                        "org_id": org_id,
+                        "framework": "GRI",
+                        "reporting_year": reporting_period,
+                        "section": section,
+                    },
+                    {
+                        "$set": {
+                            f"responses.{question_key}": value,
+                            "updated_at": now_iso,
+                        },
+                        "$setOnInsert": {
+                            "id": str(uuid.uuid4()),
+                            "org_id": org_id,
+                            "organization_id": org_id,
+                            "framework": "GRI",
+                            "section": section,
+                            "created_at": now_iso,
+                        }
+                    },
+                    upsert=True
+                )
+                
                 return {
                     "success": True,
                     "submitted_for_approval": True,
