@@ -849,7 +849,7 @@ class AssignmentServiceV2:
         subcategory: Optional[str],
         sub_subcategory: Optional[str],
         reporting_period: str,
-        facility_assignments: Dict[str, List[str]],  # {facility_id: [user_ids]}
+        facility_assignments: Dict[str, Any],  # {facility_id: [user_ids] or {user_ids, requires_approval, approver_id}}
         assignment_data: Dict[str, Any],  # Common properties (schedule, etc.)
         created_by_user_id: str,
     ) -> Dict[str, Any]:
@@ -861,7 +861,9 @@ class AssignmentServiceV2:
         2. Create new facility-level assignments for each facility
         
         Args:
-            facility_assignments: Dict mapping facility_id to list of user_ids
+            facility_assignments: Dict mapping facility_id to:
+                - List of user_ids (legacy format)
+                - OR dict with {user_ids, requires_approval, approver_id} (new format)
             assignment_data: Common properties for all assignments
         
         Returns:
@@ -880,12 +882,30 @@ class AssignmentServiceV2:
         
         # Create facility-level assignments
         created_assignments = []
-        for facility_id, user_ids in facility_assignments.items():
+        for facility_id, facility_config in facility_assignments.items():
+            # Handle both legacy format (list) and new format (dict)
+            if isinstance(facility_config, list):
+                # Legacy format: facility_config is [user_ids]
+                user_ids = facility_config
+                per_facility_approval = {}
+            elif isinstance(facility_config, dict):
+                # New format: facility_config is {user_ids, requires_approval, approver_id}
+                user_ids = facility_config.get("user_ids", [])
+                per_facility_approval = {
+                    "requires_approval": facility_config.get("requires_approval", assignment_data.get("requires_approval", False)),
+                    "approver_id": facility_config.get("approver_id", assignment_data.get("approver_id")),
+                }
+            else:
+                continue
+            
             if not user_ids:
                 continue
             
+            # Merge per-facility approval config with common assignment_data
+            # Per-facility values override common values
             data = {
                 **assignment_data,
+                **per_facility_approval,  # Per-facility overrides
                 "organization_id": organization_id,
                 "category": category,
                 "subcategory": subcategory,

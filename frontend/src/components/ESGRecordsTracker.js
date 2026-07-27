@@ -743,10 +743,15 @@ export default function ESGRecordsTracker({
           return;
         }
         
-        // Build facility_assignments object: { facility_id: [user_ids], ... }
+        // Build facility_assignments object with full details including approval config
+        // { facility_id: { user_ids: [...], requires_approval: bool, approver_id: string }, ... }
         const facilityAssignmentsMap = {};
         for (const [facilityId, fa] of facilityAssignments) {
-          facilityAssignmentsMap[facilityId] = fa.user_ids;
+          facilityAssignmentsMap[facilityId] = {
+            user_ids: fa.user_ids,
+            requires_approval: fa.requires_approval || false,
+            approver_id: fa.approver_id || null,
+          };
         }
         
         await axios.post(
