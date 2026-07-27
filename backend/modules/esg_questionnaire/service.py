@@ -1941,19 +1941,21 @@ class ESGQuestionnaireService:
             if changed_by_user_id:
                 for question_key, new_value in responses.items():
                     old_value = old_responses.get(question_key)
-                    if old_value != new_value:
-                        try:
-                            # Check if this disclosure requires approval and trigger workflow
-                            await self._trigger_approval_if_required(
-                                org_id, question_key, reporting_year, new_value, changed_by_user_id
-                            )
-                            # Log to audit trail for version history
+                    value_changed = old_value != new_value
+                    
+                    # Always trigger approval check (handles re-submission of approved/rejected questions)
+                    try:
+                        await self._trigger_approval_if_required(
+                            org_id, question_key, reporting_year, new_value, changed_by_user_id
+                        )
+                        # Log to audit trail only if value actually changed
+                        if value_changed:
                             await self._log_question_audit(
                                 org_id, question_key, reporting_year, 
                                 old_value, new_value, changed_by_user_id, "updated"
                             )
-                        except Exception as e:
-                            print(f"Warning: Failed to trigger approval for {question_key}: {e}")
+                    except Exception as e:
+                        print(f"Warning: Failed to trigger approval for {question_key}: {e}")
         else:
             doc = {
                 "id": str(uuid.uuid4()),
