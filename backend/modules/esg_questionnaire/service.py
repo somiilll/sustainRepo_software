@@ -1279,17 +1279,26 @@ class ESGQuestionnaireService:
         """
         Get version history for a specific question.
         Returns all audit log entries with computed field diffs.
+        
+        For parent questions with subparts (e.g., gri_101_2_a), also fetches
+        history for all subpart keys (gri_101_2_a_i, gri_101_2_a_ii, etc.)
         """
+        # Build query to match exact key OR subpart keys (for parent questions)
+        query = {
+            "organization_id": org_id,
+            "reporting_period": reporting_period,
+            "$or": [
+                {"question_key": question_key},
+                {"question_key": {"$regex": f"^{question_key}_"}}  # Match subparts
+            ]
+        }
+        
         cursor = db.question_audit_log.find(
-            {
-                "organization_id": org_id,
-                "question_key": question_key,
-                "reporting_period": reporting_period,
-            },
+            query,
             {"_id": 0}
         ).sort("timestamp", -1)
         
-        entries = await cursor.to_list(100)
+        entries = await cursor.to_list(200)
         
         # Compute field_diffs for each entry that has change_details
         for entry in entries:
