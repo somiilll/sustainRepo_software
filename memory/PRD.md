@@ -380,3 +380,21 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
   3. Update approval queue for level filtering
   4. Frontend multi-level assignment UI
 - **No breaking migration**: Code will default missing `current_approval_level` to 0
+
+---
+
+## Implementation Log (December 2025)
+
+### GRI Tracker & Approval Sync Fix (Dec 27, 2025)
+- **Issue**: GRI tracker showing incorrect completion and approval status
+- **Root Causes Fixed**:
+  1. **Aggregated completion bug**: Parent questions showed `completed=True` when ANY subpart had value (should be ALL)
+  2. **Approval status normalization**: GRI responses used `status` field, BRSR used `approval_status` - caused mismatches
+  3. **Empty string handling**: Values of `''` (empty string) were treated as filled
+- **Files Modified**:
+  - `/app/backend/modules/esg_tracking/service.py` - Fixed aggregation logic, added approval_status normalization
+  - `/app/backend/modules/esg_assignments/service.py` - Added approval_status normalization for My Tasks
+  - `/app/backend/modules/esg_questionnaire/service.py` - Added `approval_status` field alongside `status` when approving
+- **DB Migration**: Backfilled `approval_status` field for existing GRI responses that had `approved_at` set
+- **Testing**: All 6 scenarios passed (100% backend test success rate)
+
