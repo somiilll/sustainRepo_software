@@ -1827,8 +1827,9 @@ class ESGRecordsService:
             # Add user name
             v["changed_by_name"] = user_map.get(v.get("created_by"), "Unknown")
             
-            # Determine change type
-            v["change_type"] = "created" if v.get("version") == 1 else "updated"
+            # Keep stored change_type (approved/rejected/etc), only default if not present
+            if not v.get("change_type"):
+                v["change_type"] = "created" if v.get("version") == 1 else "updated"
             
             # Use stored changed_fields paths to compute diffs from snapshots
             if v.get("version", 1) > 1 and i + 1 < len(versions):
