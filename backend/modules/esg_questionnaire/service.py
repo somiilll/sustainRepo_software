@@ -1356,29 +1356,91 @@ class ESGQuestionnaireService:
         
         entries = await cursor.to_list(200)
         
-        # Compute field_diffs for each entry that has change_details
+        # Process each entry to add computed fields for display
         for entry in entries:
             change_details = entry.get("change_details", {})
-            old_val = change_details.get("old_value")
-            new_val = change_details.get("new_value")
+            action = entry.get("action", "")
             
-            # Compute diffs if both values exist and are dicts
+            # Extract old and new values based on action type
+            # Different actions store values in different keys
+            old_val = change_details.get("old_value") or change_details.get("original_value")
+            new_val = change_details.get("new_value") or change_details.get("final_value") or change_details.get("value")
+            
+            # Compute field_diffs for display
+            field_diffs = []
+            
             if isinstance(old_val, dict) and isinstance(new_val, dict):
+                # Dict comparison
                 changes = compare_versions(old_val, new_val)
-                entry["field_diffs"] = [
+                field_diffs = [
                     {"field": c["field"], "display_name": format_field_display_name(c["field"]), "old_value": c["old"], "new_value": c["new"]}
                     for c in changes
                 ]
-            elif old_val != new_val:
-                # Simple value change
-                entry["field_diffs"] = [{
-                    "field": "value",
-                    "display_name": "Value",
-                    "old_value": old_val,
-                    "new_value": new_val
-                }]
+            elif old_val is not None or new_val is not None:
+                # Simple value - show if there's any change or new value
+                if old_val != new_val:
+                    field_diffs = [{
+                        "field": "value",
+                        "display_name": "Answer",
+                        "old_value": old_val,
+                        "new_value": new_val
+                    }]
+                elif new_val is not None and action in ["submitted_for_approval", "draft_updated", "saved"]:
+                    # Show the value even if no "old" value (first submission)
+                    field_diffs = [{
+                        "field": "value",
+                        "display_name": "Answer",
+                        "old_value": None,
+                        "new_value": new_val
+                    }]
+            
+            entry["field_diffs"] = field_diffs
+            
+            # Add human-readable action description
+            action_descriptions = {
+                "submission_approved": "Submission Approved",
+                "submission_rejected": "Submission Rejected",
+                "submitted_for_approval": "Submitted for Approval",
+                "draft_updated": "Draft Updated",
+                "draft_draft": "Draft Saved",
+                "saved": "Response Saved",
+                "created": "Response Created",
+                "updated": "Response Updated",
+            }
+            entry["action_display"] = action_descriptions.get(action, action.replace("_", " ").title())
+            
+            # Format performer name for display
+            performed_by = entry.get("performed_by", {})
+            if isinstance(performed_by, dict):
+                entry["performed_by_name"] = performed_by.get("name") or performed_by.get("email") or "Unknown"
+                entry["performed_by_email"] = performed_by.get("email", "")
             else:
-                entry["field_diffs"] = []
+                entry["performed_by_name"] = str(performed_by) if performed_by else "Unknown"
+                entry["performed_by_email"] = ""
+            
+            # Add question label for subparts
+            q_key = entry.get("question_key", "")
+            if q_key:
+                # Extract subpart identifier (e.g., "i", "ii" from "gri_101_2_a_i")
+                parts = q_key.split("_")
+                if len(parts) > 4:
+                    subpart = parts[-1]  # Last part is the subpart (i, ii, iii, etc.)
+                    entry["subpart_label"] = f"Part {subpart}"
+                else:
+                    entry["subpart_label"] = None
+            
+            # Include submitted_by info for approval entries
+            if "submitted_by" in change_details:
+                entry["submitted_by_name"] = change_details["submitted_by"]
+            
+            # Include rejection reason if present
+            if "rejection_reason" in change_details:
+                entry["rejection_reason"] = change_details["rejection_reason"]
+            
+            # Include merge info
+            if change_details.get("was_merged"):
+                entry["was_merged"] = True
+                entry["merge_note"] = "Approver made changes to the submitted value"
         
         return entries
 

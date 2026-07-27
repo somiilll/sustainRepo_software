@@ -1044,20 +1044,18 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
                     <div className="flex items-center gap-2">
                       {getActionIcon(entry.action)}
                       <span className="font-medium text-sm capitalize">
-                        {entry.action?.replace('_', ' ')}
+                        {entry.action_display || entry.action?.replace(/_/g, ' ')}
                       </span>
-                      <Badge 
-                        variant="outline" 
-                        className={
-                          entry.change_details?.new_status === 'saved' 
-                            ? 'bg-green-50 text-green-700 border-green-200' 
-                            : entry.change_details?.new_status === 'draft'
-                            ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
-                            : 'bg-stone-50'
-                        }
-                      >
-                        {entry.change_details?.new_status || 'unknown'}
-                      </Badge>
+                      {entry.subpart_label && (
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                          {entry.subpart_label}
+                        </Badge>
+                      )}
+                      {entry.question_key && (
+                        <code className="text-xs bg-stone-100 px-1 rounded text-stone-600">
+                          {entry.question_key}
+                        </code>
+                      )}
                     </div>
                     <span className="text-xs text-text-muted">
                       {formatDate(entry.timestamp)}
@@ -1066,9 +1064,28 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
                   
                   {/* User info */}
                   <div className="text-sm text-text-secondary mb-3">
-                    <span className="font-medium">{entry.performed_by?.name || 'Unknown'}</span>
-                    <span className="text-text-muted ml-1">({entry.performed_by?.email})</span>
+                    <span className="font-medium">{entry.performed_by_name || entry.performed_by?.name || 'Unknown'}</span>
+                    {(entry.performed_by_email || entry.performed_by?.email) && (
+                      <span className="text-text-muted ml-1">({entry.performed_by_email || entry.performed_by?.email})</span>
+                    )}
+                    {entry.submitted_by_name && entry.action === 'submission_approved' && (
+                      <span className="text-text-muted ml-2">• Submitted by {entry.submitted_by_name}</span>
+                    )}
                   </div>
+                  
+                  {/* Merge note for approver changes */}
+                  {entry.was_merged && (
+                    <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded p-2 mb-3">
+                      ⚠️ {entry.merge_note || 'Approver made changes to the submitted value'}
+                    </div>
+                  )}
+                  
+                  {/* Rejection reason */}
+                  {entry.rejection_reason && (
+                    <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded p-2 mb-3">
+                      Rejection reason: {entry.rejection_reason}
+                    </div>
+                  )}
                   
                   {/* Field Diffs - computed from version_utils */}
                   {entry.field_diffs && entry.field_diffs.length > 0 ? (
@@ -1095,21 +1112,25 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
                         </div>
                       ))}
                     </div>
-                  ) : entry.change_details && (
+                  ) : entry.change_details && (entry.change_details.old_value || entry.change_details.new_value || entry.change_details.original_value || entry.change_details.final_value || entry.change_details.value) && (
                     <div className="space-y-2">
-                      {entry.change_details.old_value && (
+                      {(entry.change_details.old_value || entry.change_details.original_value) && (
                         <div className="text-xs">
                           <span className="text-red-600 font-medium">Previous:</span>
                           <p className="mt-1 p-2 bg-red-50 rounded border border-red-100 text-text-secondary line-clamp-3">
-                            {typeof entry.change_details.old_value === 'object' ? JSON.stringify(entry.change_details.old_value) : entry.change_details.old_value}
+                            {typeof (entry.change_details.old_value || entry.change_details.original_value) === 'object' 
+                              ? JSON.stringify(entry.change_details.old_value || entry.change_details.original_value) 
+                              : (entry.change_details.old_value || entry.change_details.original_value)}
                           </p>
                         </div>
                       )}
-                      {entry.change_details.new_value && (
+                      {(entry.change_details.new_value || entry.change_details.final_value || entry.change_details.value) && (
                         <div className="text-xs">
                           <span className="text-green-600 font-medium">New:</span>
                           <p className="mt-1 p-2 bg-green-50 rounded border border-green-100 text-text-secondary line-clamp-3">
-                            {typeof entry.change_details.new_value === 'object' ? JSON.stringify(entry.change_details.new_value) : entry.change_details.new_value}
+                            {typeof (entry.change_details.new_value || entry.change_details.final_value || entry.change_details.value) === 'object' 
+                              ? JSON.stringify(entry.change_details.new_value || entry.change_details.final_value || entry.change_details.value) 
+                              : (entry.change_details.new_value || entry.change_details.final_value || entry.change_details.value)}
                           </p>
                         </div>
                       )}
