@@ -724,20 +724,37 @@ function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
         break;
         
       case 'unit_selector':
-        // unit_selector is just a dropdown for selecting units (like 'Litres', 'KiloLitres')
-        // It stores a simple string value, NOT an object
+        // Handle unit_selector which stores {value: number, unit: string}
+        // Ensure we properly extract value and unit from the stored object
+        const unitValue = typeof currentValue === 'object' && currentValue !== null 
+          ? currentValue 
+          : { value: currentValue, unit: '' };
+        
         input = (
-          <select
-            value={currentValue ?? ''}
-            onChange={(e) => handleFieldChange(key, e.target.value)}
-            className={inputClasses}
-            disabled={processing}
-          >
-            <option value="">Select unit...</option>
-            {(field.options || []).map(opt => (
-              <option key={opt} value={opt}>{opt}</option>
-            ))}
-          </select>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              value={unitValue.value ?? ''}
+              onChange={(e) => handleFieldChange(key, { 
+                ...unitValue, 
+                value: e.target.value ? parseFloat(e.target.value) : '' 
+              })}
+              className={`${inputClasses} flex-1`}
+              placeholder="Value"
+              disabled={processing}
+            />
+            <select
+              value={unitValue.unit ?? ''}
+              onChange={(e) => handleFieldChange(key, { ...unitValue, unit: e.target.value })}
+              className={`${inputClasses} w-32`}
+              disabled={processing}
+            >
+              <option value="">Unit</option>
+              {(field.options || []).map(opt => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
+          </div>
         );
         break;
         
