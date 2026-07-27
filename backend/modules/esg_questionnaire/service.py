@@ -402,6 +402,8 @@ class ESGQuestionnaireService:
         """
         Check if there's an approver assigned to this question or its section.
         Returns True if approval workflow is enabled AND approver is assigned.
+        
+        For subpart questions (e.g., gri_101_2_a_iii), also checks parent assignments (gri_101_2_a).
         """
         # Check if there's an assignment with requires_approval=True for this question
         assignment = await db.esg_assignments.find_one({
@@ -414,6 +416,23 @@ class ESGQuestionnaireService:
         
         if assignment:
             return True
+        
+        # Check parent question assignments for subparts (e.g., gri_101_2_a_iii -> gri_101_2_a)
+        if "_" in question_key:
+            parts = question_key.rsplit("_", 1)
+            while len(parts) > 1:
+                parent_key = parts[0]
+                parent_assignment = await db.esg_assignments.find_one({
+                    "organization_id": org_id,
+                    "entity_id": parent_key,
+                    "entity_type": "question",
+                    "reporting_period": reporting_period,
+                    "requires_approval": True,
+                }, {"_id": 0, "id": 1})
+                
+                if parent_assignment:
+                    return True
+                parts = parent_key.rsplit("_", 1)
         
         # Also check section-level assignment
         # Extract section from question_key (e.g., "gri_302_1_a" -> get section from config)
@@ -2187,12 +2206,28 @@ class ESGQuestionnaireService:
             import uuid
             
             # Check if there's an assignment for this question
+            # For subpart questions (e.g., gri_101_2_a_iii), also check parent question (gri_101_2_a)
             assignment = await db.esg_assignments.find_one({
                 "organization_id": org_id,
                 "entity_id": question_key,
                 "entity_type": "question",
                 "reporting_period": reporting_year,
             }, {"_id": 0})
+            
+            # If no direct assignment found, check for parent question assignment (for subparts)
+            if not assignment and "_" in question_key:
+                # Try progressively shorter parent keys (e.g., gri_101_2_a_iii -> gri_101_2_a -> gri_101_2)
+                parts = question_key.rsplit("_", 1)
+                while len(parts) > 1 and not assignment:
+                    parent_key = parts[0]
+                    assignment = await db.esg_assignments.find_one({
+                        "organization_id": org_id,
+                        "entity_id": parent_key,
+                        "entity_type": "question",
+                        "reporting_period": reporting_year,
+                    }, {"_id": 0})
+                    if not assignment:
+                        parts = parent_key.rsplit("_", 1)
             
             requires_approval = assignment.get("requires_approval", False) if assignment else False
             now_iso = datetime.now(timezone.utc).isoformat()
