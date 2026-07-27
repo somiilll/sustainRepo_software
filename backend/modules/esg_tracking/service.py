@@ -737,6 +737,46 @@ class TrackingService:
             sub_questions = config.get("sub_questions", [])
             config_domain = config.get("section", "")  # The actual ESG domain from config
             
+            # For GRI parent questions with sub_questions, compute aggregated status from subquestion responses
+            aggregated_response = None
+            if framework_id.lower() == "gri" and sub_questions and len(sub_questions) > 0:
+                subpart_responses = []
+                for sub_q in sub_questions:
+                    sub_key = sub_q.get("sub_key", "")
+                    full_sub_key = f"{q_key}_{sub_key}"
+                    sub_resp = response_map.get(full_sub_key)
+                    subpart_responses.append({
+                        "question_key": full_sub_key,
+                        "value": sub_resp.get("value") if sub_resp else None,
+                        "approval_status": sub_resp.get("approval_status") if sub_resp else None,
+                        "rejection_reason": sub_resp.get("rejection_reason") if sub_resp else None,
+                    })
+                
+                if subpart_responses:
+                    # Compute aggregated status
+                    all_have_value = all(sp.get("value") is not None and sp.get("value") != "" for sp in subpart_responses)
+                    all_approved = all(sp.get("approval_status") == "approved" for sp in subpart_responses)
+                    any_rejected = any(sp.get("approval_status") == "rejected" for sp in subpart_responses)
+                    any_pending = any(sp.get("approval_status") == "pending_approval" for sp in subpart_responses)
+                    
+                    # Determine aggregated approval status
+                    if any_rejected:
+                        agg_approval_status = "rejected"
+                    elif all_approved and all_have_value:
+                        agg_approval_status = "approved"
+                    elif any_pending or (all_have_value and not all_approved):
+                        agg_approval_status = "pending_approval"
+                    else:
+                        agg_approval_status = None
+                    
+                    # Build aggregated response
+                    subparts_filled = sum(1 for sp in subpart_responses if sp.get("value"))
+                    aggregated_response = {
+                        "value": {"subparts_completed": subparts_filled, "total_subparts": len(subpart_responses)} if subparts_filled > 0 else None,
+                        "approval_status": agg_approval_status,
+                        "rejection_reason": next((sp.get("rejection_reason") for sp in subpart_responses if sp.get("approval_status") == "rejected"), None),
+                    }
+            
             # Helper function to build a disclosure item
             def build_disclosure_item(
                 item_key, display_name, item_type, 
@@ -921,7 +961,8 @@ class TrackingService:
                 )
             
             # If question has sub_questions, create tracking items for each sub-question
-            if sub_questions and len(sub_questions) > 0:
+            # EXCEPT for GRI - show parent questions with aggregated status instead
+            if sub_questions and len(sub_questions) > 0 and framework_id.lower() != "gri":
                 for sub_q in sub_questions:
                     sub_key = sub_q.get("sub_key", "")
                     sub_label = sub_q.get("label", "")
@@ -948,7 +989,11 @@ class TrackingService:
                         disclosures.append(item)
             else:
                 # No sub-questions - treat as single trackable item
-                response = response_map.get(q_key)
+                # For GRI parent questions with subparts, use aggregated response
+                if aggregated_response is not None:
+                    response = aggregated_response
+                else:
+                    response = response_map.get(q_key)
                 assignment = assignment_map.get(q_key)
                 approval = approval_map.get(q_key)
                 
