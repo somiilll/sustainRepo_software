@@ -95,7 +95,7 @@ export default function WorkflowMyTask() {
         </TabsList>
 
         <TabsContent value="esg" className="mt-4">
-          <MyTasks entityType="all" reportingPeriod={reportingPeriod} />
+          <MyTasks entityType="record" reportingPeriod={reportingPeriod} />
         </TabsContent>
         <TabsContent value="brsr" className="mt-4">
           <MyTasks entityType="question" framework="BRSR" reportingPeriod={reportingPeriod} />
