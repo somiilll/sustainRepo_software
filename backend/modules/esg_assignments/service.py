@@ -657,6 +657,7 @@ class AssignmentService:
                 any_pending = False
                 all_have_value = True
                 rejection_reason = None
+                filled_count = 0
                 
                 for sp in subparts:
                     sp_status = sp.get("approval_status")
@@ -664,6 +665,8 @@ class AssignmentService:
                     
                     if sp_value is None or sp_value == "" or sp_value == []:
                         all_have_value = False
+                    else:
+                        filled_count += 1
                     
                     if sp_status == "rejected":
                         any_rejected = True
@@ -674,23 +677,40 @@ class AssignmentService:
                     elif sp_status != "approved":
                         all_approved = False
                 
-                # Determine aggregated status
+                # Determine aggregated approval status
                 # Priority: rejected > pending_approval > approved > not_started
                 if any_rejected:
-                    agg_status = "rejected"
+                    agg_approval_status = "rejected"
                 elif any_pending or (all_have_value and not all_approved):
-                    agg_status = "pending_approval"
+                    agg_approval_status = "pending_approval"
                 elif all_approved and all_have_value:
-                    agg_status = "approved"
+                    agg_approval_status = "approved"
                 elif all_have_value:
-                    agg_status = "completed"
+                    agg_approval_status = "completed"
                 else:
-                    agg_status = None
+                    agg_approval_status = None
+                
+                # Determine completion status (for STATUS column in My Tasks)
+                # This is separate from approval_status
+                if all_have_value:
+                    if all_approved:
+                        completion_status = "approved"
+                    elif any_pending:
+                        completion_status = "in_progress"  # Filled but awaiting approval
+                    else:
+                        completion_status = "completed"
+                elif filled_count > 0:
+                    completion_status = "in_progress"
+                else:
+                    completion_status = "pending"
                 
                 approval_statuses[parent_key] = {
-                    "approval_status": agg_status,
+                    "approval_status": agg_approval_status,
+                    "completion_status": completion_status,
                     "rejection_reason": rejection_reason,
                     "subpart_count": len(subparts),
+                    "filled_count": filled_count,
+                    "all_have_value": all_have_value,
                 }
         
         # Separate by entity type
@@ -727,11 +747,13 @@ class AssignmentService:
                     doc["question_name"] = entity_id.replace("_", " ").title() if entity_id else ""
                     doc["section_id"] = None
                 
-                # Merge approval status from esg_responses (source of truth for approvals)
+                # Merge approval status AND completion status from esg_responses (source of truth)
                 if entity_id and entity_id in approval_statuses:
                     status_data = approval_statuses[entity_id]
                     doc["approval_status"] = status_data.get("approval_status")
                     doc["rejection_reason"] = status_data.get("rejection_reason")
+                    # Also set the completion status (for STATUS column in My Tasks)
+                    doc["status"] = status_data.get("completion_status", doc.get("status"))
                 
                 questions.append(doc)
             else:

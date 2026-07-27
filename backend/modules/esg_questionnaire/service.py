@@ -296,6 +296,12 @@ class ESGQuestionnaireService:
                 has_any_draft = False
                 has_any_pending_approval = False
                 has_any_user_draft = False
+                has_any_approved = False
+                all_approved = True
+                all_have_value = True
+                total_subparts = len(sub_questions)
+                filled_subparts = 0
+                
                 for sub in sub_questions:
                     sub_response_key = f"{q_key}_{sub['sub_key']}"
                     sub_response = responses_map.get(sub_response_key, {})
@@ -304,27 +310,47 @@ class ESGQuestionnaireService:
                     
                     # Determine status: user draft > pending_approval > saved status
                     sub_status = sub_response.get("status")
+                    sub_value = sub_response.get("value")
                     user_has_pending = any(s["submitted_by_user_id"] == user_id for s in sub_submissions) if user_id else False
                     user_has_draft = user_draft_value is not None
+                    
+                    # Track if subpart has a value (for completion calculation)
+                    value_is_empty = sub_value is None or sub_value == "" or sub_value == [] or sub_value == {}
+                    if not value_is_empty:
+                        filled_subparts += 1
+                    else:
+                        all_have_value = False
                     
                     # For display: if user has draft, show as "draft" for this user
                     display_status = sub_status
                     if user_has_draft:
                         display_status = "draft"
                         has_any_user_draft = True
+                        all_approved = False
                     elif user_has_pending:
                         display_status = "pending_approval"
                         has_any_pending_approval = True
+                        all_approved = False
+                    elif sub_status == "approved":
+                        has_any_approved = True
+                        has_any_saved = True  # approved counts as saved/completed
                     elif sub_status == "saved":
                         has_any_saved = True
+                        all_approved = False
+                    elif sub_status == "pending_approval":
+                        has_any_pending_approval = True
+                        all_approved = False
                     elif sub_status == "draft":
                         has_any_draft = True
+                        all_approved = False
+                    else:
+                        all_approved = False
                     
                     question_data["sub_questions"].append({
                         "sub_key": sub["sub_key"],
                         "label": sub["label"],
                         "response_key": sub_response_key,
-                        "response_value": sub_response.get("value"),
+                        "response_value": sub_value,
                         "response_status": display_status,
                         "saved_status": sub_status,  # Original saved status
                         "user_draft_value": user_draft_value,  # User's draft if any
@@ -333,16 +359,26 @@ class ESGQuestionnaireService:
                     })
                 
                 # Overall status for the parent question
+                # Priority: draft > pending_approval > approved > saved > pending
                 if has_any_user_draft:
                     question_data["status"] = "draft"
                 elif has_any_pending_approval:
                     question_data["status"] = "pending_approval"
+                elif all_approved and all_have_value and has_any_approved:
+                    question_data["status"] = "approved"
                 elif has_any_saved:
                     question_data["status"] = "saved"
                 elif has_any_draft:
                     question_data["status"] = "draft"
                 else:
                     question_data["status"] = "pending"
+                
+                # Add completion info for UI
+                question_data["completion"] = {
+                    "filled": filled_subparts,
+                    "total": total_subparts,
+                    "is_complete": all_have_value,
+                }
                     
                 question_data["pending_submissions_count"] = sum(
                     len(submissions_map.get(f"{q_key}_{sub['sub_key']}", []))
