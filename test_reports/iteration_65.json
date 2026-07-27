@@ -1,5 +1,5 @@
 {
-  "summary": "Backend regression tests for the new Scope 3 Bulk Upload System (15 categories, C1-C15). Verified template generation, upload validation, fuzzy matching, C7 aggregation, C15 supplier-only restriction, supplier-basis custom activities, jobs listing/pagination/details, and error report download. All 19 tests passed (100%) against https://questionnaire-sync-2.preview.emergentagent.com/api/bulk-upload/scope3.",
+  "summary": "Backend regression tests for the new Scope 3 Bulk Upload System (15 categories, C1-C15). Verified template generation, upload validation, fuzzy matching, C7 aggregation, C15 supplier-only restriction, supplier-basis custom activities, jobs listing/pagination/details, and error report download. All 19 tests passed (100%) against https://esg-approval-sync.preview.emergentagent.com/api/bulk-upload/scope3.",
   "backend_issues": {
     "critical": [],
     "minor": [

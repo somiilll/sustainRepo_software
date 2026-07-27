@@ -617,7 +617,7 @@ class AssignmentService:
                     "$or": regex_patterns,
                     "reporting_year": reporting_period,
                 },
-                {"_id": 0, "question_key": 1, "approval_status": 1, "rejection_reason": 1, "value": 1}
+                {"_id": 0, "question_key": 1, "approval_status": 1, "status": 1, "rejection_reason": 1, "value": 1, "approved_at": 1}
             )
             status_list = await status_cursor.to_list(2000)
             
@@ -625,6 +625,19 @@ class AssignmentService:
             parent_responses = {}  # parent_key -> list of subpart responses
             for s in status_list:
                 qk = s["question_key"]
+                
+                # Normalize approval_status: GRI uses 'status' field (approved/pending), BRSR uses 'approval_status'
+                effective_approval_status = s.get("approval_status")
+                if not effective_approval_status:
+                    status_val = s.get("status")
+                    if status_val == "approved" or s.get("approved_at"):
+                        effective_approval_status = "approved"
+                    elif status_val == "pending_approval":
+                        effective_approval_status = "pending_approval"
+                    elif status_val == "rejected":
+                        effective_approval_status = "rejected"
+                s["approval_status"] = effective_approval_status
+                
                 # Find which parent this belongs to
                 for parent_key in question_entity_ids:
                     if qk == parent_key or qk.startswith(f"{parent_key}_"):

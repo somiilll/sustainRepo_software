@@ -1,0 +1,22 @@
+{
+  "summary": "Backend-only regression testing for GRI Tracker Progress & Approval Syncing fixes. All 6 targeted scenarios verified via live public URL against admin org 9067d872-8a3a-4ed9-8494-e3ef04952f7c, reporting_period 'FY 2026-2027'. All 10 pytest assertions passed.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_gri_progress_approval_sync.py",
+    "/app/test_reports/pytest/gri_progress_approval_sync.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "esg_tracking/service.py is 1639 lines - consider splitting the aggregation/completion logic (get_section_disclosures ~lines 700-1000) into a separate module for maintainability.",
+    "Aggregation logic in service.py:774-804 uses ad-hoc dict for 'value' field of parent (subparts_completed/total_subparts). Consider a typed model for consistency with client expectations."
+  ],
+  "updated_files": ["/app/backend/tests/test_gri_progress_approval_sync.py"],
+  "success_rate": {"backend": "100%", "frontend": "N/A"},
+  "test_credentials": "goyalsomil2001@gmail.com / TestUser123! (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "None - used existing DB data (backfilled by main agent script prior to test).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "GET /api/tracking/environment/frameworks/gri/sections/101-2?reporting_period=FY%202026-2027 returns {section, disclosures[], filters_applied}. Each disclosure has fields: question_key, is_completed (bool), completion_status ('completed'|'in_progress'|'not_started'|'stale'), approval_status ('approved'|'pending_approval'|'rejected'|'not_required'|null), value (may be {subparts_completed, total_subparts} dict for GRI parents). GET /api/tracking/my-disclosures?reporting_period=FY%202026-2027 returns {questions[], records[], ...counts}. Each item uses 'entity_id' (NOT question_key) as identifier and has approval_status + status fields. Verified: gri_101_2_a is_completed=True approval_status=approved; gri_101_2_b is_completed=False (b_i,b_ii empty) approval_status=not_required; gri_101_2_d/e/f (empty string values) is_completed=False; my-tasks gri_101_2_a and BRSR policy_translated_to_procedures both approval_status=approved.",
+  "rca of the issue": "Fixes applied by main agent (verified working): (1) In esg_tracking/service.py aggregation, parent's aggregated_response.value is now non-None only when ALL subparts have non-empty values (all_have_value check at line 786-799), so parent is_completed correctly reflects full completion. (2) is_completed check (lines 821-827) now treats empty string/list/dict as empty. (3) approval_status normalization added for legacy GRI responses that stored 'status=approved' instead of 'approval_status=approved'; DB backfill script populated missing approval_status fields for previously approved responses."
+}

@@ -221,8 +221,10 @@ class TrackingService:
                 response = response_map.get(q_key)
                 assignment = assignment_map.get(q_key)
                 
-                # Check completion
-                is_completed = response is not None and response.get("value") is not None
+                # Check completion - value must be non-empty (not None, not "", not [], not {})
+                response_value = response.get("value") if response else None
+                value_is_empty = response_value is None or response_value == "" or response_value == [] or response_value == {}
+                is_completed = response is not None and not value_is_empty
                 if is_completed:
                     completed += 1
                     
@@ -413,8 +415,10 @@ class TrackingService:
                 response = response_map.get(q_key)
                 assignment = assignment_map.get(q_key)
                 
-                # Completion
-                is_completed = response is not None and response.get("value") is not None
+                # Completion - value must be non-empty
+                response_value = response.get("value") if response else None
+                value_is_empty = response_value is None or response_value == "" or response_value == [] or response_value == {}
+                is_completed = response is not None and not value_is_empty
                 if is_completed:
                     completed += 1
                     
@@ -594,27 +598,42 @@ class TrackingService:
         response_map = {r["question_key"]: r for r in responses}
         
         # Also get final/approved responses from esg_responses (includes approval_status)
+        # GRI responses may use 'status' field (e.g., "approved", "pending") instead of 'approval_status'
         final_responses = await db.esg_responses.find(
             {
                 "organization_id": organization_id,
                 "reporting_year": reporting_period,
             },
-            {"_id": 0, "question_key": 1, "approval_status": 1, "rejection_reason": 1, 
-             "value": 1, "updated_at": 1, "submitted_at": 1, "submitted_by": 1}
+            {"_id": 0, "question_key": 1, "approval_status": 1, "status": 1, "rejection_reason": 1, 
+             "value": 1, "updated_at": 1, "submitted_at": 1, "submitted_by": 1, "approved_at": 1}
         ).to_list(5000)
         
         # Merge approval status from esg_responses into response_map
         for fr in final_responses:
             qk = fr.get("question_key")
             if qk:
+                # Normalize approval_status: GRI uses 'status' field (approved/pending), BRSR uses 'approval_status'
+                effective_approval_status = fr.get("approval_status")
+                if not effective_approval_status:
+                    # Fallback to 'status' field for GRI responses
+                    status_val = fr.get("status")
+                    if status_val == "approved" or fr.get("approved_at"):
+                        effective_approval_status = "approved"
+                    elif status_val == "pending_approval":
+                        effective_approval_status = "pending_approval"
+                    elif status_val == "rejected":
+                        effective_approval_status = "rejected"
+                    # Note: "pending" or "saved" status means no approval workflow triggered yet
+                
                 if qk in response_map:
                     # Merge approval fields into existing response
-                    response_map[qk]["approval_status"] = fr.get("approval_status")
+                    response_map[qk]["approval_status"] = effective_approval_status
                     response_map[qk]["rejection_reason"] = fr.get("rejection_reason")
                     response_map[qk]["submitted_at"] = fr.get("submitted_at")
                     response_map[qk]["submitted_by"] = fr.get("submitted_by")
                 else:
-                    # Use the esg_responses entry
+                    # Use the esg_responses entry with normalized approval_status
+                    fr["approval_status"] = effective_approval_status
                     response_map[qk] = fr
         
         # Get assignments and aggregate by entity_id for multi-assignee support
@@ -754,7 +773,9 @@ class TrackingService:
                 
                 if subpart_responses:
                     # Compute aggregated status
-                    all_have_value = all(sp.get("value") is not None and sp.get("value") != "" for sp in subpart_responses)
+                    subparts_filled = sum(1 for sp in subpart_responses if sp.get("value") is not None and sp.get("value") != "")
+                    total_subparts = len(subpart_responses)
+                    all_have_value = subparts_filled == total_subparts
                     all_approved = all(sp.get("approval_status") == "approved" for sp in subpart_responses)
                     any_rejected = any(sp.get("approval_status") == "rejected" for sp in subpart_responses)
                     any_pending = any(sp.get("approval_status") == "pending_approval" for sp in subpart_responses)
@@ -770,11 +791,16 @@ class TrackingService:
                         agg_approval_status = None
                     
                     # Build aggregated response
-                    subparts_filled = sum(1 for sp in subpart_responses if sp.get("value"))
+                    # CRITICAL FIX: Only mark as "completed" (value not None) when ALL subparts have values
+                    # If partially filled, set value to None so parent shows as "not completed"
+                    # But include metadata for progress display
                     aggregated_response = {
-                        "value": {"subparts_completed": subparts_filled, "total_subparts": len(subpart_responses)} if subparts_filled > 0 else None,
+                        # Only non-None value when ALL subparts filled (determines is_completed)
+                        "value": {"subparts_completed": subparts_filled, "total_subparts": total_subparts} if all_have_value else None,
                         "approval_status": agg_approval_status,
                         "rejection_reason": next((sp.get("rejection_reason") for sp in subpart_responses if sp.get("approval_status") == "rejected"), None),
+                        # Include progress info even when not complete (for UI display)
+                        "progress": {"filled": subparts_filled, "total": total_subparts},
                     }
             
             # Helper function to build a disclosure item
@@ -789,7 +815,16 @@ class TrackingService:
                 total += 1
                 
                 # Determine completion status
-                is_completed = response is not None and response.get("value") is not None
+                # A response is completed only if it has a non-empty value
+                response_value = response.get("value") if response else None
+                # Check for various "empty" conditions: None, empty string, empty list, empty dict
+                value_is_empty = (
+                    response_value is None or 
+                    response_value == "" or 
+                    response_value == [] or 
+                    response_value == {}
+                )
+                is_completed = response is not None and not value_is_empty
                 resp_updated = None
                 days_since = None
                 is_stale = False
@@ -1426,7 +1461,10 @@ class TrackingService:
                 {"_id": 0, "value": 1}
             )
             
-            is_completed = response is not None and response.get("value") is not None
+            # Check completion - value must be non-empty
+            response_value = response.get("value") if response else None
+            value_is_empty = response_value is None or response_value == "" or response_value == [] or response_value == {}
+            is_completed = response is not None and not value_is_empty
             if is_completed:
                 continue  # Skip completed ones
             

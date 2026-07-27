@@ -782,6 +782,7 @@ class ESGQuestionnaireService:
         final_value = merged_value if merged_value is not None else submission["value"]
         
         # Save to final esg_responses
+        # Set both 'status' and 'approval_status' for consistency across frameworks
         await db.esg_responses.update_one(
             {
                 "organization_id": org_id,
@@ -792,6 +793,8 @@ class ESGQuestionnaireService:
                 "$set": {
                     "value": final_value,
                     "status": "approved",
+                    "approval_status": "approved",  # Also set approval_status for tracker compatibility
+                    "reporting_year": reporting_period,  # Ensure reporting_year is set for queries
                     "updated_at": now_iso,
                     "updated_by": submission["submitted_by_user_id"],
                     "updated_by_name": submission["submitted_by_user_name"],
@@ -805,6 +808,7 @@ class ESGQuestionnaireService:
                     "organization_id": org_id,
                     "question_key": question_key,
                     "reporting_period": reporting_period,
+                    "reporting_year": reporting_period,
                     "created_at": now_iso,
                 }
             },
@@ -1529,6 +1533,8 @@ class ESGQuestionnaireService:
                     "$set": {
                         "value": value,
                         "status": "approved",
+                        "approval_status": "approved",  # Also set approval_status for tracker compatibility
+                        "reporting_year": reporting_period,  # Ensure reporting_year is set for queries
                         "updated_at": now_iso,
                         "updated_by": draft_user_id,
                         "updated_by_name": draft.get("user_name"),
@@ -1543,6 +1549,7 @@ class ESGQuestionnaireService:
                         "organization_id": org_id,
                         "question_key": question_key,
                         "reporting_period": reporting_period,
+                        "reporting_year": reporting_period,
                         "created_at": now_iso,
                     }
                 },
