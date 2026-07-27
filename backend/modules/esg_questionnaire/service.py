@@ -808,7 +808,6 @@ class ESGQuestionnaireService:
                     "organization_id": org_id,
                     "question_key": question_key,
                     "reporting_period": reporting_period,
-                    "reporting_year": reporting_period,
                     "created_at": now_iso,
                 }
             },
@@ -1610,7 +1609,6 @@ class ESGQuestionnaireService:
                         "organization_id": org_id,
                         "question_key": question_key,
                         "reporting_period": reporting_period,
-                        "reporting_year": reporting_period,
                         "created_at": now_iso,
                     }
                 },
