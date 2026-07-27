@@ -1937,7 +1937,7 @@ class ESGQuestionnaireService:
                 {"$set": {"responses": merged, "updated_at": now}}
             )
             
-            # Trigger approval workflow for changed questions if required
+            # Trigger approval workflow and log audit for changed questions
             if changed_by_user_id:
                 for question_key, new_value in responses.items():
                     old_value = old_responses.get(question_key)
@@ -1946,6 +1946,11 @@ class ESGQuestionnaireService:
                             # Check if this disclosure requires approval and trigger workflow
                             await self._trigger_approval_if_required(
                                 org_id, question_key, reporting_year, new_value, changed_by_user_id
+                            )
+                            # Log to audit trail for version history
+                            await self._log_question_audit(
+                                org_id, question_key, reporting_year, 
+                                old_value, new_value, changed_by_user_id, "updated"
                             )
                         except Exception as e:
                             print(f"Warning: Failed to trigger approval for {question_key}: {e}")
@@ -1962,13 +1967,19 @@ class ESGQuestionnaireService:
             }
             await self._responses.insert_one(doc)
             
-            # Trigger approval workflow for new questions if required
+            # Trigger approval workflow and log audit for new questions
             if changed_by_user_id:
                 for question_key, new_value in responses.items():
                     try:
                         await self._trigger_approval_if_required(
                             org_id, question_key, reporting_year, new_value, changed_by_user_id
                         )
+                        # Log to audit trail for version history (new question)
+                        if self._response_has_value(new_value):
+                            await self._log_question_audit(
+                                org_id, question_key, reporting_year,
+                                None, new_value, changed_by_user_id, "created"
+                            )
                     except Exception as e:
                         print(f"Warning: Failed to trigger approval for {question_key}: {e}")
 
@@ -2111,6 +2122,38 @@ class ESGQuestionnaireService:
             return any(self._response_has_value(v) for v in value)
         # For numbers, booleans, etc.
         return True
+
+    async def _log_question_audit(
+        self,
+        org_id: str,
+        question_key: str,
+        reporting_period: str,
+        old_value: Any,
+        new_value: Any,
+        user_id: str,
+        action: str,
+    ) -> None:
+        """Log a question change to the audit trail for version history."""
+        from shared.database.mongo import db
+        
+        # Skip if no meaningful change
+        if not self._response_has_value(new_value) and not self._response_has_value(old_value):
+            return
+        
+        audit_entry = {
+            "id": str(uuid.uuid4()),
+            "question_key": question_key,
+            "reporting_period": reporting_period,
+            "organization_id": org_id,
+            "action": action,
+            "timestamp": datetime.now(timezone.utc),
+            "performed_by": {"user_id": user_id},
+            "change_details": {
+                "old_value": old_value,
+                "new_value": new_value,
+            },
+        }
+        await db.question_audit_log.insert_one(audit_entry)
 
     async def _trigger_approval_if_required(
         self,
