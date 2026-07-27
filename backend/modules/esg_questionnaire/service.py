@@ -574,6 +574,49 @@ class ESGQuestionnaireService:
         
         return deleted_count
 
+    async def _clear_user_draft_for_question(
+        self,
+        org_id: str,
+        question_key: str,
+        reporting_period: str,
+        user_id: str
+    ) -> bool:
+        """
+        Clear a specific user's draft for a question after approval/save.
+        Removes the question_key from the user's draft_data.
+        
+        Returns True if a draft was modified/deleted, False otherwise.
+        """
+        # Find the user's draft that contains this question_key
+        draft = await db[self.DRAFTS_COLLECTION].find_one({
+            "organization_id": org_id,
+            "reporting_period": reporting_period,
+            "user_id": user_id,
+            f"draft_data.{question_key}": {"$exists": True},
+            "is_latest": True,
+        })
+        
+        if not draft:
+            return False
+        
+        draft_data = draft.get("draft_data", {})
+        if question_key in draft_data:
+            del draft_data[question_key]
+            
+            if draft_data:
+                # Update the draft with the question removed
+                await db[self.DRAFTS_COLLECTION].update_one(
+                    {"id": draft["id"]},
+                    {"$set": {"draft_data": draft_data}}
+                )
+            else:
+                # No more questions in draft, delete entirely
+                await db[self.DRAFTS_COLLECTION].delete_one({"id": draft["id"]})
+            
+            return True
+        
+        return False
+
     # =========================================================================
     # Submission Management (Phase 2: Approval Queue)
     # =========================================================================
@@ -883,8 +926,13 @@ class ESGQuestionnaireService:
             }
         )
         
-        # Clear all drafts for this question
+        # Clear all drafts for this question (including the submitter's own draft)
         await self._clear_other_users_drafts(
+            org_id, question_key, reporting_period, submission["submitted_by_user_id"]
+        )
+        
+        # Also clear the submitter's own draft for this question
+        await self._clear_user_draft_for_question(
             org_id, question_key, reporting_period, submission["submitted_by_user_id"]
         )
         
@@ -1179,7 +1227,6 @@ class ESGQuestionnaireService:
                     "organization_id": org_id,
                     "question_key": question_key,
                     "reporting_period": reporting_period,
-                    "reporting_year": reporting_period,  # Also set reporting_year for query compatibility
                     "created_at": now_iso,
                 }
             },
@@ -1211,7 +1258,6 @@ class ESGQuestionnaireService:
                     "org_id": org_id,
                     "organization_id": org_id,
                     "framework": "GRI",
-                    "reporting_year": reporting_period,
                     "section": section,
                     "created_at": now_iso,
                 }
@@ -1219,10 +1265,14 @@ class ESGQuestionnaireService:
             upsert=True
         )
         
-        # If this was a successful "saved" (not draft), clear other users' drafts
+        # If this was a successful "saved" (not draft), clear other users' drafts AND own draft
         drafts_cleared = 0
         if result.acknowledged and status == "saved" and not value_is_empty:
             drafts_cleared = await self._clear_other_users_drafts(
+                org_id, question_key, reporting_period, changed_by_user_id
+            )
+            # Also clear the user's own draft for this question
+            await self._clear_user_draft_for_question(
                 org_id, question_key, reporting_period, changed_by_user_id
             )
         
