@@ -1086,6 +1086,39 @@ class ESGQuestionnaireService:
             upsert=True
         )
         
+        # Also save to organization_esg_responses for tracker compatibility
+        # Get the section from config
+        config = await self._configs.find_one(
+            {"question_key": question_key},
+            {"_id": 0, "section": 1}
+        )
+        section = config.get("section", "environment") if config else "environment"
+        
+        await db.organization_esg_responses.update_one(
+            {
+                "org_id": org_id,
+                "framework": "GRI",
+                "reporting_year": reporting_period,
+                "section": section,
+            },
+            {
+                "$set": {
+                    f"responses.{question_key}": value,
+                    "updated_at": now_iso,
+                },
+                "$setOnInsert": {
+                    "id": str(uuid.uuid4()),
+                    "org_id": org_id,
+                    "organization_id": org_id,
+                    "framework": "GRI",
+                    "reporting_year": reporting_period,
+                    "section": section,
+                    "created_at": now_iso,
+                }
+            },
+            upsert=True
+        )
+        
         # If this was a successful "saved" (not draft), clear other users' drafts
         drafts_cleared = 0
         if result.acknowledged and status == "saved" and not value_is_empty:

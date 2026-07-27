@@ -601,18 +601,84 @@ class AssignmentService:
             question_configs = {c["question_key"]: c for c in configs_list}
         
         # Fetch approval statuses from esg_responses for these questions
+        # For parent questions (like gri_101_2_a), also get subpart responses (gri_101_2_a_i, gri_101_2_a_ii, etc.)
         approval_statuses = {}
         if question_entity_ids and reporting_period:
+            # Build regex patterns to match both exact keys and subpart keys
+            regex_patterns = []
+            for q_id in question_entity_ids:
+                # Match exact key or keys starting with this prefix followed by underscore
+                regex_patterns.append({"question_key": q_id})
+                regex_patterns.append({"question_key": {"$regex": f"^{q_id}_"}})
+            
             status_cursor = db.esg_responses.find(
                 {
                     "organization_id": organization_id,
-                    "question_key": {"$in": question_entity_ids},
+                    "$or": regex_patterns,
                     "reporting_year": reporting_period,
                 },
-                {"_id": 0, "question_key": 1, "approval_status": 1, "rejection_reason": 1}
+                {"_id": 0, "question_key": 1, "approval_status": 1, "rejection_reason": 1, "value": 1}
             )
-            status_list = await status_cursor.to_list(500)
-            approval_statuses = {s["question_key"]: s for s in status_list}
+            status_list = await status_cursor.to_list(2000)
+            
+            # Group responses by parent question key
+            parent_responses = {}  # parent_key -> list of subpart responses
+            for s in status_list:
+                qk = s["question_key"]
+                # Find which parent this belongs to
+                for parent_key in question_entity_ids:
+                    if qk == parent_key or qk.startswith(f"{parent_key}_"):
+                        if parent_key not in parent_responses:
+                            parent_responses[parent_key] = []
+                        parent_responses[parent_key].append(s)
+                        break
+            
+            # Compute aggregated status for each parent question
+            for parent_key, subparts in parent_responses.items():
+                if not subparts:
+                    continue
+                
+                # Check all subpart statuses
+                all_approved = True
+                any_rejected = False
+                any_pending = False
+                all_have_value = True
+                rejection_reason = None
+                
+                for sp in subparts:
+                    sp_status = sp.get("approval_status")
+                    sp_value = sp.get("value")
+                    
+                    if sp_value is None or sp_value == "" or sp_value == []:
+                        all_have_value = False
+                    
+                    if sp_status == "rejected":
+                        any_rejected = True
+                        rejection_reason = sp.get("rejection_reason")
+                    elif sp_status == "pending_approval":
+                        any_pending = True
+                        all_approved = False
+                    elif sp_status != "approved":
+                        all_approved = False
+                
+                # Determine aggregated status
+                # Priority: rejected > pending_approval > approved > not_started
+                if any_rejected:
+                    agg_status = "rejected"
+                elif any_pending or (all_have_value and not all_approved):
+                    agg_status = "pending_approval"
+                elif all_approved and all_have_value:
+                    agg_status = "approved"
+                elif all_have_value:
+                    agg_status = "completed"
+                else:
+                    agg_status = None
+                
+                approval_statuses[parent_key] = {
+                    "approval_status": agg_status,
+                    "rejection_reason": rejection_reason,
+                    "subpart_count": len(subparts),
+                }
         
         # Separate by entity type
         questions = []
