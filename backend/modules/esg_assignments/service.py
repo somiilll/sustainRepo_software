@@ -691,18 +691,14 @@ class AssignmentService:
                     agg_approval_status = None
                 
                 # Determine completion status (for STATUS column in My Tasks)
-                # This is separate from approval_status
+                # This should ONLY reflect completion state, NOT approval state
+                # Matches Tracker's completion_status logic
                 if all_have_value:
-                    if all_approved:
-                        completion_status = "approved"
-                    elif any_pending:
-                        completion_status = "in_progress"  # Filled but awaiting approval
-                    else:
-                        completion_status = "completed"
+                    completion_status = "completed"  # Work is done, regardless of approval
                 elif filled_count > 0:
-                    completion_status = "in_progress"
+                    completion_status = "in_progress"  # Partially filled
                 else:
-                    completion_status = "pending"
+                    completion_status = "pending"  # Nothing filled
                 
                 approval_statuses[parent_key] = {
                     "approval_status": agg_approval_status,
