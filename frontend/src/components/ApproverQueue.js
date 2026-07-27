@@ -216,8 +216,21 @@ export default function ApproverQueue() {
     return labels[section] || section;
   };
 
-  // Get section badge color
-  const getSectionBadge = (questionKey) => {
+  // Get section badge color based on framework and section
+  const getSectionBadge = (item) => {
+    // For questionnaire items, show framework badge
+    if (item._source === 'questionnaire_approval_v2' || item.framework) {
+      const framework = (item.framework || '').toUpperCase();
+      if (framework === 'BRSR') {
+        return <Badge className="bg-amber-100 text-amber-800">BRSR</Badge>;
+      } else if (framework === 'GRI') {
+        return <Badge className="bg-cyan-100 text-cyan-800">GRI</Badge>;
+      }
+      return <Badge className="bg-stone-100 text-stone-800">{framework || 'ESG'}</Badge>;
+    }
+    
+    // For other items, use question key pattern
+    const questionKey = item.question_key || '';
     if (questionKey.includes('_3') || questionKey.startsWith('gri_3')) {
       return <Badge className="bg-green-100 text-green-800">Environment</Badge>;
     } else if (questionKey.includes('_4') || questionKey.startsWith('gri_4')) {
@@ -340,6 +353,7 @@ export default function ApproverQueue() {
         <div className="space-y-3">
           {submissions.map((item) => {
             const isRecordApproval = item._source === 'approval_workflow';
+            const isQuestionnaireApproval = item._source === 'questionnaire_approval_v2';
             return (
               <Card 
                 key={item.id || item.question_key}
@@ -356,17 +370,28 @@ export default function ApproverQueue() {
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-text-primary">
-                          {isRecordApproval ? item.disclosure_name : item.question_key}
+                          {item.disclosure_name || item.question_name || item.question_key}
                         </span>
                         {isRecordApproval ? (
                           <Badge className="bg-emerald-100 text-emerald-800">Data Record</Badge>
                         ) : (
-                          getSectionBadge(item.question_key)
+                          getSectionBadge(item)
                         )}
                       </div>
                       
                       <div className="flex items-center gap-4 text-sm text-text-muted">
-                        {isRecordApproval ? (
+                        {isQuestionnaireApproval ? (
+                          <>
+                            <span className="flex items-center gap-1">
+                              <User className="w-3 h-3" />
+                              {item.submitted_by_name || item.submitted_by_email || 'Unknown'}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {formatDate(item.submitted_at)}
+                            </span>
+                          </>
+                        ) : isRecordApproval ? (
                           <>
                             <span className="flex items-center gap-1">
                               <User className="w-3 h-3" />

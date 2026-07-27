@@ -2,13 +2,12 @@
  * QuestionnaireApprovalPanel - V2 Questionnaire Response Approval UI
  * 
  * Features:
- * - Displays the question and submitted response
+ * - Displays the question using the same renderer as ESGQuestionnaire
  * - Allows approver to view/edit response before approving
  * - Approve with optional comment
  * - Reject with required reason
- * - Uses same renderers as ESGQuestionnaire for consistent display
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Card } from './ui/card';
@@ -36,6 +35,7 @@ import {
   FileText
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { QuestionRenderer } from './ESGQuestionnaire';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -158,10 +158,9 @@ export default function QuestionnaireApprovalPanel({
             <div className="space-y-2">
               <div className="flex items-center gap-2 flex-wrap">
                 <Badge variant="outline">{item.framework?.toUpperCase() || 'BRSR'}</Badge>
-                <Badge variant="outline" className="bg-blue-50">{item.section_id?.replace('_', ' ').toUpperCase()}</Badge>
+                <Badge variant="outline" className="bg-blue-50">{item.section_id?.replace(/_/g, ' ').toUpperCase()}</Badge>
               </div>
-              <h3 className="font-medium text-stone-900">{item.disclosure_name}</h3>
-              <p className="text-sm text-stone-500 font-mono">{item.question_key}</p>
+              <h3 className="font-medium text-stone-900">{item.disclosure_name || item.question_name}</h3>
             </div>
           </Card>
 
@@ -179,7 +178,7 @@ export default function QuestionnaireApprovalPanel({
             </div>
           </div>
 
-          {/* Response Content */}
+          {/* Response Content - Using QuestionRenderer for proper display */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Label className="text-base font-medium">Response</Label>
@@ -196,24 +195,21 @@ export default function QuestionnaireApprovalPanel({
               </div>
             </div>
             
-            {isEditing ? (
-              <Textarea
-                value={typeof editedResponse === 'object' ? JSON.stringify(editedResponse, null, 2) : editedResponse}
-                onChange={(e) => {
-                  try {
-                    setEditedResponse(JSON.parse(e.target.value));
-                  } catch {
-                    setEditedResponse(e.target.value);
-                  }
+            <Card className="p-4">
+              <QuestionRenderer
+                config={{
+                  question_key: item.question_key,
+                  question: item.disclosure_name || item.question_name,
+                  type: item.question_type,
+                  field_config: item.field_config,
+                  options: item.field_config?.fields?.find(f => f.options)?.options,
                 }}
-                className="min-h-[200px] font-mono text-sm"
-                placeholder="Edit the response..."
+                value={isEditing ? editedResponse : item.response_data}
+                onChange={isEditing ? setEditedResponse : () => {}}
+                isEditing={isEditing}
+                allResponses={{}}
               />
-            ) : (
-              <Card className="p-4">
-                {renderResponseValue(item.response_data)}
-              </Card>
-            )}
+            </Card>
           </div>
 
           {/* Approval Comment */}

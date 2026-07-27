@@ -1623,14 +1623,16 @@ class ApprovalWorkflowService:
             
             queue_items.append({
                 "id": response.get("id"),
+                "_response_id": response.get("id"),  # For approval endpoints
                 "question_key": question_key,
                 "question_name": config.get("label") or config.get("question") or config.get("description", "")[:100],
+                "disclosure_name": config.get("label") or config.get("question") or config.get("description", "")[:100],
                 "question_type": config.get("type"),
                 "field_config": config.get("field_config"),
                 "section_id": config.get("brsr_section") or config.get("section"),
                 "framework": response.get("framework") or config.get("framework", "BRSR"),
                 "reporting_year": response.get("reporting_year"),
-                "response_data": response.get("response"),
+                "response_data": response.get("value"),  # The actual response value
                 "submitted_at": response.get("submitted_at"),
                 "submitted_by_id": response.get("submitted_by"),
                 "submitted_by_name": submitter.get("full_name") or submitter.get("name") or submitter.get("email", ""),
@@ -1638,6 +1640,7 @@ class ApprovalWorkflowService:
                 "assignment_id": assignment.get("id"),
                 "due_date": assignment.get("due_date"),
                 "organization_id": organization_id,
+                "_source": "questionnaire_approval_v2",  # Mark source for frontend routing
             })
         
         return queue_items
