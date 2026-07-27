@@ -1758,14 +1758,14 @@ class ApprovalWorkflowService:
             new_status="approved",
         )
         
-        # Update assignment timestamp and approval_status
+        # Update assignment timestamp (approval_status is tracked in esg_responses as single source of truth)
         await db.esg_assignments.update_one(
             {
                 "organization_id": org_id,
                 "entity_type": "question",
                 "entity_id": question_key,
             },
-            {"$set": {"updated_at": now, "approval_status": "approved"}}
+            {"$set": {"updated_at": now}}
         )
         
         # Log to question_audit_log for version history (so UI can show it)
@@ -1870,14 +1870,14 @@ class ApprovalWorkflowService:
             new_status="rejected",
         )
         
-        # Update assignment timestamp and approval_status
+        # Update assignment timestamp (approval_status is tracked in esg_responses as single source of truth)
         await db.esg_assignments.update_one(
             {
                 "organization_id": org_id,
                 "entity_type": "question",
                 "entity_id": question_key,
             },
-            {"$set": {"updated_at": now, "approval_status": "rejected"}}
+            {"$set": {"updated_at": now}}
         )
         
         # Log to question_audit_log for version history

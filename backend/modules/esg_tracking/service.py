@@ -812,7 +812,6 @@ class TrackingService:
                     requires_appr = assignment.get("requires_approval", False)
                     last_reminder = assignment.get("last_reminder_sent_at")
                     assignees_list = assignment.get("assignees", [])
-                    appr_status_val = assignment.get("approval_status", "not_required")
                     
                     # Extract approver info
                     approval_chain = assignment.get("approval_chain", [])
@@ -849,15 +848,14 @@ class TrackingService:
                 else:
                     unassigned += 1
                 
-                # Approval status - prefer from esg_responses, then approval_request, fallback to assignment
+                # Approval status - from esg_responses (single source of truth for questionnaires)
                 appr_status = None
                 if response and response.get("approval_status"):
-                    # Get actual approval status from the response itself
                     appr_status = response.get("approval_status")
                 elif approval:
                     appr_status = approval.get("status")
-                elif appr_status_val:
-                    appr_status = appr_status_val  # From assignment's approval_status field
+                elif requires_appr:
+                    appr_status = "not_required"  # Has assignment with requires_approval but no response yet
                 
                 # Also check for rejection reason from response
                 rejection_reason = None
