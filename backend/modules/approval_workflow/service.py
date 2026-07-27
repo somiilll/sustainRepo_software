@@ -54,6 +54,7 @@ async def _create_approval_version_snapshot(
     user_id: str,
     rejection_reason: Optional[str] = None,
     extra_metadata: Optional[Dict[str, Any]] = None,
+    changed_fields: Optional[List[str]] = None,  # Fields that were changed (for edit approvals)
 ):
     """
     Create a version snapshot for approval/rejection events.
@@ -88,16 +89,24 @@ async def _create_approval_version_snapshot(
         logger.warning(f"Record {record_id} not found for version snapshot")
         return
     
-    # Get current max version
-    current_version = record.get("version", 1)
+    # Get max version from versions collection (not from record) to avoid duplicates
+    latest_version = await db[versions_collection].find_one(
+        {"record_id": record_id},
+        {"_id": 0, "version": 1},
+        sort=[("version", -1)]
+    )
+    next_version = (latest_version.get("version", 0) if latest_version else 0) + 1
+    
+    # Determine changed fields - use provided list or default to approval_status
+    snapshot_changed_fields = changed_fields if changed_fields else ["approval_status"]
     
     # Create version snapshot
     version_doc = {
         "id": str(uuid.uuid4()),
         "record_id": record_id,
-        "version": current_version,
+        "version": next_version,
         "snapshot": record,
-        "changed_fields": ["approval_status"],
+        "changed_fields": snapshot_changed_fields,
         "change_reason": f"Record {action}" + (f": {rejection_reason}" if rejection_reason else ""),
         "change_type": action,  # "approved" or "rejected"
         "created_by": user_id,
@@ -113,7 +122,7 @@ async def _create_approval_version_snapshot(
         version_doc.update(extra_metadata)
     
     await db[versions_collection].insert_one(version_doc)
-    logger.info(f"Created {action} version snapshot for {collection_name} record {record_id}")
+    logger.info(f"Created {action} version snapshot v{next_version} for {collection_name} record {record_id}")
 
 
 class ApprovalWorkflowService:
@@ -878,12 +887,19 @@ class ApprovalWorkflowService:
                         )
                         logger.info(f"Updated ESG record {entity_id} status=completed, approval_status=approved")
                         
+                        # Determine changed fields for version snapshot
+                        changed_fields_for_snapshot = ["approval_status"]
+                        if is_immutable_edit and proposed_changes:
+                            # Include the fields that were changed in the edit
+                            changed_fields_for_snapshot.extend(list(proposed_changes.keys()))
+                        
                         # Create version snapshot for approval event
                         await _create_approval_version_snapshot(
                             collection_name=collection_name,
                             record_id=entity_id,
                             action="approved",
                             user_id=approver.get("id"),
+                            changed_fields=changed_fields_for_snapshot,
                         )
                         
                         # Get the record to find the corresponding task
