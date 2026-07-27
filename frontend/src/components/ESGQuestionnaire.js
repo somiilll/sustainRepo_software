@@ -733,7 +733,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
   const renderVersionHistory = () => {
     const hasHistory = versionHistory && versionHistory.length > 0;
     
-    // Format complex values into human-readable text
+    // Format complex values into human-readable text with conditional field handling
     const formatValue = (val) => {
       if (val === null || val === undefined) return '-';
       if (typeof val === 'string') return val || '-';
@@ -761,9 +761,35 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
             lines.push(`Description: ${val.all_description.slice(0, 100)}${val.all_description.length > 100 ? '...' : ''}`);
           }
           if (val.combined) {
+            // First pass: identify control fields (boolean fields that control visibility)
+            const controlFields = {};
             Object.entries(val.combined).forEach(([k, v]) => {
+              if (typeof v === 'boolean') {
+                controlFields[k] = v;
+              }
+            });
+            
+            // Second pass: show fields conditionally
+            Object.entries(val.combined).forEach(([k, v]) => {
+              // Skip empty values
+              if (v === null || v === undefined || v === '') return;
+              
+              // Check if this field depends on a control field
+              // Pattern: if field is like "agency_name" and "assessment_done" is false, skip it
+              const fieldBase = k.replace(/_name$|_details$|_description$|_reason$|_value$/, '');
+              const possibleControls = [
+                `${fieldBase}_done`, `${fieldBase}_conducted`, `${fieldBase}_enabled`,
+                `${fieldBase.replace(/_/g, '')}_done`, 'assessment_done', 'enabled'
+              ];
+              
+              const shouldSkip = possibleControls.some(ctrl => 
+                controlFields[ctrl] === false && k !== ctrl
+              );
+              
+              if (shouldSkip && typeof v !== 'boolean') return;
+              
               const label = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-              lines.push(`${label}: ${typeof v === 'boolean' ? (v ? 'Yes' : 'No') : v || '-'}`);
+              lines.push(`${label}: ${typeof v === 'boolean' ? (v ? 'Yes' : 'No') : v}`);
             });
           }
           
@@ -789,8 +815,24 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
         }
         // Handle simple key-value objects
         else {
-          Object.entries(val).slice(0, 5).forEach(([k, v]) => {
+          // First pass: identify control fields
+          const controlFields = {};
+          Object.entries(val).forEach(([k, v]) => {
+            if (typeof v === 'boolean') {
+              controlFields[k] = v;
+            }
+          });
+          
+          Object.entries(val).slice(0, 8).forEach(([k, v]) => {
             if (k.startsWith('_')) return; // Skip internal fields
+            if (v === null || v === undefined || v === '') return; // Skip empty
+            
+            // Check conditional visibility
+            const fieldBase = k.replace(/_name$|_details$|_description$|_reason$|_value$/, '');
+            const possibleControls = [`${fieldBase}_done`, `${fieldBase}_conducted`, `${fieldBase}_enabled`];
+            const shouldSkip = possibleControls.some(ctrl => controlFields[ctrl] === false && k !== ctrl);
+            if (shouldSkip && typeof v !== 'boolean') return;
+            
             const label = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
             const displayVal = typeof v === 'boolean' ? (v ? 'Yes' : 'No') : 
                               typeof v === 'object' ? JSON.stringify(v).slice(0, 30) : 
