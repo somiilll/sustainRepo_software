@@ -766,6 +766,10 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
             Object.entries(val.combined).forEach(([k, v]) => {
               if (typeof v === 'boolean') {
                 controlFields[k] = v;
+              } else if (typeof v === 'string') {
+                const lower = v.toLowerCase();
+                if (lower === 'yes' || lower === 'true') controlFields[k] = true;
+                else if (lower === 'no' || lower === 'false') controlFields[k] = false;
               }
             });
             
@@ -786,10 +790,11 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
                 controlFields[ctrl] === false && k !== ctrl
               );
               
-              if (shouldSkip && typeof v !== 'boolean') return;
+              if (shouldSkip && typeof v !== 'boolean' && !['yes','no','true','false'].includes(String(v).toLowerCase())) return;
               
               const label = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-              lines.push(`${label}: ${typeof v === 'boolean' ? (v ? 'Yes' : 'No') : v}`);
+              const displayVal = typeof v === 'boolean' ? (v ? 'Yes' : 'No') : v;
+              lines.push(`${label}: ${displayVal}`);
             });
           }
           
@@ -820,6 +825,10 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
           Object.entries(val).forEach(([k, v]) => {
             if (typeof v === 'boolean') {
               controlFields[k] = v;
+            } else if (typeof v === 'string') {
+              const lower = v.toLowerCase();
+              if (lower === 'yes' || lower === 'true') controlFields[k] = true;
+              else if (lower === 'no' || lower === 'false') controlFields[k] = false;
             }
           });
           
@@ -829,9 +838,9 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
             
             // Check conditional visibility
             const fieldBase = k.replace(/_name$|_details$|_description$|_reason$|_value$/, '');
-            const possibleControls = [`${fieldBase}_done`, `${fieldBase}_conducted`, `${fieldBase}_enabled`];
+            const possibleControls = [`${fieldBase}_done`, `${fieldBase}_conducted`, `${fieldBase}_enabled`, 'assessment_done'];
             const shouldSkip = possibleControls.some(ctrl => controlFields[ctrl] === false && k !== ctrl);
-            if (shouldSkip && typeof v !== 'boolean') return;
+            if (shouldSkip && typeof v !== 'boolean' && !['yes','no','true','false'].includes(String(v).toLowerCase())) return;
             
             const label = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
             const displayVal = typeof v === 'boolean' ? (v ? 'Yes' : 'No') : 
