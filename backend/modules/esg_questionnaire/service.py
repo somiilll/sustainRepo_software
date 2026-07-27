@@ -2109,7 +2109,7 @@ class ESGQuestionnaireService:
         
         This is called after a response is saved. It:
         1. Checks if there's an assignment for this question with requires_approval=True
-        2. Checks if the organization has approval workflows enabled
+        2. Writes/updates the esg_responses collection with approval_status
         3. Creates an approval_request if conditions are met
         4. Updates assignment status accordingly
         """
@@ -2117,6 +2117,7 @@ class ESGQuestionnaireService:
             from shared.database.mongo import db
             from modules.approval_workflow.service import ApprovalWorkflowService
             from modules.approval_workflow.models import SubmitForApprovalInput, EntityType
+            import uuid
             
             # Check if there's an assignment for this question
             assignment = await db.esg_assignments.find_one({
@@ -2126,10 +2127,52 @@ class ESGQuestionnaireService:
                 "reporting_period": reporting_year,
             }, {"_id": 0})
             
-            if not assignment:
-                return  # No assignment for this disclosure
+            requires_approval = assignment.get("requires_approval", False) if assignment else False
+            now_iso = datetime.now(timezone.utc).isoformat()
             
-            requires_approval = assignment.get("requires_approval", False)
+            # Determine approval status
+            if requires_approval:
+                approval_status = "pending_approval"
+            else:
+                approval_status = "approved"  # Auto-approved if no approval required
+            
+            # Upsert to esg_responses collection (this is what tracker reads)
+            existing_response = await db.esg_responses.find_one({
+                "organization_id": org_id,
+                "question_key": question_key,
+                "reporting_year": reporting_year,
+            })
+            
+            if existing_response:
+                # Update existing
+                await db.esg_responses.update_one(
+                    {"id": existing_response["id"]},
+                    {"$set": {
+                        "value": response_value,
+                        "approval_status": approval_status,
+                        "submitted_at": now_iso,
+                        "submitted_by": changed_by_user_id,
+                        "updated_at": now_iso,
+                    }}
+                )
+            else:
+                # Create new
+                await db.esg_responses.insert_one({
+                    "id": str(uuid.uuid4()),
+                    "organization_id": org_id,
+                    "question_key": question_key,
+                    "reporting_year": reporting_year,
+                    "framework": assignment.get("framework_id", "brsr") if assignment else "brsr",
+                    "value": response_value,
+                    "approval_status": approval_status,
+                    "submitted_at": now_iso,
+                    "submitted_by": changed_by_user_id,
+                    "created_at": now_iso,
+                    "updated_at": now_iso,
+                })
+            
+            if not assignment:
+                return  # No assignment for this disclosure, but response is saved
             
             # Update assignment status with new architecture
             # status=completed (user finished work)
