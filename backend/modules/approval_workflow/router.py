@@ -525,17 +525,20 @@ async def get_questionnaire_approval_queue(
 ):
     """
     Get questionnaire responses pending approval for the current user.
+    Admins see all pending approvals in their organization.
     
     Returns enriched items with question configs for display.
     """
     org_id = current_user.get("organization_id")
     user_id = current_user.get("id")
+    user_role = current_user.get("role", "user")
+    is_admin = user_role in ["admin", "super_admin"]
     
     if not org_id:
         raise HTTPException(status_code=400, detail="User has no organization")
     
     queue = await ApprovalWorkflowService.get_questionnaire_approval_queue(
-        org_id, user_id, framework
+        org_id, user_id, framework, is_admin
     )
     
     return {"items": queue, "total": len(queue)}

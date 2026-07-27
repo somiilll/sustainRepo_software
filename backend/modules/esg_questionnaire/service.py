@@ -2156,13 +2156,23 @@ class ESGQuestionnaireService:
                     }}
                 )
             else:
-                # Create new
+                # Create new - include section for proper filtering
+                section = assignment.get("section") if assignment else None
+                if not section:
+                    # Try to get section from question config
+                    config = await self._configs.find_one(
+                        {"question_key": question_key},
+                        {"_id": 0, "section": 1}
+                    )
+                    section = config.get("section") if config else None
+                
                 await db.esg_responses.insert_one({
                     "id": str(uuid.uuid4()),
                     "organization_id": org_id,
                     "question_key": question_key,
                     "reporting_year": reporting_year,
                     "framework": assignment.get("framework_id", "brsr") if assignment else "brsr",
+                    "section": section,
                     "value": response_value,
                     "approval_status": approval_status,
                     "submitted_at": now_iso,
@@ -2496,6 +2506,108 @@ class ESGQuestionnaireService:
     # =========================================================================
     # Helper Methods
     # =========================================================================
+
+    async def get_question_statuses(
+        self,
+        org_id: str,
+        framework: str,
+        section: str,
+        reporting_year: str,
+    ) -> Dict[str, Any]:
+        """
+        Get approval status and version history for all questions in a section.
+        
+        Returns:
+            {
+                "statuses": {
+                    "question_key": {
+                        "approval_status": "pending_approval" | "approved" | "rejected" | null,
+                        "submitted_at": "...",
+                        "approved_at": "...",
+                        "rejected_at": "...",
+                        "rejection_reason": "...",
+                        "version_count": 3
+                    }
+                },
+                "versions": {
+                    "question_key": [
+                        {"version": 1, "change_type": "created", "created_at": "...", "created_by": "..."},
+                        {"version": 2, "change_type": "approved", "created_at": "...", "created_by": "..."}
+                    ]
+                }
+            }
+        """
+        from shared.database.mongo import db
+        
+        # First, get all question_keys for this section from configs
+        section_configs = await self._configs.find(
+            {"frameworks": {"$in": [framework.upper(), framework.lower(), framework]}, "section": section},
+            {"_id": 0, "question_key": 1}
+        ).to_list(500)
+        section_question_keys = [c["question_key"] for c in section_configs]
+        
+        if not section_question_keys:
+            return {"statuses": {}, "versions": {}}
+        
+        # Get esg_responses for these specific question_keys
+        responses = await db.esg_responses.find(
+            {
+                "organization_id": org_id,
+                "question_key": {"$in": section_question_keys},
+                "reporting_year": reporting_year,
+            },
+            {"_id": 0}
+        ).to_list(500)
+        
+        # Build status map
+        statuses = {}
+        for r in responses:
+            qk = r.get("question_key")
+            if qk:
+                statuses[qk] = {
+                    "approval_status": r.get("approval_status"),
+                    "submitted_at": r.get("submitted_at"),
+                    "submitted_by": r.get("submitted_by"),
+                    "approved_at": r.get("approved_at"),
+                    "approved_by": r.get("approved_by"),
+                    "rejected_at": r.get("rejected_at"),
+                    "rejected_by": r.get("rejected_by"),
+                    "rejection_reason": r.get("rejection_reason"),
+                }
+        
+        # Get version history from question_audit_log (this is where versions are stored)
+        versions = {}
+        
+        if section_question_keys:
+            # Query question_audit_log for version history
+            version_docs = await db.question_audit_log.find(
+                {
+                    "organization_id": org_id,
+                    "question_key": {"$in": section_question_keys},
+                    "reporting_period": reporting_year,
+                },
+                {"_id": 0, "question_key": 1, "action": 1, "timestamp": 1, "performed_by": 1}
+            ).sort("timestamp", -1).to_list(1000)
+            
+            for v in version_docs:
+                qk = v.get("question_key")
+                if qk not in versions:
+                    versions[qk] = []
+                versions[qk].append({
+                    "change_type": v.get("action"),
+                    "created_at": v.get("timestamp").isoformat() if hasattr(v.get("timestamp"), 'isoformat') else str(v.get("timestamp")),
+                    "created_by": v.get("performed_by", {}).get("name") or v.get("performed_by", {}).get("email"),
+                })
+        
+        # Add version count to statuses
+        for qk in statuses:
+            statuses[qk]["version_count"] = len(versions.get(qk, []))
+        
+        return {
+            "statuses": statuses,
+            "versions": versions,
+        }
+
 
     def get_ngrbc_principles(self) -> List[Dict[str, str]]:
         """Get list of NGRBC principles (P1-P9)."""

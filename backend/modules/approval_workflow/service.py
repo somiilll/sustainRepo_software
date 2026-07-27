@@ -1534,25 +1534,33 @@ class ApprovalWorkflowService:
         organization_id: str,
         approver_id: str,
         framework: Optional[str] = None,
+        is_admin: bool = False,
     ) -> List[dict]:
         """
         Get questionnaire responses pending approval for the given approver.
         
         Returns enriched items with question configs for display.
+        For admin users, returns ALL pending approvals in the org.
         """
-        # Find assignments where:
-        # 1. Current user is the approver
-        # 2. requires_approval is True
-        # 3. Entity type is "question"
-        assignment_query = {
-            "organization_id": organization_id,
-            "entity_type": "question",
-            "requires_approval": True,
-            "$or": [
-                {"approver_id": approver_id},
-                {"approval_chain": approver_id},
-            ]
-        }
+        # For admins, get all pending approvals regardless of approver assignment
+        if is_admin:
+            assignment_query = {
+                "organization_id": organization_id,
+                "entity_type": "question",
+                "requires_approval": True,
+            }
+        else:
+            # Find assignments where current user is the approver
+            assignment_query = {
+                "organization_id": organization_id,
+                "entity_type": "question",
+                "requires_approval": True,
+                "$or": [
+                    {"approver_id": approver_id},
+                    {"approval_chain": approver_id},
+                    {"approver_ids": approver_id},  # Support array field
+                ]
+            }
         
         if framework:
             assignment_query["framework_id"] = framework.lower()

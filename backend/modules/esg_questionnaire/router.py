@@ -917,6 +917,31 @@ async def list_available_years(
     return {"years": years}
 
 
+@router.get("/responses/{framework}/{section}/{reporting_year}/statuses")
+async def get_question_statuses(
+    framework: str,
+    section: str,
+    reporting_year: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get approval status and version history for all questions in a section.
+    Used by BRSR reporting UI to show per-question status badges.
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    statuses = await esg_questionnaire_service.get_question_statuses(
+        org_id=org_id,
+        framework=framework,
+        section=section,
+        reporting_year=reporting_year
+    )
+    return statuses
+
+
+
 @router.get("/responses/{framework}/{section}/{reporting_year}/historical")
 async def get_historical_data(
     framework: str,

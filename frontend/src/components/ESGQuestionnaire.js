@@ -55,7 +55,8 @@ import {
   Trash2,
   CheckCircle2,
   AlertCircle,
-  HelpCircle
+  HelpCircle,
+  Clock
 } from 'lucide-react';
 import { 
   generateReportingYears, 
@@ -395,8 +396,9 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
 }
 
 // Individual Question Renderer
-export function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {}, historicalData = null }) {
+export function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {}, historicalData = null, approvalStatus = null, versionHistory = null }) {
   const { type, question, description, placeholder, options, table_columns, required, conditional, visible_if } = config;
+  const [showVersions, setShowVersions] = useState(false);
 
   // Check if question should be hidden based on conditional logic
   if (conditional?.depends_on && conditional?.show_when === 'has_no_answer') {
@@ -705,19 +707,76 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
     }
   };
 
+  // Helper to render approval status badge
+  const renderStatusBadge = () => {
+    if (!approvalStatus?.approval_status) return null;
+    
+    const status = approvalStatus.approval_status;
+    const statusConfig = {
+      pending_approval: { label: 'Awaiting Approval', className: 'bg-amber-100 text-amber-800' },
+      approved: { label: 'Approved', className: 'bg-green-100 text-green-800' },
+      rejected: { label: 'Rejected', className: 'bg-red-100 text-red-800' },
+    };
+    
+    const cfg = statusConfig[status];
+    if (!cfg) return null;
+    
+    return (
+      <Badge className={`text-xs ${cfg.className}`}>
+        {cfg.label}
+      </Badge>
+    );
+  };
+
+  // Helper to render version history
+  const renderVersionHistory = () => {
+    if (!versionHistory || versionHistory.length === 0) return null;
+    
+    return (
+      <Collapsible open={showVersions} onOpenChange={setShowVersions}>
+        <CollapsibleTrigger className="flex items-center gap-1 text-xs text-stone-500 hover:text-stone-700 mt-2">
+          <Clock className="w-3 h-3" />
+          {showVersions ? 'Hide' : 'Show'} history ({versionHistory.length})
+          {showVersions ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+        </CollapsibleTrigger>
+        <CollapsibleContent className="mt-2">
+          <div className="bg-stone-50 rounded-md p-2 space-y-1 text-xs">
+            {versionHistory.slice(0, 5).map((v, i) => (
+              <div key={i} className="flex items-center justify-between text-stone-600">
+                <span className="capitalize">{v.change_type || 'Updated'}</span>
+                <span>{v.created_at ? new Date(v.created_at).toLocaleDateString() : '-'}</span>
+              </div>
+            ))}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    );
+  };
+
   return (
     <div className="py-4 border-b border-stone-100 last:border-b-0">
-      <div className="flex items-start gap-2">
-        <Label className="text-sm font-medium text-text-primary">
-          {question}
-          {required && <span className="text-red-500 ml-1">*</span>}
-        </Label>
-        {description && (
-          <HelpCircle className="w-4 h-4 text-text-muted flex-shrink-0" title={description} />
-        )}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start gap-2 flex-1">
+          <Label className="text-sm font-medium text-text-primary">
+            {question}
+            {required && <span className="text-red-500 ml-1">*</span>}
+          </Label>
+          {description && (
+            <HelpCircle className="w-4 h-4 text-text-muted flex-shrink-0" title={description} />
+          )}
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {renderStatusBadge()}
+          {approvalStatus?.rejection_reason && (
+            <span className="text-xs text-red-600 max-w-[200px] truncate" title={approvalStatus.rejection_reason}>
+              {approvalStatus.rejection_reason}
+            </span>
+          )}
+        </div>
       </div>
       {description && <p className="text-xs text-text-muted mt-1">{description}</p>}
       {renderInput()}
+      {renderVersionHistory()}
     </div>
   );
 }
@@ -2968,6 +3027,8 @@ export default function ESGQuestionnaire({
   const [responses, setResponses] = useState({});
   const [summary, setSummary] = useState(null);
   const [historicalData, setHistoricalData] = useState(null);
+  const [questionStatuses, setQuestionStatuses] = useState({});
+  const [questionVersions, setQuestionVersions] = useState({});
 
   useEffect(() => {
     fetchData();
@@ -3003,6 +3064,20 @@ export default function ESGQuestionnaire({
       const rawResponses = responsesRes.data.responses || {};
       const allResponses = normalizeAllResponses(rawResponses);
       setResponses(allResponses);
+
+      // Fetch question statuses (approval status + version history)
+      try {
+        const statusesRes = await axios.get(
+          `${API}/esg-questionnaire/responses/${framework}/${section}/${reportingYear}/statuses`,
+          { headers: getAuthHeader() }
+        );
+        setQuestionStatuses(statusesRes.data.statuses || {});
+        setQuestionVersions(statusesRes.data.versions || {});
+      } catch (err) {
+        console.warn('Failed to fetch question statuses:', err);
+        setQuestionStatuses({});
+        setQuestionVersions({});
+      }
 
       // Calculate filtered summary based on filtered configs
       const filteredQuestionIds = fetchedConfigs.map(c => c.question_key);
@@ -3155,6 +3230,8 @@ export default function ESGQuestionnaire({
                       framework: framework
                     }}
                     historicalData={historicalData}
+                    approvalStatus={questionStatuses[config.question_key]}
+                    versionHistory={questionVersions[config.question_key]}
                   />
                 ))}
               </div>
