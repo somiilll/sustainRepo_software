@@ -965,11 +965,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
           {renderStatusBadge()}
-          {approvalStatus?.rejection_reason && (
-            <span className="text-xs text-red-600 max-w-[200px] truncate" title={approvalStatus.rejection_reason}>
-              {approvalStatus.rejection_reason}
-            </span>
-          )}
+          {/* Rejection reason is shown only in Version History */}
           {isEditing && onSaveQuestion && (
             <Button
               variant="ghost"
