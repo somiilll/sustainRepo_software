@@ -1714,10 +1714,12 @@ class ApprovalWorkflowService:
             
             if section:
                 # Update the organization_esg_responses document
+                # Use case-insensitive regex for framework to handle BRSR vs brsr
+                framework = response.get("framework", "brsr")
                 await db.organization_esg_responses.update_one(
                     {
                         "org_id": org_id,
-                        "framework": response.get("framework", "brsr"),
+                        "framework": {"$regex": f"^{framework}$", "$options": "i"},
                         "reporting_year": response.get("reporting_year"),
                         "section": section,
                     },
