@@ -600,6 +600,20 @@ class AssignmentService:
             configs_list = await configs_cursor.to_list(500)
             question_configs = {c["question_key"]: c for c in configs_list}
         
+        # Fetch approval statuses from esg_responses for these questions
+        approval_statuses = {}
+        if question_entity_ids and reporting_period:
+            status_cursor = db.esg_responses.find(
+                {
+                    "organization_id": organization_id,
+                    "question_key": {"$in": question_entity_ids},
+                    "reporting_year": reporting_period,
+                },
+                {"_id": 0, "question_key": 1, "approval_status": 1, "rejection_reason": 1}
+            )
+            status_list = await status_cursor.to_list(500)
+            approval_statuses = {s["question_key"]: s for s in status_list}
+        
         # Separate by entity type
         questions = []
         records = []
@@ -633,6 +647,13 @@ class AssignmentService:
                     # Fallback: format entity_id as title
                     doc["question_name"] = entity_id.replace("_", " ").title() if entity_id else ""
                     doc["section_id"] = None
+                
+                # Merge approval status from esg_responses (source of truth for approvals)
+                if entity_id and entity_id in approval_statuses:
+                    status_data = approval_statuses[entity_id]
+                    doc["approval_status"] = status_data.get("approval_status")
+                    doc["rejection_reason"] = status_data.get("rejection_reason")
+                
                 questions.append(doc)
             else:
                 records.append(doc)

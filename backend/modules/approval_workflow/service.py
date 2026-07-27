@@ -1755,15 +1755,31 @@ class ApprovalWorkflowService:
             new_status="approved",
         )
         
-        # Update assignment timestamp
+        # Update assignment timestamp and approval_status
         await db.esg_assignments.update_one(
             {
                 "organization_id": org_id,
                 "entity_type": "question",
                 "entity_id": question_key,
             },
-            {"$set": {"updated_at": now}}
+            {"$set": {"updated_at": now, "approval_status": "approved"}}
         )
+        
+        # Log to question_audit_log for version history (so UI can show it)
+        await db.question_audit_log.insert_one({
+            "id": str(uuid.uuid4()),
+            "question_key": question_key,
+            "reporting_period": response.get("reporting_year"),
+            "organization_id": org_id,
+            "action": "approved",
+            "timestamp": datetime.now(timezone.utc),
+            "performed_by": {"user_id": approver.get("id"), "name": approver.get("name") or approver.get("email")},
+            "change_details": {
+                "old_value": response.get("value"),
+                "new_value": updated_response if updated_response is not None else response.get("value"),
+                "approval_comment": comment,
+            },
+        })
         
         updated = await db.esg_responses.find_one({"id": response_id}, {"_id": 0})
         logger.info(f"Approved questionnaire response {response_id} (question: {question_key})")
@@ -1851,15 +1867,28 @@ class ApprovalWorkflowService:
             new_status="rejected",
         )
         
-        # Update assignment timestamp
+        # Update assignment timestamp and approval_status
         await db.esg_assignments.update_one(
             {
                 "organization_id": org_id,
                 "entity_type": "question",
                 "entity_id": question_key,
             },
-            {"$set": {"updated_at": now}}
+            {"$set": {"updated_at": now, "approval_status": "rejected"}}
         )
+        
+        # Log to question_audit_log for version history
+        await db.question_audit_log.insert_one({
+            "id": str(uuid.uuid4()),
+            "question_key": question_key,
+            "reporting_period": response.get("reporting_year"),
+            "organization_id": org_id,
+            "action": "rejected",
+            "timestamp": datetime.now(timezone.utc),
+            "performed_by": {"user_id": rejector.get("id"), "name": rejector.get("name") or rejector.get("email")},
+            "change_details": {"rejection_reason": reason},
+            "rejection_reason": reason,
+        })
         
         updated = await db.esg_responses.find_one({"id": response_id}, {"_id": 0})
         logger.info(f"Rejected questionnaire response {response_id} (question: {question_key}): {reason}")
