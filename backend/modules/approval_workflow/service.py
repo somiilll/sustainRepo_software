@@ -6,6 +6,7 @@ Handles workflow management, request processing, and approval actions.
 """
 
 import logging
+import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any, Tuple
 
