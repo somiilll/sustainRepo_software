@@ -1195,12 +1195,18 @@ class ESGQuestionnaireService:
                     upsert=True
                 )
                 
+                # Clear the user's draft when they submit for approval
+                # Draft is no longer needed once submitted
+                await self._clear_user_draft_for_question(
+                    org_id, question_key, reporting_period, changed_by_user_id
+                )
+                
                 return {
                     "success": True,
                     "submitted_for_approval": True,
                     "submission_id": submission_result["submission_id"],
                     "status": "pending_approval",
-                    "drafts_cleared": 0,
+                    "drafts_cleared": 1,
                     "message": "Submitted for approval" if not submission_result["is_update"] else "Submission updated"
                 }
             # else: use direct save (last save wins) - continue to save below
