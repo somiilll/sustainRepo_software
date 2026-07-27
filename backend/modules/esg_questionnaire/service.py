@@ -2095,6 +2095,23 @@ class ESGQuestionnaireService:
                 result[key] = value
         return result
 
+    def _response_has_value(self, value: Any) -> bool:
+        """Check if a response has meaningful value (not empty/null)."""
+        if value is None:
+            return False
+        if isinstance(value, str):
+            return bool(value.strip())
+        if isinstance(value, (list, dict)):
+            if not value:
+                return False
+            # For dicts, check if any nested value is meaningful
+            if isinstance(value, dict):
+                return any(self._response_has_value(v) for v in value.values())
+            # For lists, check if any item has value
+            return any(self._response_has_value(v) for v in value)
+        # For numbers, booleans, etc.
+        return True
+
     async def _trigger_approval_if_required(
         self,
         org_id: str,
@@ -2112,6 +2129,11 @@ class ESGQuestionnaireService:
         2. Writes/updates the esg_responses collection with approval_status
         3. Creates an approval_request if conditions are met
         4. Updates assignment status accordingly
+        
+        Smart approval logic:
+        - If question has actual value -> trigger approval if required
+        - If question was previously filled and now empty -> trigger approval (for deletion)
+        - If question was never filled and is still empty -> skip (no approval needed)
         """
         try:
             from shared.database.mongo import db
@@ -2130,18 +2152,26 @@ class ESGQuestionnaireService:
             requires_approval = assignment.get("requires_approval", False) if assignment else False
             now_iso = datetime.now(timezone.utc).isoformat()
             
-            # Determine approval status
-            if requires_approval:
-                approval_status = "pending_approval"
-            else:
-                approval_status = "approved"  # Auto-approved if no approval required
-            
-            # Upsert to esg_responses collection (this is what tracker reads)
+            # Check existing response
             existing_response = await db.esg_responses.find_one({
                 "organization_id": org_id,
                 "question_key": question_key,
                 "reporting_year": reporting_year,
             })
+            
+            # Check if response has actual value
+            has_value = self._response_has_value(response_value)
+            had_previous_value = existing_response and self._response_has_value(existing_response.get("value"))
+            
+            # Skip if never filled and still empty (no approval needed for empty questions)
+            if not has_value and not had_previous_value:
+                return  # Nothing to approve
+            
+            # Determine approval status
+            if requires_approval:
+                approval_status = "pending_approval"
+            else:
+                approval_status = "approved"  # Auto-approved if no approval required
             
             if existing_response:
                 # Update existing

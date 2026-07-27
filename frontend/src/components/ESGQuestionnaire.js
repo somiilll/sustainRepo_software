@@ -396,9 +396,10 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
 }
 
 // Individual Question Renderer
-export function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {}, historicalData = null, approvalStatus = null, versionHistory = null }) {
+export function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {}, historicalData = null, approvalStatus = null, versionHistory = null, onSaveQuestion = null }) {
   const { type, question, description, placeholder, options, table_columns, required, conditional, visible_if } = config;
   const [showVersions, setShowVersions] = useState(false);
+  const [savingQuestion, setSavingQuestion] = useState(false);
 
   // Check if question should be hidden based on conditional logic
   if (conditional?.depends_on && conditional?.show_when === 'has_no_answer') {
@@ -728,19 +729,29 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
     );
   };
 
-  // Helper to render version history
+  // Helper to render version history - always show link
   const renderVersionHistory = () => {
-    if (!versionHistory || versionHistory.length === 0) return null;
+    const hasHistory = versionHistory && versionHistory.length > 0;
     
     return (
-      <Collapsible open={showVersions} onOpenChange={setShowVersions}>
-        <CollapsibleTrigger className="flex items-center gap-1 text-xs text-stone-500 hover:text-stone-700 mt-2">
+      <div className="mt-2">
+        <button
+          onClick={() => hasHistory && setShowVersions(!showVersions)}
+          className={`flex items-center gap-1 text-xs ${hasHistory ? 'text-stone-500 hover:text-stone-700 cursor-pointer' : 'text-stone-400 cursor-default'}`}
+          disabled={!hasHistory}
+        >
           <Clock className="w-3 h-3" />
-          {showVersions ? 'Hide' : 'Show'} history ({versionHistory.length})
-          {showVersions ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-        </CollapsibleTrigger>
-        <CollapsibleContent className="mt-2">
-          <div className="bg-stone-50 rounded-md p-2 space-y-1 text-xs">
+          {hasHistory ? (
+            <>
+              {showVersions ? 'Hide' : 'Show'} history ({versionHistory.length})
+              {showVersions ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+            </>
+          ) : (
+            'No version history'
+          )}
+        </button>
+        {hasHistory && showVersions && (
+          <div className="bg-stone-50 rounded-md p-2 space-y-1 text-xs mt-1">
             {versionHistory.slice(0, 5).map((v, i) => (
               <div key={i} className="flex items-center justify-between text-stone-600">
                 <span className="capitalize">{v.change_type || 'Updated'}</span>
@@ -748,9 +759,20 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
               </div>
             ))}
           </div>
-        </CollapsibleContent>
-      </Collapsible>
+        )}
+      </div>
     );
+  };
+
+  // Handle question-level save
+  const handleSaveQuestion = async () => {
+    if (!onSaveQuestion) return;
+    setSavingQuestion(true);
+    try {
+      await onSaveQuestion(config.question_key, value);
+    } finally {
+      setSavingQuestion(false);
+    }
   };
 
   return (
@@ -771,6 +793,17 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
             <span className="text-xs text-red-600 max-w-[200px] truncate" title={approvalStatus.rejection_reason}>
               {approvalStatus.rejection_reason}
             </span>
+          )}
+          {isEditing && onSaveQuestion && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleSaveQuestion}
+              disabled={savingQuestion}
+              className="h-7 px-2 text-xs"
+            >
+              {savingQuestion ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+            </Button>
           )}
         </div>
       </div>
@@ -3120,6 +3153,32 @@ export default function ESGQuestionnaire({
     setResponses(prev => ({ ...prev, [questionKey]: value }));
   };
 
+  // Question-level save (saves only the specified question)
+  const saveQuestion = async (questionKey, value) => {
+    try {
+      await axios.put(
+        `${API}/esg-questionnaire/responses/${framework}/${section}/${reportingYear}`,
+        { responses: { [questionKey]: value } },
+        { headers: getAuthHeader() }
+      );
+      toast.success('Question saved');
+      // Refresh statuses after save
+      try {
+        const statusesRes = await axios.get(
+          `${API}/esg-questionnaire/responses/${framework}/${section}/${reportingYear}/statuses`,
+          { headers: getAuthHeader() }
+        );
+        setQuestionStatuses(statusesRes.data.statuses || {});
+        setQuestionVersions(statusesRes.data.versions || {});
+      } catch (err) {
+        console.warn('Failed to refresh statuses:', err);
+      }
+    } catch (error) {
+      console.error('Save question error:', error);
+      toast.error('Failed to save question');
+    }
+  };
+
   const saveResponses = async () => {
     setSaving(true);
     try {
@@ -3232,6 +3291,7 @@ export default function ESGQuestionnaire({
                     historicalData={historicalData}
                     approvalStatus={questionStatuses[config.question_key]}
                     versionHistory={questionVersions[config.question_key]}
+                    onSaveQuestion={saveQuestion}
                   />
                 ))}
               </div>
