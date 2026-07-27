@@ -65,11 +65,13 @@ async def _create_approval_version_snapshot(
     import uuid
     
     # Map collection to versions collection
+    # NOTE: ESG records use singular "record" (e.g., environment_record_versions)
+    # to match ESGRecordsService._get_versions_collection()
     versions_collection_map = {
-        "environment_records": "environment_records_versions",
-        "social_records": "social_records_versions",
-        "governance_records": "governance_records_versions",
-        "emission_records": "emission_records_versions",
+        "environment_records": "environment_record_versions",
+        "social_records": "social_record_versions",
+        "governance_records": "governance_record_versions",
+        "emission_records": "emission_record_versions",
         "esg_responses": "esg_responses_versions",
         "organization_esg_responses": "esg_responses_versions",
     }
