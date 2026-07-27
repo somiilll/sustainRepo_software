@@ -168,7 +168,7 @@ class DetailedProgressService:
             "category": category,
             "subcategory": subcategory,
             "has_assignment": True,
-            "assignment_level": assignment.get("assignment_level", "organization"),
+            "assignment_level": reference_assignment.get("assignment_level", "organization"),
             "frequency": frequency,
             "start_date": start_date,
             "end_date": end_date,
