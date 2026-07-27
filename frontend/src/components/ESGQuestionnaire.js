@@ -733,10 +733,76 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
   const renderVersionHistory = () => {
     const hasHistory = versionHistory && versionHistory.length > 0;
     
+    // Format complex values into human-readable text
     const formatValue = (val) => {
       if (val === null || val === undefined) return '-';
-      if (typeof val === 'object') return JSON.stringify(val).slice(0, 50) + (JSON.stringify(val).length > 50 ? '...' : '');
-      return String(val).slice(0, 50) + (String(val).length > 50 ? '...' : '');
+      if (typeof val === 'string') return val || '-';
+      if (typeof val === 'boolean') return val ? 'Yes' : 'No';
+      if (typeof val === 'number') return String(val);
+      
+      if (typeof val === 'object') {
+        const lines = [];
+        
+        // Handle mode-based responses (principle toggles, etc.)
+        if (val.mode) {
+          const modeLabels = {
+            'all_together': 'Report all principles together',
+            'combined': 'Report all principles together',
+            'individual': 'Report by individual principle',
+            'per_principle': 'Report by individual principle',
+          };
+          lines.push(`Mode: ${modeLabels[val.mode] || val.mode}`);
+          
+          // Handle all_together/combined mode
+          if (val.all_enabled !== undefined) {
+            lines.push(`Enabled: ${val.all_enabled ? 'Yes' : 'No'}`);
+          }
+          if (val.all_description) {
+            lines.push(`Description: ${val.all_description.slice(0, 100)}${val.all_description.length > 100 ? '...' : ''}`);
+          }
+          if (val.combined) {
+            Object.entries(val.combined).forEach(([k, v]) => {
+              const label = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+              lines.push(`${label}: ${typeof v === 'boolean' ? (v ? 'Yes' : 'No') : v || '-'}`);
+            });
+          }
+          
+          // Handle per-principle mode
+          if (val.principles && Object.keys(val.principles).length > 0) {
+            const enabledPrinciples = Object.entries(val.principles)
+              .filter(([_, p]) => p?.enabled)
+              .map(([k]) => k.toUpperCase());
+            if (enabledPrinciples.length > 0) {
+              lines.push(`Enabled Principles: ${enabledPrinciples.join(', ')}`);
+            }
+          }
+        }
+        // Handle table data (arrays)
+        else if (Array.isArray(val)) {
+          lines.push(`${val.length} row(s)`);
+          if (val.length > 0 && typeof val[0] === 'object') {
+            const firstRow = Object.entries(val[0]).slice(0, 3)
+              .map(([k, v]) => `${k}: ${v || '-'}`)
+              .join(', ');
+            lines.push(`First row: ${firstRow}${Object.keys(val[0]).length > 3 ? '...' : ''}`);
+          }
+        }
+        // Handle simple key-value objects
+        else {
+          Object.entries(val).slice(0, 5).forEach(([k, v]) => {
+            if (k.startsWith('_')) return; // Skip internal fields
+            const label = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            const displayVal = typeof v === 'boolean' ? (v ? 'Yes' : 'No') : 
+                              typeof v === 'object' ? JSON.stringify(v).slice(0, 30) : 
+                              String(v || '-').slice(0, 50);
+            lines.push(`${label}: ${displayVal}`);
+          });
+        }
+        
+        return lines.length > 0 ? lines : ['-'];
+      }
+      
+      return [String(val)];
     };
 
     const getActionBadge = (action) => {
@@ -755,36 +821,51 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
     return (
       <>
         {showVersions && (
-          <div className="bg-stone-50 rounded-md p-3 space-y-2 text-xs mt-2 border">
+          <div className="bg-stone-50 rounded-md p-3 space-y-3 text-xs mt-2 border">
             <div className="font-medium text-stone-700 border-b pb-1 mb-2">Version History</div>
-            {versionHistory.slice(0, 10).map((v, i) => (
-              <div key={i} className="border-b border-stone-200 pb-2 last:border-0 last:pb-0">
-                <div className="flex items-center justify-between mb-1">
-                  <span className={`px-2 py-0.5 rounded text-xs font-medium capitalize ${getActionBadge(v.change_type)}`}>
-                    {v.change_type || 'Updated'}
-                  </span>
-                  <span className="text-stone-500">
-                    {v.created_at ? new Date(v.created_at).toLocaleString() : '-'}
-                  </span>
+            {versionHistory.slice(0, 10).map((v, i) => {
+              const oldLines = formatValue(v.old_value);
+              const newLines = formatValue(v.new_value);
+              
+              return (
+                <div key={i} className="border-b border-stone-200 pb-3 last:border-0 last:pb-0">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium capitalize ${getActionBadge(v.change_type)}`}>
+                      {v.change_type || 'Updated'}
+                    </span>
+                    <span className="text-stone-500">
+                      {v.created_at ? new Date(v.created_at).toLocaleString() : '-'}
+                    </span>
+                  </div>
+                  {v.created_by && (
+                    <div className="text-stone-600 mb-2">
+                      <span className="font-medium">By:</span> {v.created_by}
+                    </div>
+                  )}
+                  {v.change_type === 'rejected' && v.rejection_reason && (
+                    <div className="text-red-600 mb-2">
+                      <span className="font-medium">Reason:</span> {v.rejection_reason}
+                    </div>
+                  )}
+                  {(v.old_value !== undefined || v.new_value !== undefined) && (
+                    <div className="grid grid-cols-2 gap-3 text-stone-600">
+                      <div className="bg-red-50 p-2 rounded">
+                        <div className="font-medium text-red-700 mb-1">Previous Value:</div>
+                        {Array.isArray(oldLines) ? oldLines.map((line, j) => (
+                          <div key={j} className="text-stone-600">{line}</div>
+                        )) : <div>{oldLines}</div>}
+                      </div>
+                      <div className="bg-green-50 p-2 rounded">
+                        <div className="font-medium text-green-700 mb-1">New Value:</div>
+                        {Array.isArray(newLines) ? newLines.map((line, j) => (
+                          <div key={j} className="text-stone-600">{line}</div>
+                        )) : <div>{newLines}</div>}
+                      </div>
+                    </div>
+                  )}
                 </div>
-                {v.created_by && (
-                  <div className="text-stone-600">
-                    <span className="font-medium">By:</span> {v.created_by}
-                  </div>
-                )}
-                {v.change_type === 'rejected' && v.rejection_reason && (
-                  <div className="text-red-600 mt-1">
-                    <span className="font-medium">Reason:</span> {v.rejection_reason}
-                  </div>
-                )}
-                {(v.old_value !== undefined || v.new_value !== undefined) && (
-                  <div className="mt-1 grid grid-cols-2 gap-2 text-stone-600">
-                    <div><span className="font-medium">Old:</span> {formatValue(v.old_value)}</div>
-                    <div><span className="font-medium">New:</span> {formatValue(v.new_value)}</div>
-                  </div>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </>
