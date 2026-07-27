@@ -702,17 +702,22 @@ class ESGRecordsService:
             now = datetime.now(timezone.utc).isoformat()
             
             # Build entity_snapshot with current values AND proposed changes
+            # For the approver UI: field_values should contain the PROPOSED values
+            # (what the approver is reviewing/approving), not the old values
+            proposed_field_values = proposed_changes.get("field_values", current_record.get("field_values", {}))
+            
             entity_snapshot = {
                 "category": current_record.get("category"),
                 "subcategory": current_record.get("subcategory"),
                 "sub_subcategory": current_record.get("sub_subcategory"),
+                "field_values": proposed_field_values,  # NEW values for approver to review
                 "field_definitions": field_definitions,
                 "reporting_period": current_record.get("reporting_period"),
                 "facility_id": current_record.get("facility_id"),
                 # Edit-specific fields
                 "is_edit": True,
                 "edit_type": "immutable_edit",  # New type indicating record wasn't mutated
-                "current_field_values": current_record.get("field_values", {}),
+                "current_field_values": current_record.get("field_values", {}),  # OLD values for comparison
                 "proposed_changes": proposed_changes,
                 "changes_summary": changes_summary or [],
             }
@@ -753,6 +758,24 @@ class ESGRecordsService:
             
             await db.approval_requests.insert_one(approval_request)
             print(f"Created immutable edit approval request {approval_request['id']} for record {record_id}")
+            
+            # Update the record's approval_status to "pending_approval" 
+            # This shows the correct status in UI while keeping field_values unchanged
+            collection_map = {
+                "environment": "environment_records",
+                "social": "social_records", 
+                "governance": "governance_records",
+            }
+            collection_name = collection_map.get(section)
+            if collection_name:
+                await db[collection_name].update_one(
+                    {"id": record_id, "is_current": True},
+                    {"$set": {
+                        "approval_status": "pending_approval",
+                        "updated_at": now,
+                    }}
+                )
+                print(f"Updated record {record_id} approval_status to pending_approval")
             
         except Exception as e:
             print(f"Warning: Failed to create edit approval request: {e}")

@@ -1128,17 +1128,6 @@ class ApprovalWorkflowService:
                 entity_subtype = request.get("entity_subtype")  # environment, social, governance
                 entity_snapshot = request.get("entity_snapshot", {})
                 
-                # =========================================================================
-                # IMMUTABLE EDIT REJECTION: Don't update the source record
-                # If this is an immutable_edit rejection, the record was never mutated.
-                # On rejection, we simply discard the approval request - the record stays
-                # in its approved state with the original field_values.
-                # Only update the approval request status, NOT the underlying record.
-                # =========================================================================
-                if entity_snapshot.get("edit_type") == "immutable_edit":
-                    logger.info(f"Immutable edit rejection - record {entity_id} stays unchanged (approval_status=approved)")
-                    return  # Skip updating the source record
-                
                 collection_map = {
                     "environment": "environment_records",
                     "social": "social_records",
@@ -1146,8 +1135,37 @@ class ApprovalWorkflowService:
                 }
                 collection_name = collection_map.get(entity_subtype)
                 
+                # =========================================================================
+                # IMMUTABLE EDIT REJECTION: Revert status to "approved"
+                # If this is an immutable_edit rejection, the record's field_values were 
+                # never mutated. We set approval_status back to "approved" (the data is
+                # still the old approved data). Only the approval_status was changed to
+                # "pending_approval" when the edit was submitted.
+                # =========================================================================
+                if entity_snapshot.get("edit_type") == "immutable_edit":
+                    if collection_name:
+                        # Revert approval_status to "approved" (data unchanged)
+                        await db[collection_name].update_one(
+                            {"id": entity_id, "is_current": True},
+                            {"$set": {
+                                "approval_status": "approved",
+                                "updated_at": now,
+                            }}
+                        )
+                        logger.info(f"Immutable edit rejection - reverted record {entity_id} approval_status to approved")
+                        
+                        # Create version snapshot for rejection event
+                        await _create_approval_version_snapshot(
+                            collection_name=collection_name,
+                            record_id=entity_id,
+                            action="rejected",
+                            user_id=rejector_id,
+                            rejection_reason=comment,
+                        )
+                    return  # Skip the normal rejection flow
+                
                 if collection_name:
-                    # Update the ESG record
+                    # Update the ESG record (normal rejection - not immutable edit)
                     await db[collection_name].update_one(
                         {"id": entity_id, "is_current": True},
                         {"$set": update_doc}
