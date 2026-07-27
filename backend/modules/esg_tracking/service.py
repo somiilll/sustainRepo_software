@@ -891,7 +891,8 @@ class TrackingService:
                     framework_id=framework_id,
                     is_completed=is_completed,
                     completion_status=comp_status,
-                    response_data=response.get("value") if response else None,
+                    # Handle both dict and string response values (GRI uses strings, BRSR uses dicts)
+                    response_data=response.get("value") if response and isinstance(response.get("value"), dict) else ({"value": response.get("value")} if response and response.get("value") is not None else None),
                     last_response_updated_at=resp_updated,
                     is_assigned=is_assigned,
                     assigned_to_user_id=assigned_to_user_id,
