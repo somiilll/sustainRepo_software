@@ -1068,6 +1068,7 @@ class ESGQuestionnaireService:
                 "$set": {
                     "value": value,
                     "status": status,
+                    "reporting_year": reporting_period,  # Also set reporting_year for query compatibility
                     "updated_at": now_iso,
                     "updated_by": changed_by_user_id,
                     "updated_by_name": changed_by_user_name,
@@ -1078,6 +1079,7 @@ class ESGQuestionnaireService:
                     "organization_id": org_id,
                     "question_key": question_key,
                     "reporting_period": reporting_period,
+                    "reporting_year": reporting_period,  # Also set reporting_year for query compatibility
                     "created_at": now_iso,
                 }
             },
