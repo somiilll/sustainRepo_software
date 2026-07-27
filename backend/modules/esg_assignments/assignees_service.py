@@ -60,6 +60,7 @@ class AssignmentAssigneesService:
         user_ids: List[str],
         assigned_by_user_id: str,
         role: str = "editor",
+        organization_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Add multiple assignees to an assignment.
@@ -67,10 +68,23 @@ class AssignmentAssigneesService:
         If a user is already assigned (active), they are skipped.
         If a user was previously removed, they are reactivated.
         
+        Args:
+            organization_id: Required for efficient scoped queries in assignment_resolver.
+                            If not provided, will be looked up from the assignment.
+        
         Returns list of created/reactivated assignee records.
         """
         now = datetime.now(timezone.utc)
         results = []
+        
+        # Lookup organization_id from assignment if not provided
+        if not organization_id:
+            assignment = await self._assignments.find_one(
+                {"id": assignment_id},
+                {"_id": 0, "organization_id": 1}
+            )
+            if assignment:
+                organization_id = assignment.get("organization_id")
         
         for user_id in user_ids:
             # Check if already assigned (active)
@@ -81,7 +95,13 @@ class AssignmentAssigneesService:
             })
             
             if existing:
-                # Already active, skip
+                # Already active - but ensure organization_id is set (backfill)
+                if not existing.get("organization_id") and organization_id:
+                    await self._assignees.update_one(
+                        {"id": existing["id"]},
+                        {"$set": {"organization_id": organization_id}}
+                    )
+                    existing["organization_id"] = organization_id
                 results.append(existing)
                 continue
             
@@ -93,26 +113,30 @@ class AssignmentAssigneesService:
             })
             
             if removed:
-                # Reactivate
+                # Reactivate and ensure organization_id is set
+                update_fields = {
+                    "removed_at": None,
+                    "assigned_by_user_id": assigned_by_user_id,
+                    "assigned_at": now,
+                    "role": role,
+                }
+                if organization_id:
+                    update_fields["organization_id"] = organization_id
+                    
                 await self._assignees.update_one(
                     {"id": removed["id"]},
-                    {
-                        "$set": {
-                            "removed_at": None,
-                            "assigned_by_user_id": assigned_by_user_id,
-                            "assigned_at": now,
-                            "role": role,
-                        }
-                    }
+                    {"$set": update_fields}
                 )
                 removed["removed_at"] = None
                 removed["assigned_at"] = now
+                removed["organization_id"] = organization_id
                 results.append(removed)
             else:
-                # Create new assignee record
+                # Create new assignee record with organization_id
                 assignee_doc = {
                     "id": str(uuid.uuid4()),
                     "assignment_id": assignment_id,
+                    "organization_id": organization_id,  # Required for resolver queries
                     "user_id": user_id,
                     "role": role,
                     "assigned_by_user_id": assigned_by_user_id,
@@ -173,6 +197,7 @@ class AssignmentAssigneesService:
         new_user_ids: List[str],
         changed_by_user_id: str,
         role: str = "editor",
+        organization_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Replace all assignees with a new set.
@@ -180,9 +205,22 @@ class AssignmentAssigneesService:
         This is the primary method for updating who is assigned to a work item.
         Handles additions and removals atomically.
         
+        Args:
+            organization_id: Required for efficient scoped queries in assignment_resolver.
+                            If not provided, will be looked up from the assignment.
+        
         Returns summary of changes.
         """
         now = datetime.now(timezone.utc)
+        
+        # Lookup organization_id from assignment if not provided
+        if not organization_id:
+            assignment = await self._assignments.find_one(
+                {"id": assignment_id},
+                {"_id": 0, "organization_id": 1}
+            )
+            if assignment:
+                organization_id = assignment.get("organization_id")
         
         # Get current active assignees
         current = await self._assignees.find(
@@ -205,7 +243,7 @@ class AssignmentAssigneesService:
                 removed_by_user_id=changed_by_user_id,
             )
         
-        # Add new assignees
+        # Add new assignees (with organization_id)
         added = []
         if to_add:
             added = await self.add_assignees(
@@ -213,6 +251,7 @@ class AssignmentAssigneesService:
                 user_ids=list(to_add),
                 assigned_by_user_id=changed_by_user_id,
                 role=role,
+                organization_id=organization_id,
             )
         
         return {
@@ -354,16 +393,30 @@ class AssignmentAssigneesService:
         from_assignment_id: str,
         to_assignment_id: str,
         copied_by_user_id: str,
+        organization_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Copy all active assignees from one assignment to another.
         
         Useful when creating similar assignments.
+        
+        Args:
+            organization_id: Required for efficient scoped queries in assignment_resolver.
+                            If not provided, will be looked up from the target assignment.
         """
         source_assignees = await self.get_assignees(from_assignment_id)
         
         if not source_assignees:
             return []
+        
+        # Lookup organization_id from target assignment if not provided
+        if not organization_id:
+            assignment = await self._assignments.find_one(
+                {"id": to_assignment_id},
+                {"_id": 0, "organization_id": 1}
+            )
+            if assignment:
+                organization_id = assignment.get("organization_id")
         
         user_ids = [a["user_id"] for a in source_assignees]
         roles = {a["user_id"]: a.get("role", "editor") for a in source_assignees}
@@ -375,6 +428,7 @@ class AssignmentAssigneesService:
                 user_ids=[user_id],
                 assigned_by_user_id=copied_by_user_id,
                 role=roles.get(user_id, "editor"),
+                organization_id=organization_id,
             )
             results.extend(added)
         

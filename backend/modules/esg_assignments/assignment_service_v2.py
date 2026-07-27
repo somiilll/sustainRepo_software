@@ -355,6 +355,7 @@ class AssignmentServiceV2:
                     assignment_id=assignment_id,
                     new_user_ids=user_ids,
                     changed_by_user_id=created_by_user_id,
+                    organization_id=data.get("organization_id"),
                 )
             
             # Fetch updated assignment with assignees
@@ -469,6 +470,7 @@ class AssignmentServiceV2:
                     assignment_id=assignment_id,
                     user_ids=user_ids,
                     assigned_by_user_id=created_by_user_id,
+                    organization_id=data.get("organization_id"),
                 )
             
             # =========================================================================
