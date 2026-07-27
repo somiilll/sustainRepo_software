@@ -3,10 +3,15 @@
  * 
  * The backend adds _current_fy/_previous_fy suffixes for fy_comparison mode,
  * but renderers expect simple keys like 'mode', 'review_by', etc.
+ * 
+ * USAGE: Normalize once at the response boundary (when API data is received),
+ * so all renderers receive clean data without FY suffixes.
  */
 
 /**
  * Normalize FY-suffixed response data back to simple keys.
+ * Recursively processes nested objects.
+ * 
  * @param {any} data - The response data from backend
  * @param {boolean} preferCurrentFY - Whether to prefer current FY values (default: true)
  * @returns {any} Normalized data with FY suffixes stripped
@@ -46,8 +51,27 @@ export function normalizeFYResponse(data, preferCurrentFY = true) {
 }
 
 /**
+ * Normalize all responses in a questionnaire response object.
+ * This is the main entry point - call this once when API data is received.
+ * 
+ * @param {Object} responses - The responses object from API (keyed by question_key)
+ * @param {boolean} preferCurrentFY - Whether to prefer current FY values (default: true)
+ * @returns {Object} Normalized responses object
+ */
+export function normalizeAllResponses(responses, preferCurrentFY = true) {
+  if (!responses || typeof responses !== 'object') return responses;
+  
+  const normalized = {};
+  for (const [questionKey, responseValue] of Object.entries(responses)) {
+    normalized[questionKey] = normalizeFYResponse(responseValue, preferCurrentFY);
+  }
+  return normalized;
+}
+
+/**
  * Add FY suffixes back when saving.
  * Converts simple keys to _current_fy suffixed keys for backend storage.
+ * 
  * @param {any} data - The data to add suffixes to
  * @param {string} suffix - The suffix to add (default: '_current_fy')
  * @returns {any} Data with FY suffixes added

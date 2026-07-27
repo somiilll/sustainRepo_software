@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+
+// FY normalization utility - normalize once at response boundary
+import { normalizeAllResponses } from './ESGQuestionnaire/utils/fyNormalization';
 
 // Modular renderer imports
 import {
@@ -63,74 +66,6 @@ import {
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-/**
- * Utility to normalize FY-suffixed response data back to simple keys.
- * The backend adds _current_fy/_previous_fy suffixes for fy_comparison mode,
- * but renderers expect simple keys like 'mode', 'review_by', etc.
- * 
- * This function strips FY suffixes and returns current FY values by default.
- */
-function normalizeFYResponse(data, preferCurrentFY = true) {
-  if (!data || typeof data !== 'object') return data;
-  if (Array.isArray(data)) {
-    return data.map(item => normalizeFYResponse(item, preferCurrentFY));
-  }
-  
-  const normalized = {};
-  const suffix = preferCurrentFY ? '_current_fy' : '_previous_fy';
-  const otherSuffix = preferCurrentFY ? '_previous_fy' : '_current_fy';
-  
-  for (const [key, value] of Object.entries(data)) {
-    // Skip null/undefined
-    if (value === null || value === undefined) continue;
-    
-    // If key has FY suffix, strip it
-    if (key.endsWith('_current_fy')) {
-      const baseKey = key.slice(0, -11); // Remove '_current_fy'
-      // Only set if we prefer current FY or base key not set
-      if (preferCurrentFY || !(baseKey in normalized)) {
-        normalized[baseKey] = typeof value === 'object' ? normalizeFYResponse(value, preferCurrentFY) : value;
-      }
-    } else if (key.endsWith('_previous_fy')) {
-      const baseKey = key.slice(0, -12); // Remove '_previous_fy'
-      // Only set if we prefer previous FY or base key not set
-      if (!preferCurrentFY || !(baseKey in normalized)) {
-        normalized[baseKey] = typeof value === 'object' ? normalizeFYResponse(value, preferCurrentFY) : value;
-      }
-    } else {
-      // No suffix - recursively normalize nested objects
-      normalized[key] = typeof value === 'object' ? normalizeFYResponse(value, preferCurrentFY) : value;
-    }
-  }
-  
-  return normalized;
-}
-
-/**
- * Utility to add FY suffixes back when saving.
- * Converts simple keys to _current_fy suffixed keys for backend storage.
- */
-function addFYSuffixForSave(data, suffix = '_current_fy') {
-  if (!data || typeof data !== 'object') return data;
-  if (Array.isArray(data)) {
-    return data.map(item => addFYSuffixForSave(item, suffix));
-  }
-  
-  const suffixed = {};
-  for (const [key, value] of Object.entries(data)) {
-    if (value === null || value === undefined) continue;
-    
-    // Don't double-suffix if already has FY suffix
-    if (key.endsWith('_current_fy') || key.endsWith('_previous_fy')) {
-      suffixed[key] = typeof value === 'object' ? addFYSuffixForSave(value, suffix) : value;
-    } else {
-      suffixed[`${key}${suffix}`] = typeof value === 'object' ? addFYSuffixForSave(value, suffix) : value;
-    }
-  }
-  
-  return suffixed;
-}
-
 // NGRBC Principles (P1-P9)
 const NGRBC_PRINCIPLES = [
   { key: "P1", name: "Ethics, Transparency and Accountability" },
@@ -146,9 +81,25 @@ const NGRBC_PRINCIPLES = [
 
 // NGRBC Policy Matrix Renderer
 function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
-  const [mode, setMode] = useState(value?.mode || 'together');
-  const [allTogether, setAllTogether] = useState(value?.all_together || { covered: null, board_approved: null, web_link: '', reasons: {} });
-  const [principleWise, setPrincipleWise] = useState(value?.principle_wise || {});
+  // Default values for state
+  const defaultAllTogether = { covered: null, board_approved: null, web_link: '', reasons: {} };
+  const defaultPrincipleWise = {};
+  
+  // Local state - initialized with defaults, synced via useEffect when value changes
+  const [mode, setMode] = useState('together');
+  const [allTogether, setAllTogether] = useState(defaultAllTogether);
+  const [principleWise, setPrincipleWise] = useState(defaultPrincipleWise);
+  const [initialized, setInitialized] = useState(false);
+
+  // Sync state when value prop changes (handles async data loading)
+  useEffect(() => {
+    if (value) {
+      setMode(value.mode || 'together');
+      setAllTogether(value.all_together || defaultAllTogether);
+      setPrincipleWise(value.principle_wise || defaultPrincipleWise);
+      setInitialized(true);
+    }
+  }, [value]);
 
   const noReasons = [
     { key: 'not_material', label: 'The entity does not consider the Principles material to its business' },
@@ -158,9 +109,12 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
     { key: 'other', label: 'Any other reason (please specify)', hasText: true }
   ];
 
+  // Push state changes back to parent (only after initial sync)
   useEffect(() => {
-    onChange({ mode, all_together: allTogether, principle_wise: principleWise });
-  }, [mode, allTogether, principleWise]);
+    if (initialized) {
+      onChange({ mode, all_together: allTogether, principle_wise: principleWise });
+    }
+  }, [mode, allTogether, principleWise, initialized]);
 
   const handleModeChange = (newMode) => {
     setMode(newMode);
@@ -770,9 +724,8 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
 
 // P1-P9 Principle Toggle Renderer (with optional inline reasons when No)
 function PrincipleToggleRenderer({ value, onChange, isEditing, config = {} }) {
-  // Normalize FY-suffixed data from backend to simple keys for rendering
-  const normalizedValue = normalizeFYResponse(value);
-  const data = normalizedValue || { mode: 'all_together', all_enabled: null, all_description: '', principles: {} };
+  // Data is already normalized at the response boundary (ESGQuestionnaire.fetchData)
+  const data = value || { mode: 'all_together', all_enabled: null, all_description: '', principles: {} };
   const inlineReasons = config.inline_reasons_config?.items || [];
   const hasInlineReasons = inlineReasons.length > 0;
 
@@ -961,9 +914,8 @@ function PrincipleToggleRenderer({ value, onChange, isEditing, config = {} }) {
 
 // P1-P9 Principle Text Renderer (text input per principle, no toggle)
 function PrincipleTextRenderer({ value, onChange, isEditing, config }) {
-  // Normalize FY-suffixed data from backend to simple keys for rendering
-  const normalizedValue = normalizeFYResponse(value);
-  const data = normalizedValue || { mode: 'all_together', all_text: '', principles: {} };
+  // Data is already normalized at the response boundary (ESGQuestionnaire.fetchData)
+  const data = value || { mode: 'all_together', all_text: '', principles: {} };
 
   const handleModeChange = (newMode) => {
     onChange({ ...data, mode: newMode });
@@ -1052,9 +1004,8 @@ function PrincipleTextRenderer({ value, onChange, isEditing, config }) {
 
 // Conditional Yes/No Table Renderer (reusable pattern)
 function ConditionalYesNoTableRenderer({ config, value, onChange, isEditing }) {
-  // Normalize FY-suffixed data from backend to simple keys for rendering
-  const normalizedValue = normalizeFYResponse(value);
-  const data = normalizedValue || { has_value: false, members: [{}] };
+  // Data is already normalized at the response boundary (ESGQuestionnaire.fetchData)
+  const data = value || { has_value: false, members: [{}] };
   const tableConfig = config.table_config || {};
   const columns = tableConfig.columns || ['name', 'din', 'designation', 'role'];
   
@@ -1190,9 +1141,8 @@ function ConditionalYesNoTableRenderer({ config, value, onChange, isEditing }) {
 
 // Principle Mode Table Renderer (Combined or Principle-wise reporting)
 function PrincipleModeTableRenderer({ config, value, onChange, isEditing }) {
-  // Normalize FY-suffixed data from backend to simple keys for rendering
-  const normalizedValue = normalizeFYResponse(value);
-  const data = normalizedValue || { mode: 'combined', combined: {}, principles: {} };
+  // Data is already normalized at the response boundary (ESGQuestionnaire.fetchData)
+  const data = value || { mode: 'combined', combined: {}, principles: {} };
   const fieldConfig = config.field_config || {};
   const fields = fieldConfig.fields || [];
 
@@ -1374,9 +1324,8 @@ function PrincipleModeTableRenderer({ config, value, onChange, isEditing }) {
 
 // Reasons Checklist Renderer (Yes/No items with optional "other" text, principle-aware)
 function ReasonsChecklistRenderer({ config, value, onChange, isEditing, allResponses = {} }) {
-  // Normalize FY-suffixed data from backend to simple keys for rendering
-  const normalizedValue = normalizeFYResponse(value);
-  const data = normalizedValue || { principles: {} };
+  // Data is already normalized at the response boundary (ESGQuestionnaire.fetchData)
+  const data = value || { principles: {} };
   const reasonsConfig = config.reasons_config || {};
   const reasons = reasonsConfig.items || [];
   const hasOther = reasonsConfig.has_other !== false;
@@ -3050,7 +2999,9 @@ export default function ESGQuestionnaire({
         `${API}/esg-questionnaire/responses/${framework}/${section}/${reportingYear}`,
         { headers: getAuthHeader() }
       );
-      const allResponses = responsesRes.data.responses || {};
+      // Normalize responses at the boundary - strip FY suffixes so renderers get clean data
+      const rawResponses = responsesRes.data.responses || {};
+      const allResponses = normalizeAllResponses(rawResponses);
       setResponses(allResponses);
 
       // Calculate filtered summary based on filtered configs
