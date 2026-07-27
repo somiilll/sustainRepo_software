@@ -1078,6 +1078,7 @@ class TrackingService:
                             {"brsr_section": request.section_id},
                             {"topic": request.section_id},
                             {"brsr_principle": request.section_id},
+                            {"disclosure_id": request.section_id},  # For GRI which uses disclosure_id
                         ]}
                     ]
                 }
@@ -1086,6 +1087,7 @@ class TrackingService:
                     {"brsr_section": request.section_id},
                     {"topic": request.section_id},
                     {"brsr_principle": request.section_id},
+                    {"disclosure_id": request.section_id},  # For GRI which uses disclosure_id
                 ]
         
         configs = await self._configs.find(config_query, {"_id": 0, "question_key": 1, "disclosure_id": 1}).to_list(500)
