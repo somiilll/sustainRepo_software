@@ -729,38 +729,82 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
     );
   };
 
-  // Helper to render version history - always show link
+  // Helper to render version history - detailed view with old/new values, approvals, rejections
   const renderVersionHistory = () => {
     const hasHistory = versionHistory && versionHistory.length > 0;
     
+    const formatValue = (val) => {
+      if (val === null || val === undefined) return '-';
+      if (typeof val === 'object') return JSON.stringify(val).slice(0, 50) + (JSON.stringify(val).length > 50 ? '...' : '');
+      return String(val).slice(0, 50) + (String(val).length > 50 ? '...' : '');
+    };
+
+    const getActionBadge = (action) => {
+      const badges = {
+        'created': 'bg-green-100 text-green-700',
+        'updated': 'bg-blue-100 text-blue-700',
+        'approved': 'bg-emerald-100 text-emerald-700',
+        'rejected': 'bg-red-100 text-red-700',
+        'submitted': 'bg-amber-100 text-amber-700',
+      };
+      return badges[action] || 'bg-stone-100 text-stone-700';
+    };
+
+    if (!hasHistory) return null;
+    
     return (
-      <div className="mt-2">
-        <button
-          onClick={() => hasHistory && setShowVersions(!showVersions)}
-          className={`flex items-center gap-1 text-xs ${hasHistory ? 'text-stone-500 hover:text-stone-700 cursor-pointer' : 'text-stone-400 cursor-default'}`}
-          disabled={!hasHistory}
-        >
-          <Clock className="w-3 h-3" />
-          {hasHistory ? (
-            <>
-              {showVersions ? 'Hide' : 'Show'} history ({versionHistory.length})
-              {showVersions ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-            </>
-          ) : (
-            'No version history'
-          )}
-        </button>
-        {hasHistory && showVersions && (
-          <div className="bg-stone-50 rounded-md p-2 space-y-1 text-xs mt-1">
-            {versionHistory.slice(0, 5).map((v, i) => (
-              <div key={i} className="flex items-center justify-between text-stone-600">
-                <span className="capitalize">{v.change_type || 'Updated'}</span>
-                <span>{v.created_at ? new Date(v.created_at).toLocaleDateString() : '-'}</span>
+      <>
+        {showVersions && (
+          <div className="bg-stone-50 rounded-md p-3 space-y-2 text-xs mt-2 border">
+            <div className="font-medium text-stone-700 border-b pb-1 mb-2">Version History</div>
+            {versionHistory.slice(0, 10).map((v, i) => (
+              <div key={i} className="border-b border-stone-200 pb-2 last:border-0 last:pb-0">
+                <div className="flex items-center justify-between mb-1">
+                  <span className={`px-2 py-0.5 rounded text-xs font-medium capitalize ${getActionBadge(v.change_type)}`}>
+                    {v.change_type || 'Updated'}
+                  </span>
+                  <span className="text-stone-500">
+                    {v.created_at ? new Date(v.created_at).toLocaleString() : '-'}
+                  </span>
+                </div>
+                {v.created_by && (
+                  <div className="text-stone-600">
+                    <span className="font-medium">By:</span> {v.created_by}
+                  </div>
+                )}
+                {v.change_type === 'rejected' && v.rejection_reason && (
+                  <div className="text-red-600 mt-1">
+                    <span className="font-medium">Reason:</span> {v.rejection_reason}
+                  </div>
+                )}
+                {(v.old_value !== undefined || v.new_value !== undefined) && (
+                  <div className="mt-1 grid grid-cols-2 gap-2 text-stone-600">
+                    <div><span className="font-medium">Old:</span> {formatValue(v.old_value)}</div>
+                    <div><span className="font-medium">New:</span> {formatValue(v.new_value)}</div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
         )}
-      </div>
+      </>
+    );
+  };
+
+  // Version history button for header
+  const renderVersionHistoryButton = () => {
+    const hasHistory = versionHistory && versionHistory.length > 0;
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => hasHistory && setShowVersions(!showVersions)}
+        disabled={!hasHistory}
+        className={`h-7 px-2 text-xs ${!hasHistory ? 'opacity-50' : ''}`}
+        title={hasHistory ? `${versionHistory.length} version(s)` : 'No history'}
+      >
+        <Clock className="w-3 h-3" />
+      </Button>
     );
   };
 
@@ -787,7 +831,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
             <HelpCircle className="w-4 h-4 text-text-muted flex-shrink-0" title={description} />
           )}
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-1 flex-shrink-0">
           {renderStatusBadge()}
           {approvalStatus?.rejection_reason && (
             <span className="text-xs text-red-600 max-w-[200px] truncate" title={approvalStatus.rejection_reason}>
@@ -801,10 +845,12 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
               onClick={handleSaveQuestion}
               disabled={savingQuestion}
               className="h-7 px-2 text-xs"
+              title="Save question"
             >
               {savingQuestion ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
             </Button>
           )}
+          {renderVersionHistoryButton()}
         </div>
       </div>
       {description && <p className="text-xs text-text-muted mt-1">{description}</p>}

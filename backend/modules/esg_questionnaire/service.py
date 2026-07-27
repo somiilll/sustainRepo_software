@@ -2652,24 +2652,50 @@ class ESGQuestionnaireService:
         versions = {}
         
         if section_question_keys:
-            # Query question_audit_log for version history
+            # Query question_audit_log for version history with full details
             version_docs = await db.question_audit_log.find(
                 {
                     "organization_id": org_id,
                     "question_key": {"$in": section_question_keys},
                     "reporting_period": reporting_year,
                 },
-                {"_id": 0, "question_key": 1, "action": 1, "timestamp": 1, "performed_by": 1}
+                {"_id": 0}
             ).sort("timestamp", -1).to_list(1000)
+            
+            # Also get user details for performed_by user_ids
+            user_ids = list(set(
+                v.get("performed_by", {}).get("user_id") 
+                for v in version_docs 
+                if v.get("performed_by", {}).get("user_id")
+            ))
+            users_map = {}
+            if user_ids:
+                users = await db.users.find(
+                    {"id": {"$in": user_ids}},
+                    {"_id": 0, "id": 1, "name": 1, "email": 1}
+                ).to_list(100)
+                users_map = {u["id"]: u for u in users}
             
             for v in version_docs:
                 qk = v.get("question_key")
                 if qk not in versions:
                     versions[qk] = []
+                
+                # Get user details
+                user_id = v.get("performed_by", {}).get("user_id")
+                user = users_map.get(user_id, {})
+                user_name = v.get("performed_by", {}).get("name") or user.get("name") or user.get("email") or "Unknown"
+                
+                # Get change details
+                change_details = v.get("change_details", {})
+                
                 versions[qk].append({
                     "change_type": v.get("action"),
                     "created_at": v.get("timestamp").isoformat() if hasattr(v.get("timestamp"), 'isoformat') else str(v.get("timestamp")),
-                    "created_by": v.get("performed_by", {}).get("name") or v.get("performed_by", {}).get("email"),
+                    "created_by": user_name,
+                    "old_value": change_details.get("old_value"),
+                    "new_value": change_details.get("new_value"),
+                    "rejection_reason": v.get("rejection_reason") or change_details.get("rejection_reason"),
                 })
         
         # Add version count to statuses
