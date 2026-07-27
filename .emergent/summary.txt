@@ -11,40 +11,24 @@ PRODUCT REQUIREMENTS ADDED:
 8) Automatic Approval Requirement Detection on Question Save.
 9) Architect a Single Source of Truth for Data Normalization in the UI.
 
-**User's preferred language**: English
+**User's preferred language**: English (INSTRUCTION: Next agent MUST respond in English)
 
 **what currently exists?** 
-A highly mature, enterprise-grade ESG reporting workflow with V2 Assignment Architecture natively handling BRSR/GRI Questionnaire sections and nested questions. A unified Approval Engine orchestrates record approvals and questionnaire approvals. Backend responses naturally handle FY-comparison modes (by appending  suffixes), but the frontend architecture now intercepts and normalizes these at the  API boundary, ensuring all downstream renderers receive clean, standard data structures. 
+A mature ESG enterprise reporting system with a V2 Assignment Architecture utilizing a junction table () for multi-user assignment mapping. Dual Save Mechanics are in place: the frontend strictly reads questionnaire responses from , while governance/approval states are tracked centrally in  as the single source of truth for questionnaires. Environmental records (e.g., Water, Energy) track their statuses directly on the record objects themselves. 
 
 **Last working item**:
-    - Last item agent was working: The agent was implementing the UI to display individual question approval statuses and version histories in the BRSR reporting screen. The agent successfully built the  backend endpoint and was injecting the  and version history popover into . Concurrently, the agent diagnosed a critical bug in the Tracker where an invalid MongoDB  query was being run against the  array.
+    - Last item agent was working: Investigating why ESG Records (specifically Water/Recycle) are not receiving an  upon creation, despite the existence of an active assignment with . The agent was tracing the  logic to figure out why  fails to bind the assignment to the record during the save flow.
     - Status: IN PROGRESS
     - Agent Testing Done: N
-    - Which testing method agent to use? backend testing agent / frontend screenshot
+    - Which testing method agent to use? backend testing agent
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-  Issue 1: Tracker for BRSR shows inconsistent status / returns 0 questions (Priority: P0)
-     - Attempted fixes: Agent identified the root cause in  but the session ended before applying the fix.
-     - Next debug checklist: Update  (look inside  and ). The query currently does . Since  is an array (e.g., ), regex fails. Change this to an  query or exact array match. Additionally, fix the casing mismatch where DB has  but the query searches for .
-     - Why fix this issue and what will be achieved with the fix? Fixes the tracker returning 0 configurations, which causes all assigned questions to show inconsistent/empty tracking data.
-     - Status: NOT STARTED
-     - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Backend
-
-  Issue 2: Finish UI for Approval Status and Version History in Reporting View (Priority: P1)
-     - Attempted fixes: The agent added , wired it to , and inserted the status badge into .
-     - Next debug checklist: Ensure the UI correctly displays Completed, Pending Approval, Draft, or Rejected next to the question title in the  screen. Verify the version history popup renders correctly. Run tests to confirm it doesn't break the component.
-     - Why fix this issue and what will be achieved with the fix? Fulfills user request to see question state and history directly inside the BRSR form without going to the Tracker.
-     - Status: TESTING PENDING
-     - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Frontend
-
-  Issue 3:  missing in  collection (Priority: P2)
-     - Attempted fixes: Identified in previous sessions but delayed to prioritize P0 features.
-     - Next debug checklist: Update  in  to accept and insert .
-     - Why fix this issue and what will be achieved with the fix? Multi-tenant data isolation.
-     - Status: NOT STARTED
+  Issue 1: ESG Records (Water Recycle) not reflecting pending approval status on save (Priority: P0)
+     - Attempted fixes: Investigated  and . Verified that the admin user is properly assigned in  and the assignment is successfully queried. However, the resolver returns . 
+     - Next debug checklist: Check  inside . Verify how  overlaps are handled when resolving assignments for ESG records (User suggested: is it because assignment for water recycle was created for June to December out of which June to December except Nov data was already there?). Validate the ESG record save logic in  to ensure  correctly attaches when an assignment matches.
+     - Why fix this issue and what will be achieved with the fix? Ensures environmental/social records flow into the Approval Queue properly when designated by an assignment. 
+     - Status: IN PROGRESS
      - Is recurring issue? N
      - Should Test frontend/backend/both after fix? Backend
 
@@ -65,11 +49,11 @@ A highly mature, enterprise-grade ESG reporting workflow with V2 Assignment Arch
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
-    - P1: Multi-level Approval Flow Implementation (Data model and logic designed; check PRD.md).
-    - P1: Module Access Super Admin UI (Create toggle UI inside Super Admin -> Organizations to update  and ).
+    - P1: Multi-level Approval Flow Implementation.
+    - P1: Module Access Super Admin UI (Create toggle UI inside Super Admin -> Organizations).
     - P1: Cron job script for marking tasks as overdue automatically when  date passes.
-    - P1: Phase 2 Executive Dashboard chart enhancements (PDF export, fullscreen charts, drill-down on KPI card clicks).
-    - P1: Internal Data AI Phase 2 Verification (Test Phase 2 multi-turn chat queries).
+    - P1: Phase 2 Executive Dashboard chart enhancements (PDF export, fullscreen charts, drill-down).
+    - P1: Internal Data AI Phase 2 Verification.
 
     Future Tasks:
     - P2: Dashboard Scope 1 & 3 Emissions Deduplication Bug.
@@ -80,12 +64,15 @@ A highly mature, enterprise-grade ESG reporting workflow with V2 Assignment Arch
     - P2: SBTi target validation rules.
 
 **Completed work in this session**
-- Add Reporting Period selector to  / My Tasks UI (DONE)
-- Fix  to query  junction table (V2 architecture) via  (DONE)
-- Update TaskLedger to show actual Question names instead of disclosure/brsr, remove subcategory column for BRSR, and navigate to the correct section (DONE)
-- Implement Auto-Detection of Approvals: Save flow automatically triggers  or  in  based on assignment configuration (DONE)
-- Implemented complete Questionnaire Approval Workflow: Wired  /  to handle V2 questionnaires (approve, reject, edit) (DONE)
-- Architectural Fix for Nested Question Renderers: Implemented  at the API boundary in  to strip  suffixes, preventing cascading bugs in sub-renderers like  (DONE)
+- Add missing section filter to  API endpoint and wire Version History UI with old/new values, approver details, and timestamps in . (DONE)
+- Format raw JSON structures in Version History into readable text (handled boolean control strings). (DONE)
+- Replace raw JSON view in QuestionnaireApprovalPanel with the native . (DONE)
+- Fix Tracker bug displaying pending for not_started questions by purging stale . (DONE)
+- Fix  to properly aggregate multiple assignments (Org + Facility level) for GHG tracking. (DONE)
+- Centralize Questionnaire approvals source of truth: Tracker now reads statuses strictly from , removing redundant writes to . (DONE)
+- Fix Approver edits not syncing back to  by using a case-insensitive regex for the framework field update. (DONE)
+- Fix MyTasks fetching BRSR questionnaire assignments in the ESG Metrics tab by scoping query to . (DONE)
+- Fix missing approval/rejection audit entries by injecting  and explicit  calls to  in workflow service. (DONE)
 
 **Earlier issues found/mentioned but not fixed**
    Issue 1: Missing filters on seeded Water Withdrawal KPIs.
@@ -96,7 +83,7 @@ A highly mature, enterprise-grade ESG reporting workflow with V2 Assignment Arch
 
 **Known issue recurrence from previous fork**
   - Issue recurrence in previous fork: Missing filters on seeded Water Withdrawal KPIs.
-  - Recurrence count: 29
+  - Recurrence count: 30
   - Status: BLOCKED (User explicitly asked to delay fixing this).
 
 **Code Architecture**
@@ -105,87 +92,85 @@ A highly mature, enterprise-grade ESG reporting workflow with V2 Assignment Arch
 │   ├── modules/
 │   │   ├── esg_questionnaire/
 │   │   │   ├── service.py (Config, rendering, saving logic, trigger approvals)
-│   │   │   ├── router.py (Now includes  endpoint for granular fetching)
 │   │   ├── approval_workflow/
 │   │   │   ├── service.py (Handles multi-entity approvals and triggers version snapshots)
+│   │   ├── esg_assignments/
+│   │   │   ├── assignment_resolver.py (Resolves assignments to records)
 │   │   ├── esg_tracking/
-│   │   │   ├── service.py (Tracker for disclosures/questionnaires - HAS ARRAY REGEX BUG)
+│   │   │   ├── service.py (Tracker single-source-of-truth queries)
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
 │   │   │   ├── ESGQuestionnaire.js (Single source of truth for FY normalization + fetches statuses)
-│   │   │   ├── QuestionnaireApprovalPanel.js (Handles review/rejection UI inside approver queue)
+│   │   │   ├── QuestionnaireApprovalPanel.js (Approver UI holding QuestionRenderer)
 │   │   │   ├── ApproverQueue.js / ApprovalModule.js
-│   │   │   ├── ESGQuestionnaire/utils/fyNormalization.js (Strips  tags)
+│   │   │   ├── DetailedProgressView.js (Facility level matrix view)
 
 **Key Technical Concepts**
-- **FY Suffix Normalization**: For FY Comparison Mode, the backend appends suffixes like  to nested data. To prevent bugs in React  hooks, the frontend normalizes this data ONCE immediately after API fetch in .
-- **Dual Save Mechanics**: Questionnaire answers are stored in  for rendering. If a question requires approval, a parallel record is inserted/upserted into  with .
-- **Questionnaire Approval Queue**: Approvers can view, edit, approve, or reject (with reason) submitted question answers inside the Approval Queue via .
+- **Single Source of Truth for Questionnaire Approvals**: The system previously wrote questionnaire approval statuses to both  and . This architecture was cleaned up this session; now,  is the sole source of truth for questionnaire statuses.
+- **Record Approvals vs Questionnaire Approvals**: Questionnaires store their approval status in . ESG Records (e.g., Water, Energy) store their approval status natively inside the record itself (e.g., , ).
+- **Assignment Resolver**: Resolves incoming records against assignments using the  junction table to map multiple users accurately.
 
 **key DB schema**
-  - :  (Stores answers)
-  - :  (Stores per-question governance state)
-  - : 
+  - :  (Stores display answers)
+  - :  (Stores questionnaire governance state)
+  - :  (V2 multi-user assignment junction table)
+  - : Logs granular version history including old vs new value comparisons.
 
 **changes in tech stack**
   - None.
 
 **All files of reference**
-  -  (Contains the P0 tracker regex bug)
-  -  (Holds recent WIP status + version fetching logic)
-  -  &  (Save logic, auto-approve, statuses endpoint)
-  -  (Normalization layer)
-  -  &  (Approver UI)
-  -  &  (Updated My Tasks UI)
+  -  (Currently holds the bug for Issue 1)
+  -  (Save flow for records invoking the assignment resolver)
+  - 
+  -  
+  -  
 
 **Areas that need refactoring**:
-  - The MongoDB query in  needs to query the  array without using , and must safely handle DB casing vs payload casing for  mapping.
+  - The assignment resolver's  period matching logic might be overly strict or failing on partial financial/calendar year overlaps. 
 
 **key api endpoints**
-  -  (NEW: Fetches approval status + version history for UI rendering)
+  -  
+  - 
   - 
 
 **Critical Info for New Agent**
-- **CRITICAL ISSUE 1**: BRSR Tracker is currently failing because  uses  against the  array field in MongoDB. Regex does not work natively on MongoDB arrays like that. Replace it with  or an exact match. Additionally,  in the DB is uppercase (), so handle casing properly.
-- **CRITICAL ISSUE 2**: The agent just created the  API and injected  into  () but didn't finish or test it. Continue exactly where it left off.
-- **WARNING**: Do NOT test the backend tracker flow until both Issue 1 and Issue 2 are implemented. The user explicitly requested to skip testing and finish the implementation first.
-- The user has completely wiped DB data for BRSR  to reset state.
+- **Data State**: During this session, the user instructed the complete purging of all assignments, tasks, responses, and audit logs for Org1 to test with a clean slate. New assignments were created recently by the user.
+- DO NOT re-add  writes into  for questionnaires. The architecture has explicitly shifted to treating  as the master truth for questionnaire approval state.
+- Before doing any architectural changes to fix Issue 1, carefully assess whether it's just a reporting period string mismatch (e.g. June-Dec overlaps) inside the  function.
 
 **documents and test reports created in this job**
   - 
-  - 
-  - 
-  - 
 
 **Last 10 User Messages and any pending HUMAN messages** 
- 1. User: Instructed the agent to NOT test, and asked to delete all BRSR reporting data + assignments for FY 2026-2027 to start clean.
- 2. Agent: Executed bash scripts deleting  and orphaned .
- 3. User: Re-emphasized deleting data.
- 4. Agent: Deleted from .
- 5. User: Asked to delete esg questionnaire response for brsr from DB.
- 6. Agent: Purged  and .
- 7. User: Asked where are answers for brsr section b questions being saved?
- 8. Agent: Explained they are saved in  (for rendering) and  (for approval tracking).
- 9. User: Commanded the deletion of data from both  and .
- 10. Agent: Executed the deletions (5 documents cleared).
- 11. User: (PENDING) Reported the P0 Bug: Tracker for BRSR shows inconsistent statuses, some stuck in Not started. And answered questions with an approval workflow don't show status (Awaiting Approval) in the reporting UI, aren't in approval queue, and version history is missing. Instructed the agent to fix these but try using very less credits but the code should be clean and modular and no error.
+ 1. User: Reported My Tasks showing Awaiting Approval even though approved, version history not capturing approval/rejections, and edits by approver missing.
+ 2. Agent: Fixed all three by writing to , correcting framework casing regex, and pulling status directly from .
+ 3. User: Reported error Response is not pending approval when an approver tries to save an assignee's re-edits.
+ 4. Agent: Identified missing  import masking the actual issue. Added it and fixed the re-edit detection trigger.
+ 5. User: Approver edits still missing from the approved record UI.
+ 6. Agent: Fixed the lowercase  vs uppercase  sync mismatch in .
+ 7. User: Failed to load detailed progress bug.
+ 8. Agent: Fixed .
+ 9. User: Reported that they created a Water Recycle record, it shows completed but no approval workflow triggers despite having an assignment.
+ 10. Agent: Investigated and identified that the assignment resolver is returning  during record save.
+ 11. User: (PENDING) Suggested is it because assignment for water recycle was created for June to December out of which June to December except Nov data was already there? Instructed the agent to tell them the issue but don't change anything yet.
 
 **Project Health Check:**
-- Broken (Backend Tracker queries failing due to MongoDB array regex mismatch).
+- Broken (Water Recycle assignments not mapping to newly created records due to a resolver matching failure).
 
 **3rd Party Integrations**
   - OpenAI (Extraction) — requires User API Key
   - Cloudflare R2 via  — requires User API Key
 
 **Testing status**
-  - Testing agent used after significant changes: YES (iterations 121, 122, 123)
+  - Testing agent used after significant changes: YES (Attempted, but no actual functional tests triggered before session end).
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: None this iteration
-  - Known regressions: MongoDB tracking query is broken.
+  - Known regressions:  logic in assignment_resolver.py is failing.
 
 **Credentials to test flow:**
   - Admin:  ()
 
 **What agent forgot to execute**
-- The agent identified the exact root cause of the broken BRSR tracker query (Issue 1) but jumped to implementing Issue 2/3 (Status badges in Reporting) and the session was cut off before fixing the tracker bug. You must fix the  array query issue immediately.</analysis>
+- N/A. Agent was directly investigating the user's explicit question about the assignment resolver when the context window concluded. Check  inside  immediately.</analysis>
