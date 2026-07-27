@@ -1691,14 +1691,38 @@ class ApprovalWorkflowService:
         
         # If approver edited the response, update it
         if updated_response is not None:
-            update_data["response"] = updated_response
+            update_data["value"] = updated_response  # Use 'value' field, not 'response'
             update_data["edited_by_approver"] = True
         
-        # Update the response
+        # Update the esg_responses collection (approval tracking)
         await db.esg_responses.update_one(
             {"id": response_id},
             {"$set": update_data}
         )
+        
+        # CRITICAL: Sync edited value back to organization_esg_responses (what UI reads)
+        if updated_response is not None:
+            # Get section from response or config
+            section = response.get("section")
+            if not section:
+                config = await db.esg_question_configs.find_one(
+                    {"question_key": question_key},
+                    {"_id": 0, "section": 1}
+                )
+                section = config.get("section") if config else None
+            
+            if section:
+                # Update the organization_esg_responses document
+                await db.organization_esg_responses.update_one(
+                    {
+                        "org_id": org_id,
+                        "framework": response.get("framework", "brsr"),
+                        "reporting_year": response.get("reporting_year"),
+                        "section": section,
+                    },
+                    {"$set": {f"responses.{question_key}": updated_response}}
+                )
+                logger.info(f"Synced edited response to organization_esg_responses for {question_key}")
         
         # Create version snapshot
         await _create_approval_version_snapshot(
