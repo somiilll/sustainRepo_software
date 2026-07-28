@@ -150,20 +150,20 @@ export default function EmissionApprovalWrapper({
   const dynamicInputFields = useMemo(() => {
     if (!editFormConfig?.input_field_mappings?.length) return [];
     
-    // Find matching formula (use first one or match by saved formula_id)
-    let matchedFormula = editFormConfig.formulas?.[0];
-    if (snapshot.formula_id && editFormConfig.formulas?.length) {
-      const saved = editFormConfig.formulas.find(f => f.id === snapshot.formula_id);
-      if (saved) matchedFormula = saved;
-    }
+    // Required variables are at top level of editFormConfig
+    const requiredVars = editFormConfig.required_input_variables || [];
     
-    const requiredVars = matchedFormula?.input_variables || [];
-    
+    // Map all input field mappings, filter by required if available
     return editFormConfig.input_field_mappings
-      .filter(mapping => requiredVars.includes(mapping.variable))
+      .filter(mapping => {
+        // If no required vars specified, include all fields
+        if (requiredVars.length === 0) return true;
+        // Otherwise filter to required ones
+        return requiredVars.includes(mapping.maps_to_variable);
+      })
       .map(mapping => ({
-        variable: mapping.variable,
-        label: mapping.label || mapping.variable,
+        variable: mapping.maps_to_variable,
+        label: mapping.field_label || mapping.maps_to_variable,
         type: mapping.field_type || 'number',
         expectedUnit: mapping.expected_unit,
         allowedUnits: mapping.allowed_units || [],
@@ -172,7 +172,7 @@ export default function EmissionApprovalWrapper({
         placeholder: mapping.placeholder,
         tooltip: mapping.tooltip,
       }));
-  }, [editFormConfig, snapshot.formula_id]);
+  }, [editFormConfig]);
   
   // Compute categories for selected scope
   const getCategoriesForScope = useMemo(() => {
