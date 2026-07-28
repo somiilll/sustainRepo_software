@@ -323,6 +323,19 @@ async def _create_emission_approval_request(
     
     await db.approval_requests.insert_one(approval_request)
     logger.info(f"Created emission approval request {approval_request['id']} for record {emission_record.get('id')}")
+    
+    # Update the emission record with pending_approval status
+    # This ensures the UI shows the record as "awaiting approval" instead of "completed"
+    await db[COLLECTION].update_one(
+        {"id": emission_record.get("id")},
+        {
+            "$set": {
+                "approval_status": "pending_approval",
+                "updated_at": now,
+            }
+        }
+    )
+    logger.info(f"Updated emission record {emission_record.get('id')} with approval_status=pending_approval")
 
 
 # Module-level audit logger reference. Resolved lazily so it picks up the
