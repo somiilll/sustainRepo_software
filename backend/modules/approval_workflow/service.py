@@ -1828,7 +1828,8 @@ class ApprovalWorkflowService:
                 configs = await db.esg_question_configs.find(
                     config_query,
                     {"_id": 0, "question_key": 1, "label": 1, "question": 1, "description": 1, 
-                     "section": 1, "brsr_section": 1, "framework": 1, "type": 1, "field_config": 1}
+                     "section": 1, "brsr_section": 1, "framework": 1, "type": 1, "input_type": 1,
+                     "field_config": 1, "disclosure_name": 1, "disclosure_id": 1, "material_topic": 1}
                 ).to_list(500)
                 config_map = {c["question_key"]: c for c in configs}
                 
