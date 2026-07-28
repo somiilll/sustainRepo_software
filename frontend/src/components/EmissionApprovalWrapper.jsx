@@ -15,6 +15,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui/select';
 import { 
   Loader2, 
   CheckCircle2, 
@@ -36,6 +43,8 @@ export default function EmissionApprovalWrapper({ item, onClose, onApproved }) {
   const [formValues, setFormValues] = useState({});
   const [originalValues, setOriginalValues] = useState({});
   const [initialized, setInitialized] = useState(false);
+  const [formConfig, setFormConfig] = useState(null);
+  const [loadingConfig, setLoadingConfig] = useState(true);
 
   // Extract snapshot data
   const snapshot = item?.entity_snapshot || {};
@@ -43,6 +52,51 @@ export default function EmissionApprovalWrapper({ item, onClose, onApproved }) {
   const isUpdate = requestType === 'update';
   const evidenceFiles = snapshot.evidence_files || [];
   const dynamicInputs = snapshot.inputs || snapshot.dynamic_field_values || {};
+
+  // Fetch form config for allowed units
+  useEffect(() => {
+    const fetchFormConfig = async () => {
+      if (!snapshot.category_id && !snapshot.category) {
+        setLoadingConfig(false);
+        return;
+      }
+
+      try {
+        let categoryId = snapshot.category_id;
+        
+        // If no category_id, try to fetch categories and find it
+        if (!categoryId && snapshot.category) {
+          const catsRes = await axios.get(`${API}/api/categories`, { headers: getAuthHeader() });
+          const categories = catsRes.data || [];
+          const cat = categories.find(c => c.name === snapshot.category && c.scope_code === snapshot.scope);
+          categoryId = cat?.id;
+        }
+
+        if (categoryId) {
+          const res = await axios.get(
+            `${API}/api/calc-engine/form-config/${categoryId}?scope=${snapshot.scope}`,
+            { headers: getAuthHeader() }
+          );
+          setFormConfig(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch form config:', err);
+      } finally {
+        setLoadingConfig(false);
+      }
+    };
+
+    fetchFormConfig();
+  }, [snapshot.category_id, snapshot.category, snapshot.scope, getAuthHeader]);
+
+  // Get allowed units for a field from form config
+  const getAllowedUnits = (fieldKey) => {
+    if (!formConfig?.input_field_mappings) return [];
+    const mapping = formConfig.input_field_mappings.find(
+      m => m.maps_to_variable === fieldKey || m.field_key === fieldKey
+    );
+    return mapping?.allowed_units || [];
+  };
 
   // Initialize form values from snapshot
   useEffect(() => {
@@ -176,7 +230,7 @@ export default function EmissionApprovalWrapper({ item, onClose, onApproved }) {
   }
 
   // Loading state
-  if (!initialized) {
+  if (!initialized || loadingConfig) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
@@ -254,12 +308,14 @@ export default function EmissionApprovalWrapper({ item, onClose, onApproved }) {
         {/* Dynamic Input Fields */}
         {Object.entries(dynamicInputs).map(([key, val]) => {
           if (!val || typeof val !== 'object') return null;
-          const unit = formValues[`${key}_unit`] || val.unit || '';
+          const currentUnit = formValues[`${key}_unit`] || val.unit || '';
+          const allowedUnits = getAllowedUnits(key);
+          const hasUnitOptions = allowedUnits.length > 0;
           
           return (
             <div key={key}>
               <label className="block text-sm font-medium text-stone-700 mb-1">
-                {getFieldLabel(key)} {unit && <span className="text-stone-400">({unit})</span>}
+                {getFieldLabel(key)} {currentUnit && <span className="text-stone-400">({currentUnit})</span>}
               </label>
               <div className="flex gap-2">
                 <Input
@@ -271,13 +327,32 @@ export default function EmissionApprovalWrapper({ item, onClose, onApproved }) {
                   disabled={processing}
                   className="flex-1"
                 />
-                <Input
-                  value={formValues[`${key}_unit`] || ''}
-                  onChange={(e) => handleChange(`${key}_unit`, e.target.value)}
-                  placeholder="Unit"
-                  disabled={processing}
-                  className="w-28"
-                />
+                {hasUnitOptions ? (
+                  <Select
+                    value={currentUnit}
+                    onValueChange={(value) => handleChange(`${key}_unit`, value)}
+                    disabled={processing}
+                  >
+                    <SelectTrigger className="w-32">
+                      <SelectValue placeholder="Unit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allowedUnits.map((unit) => (
+                        <SelectItem key={unit} value={unit}>
+                          {unit}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    value={currentUnit}
+                    onChange={(e) => handleChange(`${key}_unit`, e.target.value)}
+                    placeholder="Unit"
+                    disabled={processing}
+                    className="w-28"
+                  />
+                )}
               </div>
             </div>
           );
