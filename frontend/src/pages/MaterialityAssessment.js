@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceArea, ReferenceLine } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Search, ChevronRight, ArrowUpDown, Filter, TrendingUp, Shield, Leaf, Plus, Trash2, Save, RotateCcw, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { X, Search, ChevronRight, ArrowUpDown, Filter, TrendingUp, Shield, Leaf, Plus, Trash2, Save, RotateCcw, CheckCircle2, AlertCircle, Loader2, Calendar } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
+import { getCurrentReportingYear, generateReportingYears } from '../utils/reportingYearUtils';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -344,6 +345,11 @@ export default function MaterialityAssessment() {
   const [sortKey, setSortKey] = useState('topic_code');
   const [showTopicSelector, setShowTopicSelector] = useState(false);
   const [savingCutoffs, setSavingCutoffs] = useState(false);
+  
+  // Reporting year state
+  const [reportingYears, setReportingYears] = useState([]);
+  const [selectedYear, setSelectedYear] = useState(null);
+  const [allAssessments, setAllAssessments] = useState([]);
 
   // Get token
   const getToken = () => localStorage.getItem('token');
@@ -352,6 +358,26 @@ export default function MaterialityAssessment() {
   // ==========================================================================
   // DATA FETCHING
   // ==========================================================================
+  
+  // Fetch organization to get reporting_year_type
+  const fetchOrganization = async () => {
+    try {
+      const res = await axios.get(`${API}/api/organizations/my`, { headers });
+      const yearType = res.data.reporting_year_type || 'financial_year';
+      const years = generateReportingYears(yearType, 5);
+      setReportingYears(years);
+      const currentYear = getCurrentReportingYear(yearType);
+      setSelectedYear(currentYear);
+      return currentYear;
+    } catch (e) {
+      // Fallback to financial year
+      const years = generateReportingYears('financial_year', 5);
+      setReportingYears(years);
+      const currentYear = getCurrentReportingYear('financial_year');
+      setSelectedYear(currentYear);
+      return currentYear;
+    }
+  };
 
   const fetchMasterTopics = async () => {
     try {
@@ -361,13 +387,23 @@ export default function MaterialityAssessment() {
       console.error('Failed to load master topics', e);
     }
   };
-
-  const fetchOrCreateAssessment = async () => {
+  
+  const fetchAllAssessments = async () => {
     try {
-      // Try to get current year assessment
-      const currentYear = new Date().getFullYear();
-      const reportingYear = `FY ${currentYear}-${currentYear + 1}`;
-      
+      const res = await axios.get(`${API}/api/materiality/assessments`, { headers });
+      setAllAssessments(res.data.assessments || []);
+      return res.data.assessments || [];
+    } catch (e) {
+      console.error('Failed to load assessments', e);
+      return [];
+    }
+  };
+
+  const fetchOrCreateAssessment = async (reportingYear) => {
+    if (!reportingYear) return null;
+    
+    try {
+      // Try to get assessment for selected year
       try {
         const res = await axios.get(`${API}/api/materiality/assessments/by-year/${encodeURIComponent(reportingYear)}`, { headers });
         setAssessment(res.data);
@@ -377,6 +413,8 @@ export default function MaterialityAssessment() {
           // Create new assessment
           const createRes = await axios.post(`${API}/api/materiality/assessments`, { reporting_year: reportingYear }, { headers });
           setAssessment(createRes.data);
+          // Refresh assessments list
+          await fetchAllAssessments();
           return createRes.data.id;
         }
         throw e;
@@ -406,7 +444,9 @@ export default function MaterialityAssessment() {
     const init = async () => {
       setLoading(true);
       await fetchMasterTopics();
-      const assessmentId = await fetchOrCreateAssessment();
+      await fetchAllAssessments();
+      const currentYear = await fetchOrganization();
+      const assessmentId = await fetchOrCreateAssessment(currentYear);
       if (assessmentId) {
         await fetchAssessmentTopics(assessmentId);
       }
@@ -414,6 +454,19 @@ export default function MaterialityAssessment() {
     };
     init();
   }, []);
+  
+  // Handle year change
+  const handleYearChange = async (newYear) => {
+    setSelectedYear(newYear);
+    setLoading(true);
+    setTopics([]);
+    setSelected(null);
+    const assessmentId = await fetchOrCreateAssessment(newYear);
+    if (assessmentId) {
+      await fetchAssessmentTopics(assessmentId);
+    }
+    setLoading(false);
+  };
 
   // ==========================================================================
   // HANDLERS
@@ -564,13 +617,29 @@ export default function MaterialityAssessment() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-stone-900 tracking-tight">Materiality Assessment</h1>
-            <p className="text-sm text-stone-500 mt-0.5">{assessment?.name || 'Double Materiality Matrix'} — {assessment?.reporting_year}</p>
+            <p className="text-sm text-stone-500 mt-0.5">{assessment?.name || 'Double Materiality Matrix'}</p>
           </div>
-          <button onClick={() => setShowTopicSelector(true)}
-            className="h-9 px-4 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 flex items-center gap-2"
-            data-testid="add-topics-trigger-btn">
-            <Plus className="h-4 w-4" /> Add Topics
-          </button>
+          <div className="flex items-center gap-3">
+            {/* Reporting Year Selector */}
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-stone-400" />
+              <select 
+                value={selectedYear || ''} 
+                onChange={e => handleYearChange(e.target.value)}
+                className="h-9 rounded-lg border border-stone-200 bg-white px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                data-testid="materiality-year-selector"
+              >
+                {reportingYears.map(year => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+            </div>
+            <button onClick={() => setShowTopicSelector(true)}
+              className="h-9 px-4 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 flex items-center gap-2"
+              data-testid="add-topics-trigger-btn">
+              <Plus className="h-4 w-4" /> Add Topics
+            </button>
+          </div>
         </div>
       </motion.div>
 

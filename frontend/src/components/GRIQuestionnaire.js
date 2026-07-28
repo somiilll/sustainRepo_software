@@ -67,6 +67,7 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
   const [historyDialog, setHistoryDialog] = useState({ open: false, questionKey: null, history: [] });
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [userDrafts, setUserDrafts] = useState({});  // Drafts keyed by disclosure_id
+  const [filterByMateriality, setFilterByMateriality] = useState(true); // Default: show only material topics
 
   // Fetch organization data to get reporting_year_type
   useEffect(() => {
@@ -106,12 +107,16 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
       setLoading(true);
       
       // Fetch disclosures (now includes user draft info directly)
+      // filter_by_materiality ensures only material topics are shown when enabled
       const [disclosuresRes, draftsRes] = await Promise.all([
         axios.get(
           `${API}/api/esg-questionnaire/gri/${section}`,
           { 
             headers: getAuthHeader(),
-            params: { reporting_period: reportingPeriod }
+            params: { 
+              reporting_period: reportingPeriod,
+              filter_by_materiality: filterByMateriality 
+            }
           }
         ),
         axios.get(
@@ -174,7 +179,7 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
     } finally {
       setLoading(false);
     }
-  }, [getAuthHeader, section, reportingPeriod]);
+  }, [getAuthHeader, section, reportingPeriod, filterByMateriality]);
 
   useEffect(() => {
     fetchDisclosures();
@@ -862,6 +867,22 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
                 Click on each disclosure to expand and fill in the required information.
               </p>
             </div>
+          </div>
+          
+          {/* Materiality Filter Toggle */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => setFilterByMateriality(!filterByMateriality)}
+              className={`h-9 px-3 rounded-lg text-xs font-medium flex items-center gap-2 transition-colors ${
+                filterByMateriality 
+                  ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' 
+                  : 'bg-stone-100 text-stone-600 border border-stone-200'
+              }`}
+              data-testid="materiality-filter-toggle"
+            >
+              <div className={`w-3 h-3 rounded-full ${filterByMateriality ? 'bg-emerald-500' : 'bg-stone-400'}`} />
+              {filterByMateriality ? 'Material Topics' : 'All Topics'}
+            </button>
           </div>
           
           {/* Reporting Year Selector */}

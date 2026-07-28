@@ -295,6 +295,7 @@ export default function ESGTrackingTab({
   const [selectedSection, setSelectedSection] = useState(null);
   const [disclosures, setDisclosures] = useState([]);
   const [sectionSummary, setSectionSummary] = useState(null);
+  const [filterByMateriality, setFilterByMateriality] = useState(true); // Default: show only material topics for GRI
   
   // Use override if provided, otherwise use internal state
   const reportingPeriod = reportingPeriodOverride || internalReportingPeriod;
@@ -370,15 +371,18 @@ export default function ESGTrackingTab({
     if (!framework) return;
     
     try {
+      // Add filter_by_materiality for GRI framework when toggle is enabled
+      const isGRI = framework.framework_id?.toUpperCase() === 'GRI';
+      const materialityFilter = isGRI && filterByMateriality ? '&filter_by_materiality=true' : '';
       const res = await axios.get(
-        `${API}/tracking/${domain}/frameworks/${framework.framework_id}/sections?reporting_period=${encodeURIComponent(reportingPeriod)}`,
+        `${API}/tracking/${domain}/frameworks/${framework.framework_id}/sections?reporting_period=${encodeURIComponent(reportingPeriod)}${materialityFilter}`,
         { headers: getAuthHeader() }
       );
       setSections(res.data.sections || []);
     } catch (error) {
       console.error('Failed to fetch sections:', error);
     }
-  }, [domain, reportingPeriod, getAuthHeader]);
+  }, [domain, reportingPeriod, getAuthHeader, filterByMateriality]);
   
   // Fetch disclosures for selected section
   const fetchDisclosures = useCallback(async (framework, section) => {
@@ -434,6 +438,13 @@ export default function ESGTrackingTab({
       fetchSections(selectedFramework);
     }
   }, [selectedFramework, fetchSections]);
+  
+  // Refetch sections when materiality filter changes (for GRI)
+  useEffect(() => {
+    if (selectedFramework?.framework_id?.toUpperCase() === 'GRI') {
+      fetchSections(selectedFramework);
+    }
+  }, [filterByMateriality]);
   
   useEffect(() => {
     if (selectedFramework && selectedSection) {
@@ -769,9 +780,26 @@ export default function ESGTrackingTab({
               </Button>
               {selectedFramework.framework_name} Sections
             </h3>
-            <Badge variant="outline">
-              {sections.length} sections
-            </Badge>
+            <div className="flex items-center gap-3">
+              {/* Materiality Filter Toggle - Only show for GRI in sections view */}
+              {selectedFramework?.framework_id?.toUpperCase() === 'GRI' && (
+                <button
+                  onClick={() => setFilterByMateriality(!filterByMateriality)}
+                  className={`h-8 px-3 rounded-lg text-xs font-medium flex items-center gap-2 transition-colors ${
+                    filterByMateriality 
+                      ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' 
+                      : 'bg-stone-100 text-stone-600 border border-stone-200'
+                  }`}
+                  data-testid="sections-materiality-filter-toggle"
+                >
+                  <div className={`w-2.5 h-2.5 rounded-full ${filterByMateriality ? 'bg-emerald-500' : 'bg-stone-400'}`} />
+                  {filterByMateriality ? 'Material Topics' : 'All Topics'}
+                </button>
+              )}
+              <Badge variant="outline">
+                {sections.length} sections
+              </Badge>
+            </div>
           </div>
           
           {/* Changed to single column layout */}
@@ -915,6 +943,22 @@ export default function ESGTrackingTab({
                 <SelectItem value="unassigned">Unassigned</SelectItem>
               </SelectContent>
             </Select>
+            
+            {/* Materiality Filter Toggle - Only show for GRI */}
+            {selectedFramework?.framework_id?.toUpperCase() === 'GRI' && (
+              <button
+                onClick={() => setFilterByMateriality(!filterByMateriality)}
+                className={`h-8 px-3 rounded-lg text-xs font-medium flex items-center gap-2 transition-colors ${
+                  filterByMateriality 
+                    ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' 
+                    : 'bg-stone-100 text-stone-600 border border-stone-200'
+                }`}
+                data-testid="tracker-materiality-filter-toggle"
+              >
+                <div className={`w-2.5 h-2.5 rounded-full ${filterByMateriality ? 'bg-emerald-500' : 'bg-stone-400'}`} />
+                {filterByMateriality ? 'Material Topics' : 'All Topics'}
+              </button>
+            )}
           </div>
           
           {/* Questions Table (renamed from Disclosures) */}
