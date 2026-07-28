@@ -56,6 +56,34 @@ const EmissionTable = ({
     return `${emission.quantity || 0} ${emission.quantity_unit || 'kg'}`;
   };
 
+  // Get status display based on approval_status
+  const getStatusDisplay = (emission) => {
+    const approvalStatus = emission.approval_status || 'approved';
+    
+    if (approvalStatus === 'approved') {
+      return {
+        label: 'Completed, Approved',
+        className: 'bg-green-100 text-green-700'
+      };
+    } else if (approvalStatus === 'rejected') {
+      return {
+        label: 'Completed, Rejected',
+        className: 'bg-red-100 text-red-700'
+      };
+    } else if (approvalStatus === 'pending_approval' || approvalStatus === 'pending') {
+      return {
+        label: 'Completed, Awaiting approval',
+        className: 'bg-amber-100 text-amber-700'
+      };
+    }
+    
+    // Default fallback
+    return {
+      label: 'Completed',
+      className: 'bg-stone-100 text-stone-700'
+    };
+  };
+
   // Render table headers based on active scope
   const renderHeaders = () => {
     if (activeScope === 'scope3') {
@@ -67,6 +95,7 @@ const EmissionTable = ({
           <div className="flex-1 min-w-[120px] pl-2">Activity</div>
           <div className="w-20 flex-shrink-0 text-center">Method</div>
           <div className="w-28 flex-shrink-0 text-right normal-case">tCO₂e</div>
+          <div className="w-36 flex-shrink-0 text-center">Status</div>
           <div className="w-28 flex-shrink-0 text-center">Actions</div>
         </>
       );
@@ -79,8 +108,8 @@ const EmissionTable = ({
           <div className="w-24 flex-shrink-0">Period</div>
           <div className="w-44 flex-shrink-0">Category</div>
           <div className="flex-1 min-w-[140px]">Sub-category</div>
-          <div className="w-32 flex-shrink-0 text-right">Quantity</div>
           <div className="w-28 flex-shrink-0 text-right normal-case">tCO₂e</div>
+          <div className="w-36 flex-shrink-0 text-center">Status</div>
           <div className="w-28 flex-shrink-0 text-center">Actions</div>
         </>
       );
@@ -96,6 +125,7 @@ const EmissionTable = ({
         <div className="flex-1 min-w-[120px]">Activity / Fuel</div>
         <div className="w-20 flex-shrink-0 text-center">Method</div>
         <div className="w-28 flex-shrink-0 text-right normal-case">tCO₂e</div>
+        <div className="w-36 flex-shrink-0 text-center">Status</div>
         <div className="w-28 flex-shrink-0 text-center">Actions</div>
       </>
     );
@@ -160,6 +190,11 @@ const EmissionTable = ({
                 {totalEmissions.toFixed(4)}
               </span>
             </div>
+            <div className="w-36 flex-shrink-0 text-center">
+              <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusDisplay(emission).className}`}>
+                {getStatusDisplay(emission).label}
+              </span>
+            </div>
           </>
         )}
         
@@ -192,12 +227,14 @@ const EmissionTable = ({
                 <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Has Evidence" />
               )}
             </div>
-            <div className="w-32 flex-shrink-0 text-right text-sm text-text-secondary">
-              {getQuantityDisplay(emission)}
-            </div>
             <div className="w-28 flex-shrink-0 text-right">
               <span className="text-sm font-semibold text-primary">
                 {totalEmissions.toFixed(4)}
+              </span>
+            </div>
+            <div className="w-36 flex-shrink-0 text-center">
+              <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusDisplay(emission).className}`}>
+                {getStatusDisplay(emission).label}
               </span>
             </div>
           </>
@@ -251,6 +288,11 @@ const EmissionTable = ({
             <div className="w-28 flex-shrink-0 text-right">
               <span className="text-sm font-semibold text-primary">
                 {totalEmissions.toFixed(4)}
+              </span>
+            </div>
+            <div className="w-36 flex-shrink-0 text-center">
+              <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusDisplay(emission).className}`}>
+                {getStatusDisplay(emission).label}
               </span>
             </div>
           </>
