@@ -68,32 +68,61 @@ export default function EmissionApprovalWrapper({
   const [editFormConfig, setEditFormConfig] = useState(null);
   const [editFormConfigLoading, setEditFormConfigLoading] = useState(false);
   
+  // Debug logging
+  console.log('[EmissionApprovalWrapper] Debug:', {
+    snapshotCategory: snapshot.category,
+    snapshotScope: snapshot.scope,
+    snapshotInputs: snapshot.inputs,
+    coreDataLoading: coreData.loading,
+    editFormConfigLoading,
+    editFormConfig: editFormConfig ? 'loaded' : 'null',
+    initialDataLoaded,
+    dynamicCategoriesCount: coreData.dynamicCategories?.length || 0,
+  });
+  
   // Fetch form config when we have category info
   useEffect(() => {
     const fetchFormConfig = async () => {
-      if (!snapshot.category || !snapshot.scope || coreData.loading) return;
+      console.log('[FormConfig] Checking conditions:', {
+        category: snapshot.category,
+        scope: snapshot.scope,
+        coreDataLoading: coreData.loading
+      });
+      
+      if (!snapshot.category || !snapshot.scope || coreData.loading) {
+        console.log('[FormConfig] Skipping - missing data or still loading');
+        return;
+      }
       
       const dynamicCategories = coreData.dynamicCategories || [];
+      console.log('[FormConfig] Dynamic categories:', dynamicCategories.length);
       
       // Find category ID
       const categoryObj = dynamicCategories.find(
         c => c.name === snapshot.category && c.scope_code === snapshot.scope
       );
       
+      console.log('[FormConfig] Category match:', categoryObj);
+      
       if (!categoryObj?.id) {
         // Try without scope matching for flexibility
         const fallbackCat = dynamicCategories.find(c => c.name === snapshot.category);
-        if (!fallbackCat?.id) return;
+        console.log('[FormConfig] Fallback category:', fallbackCat);
+        
+        if (!fallbackCat?.id) {
+          console.log('[FormConfig] No category found - cannot fetch form config');
+          return;
+        }
         
         setEditFormConfigLoading(true);
         try {
-          const response = await axios.get(
-            `${API}/api/calc-engine/form-config/${fallbackCat.id}?scope=${snapshot.scope}`,
-            { headers: getAuthHeader() }
-          );
+          const url = `${API}/api/calc-engine/form-config/${fallbackCat.id}?scope=${snapshot.scope}`;
+          console.log('[FormConfig] Fetching from:', url);
+          const response = await axios.get(url, { headers: getAuthHeader() });
+          console.log('[FormConfig] Response:', response.data);
           setEditFormConfig(response.data);
         } catch (err) {
-          console.error('Failed to fetch form config:', err);
+          console.error('[FormConfig] Failed to fetch:', err);
         } finally {
           setEditFormConfigLoading(false);
         }
@@ -102,13 +131,13 @@ export default function EmissionApprovalWrapper({
       
       setEditFormConfigLoading(true);
       try {
-        const response = await axios.get(
-          `${API}/api/calc-engine/form-config/${categoryObj.id}?scope=${snapshot.scope}`,
-          { headers: getAuthHeader() }
-        );
+        const url = `${API}/api/calc-engine/form-config/${categoryObj.id}?scope=${snapshot.scope}`;
+        console.log('[FormConfig] Fetching from:', url);
+        const response = await axios.get(url, { headers: getAuthHeader() });
+        console.log('[FormConfig] Response:', response.data);
         setEditFormConfig(response.data);
       } catch (err) {
-        console.error('Failed to fetch form config:', err);
+        console.error('[FormConfig] Failed to fetch:', err);
       } finally {
         setEditFormConfigLoading(false);
       }
