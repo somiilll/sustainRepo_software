@@ -64,6 +64,148 @@ export default function EmissionApprovalWrapper({
   // Store original values for modification tracking
   const [originalValues, setOriginalValues] = useState(null);
   
+  // State for form configuration (needed for dynamic input fields)
+  const [editFormConfig, setEditFormConfig] = useState(null);
+  const [editFormConfigLoading, setEditFormConfigLoading] = useState(false);
+  
+  // Fetch form config when we have category info
+  useEffect(() => {
+    const fetchFormConfig = async () => {
+      if (!snapshot.category || !snapshot.scope || coreData.loading) return;
+      
+      const dynamicCategories = coreData.dynamicCategories || [];
+      
+      // Find category ID
+      const categoryObj = dynamicCategories.find(
+        c => c.name === snapshot.category && c.scope_code === snapshot.scope
+      );
+      
+      if (!categoryObj?.id) {
+        // Try without scope matching for flexibility
+        const fallbackCat = dynamicCategories.find(c => c.name === snapshot.category);
+        if (!fallbackCat?.id) return;
+        
+        setEditFormConfigLoading(true);
+        try {
+          const response = await axios.get(
+            `${API}/api/calc-engine/form-config/${fallbackCat.id}?scope=${snapshot.scope}`,
+            { headers: getAuthHeader() }
+          );
+          setEditFormConfig(response.data);
+        } catch (err) {
+          console.error('Failed to fetch form config:', err);
+        } finally {
+          setEditFormConfigLoading(false);
+        }
+        return;
+      }
+      
+      setEditFormConfigLoading(true);
+      try {
+        const response = await axios.get(
+          `${API}/api/calc-engine/form-config/${categoryObj.id}?scope=${snapshot.scope}`,
+          { headers: getAuthHeader() }
+        );
+        setEditFormConfig(response.data);
+      } catch (err) {
+        console.error('Failed to fetch form config:', err);
+      } finally {
+        setEditFormConfigLoading(false);
+      }
+    };
+    
+    fetchFormConfig();
+  }, [snapshot.category, snapshot.scope, coreData.loading, coreData.dynamicCategories, getAuthHeader]);
+  
+  // Compute dynamic input fields from form config
+  const dynamicInputFields = useMemo(() => {
+    if (!editFormConfig?.input_field_mappings?.length) return [];
+    
+    // Find matching formula (use first one or match by saved formula_id)
+    let matchedFormula = editFormConfig.formulas?.[0];
+    if (snapshot.formula_id && editFormConfig.formulas?.length) {
+      const saved = editFormConfig.formulas.find(f => f.id === snapshot.formula_id);
+      if (saved) matchedFormula = saved;
+    }
+    
+    const requiredVars = matchedFormula?.input_variables || [];
+    
+    return editFormConfig.input_field_mappings
+      .filter(mapping => requiredVars.includes(mapping.variable))
+      .map(mapping => ({
+        variable: mapping.variable,
+        label: mapping.label || mapping.variable,
+        type: mapping.field_type || 'number',
+        expectedUnit: mapping.expected_unit,
+        allowedUnits: mapping.allowed_units || [],
+        isOverride: mapping.is_override || false,
+        options: mapping.options || [],
+        placeholder: mapping.placeholder,
+        tooltip: mapping.tooltip,
+      }));
+  }, [editFormConfig, snapshot.formula_id]);
+  
+  // Compute categories for selected scope
+  const getCategoriesForScope = useMemo(() => {
+    const scope = snapshot.scope;
+    const dynamicCategories = coreData.dynamicCategories || [];
+    const fuelDb = coreData.fuelDatabase || [];
+    const dynamicScopesData = coreData.dynamicScopes || [];
+    
+    if (scope === 'scope3') {
+      const scope3 = dynamicScopesData.find(s => s.code === 'scope3');
+      if (scope3) {
+        return dynamicCategories
+          .filter(c => c.scope_id === scope3.id)
+          .map(c => c.name)
+          .sort((a, b) => {
+            const numA = parseInt(a.match(/C(\d+)/)?.[1] || '999');
+            const numB = parseInt(b.match(/C(\d+)/)?.[1] || '999');
+            return numA - numB;
+          });
+      }
+    }
+    
+    // For scope1/scope2, use fuel database categories
+    const fuelsForScope = fuelDb.filter(f => f.scope === scope);
+    const cats = new Set();
+    fuelsForScope.forEach(f => {
+      if (f.categories?.length > 0) {
+        f.categories.forEach(c => cats.add(c));
+      } else if (f.category) {
+        cats.add(f.category);
+      }
+    });
+    return Array.from(cats).sort();
+  }, [snapshot.scope, coreData.dynamicCategories, coreData.fuelDatabase, coreData.dynamicScopes]);
+  
+  // Compute fuels for selected category
+  const getFuelsForCategory = useMemo(() => {
+    const category = snapshot.category;
+    const fuelDb = coreData.fuelDatabase || [];
+    
+    if (!category) return [];
+    
+    let fuels = fuelDb.filter(f => {
+      const fuelCategories = f.categories?.length > 0 ? f.categories : (f.category ? [f.category] : []);
+      return fuelCategories.includes(category) && f.scope === snapshot.scope;
+    });
+    
+    // Ensure saved fuel is included
+    if (snapshot.fuel_database_id && !fuels.some(f => f.id === snapshot.fuel_database_id)) {
+      const savedFuel = fuelDb.find(f => f.id === snapshot.fuel_database_id);
+      if (savedFuel) fuels = [savedFuel, ...fuels];
+    }
+    
+    return fuels;
+  }, [snapshot.category, snapshot.scope, snapshot.fuel_database_id, coreData.fuelDatabase]);
+  
+  // Selected fuel object
+  const selectedFuel = useMemo(() => {
+    const fuelDb = coreData.fuelDatabase || [];
+    return fuelDb.find(f => f.id === snapshot.fuel_database_id) || null;
+  }, [snapshot.fuel_database_id, coreData.fuelDatabase]);
+  
   // Initialize form with snapshot data once core data is loaded
   useEffect(() => {
     if (!coreData.loading && !initialDataLoaded && snapshot && Object.keys(snapshot).length > 0) {
@@ -357,8 +499,8 @@ export default function EmissionApprovalWrapper({
           editEmployeeYearlyTotal={editHook.editEmployeeYearlyTotal}
           isCalculatingEditEmployee={editHook.isCalculatingEmployee}
           isEditLoading={editHook.isEditLoading}
-          editFormConfigLoading={false}
-          dynamicInputFields={calcEngine.dynamicInputFields || []}
+          editFormConfigLoading={editFormConfigLoading}
+          dynamicInputFields={dynamicInputFields}
           dynamicFieldValues={editHook.dynamicFieldValues}
           existingEvidences={editHook.existingEvidences}
           overrideCalorificValue={editHook.overrideCalorificValue}
@@ -393,20 +535,20 @@ export default function EmissionApprovalWrapper({
           centralizedUnits={centralizedUnits}
           fuelDatabase={fuelDatabase}
           
-          // Computed/derived - use defaults (all must be arrays, not functions)
-          selectedFuel={null}
+          // Computed/derived - populated from coreData
+          selectedFuel={selectedFuel}
           activeCategoryModule={null}
           isEditC7EmployeeCommuting={false}
           editActiveMonths={[]}
           ModuleDynamicFieldsRenderer={null}
-          getCategoriesForScope={[]}
-          getFuelsForCategory={[]}
+          getCategoriesForScope={getCategoriesForScope}
+          getFuelsForCategory={getFuelsForCategory}
           availableScope3Methods={[]}
           availableScope3ActivityTypes={[]}
           requiresSubcategory={false}
           availableSubcategories={[]}
           filteredScope3Activities={[]}
-          availableQuantityUnits={[]}
+          availableQuantityUnits={selectedFuel?.allowed_units || centralizedUnits.map(u => u.symbol) || []}
           
           // Handlers - use no-ops for display-only fields
           handleSubmit={() => {}}
