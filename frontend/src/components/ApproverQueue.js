@@ -36,7 +36,7 @@ import {
 import { toast } from 'sonner';
 import SubmissionReviewPanel from './SubmissionReviewPanel';
 import QuestionnaireApprovalPanel from './QuestionnaireApprovalPanel';
-import EmissionApprovalForm from './EmissionApprovalForm';
+import EmissionApprovalWrapper from './EmissionApprovalWrapper';
 import { getCurrentReportingYear, generateReportingYears } from '../utils/reportingYearUtils';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -471,11 +471,10 @@ export default function ApproverQueue() {
             
             {selectedQuestion && selectedQuestion._source === 'approval_workflow' ? (
               selectedQuestion.entity_type === 'emission_record' ? (
-                <EmissionApprovalForm
+                <EmissionApprovalWrapper
                   item={selectedQuestion}
                   onClose={() => setSelectedQuestion(null)}
                   onApproved={handleApprovalComplete}
-                  getAuthHeader={getAuthHeader}
                 />
               ) : (
                 <RecordApprovalPanel

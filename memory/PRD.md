@@ -451,24 +451,28 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
 - **Testing**: 100% frontend pass rate (iteration_127)
 
 ### GHG Emission Approval Form Enhancement (Dec 28, 2025)
-- **Feature**: Enhanced Approver Queue to show proper emission form for GHG approval
-- **New Component**: `/app/frontend/src/components/EmissionApprovalForm.jsx`
+- **Feature**: Enhanced Approver Queue to reuse the exact same edit form for GHG approval
+- **New Component**: `/app/frontend/src/components/EmissionApprovalWrapper.jsx`
+- **Approach**: Reuses existing infrastructure instead of building custom form:
+  - `useEmissionsCoreData` hook for fetching fuel database, units, categories
+  - `useEmissionEdit` hook for managing form state
+  - `EmissionEditForm` component for the actual form rendering
 - **Features**:
-  - Scope-specific forms (Scope1Form, Scope2Form, Scope3Form, BiogenicForm)
-  - Displays all input fields from the emission record
-  - Edit mode toggle - approver can enable editing to modify values
-  - Emission Factor Override section with checkbox and custom EF input
-  - Recalculate emissions button (calls `/api/calc-engine/execute-by-category`)
-  - Reset to Original button
-  - Evidence files tab with download links
-  - Modification audit trail - tracks all approver changes
-  - "Approve with Modifications" vs "Approve" button based on changes
-  - Tabs: Form Data | Emissions | Evidence
+  - Shows exact same form as the emissions edit page
+  - Approver can modify any field
+  - Modification tracking and audit trail
+  - Approve/Reject with comments
+  - Evidence file downloads
+- **Props added to EmissionEditForm.jsx**:
+  - `hideSubmitButton` - hides submit section in approval mode
+  - `isApprovalMode` - flag for approval-specific behavior
 - **Backend Updates**:
-  - `/app/backend/modules/approval_workflow/service.py`:
-    - `_process_approve()` now handles `updated_data` with approver modifications
-    - Applies modified inputs, emission factor overrides, and recalculated emissions
-    - Stores `approver_modifications` audit trail in the emission record
-  - `_create_emission_history_entry()` now includes approver modifications in the history
-- **Audit Trail**: All approver modifications are recorded with field, old_value, new_value, and unit
+  - Removed duplicate approval mechanism (`approval_intercept_create`)
+  - Now uses only `_create_emission_approval_request()` for assignment-based approval
+  - Fixed `_build_emission_inputs()` helper to normalize legacy and new field formats
+  - Fixed `request_type` parameter in `_create_approval_version_snapshot()` for proper history tracking
+- **Fixes**:
+  - Duplicate approval entries in queue - FIXED
+  - Version history missing request_type - FIXED
+  - Input fields not showing - FIXED (now shows exact edit form)
 
