@@ -304,8 +304,30 @@ export default function EmissionApprovalWrapper({
         ...snapshot
       });
       
-      // Set dynamic field values directly
-      editHook.setDynamicFieldValues(dfv);
+      // Flatten dynamic field values from snapshot format to form format
+      // Snapshot: {qty_energy: {value: 5678, unit: 'kWh'}}
+      // Form expects: {qty_energy: 5678, qty_energy_unit: 'kWh'}
+      const flattenedDfv = {};
+      Object.entries(dfv).forEach(([key, val]) => {
+        if (val && typeof val === 'object' && 'value' in val) {
+          flattenedDfv[key] = val.value;
+          if (val.unit) {
+            flattenedDfv[`${key}_unit`] = val.unit;
+          }
+          if (val.is_override) {
+            flattenedDfv[`override_${key}`] = val.is_override;
+          }
+          if (val.justification) {
+            flattenedDfv[`${key}_justification`] = val.justification;
+          }
+        } else {
+          // Already flat or primitive value
+          flattenedDfv[key] = val;
+        }
+      });
+      
+      console.log('[FormInit] Flattened dynamicFieldValues:', flattenedDfv);
+      editHook.setDynamicFieldValues(flattenedDfv);
       
       // Set Scope 3 state if applicable
       if (snapshot.scope === 'scope3' || (snapshot.scope === 'biogenic' && dfv.biogenic_scope_selection?.value === 'scope3')) {
@@ -337,9 +359,9 @@ export default function EmissionApprovalWrapper({
         });
       }
       
-      // Store original values for comparison
+      // Store original values for comparison (use flattened version)
       setOriginalValues({
-        dynamicFieldValues: dfv,
+        dynamicFieldValues: flattenedDfv,
         quantity: snapshot.quantity,
         has_custom_ef: snapshot.has_custom_ef,
         emission_factor: snapshot.emission_factor_used,
@@ -353,12 +375,12 @@ export default function EmissionApprovalWrapper({
   const hasModifications = useMemo(() => {
     if (!originalValues || !initialDataLoaded) return false;
     
-    // Compare dynamic field values
+    // Compare dynamic field values (now flattened: {qty_energy: 5678, qty_energy_unit: 'kWh'})
     const currentDFV = editHook.dynamicFieldValues || {};
     const origDFV = originalValues.dynamicFieldValues || {};
     
     for (const key of Object.keys(currentDFV)) {
-      if (currentDFV[key]?.value !== origDFV[key]?.value) {
+      if (currentDFV[key] !== origDFV[key]) {
         return true;
       }
     }
@@ -384,15 +406,18 @@ export default function EmissionApprovalWrapper({
     const currentDFV = editHook.dynamicFieldValues || {};
     const origDFV = originalValues.dynamicFieldValues || {};
     
+    // Only check value fields, not unit fields
     for (const key of Object.keys(currentDFV)) {
-      const oldVal = origDFV[key]?.value;
-      const newVal = currentDFV[key]?.value;
+      if (key.endsWith('_unit') || key.startsWith('override_') || key.endsWith('_justification')) continue;
+      
+      const oldVal = origDFV[key];
+      const newVal = currentDFV[key];
       if (oldVal !== newVal) {
         modifications.push({
           field: key,
           old_value: oldVal,
           new_value: newVal,
-          unit: currentDFV[key]?.unit
+          unit: currentDFV[`${key}_unit`] || ''
         });
       }
     }
