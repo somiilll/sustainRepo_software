@@ -1,469 +1,145 @@
 /**
- * EmissionApprovalWrapper - Wraps the existing EmissionEditForm for approval workflow
+ * EmissionApprovalWrapper - Simple approval form for GHG emission records
  * 
- * Reuses all existing emission edit infrastructure:
- * - useEmissionsCoreData for fetching fuel database, units, categories
- * - useEmissionEdit for managing form state
- * - EmissionEditForm for the actual form rendering
- * 
- * Adds approval-specific functionality:
- * - Approve/Reject actions
- * - Modification tracking
- * - Audit trail generation
+ * Displays snapshot data in editable fields:
+ * - Name of Process(es)
+ * - Dynamic input fields (quantity, emission factor, etc.)
+ * - Person Responsible, Designation, Contact
+ * - Source of Information
+ * - Evidence Documents
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
-import { useEmissionsCoreData } from '../hooks/useEmissionsCoreData';
-import useEmissionEdit from '../pages/emissions/useEmissionEdit';
-import useCalcEngine from '../hooks/useCalcEngine';
-import EmissionEditForm from './EmissionEditForm';
 import { Button } from './ui/button';
+import { Input } from './ui/input';
 import { Badge } from './ui/badge';
-import { Alert, AlertDescription } from './ui/alert';
 import { 
   Loader2, 
   CheckCircle2, 
   XCircle, 
-  RefreshCw,
   User,
   Clock,
-  AlertTriangle,
   FileText,
-  Download
+  Download,
+  AlertTriangle
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
-export default function EmissionApprovalWrapper({ 
-  item, 
-  onClose, 
-  onApproved 
-}) {
-  const { getAuthHeader, user } = useAuth();
+export default function EmissionApprovalWrapper({ item, onClose, onApproved }) {
+  const { getAuthHeader } = useAuth();
   const [processing, setProcessing] = useState(false);
   const [comment, setComment] = useState('');
-  const [initialDataLoaded, setInitialDataLoaded] = useState(false);
-  
-  // Get snapshot data from approval request (safe defaults even if item is invalid)
+  const [formValues, setFormValues] = useState({});
+  const [originalValues, setOriginalValues] = useState({});
+  const [initialized, setInitialized] = useState(false);
+
+  // Extract snapshot data
   const snapshot = item?.entity_snapshot || {};
-  const requestType = item?.request_type || snapshot.edit_type || 'create';
+  const requestType = item?.request_type || 'create';
   const isUpdate = requestType === 'update';
-  
-  // Fetch core emission data (fuels, units, categories, etc.)
-  const coreData = useEmissionsCoreData(getAuthHeader);
-  
-  // Use the emission edit hook for form state management
-  const editHook = useEmissionEdit(getAuthHeader, () => {});
-  
-  // Calculation engine hook
-  const calcEngine = useCalcEngine(getAuthHeader);
-  
-  // Store original values for modification tracking
-  const [originalValues, setOriginalValues] = useState(null);
-  
-  // State for form configuration (needed for dynamic input fields)
-  const [editFormConfig, setEditFormConfig] = useState(null);
-  const [editFormConfigLoading, setEditFormConfigLoading] = useState(false);
-  
-  // Debug logging
-  console.log('[EmissionApprovalWrapper] Debug:', {
-    snapshotCategory: snapshot.category,
-    snapshotScope: snapshot.scope,
-    snapshotInputs: snapshot.inputs,
-    coreDataLoading: coreData.loading,
-    editFormConfigLoading,
-    editFormConfig: editFormConfig ? 'loaded' : 'null',
-    initialDataLoaded,
-    dynamicCategoriesCount: coreData.dynamicCategories?.length || 0,
-  });
-  
-  console.log('[EmissionApprovalWrapper] editHook.dynamicFieldValues:', editHook.dynamicFieldValues);
-  
-  // Fetch form config when we have category info
+  const evidenceFiles = snapshot.evidence_files || [];
+  const dynamicInputs = snapshot.inputs || snapshot.dynamic_field_values || {};
+
+  // Initialize form values from snapshot
   useEffect(() => {
-    const fetchFormConfig = async () => {
-      console.log('[FormConfig] Checking conditions:', {
-        category: snapshot.category,
-        scope: snapshot.scope,
-        coreDataLoading: coreData.loading
-      });
-      
-      if (!snapshot.category || !snapshot.scope || coreData.loading) {
-        console.log('[FormConfig] Skipping - missing data or still loading');
-        return;
-      }
-      
-      const dynamicCategories = coreData.dynamicCategories || [];
-      console.log('[FormConfig] Dynamic categories:', dynamicCategories.length);
-      
-      // Find category ID
-      const categoryObj = dynamicCategories.find(
-        c => c.name === snapshot.category && c.scope_code === snapshot.scope
-      );
-      
-      console.log('[FormConfig] Category match:', categoryObj);
-      
-      if (!categoryObj?.id) {
-        // Try without scope matching for flexibility
-        const fallbackCat = dynamicCategories.find(c => c.name === snapshot.category);
-        console.log('[FormConfig] Fallback category:', fallbackCat);
-        
-        if (!fallbackCat?.id) {
-          console.log('[FormConfig] No category found - cannot fetch form config');
-          return;
-        }
-        
-        setEditFormConfigLoading(true);
-        try {
-          const url = `${API}/api/calc-engine/form-config/${fallbackCat.id}?scope=${snapshot.scope}`;
-          console.log('[FormConfig] Fetching from:', url);
-          const response = await axios.get(url, { headers: getAuthHeader() });
-          console.log('[FormConfig] Response:', response.data);
-          setEditFormConfig(response.data);
-        } catch (err) {
-          console.error('[FormConfig] Failed to fetch:', err);
-        } finally {
-          setEditFormConfigLoading(false);
-        }
-        return;
-      }
-      
-      setEditFormConfigLoading(true);
-      try {
-        const url = `${API}/api/calc-engine/form-config/${categoryObj.id}?scope=${snapshot.scope}`;
-        console.log('[FormConfig] Fetching from:', url);
-        const response = await axios.get(url, { headers: getAuthHeader() });
-        console.log('[FormConfig] Response:', response.data);
-        setEditFormConfig(response.data);
-      } catch (err) {
-        console.error('[FormConfig] Failed to fetch:', err);
-      } finally {
-        setEditFormConfigLoading(false);
-      }
-    };
-    
-    fetchFormConfig();
-  }, [snapshot.category, snapshot.scope, coreData.loading, coreData.dynamicCategories, getAuthHeader]);
-  
-  // Compute dynamic input fields from form config
-  const dynamicInputFields = useMemo(() => {
-    if (!editFormConfig?.input_field_mappings?.length) {
-      console.log('[DynamicFields] No input_field_mappings');
-      return [];
-    }
-    
-    // Required variables are at top level of editFormConfig
-    const requiredVars = editFormConfig.required_input_variables || [];
-    console.log('[DynamicFields] Required vars:', requiredVars);
-    console.log('[DynamicFields] Input mappings:', editFormConfig.input_field_mappings);
-    
-    // Map all input field mappings, filter by required if available
-    const fields = editFormConfig.input_field_mappings
-      .filter(mapping => {
-        // If no required vars specified, include all fields
-        if (requiredVars.length === 0) return true;
-        // Otherwise filter to required ones
-        return requiredVars.includes(mapping.maps_to_variable);
-      })
-      .map(mapping => ({
-        variable: mapping.maps_to_variable,
-        label: mapping.field_label || mapping.maps_to_variable,
-        type: mapping.field_type || 'number',
-        expectedUnit: mapping.expected_unit,
-        allowedUnits: mapping.allowed_units || [],
-        isOverride: mapping.is_override || false,
-        options: mapping.options || [],
-        placeholder: mapping.placeholder,
-        tooltip: mapping.tooltip,
-      }));
-    
-    console.log('[DynamicFields] Computed fields:', fields);
-    return fields;
-  }, [editFormConfig]);
-  
-  // Compute categories for selected scope
-  const getCategoriesForScope = useMemo(() => {
-    const scope = snapshot.scope;
-    const dynamicCategories = coreData.dynamicCategories || [];
-    const fuelDb = coreData.fuelDatabase || [];
-    const dynamicScopesData = coreData.dynamicScopes || [];
-    
-    if (scope === 'scope3') {
-      const scope3 = dynamicScopesData.find(s => s.code === 'scope3');
-      if (scope3) {
-        return dynamicCategories
-          .filter(c => c.scope_id === scope3.id)
-          .map(c => c.name)
-          .sort((a, b) => {
-            const numA = parseInt(a.match(/C(\d+)/)?.[1] || '999');
-            const numB = parseInt(b.match(/C(\d+)/)?.[1] || '999');
-            return numA - numB;
-          });
-      }
-    }
-    
-    // For scope1/scope2, use fuel database categories
-    const fuelsForScope = fuelDb.filter(f => f.scope === scope);
-    const cats = new Set();
-    fuelsForScope.forEach(f => {
-      if (f.categories?.length > 0) {
-        f.categories.forEach(c => cats.add(c));
-      } else if (f.category) {
-        cats.add(f.category);
-      }
-    });
-    return Array.from(cats).sort();
-  }, [snapshot.scope, coreData.dynamicCategories, coreData.fuelDatabase, coreData.dynamicScopes]);
-  
-  // Compute fuels for selected category
-  const getFuelsForCategory = useMemo(() => {
-    const category = snapshot.category;
-    const fuelDb = coreData.fuelDatabase || [];
-    
-    if (!category) return [];
-    
-    let fuels = fuelDb.filter(f => {
-      const fuelCategories = f.categories?.length > 0 ? f.categories : (f.category ? [f.category] : []);
-      return fuelCategories.includes(category) && f.scope === snapshot.scope;
-    });
-    
-    // Ensure saved fuel is included
-    if (snapshot.fuel_database_id && !fuels.some(f => f.id === snapshot.fuel_database_id)) {
-      const savedFuel = fuelDb.find(f => f.id === snapshot.fuel_database_id);
-      if (savedFuel) fuels = [savedFuel, ...fuels];
-    }
-    
-    return fuels;
-  }, [snapshot.category, snapshot.scope, snapshot.fuel_database_id, coreData.fuelDatabase]);
-  
-  // Selected fuel object
-  const selectedFuel = useMemo(() => {
-    const fuelDb = coreData.fuelDatabase || [];
-    return fuelDb.find(f => f.id === snapshot.fuel_database_id) || null;
-  }, [snapshot.fuel_database_id, coreData.fuelDatabase]);
-  
-  // Initialize form with snapshot data once core data AND form config are loaded
-  useEffect(() => {
-    console.log('[FormInit] Checking conditions:', {
-      coreDataLoading: coreData.loading,
-      editFormConfigLoading,
-      hasEditFormConfig: !!editFormConfig,
-      initialDataLoaded,
-      hasSnapshot: !!snapshot,
-      snapshotKeys: Object.keys(snapshot).length
-    });
-    
-    if (!coreData.loading && !editFormConfigLoading && editFormConfig && !initialDataLoaded && snapshot && Object.keys(snapshot).length > 0) {
-      console.log('[FormInit] All conditions met - initializing form');
-      
-      // Get dynamic field values from snapshot
-      const dfv = snapshot.inputs || snapshot.dynamic_field_values || {};
-      console.log('[FormInit] Dynamic field values from snapshot:', dfv);
-      
-      // Directly set form data instead of using handleEdit (which opens dialog)
-      editHook.setFormData({
-        facility_id: snapshot.facility_id || '',
-        scope: snapshot.scope || 'scope1',
-        category: snapshot.category || '',
-        sub_category: snapshot.sub_category || snapshot.fuel_type || '',
-        fuel_id: snapshot.fuel_database_id || '',
-        fuel_type: snapshot.fuel_type || '',
-        quantity: dfv.qty?.value?.toString() || snapshot.quantity?.toString() || '',
-        quantity_unit: dfv.qty?.unit || snapshot.quantity_unit || 'kg',
-        source_of_information: snapshot.source_of_information || '',
-        record_source: snapshot.record_source || '',
-        notes: snapshot.notes || '',
-        justification: snapshot.justification || '',
-        evidence_url: snapshot.evidence_url || '',
+    if (!initialized && snapshot && Object.keys(snapshot).length > 0) {
+      const initial = {
+        process_name: snapshot.process_names?.[0] || '',
+        process_description: snapshot.process_descriptions?.[0]?.description || '',
         responsible_person: snapshot.responsible_person || '',
-        responsible_person_designation: snapshot.responsible_person_designation || '',
-        responsible_person_contact: snapshot.responsible_person_contact || '',
-        calorific_value: dfv.cv?.value?.toString() || '',
-        calorific_value_unit: dfv.cv?.unit || 'MJ/kg',
-        calorific_value_justification: dfv.cv?.justification || '',
-        density: dfv.density?.value?.toString() || '',
-        density_justification: dfv.density?.justification || '',
-        process_names: snapshot.process_descriptions?.length > 0 
-          ? snapshot.process_descriptions 
-          : [{ name: snapshot.process_names?.[0] || '', description: '' }],
-        supplier_name: snapshot.supplier_name || dfv.supplier_name?.value || '',
-        supplier_code: snapshot.supplier_code || dfv.supplier_code?.value || '',
-        employee_name: snapshot.employee_name || dfv.employee_name?.value || '',
-        employee_id: snapshot.employee_id || dfv.employee_id?.value || '',
-        asset_name: snapshot.asset_name || dfv.asset_name?.value || '',
-        from_location: snapshot.from_location || dfv.from_location?.value || '',
-        to_location: snapshot.to_location || dfv.to_location?.value || '',
-      });
-      
-      // Set the editing emission reference
-      editHook.setEditingEmission({
-        id: item.entity_id,
-        ...snapshot
-      });
-      
-      // Flatten dynamic field values from snapshot format to form format
-      // Snapshot: {qty_energy: {value: 5678, unit: 'kWh'}}
-      // Form expects: {qty_energy: 5678, qty_energy_unit: 'kWh'}
-      const flattenedDfv = {};
-      Object.entries(dfv).forEach(([key, val]) => {
+        designation: snapshot.responsible_person_designation || '',
+        contact: snapshot.responsible_person_contact || '',
+        source_of_information: snapshot.source_of_information || '',
+        notes: snapshot.notes || '',
+      };
+
+      // Add dynamic input fields
+      Object.entries(dynamicInputs).forEach(([key, val]) => {
         if (val && typeof val === 'object' && 'value' in val) {
-          flattenedDfv[key] = val.value;
-          if (val.unit) {
-            flattenedDfv[`${key}_unit`] = val.unit;
-          }
-          if (val.is_override) {
-            flattenedDfv[`override_${key}`] = val.is_override;
-          }
-          if (val.justification) {
-            flattenedDfv[`${key}_justification`] = val.justification;
-          }
+          initial[key] = val.value ?? '';
+          initial[`${key}_unit`] = val.unit || '';
         } else {
-          // Already flat or primitive value
-          flattenedDfv[key] = val;
+          initial[key] = val ?? '';
         }
       });
-      
-      console.log('[FormInit] Flattened dynamicFieldValues:', flattenedDfv);
-      editHook.setDynamicFieldValues(flattenedDfv);
-      
-      // Set Scope 3 state if applicable
-      if (snapshot.scope === 'scope3' || (snapshot.scope === 'biogenic' && dfv.biogenic_scope_selection?.value === 'scope3')) {
-        editHook.setScope3Method(snapshot.calculation_method_scope3 || dfv.calculation_method_scope3?.value || '');
-        editHook.setScope3ActivityType(dfv.scope3_activity_type?.value || '');
-        editHook.setScope3ActivityId(snapshot.scope3_ef_id || dfv.scope3_ef_id?.value || '');
-        editHook.setScope3Subcategory(dfv.scope3_subcategory?.value || '');
-        editHook.setTypeOfProduct(snapshot.type_of_product || dfv.type_of_product?.value || '');
-        editHook.setScope3CustomActivity(snapshot.scope3_activity || dfv.scope3_activity?.value || '');
-        editHook.setUseCustomActivity(dfv.use_custom_activity?.value || false);
-      }
-      
-      // Set biogenic state if applicable
-      if (snapshot.scope === 'biogenic') {
-        editHook.setBiogenicScopeSelection(snapshot.biogenic_scope_selection || dfv.biogenic_scope_selection?.value || 'scope1');
-      }
-      
-      // Set override states
-      editHook.setOverrideCalorificValue(dfv.cv?.is_override || snapshot.has_custom_ef || false);
-      editHook.setOverrideDensity(dfv.density?.is_override || false);
-      
-      // Set calculated emissions from existing outputs
-      if (snapshot.outputs) {
-        editHook.setCalculatedEmissions({
-          co2Emissions: snapshot.outputs.co2?.value || 0,
-          ch4Emissions: snapshot.outputs.ch4?.value || 0,
-          n2oEmissions: snapshot.outputs.n2o?.value || 0,
-          co2eEmissions: snapshot.outputs.co2e?.value || 0,
-        });
-      }
-      
-      // Store original values for comparison (use flattened version)
-      setOriginalValues({
-        dynamicFieldValues: flattenedDfv,
-        quantity: snapshot.quantity,
-        has_custom_ef: snapshot.has_custom_ef,
-        emission_factor: snapshot.emission_factor_used,
-      });
-      
-      setInitialDataLoaded(true);
+
+      setFormValues(initial);
+      setOriginalValues(initial);
+      setInitialized(true);
     }
-  }, [coreData.loading, editFormConfigLoading, editFormConfig, initialDataLoaded, snapshot, item.entity_id]);
-  
-  // Track modifications
+  }, [snapshot, dynamicInputs, initialized]);
+
+  // Check if any values were modified
   const hasModifications = useMemo(() => {
-    if (!originalValues || !initialDataLoaded) return false;
-    
-    // Compare dynamic field values (now flattened: {qty_energy: 5678, qty_energy_unit: 'kWh'})
-    const currentDFV = editHook.dynamicFieldValues || {};
-    const origDFV = originalValues.dynamicFieldValues || {};
-    
-    for (const key of Object.keys(currentDFV)) {
-      if (currentDFV[key] !== origDFV[key]) {
-        return true;
-      }
-    }
-    
-    // Compare quantity
-    if (editHook.formData?.quantity !== originalValues.quantity) {
-      return true;
-    }
-    
-    // Compare override state
-    if (editHook.overrideCalorificValue !== (originalValues.has_custom_ef || false)) {
-      return true;
-    }
-    
-    return false;
-  }, [editHook.dynamicFieldValues, editHook.formData, editHook.overrideCalorificValue, originalValues, initialDataLoaded]);
-  
-  // Build modification audit trail
-  const getModificationAudit = useCallback(() => {
-    if (!originalValues) return [];
-    
-    const modifications = [];
-    const currentDFV = editHook.dynamicFieldValues || {};
-    const origDFV = originalValues.dynamicFieldValues || {};
-    
-    // Only check value fields, not unit fields
-    for (const key of Object.keys(currentDFV)) {
-      if (key.endsWith('_unit') || key.startsWith('override_') || key.endsWith('_justification')) continue;
-      
-      const oldVal = origDFV[key];
-      const newVal = currentDFV[key];
-      if (oldVal !== newVal) {
-        modifications.push({
+    if (!initialized) return false;
+    return Object.keys(formValues).some(key => formValues[key] !== originalValues[key]);
+  }, [formValues, originalValues, initialized]);
+
+  // Get list of modified fields for audit
+  const getModifications = () => {
+    const mods = [];
+    Object.keys(formValues).forEach(key => {
+      if (formValues[key] !== originalValues[key] && !key.endsWith('_unit')) {
+        mods.push({
           field: key,
-          old_value: oldVal,
-          new_value: newVal,
-          unit: currentDFV[`${key}_unit`] || ''
+          old_value: originalValues[key],
+          new_value: formValues[key]
         });
       }
-    }
-    
-    return modifications;
-  }, [editHook.dynamicFieldValues, originalValues]);
-  
+    });
+    return mods;
+  };
+
+  // Handle field change
+  const handleChange = (field, value) => {
+    setFormValues(prev => ({ ...prev, [field]: value }));
+  };
+
   // Handle approve
   const handleApprove = async () => {
     setProcessing(true);
     try {
-      const updatedData = hasModifications ? {
-        inputs: editHook.dynamicFieldValues,
-        emission_factor_override: editHook.overrideCalorificValue ? {
-          enabled: true,
-          value: editHook.formData?.calorific_value
-        } : { enabled: false },
-        calculated_emissions: {
-          co2: editHook.effectiveCalculatedEmissions?.co2 || 0,
-          ch4: editHook.effectiveCalculatedEmissions?.ch4 || 0,
-          n2o: editHook.effectiveCalculatedEmissions?.n2o || 0,
-          total: editHook.effectiveCalculatedEmissions?.total || 0,
-        },
-        approver_modifications: getModificationAudit()
-      } : null;
-      
+      const payload = {
+        action: 'approve',
+        comment: comment || (hasModifications ? 'Approved with modifications' : 'Approved'),
+      };
+
+      if (hasModifications) {
+        payload.updated_data = {
+          inputs: {},
+          approver_modifications: getModifications()
+        };
+        
+        // Rebuild inputs in the expected format
+        Object.entries(dynamicInputs).forEach(([key]) => {
+          payload.updated_data.inputs[key] = {
+            value: formValues[key],
+            unit: formValues[`${key}_unit`] || dynamicInputs[key]?.unit || ''
+          };
+        });
+      }
+
       await axios.post(
         `${API}/api/approval-workflows/requests/${item._approval_request_id}/decide`,
-        { 
-          action: 'approve', 
-          comment: comment || (hasModifications ? 'Approved with modifications' : 'Approved'),
-          updated_data: updatedData
-        },
+        payload,
         { headers: getAuthHeader() }
       );
-      
-      toast.success(hasModifications ? 'Approved with modifications' : 'Approved');
+
+      toast.success(hasModifications ? 'Approved with modifications' : 'Approved successfully');
       onApproved?.();
       onClose?.();
-    } catch (e) {
-      console.error('Approve error:', e);
-      toast.error(e.response?.data?.detail || 'Failed to approve');
+    } catch (err) {
+      console.error('Approve error:', err);
+      toast.error(err.response?.data?.detail || 'Failed to approve');
+    } finally {
+      setProcessing(false);
     }
-    setProcessing(false);
   };
-  
+
   // Handle reject
   const handleReject = async () => {
     if (!comment.trim()) {
@@ -480,58 +156,64 @@ export default function EmissionApprovalWrapper({
       toast.success('Rejected');
       onApproved?.();
       onClose?.();
-    } catch (e) {
-      console.error('Reject error:', e);
-      toast.error(e.response?.data?.detail || 'Failed to reject');
+    } catch (err) {
+      console.error('Reject error:', err);
+      toast.error(err.response?.data?.detail || 'Failed to reject');
+    } finally {
+      setProcessing(false);
     }
-    setProcessing(false);
   };
-  
-  // Loading state - wait for core data AND form config
-  if (coreData.loading || editFormConfigLoading || !initialDataLoaded) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        <span className="ml-2">Loading form data...</span>
-      </div>
-    );
-  }
-  
-  // Safety check: Ensure this component only handles emission_record entities
-  // This check is placed after hooks to comply with React rules
+
+  // Safety check for entity type
   if (!item || item.entity_type !== 'emission_record') {
     return (
       <div className="p-6 text-center">
-        <div className="text-amber-600 font-medium mb-2">Invalid Record Type</div>
-        <p className="text-stone-500 text-sm mb-4">
-          This component can only display emission records. 
-          Received: {item?.entity_type || 'unknown'}
-        </p>
-        <Button variant="outline" onClick={onClose}>Close</Button>
+        <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-3" />
+        <p className="text-stone-600">Invalid record type: {item?.entity_type || 'unknown'}</p>
+        <Button variant="outline" className="mt-4" onClick={onClose}>Close</Button>
       </div>
     );
   }
-  
-  // Extract core data with defaults (hook spreads data at top level, not under .data)
-  const facilities = coreData.facilities || [];
-  const dynamicScopes = coreData.dynamicScopes || [];
-  const centralizedUnits = coreData.centralizedUnits || [];
-  const fuelDatabase = coreData.fuelDatabase || [];
-  
-  // Evidence files
-  const evidenceFiles = snapshot.evidence_files || [];
-  
+
+  // Loading state
+  if (!initialized) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+        <span className="ml-2 text-stone-600">Loading...</span>
+      </div>
+    );
+  }
+
+  // Get dynamic field labels
+  const getFieldLabel = (key) => {
+    const labels = {
+      qty: 'Quantity',
+      qty_energy: 'Energy Consumed',
+      ef: 'Emission Factor',
+      ef_quantity_electricity_co2: 'Emission Factor (CO2)',
+      cv: 'Calorific Value',
+      density: 'Density',
+      distance: 'Distance',
+      weight: 'Weight',
+      spend_amount: 'Spend Amount',
+      ppp: 'Purchase Power Value',
+      inflation_rate: 'Inflation Rate'
+    };
+    return labels[key] || key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  };
+
   return (
-    <div className="space-y-4" data-testid="emission-approval-wrapper">
+    <div className="space-y-5" data-testid="emission-approval-wrapper">
       {/* Header */}
       <div className="bg-stone-50 rounded-lg p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-lg">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="font-semibold text-lg text-stone-800">
             {isUpdate ? 'Update Request' : 'New Submission'} - {snapshot.scope?.toUpperCase()}
           </h3>
           <div className="flex items-center gap-2">
             {hasModifications && (
-              <Badge className="bg-violet-100 text-violet-700">Modified</Badge>
+              <Badge className="bg-amber-100 text-amber-700">Modified</Badge>
             )}
             <Badge variant={isUpdate ? 'secondary' : 'default'}>
               {requestType.toUpperCase()}
@@ -539,176 +221,186 @@ export default function EmissionApprovalWrapper({
           </div>
         </div>
         
-        <div className="flex items-center gap-4 text-sm text-stone-600">
+        <div className="flex flex-wrap items-center gap-4 text-sm text-stone-500">
           <span className="flex items-center gap-1">
             <User className="w-4 h-4" />
-            {item.submitted_by_name || item.submitted_by_email}
+            {item.submitted_by_name || item.submitted_by_email || 'Unknown'}
           </span>
           <span className="flex items-center gap-1">
             <Clock className="w-4 h-4" />
-            {item.submitted_at && new Date(item.submitted_at).toLocaleDateString()}
+            {item.submitted_at ? new Date(item.submitted_at).toLocaleDateString() : 'N/A'}
           </span>
+          <span className="text-stone-400">|</span>
+          <span><strong>Category:</strong> {snapshot.category}</span>
+          <span><strong>Facility:</strong> {snapshot.facility_name || snapshot.facility_id}</span>
         </div>
       </div>
-      
-      {/* Edit Form - Reusing the exact same form as emissions page */}
-      <div className="border rounded-lg p-4 max-h-[500px] overflow-y-auto">
-        <EmissionEditForm
-          // Form state
-          formData={editHook.formData}
-          editingEmission={editHook.editingEmission}
-          editFrequencyType={editHook.editFrequencyType}
-          biogenicScopeSelection={editHook.biogenicScopeSelection}
-          selectedCategory={editHook.selectedCategory}
-          scope3Method={editHook.scope3Method}
-          scope3ActivityType={editHook.scope3ActivityType}
-          scope3Subcategory={editHook.scope3Subcategory}
-          scope3ActivityId={editHook.scope3ActivityId}
-          scope3CustomActivity={editHook.scope3CustomActivity}
-          useCustomActivity={editHook.useCustomActivity}
-          typeOfProduct={editHook.typeOfProduct}
-          activitySearchTerm={editHook.activitySearchTerm}
-          loadingScope3EF={false}
-          loadingBiogenicCategories={false}
-          editEmployees={editHook.editEmployees}
-          editEmployeeMonthlyTotals={editHook.editEmployeeMonthlyTotals}
-          editEmployeeYearlyTotal={editHook.editEmployeeYearlyTotal}
-          isCalculatingEditEmployee={editHook.isCalculatingEmployee}
-          isEditLoading={editHook.isEditLoading}
-          editFormConfigLoading={editFormConfigLoading}
-          dynamicInputFields={dynamicInputFields}
-          dynamicFieldValues={editHook.dynamicFieldValues}
-          existingEvidences={editHook.existingEvidences}
-          overrideCalorificValue={editHook.overrideCalorificValue}
-          overrideDensity={editHook.overrideDensity}
-          overrideEmissionFactorHeat={editHook.overrideEmissionFactorHeat}
-          overrideJustification={editHook.overrideJustification}
-          effectiveCalculatedEmissions={editHook.effectiveCalculatedEmissions || calcEngine.outputs}
-          isCalculating={calcEngine.isCalculating}
-          isSaving={processing}
+
+      {/* Form Fields */}
+      <div className="space-y-4">
+        {/* Process Name */}
+        <div>
+          <label className="block text-sm font-medium text-stone-700 mb-1">
+            Name of Process(es)
+          </label>
+          <Input
+            value={formValues.process_name || ''}
+            onChange={(e) => handleChange('process_name', e.target.value)}
+            placeholder="Process name"
+            disabled={processing}
+          />
+        </div>
+
+        {/* Dynamic Input Fields */}
+        {Object.entries(dynamicInputs).map(([key, val]) => {
+          if (!val || typeof val !== 'object') return null;
+          const unit = formValues[`${key}_unit`] || val.unit || '';
           
-          // Setters
-          setFormData={editHook.setFormData}
-          setBiogenicScopeSelection={editHook.setBiogenicScopeSelection}
-          setScope3Method={editHook.setScope3Method}
-          setScope3ActivityType={editHook.setScope3ActivityType}
-          setScope3ActivityId={editHook.setScope3ActivityId}
-          setScope3Subcategory={editHook.setScope3Subcategory}
-          setScope3CustomActivity={editHook.setScope3CustomActivity}
-          setUseCustomActivity={editHook.setUseCustomActivity}
-          setTypeOfProduct={editHook.setTypeOfProduct}
-          setActivitySearchTerm={editHook.setActivitySearchTerm}
-          setDynamicFieldValues={editHook.setDynamicFieldValues}
-          setEditEmployees={editHook.setEditEmployees}
-          setOverrideCalorificValue={editHook.setOverrideCalorificValue}
-          setOverrideDensity={editHook.setOverrideDensity}
-          setOverrideJustification={editHook.setOverrideJustification}
-          
-          // Core data - use extracted variables with defaults
-          facilities={facilities}
-          dynamicScopes={dynamicScopes}
-          hasScope3Access={true}
-          centralizedUnits={centralizedUnits}
-          fuelDatabase={fuelDatabase}
-          
-          // Computed/derived - populated from coreData
-          selectedFuel={selectedFuel}
-          activeCategoryModule={null}
-          isEditC7EmployeeCommuting={false}
-          editActiveMonths={[]}
-          ModuleDynamicFieldsRenderer={null}
-          getCategoriesForScope={getCategoriesForScope}
-          getFuelsForCategory={getFuelsForCategory}
-          availableScope3Methods={[]}
-          availableScope3ActivityTypes={[]}
-          requiresSubcategory={false}
-          availableSubcategories={[]}
-          filteredScope3Activities={[]}
-          availableQuantityUnits={selectedFuel?.allowed_units || centralizedUnits.map(u => u.symbol) || []}
-          
-          // Handlers - use no-ops for display-only fields
-          handleSubmit={() => {}}
-          handleFuelSelect={() => {}}
-          handleCategorySelect={() => {}}
-          markFormDirty={() => editHook.setIsFormDirty(true)}
-          updateDynamicFieldValue={calcEngine.updateDynamicFieldValue || (() => {})}
-          getMethodLabel={(m) => m}
-          handleCalculateEditEmployeeMonth={() => {}}
-          handleFileUpload={() => {}}
-          handleRemoveEvidence={() => {}}
-          handleDeleteExistingEvidence={() => {}}
-          handleDeleteAllEvidences={() => {}}
-          handleDialogChange={() => {}}
-          getQuantityUnitFromEFUnit={() => ''}
-          
-          // Hide the submit button in the form (we have our own)
-          hideSubmitButton={true}
-          isApprovalMode={true}
-        />
-      </div>
-      
-      {/* Evidence Files */}
-      {evidenceFiles.length > 0 && (
-        <div className="border rounded-lg p-4">
-          <h4 className="font-medium text-sm mb-3 flex items-center gap-2">
-            <FileText className="w-4 h-4" />
-            Evidence Files ({evidenceFiles.length})
-          </h4>
-          <div className="space-y-2">
-            {evidenceFiles.map((file, idx) => (
-              <div key={idx} className="flex items-center justify-between p-2 bg-stone-50 rounded">
-                <span className="text-sm">{file.name || file.filename || `File ${idx + 1}`}</span>
-                <a 
-                  href={file.url || file.file_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"
-                >
-                  <Download className="w-4 h-4" />
-                  Download
-                </a>
+          return (
+            <div key={key}>
+              <label className="block text-sm font-medium text-stone-700 mb-1">
+                {getFieldLabel(key)} {unit && <span className="text-stone-400">({unit})</span>}
+              </label>
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  step="any"
+                  value={formValues[key] ?? ''}
+                  onChange={(e) => handleChange(key, e.target.value)}
+                  placeholder={`Enter ${getFieldLabel(key).toLowerCase()}`}
+                  disabled={processing}
+                  className="flex-1"
+                />
+                <Input
+                  value={formValues[`${key}_unit`] || ''}
+                  onChange={(e) => handleChange(`${key}_unit`, e.target.value)}
+                  placeholder="Unit"
+                  disabled={processing}
+                  className="w-28"
+                />
               </div>
-            ))}
+            </div>
+          );
+        })}
+
+        {/* Person Responsible */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-1">
+              Person Responsible
+            </label>
+            <Input
+              value={formValues.responsible_person || ''}
+              onChange={(e) => handleChange('responsible_person', e.target.value)}
+              placeholder="Name"
+              disabled={processing}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-1">
+              Designation
+            </label>
+            <Input
+              value={formValues.designation || ''}
+              onChange={(e) => handleChange('designation', e.target.value)}
+              placeholder="e.g., Environmental Manager"
+              disabled={processing}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-1">
+              Contact
+            </label>
+            <Input
+              value={formValues.contact || ''}
+              onChange={(e) => handleChange('contact', e.target.value)}
+              placeholder="Email or phone"
+              disabled={processing}
+            />
           </div>
         </div>
-      )}
-      
-      {/* Modification Summary */}
-      {hasModifications && (
-        <Alert className="bg-violet-50 border-violet-200">
-          <AlertTriangle className="w-4 h-4 text-violet-600" />
-          <AlertDescription>
-            <div className="text-sm font-medium text-violet-800 mb-1">
-              Your Modifications (will be recorded)
-            </div>
-            <div className="space-y-1">
-              {getModificationAudit().map((mod, idx) => (
-                <div key={idx} className="text-sm text-violet-700">
-                  • <span className="capitalize">{mod.field.replace(/_/g, ' ')}</span>: {mod.old_value} → <span className="font-medium">{mod.new_value}</span> {mod.unit || ''}
+
+        {/* Source of Information */}
+        <div>
+          <label className="block text-sm font-medium text-stone-700 mb-1">
+            Source of Information
+          </label>
+          <Input
+            value={formValues.source_of_information || ''}
+            onChange={(e) => handleChange('source_of_information', e.target.value)}
+            placeholder="e.g., Invoice #4521, meter reading"
+            disabled={processing}
+          />
+        </div>
+
+        {/* Evidence Documents */}
+        {evidenceFiles.length > 0 && (
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-2">
+              Evidence Documents ({evidenceFiles.length})
+            </label>
+            <div className="space-y-2">
+              {evidenceFiles.map((file, idx) => (
+                <div 
+                  key={idx} 
+                  className="flex items-center justify-between p-3 bg-stone-50 rounded-lg border"
+                >
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-stone-500" />
+                    <span className="text-sm text-stone-700">
+                      {file.name || file.filename || `Evidence ${idx + 1}`}
+                    </span>
+                  </div>
+                  <a
+                    href={file.url || file.file_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download
+                  </a>
                 </div>
               ))}
             </div>
-          </AlertDescription>
-        </Alert>
-      )}
-      
+          </div>
+        )}
+
+        {/* Modifications Summary */}
+        {hasModifications && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+            <p className="text-sm font-medium text-amber-800 mb-2">
+              Your modifications will be recorded:
+            </p>
+            <ul className="text-sm text-amber-700 space-y-1">
+              {getModifications().map((mod, idx) => (
+                <li key={idx}>
+                  • <strong>{getFieldLabel(mod.field)}:</strong>{' '}
+                  {mod.old_value || '(empty)'} → {mod.new_value || '(empty)'}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+
       {/* Comment */}
       <div>
-        <label className="text-sm font-medium">
-          Comment {hasModifications ? '(describe your modifications)' : '(required for rejection)'}
+        <label className="block text-sm font-medium text-stone-700 mb-1">
+          Comment {!hasModifications && '(required for rejection)'}
         </label>
         <textarea
           value={comment}
           onChange={(e) => setComment(e.target.value)}
-          placeholder={hasModifications ? "Explain your modifications..." : "Add a comment..."}
-          className="mt-1 w-full px-3 py-2 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder={hasModifications ? 'Explain your modifications...' : 'Add a comment...'}
+          className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
           rows={3}
-          data-testid="approval-comment"
+          disabled={processing}
         />
       </div>
-      
+
       {/* Actions */}
-      <div className="flex justify-end gap-2 pt-2 border-t">
+      <div className="flex justify-end gap-3 pt-3 border-t">
         <Button variant="outline" onClick={onClose} disabled={processing}>
           Cancel
         </Button>
@@ -724,11 +416,11 @@ export default function EmissionApprovalWrapper({
         <Button
           onClick={handleApprove}
           disabled={processing}
-          className={hasModifications ? "bg-violet-600 hover:bg-violet-700" : "bg-green-600 hover:bg-green-700"}
+          className={hasModifications ? 'bg-amber-600 hover:bg-amber-700' : 'bg-green-600 hover:bg-green-700'}
           data-testid="approve-btn"
         >
           {processing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
-          {hasModifications ? 'Approve with Modifications' : 'Approve'}
+          {hasModifications ? 'Approve with Changes' : 'Approve'}
         </Button>
       </div>
     </div>
