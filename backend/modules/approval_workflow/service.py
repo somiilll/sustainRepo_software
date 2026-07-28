@@ -1153,6 +1153,7 @@ class ApprovalWorkflowService:
                         action="approved",
                         user_id=approver.get("id"),
                         changed_fields=changed_fields,
+                        request_type=request_type,
                         extra_data={"approver_modifications": approver_modifications} if approver_modifications else None,
                     )
                 except Exception as e:

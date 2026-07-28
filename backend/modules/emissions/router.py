@@ -19,7 +19,6 @@ from modules.approvals.emission_flow_v2 import (
     APPROVED_COLLECTION,
     PENDING_COLLECTION,
     find_record,
-    intercept_create as approval_intercept_create,
     intercept_delete as approval_intercept_delete,
     fetch_emissions_for_user,
     STATUS_PENDING_UPDATE,
@@ -713,35 +712,63 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     record_dict["updated_by_email"] = None
     record_dict["updated_by_name"] = None
     
-    # V2 Approval workflow gate.
-    # Returns ("apply", None) → continue creating in emission_records (admin / workflow off).
-    # Returns ("queue", pending_record) → record was inserted into pending_records, we early-return.
-    approval_action, pending_record = await approval_intercept_create(
-        record_dict, record_dict["organization_id"], current_user
-    )
-    if approval_action == "queue" and pending_record:
-        # Audit the submission attempt, then return the pending record.
+    # Check if approval is required via assignment-based workflow
+    # This is the ONLY approval mechanism for emissions
+    requires_approval = False
+    assignment = None
+    try:
+        assignment = await _find_emission_assignment(
+            org_id=record_dict["organization_id"],
+            user_id=current_user["id"],
+            scope=record_data.scope,
+            facility_id=record_data.facility_id,
+        )
+        if assignment and assignment.get("requires_approval", False):
+            # Check if user is admin - admins bypass approval
+            if current_user.get("role") not in ("admin", "super_admin"):
+                requires_approval = True
+    except Exception as e:
+        logger.warning(f"[EMISSION_CREATE] Assignment check failed: {e}")
+    
+    if requires_approval:
+        # Set pending status and insert record
+        record_dict["approval_status"] = "pending_approval"
+        await db.emission_records.insert_one(record_dict)
+        logger.info(f"[EMISSION_CREATE] Saved with pending_approval: record_id={record_dict.get('id')}")
+        
+        # Create approval request
+        await _create_emission_approval_request(
+            org_id=record_dict["organization_id"],
+            emission_record=record_dict,
+            assignment=assignment,
+            user_id=current_user["id"],
+        )
+        logger.info(f"[EMISSION_CREATE] Created approval request for assignment {assignment.get('id')}")
+        
+        # Audit log for submission
         await audit_logger.log(
             action=AuditAction.CREATE,
             module=AuditModule.EMISSION,
             user_id=current_user["id"],
             user_email=current_user["email"],
             user_role=current_user.get("role", "user"),
-            organization_id=pending_record.get("organization_id"),
-            resource_id=pending_record.get("id"),
+            organization_id=record_dict["organization_id"],
+            resource_id=record_id,
             resource_name=f"{record_data.scope} - {record_data.category} ({record_data.reporting_period})",
             description=f"Submitted emission record for approval ({record_data.category})",
-            new_values=pending_record,
+            new_values=record_dict,
             metadata={
                 "scope": record_data.scope,
                 "category": record_data.category,
                 "facility_id": record_data.facility_id,
-                "approval_status": pending_record.get("approval_status"),
+                "approval_status": "pending_approval",
             },
         )
-        logger.info(f"[EMISSION_CREATE] Submitted for approval: record_id={pending_record.get('id')}")
-        return EmissionRecordResponse(**pending_record)
+        
+        return EmissionRecordResponse(**record_dict)
     
+    # No approval required - insert directly with approved status
+    record_dict["approval_status"] = "approved"
     await db.emission_records.insert_one(record_dict)
     logger.info(f"[EMISSION_CREATE] Saved directly: record_id={record_dict.get('id')}, co2e={record_dict.get('total_emissions')}")
     
@@ -928,28 +955,6 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
             "total_emissions": record_dict["total_emissions"]
         }
     )
-    
-    # Assignment-based approval workflow (granular per-category approval)
-    # This mirrors the logic in esg_records/service.py _create_approval_request()
-    try:
-        # Look up user's assignment for this emission's scope/category
-        assignment = await _find_emission_assignment(
-            org_id=record_dict["organization_id"],
-            user_id=current_user["id"],
-            scope=record_data.scope,
-            facility_id=record_data.facility_id,
-        )
-        
-        if assignment and assignment.get("requires_approval", False):
-            await _create_emission_approval_request(
-                org_id=record_dict["organization_id"],
-                emission_record=record_dict,
-                assignment=assignment,
-                user_id=current_user["id"],
-            )
-            logger.info(f"[EMISSION_CREATE] Created approval request for assignment {assignment.get('id')}")
-    except Exception as e:
-        logger.warning(f"[EMISSION_CREATE] Assignment-based approval check failed: {e}")
     
     return EmissionRecordResponse(**record_dict)
 
