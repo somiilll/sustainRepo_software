@@ -80,6 +80,8 @@ export default function EmissionApprovalWrapper({
     dynamicCategoriesCount: coreData.dynamicCategories?.length || 0,
   });
   
+  console.log('[EmissionApprovalWrapper] editHook.dynamicFieldValues:', editHook.dynamicFieldValues);
+  
   // Fetch form config when we have category info
   useEffect(() => {
     const fetchFormConfig = async () => {
