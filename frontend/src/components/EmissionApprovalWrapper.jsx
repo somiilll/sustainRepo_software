@@ -249,24 +249,11 @@ export default function EmissionApprovalWrapper({
     );
   }
   
-  // Safety check for core data
-  if (!coreData.data) {
-    return (
-      <div className="p-6 text-center">
-        <div className="text-amber-600 font-medium mb-2">Data Loading Error</div>
-        <p className="text-stone-500 text-sm mb-4">
-          Failed to load emission form configuration. Please try again.
-        </p>
-        <Button variant="outline" onClick={onClose}>Close</Button>
-      </div>
-    );
-  }
-  
-  // Extract core data with defaults to prevent undefined errors
-  const facilities = coreData.data.facilities || [];
-  const dynamicScopes = coreData.data.dynamicScopes || [];
-  const centralizedUnits = coreData.data.centralizedUnits || [];
-  const fuelDatabase = coreData.data.fuelDatabase || [];
+  // Extract core data with defaults (hook spreads data at top level, not under .data)
+  const facilities = coreData.facilities || [];
+  const dynamicScopes = coreData.dynamicScopes || [];
+  const centralizedUnits = coreData.centralizedUnits || [];
+  const fuelDatabase = coreData.fuelDatabase || [];
   
   // Evidence files
   const evidenceFiles = snapshot.evidence_files || [];
