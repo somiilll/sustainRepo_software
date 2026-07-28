@@ -666,23 +666,30 @@ class MaterialityService:
         ).sort("topic_code", 1).to_list(500)
     
     @staticmethod
-    async def get_material_topic_codes_for_org(organization_id: str, reporting_year: Optional[str] = None) -> List[str]:
+    async def get_material_topic_codes_for_org(
+        organization_id: str, 
+        reporting_year: Optional[str] = None,
+    ) -> List[str]:
         """
         Get list of material topic codes for an organization.
         Used by GRI Questionnaire, Assignment, and Reporting pages.
         
+        ONLY uses Traditional Materiality assessments (not Double Materiality).
         Returns topic codes like ['302', '305', '403'] for filtering.
-        If no assessment exists or no topics are material, returns empty list.
         """
-        # Find the most recent assessment or specific year
-        query = {"organization_id": organization_id}
+        # Build query - ONLY traditional assessments affect GRI filtering
+        query = {
+            "organization_id": organization_id,
+            "assessment_type": "traditional",
+        }
         if reporting_year:
             query["reporting_year"] = reporting_year
         
+        # Find assessment - prefer by reporting_year desc (most current year first)
         assessment = await db[ASSESSMENTS_COLLECTION].find_one(
             query,
             {"_id": 0, "id": 1},
-            sort=[("created_at", -1)]
+            sort=[("reporting_year", -1)]
         )
         
         if not assessment:
