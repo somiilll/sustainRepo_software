@@ -724,9 +724,7 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
             facility_id=record_data.facility_id,
         )
         if assignment and assignment.get("requires_approval", False):
-            # Check if user is admin - admins bypass approval
-            if current_user.get("role") not in ("admin", "super_admin"):
-                requires_approval = True
+            requires_approval = True
     except Exception as e:
         logger.warning(f"[EMISSION_CREATE] Assignment check failed: {e}")
     
