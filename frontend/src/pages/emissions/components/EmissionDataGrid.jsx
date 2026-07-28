@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Button } from '../../../components/ui/button';
 import { Activity, FileText, Edit, History, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
-import { getApprovalBadge } from '../../../modules/ghg/utils/approvalSchema';
+import { getStatusDisplay } from '../../../modules/ghg/utils/approvalSchema';
 import { format } from 'date-fns';
 
 /**
@@ -176,9 +176,7 @@ export default function EmissionDataGrid({
               <div className="w-28 flex-shrink-0 text-center">
                 <SortableHeader label="tCO₂e" sortKey="emissions" currentSort={sort} onSort={handleSort} className="justify-center normal-case" />
               </div>
-              <div className="w-32 flex-shrink-0 text-center">
-                <SortableHeader label="Last Updated" sortKey="lastUpdated" currentSort={sort} onSort={handleSort} className="justify-center" />
-              </div>
+              <div className="w-44 flex-shrink-0 text-center">Status</div>
               <div className="w-28 flex-shrink-0 text-center">Actions</div>
             </>
           )}
@@ -197,15 +195,10 @@ export default function EmissionDataGrid({
               <div className="flex-1 min-w-[140px] text-center">
                 <SortableHeader label="Sub-category" sortKey="subcategory" currentSort={sort} onSort={handleSort} className="justify-center" />
               </div>
-              <div className="w-32 flex-shrink-0 text-center">
-                <SortableHeader label="Quantity" sortKey="quantity" currentSort={sort} onSort={handleSort} className="justify-center" />
-              </div>
               <div className="w-28 flex-shrink-0 text-center">
                 <SortableHeader label="tCO₂e" sortKey="emissions" currentSort={sort} onSort={handleSort} className="justify-center normal-case" />
               </div>
-              <div className="w-32 flex-shrink-0 text-center">
-                <SortableHeader label="Last Updated" sortKey="lastUpdated" currentSort={sort} onSort={handleSort} className="justify-center" />
-              </div>
+              <div className="w-44 flex-shrink-0 text-center">Status</div>
               <div className="w-28 flex-shrink-0 text-center">Actions</div>
             </>
           )}
@@ -233,9 +226,7 @@ export default function EmissionDataGrid({
               <div className="w-28 flex-shrink-0 text-center">
                 <SortableHeader label="tCO₂e" sortKey="emissions" currentSort={sort} onSort={handleSort} className="justify-center normal-case" />
               </div>
-              <div className="w-32 flex-shrink-0 text-center">
-                <SortableHeader label="Last Updated" sortKey="lastUpdated" currentSort={sort} onSort={handleSort} className="justify-center" />
-              </div>
+              <div className="w-44 flex-shrink-0 text-center">Status</div>
               <div className="w-28 flex-shrink-0 text-center">Actions</div>
             </>
           )}
@@ -250,17 +241,6 @@ export default function EmissionDataGrid({
           const hasOverride = Object.values(dfv).some(field => field?.is_override === true);
           const calcMethod = emission.calculation_method_scope3 || dfv.calculation_method_scope3;
           const totalEmissions = emission.outputs?.co2e?.value || emission.co2e_emissions || emission.total_emissions || 0;
-
-          // Approval-status badge meta (rendered next to Custom badge in every scope row).
-          const approvalBadge = getApprovalBadge(emission.approval_status);
-          const ApprovalBadge = approvalBadge ? (
-            <span
-              className={`px-1.5 py-0.5 text-[9px] font-semibold rounded flex-shrink-0 ${approvalBadge.cls}`}
-              data-testid={`approval-badge-${emission.id}`}
-            >
-              {approvalBadge.text}
-            </span>
-          ) : null;
 
           // Get activity/sub-category display
           // For Scope 3 OR Biogenic Scope 3, look up the activity label using scope3_ef_id
@@ -337,7 +317,6 @@ export default function EmissionDataGrid({
                         Custom
                       </span>
                     )}
-                    {ApprovalBadge}
                     {emission.evidence_url && (
                       <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Has Evidence" />
                     )}
@@ -352,8 +331,10 @@ export default function EmissionDataGrid({
                       {totalEmissions.toFixed(4)}
                     </span>
                   </div>
-                  <div className="w-32 flex-shrink-0 text-left text-xs text-text-secondary">
-                    {formatLastUpdated(emission)}
+                  <div className="w-44 flex-shrink-0 text-center">
+                    <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusDisplay(emission.approval_status).cls}`}>
+                      {getStatusDisplay(emission.approval_status).text}
+                    </span>
                   </div>
                 </>
               )}
@@ -383,21 +364,19 @@ export default function EmissionDataGrid({
                         Custom
                       </span>
                     )}
-                    {ApprovalBadge}
                     {emission.evidence_url && (
                       <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Has Evidence" />
                     )}
-                  </div>
-                  <div className="w-32 flex-shrink-0 text-left text-sm text-text-secondary">
-                    {getQuantityDisplay()}
                   </div>
                   <div className="w-28 flex-shrink-0 text-left">
                     <span className="text-sm font-semibold text-primary">
                       {totalEmissions.toFixed(4)}
                     </span>
                   </div>
-                  <div className="w-32 flex-shrink-0 text-left text-xs text-text-secondary">
-                    {formatLastUpdated(emission)}
+                  <div className="w-44 flex-shrink-0 text-center">
+                    <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusDisplay(emission.approval_status).cls}`}>
+                      {getStatusDisplay(emission.approval_status).text}
+                    </span>
                   </div>
                 </>
               )}
@@ -438,7 +417,6 @@ export default function EmissionDataGrid({
                         Custom
                       </span>
                     )}
-                    {ApprovalBadge}
                     {emission.evidence_url && (
                       <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Has Evidence" />
                     )}
@@ -457,8 +435,10 @@ export default function EmissionDataGrid({
                       {totalEmissions.toFixed(4)}
                     </span>
                   </div>
-                  <div className="w-32 flex-shrink-0 text-left text-xs text-text-secondary">
-                    {formatLastUpdated(emission)}
+                  <div className="w-44 flex-shrink-0 text-center">
+                    <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusDisplay(emission.approval_status).cls}`}>
+                      {getStatusDisplay(emission.approval_status).text}
+                    </span>
                   </div>
                 </>
               )}

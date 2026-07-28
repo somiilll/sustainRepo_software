@@ -7,6 +7,7 @@
 import React from 'react';
 import { Button } from '../../components/ui/button';
 import { Edit, History, Trash2, Activity, FileText } from 'lucide-react';
+import { getStatusDisplay } from '../../modules/ghg/utils/approvalSchema';
 
 const EmissionTable = ({
   // Data
@@ -54,34 +55,6 @@ const EmissionTable = ({
       return `${qtyField.value} ${qtyField.unit || 'kg'}`;
     }
     return `${emission.quantity || 0} ${emission.quantity_unit || 'kg'}`;
-  };
-
-  // Get status display based on approval_status
-  const getStatusDisplay = (emission) => {
-    const approvalStatus = emission.approval_status || 'approved';
-    
-    if (approvalStatus === 'approved') {
-      return {
-        label: 'Completed, Approved',
-        className: 'bg-green-100 text-green-700'
-      };
-    } else if (approvalStatus === 'rejected') {
-      return {
-        label: 'Completed, Rejected',
-        className: 'bg-red-100 text-red-700'
-      };
-    } else if (approvalStatus === 'pending_approval' || approvalStatus === 'pending') {
-      return {
-        label: 'Completed, Awaiting approval',
-        className: 'bg-amber-100 text-amber-700'
-      };
-    }
-    
-    // Default fallback
-    return {
-      label: 'Completed',
-      className: 'bg-stone-100 text-stone-700'
-    };
   };
 
   // Render table headers based on active scope
@@ -191,8 +164,8 @@ const EmissionTable = ({
               </span>
             </div>
             <div className="w-36 flex-shrink-0 text-center">
-              <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusDisplay(emission).className}`}>
-                {getStatusDisplay(emission).label}
+              <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusDisplay(emission.approval_status).cls}`}>
+                {getStatusDisplay(emission.approval_status).text}
               </span>
             </div>
           </>
@@ -233,8 +206,8 @@ const EmissionTable = ({
               </span>
             </div>
             <div className="w-36 flex-shrink-0 text-center">
-              <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusDisplay(emission).className}`}>
-                {getStatusDisplay(emission).label}
+              <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusDisplay(emission.approval_status).cls}`}>
+                {getStatusDisplay(emission.approval_status).text}
               </span>
             </div>
           </>
@@ -291,8 +264,8 @@ const EmissionTable = ({
               </span>
             </div>
             <div className="w-36 flex-shrink-0 text-center">
-              <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusDisplay(emission).className}`}>
-                {getStatusDisplay(emission).label}
+              <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusDisplay(emission.approval_status).cls}`}>
+                {getStatusDisplay(emission.approval_status).text}
               </span>
             </div>
           </>

@@ -92,22 +92,63 @@ export function getEditHistory(record) {
 /**
  * Compute pretty status badge meta for any approval_status.
  * Returns { text, cls } or null.
+ * 
+ * Status display rules:
+ * - No approval workflow (undefined/null): "Completed"
+ * - Approved: "Completed, Approved"
+ * - Pending approval: "Completed, Awaiting approval"
+ * - Rejected: "Completed, Rejected"
+ * - Legacy pending_* statuses: Keep existing behavior
  */
 export function getApprovalBadge(approvalStatus) {
   switch (approvalStatus) {
     case 'pending_create':
-      return { text: 'Pending for approval', cls: 'bg-amber-100 text-amber-700' };
+      return { text: 'Awaiting approval', cls: 'bg-amber-100 text-amber-700' };
     case 'pending_update':
-      return { text: 'Pending update', cls: 'bg-amber-100 text-amber-700' };
+      return { text: 'Awaiting approval', cls: 'bg-amber-100 text-amber-700' };
     case 'pending_delete':
       return { text: 'Pending delete', cls: 'bg-red-100 text-red-700' };
     case 'rejected_create':
-      return { text: 'Rejected (create)', cls: 'bg-red-100 text-red-700' };
+      return { text: 'Rejected', cls: 'bg-red-100 text-red-700' };
     case 'rejected_update':
-      return { text: 'Rejected (update)', cls: 'bg-red-100 text-red-700' };
+      return { text: 'Rejected', cls: 'bg-red-100 text-red-700' };
     case 'rejected_delete':
-      return { text: 'Rejected (delete)', cls: 'bg-red-100 text-red-700' };
+      return { text: 'Rejected', cls: 'bg-red-100 text-red-700' };
+    case 'pending_approval':
+    case 'pending':
+      return { text: 'Awaiting approval', cls: 'bg-amber-100 text-amber-700' };
+    case 'rejected':
+      return { text: 'Rejected', cls: 'bg-red-100 text-red-700' };
+    case 'approved':
+      return { text: 'Approved', cls: 'bg-green-100 text-green-700' };
     default:
+      // No approval workflow - return null (will be handled by Status column)
       return null;
+  }
+}
+
+/**
+ * Get full status display for Status column
+ * Includes "Completed" prefix and handles no-workflow case
+ */
+export function getStatusDisplay(approvalStatus) {
+  switch (approvalStatus) {
+    case 'pending_create':
+    case 'pending_update':
+    case 'pending_approval':
+    case 'pending':
+      return { text: 'Completed, Awaiting approval', cls: 'bg-amber-100 text-amber-700' };
+    case 'pending_delete':
+      return { text: 'Pending delete', cls: 'bg-red-100 text-red-700' };
+    case 'rejected_create':
+    case 'rejected_update':
+    case 'rejected_delete':
+    case 'rejected':
+      return { text: 'Completed, Rejected', cls: 'bg-red-100 text-red-700' };
+    case 'approved':
+      return { text: 'Completed, Approved', cls: 'bg-green-100 text-green-700' };
+    default:
+      // No approval workflow - just "Completed"
+      return { text: 'Completed', cls: 'bg-stone-100 text-stone-700' };
   }
 }
