@@ -122,6 +122,7 @@ async def delete_question_config(
 async def get_gri_disclosures(
     section: str,
     reporting_period: str = Query(..., description="Reporting period e.g. 'FY 2024-2025'"),
+    filter_by_materiality: bool = Query(False, description="Only show disclosures for material topics"),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -132,6 +133,9 @@ async def get_gri_disclosures(
     Role-based behavior:
     - Admin/Super Admin: See ALL questions in the section
     - Regular User: See ONLY questions they are assigned to
+    
+    If filter_by_materiality=True, only returns disclosures for topics marked as material
+    in the organization's materiality assessment.
     """
     org_id = current_user.get("organization_id")
     if not org_id:
@@ -147,6 +151,7 @@ async def get_gri_disclosures(
         reporting_period=reporting_period,
         user_id=user_id,
         filter_by_assignment=not is_admin,  # Regular users only see assigned questions
+        filter_by_materiality=filter_by_materiality,
     )
     
     return result

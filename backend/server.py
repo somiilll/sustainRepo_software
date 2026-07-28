@@ -116,6 +116,7 @@ from modules.esg_records.admin_router import admin_router as esg_records_admin_r
 from modules.esg_assignments.router import router as esg_assignments_router
 from modules.esg_targets.router import router as esg_targets_router
 from modules.esg_kpi_definitions.router import router as esg_kpi_definitions_router
+from modules.materiality.router import router as materiality_router
 
 # Set Playwright browsers path BEFORE any playwright imports
 os.environ['PLAYWRIGHT_BROWSERS_PATH'] = '/app/.playwright'
@@ -203,6 +204,9 @@ api_router.include_router(internal_ai_router, tags=["Internal Data AI"])
 # Peer Benchmarking Module
 from modules.benchmarking.router import router as benchmarking_router
 api_router.include_router(benchmarking_router, tags=["Peer Benchmarking"])
+
+# Materiality Assessment Module
+api_router.include_router(materiality_router, tags=["Materiality Assessment"])
 
 # Run module contract verifier at import time. Phase B1: log-only, will be
 # escalated to fail-fast in dev once all modules expose their contracts.

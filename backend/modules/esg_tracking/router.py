@@ -74,11 +74,13 @@ async def get_framework_sections(
     domain: TrackingDomain,
     framework_id: str,
     reporting_period: str = Query(..., description="Reporting period"),
+    filter_by_materiality: bool = Query(False, description="Only show sections for material topics (GRI)"),
     current_user: dict = Depends(get_admin_user),
 ):
     """
     Get all sections within a framework with their tracking status.
     
+    If filter_by_materiality=True (for GRI), only returns disclosures for material topics.
     Admin only.
     """
     sections = await tracking_service.get_framework_sections(
@@ -86,6 +88,7 @@ async def get_framework_sections(
         domain=domain,
         framework_id=framework_id,
         reporting_period=reporting_period,
+        filter_by_materiality=filter_by_materiality,
     )
     
     return {
@@ -94,6 +97,7 @@ async def get_framework_sections(
         "reporting_period": reporting_period,
         "sections": [s.dict() for s in sections],
         "total_sections": len(sections),
+        "filtered_by_materiality": filter_by_materiality,
     }
 
 

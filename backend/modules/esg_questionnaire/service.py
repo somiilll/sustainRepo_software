@@ -133,6 +133,7 @@ class ESGQuestionnaireService:
         reporting_period: str,
         user_id: Optional[str] = None,
         filter_by_assignment: bool = False,
+        filter_by_materiality: bool = False,
     ) -> Dict[str, Any]:
         """
         Get GRI disclosures with responses for a section.
@@ -141,6 +142,7 @@ class ESGQuestionnaireService:
         Also includes pending submission status for the user.
         
         If filter_by_assignment=True, only returns questions assigned to the user.
+        If filter_by_materiality=True, only returns questions for material topics.
         """
         # Fetch GRI question configs for this section
         configs = await self._configs.find(
@@ -157,6 +159,28 @@ class ESGQuestionnaireService:
                 "reporting_period": reporting_period,
                 "questions": [],
                 "total": 0
+            }
+        
+        # If filtering by materiality, get material topic codes
+        if filter_by_materiality:
+            from modules.materiality.service import materiality_service
+            material_codes = await materiality_service.get_material_topic_codes_for_org(org_id)
+            if material_codes:
+                # Filter configs to only include disclosures from material topics
+                # disclosure_id format is "302-1", topic code is the first part
+                configs = [
+                    c for c in configs
+                    if c.get("disclosure_id", "").split("-")[0] in material_codes
+                ]
+            # If no material topics defined, show all (fallback behavior)
+        
+        if not configs:
+            return {
+                "section": section,
+                "reporting_period": reporting_period,
+                "questions": [],
+                "total": 0,
+                "filtered_by_materiality": filter_by_materiality,
             }
         
         # If filtering by assignment, get user's assigned disclosure/question IDs

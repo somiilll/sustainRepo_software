@@ -311,11 +311,13 @@ class TrackingService:
         domain: TrackingDomain,
         framework_id: str,
         reporting_period: str,
+        filter_by_materiality: bool = False,
     ) -> List[SectionSummary]:
         """
         Get all sections within a framework with their tracking status.
         
         Sections are grouped by brsr_section, topic, or principle depending on framework.
+        If filter_by_materiality=True (for GRI), only returns sections for material topics.
         """
         domain_section_map = {
             TrackingDomain.ENVIRONMENT: "environment",
@@ -358,6 +360,17 @@ class TrackingService:
             }
         
         configs = await self._configs.find(config_query, {"_id": 0}).to_list(5000)
+        
+        # Filter by materiality for GRI
+        if filter_by_materiality and framework_id.upper() == "GRI":
+            from modules.materiality.service import materiality_service
+            material_codes = await materiality_service.get_material_topic_codes_for_org(organization_id)
+            if material_codes:
+                # Filter configs - disclosure_id format is "302-1", topic code is first part
+                configs = [
+                    c for c in configs
+                    if c.get("disclosure_id", "").split("-")[0] in material_codes
+                ]
         
         # Get responses
         responses = await self._responses.find(
