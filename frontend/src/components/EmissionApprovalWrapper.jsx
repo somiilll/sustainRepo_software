@@ -348,14 +348,14 @@ export default function EmissionApprovalWrapper({
           centralizedUnits={centralizedUnits}
           fuelDatabase={fuelDatabase}
           
-          // Computed/derived - use defaults
+          // Computed/derived - use defaults (all must be arrays, not functions)
           selectedFuel={null}
           activeCategoryModule={null}
           isEditC7EmployeeCommuting={false}
           editActiveMonths={[]}
           ModuleDynamicFieldsRenderer={null}
           getCategoriesForScope={[]}
-          getFuelsForCategory={() => []}
+          getFuelsForCategory={[]}
           availableScope3Methods={[]}
           availableScope3ActivityTypes={[]}
           requiresSubcategory={false}
