@@ -29,7 +29,8 @@ import {
   ChevronRight,
   Inbox,
   ScrollText,
-  BarChart3
+  BarChart3,
+  Download
 } from 'lucide-react';
 import { toast } from 'sonner';
 import SubmissionReviewPanel from './SubmissionReviewPanel';
@@ -136,15 +137,18 @@ export default function ApproverQueue() {
       ]);
       
       // Transform record approvals to match submission format
+      // Handle both esg_record and emission_record types
       const recordApprovals = (recordApprovalsRes.data.requests || [])
-        .filter(r => r.entity_type === 'esg_record')
+        .filter(r => r.entity_type === 'esg_record' || r.entity_type === 'emission_record')
         .map(r => ({
           id: r.id,
-          entity_type: 'esg_record',
+          entity_type: r.entity_type,  // Keep original type (esg_record or emission_record)
           entity_id: r.entity_id,
           section: r.entity_subtype || 'environment',
           question_key: `record_${r.entity_snapshot?.category || 'unknown'}`,
-          disclosure_name: `${r.entity_snapshot?.category}${r.entity_snapshot?.subcategory ? ' → ' + r.entity_snapshot.subcategory : ''}`,
+          disclosure_name: r.entity_type === 'emission_record' 
+            ? `GHG ${r.entity_snapshot?.scope?.toUpperCase() || ''} - ${r.entity_snapshot?.category || 'Emissions'}${r.entity_snapshot?.sub_category ? ' → ' + r.entity_snapshot.sub_category : ''}`
+            : `${r.entity_snapshot?.category}${r.entity_snapshot?.subcategory ? ' → ' + r.entity_snapshot.subcategory : ''}`,
           submitted_by: r.submitted_by,
           submitted_by_name: r.submitted_by_name,
           submitted_by_email: r.submitted_by_email,
@@ -152,6 +156,7 @@ export default function ApproverQueue() {
           status: r.status,
           workflow_name: r.workflow_name,
           entity_snapshot: r.entity_snapshot,
+          request_type: r.request_type,  // 'create', 'update', 'delete'
           _source: 'approval_workflow',
           _approval_request_id: r.id,
         }));
@@ -353,6 +358,7 @@ export default function ApproverQueue() {
         <div className="space-y-3">
           {submissions.map((item) => {
             const isRecordApproval = item._source === 'approval_workflow';
+            const isEmissionRecord = item.entity_type === 'emission_record';
             const isQuestionnaireApproval = item._source === 'questionnaire_approval_v2';
             return (
               <Card 
@@ -363,8 +369,12 @@ export default function ApproverQueue() {
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-start gap-4">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isRecordApproval ? 'bg-emerald-100' : 'bg-purple-100'}`}>
-                      <FileText className={`w-5 h-5 ${isRecordApproval ? 'text-emerald-600' : 'text-purple-600'}`} />
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isEmissionRecord ? 'bg-teal-100' : isRecordApproval ? 'bg-emerald-100' : 'bg-purple-100'}`}>
+                      {isEmissionRecord ? (
+                        <BarChart3 className="w-5 h-5 text-teal-600" />
+                      ) : (
+                        <FileText className={`w-5 h-5 ${isRecordApproval ? 'text-emerald-600' : 'text-purple-600'}`} />
+                      )}
                     </div>
                     
                     <div className="space-y-1">
@@ -372,10 +382,17 @@ export default function ApproverQueue() {
                         <span className="font-medium text-text-primary">
                           {item.disclosure_name || item.question_name || item.question_key}
                         </span>
-                        {isRecordApproval ? (
+                        {isEmissionRecord ? (
+                          <Badge className="bg-teal-100 text-teal-800">GHG Emission</Badge>
+                        ) : isRecordApproval ? (
                           <Badge className="bg-emerald-100 text-emerald-800">Data Record</Badge>
                         ) : (
                           getSectionBadge(item)
+                        )}
+                        {item.request_type && item.request_type !== 'create' && (
+                          <Badge variant="outline" className="text-xs">
+                            {item.request_type.toUpperCase()}
+                          </Badge>
                         )}
                       </div>
                       
@@ -451,12 +468,21 @@ export default function ApproverQueue() {
             </DialogHeader>
             
             {selectedQuestion && selectedQuestion._source === 'approval_workflow' ? (
-              <RecordApprovalPanel
-                item={selectedQuestion}
-                onClose={() => setSelectedQuestion(null)}
-                onApproved={handleApprovalComplete}
-                getAuthHeader={getAuthHeader}
-              />
+              selectedQuestion.entity_type === 'emission_record' ? (
+                <EmissionApprovalPanel
+                  item={selectedQuestion}
+                  onClose={() => setSelectedQuestion(null)}
+                  onApproved={handleApprovalComplete}
+                  getAuthHeader={getAuthHeader}
+                />
+              ) : (
+                <RecordApprovalPanel
+                  item={selectedQuestion}
+                  onClose={() => setSelectedQuestion(null)}
+                  onApproved={handleApprovalComplete}
+                  getAuthHeader={getAuthHeader}
+                />
+              )
             ) : selectedQuestion ? (
               <SubmissionReviewPanel
                 questionKey={selectedQuestion.question_key}
@@ -1036,6 +1062,319 @@ function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
         >
           {processing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
           {hasEdits ? 'Approve with Edits' : 'Approve'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+
+
+/**
+ * EmissionApprovalPanel - Review panel for GHG Emission Record approvals
+ * Shows emission-specific fields with proper formatting
+ * Handles both CREATE and UPDATE request types with diff view
+ */
+function EmissionApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
+  const [processing, setProcessing] = useState(false);
+  const [comment, setComment] = useState('');
+  
+  const snapshot = item.entity_snapshot || {};
+  const requestType = item.request_type || snapshot.edit_type || 'create';
+  const isUpdate = requestType === 'update';
+  const originalValues = snapshot.original_values || {};
+  const proposedChanges = snapshot.proposed_changes || {};
+  
+  // Format emission value
+  const formatEmission = (value) => {
+    if (value === null || value === undefined) return '-';
+    return typeof value === 'number' ? value.toFixed(4) : value;
+  };
+  
+  // Format input/output field
+  const formatInputField = (inputs, fieldKey) => {
+    if (!inputs || !inputs[fieldKey]) return '-';
+    const field = inputs[fieldKey];
+    return `${field.value || 0} ${field.unit || ''}`.trim() || '-';
+  };
+  
+  // Get input fields from inputs object
+  const getInputFields = (inputs) => {
+    if (!inputs) return [];
+    return Object.entries(inputs).map(([key, val]) => ({
+      key,
+      label: key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+      value: val?.value,
+      unit: val?.unit,
+    }));
+  };
+  
+  // Check if a field changed
+  const hasFieldChanged = (fieldKey) => {
+    if (!isUpdate || !originalValues.inputs || !proposedChanges.inputs) return false;
+    const oldVal = originalValues.inputs[fieldKey]?.value;
+    const newVal = proposedChanges.inputs[fieldKey]?.value;
+    return oldVal !== newVal;
+  };
+  
+  const handleApprove = async () => {
+    setProcessing(true);
+    try {
+      await axios.post(
+        `${API}/api/approval-workflows/requests/${item._approval_request_id}/decide`,
+        { action: 'approve', comment: comment || 'Approved' },
+        { headers: getAuthHeader() }
+      );
+      toast.success('Emission record approved');
+      onApproved?.();
+      onClose?.();
+    } catch (e) {
+      console.error('Approve error:', e);
+      toast.error(e.response?.data?.detail || 'Failed to approve');
+    }
+    setProcessing(false);
+  };
+  
+  const handleReject = async () => {
+    if (!comment.trim()) {
+      toast.error('Please provide a reason for rejection');
+      return;
+    }
+    setProcessing(true);
+    try {
+      await axios.post(
+        `${API}/api/approval-workflows/requests/${item._approval_request_id}/decide`,
+        { action: 'reject', comment },
+        { headers: getAuthHeader() }
+      );
+      toast.success('Emission record rejected');
+      onApproved?.();
+      onClose?.();
+    } catch (e) {
+      console.error('Reject error:', e);
+      toast.error(e.response?.data?.detail || 'Failed to reject');
+    }
+    setProcessing(false);
+  };
+  
+  const inputFields = getInputFields(isUpdate ? proposedChanges.inputs : snapshot.inputs);
+  const evidenceFiles = snapshot.evidence_files || [];
+  
+  return (
+    <div className="space-y-4 p-4" data-testid="emission-approval-panel">
+      {/* Header Info */}
+      <div className="bg-stone-50 rounded-lg p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-lg">
+            {isUpdate ? 'Update Request' : 'New Submission'} - {snapshot.scope?.toUpperCase() || 'GHG'}
+          </h3>
+          <Badge variant={isUpdate ? 'secondary' : 'default'}>
+            {requestType.toUpperCase()}
+          </Badge>
+        </div>
+        
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <span className="text-stone-500">Category:</span>
+            <span className="ml-2 font-medium">{snapshot.category || '-'}</span>
+          </div>
+          <div>
+            <span className="text-stone-500">Sub-category:</span>
+            <span className="ml-2 font-medium">{snapshot.sub_category || '-'}</span>
+          </div>
+          <div>
+            <span className="text-stone-500">Facility:</span>
+            <span className="ml-2 font-medium">{snapshot.facility_name || snapshot.facility_id || '-'}</span>
+          </div>
+          <div>
+            <span className="text-stone-500">Period:</span>
+            <span className="ml-2 font-medium">{snapshot.reporting_period || '-'}</span>
+          </div>
+        </div>
+        
+        <div className="text-sm">
+          <span className="text-stone-500">Submitted by:</span>
+          <span className="ml-2 font-medium">{item.submitted_by_name || item.submitted_by_email}</span>
+          <span className="text-stone-400 ml-2">
+            {item.submitted_at && new Date(item.submitted_at).toLocaleDateString()}
+          </span>
+        </div>
+      </div>
+      
+      {/* Update Diff View for UPDATE requests */}
+      {isUpdate && (
+        <div className="border border-amber-200 bg-amber-50 rounded-lg p-4">
+          <h4 className="font-semibold text-amber-800 mb-3 flex items-center gap-2">
+            <BarChart3 className="w-4 h-4" />
+            Proposed Changes
+          </h4>
+          <div className="space-y-2">
+            {Object.keys(proposedChanges.inputs || {}).map(fieldKey => {
+              const oldInput = originalValues.inputs?.[fieldKey];
+              const newInput = proposedChanges.inputs?.[fieldKey];
+              const changed = oldInput?.value !== newInput?.value;
+              
+              if (!changed) return null;
+              
+              return (
+                <div key={fieldKey} className="bg-white rounded p-3 border border-amber-100">
+                  <div className="text-sm font-medium text-stone-700 capitalize mb-2">
+                    {fieldKey.replace(/_/g, ' ')}
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="text-red-600">
+                      <span className="text-stone-500">Old: </span>
+                      <span className="line-through">
+                        {oldInput?.value || 0} {oldInput?.unit || ''}
+                      </span>
+                    </div>
+                    <div className="text-green-600">
+                      <span className="text-stone-500">New: </span>
+                      <span className="font-medium">
+                        {newInput?.value || 0} {newInput?.unit || ''}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            }).filter(Boolean)}
+            
+            {Object.keys(proposedChanges.inputs || {}).filter(k => {
+              const oldInput = originalValues.inputs?.[k];
+              const newInput = proposedChanges.inputs?.[k];
+              return oldInput?.value !== newInput?.value;
+            }).length === 0 && (
+              <p className="text-stone-500 text-sm">No input changes detected</p>
+            )}
+          </div>
+        </div>
+      )}
+      
+      {/* Input Fields */}
+      <div className="border rounded-lg overflow-hidden">
+        <div className="bg-stone-100 px-4 py-2 font-medium text-sm">
+          {isUpdate ? 'Current Input Data' : 'Input Data'}
+        </div>
+        <div className="p-4 space-y-2">
+          {inputFields.length > 0 ? (
+            inputFields.map(field => (
+              <div key={field.key} className={`flex justify-between items-center py-1 ${hasFieldChanged(field.key) ? 'bg-yellow-50 -mx-2 px-2 rounded' : ''}`}>
+                <span className="text-stone-600 text-sm">{field.label}</span>
+                <div className="flex items-center gap-2">
+                  {isUpdate && hasFieldChanged(field.key) && (
+                    <span className="text-stone-400 line-through text-sm">
+                      {formatInputField(originalValues.inputs, field.key)}
+                    </span>
+                  )}
+                  <span className="font-medium">
+                    {field.value || 0} {field.unit || ''}
+                  </span>
+                  {isUpdate && hasFieldChanged(field.key) && (
+                    <Badge variant="outline" className="text-xs">Changed</Badge>
+                  )}
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="text-stone-400 text-sm">No input data</p>
+          )}
+        </div>
+      </div>
+      
+      {/* Emissions Output */}
+      <div className="border rounded-lg overflow-hidden">
+        <div className="bg-stone-100 px-4 py-2 font-medium text-sm">Calculated Emissions (tCO2e)</div>
+        <div className="p-4">
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="flex justify-between">
+              <span className="text-stone-600">CO2</span>
+              <span className="font-medium">{formatEmission(snapshot.co2_emissions)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-stone-600">CH4</span>
+              <span className="font-medium">{formatEmission(snapshot.ch4_emissions)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-stone-600">N2O</span>
+              <span className="font-medium">{formatEmission(snapshot.n2o_emissions)}</span>
+            </div>
+            <div className="flex justify-between font-semibold">
+              <span>Total CO2e</span>
+              <span className="text-emerald-600">{formatEmission(snapshot.total_emissions || snapshot.co2e_emissions)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Evidence Files */}
+      {evidenceFiles.length > 0 && (
+        <div className="border rounded-lg overflow-hidden">
+          <div className="bg-stone-100 px-4 py-2 font-medium text-sm flex items-center gap-2">
+            <FileText className="w-4 h-4" />
+            Evidence Files ({evidenceFiles.length})
+          </div>
+          <div className="p-4 space-y-2">
+            {evidenceFiles.map((file, idx) => (
+              <div key={idx} className="flex items-center justify-between py-1 border-b last:border-0">
+                <span className="text-sm">{file.name || file.filename || `File ${idx + 1}`}</span>
+                <a 
+                  href={file.url || file.file_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"
+                >
+                  <Download className="w-3 h-3" />
+                  Download
+                </a>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      
+      {/* Notes */}
+      {snapshot.notes && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <div className="text-sm font-medium text-blue-800 mb-1">Notes</div>
+          <p className="text-sm text-blue-700">{snapshot.notes}</p>
+        </div>
+      )}
+      
+      {/* Comment */}
+      <div>
+        <label className="text-sm font-medium">Comment (required for rejection)</label>
+        <textarea
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          placeholder="Add a comment..."
+          className="mt-1 w-full px-3 py-2 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+          rows={3}
+          data-testid="emission-approval-comment"
+        />
+      </div>
+      
+      {/* Actions */}
+      <div className="flex justify-end gap-2 pt-2 border-t">
+        <Button variant="outline" onClick={onClose} disabled={processing}>
+          Cancel
+        </Button>
+        <Button
+          variant="destructive"
+          onClick={handleReject}
+          disabled={processing}
+          data-testid="reject-emission-btn"
+        >
+          {processing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+          Reject
+        </Button>
+        <Button
+          onClick={handleApprove}
+          disabled={processing}
+          className="bg-green-600 hover:bg-green-700"
+          data-testid="approve-emission-btn"
+        >
+          {processing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+          Approve
         </Button>
       </div>
     </div>

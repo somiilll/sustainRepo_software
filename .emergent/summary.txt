@@ -1,60 +1,51 @@
-<analysis>**original_problem_statement**: Complete the Materiality Assessment UI, design premium ESG Dashboards, fix analytics mapping bugs, build missing UI, fix progress_engine calculation bugs, redesign the Assignment dialog into a step-by-step wizard, implement BRSR/GRI comprehensive questionnaire approval workflows, handle FY suffix data normalization at the API boundary, and correctly track multi-level question status in the UI. 
-
+<analysis>**original_problem_statement**: Complete the Materiality Assessment UI, design premium ESG Dashboards, fix analytics mapping bugs, build missing UI, redesign the Assignment dialog into a step-by-step wizard, implement BRSR/GRI comprehensive questionnaire approval workflows. 
 PRODUCT REQUIREMENTS ADDED:
-1) Implement premium Dashboards (Energy, Water, Waste).
-2) Restructure BRSR Reporting into Section B and C.
-3) Build SustainRepo Internal Data AI.
-4) Detailed period/facility-level Subcategory Progress breakdown matrix for the Tracker.
-5) Standardize Financial Year format displays to .
-6) Replace  object storage with direct Cloudflare R2 integration for Peer Benchmarking using existing user credentials.
-7) Implement Questionnaire Approval Workflows with Version History.
-8) Automatic Approval Requirement Detection on Question Save.
-9) Architect a Single Source of Truth for Data Normalization in the UI.
+1) Phase 1 Materiality Assessment Module: Implement Traditional and Double Materiality tabs, topic scoring (Business/Stakeholder impact), cutoffs, manual overrides, and a Materiality Matrix scatter chart.
+2) Integrate Materiality with GRI Tracking/Reporting: Add toggles to switch between Material Topics Only and All Topics.
+3) GHG Emissions Update Approval Refactor: Unify update flow to use  instead of legacy .
+4) Fix Approval Queue UI for GHG Records: Show old vs new values, evidence files, and capture version history.
 
 **User's preferred language**: English (INSTRUCTION: Next agent MUST respond in English only)
 
 **what currently exists?** 
-A mature ESG enterprise reporting system with a V2 Assignment Architecture utilizing a junction table () for multi-user assignment mapping. Dual Save Mechanics are in place. The architecture is currently being unified so both BRSR and GRI questionnaires use  as the single source of truth for Tracker reading, and  for underlying approval state. GHG Emissions uses a separate module () but is currently being integrated into the unified V2 assignment and  workflow.
+A mature ESG reporting system that now includes a fully functional Phase 1 Materiality Assessment module with Traditional and Double Materiality tracking. The Materiality outputs are successfully integrated into the GRI Questionnaire and ESG Tracker via dynamic toggles. The GHG Emissions update flow has been migrated to the unified  collection, but the Approval Queue frontend UI is currently broken for emission records and is in the middle of being patched.
 
 **Last working item**:
-    - Last item agent was working: Unifying the GHG Emissions update approval flow. The user requested replacing the legacy  and  flow in  with the new unified  pattern (used by ESG metrics).
+    - Last item agent was working: Fixing the  UI for GHG Emission Records. The agent was actively adding the  to correctly render the form, display evidence files, and handle old vs new values for .
     - Status: IN PROGRESS
     - Agent Testing Done: N
-    - Which testing method agent to use? backend testing agent
+    - Which testing method agent to use? both
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-  Issue 1: Unify GHG Emissions Update Approval Flow (Priority: P0)
-     - Attempted fixes: Investigated  and . Identified that  still uses the legacy  which saves to . 
-     - Next debug checklist: Modify  in  to bypass the old  flow. Instead, generate a unified approval request in the  collection and update the  document with  (mirroring what was just fixed for the create flow).
-     - Why fix this issue and what will be achieved with the fix? Standardizes all approval workflows across the platform to use the  collection, allowing the Approval Queue to fetch all pending approvals from a single source.
+  Issue 1: GHG Records in Approval Queue UI errors & missing history (Priority: P0)
+     - Attempted fixes: The agent successfully fixed the backend  bug (Response not found on CREATE rejects) and updated . The agent was literally in the middle of inserting the  into  via  when the session ended.
+     - Next debug checklist: 
+        1) Finish implementing  in . Ensure it triggers instead of  for emission records.
+        2) Ensure it renders old vs new field diffs for updates ( vs ).
+        3) Ensure evidence files can be downloaded.
+        4) Verify the backend correctly writes to  during approvals/rejections.
+     - Why fix this issue and what will be achieved with the fix? Fixes critical blockers preventing admins from reviewing and approving GHG emission updates.
      - Status: IN PROGRESS
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Backend
+     - Should Test frontend/backend/both after fix? Both
      - Blocked on other issue: None
 
-  Issue 2: Approval Queue not displaying Emission Records (Priority: P0)
-     - Attempted fixes: The agent updated  in  to fetch from  for emission/ESG records. 
-     - Next debug checklist: Ensure the frontend  correctly handles the payload structure for emission records coming from . Confirm the unified emissions update flow (Issue 1) feeds correctly into this queue.
-     - Why fix this issue and what will be achieved with the fix? Ensures approvers can see and act on GHG emission record submissions in their unified queue.
-     - Status: TESTING PENDING
+  Issue 2: Sinks and Biogenic tracking bug in  (Priority: P1)
+     - Attempted fixes: Agent investigated and identified that  are not mapped in , and  direct/indirect are improperly grouped.
+     - Next debug checklist: Modify  to add  scope mapping and distinguish Biogenic (Direct/Indirect) using the  field. 
+     - Why fix this issue and what will be achieved with the fix? Corrects GHG completion calculations.
+     - Status: BLOCKED (User explicitly instructed remember to do this later, do not implement immediately).
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Both
-     - Blocked on other issue: Issue 1
+     - Should Test frontend/backend/both after fix? Backend
+     - Blocked on other issue: User preference.
 
 **In progress Task List**:
   Task 1: Unify Targets and Internal Data AI to use Dashboard Services (Priority: P1)
-     - Where to resume: Ensure remaining modules rely on  instead of the deleted .
+     - Where to resume: Ensure modules rely on  instead of the deleted .
      - What will be achieved with this? Eliminates duplicated calculation logic.
      - Status: NOT STARTED
      - Should Test frontend/backend/both after fix? Backend
-     - Blocked on something: None
-
-  Task 2: Phase 2 Proper Refactor for Framework vs ESG Domain separation (Priority: P2)
-     - Where to resume: Database migration to add  to 138 question configs ( and ).
-     - What will be achieved with this? Clean, extensible architecture for BRSR today and GRI/CDP later.
-     - Status: NOT STARTED
-     - Should Test frontend/backend/both after fix? Both
      - Blocked on something: None
 
 **Upcoming and Future Tasks**
@@ -64,26 +55,24 @@ A mature ESG enterprise reporting system with a V2 Assignment Architecture utili
     - P1: Cron job script for marking tasks as overdue automatically when  date passes.
     - P1: Phase 2 Executive Dashboard chart enhancements (PDF export, fullscreen charts, drill-down).
     - P1: Internal Data AI Phase 2 Verification.
+    - P2: Carbon Intensity Calculation discrepancy.
 
     Future Tasks:
+    - P2: Materiality Assessment Phase 2+ (Survey-Based Materiality, Stakeholder Weightage, Sector-Specific topics, Disclosure-Level materiality). Double materiality connection to reporting.
     - P2: Dashboard Scope 1 & 3 Emissions Deduplication Bug.
-    - P2: Carbon Intensity Calculation discrepancy.
     - P2: SOC 2 Compliance Implementation.
     - P2: Dynamic ESG Disclosure Engine implementation.
     - P2: Sentry Error Monitoring Integration.
     - P2: SBTi target validation rules.
 
 **Completed work in this session**
-- Fixed  bug for unanswered parent questions in GRI Tracker by enforcing . (DONE)
-- Fixed My Tasks  to reflect completion state decoupled from . (DONE)
-- Fixed MongoDB  (conflict with  in  and ) across . (DONE)
-- Fixed GRI Version History UI rendering by updating backend to fetch subpart keys when a parent key is queried ( regex matching). (DONE)
-- Added  to clear the user's own drafts upon final save or approval. (DONE)
-- Formatted Version History payload for the frontend to include , , and correctly computed . (DONE)
-- Fixed Frontend bug in  that was failing to send  and  for facility-level assignments. (DONE)
-- Fixed Backend  to expect/handle dict formats containing . (DONE)
-- Fixed V2 Assignment lookup for Emissions () to use the  junction table instead of legacy . (DONE)
-- Fixed  to correctly update the underlying  document with . (DONE)
+- Refactored  to use unified  instead of . (DONE)
+- Created Phase 1 Materiality Assessment backend ( module). (DONE)
+- Created  UI with Recharts Materiality Matrix, cut-off sliders, and manual overrides. (DONE)
+- Implemented Traditional vs Double Materiality tabs. (DONE)
+- Seeded all 36 GRI topics with corrected names (e.g., 101=Biodiversity). (DONE)
+- Added Material Topics Only vs All Topics toggles to  and , correctly filtering backend queries. (DONE)
+- Fixed bug where Double Materiality assessments incorrectly blanked out GRI Materiality filters. (DONE)
 
 **Earlier issues found/mentioned but not fixed**
    Issue 1: Missing filters on seeded Water Withdrawal KPIs.
@@ -94,98 +83,85 @@ A mature ESG enterprise reporting system with a V2 Assignment Architecture utili
 
 **Known issue recurrence from previous fork**
   - Issue recurrence in previous fork: Missing filters on seeded Water Withdrawal KPIs.
-  - Recurrence count: 32
+  - Recurrence count: 33
   - Status: BLOCKED (User explicitly asked to delay fixing this).
 
 **Code Architecture**
 /app/
 ├── backend/
 │   ├── modules/
+│   │   ├── materiality/
+│   │   │   ├── router.py, service.py, models.py, evaluator.py (New Module)
 │   │   ├── emissions/
-│   │   │   ├── router.py (GHG record endpoints; holds  & )
-│   │   ├── approvals/
-│   │   │   ├── emission_flow_v2.py (Legacy intercept patterns being deprecated)
+│   │   │   ├── router.py (GHG record endpoints)
 │   │   ├── approval_workflow/
-│   │   │   ├── service.py (Unified queue fetching logic)
-│   │   ├── esg_questionnaire/
-│   │   │   ├── service.py (Handles saving, draft clearing, version history)
-│   │   ├── esg_assignments/
-│   │   │   ├── service.py (My Tasks logic, V2 assignments)
+│   │   │   ├── service.py (Handles  and )
 ├── frontend/
 │   ├── src/
+│   │   ├── pages/
+│   │   │   ├── MaterialityAssessment.js (Matrix, Scoring, and Overrides)
 │   │   ├── components/
-│   │   │   ├── ESGRecordsTracker.js (Assignment wizard integration)
-│   │   │   ├── ApproverQueue.js
+│   │   │   ├── ApproverQueue.js (Currently broken/being refactored for Emission records)
+│   │   │   ├── GRIQuestionnaire.js
+│   │   │   ├── ESGTrackingTab.js
 
 **Key Technical Concepts**
-- **Unified Approvals**: The system is migrating away from disparate  logic to a centralized  collection.
-- **V2 Assignment Architecture**: Direct assignment fields (like ) on records are deprecated. Lookups must go through the junction table .
-- **Completion vs Approval**:  (or  in My Tasks) strictly denotes data entry state (pending, in_progress, completed).  handles governance state (pending_approval, approved, rejected).
+- **Materiality Logic**: Matrix is plotted using  ScatterChart. The  classifies topics based on configured  and . Only Traditional materiality topics filter down into the GRI Tracking/Reporting views.
+- **Unified Approvals**: GHG emissions (creates & updates) now exclusively use the  queue.
 
 **key DB schema**
-  - : Unified queue for all framework/record approvals.
-  - : Stores GHG Emissions data (recently updated to include ).
-  - : Legacy collection, being deprecated in favor of .
-  - : Holds temporary saved drafts before final submission.
-  - : .
+  - : Seeded list of all 36 GRI topics.
+  - : Tracks the specific assessment configuration (, , ).
+  - : Stores individual topic scoring and manual overrides.
 
 **changes in tech stack**
-  - None.
+  - None (Used existing  dependency for Scatter charts).
 
 **All files of reference**
-  - 
+  -  (URGENT - Mid-edit)
   - 
   - 
   - 
 
 **Areas that need refactoring**:
-  - The  logic in  needs to be refactored to stop using  and instead utilize the new unified  workflow.
+  -  is extremely bloated (>1050 lines) with multiple internal inline components like , , and now the upcoming . It needs component extraction.
 
 **key api endpoints**
-  -  (Currently uses legacy approval flow, needs refactoring).
-  -  (Approval queue endpoint).
-  -  (Facility assignment saving).
+  -  (Fetches material topic codes for filtering).
+  -  (GRI filtering).
 
 **Critical Info for New Agent**
-- The user **explicitly instructed** to replace the old  logic for GHG emissions updates. You must migrate  to use  just like ESG metrics do.
-- Ensure any  creation also explicitly updates the underlying record () with .
-- Do not forget the V2 Assignment junction table pattern—always resolve assignees through , never the  field.
+- **URGENT**: You are picking up exactly where the last agent was interrupted. The file  is currently being updated to add . You must complete this component so that GHG Emission records can be approved. 
+- Ensure that the new  handles  by showing a diff between  and .
+- Ensure the backend  properly logs the rejection/approval into .
 
 **documents and test reports created in this job**
   - 
-  - 
-  - 
-  - 
-  - 
 
 **Last 10 User Messages and any pending HUMAN messages** 
- 1. User: Reported My Tasks showing in_progress when Tracker showed completed, awaiting approval.
- 2. Agent: Fixed conflation between completion status and approval status.
- 3. User: Version history for GRI not showing, and saving as draft then final keeps draft status.
- 4. Agent: Fixed frontend fetching subpart keys and cleared user drafts upon save.
- 5. User: Draft still not clearing for  and approved value missing.
- 6. Agent: Found MongoDB   conflict causing save drops; fixed it and cleared drafts.
- 7. User: Version history showing unknown for submission approvals.
- 8. Agent: Formatted version history payload to show  and .
- 9. User: Scope 2 emissions facility assignment not triggering approval.
- 10. Agent: Found UI sending wrong data shape and backend using legacy assignment lookup. Fixed create flow.
- 11. User (PENDING): no wait why use pending_emission_records i think that is old code and can be replaced and pending emission records should be stored same way as esg metrics in same collection. you can update the old workflow for approval for emissions
+ 1. User: Asked for GRI topics 101, 102, 103 names to be corrected and verified reporting filter flow.
+ 2. User: Indicated only 101 was material, but all disclosures showed up in the Tracker.
+ 3. User: Requested a toggle switch for Material Topics Only vs All Topics, and a reporting period selector.
+ 4. User: Requested adding the same toggle to the GRI Tracker view.
+ 5. User: Requested adding Traditional Materiality and Double Materiality tabs.
+ 6. User: Reported the material topic filter in the tracker broke after adding the new tabs. (Fixed by Agent).
+ 7. User (PENDING): Reported bugs in the GHG Approver Queue: Response not found on reject, Unknown question type: record, no proper form shown with old vs new diff, evidence missing, and approval/rejection history not captured. (Agent was fixing this when interrupted).
 
 **Project Health Check:**
-- Broken (GHG Emissions update endpoint is mid-refactor for the new approval workflow).
+- Broken (The  is mid-implementation and UI rendering for GHG Approvals is currently broken).
 
 **3rd Party Integrations**
-  - OpenAI (Extraction) — requires User API Key
-  - Cloudflare R2 via  — requires User API Key
+  - OpenAI GPT (Extraction) — requires User API Key
+  - Cloudflare R2 via boto3 — requires User API Key
 
 **Testing status**
-  - Testing agent used after significant changes: YES
+  - Testing agent used after significant changes: YES (Aborted midway twice due to task cutoff)
   - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: , 
-  - Known regressions: None detected, but  aborted mid-run.
+  - Test files created: None this iteration.
+  - Known regressions: GHG Approval Queue UI is currently broken.
 
 **Credentials to test flow:**
   - Admin:  ()
 
 **What agent forgot to execute**
-- The testing agent was called multiple times but failed to execute assertions correctly in iterations 126/127 due to test script setups. Ensure actual backend integration tests (via pytest or testing agent) pass successfully on the new Emissions update approval flow once refactored.</analysis>
+- The testing agent was called multiple times but failed/was interrupted. Comprehensive E2E tests for the Materiality Assessment filters and the unified GHG emission approval flow have not been completed. Ensure  is run successfully after the  fix.</analysis>

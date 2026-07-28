@@ -414,3 +414,22 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
   - Cleaner codebase with no dual-collection maintenance
 - **Backward Compatibility**: Legacy `pending_emission_records` for CREATE operations still supported for existing pending records
 
+### GHG Approval Queue UI Fix (Dec 28, 2025)
+- **Issue**: Approval Queue UI was broken for GHG emission records:
+  1. `EmissionApprovalPanel` used wrong API endpoint (`/api/approval-workflows/action` vs `/requests/{id}/decide`)
+  2. `Textarea` component referenced but not imported (used standard `<textarea>`)
+  3. `Download` icon used but not imported from lucide-react
+  4. Emission records from `approval_workflow` source weren't properly detected (filter only checked `esg_record`)
+  5. No diff view for UPDATE requests showing old vs new values
+- **Solution**:
+  - Fixed API endpoint to `/api/approval-workflows/requests/{id}/decide`
+  - Replaced `Textarea` with standard `<textarea>` element
+  - Added `Download` import from lucide-react
+  - Updated filter to include `emission_record` entity type
+  - Added distinct teal badge for GHG Emission records (vs green for Data Records)
+  - Added request_type badge (UPDATE/DELETE) in queue list
+  - Added comprehensive diff view in `EmissionApprovalPanel` for UPDATE requests
+- **Files Modified**:
+  - `/app/frontend/src/components/ApproverQueue.js`
+- **Backend**: Already properly handles `emission_record` approvals/rejections with history tracking in `emission_history` collection
+

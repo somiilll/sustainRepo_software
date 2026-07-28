@@ -272,18 +272,35 @@ async def _create_emission_approval_request(
     submitter_email = submitter.get("email", "") if submitter else ""
     submitter_name = submitter.get("full_name", "") if submitter else ""
     
+    # Get facility info for display
+    facility = None
+    if emission_record.get("facility_id"):
+        facility = await db.facilities.find_one(
+            {"id": emission_record.get("facility_id")},
+            {"_id": 0, "name": 1}
+        )
+    
     now = datetime.now(timezone.utc).isoformat()
     
-    # Build entity snapshot
+    # Build entity snapshot with full details for approval UI
     entity_snapshot = {
         "scope": emission_record.get("scope"),
         "category": emission_record.get("category"),
         "sub_category": emission_record.get("sub_category"),
         "facility_id": emission_record.get("facility_id"),
+        "facility_name": facility.get("name") if facility else None,
         "reporting_period": emission_record.get("reporting_period"),
+        "frequency_type": emission_record.get("frequency_type"),
         "total_emissions": emission_record.get("total_emissions"),
+        "co2_emissions": emission_record.get("co2_emissions"),
+        "ch4_emissions": emission_record.get("ch4_emissions"),
+        "n2o_emissions": emission_record.get("n2o_emissions"),
+        "co2e_emissions": emission_record.get("co2e_emissions"),
         "inputs": emission_record.get("inputs"),
         "outputs": emission_record.get("outputs"),
+        "evidence_files": emission_record.get("evidence_files", []),
+        "notes": emission_record.get("notes"),
+        "edit_type": "create",
     }
     
     # Create approval request document
@@ -298,6 +315,7 @@ async def _create_emission_approval_request(
         "entity_id": emission_record.get("id"),
         "entity_subtype": emission_record.get("scope"),
         "entity_snapshot": entity_snapshot,
+        "request_type": "create",
         
         # Submission info
         "submitted_by": user_id,
@@ -371,21 +389,40 @@ async def _create_emission_update_approval_request(
     
     now = datetime.now(timezone.utc).isoformat()
     
+    # Get facility info
+    facility = None
+    if existing_record.get("facility_id"):
+        facility = await db.facilities.find_one(
+            {"id": existing_record.get("facility_id")},
+            {"_id": 0, "name": 1}
+        )
+    
     # Build entity snapshot with both old and proposed values
     entity_snapshot = {
         "scope": existing_record.get("scope"),
         "category": existing_record.get("category"),
         "sub_category": existing_record.get("sub_category"),
         "facility_id": existing_record.get("facility_id"),
+        "facility_name": facility.get("name") if facility else None,
         "reporting_period": existing_record.get("reporting_period"),
+        "frequency_type": existing_record.get("frequency_type"),
         "total_emissions": existing_record.get("total_emissions"),
+        "co2_emissions": existing_record.get("co2_emissions"),
+        "ch4_emissions": existing_record.get("ch4_emissions"),
+        "n2o_emissions": existing_record.get("n2o_emissions"),
+        "co2e_emissions": existing_record.get("co2e_emissions"),
         "inputs": existing_record.get("inputs"),
         "outputs": existing_record.get("outputs"),
+        "evidence_files": existing_record.get("evidence_files", []),
         # Store original values for comparison
         "original_values": {
             "inputs": existing_record.get("inputs"),
             "outputs": existing_record.get("outputs"),
             "total_emissions": existing_record.get("total_emissions"),
+            "co2_emissions": existing_record.get("co2_emissions"),
+            "ch4_emissions": existing_record.get("ch4_emissions"),
+            "n2o_emissions": existing_record.get("n2o_emissions"),
+            "co2e_emissions": existing_record.get("co2e_emissions"),
         },
         # Store proposed changes
         "proposed_changes": {

@@ -55,6 +55,7 @@ async def _create_approval_version_snapshot(
     rejection_reason: Optional[str] = None,
     extra_metadata: Optional[Dict[str, Any]] = None,
     changed_fields: Optional[List[str]] = None,  # Fields that were changed (for edit approvals)
+    request_type: Optional[str] = None,  # "create", "update", "delete" for emission records
 ):
     """
     Create a version snapshot for approval/rejection events.
@@ -71,7 +72,7 @@ async def _create_approval_version_snapshot(
         "environment_records": "environment_record_versions",
         "social_records": "social_record_versions",
         "governance_records": "governance_record_versions",
-        "emission_records": "emission_record_versions",
+        "emission_records": "emission_history",  # Emission records use emission_history
         "esg_responses": "esg_responses_versions",
         "organization_esg_responses": "esg_responses_versions",
     }
@@ -79,6 +80,17 @@ async def _create_approval_version_snapshot(
     versions_collection = versions_collection_map.get(collection_name)
     if not versions_collection:
         logger.warning(f"No versions collection for {collection_name}")
+        return
+    
+    # For emission_records, use emission_history format
+    if collection_name == "emission_records":
+        await _create_emission_history_entry(
+            record_id=record_id,
+            action=action,
+            user_id=user_id,
+            rejection_reason=rejection_reason,
+            request_type=request_type,
+        )
         return
     
     # Get the current record to capture its state
@@ -125,6 +137,61 @@ async def _create_approval_version_snapshot(
     
     await db[versions_collection].insert_one(version_doc)
     logger.info(f"Created {action} version snapshot v{next_version} for {collection_name} record {record_id}")
+
+
+async def _create_emission_history_entry(
+    record_id: str,
+    action: str,  # "approved" or "rejected"
+    user_id: str,
+    rejection_reason: Optional[str] = None,
+    request_type: Optional[str] = None,
+):
+    """
+    Create an entry in emission_history for approval/rejection events.
+    This ensures the approval flow is captured in the emission's version history.
+    """
+    import uuid
+    
+    # Get user info
+    user = await db.users.find_one({"id": user_id}, {"_id": 0, "email": 1, "full_name": 1})
+    user_email = user.get("email", "") if user else ""
+    user_name = user.get("full_name", "") if user else ""
+    
+    # Get the emission record if it exists
+    record = await db.emission_records.find_one({"id": record_id}, {"_id": 0})
+    
+    # Determine action display
+    action_map = {
+        ("approved", "create"): "Submission Approved",
+        ("approved", "update"): "Update Approved",
+        ("rejected", "create"): "Submission Rejected",
+        ("rejected", "update"): "Update Rejected",
+    }
+    action_display = action_map.get((action, request_type), f"{action.title()}")
+    
+    history_entry = {
+        "id": str(uuid.uuid4()),
+        "emission_id": record_id,
+        "facility_id": record.get("facility_id") if record else None,
+        "organization_id": record.get("organization_id") if record else None,
+        "scope": record.get("scope") if record else None,
+        "category": record.get("category") if record else None,
+        "changed_by": user_id,
+        "changed_by_email": user_email,
+        "changed_by_name": user_name,
+        "changed_at": _now_iso(),
+        "version": (record.get("version", 0) if record else 0) + 1,
+        "field_changes": [],
+        "changes_summary": action_display,
+        "changes": {
+            "action": action,
+            "request_type": request_type,
+            "rejection_reason": rejection_reason,
+        },
+    }
+    
+    await db.emission_history.insert_one(history_entry)
+    logger.info(f"Created emission_history entry for {action} on record {record_id}")
 
 
 class ApprovalWorkflowService:
@@ -1221,11 +1288,30 @@ class ApprovalWorkflowService:
             
             elif entity_type == "emission_record":
                 # GHG emission records
-                await db.emission_records.update_one(
-                    {"id": entity_id},
-                    {"$set": update_doc}
-                )
-                logger.info(f"Updated emission_record {entity_id} approval_status to rejected")
+                request_type = request.get("request_type", "create")
+                
+                if request_type == "create":
+                    # For CREATE requests, the record may not exist yet or was created with pending status
+                    # Just update if exists, don't fail if not found
+                    result = await db.emission_records.update_one(
+                        {"id": entity_id},
+                        {"$set": update_doc}
+                    )
+                    if result.matched_count == 0:
+                        # Record doesn't exist yet (pending create) - just delete the approval request
+                        logger.info(f"Emission record {entity_id} not found (pending create), skipping record update")
+                    else:
+                        logger.info(f"Updated emission_record {entity_id} approval_status to rejected")
+                else:
+                    # For UPDATE/DELETE requests, the record should exist
+                    await db.emission_records.update_one(
+                        {"id": entity_id},
+                        {"$set": {
+                            "approval_status": "rejected",
+                            "updated_at": _now_iso(),
+                        }}
+                    )
+                    logger.info(f"Updated emission_record {entity_id} approval_status to rejected (was {request_type})")
                 
                 # Create version snapshot for rejection event
                 await _create_approval_version_snapshot(
@@ -1234,6 +1320,7 @@ class ApprovalWorkflowService:
                     action="rejected",
                     user_id=rejector_id,
                     rejection_reason=comment,
+                    request_type=request_type,
                 )
             
             elif entity_type == "esg_response":
