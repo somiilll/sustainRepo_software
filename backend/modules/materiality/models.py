@@ -18,6 +18,12 @@ from datetime import datetime
 # ENUMS
 # =============================================================================
 
+class AssessmentType(str, Enum):
+    """Type of materiality assessment"""
+    TRADITIONAL = "traditional"
+    DOUBLE = "double"
+
+
 class ScoreSource(str, Enum):
     """Source of the materiality score - extensible for future sources"""
     MANUAL = "manual"
@@ -73,6 +79,7 @@ class MaterialTopicUpdate(BaseModel):
 class AssessmentCreate(BaseModel):
     """Create a new materiality assessment"""
     reporting_year: str = Field(..., description="e.g. 'FY 2024-2025' or '2024'")
+    assessment_type: str = Field(default="traditional", description="traditional or double")
     name: Optional[str] = None
     description: Optional[str] = None
 

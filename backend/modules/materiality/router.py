@@ -83,6 +83,7 @@ async def seed_gri_topics(current_user: dict = Depends(get_current_user)):
 @router.get("/materiality/assessments")
 async def get_assessments(
     reporting_year: Optional[str] = Query(None),
+    assessment_type: Optional[str] = Query(None),
     current_user: dict = Depends(get_current_user),
 ):
     """Get all materiality assessments for the organization"""
@@ -90,7 +91,7 @@ async def get_assessments(
     if not org_id:
         raise HTTPException(status_code=400, detail="Organization ID required")
     
-    assessments = await materiality_service.get_assessments(org_id, reporting_year)
+    assessments = await materiality_service.get_assessments(org_id, reporting_year, assessment_type)
     return {"assessments": assessments, "total": len(assessments)}
 
 
@@ -115,16 +116,17 @@ async def get_assessment(
 @router.get("/materiality/assessments/by-year/{reporting_year}")
 async def get_assessment_by_year(
     reporting_year: str,
+    assessment_type: str = Query("traditional", description="traditional or double"),
     current_user: dict = Depends(get_current_user),
 ):
-    """Get assessment for a specific reporting year"""
+    """Get assessment for a specific reporting year and type"""
     org_id = current_user.get("organization_id")
     if not org_id:
         raise HTTPException(status_code=400, detail="Organization ID required")
     
-    assessment = await materiality_service.get_assessment_by_year(org_id, reporting_year)
+    assessment = await materiality_service.get_assessment_by_year(org_id, reporting_year, assessment_type)
     if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found for this year")
+        raise HTTPException(status_code=404, detail="Assessment not found for this year and type")
     
     return assessment
 

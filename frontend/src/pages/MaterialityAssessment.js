@@ -20,6 +20,28 @@ const STATUS_CONFIG = {
   non_material: { color: '#6b7280', bg: '#f9fafb', label: 'Not Material' },
 };
 
+// Assessment type configurations
+const ASSESSMENT_TYPES = {
+  traditional: {
+    label: 'Traditional Materiality',
+    xAxisLabel: 'Impact to Business',
+    yAxisLabel: 'Impact on Stakeholders',
+    xScoreLabel: 'Business Impact',
+    yScoreLabel: 'Stakeholder Impact',
+    xCutoffLabel: 'Business Cutoff',
+    yCutoffLabel: 'Stakeholder Cutoff',
+  },
+  double: {
+    label: 'Double Materiality',
+    xAxisLabel: 'Impact Materiality',
+    yAxisLabel: 'Financial Materiality',
+    xScoreLabel: 'Impact Materiality Score',
+    yScoreLabel: 'Financial Materiality Score',
+    xCutoffLabel: 'Impact Cutoff',
+    yCutoffLabel: 'Financial Cutoff',
+  },
+};
+
 // =============================================================================
 // COMPONENTS
 // =============================================================================
@@ -73,7 +95,7 @@ const CustomTooltip = ({ active, payload: tooltipPayload }) => {
   );
 };
 
-function TopicDrawer({ topic, assessment, onClose, onScoreUpdate, onOverride, onClearOverride }) {
+function TopicDrawer({ topic, assessment, assessmentType, onClose, onScoreUpdate, onOverride, onClearOverride }) {
   const [businessScore, setBusinessScore] = useState(topic?.business_score || '');
   const [stakeholderScore, setStakeholderScore] = useState(topic?.stakeholder_score || '');
   const [saving, setSaving] = useState(false);
@@ -91,6 +113,7 @@ function TopicDrawer({ topic, assessment, onClose, onScoreUpdate, onOverride, on
   const status = STATUS_CONFIG[topic.final_status] || STATUS_CONFIG.non_material;
   const autoStatus = STATUS_CONFIG[topic.auto_status] || STATUS_CONFIG.non_material;
   const scaleMax = assessment?.scale_max || 5;
+  const typeConfig = ASSESSMENT_TYPES[assessmentType] || ASSESSMENT_TYPES.traditional;
 
   const handleSaveScore = async () => {
     const biz = parseFloat(businessScore);
@@ -158,14 +181,14 @@ function TopicDrawer({ topic, assessment, onClose, onScoreUpdate, onOverride, on
             <h4 className="text-xs font-semibold text-stone-700">Score Topic (1-{scaleMax})</h4>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-[10px] font-medium text-stone-500 mb-1 block">Business Impact</label>
+                <label className="text-[10px] font-medium text-stone-500 mb-1 block">{typeConfig.xScoreLabel}</label>
                 <input type="number" min="1" max={scaleMax} step="0.1" value={businessScore}
                   onChange={(e) => setBusinessScore(e.target.value)}
                   className="w-full h-9 rounded-lg border border-stone-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
                   data-testid="score-business-input" />
               </div>
               <div>
-                <label className="text-[10px] font-medium text-stone-500 mb-1 block">Stakeholder Impact</label>
+                <label className="text-[10px] font-medium text-stone-500 mb-1 block">{typeConfig.yScoreLabel}</label>
                 <input type="number" min="1" max={scaleMax} step="0.1" value={stakeholderScore}
                   onChange={(e) => setStakeholderScore(e.target.value)}
                   className="w-full h-9 rounded-lg border border-stone-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
@@ -346,6 +369,9 @@ export default function MaterialityAssessment() {
   const [showTopicSelector, setShowTopicSelector] = useState(false);
   const [savingCutoffs, setSavingCutoffs] = useState(false);
   
+  // Assessment type state (traditional or double)
+  const [assessmentType, setAssessmentType] = useState('traditional');
+  
   // Reporting year state
   const [reportingYears, setReportingYears] = useState([]);
   const [selectedYear, setSelectedYear] = useState(null);
@@ -354,6 +380,9 @@ export default function MaterialityAssessment() {
   // Get token
   const getToken = () => localStorage.getItem('token');
   const headers = { Authorization: `Bearer ${getToken()}` };
+  
+  // Type configuration for labels
+  const typeConfig = ASSESSMENT_TYPES[assessmentType] || ASSESSMENT_TYPES.traditional;
 
   // ==========================================================================
   // DATA FETCHING
@@ -399,19 +428,26 @@ export default function MaterialityAssessment() {
     }
   };
 
-  const fetchOrCreateAssessment = async (reportingYear) => {
+  const fetchOrCreateAssessment = async (reportingYear, type = assessmentType) => {
     if (!reportingYear) return null;
     
     try {
-      // Try to get assessment for selected year
+      // Try to get assessment for selected year and type
       try {
-        const res = await axios.get(`${API}/api/materiality/assessments/by-year/${encodeURIComponent(reportingYear)}`, { headers });
+        const res = await axios.get(
+          `${API}/api/materiality/assessments/by-year/${encodeURIComponent(reportingYear)}?assessment_type=${type}`, 
+          { headers }
+        );
         setAssessment(res.data);
         return res.data.id;
       } catch (e) {
         if (e.response?.status === 404) {
           // Create new assessment
-          const createRes = await axios.post(`${API}/api/materiality/assessments`, { reporting_year: reportingYear }, { headers });
+          const createRes = await axios.post(
+            `${API}/api/materiality/assessments`, 
+            { reporting_year: reportingYear, assessment_type: type }, 
+            { headers }
+          );
           setAssessment(createRes.data);
           // Refresh assessments list
           await fetchAllAssessments();
@@ -461,7 +497,20 @@ export default function MaterialityAssessment() {
     setLoading(true);
     setTopics([]);
     setSelected(null);
-    const assessmentId = await fetchOrCreateAssessment(newYear);
+    const assessmentId = await fetchOrCreateAssessment(newYear, assessmentType);
+    if (assessmentId) {
+      await fetchAssessmentTopics(assessmentId);
+    }
+    setLoading(false);
+  };
+  
+  // Handle assessment type change (tab switch)
+  const handleTypeChange = async (newType) => {
+    setAssessmentType(newType);
+    setLoading(true);
+    setTopics([]);
+    setSelected(null);
+    const assessmentId = await fetchOrCreateAssessment(selectedYear, newType);
     if (assessmentId) {
       await fetchAssessmentTopics(assessmentId);
     }
@@ -617,7 +666,7 @@ export default function MaterialityAssessment() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-stone-900 tracking-tight">Materiality Assessment</h1>
-            <p className="text-sm text-stone-500 mt-0.5">{assessment?.name || 'Double Materiality Matrix'}</p>
+            <p className="text-sm text-stone-500 mt-0.5">{typeConfig.label}</p>
           </div>
           <div className="flex items-center gap-3">
             {/* Reporting Year Selector */}
@@ -641,6 +690,32 @@ export default function MaterialityAssessment() {
             </button>
           </div>
         </div>
+      </motion.div>
+      
+      {/* Tabs for Traditional vs Double Materiality */}
+      <motion.div className="flex gap-1 p-1 bg-stone-100 rounded-lg w-fit" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.03 }}>
+        <button
+          onClick={() => handleTypeChange('traditional')}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+            assessmentType === 'traditional'
+              ? 'bg-white text-stone-900 shadow-sm'
+              : 'text-stone-500 hover:text-stone-700'
+          }`}
+          data-testid="tab-traditional"
+        >
+          Traditional Materiality
+        </button>
+        <button
+          onClick={() => handleTypeChange('double')}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+            assessmentType === 'double'
+              ? 'bg-white text-stone-900 shadow-sm'
+              : 'text-stone-500 hover:text-stone-700'
+          }`}
+          data-testid="tab-double"
+        >
+          Double Materiality
+        </button>
       </motion.div>
 
       {/* Summary Stats */}
@@ -698,7 +773,7 @@ export default function MaterialityAssessment() {
           {/* Cutoff Controls */}
           <div className="flex gap-4 mb-4 p-3 rounded-lg bg-stone-50 border border-stone-100">
             <div className="flex-1">
-              <label className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide">Business Cutoff</label>
+              <label className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide">{typeConfig.xCutoffLabel}</label>
               <div className="flex items-center gap-2 mt-1">
                 <input type="range" min={scaleMin} max={scaleMax} step="0.1" value={cutoffX}
                   onChange={e => handleCutoffChange('business', parseFloat(e.target.value))}
@@ -707,7 +782,7 @@ export default function MaterialityAssessment() {
               </div>
             </div>
             <div className="flex-1">
-              <label className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide">Stakeholder Cutoff</label>
+              <label className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide">{typeConfig.yCutoffLabel}</label>
               <div className="flex items-center gap-2 mt-1">
                 <input type="range" min={scaleMin} max={scaleMax} step="0.1" value={cutoffY}
                   onChange={e => handleCutoffChange('stakeholder', parseFloat(e.target.value))}
@@ -734,11 +809,11 @@ export default function MaterialityAssessment() {
                 <XAxis type="number" dataKey="x" domain={[scaleMin, scaleMax]} ticks={[1, 2, 3, 4, 5]}
                   tickFormatter={(v) => ['', 'V.Low', 'Low', 'Med', 'High', 'V.High'][v] || v}
                   tick={{ fontSize: 10, fill: '#78716c' }} axisLine={{ stroke: '#d6d3d1' }}
-                  label={{ value: 'Impact to Business →', position: 'bottom', offset: 15, style: { fontSize: 11, fontWeight: 600, fill: '#57534e' } }} />
+                  label={{ value: `${typeConfig.xAxisLabel} →`, position: 'bottom', offset: 15, style: { fontSize: 11, fontWeight: 600, fill: '#57534e' } }} />
                 <YAxis type="number" dataKey="y" domain={[scaleMin, scaleMax]} ticks={[1, 2, 3, 4, 5]}
                   tickFormatter={(v) => ['', 'V.Low', 'Low', 'Med', 'High', 'V.High'][v] || v}
                   tick={{ fontSize: 10, fill: '#78716c' }} axisLine={{ stroke: '#d6d3d1' }} width={55}
-                  label={{ value: 'Impact on Stakeholders →', angle: -90, position: 'insideLeft', offset: -5, style: { fontSize: 11, fontWeight: 600, fill: '#57534e' } }} />
+                  label={{ value: `${typeConfig.yAxisLabel} →`, angle: -90, position: 'insideLeft', offset: -5, style: { fontSize: 11, fontWeight: 600, fill: '#57534e' } }} />
                 <Tooltip content={CustomTooltip} cursor={false} />
                 <Scatter data={matrixData} shape={renderCustomDot}>
                   {matrixData.map((entry) => (
@@ -847,6 +922,7 @@ export default function MaterialityAssessment() {
           <TopicDrawer
             topic={selected}
             assessment={assessment}
+            assessmentType={assessmentType}
             onClose={() => setSelected(null)}
             onScoreUpdate={handleScoreUpdate}
             onOverride={handleOverride}

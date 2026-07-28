@@ -183,11 +183,14 @@ class MaterialityService:
     async def get_assessments(
         organization_id: str,
         reporting_year: Optional[str] = None,
+        assessment_type: Optional[str] = None,
     ) -> List[dict]:
         """Get all assessments for an organization"""
         query = {"organization_id": organization_id}
         if reporting_year:
             query["reporting_year"] = reporting_year
+        if assessment_type:
+            query["assessment_type"] = assessment_type
         
         assessments = await db[ASSESSMENTS_COLLECTION].find(
             query, {"_id": 0}
@@ -210,10 +213,18 @@ class MaterialityService:
         return assessment
     
     @staticmethod
-    async def get_assessment_by_year(organization_id: str, reporting_year: str) -> Optional[dict]:
-        """Get assessment for a specific reporting year"""
+    async def get_assessment_by_year(
+        organization_id: str, 
+        reporting_year: str,
+        assessment_type: str = "traditional",
+    ) -> Optional[dict]:
+        """Get assessment for a specific reporting year and type"""
         assessment = await db[ASSESSMENTS_COLLECTION].find_one(
-            {"organization_id": organization_id, "reporting_year": reporting_year},
+            {
+                "organization_id": organization_id, 
+                "reporting_year": reporting_year,
+                "assessment_type": assessment_type,
+            },
             {"_id": 0}
         )
         if assessment:
@@ -228,24 +239,45 @@ class MaterialityService:
         created_by: str,
     ) -> Tuple[bool, str, Optional[dict]]:
         """Create a new materiality assessment"""
-        # Check for existing assessment for same year
+        assessment_type = data.assessment_type or "traditional"
+        
+        # Check for existing assessment for same year AND type
         existing = await db[ASSESSMENTS_COLLECTION].find_one({
             "organization_id": organization_id,
             "reporting_year": data.reporting_year,
+            "assessment_type": assessment_type,
         })
         if existing:
-            return False, f"Assessment already exists for {data.reporting_year}", None
+            return False, f"{assessment_type.title()} assessment already exists for {data.reporting_year}", None
+        
+        # Set axis labels based on type
+        if assessment_type == "double":
+            x_axis_label = "Impact Materiality"
+            y_axis_label = "Financial Materiality"
+            x_cutoff_label = "impact_cutoff"
+            y_cutoff_label = "financial_cutoff"
+            default_name = f"Double Materiality Assessment {data.reporting_year}"
+        else:
+            x_axis_label = "Impact to Business"
+            y_axis_label = "Impact on Stakeholders"
+            x_cutoff_label = "business_cutoff"
+            y_cutoff_label = "stakeholder_cutoff"
+            default_name = f"Materiality Assessment {data.reporting_year}"
         
         assessment = {
             "id": _gen_id(),
             "organization_id": organization_id,
             "reporting_year": data.reporting_year,
-            "name": data.name or f"Materiality Assessment {data.reporting_year}",
+            "assessment_type": assessment_type,
+            "name": data.name or default_name,
             "description": data.description,
             "status": AssessmentStatus.DRAFT.value,
+            # Axis labels (for UI)
+            "x_axis_label": x_axis_label,
+            "y_axis_label": y_axis_label,
             # Default cutoffs (configurable)
-            "business_cutoff": 3.0,
-            "stakeholder_cutoff": 3.0,
+            "business_cutoff": 3.0,  # X-axis cutoff (business/impact)
+            "stakeholder_cutoff": 3.0,  # Y-axis cutoff (stakeholder/financial)
             "scale_min": 1.0,
             "scale_max": 5.0,
             "created_by": created_by,
@@ -263,7 +295,7 @@ class MaterialityService:
             "material_topics": 0,
         })
         
-        logger.info(f"Created materiality assessment {assessment['id']} for {organization_id} year {data.reporting_year}")
+        logger.info(f"Created {assessment_type} materiality assessment {assessment['id']} for {organization_id} year {data.reporting_year}")
         return True, "Assessment created", assessment
     
     @staticmethod
