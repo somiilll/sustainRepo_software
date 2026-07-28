@@ -373,6 +373,7 @@ async def _create_emission_approval_request(
     entity_snapshot = {
         "scope": emission_record.get("scope"),
         "category": emission_record.get("category"),
+        "category_id": emission_record.get("category_id"),
         "sub_category": emission_record.get("sub_category"),
         "fuel_type": emission_record.get("fuel_type"),
         "facility_id": emission_record.get("facility_id"),
@@ -385,16 +386,24 @@ async def _create_emission_approval_request(
         "n2o_emissions": emission_record.get("n2o_emissions"),
         "co2e_emissions": emission_record.get("co2e_emissions"),
         "inputs": normalized_inputs,
-        "dynamic_field_values": normalized_inputs,  # Also include for compatibility
+        "dynamic_field_values": normalized_inputs,
         "outputs": emission_record.get("outputs"),
         "evidence_files": emission_record.get("evidence_files", []),
         "notes": emission_record.get("notes"),
         "has_custom_ef": emission_record.get("is_custom_factor", False),
         "emission_factor_used": emission_record.get("emission_factor"),
-        "category_id": emission_record.get("category_id"),
         "calculation_method_scope3": emission_record.get("calculation_method_scope3"),
         "scope3_activity": emission_record.get("scope3_activity"),
         "biogenic_scope_selection": emission_record.get("biogenic_scope_selection"),
+        # Process info
+        "process_names": emission_record.get("process_names", []),
+        "process_descriptions": emission_record.get("process_descriptions", []),
+        # Responsible person info
+        "responsible_person": emission_record.get("responsible_person", ""),
+        "responsible_person_designation": emission_record.get("responsible_person_designation", ""),
+        "responsible_person_contact": emission_record.get("responsible_person_contact", ""),
+        # Source info
+        "source_of_information": emission_record.get("source_of_information", ""),
         "edit_type": "create",
     }
     
@@ -500,6 +509,7 @@ async def _create_emission_update_approval_request(
     entity_snapshot = {
         "scope": existing_record.get("scope"),
         "category": existing_record.get("category"),
+        "category_id": existing_record.get("category_id"),
         "sub_category": existing_record.get("sub_category"),
         "fuel_type": existing_record.get("fuel_type"),
         "facility_id": existing_record.get("facility_id"),
@@ -517,10 +527,19 @@ async def _create_emission_update_approval_request(
         "evidence_files": existing_record.get("evidence_files", []),
         "has_custom_ef": existing_record.get("is_custom_factor", False),
         "emission_factor_used": existing_record.get("emission_factor"),
-        "category_id": existing_record.get("category_id"),
         "calculation_method_scope3": existing_record.get("calculation_method_scope3"),
         "scope3_activity": existing_record.get("scope3_activity"),
         "biogenic_scope_selection": existing_record.get("biogenic_scope_selection"),
+        # Process info
+        "process_names": existing_record.get("process_names", []),
+        "process_descriptions": existing_record.get("process_descriptions", []),
+        # Responsible person info
+        "responsible_person": existing_record.get("responsible_person", ""),
+        "responsible_person_designation": existing_record.get("responsible_person_designation", ""),
+        "responsible_person_contact": existing_record.get("responsible_person_contact", ""),
+        # Source info
+        "source_of_information": existing_record.get("source_of_information", ""),
+        "notes": existing_record.get("notes"),
         # Store original values for comparison
         "original_values": {
             "inputs": original_inputs,
@@ -982,8 +1001,8 @@ async def update_emission_record(
     from modules.approvals.emission_flow_v2 import is_approval_enabled_for_org
     approval_enabled = await is_approval_enabled_for_org(org_id)
     
-    # Non-admin users with approval enabled need approval for updates
-    if user_role not in ("admin", "super_admin") and approval_enabled:
+    # All users (including admins) go through approval workflow if enabled and assignment requires it
+    if approval_enabled:
         # Check if there's already a pending approval request for this record
         existing_request = await db.approval_requests.find_one({
             "entity_id": record_id,
