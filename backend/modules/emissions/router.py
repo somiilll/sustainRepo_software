@@ -607,8 +607,16 @@ async def _update_existing_approval_request(
     """
     Update an existing pending approval request with new data (in-place update).
     This allows users to modify their submission while it's still pending review.
+    
+    For CREATE requests (record not yet approved): Also updates the actual emission_record.
+    For UPDATE requests (record already approved): Only updates the snapshot.
     """
     now = datetime.now(timezone.utc).isoformat()
+    
+    # Get the existing approval request to check request_type
+    existing_request = await db.approval_requests.find_one({"id": request_id}, {"_id": 0})
+    request_type = existing_request.get("request_type", "create") if existing_request else "create"
+    record_id = existing_record.get("id")
     
     # Get facility name for snapshot
     facility = None
@@ -633,12 +641,12 @@ async def _update_existing_approval_request(
         "facility_name": facility.get("name") if facility else None,
         "reporting_period": existing_record.get("reporting_period"),
         "frequency_type": existing_record.get("frequency_type"),
-        "total_emissions": existing_record.get("total_emissions"),
-        "co2_emissions": existing_record.get("co2_emissions"),
-        "ch4_emissions": existing_record.get("ch4_emissions"),
-        "n2o_emissions": existing_record.get("n2o_emissions"),
-        "co2e_emissions": existing_record.get("co2e_emissions"),
-        "inputs": proposed_inputs,  # Use proposed for display
+        "total_emissions": updated_data.get("total_emissions") or existing_record.get("total_emissions"),
+        "co2_emissions": updated_data.get("co2_emissions") or existing_record.get("co2_emissions"),
+        "ch4_emissions": updated_data.get("ch4_emissions") or existing_record.get("ch4_emissions"),
+        "n2o_emissions": updated_data.get("n2o_emissions") or existing_record.get("n2o_emissions"),
+        "co2e_emissions": updated_data.get("co2e_emissions") or existing_record.get("co2e_emissions"),
+        "inputs": proposed_inputs,
         "dynamic_field_values": proposed_inputs,
         "outputs": updated_data.get("outputs") or existing_record.get("outputs"),
         "evidence_files": updated_data.get("evidence_files") or existing_record.get("evidence_files", []),
@@ -672,7 +680,7 @@ async def _update_existing_approval_request(
             "inputs": proposed_inputs,
             "outputs": updated_data.get("outputs"),
         },
-        "edit_type": "update",
+        "edit_type": request_type,  # Preserve original request type
     }
     
     # Update the approval request in-place
@@ -688,6 +696,41 @@ async def _update_existing_approval_request(
         }}
     )
     logger.info(f"Updated existing approval request {request_id} with new data")
+    
+    # For CREATE requests: Also update the actual record (not yet approved)
+    # This ensures that when approved, the record has the latest values
+    if request_type == "create" and record_id:
+        record_update = {
+            "updated_at": now,
+            "dynamic_field_values": proposed_inputs,
+            "inputs": proposed_inputs,
+            "outputs": updated_data.get("outputs") or existing_record.get("outputs"),
+            "total_emissions": updated_data.get("total_emissions") or existing_record.get("total_emissions"),
+            "co2_emissions": updated_data.get("co2_emissions") or existing_record.get("co2_emissions"),
+            "ch4_emissions": updated_data.get("ch4_emissions") or existing_record.get("ch4_emissions"),
+            "n2o_emissions": updated_data.get("n2o_emissions") or existing_record.get("n2o_emissions"),
+            "co2e_emissions": updated_data.get("co2e_emissions") or existing_record.get("co2e_emissions"),
+            "evidence_files": updated_data.get("evidence_files") or existing_record.get("evidence_files", []),
+            "process_names": updated_data.get("process_names") or existing_record.get("process_names", []),
+            "process_descriptions": updated_data.get("process_descriptions") or existing_record.get("process_descriptions", []),
+            "responsible_person": updated_data.get("responsible_person") or existing_record.get("responsible_person", ""),
+            "responsible_person_designation": updated_data.get("responsible_person_designation") or existing_record.get("responsible_person_designation", ""),
+            "responsible_person_contact": updated_data.get("responsible_person_contact") or existing_record.get("responsible_person_contact", ""),
+            "source_of_information": updated_data.get("source_of_information") or existing_record.get("source_of_information", ""),
+            "notes": updated_data.get("notes") or existing_record.get("notes"),
+        }
+        
+        # Also update emission factor if changed
+        if updated_data.get("emission_factor"):
+            record_update["emission_factor"] = updated_data.get("emission_factor")
+        if updated_data.get("is_custom_factor") is not None:
+            record_update["is_custom_factor"] = updated_data.get("is_custom_factor")
+        
+        await db.emission_records.update_one(
+            {"id": record_id},
+            {"$set": record_update}
+        )
+        logger.info(f"Also updated emission_record {record_id} for pending CREATE request")
 
 
 # Module-level audit logger reference. Resolved lazily so it picks up the
