@@ -206,9 +206,9 @@ export default function EmissionApprovalWrapper({
     return fuelDb.find(f => f.id === snapshot.fuel_database_id) || null;
   }, [snapshot.fuel_database_id, coreData.fuelDatabase]);
   
-  // Initialize form with snapshot data once core data is loaded
+  // Initialize form with snapshot data once core data AND form config are loaded
   useEffect(() => {
-    if (!coreData.loading && !initialDataLoaded && snapshot && Object.keys(snapshot).length > 0) {
+    if (!coreData.loading && !editFormConfigLoading && editFormConfig && !initialDataLoaded && snapshot && Object.keys(snapshot).length > 0) {
       // Get dynamic field values from snapshot
       const dfv = snapshot.inputs || snapshot.dynamic_field_values || {};
       
@@ -296,7 +296,7 @@ export default function EmissionApprovalWrapper({
       
       setInitialDataLoaded(true);
     }
-  }, [coreData.loading, initialDataLoaded, snapshot, item.entity_id]);
+  }, [coreData.loading, editFormConfigLoading, editFormConfig, initialDataLoaded, snapshot, item.entity_id]);
   
   // Track modifications
   const hasModifications = useMemo(() => {
@@ -411,8 +411,8 @@ export default function EmissionApprovalWrapper({
     setProcessing(false);
   };
   
-  // Loading state
-  if (coreData.loading || !initialDataLoaded) {
+  // Loading state - wait for core data AND form config
+  if (coreData.loading || editFormConfigLoading || !initialDataLoaded) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
