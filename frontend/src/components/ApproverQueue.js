@@ -206,12 +206,27 @@ export default function ApproverQueue() {
           };
         });
       
-      // Combine all sources
-      setSubmissions([
+      // Combine all sources and deduplicate
+      // Priority: questionnaire_approval_v2 > recordApprovals > old submissions
+      const allItems = [
         ...(questionnaireRes.data.submissions || []),
         ...recordApprovals,
         ...questionnaireV2Approvals
-      ]);
+      ];
+      
+      // Deduplicate by id or _approval_request_id
+      const seen = new Set();
+      const deduplicated = allItems.filter(item => {
+        // Use _approval_request_id for records, id for others
+        const key = item._approval_request_id || item.id || item.question_key;
+        if (seen.has(key)) {
+          return false;
+        }
+        seen.add(key);
+        return true;
+      });
+      
+      setSubmissions(deduplicated);
     } catch (error) {
       console.error('Failed to fetch submissions:', error);
       toast.error('Failed to load approval queue');
