@@ -139,9 +139,10 @@ export default function ApproverQueue() {
       ]);
       
       // Transform record approvals to match submission format
-      // Handle both esg_record and emission_record types
+      // Handle ONLY esg_record and emission_record types - explicitly filter out others like esg_response
+      const allowedEntityTypes = ['esg_record', 'emission_record'];
       const recordApprovals = (recordApprovalsRes.data.requests || [])
-        .filter(r => r.entity_type === 'esg_record' || r.entity_type === 'emission_record')
+        .filter(r => allowedEntityTypes.includes(r.entity_type))
         .map(r => ({
           id: r.id,
           entity_type: r.entity_type,  // Keep original type (esg_record or emission_record)
@@ -476,13 +477,28 @@ export default function ApproverQueue() {
                   onClose={() => setSelectedQuestion(null)}
                   onApproved={handleApprovalComplete}
                 />
-              ) : (
+              ) : selectedQuestion.entity_type === 'esg_record' ? (
                 <RecordApprovalPanel
                   item={selectedQuestion}
                   onClose={() => setSelectedQuestion(null)}
                   onApproved={handleApprovalComplete}
                   getAuthHeader={getAuthHeader}
                 />
+              ) : (
+                // Safety fallback for unknown entity types - prevents crashes
+                <div className="p-6 text-center">
+                  <p className="text-amber-600 font-medium mb-2">Unsupported Record Type</p>
+                  <p className="text-text-muted text-sm">
+                    This approval request type ({selectedQuestion.entity_type || 'unknown'}) is not yet supported in this view.
+                  </p>
+                  <Button 
+                    variant="outline" 
+                    className="mt-4"
+                    onClick={() => setSelectedQuestion(null)}
+                  >
+                    Close
+                  </Button>
+                </div>
               )
             ) : selectedQuestion ? (
               <SubmissionReviewPanel

@@ -47,9 +47,9 @@ export default function EmissionApprovalWrapper({
   const [comment, setComment] = useState('');
   const [initialDataLoaded, setInitialDataLoaded] = useState(false);
   
-  // Get snapshot data from approval request
-  const snapshot = item.entity_snapshot || {};
-  const requestType = item.request_type || snapshot.edit_type || 'create';
+  // Get snapshot data from approval request (safe defaults even if item is invalid)
+  const snapshot = item?.entity_snapshot || {};
+  const requestType = item?.request_type || snapshot.edit_type || 'create';
   const isUpdate = requestType === 'update';
   
   // Fetch core emission data (fuels, units, categories, etc.)
@@ -234,6 +234,40 @@ export default function EmissionApprovalWrapper({
     );
   }
   
+  // Safety check: Ensure this component only handles emission_record entities
+  // This check is placed after hooks to comply with React rules
+  if (!item || item.entity_type !== 'emission_record') {
+    return (
+      <div className="p-6 text-center">
+        <div className="text-amber-600 font-medium mb-2">Invalid Record Type</div>
+        <p className="text-stone-500 text-sm mb-4">
+          This component can only display emission records. 
+          Received: {item?.entity_type || 'unknown'}
+        </p>
+        <Button variant="outline" onClick={onClose}>Close</Button>
+      </div>
+    );
+  }
+  
+  // Safety check for core data
+  if (!coreData.data) {
+    return (
+      <div className="p-6 text-center">
+        <div className="text-amber-600 font-medium mb-2">Data Loading Error</div>
+        <p className="text-stone-500 text-sm mb-4">
+          Failed to load emission form configuration. Please try again.
+        </p>
+        <Button variant="outline" onClick={onClose}>Close</Button>
+      </div>
+    );
+  }
+  
+  // Extract core data with defaults to prevent undefined errors
+  const facilities = coreData.data.facilities || [];
+  const dynamicScopes = coreData.data.dynamicScopes || [];
+  const centralizedUnits = coreData.data.centralizedUnits || [];
+  const fuelDatabase = coreData.data.fuelDatabase || [];
+  
   // Evidence files
   const evidenceFiles = snapshot.evidence_files || [];
   
@@ -320,12 +354,12 @@ export default function EmissionApprovalWrapper({
           setOverrideDensity={editHook.setOverrideDensity}
           setOverrideJustification={editHook.setOverrideJustification}
           
-          // Core data
-          facilities={coreData.data.facilities}
-          dynamicScopes={coreData.data.dynamicScopes}
+          // Core data - use extracted variables with defaults
+          facilities={facilities}
+          dynamicScopes={dynamicScopes}
           hasScope3Access={true}
-          centralizedUnits={coreData.data.centralizedUnits}
-          fuelDatabase={coreData.data.fuelDatabase}
+          centralizedUnits={centralizedUnits}
+          fuelDatabase={fuelDatabase}
           
           // Computed/derived - use defaults
           selectedFuel={null}
