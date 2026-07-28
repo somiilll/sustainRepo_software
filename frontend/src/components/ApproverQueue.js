@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Card } from './ui/card';
@@ -30,7 +30,8 @@ import {
   Inbox,
   ScrollText,
   BarChart3,
-  Download
+  Download,
+  Activity
 } from 'lucide-react';
 import { toast } from 'sonner';
 import SubmissionReviewPanel from './SubmissionReviewPanel';
@@ -1074,9 +1075,11 @@ function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
  * EmissionApprovalPanel - Review panel for GHG Emission Record approvals
  * Shows emission-specific fields with proper formatting
  * Handles both CREATE and UPDATE request types with diff view
+ * Allows approver to modify inputs, override emission factors, and recalculate
  */
 function EmissionApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
   const [processing, setProcessing] = useState(false);
+  const [calculating, setCalculating] = useState(false);
   const [comment, setComment] = useState('');
   
   const snapshot = item.entity_snapshot || {};
@@ -1085,47 +1088,216 @@ function EmissionApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
   const originalValues = snapshot.original_values || {};
   const proposedChanges = snapshot.proposed_changes || {};
   
+  // Get the actual data to display (proposed for updates, snapshot for creates)
+  const currentData = isUpdate ? { ...snapshot, ...proposedChanges } : snapshot;
+  
+  // Editable state for approver modifications
+  const [editedInputs, setEditedInputs] = useState(() => {
+    const inputs = currentData.inputs || currentData.dynamic_field_values || {};
+    // Convert to editable format
+    const editable = {};
+    Object.entries(inputs).forEach(([key, val]) => {
+      editable[key] = {
+        value: val?.value ?? '',
+        unit: val?.unit || '',
+        is_override: val?.is_override || false
+      };
+    });
+    return editable;
+  });
+  
+  // Store original inputs for reset and comparison
+  const [originalInputs] = useState(() => {
+    const inputs = currentData.inputs || currentData.dynamic_field_values || {};
+    const original = {};
+    Object.entries(inputs).forEach(([key, val]) => {
+      original[key] = {
+        value: val?.value ?? '',
+        unit: val?.unit || '',
+        is_override: val?.is_override || false
+      };
+    });
+    return original;
+  });
+  
+  // Override state
+  const [overrideEnabled, setOverrideEnabled] = useState(
+    currentData.emission_factor_override?.enabled || 
+    currentData.has_custom_ef || 
+    false
+  );
+  const [customEmissionFactor, setCustomEmissionFactor] = useState(
+    currentData.emission_factor_override?.value || 
+    currentData.emission_factor_used || 
+    ''
+  );
+  const [originalOverride] = useState({
+    enabled: currentData.emission_factor_override?.enabled || currentData.has_custom_ef || false,
+    value: currentData.emission_factor_override?.value || currentData.emission_factor_used || ''
+  });
+  
+  // Calculated emissions (can be recalculated)
+  const [calculatedEmissions, setCalculatedEmissions] = useState({
+    co2: snapshot.co2_emissions,
+    ch4: snapshot.ch4_emissions,
+    n2o: snapshot.n2o_emissions,
+    total: snapshot.total_emissions || snapshot.co2e_emissions
+  });
+  const [originalEmissions] = useState({
+    co2: snapshot.co2_emissions,
+    ch4: snapshot.ch4_emissions,
+    n2o: snapshot.n2o_emissions,
+    total: snapshot.total_emissions || snapshot.co2e_emissions
+  });
+  
+  // Track if approver made any modifications
+  const hasModifications = useMemo(() => {
+    // Check input modifications
+    for (const key of Object.keys(editedInputs)) {
+      if (editedInputs[key]?.value !== originalInputs[key]?.value) {
+        return true;
+      }
+    }
+    // Check override modifications
+    if (overrideEnabled !== originalOverride.enabled) return true;
+    if (overrideEnabled && customEmissionFactor !== originalOverride.value) return true;
+    return false;
+  }, [editedInputs, originalInputs, overrideEnabled, customEmissionFactor, originalOverride]);
+  
+  // Build modification audit trail
+  const getModificationAudit = useCallback(() => {
+    const modifications = [];
+    
+    // Input changes
+    for (const key of Object.keys(editedInputs)) {
+      const oldVal = originalInputs[key]?.value;
+      const newVal = editedInputs[key]?.value;
+      if (oldVal !== newVal) {
+        modifications.push({
+          field: key,
+          old_value: oldVal,
+          new_value: newVal,
+          unit: editedInputs[key]?.unit
+        });
+      }
+    }
+    
+    // Override changes
+    if (overrideEnabled !== originalOverride.enabled) {
+      modifications.push({
+        field: 'emission_factor_override',
+        old_value: originalOverride.enabled ? 'Enabled' : 'Disabled',
+        new_value: overrideEnabled ? 'Enabled' : 'Disabled'
+      });
+    }
+    if (overrideEnabled && customEmissionFactor !== originalOverride.value) {
+      modifications.push({
+        field: 'custom_emission_factor',
+        old_value: originalOverride.value || 'N/A',
+        new_value: customEmissionFactor
+      });
+    }
+    
+    return modifications;
+  }, [editedInputs, originalInputs, overrideEnabled, customEmissionFactor, originalOverride]);
+  
   // Format emission value
   const formatEmission = (value) => {
     if (value === null || value === undefined) return '-';
     return typeof value === 'number' ? value.toFixed(4) : value;
   };
   
-  // Format input/output field
-  const formatInputField = (inputs, fieldKey) => {
-    if (!inputs || !inputs[fieldKey]) return '-';
-    const field = inputs[fieldKey];
-    return `${field.value || 0} ${field.unit || ''}`.trim() || '-';
-  };
-  
-  // Get input fields from inputs object
-  const getInputFields = (inputs) => {
-    if (!inputs) return [];
-    return Object.entries(inputs).map(([key, val]) => ({
-      key,
-      label: key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-      value: val?.value,
-      unit: val?.unit,
+  // Handle input change
+  const handleInputChange = (key, value) => {
+    setEditedInputs(prev => ({
+      ...prev,
+      [key]: { ...prev[key], value: value }
     }));
   };
   
-  // Check if a field changed
-  const hasFieldChanged = (fieldKey) => {
-    if (!isUpdate || !originalValues.inputs || !proposedChanges.inputs) return false;
-    const oldVal = originalValues.inputs[fieldKey]?.value;
-    const newVal = proposedChanges.inputs[fieldKey]?.value;
-    return oldVal !== newVal;
+  // Reset to original values
+  const handleReset = () => {
+    setEditedInputs({ ...originalInputs });
+    setOverrideEnabled(originalOverride.enabled);
+    setCustomEmissionFactor(originalOverride.value);
+    setCalculatedEmissions({ ...originalEmissions });
+  };
+  
+  // Recalculate emissions
+  const handleRecalculate = async () => {
+    setCalculating(true);
+    try {
+      // Build inputs for calculation API
+      const inputs = {};
+      Object.entries(editedInputs).forEach(([key, val]) => {
+        inputs[key] = {
+          value: parseFloat(val.value) || 0,
+          unit: val.unit
+        };
+      });
+      
+      // Call calculation endpoint
+      const response = await axios.post(
+        `${API}/api/calc-engine/execute-by-category`,
+        {
+          category_id: snapshot.category_id,
+          inputs: inputs,
+          context: {
+            scope: snapshot.scope,
+            category: snapshot.category,
+            fuel_name: snapshot.fuel_type || snapshot.sub_category
+          },
+          user_overrides: overrideEnabled && customEmissionFactor ? {
+            ef: { value: parseFloat(customEmissionFactor), unit: 'kgCO2/TJ' }
+          } : {},
+          dry_run: true
+        },
+        { headers: getAuthHeader() }
+      );
+      
+      if (response.data.ok) {
+        const outputs = response.data.outputs || {};
+        setCalculatedEmissions({
+          co2: outputs.co2?.value || 0,
+          ch4: outputs.ch4?.value || 0,
+          n2o: outputs.n2o?.value || 0,
+          total: outputs.co2e?.value || 0
+        });
+        toast.success('Emissions recalculated');
+      } else {
+        toast.error('Calculation failed');
+      }
+    } catch (e) {
+      console.error('Recalculate error:', e);
+      toast.error(e.response?.data?.detail || 'Failed to recalculate');
+    }
+    setCalculating(false);
   };
   
   const handleApprove = async () => {
     setProcessing(true);
     try {
+      // Build updated_data if modifications were made
+      const updatedData = hasModifications ? {
+        inputs: editedInputs,
+        emission_factor_override: overrideEnabled ? {
+          enabled: true,
+          value: parseFloat(customEmissionFactor) || null
+        } : { enabled: false },
+        calculated_emissions: calculatedEmissions,
+        approver_modifications: getModificationAudit()
+      } : null;
+      
       await axios.post(
         `${API}/api/approval-workflows/requests/${item._approval_request_id}/decide`,
-        { action: 'approve', comment: comment || 'Approved' },
+        { 
+          action: 'approve', 
+          comment: comment || (hasModifications ? 'Approved with modifications' : 'Approved'),
+          updated_data: updatedData
+        },
         { headers: getAuthHeader() }
       );
-      toast.success('Emission record approved');
+      toast.success(hasModifications ? 'Emission record approved with modifications' : 'Emission record approved');
       onApproved?.();
       onClose?.();
     } catch (e) {
@@ -1157,8 +1329,8 @@ function EmissionApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
     setProcessing(false);
   };
   
-  const inputFields = getInputFields(isUpdate ? proposedChanges.inputs : snapshot.inputs);
   const evidenceFiles = snapshot.evidence_files || [];
+  const inputFieldKeys = Object.keys(editedInputs);
   
   return (
     <div className="space-y-4 p-4" data-testid="emission-approval-panel">
@@ -1168,9 +1340,14 @@ function EmissionApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
           <h3 className="font-semibold text-lg">
             {isUpdate ? 'Update Request' : 'New Submission'} - {snapshot.scope?.toUpperCase() || 'GHG'}
           </h3>
-          <Badge variant={isUpdate ? 'secondary' : 'default'}>
-            {requestType.toUpperCase()}
-          </Badge>
+          <div className="flex items-center gap-2">
+            {hasModifications && (
+              <Badge className="bg-violet-100 text-violet-700">Modified by Approver</Badge>
+            )}
+            <Badge variant={isUpdate ? 'secondary' : 'default'}>
+              {requestType.toUpperCase()}
+            </Badge>
+          </div>
         </div>
         
         <div className="grid grid-cols-2 gap-4 text-sm">
@@ -1206,7 +1383,7 @@ function EmissionApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
         <div className="border border-amber-200 bg-amber-50 rounded-lg p-4">
           <h4 className="font-semibold text-amber-800 mb-3 flex items-center gap-2">
             <BarChart3 className="w-4 h-4" />
-            Proposed Changes
+            Proposed Changes (from Submitter)
           </h4>
           <div className="space-y-2">
             {Object.keys(proposedChanges.inputs || {}).map(fieldKey => {
@@ -1250,57 +1427,168 @@ function EmissionApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
         </div>
       )}
       
-      {/* Input Fields */}
+      {/* Editable Input Fields */}
       <div className="border rounded-lg overflow-hidden">
-        <div className="bg-stone-100 px-4 py-2 font-medium text-sm">
-          {isUpdate ? 'Current Input Data' : 'Input Data'}
+        <div className="bg-stone-100 px-4 py-2 font-medium text-sm flex items-center justify-between">
+          <span>Input Data (Editable by Approver)</span>
+          {hasModifications && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={handleReset}
+              className="text-xs h-7"
+              data-testid="reset-inputs-btn"
+            >
+              <RefreshCw className="w-3 h-3 mr-1" />
+              Reset to Original
+            </Button>
+          )}
         </div>
-        <div className="p-4 space-y-2">
-          {inputFields.length > 0 ? (
-            inputFields.map(field => (
-              <div key={field.key} className={`flex justify-between items-center py-1 ${hasFieldChanged(field.key) ? 'bg-yellow-50 -mx-2 px-2 rounded' : ''}`}>
-                <span className="text-stone-600 text-sm">{field.label}</span>
-                <div className="flex items-center gap-2">
-                  {isUpdate && hasFieldChanged(field.key) && (
-                    <span className="text-stone-400 line-through text-sm">
-                      {formatInputField(originalValues.inputs, field.key)}
-                    </span>
-                  )}
-                  <span className="font-medium">
-                    {field.value || 0} {field.unit || ''}
-                  </span>
-                  {isUpdate && hasFieldChanged(field.key) && (
-                    <Badge variant="outline" className="text-xs">Changed</Badge>
-                  )}
+        <div className="p-4 space-y-3">
+          {inputFieldKeys.length > 0 ? (
+            inputFieldKeys.map(fieldKey => {
+              const field = editedInputs[fieldKey];
+              const originalField = originalInputs[fieldKey];
+              const isModified = field?.value !== originalField?.value;
+              
+              return (
+                <div key={fieldKey} className={`flex items-center gap-3 py-2 ${isModified ? 'bg-violet-50 -mx-2 px-2 rounded border border-violet-200' : ''}`}>
+                  <label className="text-stone-600 text-sm w-40 capitalize flex-shrink-0">
+                    {fieldKey.replace(/_/g, ' ')}
+                  </label>
+                  <div className="flex items-center gap-2 flex-1">
+                    <input
+                      type="number"
+                      value={field?.value ?? ''}
+                      onChange={(e) => handleInputChange(fieldKey, e.target.value)}
+                      className="w-32 px-2 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      data-testid={`input-${fieldKey}`}
+                    />
+                    <span className="text-stone-500 text-sm">{field?.unit || ''}</span>
+                    {isModified && (
+                      <Badge variant="outline" className="text-xs bg-violet-100 text-violet-700 border-violet-300">
+                        Modified
+                      </Badge>
+                    )}
+                    {isModified && (
+                      <span className="text-stone-400 text-xs">
+                        (was: {originalField?.value} {originalField?.unit})
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           ) : (
-            <p className="text-stone-400 text-sm">No input data</p>
+            <p className="text-stone-400 text-sm">No input fields available for this emission type</p>
           )}
         </div>
       </div>
       
+      {/* Emission Factor Override */}
+      <div className="border rounded-lg overflow-hidden">
+        <div className="bg-stone-100 px-4 py-2 font-medium text-sm flex items-center gap-2">
+          <Activity className="w-4 h-4" />
+          Emission Factor Override
+          {originalOverride.enabled && (
+            <Badge className="bg-violet-100 text-violet-700 text-xs">Submitter Applied Override</Badge>
+          )}
+        </div>
+        <div className="p-4 space-y-3">
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={overrideEnabled}
+                onChange={(e) => setOverrideEnabled(e.target.checked)}
+                className="w-4 h-4 rounded border-stone-300"
+                data-testid="override-checkbox"
+              />
+              <span className="text-sm">Enable Custom Emission Factor</span>
+            </label>
+          </div>
+          
+          {overrideEnabled && (
+            <div className="flex items-center gap-3 pl-6">
+              <label className="text-stone-600 text-sm">Custom EF Value:</label>
+              <input
+                type="number"
+                value={customEmissionFactor}
+                onChange={(e) => setCustomEmissionFactor(e.target.value)}
+                placeholder="e.g., 2.5"
+                className="w-32 px-2 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                data-testid="custom-ef-input"
+              />
+              <span className="text-stone-500 text-sm">kgCO2/unit</span>
+              {overrideEnabled !== originalOverride.enabled || customEmissionFactor !== originalOverride.value ? (
+                <Badge variant="outline" className="text-xs bg-violet-100 text-violet-700">Modified</Badge>
+              ) : null}
+            </div>
+          )}
+        </div>
+      </div>
+      
+      {/* Recalculate Button */}
+      {hasModifications && (
+        <div className="flex justify-center">
+          <Button
+            onClick={handleRecalculate}
+            disabled={calculating}
+            variant="outline"
+            className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+            data-testid="recalculate-btn"
+          >
+            {calculating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+            Recalculate Emissions
+          </Button>
+        </div>
+      )}
+      
       {/* Emissions Output */}
       <div className="border rounded-lg overflow-hidden">
-        <div className="bg-stone-100 px-4 py-2 font-medium text-sm">Calculated Emissions (tCO2e)</div>
+        <div className="bg-stone-100 px-4 py-2 font-medium text-sm flex items-center justify-between">
+          <span>Calculated Emissions (tCO2e)</span>
+          {hasModifications && calculatedEmissions.total !== originalEmissions.total && (
+            <Badge className="bg-green-100 text-green-700 text-xs">Updated</Badge>
+          )}
+        </div>
         <div className="p-4">
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div className="flex justify-between">
               <span className="text-stone-600">CO2</span>
-              <span className="font-medium">{formatEmission(snapshot.co2_emissions)}</span>
+              <div className="flex items-center gap-2">
+                <span className="font-medium">{formatEmission(calculatedEmissions.co2)}</span>
+                {calculatedEmissions.co2 !== originalEmissions.co2 && (
+                  <span className="text-stone-400 text-xs line-through">{formatEmission(originalEmissions.co2)}</span>
+                )}
+              </div>
             </div>
             <div className="flex justify-between">
               <span className="text-stone-600">CH4</span>
-              <span className="font-medium">{formatEmission(snapshot.ch4_emissions)}</span>
+              <div className="flex items-center gap-2">
+                <span className="font-medium">{formatEmission(calculatedEmissions.ch4)}</span>
+                {calculatedEmissions.ch4 !== originalEmissions.ch4 && (
+                  <span className="text-stone-400 text-xs line-through">{formatEmission(originalEmissions.ch4)}</span>
+                )}
+              </div>
             </div>
             <div className="flex justify-between">
               <span className="text-stone-600">N2O</span>
-              <span className="font-medium">{formatEmission(snapshot.n2o_emissions)}</span>
+              <div className="flex items-center gap-2">
+                <span className="font-medium">{formatEmission(calculatedEmissions.n2o)}</span>
+                {calculatedEmissions.n2o !== originalEmissions.n2o && (
+                  <span className="text-stone-400 text-xs line-through">{formatEmission(originalEmissions.n2o)}</span>
+                )}
+              </div>
             </div>
             <div className="flex justify-between font-semibold">
               <span>Total CO2e</span>
-              <span className="text-emerald-600">{formatEmission(snapshot.total_emissions || snapshot.co2e_emissions)}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-emerald-600">{formatEmission(calculatedEmissions.total)}</span>
+                {calculatedEmissions.total !== originalEmissions.total && (
+                  <span className="text-stone-400 text-xs line-through">{formatEmission(originalEmissions.total)}</span>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1340,13 +1628,30 @@ function EmissionApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
         </div>
       )}
       
+      {/* Approver Modifications Summary */}
+      {hasModifications && (
+        <div className="bg-violet-50 border border-violet-200 rounded-lg p-3">
+          <div className="text-sm font-medium text-violet-800 mb-2 flex items-center gap-2">
+            <Clock className="w-4 h-4" />
+            Your Modifications (Will be recorded in audit trail)
+          </div>
+          <div className="space-y-1">
+            {getModificationAudit().map((mod, idx) => (
+              <div key={idx} className="text-sm text-violet-700">
+                • <span className="capitalize">{mod.field.replace(/_/g, ' ')}</span>: {mod.old_value} → <span className="font-medium">{mod.new_value}</span> {mod.unit || ''}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      
       {/* Comment */}
       <div>
-        <label className="text-sm font-medium">Comment (required for rejection)</label>
+        <label className="text-sm font-medium">Comment {hasModifications ? '(describe your modifications)' : '(required for rejection)'}</label>
         <textarea
           value={comment}
           onChange={(e) => setComment(e.target.value)}
-          placeholder="Add a comment..."
+          placeholder={hasModifications ? "Explain why you modified the values..." : "Add a comment..."}
           className="mt-1 w-full px-3 py-2 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
           rows={3}
           data-testid="emission-approval-comment"
@@ -1370,11 +1675,11 @@ function EmissionApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
         <Button
           onClick={handleApprove}
           disabled={processing}
-          className="bg-green-600 hover:bg-green-700"
+          className={hasModifications ? "bg-violet-600 hover:bg-violet-700" : "bg-green-600 hover:bg-green-700"}
           data-testid="approve-emission-btn"
         >
           {processing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
-          Approve
+          {hasModifications ? 'Approve with Modifications' : 'Approve'}
         </Button>
       </div>
     </div>

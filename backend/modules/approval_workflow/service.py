@@ -56,6 +56,7 @@ async def _create_approval_version_snapshot(
     extra_metadata: Optional[Dict[str, Any]] = None,
     changed_fields: Optional[List[str]] = None,  # Fields that were changed (for edit approvals)
     request_type: Optional[str] = None,  # "create", "update", "delete" for emission records
+    extra_data: Optional[Dict[str, Any]] = None,  # Additional data like approver_modifications
 ):
     """
     Create a version snapshot for approval/rejection events.
@@ -84,12 +85,18 @@ async def _create_approval_version_snapshot(
     
     # For emission_records, use emission_history format
     if collection_name == "emission_records":
+        # Extract approver_modifications from extra_data if provided
+        approver_mods = None
+        if extra_data and "approver_modifications" in extra_data:
+            approver_mods = extra_data["approver_modifications"]
+        
         await _create_emission_history_entry(
             record_id=record_id,
             action=action,
             user_id=user_id,
             rejection_reason=rejection_reason,
             request_type=request_type,
+            approver_modifications=approver_mods,
         )
         return
     
@@ -145,6 +152,7 @@ async def _create_emission_history_entry(
     user_id: str,
     rejection_reason: Optional[str] = None,
     request_type: Optional[str] = None,
+    approver_modifications: Optional[List[Dict]] = None,
 ):
     """
     Create an entry in emission_history for approval/rejection events.
@@ -169,6 +177,22 @@ async def _create_emission_history_entry(
     }
     action_display = action_map.get((action, request_type), f"{action.title()}")
     
+    # Add approver modifications to action display if any
+    if approver_modifications:
+        action_display += f" (with {len(approver_modifications)} modification(s) by approver)"
+    
+    # Build field_changes from approver_modifications
+    field_changes = []
+    if approver_modifications:
+        for mod in approver_modifications:
+            field_changes.append({
+                "field": mod.get("field", "unknown"),
+                "old_value": mod.get("old_value"),
+                "new_value": mod.get("new_value"),
+                "unit": mod.get("unit"),
+                "modified_by": "approver",
+            })
+    
     history_entry = {
         "id": str(uuid.uuid4()),
         "emission_id": record_id,
@@ -181,12 +205,13 @@ async def _create_emission_history_entry(
         "changed_by_name": user_name,
         "changed_at": _now_iso(),
         "version": (record.get("version", 0) if record else 0) + 1,
-        "field_changes": [],
+        "field_changes": field_changes,
         "changes_summary": action_display,
         "changes": {
             "action": action,
             "request_type": request_type,
             "rejection_reason": rejection_reason,
+            "approver_modifications": approver_modifications,
         },
     }
     
@@ -1070,6 +1095,45 @@ class ApprovalWorkflowService:
                         if current_record:
                             record_update["version"] = current_record.get("version", 0) + 1
                     
+                    # Handle approver modifications from updated_data
+                    approver_modifications = []
+                    if updated_data:
+                        logger.info(f"Processing approver modifications: {list(updated_data.keys())}")
+                        
+                        # Apply modified inputs
+                        if "inputs" in updated_data:
+                            record_update["dynamic_field_values"] = updated_data["inputs"]
+                            record_update["inputs"] = updated_data["inputs"]
+                        
+                        # Apply emission factor override
+                        if "emission_factor_override" in updated_data:
+                            ef_override = updated_data["emission_factor_override"]
+                            if ef_override.get("enabled"):
+                                record_update["has_custom_ef"] = True
+                                record_update["emission_factor_used"] = ef_override.get("value")
+                                record_update["emission_factor_override"] = ef_override
+                            else:
+                                record_update["has_custom_ef"] = False
+                        
+                        # Apply recalculated emissions
+                        if "calculated_emissions" in updated_data:
+                            calc_em = updated_data["calculated_emissions"]
+                            record_update["co2_emissions"] = calc_em.get("co2", 0)
+                            record_update["ch4_emissions"] = calc_em.get("ch4", 0)
+                            record_update["n2o_emissions"] = calc_em.get("n2o", 0)
+                            record_update["co2e_emissions"] = calc_em.get("total", 0)
+                            record_update["total_emissions"] = calc_em.get("total", 0)
+                        
+                        # Store approver modifications for audit trail
+                        if "approver_modifications" in updated_data:
+                            approver_modifications = updated_data["approver_modifications"]
+                            record_update["approver_modifications"] = {
+                                "modified_by": approver.get("id"),
+                                "modified_by_name": approver.get("full_name", approver.get("email", "")),
+                                "modified_at": _now_iso(),
+                                "changes": approver_modifications
+                            }
+                    
                     await db.emission_records.update_one(
                         {"id": entity_id},
                         {"$set": record_update}
@@ -1080,6 +1144,8 @@ class ApprovalWorkflowService:
                     changed_fields = ["approval_status"]
                     if request_type == "update" and proposed_changes:
                         changed_fields.extend(list(proposed_changes.keys()))
+                    if approver_modifications:
+                        changed_fields.extend([m.get("field", "unknown") for m in approver_modifications])
                     
                     await _create_approval_version_snapshot(
                         collection_name="emission_records",
@@ -1087,9 +1153,12 @@ class ApprovalWorkflowService:
                         action="approved",
                         user_id=approver.get("id"),
                         changed_fields=changed_fields,
+                        extra_data={"approver_modifications": approver_modifications} if approver_modifications else None,
                     )
                 except Exception as e:
                     logger.error(f"Failed to update emission_record with approval: {e}")
+                    import traceback
+                    traceback.print_exc()
         
         # Record history
         await ApprovalWorkflowService._record_history(
