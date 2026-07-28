@@ -2612,7 +2612,19 @@ class ESGQuestionnaireService:
             })
             
             if existing_request:
-                return  # Already has a pending request
+                # In-place update: Update existing request with new value
+                now = datetime.now(timezone.utc).isoformat()
+                await db.approval_requests.update_one(
+                    {"id": existing_request.get("id")},
+                    {"$set": {
+                        "entity_snapshot": {"value": response_value, "reporting_year": reporting_year},
+                        "submitted_by": changed_by_user_id,
+                        "submitted_at": now,
+                        "updated_at": now,
+                    }}
+                )
+                print(f"Updated existing approval request {existing_request.get('id')} with new value")
+                return
             
             # Get user details for submission
             user = await db.users.find_one(

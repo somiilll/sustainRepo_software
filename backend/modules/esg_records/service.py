@@ -782,6 +782,94 @@ class ESGRecordsService:
             raise
 
 
+    async def _update_existing_esg_approval_request(
+        self,
+        request: Dict[str, Any],
+        record_id: str,
+        current_record: Dict[str, Any],
+        new_data: Any,
+        user_id: str,
+        section: str,
+    ):
+        """
+        Update an existing pending approval request with new data (in-place update).
+        This allows users to modify their submission while it's still pending review.
+        
+        For CREATE requests: The actual record is also updated by the caller.
+        For EDIT requests (immutable_edit): Only the snapshot is updated.
+        """
+        now = datetime.now(timezone.utc).isoformat()
+        request_id = request.get("id")
+        old_snapshot = request.get("entity_snapshot", {})
+        edit_type = old_snapshot.get("edit_type", "create")
+        
+        # Get submitter info
+        submitter = await db.users.find_one({"id": user_id}, {"_id": 0, "email": 1, "full_name": 1})
+        submitter_email = submitter.get("email", "") if submitter else ""
+        submitter_name = submitter.get("full_name", "") if submitter else ""
+        
+        # Build new field_values from new_data
+        new_field_values = new_data.field_values if new_data.field_values is not None else old_snapshot.get("field_values", {})
+        
+        # Get category config for field definitions
+        category_config = await self.get_category_by_name(
+            section,
+            current_record.get("category"),
+            current_record.get("subcategory")
+        )
+        field_definitions = category_config.get("fields", []) if category_config else []
+        
+        # Build updated snapshot
+        updated_snapshot = {
+            **old_snapshot,
+            "field_values": new_field_values,
+            "field_definitions": field_definitions,
+        }
+        
+        # Update other fields if provided
+        if new_data.evidence_files is not None:
+            updated_snapshot["evidence_files"] = new_data.evidence_files
+        if new_data.source_of_information is not None:
+            updated_snapshot["source_of_information"] = new_data.source_of_information
+        if new_data.notes is not None:
+            updated_snapshot["notes"] = new_data.notes
+        
+        # For immutable edits, update proposed_changes
+        if edit_type == "immutable_edit":
+            proposed_changes = old_snapshot.get("proposed_changes", {})
+            if new_data.field_values is not None:
+                proposed_changes["field_values"] = new_data.field_values
+            if new_data.evidence_files is not None:
+                proposed_changes["evidence_files"] = new_data.evidence_files
+            if new_data.source_of_information is not None:
+                proposed_changes["source_of_information"] = new_data.source_of_information
+            if new_data.notes is not None:
+                proposed_changes["notes"] = new_data.notes
+            updated_snapshot["proposed_changes"] = proposed_changes
+            
+            # Recalculate changes_summary
+            changes_summary = self._calculate_field_changes(
+                old_values=old_snapshot.get("current_field_values", {}),
+                new_values=new_field_values,
+                old_record=current_record,
+                new_record={**current_record, **proposed_changes},
+            )
+            updated_snapshot["changes_summary"] = changes_summary or []
+        
+        # Update the approval request in-place
+        await db.approval_requests.update_one(
+            {"id": request_id},
+            {"$set": {
+                "entity_snapshot": updated_snapshot,
+                "submitted_by": user_id,
+                "submitted_by_email": submitter_email,
+                "submitted_by_name": submitter_name,
+                "submitted_at": now,
+                "updated_at": now,
+            }}
+        )
+        print(f"Updated existing ESG approval request {request_id} with new data")
+
     
     async def _mark_task_completed(
         self,
@@ -1026,8 +1114,8 @@ class ESGRecordsService:
             )
         
         # =========================================================================
-        # PENDING APPROVAL EDIT RULE: Cannot edit records awaiting approval
-        # Prevents race conditions where data changes while approval is pending
+        # PENDING APPROVAL EDIT RULE: Allow in-place update of approval request
+        # Instead of blocking, update the existing request with new data
         # =========================================================================
         if current.get("approval_status") == "pending_approval" and not is_admin_override:
             # Check if there's an active approval request
@@ -1035,23 +1123,53 @@ class ESGRecordsService:
                 "entity_id": record_id,
                 "entity_type": "esg_record",
                 "status": {"$in": ["pending", "in_review"]},
-            }, {"_id": 0, "id": 1, "submitted_by": 1, "submitted_at": 1})
+            }, {"_id": 0})
             
             if pending_request:
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "error": "PENDING_APPROVAL_EDIT_NOT_ALLOWED",
-                        "message": "This record has a pending approval request. Wait for approval/rejection before making changes.",
-                        "approval_request_id": pending_request.get("id"),
-                        "submitted_at": pending_request.get("submitted_at"),
-                        "suggestion": "Either wait for the approval decision, or cancel the existing request first.",
-                    }
+                # In-place update: Update the existing approval request with new data
+                await self._update_existing_esg_approval_request(
+                    request=pending_request,
+                    record_id=record_id,
+                    current_record=current,
+                    new_data=data,
+                    user_id=user_id,
+                    section=section,
                 )
+                
+                # For CREATE requests, also update the actual record
+                request_type = pending_request.get("entity_snapshot", {}).get("edit_type", "create")
+                if request_type != "immutable_edit":
+                    # It's a create request - update the actual record too
+                    update_fields = {}
+                    if data.field_values is not None:
+                        update_fields["field_values"] = data.field_values
+                    if data.evidence_files is not None:
+                        update_fields["evidence_files"] = data.evidence_files
+                    if data.source_of_information is not None:
+                        update_fields["source_of_information"] = data.source_of_information
+                    if data.notes is not None:
+                        update_fields["notes"] = data.notes
+                    
+                    if update_fields:
+                        update_fields["updated_at"] = datetime.now(timezone.utc).isoformat()
+                        update_fields["updated_by"] = user_id
+                        await collection.update_one(
+                            {"id": record_id, "is_current": True},
+                            {"$set": update_fields}
+                        )
+                
+                # Return the record with pending status indication
+                updated = await collection.find_one({"id": record_id, "is_current": True}, {"_id": 0})
+                return {
+                    **updated,
+                    "_pending_edit": {
+                        "status": "pending_approval",
+                        "message": "Your changes have been updated in the pending approval request.",
+                    }
+                }
         
         # =========================================================================
-        # MULTIPLE PENDING EDIT REQUESTS RULE: Only one edit request at a time
-        # If a previous edit is pending approval, block new edits
+        # MULTIPLE PENDING EDIT REQUESTS: Allow in-place update instead of blocking
         # =========================================================================
         # Check if there's already a pending EDIT approval request (not create/delete)
         existing_edit_request = await db.approval_requests.find_one({
@@ -1059,25 +1177,27 @@ class ESGRecordsService:
             "entity_type": "esg_record",
             "status": {"$in": ["pending", "in_review"]},
             "entity_snapshot.is_edit": True,  # Specifically check for edit requests
-        }, {"_id": 0, "id": 1, "submitted_by": 1, "submitted_at": 1, "entity_snapshot": 1})
+        }, {"_id": 0})
         
         if existing_edit_request and not is_admin_override:
-            # Get submitter info for helpful error message
-            submitter_id = existing_edit_request.get("submitted_by")
-            submitter = await db.users.find_one({"id": submitter_id}, {"_id": 0, "full_name": 1, "email": 1})
-            submitter_name = submitter.get("full_name", submitter.get("email", "Unknown")) if submitter else "Unknown"
-            
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "error": "MULTIPLE_PENDING_EDITS_NOT_ALLOWED",
-                    "message": f"This record already has a pending edit request from {submitter_name}. Only one edit can be pending approval at a time.",
-                    "existing_request_id": existing_edit_request.get("id"),
-                    "submitted_by": submitter_name,
-                    "submitted_at": existing_edit_request.get("submitted_at"),
-                    "suggestion": "Wait for the existing edit request to be approved/rejected, or ask an admin to cancel it.",
-                }
+            # In-place update: Update the existing edit approval request
+            await self._update_existing_esg_approval_request(
+                request=existing_edit_request,
+                record_id=record_id,
+                current_record=current,
+                new_data=data,
+                user_id=user_id,
+                section=section,
             )
+            
+            # Return the record with pending status indication
+            return {
+                **current,
+                "_pending_edit": {
+                    "status": "pending_approval",
+                    "message": "Your changes have been updated in the pending edit approval request.",
+                }
+            }
         
         # Track changed fields
         changed_fields = []
