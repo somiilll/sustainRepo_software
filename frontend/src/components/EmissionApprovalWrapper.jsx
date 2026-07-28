@@ -354,7 +354,7 @@ export default function EmissionApprovalWrapper({
           isEditC7EmployeeCommuting={false}
           editActiveMonths={[]}
           ModuleDynamicFieldsRenderer={null}
-          getCategoriesForScope={() => []}
+          getCategoriesForScope={[]}
           getFuelsForCategory={() => []}
           availableScope3Methods={[]}
           availableScope3ActivityTypes={[]}
