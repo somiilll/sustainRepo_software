@@ -40,6 +40,91 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _build_emission_inputs(emission_record: dict) -> dict:
+    """
+    Build a normalized inputs dictionary from an emission record.
+    
+    Handles two data formats:
+    1. New format: dynamic_field_values = {'qty': {'value': 100, 'unit': 'kWh'}, ...}
+    2. Legacy format: individual fields like quantity, quantity_unit, emission_factor, etc.
+    
+    Returns a dict like: {'qty': {'value': 100, 'unit': 'kWh'}, ...}
+    """
+    # Check for dynamic_field_values first (new format)
+    dfv = emission_record.get("dynamic_field_values")
+    if dfv and isinstance(dfv, dict) and len(dfv) > 0:
+        return dfv
+    
+    # Check for inputs field
+    inputs = emission_record.get("inputs")
+    if inputs and isinstance(inputs, dict) and len(inputs) > 0:
+        return inputs
+    
+    # Build from legacy individual fields
+    legacy_inputs = {}
+    
+    # Quantity field
+    if emission_record.get("quantity") is not None:
+        legacy_inputs["qty"] = {
+            "value": emission_record.get("quantity"),
+            "unit": emission_record.get("quantity_unit") or emission_record.get("unit") or ""
+        }
+    
+    # Emission factor
+    if emission_record.get("emission_factor") is not None:
+        legacy_inputs["ef"] = {
+            "value": emission_record.get("emission_factor"),
+            "unit": "kgCO2/unit",
+            "is_override": emission_record.get("is_custom_factor", False)
+        }
+    
+    # Calorific value
+    if emission_record.get("calorific_value") is not None:
+        legacy_inputs["cv"] = {
+            "value": emission_record.get("calorific_value"),
+            "unit": "MJ/kg",
+            "is_override": emission_record.get("override_calorific_value", False)
+        }
+    
+    # Density
+    if emission_record.get("density") is not None:
+        legacy_inputs["density"] = {
+            "value": emission_record.get("density"),
+            "unit": "kg/L",
+            "is_override": emission_record.get("override_density", False)
+        }
+    
+    # Energy consumed (for Scope 2)
+    if emission_record.get("energy_consumed") is not None:
+        legacy_inputs["energy_consumed"] = {
+            "value": emission_record.get("energy_consumed"),
+            "unit": emission_record.get("energy_unit") or "kWh"
+        }
+    
+    # Distance (for Scope 3)
+    if emission_record.get("distance") is not None:
+        legacy_inputs["distance"] = {
+            "value": emission_record.get("distance"),
+            "unit": emission_record.get("distance_unit") or "km"
+        }
+    
+    # Weight (for Scope 3)
+    if emission_record.get("weight") is not None:
+        legacy_inputs["weight"] = {
+            "value": emission_record.get("weight"),
+            "unit": emission_record.get("weight_unit") or "kg"
+        }
+    
+    # Spend amount (for spend-based method)
+    if emission_record.get("spend_amount") is not None:
+        legacy_inputs["spend_amount"] = {
+            "value": emission_record.get("spend_amount"),
+            "unit": emission_record.get("currency") or "USD"
+        }
+    
+    return legacy_inputs if legacy_inputs else None
+
+
 # =============================================================================
 # Assignment-Based Approval Helpers (Granular per-category approval)
 # Mirrors the pattern in esg_records/service.py for consistency
@@ -282,11 +367,15 @@ async def _create_emission_approval_request(
     
     now = datetime.now(timezone.utc).isoformat()
     
+    # Build normalized inputs from emission record
+    normalized_inputs = _build_emission_inputs(emission_record)
+    
     # Build entity snapshot with full details for approval UI
     entity_snapshot = {
         "scope": emission_record.get("scope"),
         "category": emission_record.get("category"),
         "sub_category": emission_record.get("sub_category"),
+        "fuel_type": emission_record.get("fuel_type"),
         "facility_id": emission_record.get("facility_id"),
         "facility_name": facility.get("name") if facility else None,
         "reporting_period": emission_record.get("reporting_period"),
@@ -296,10 +385,17 @@ async def _create_emission_approval_request(
         "ch4_emissions": emission_record.get("ch4_emissions"),
         "n2o_emissions": emission_record.get("n2o_emissions"),
         "co2e_emissions": emission_record.get("co2e_emissions"),
-        "inputs": emission_record.get("inputs"),
+        "inputs": normalized_inputs,
+        "dynamic_field_values": normalized_inputs,  # Also include for compatibility
         "outputs": emission_record.get("outputs"),
         "evidence_files": emission_record.get("evidence_files", []),
         "notes": emission_record.get("notes"),
+        "has_custom_ef": emission_record.get("is_custom_factor", False),
+        "emission_factor_used": emission_record.get("emission_factor"),
+        "category_id": emission_record.get("category_id"),
+        "calculation_method_scope3": emission_record.get("calculation_method_scope3"),
+        "scope3_activity": emission_record.get("scope3_activity"),
+        "biogenic_scope_selection": emission_record.get("biogenic_scope_selection"),
         "edit_type": "create",
     }
     
@@ -397,11 +493,16 @@ async def _create_emission_update_approval_request(
             {"_id": 0, "name": 1}
         )
     
+    # Build normalized inputs from existing record and updated data
+    original_inputs = _build_emission_inputs(existing_record)
+    proposed_inputs = updated_data.get("inputs") or updated_data.get("dynamic_field_values") or _build_emission_inputs(updated_data)
+    
     # Build entity snapshot with both old and proposed values
     entity_snapshot = {
         "scope": existing_record.get("scope"),
         "category": existing_record.get("category"),
         "sub_category": existing_record.get("sub_category"),
+        "fuel_type": existing_record.get("fuel_type"),
         "facility_id": existing_record.get("facility_id"),
         "facility_name": facility.get("name") if facility else None,
         "reporting_period": existing_record.get("reporting_period"),
@@ -411,12 +512,19 @@ async def _create_emission_update_approval_request(
         "ch4_emissions": existing_record.get("ch4_emissions"),
         "n2o_emissions": existing_record.get("n2o_emissions"),
         "co2e_emissions": existing_record.get("co2e_emissions"),
-        "inputs": existing_record.get("inputs"),
+        "inputs": original_inputs,
+        "dynamic_field_values": original_inputs,
         "outputs": existing_record.get("outputs"),
         "evidence_files": existing_record.get("evidence_files", []),
+        "has_custom_ef": existing_record.get("is_custom_factor", False),
+        "emission_factor_used": existing_record.get("emission_factor"),
+        "category_id": existing_record.get("category_id"),
+        "calculation_method_scope3": existing_record.get("calculation_method_scope3"),
+        "scope3_activity": existing_record.get("scope3_activity"),
+        "biogenic_scope_selection": existing_record.get("biogenic_scope_selection"),
         # Store original values for comparison
         "original_values": {
-            "inputs": existing_record.get("inputs"),
+            "inputs": original_inputs,
             "outputs": existing_record.get("outputs"),
             "total_emissions": existing_record.get("total_emissions"),
             "co2_emissions": existing_record.get("co2_emissions"),
@@ -426,7 +534,7 @@ async def _create_emission_update_approval_request(
         },
         # Store proposed changes
         "proposed_changes": {
-            "inputs": updated_data.get("inputs"),
+            "inputs": proposed_inputs,
             "outputs": updated_data.get("outputs"),
         },
         "edit_type": "update",
