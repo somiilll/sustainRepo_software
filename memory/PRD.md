@@ -450,3 +450,25 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
   - `/app/frontend/src/pages/emissions/EmissionTable.js` - Alternative table component (updated for consistency)
 - **Testing**: 100% frontend pass rate (iteration_127)
 
+### GHG Emission Approval Form Enhancement (Dec 28, 2025)
+- **Feature**: Enhanced Approver Queue to show proper emission form for GHG approval
+- **New Component**: `/app/frontend/src/components/EmissionApprovalForm.jsx`
+- **Features**:
+  - Scope-specific forms (Scope1Form, Scope2Form, Scope3Form, BiogenicForm)
+  - Displays all input fields from the emission record
+  - Edit mode toggle - approver can enable editing to modify values
+  - Emission Factor Override section with checkbox and custom EF input
+  - Recalculate emissions button (calls `/api/calc-engine/execute-by-category`)
+  - Reset to Original button
+  - Evidence files tab with download links
+  - Modification audit trail - tracks all approver changes
+  - "Approve with Modifications" vs "Approve" button based on changes
+  - Tabs: Form Data | Emissions | Evidence
+- **Backend Updates**:
+  - `/app/backend/modules/approval_workflow/service.py`:
+    - `_process_approve()` now handles `updated_data` with approver modifications
+    - Applies modified inputs, emission factor overrides, and recalculated emissions
+    - Stores `approver_modifications` audit trail in the emission record
+  - `_create_emission_history_entry()` now includes approver modifications in the history
+- **Audit Trail**: All approver modifications are recorded with field, old_value, new_value, and unit
+
