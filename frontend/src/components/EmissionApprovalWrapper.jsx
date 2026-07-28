@@ -66,42 +66,87 @@ export default function EmissionApprovalWrapper({
   
   // Initialize form with snapshot data once core data is loaded
   useEffect(() => {
-    if (!coreData.loading && !initialDataLoaded && snapshot) {
-      // Build emission object from snapshot
-      const emissionData = {
-        id: item.entity_id,
-        facility_id: snapshot.facility_id,
-        scope: snapshot.scope,
-        category: snapshot.category,
-        sub_category: snapshot.sub_category,
-        fuel_type: snapshot.fuel_type,
-        reporting_period: snapshot.reporting_period,
-        frequency_type: snapshot.frequency_type,
-        quantity: snapshot.quantity,
-        quantity_unit: snapshot.quantity_unit,
-        notes: snapshot.notes,
-        evidence_files: snapshot.evidence_files || [],
-        dynamic_field_values: snapshot.inputs || snapshot.dynamic_field_values,
-        outputs: snapshot.outputs,
-        total_emissions: snapshot.total_emissions,
-        co2_emissions: snapshot.co2_emissions,
-        ch4_emissions: snapshot.ch4_emissions,
-        n2o_emissions: snapshot.n2o_emissions,
-        co2e_emissions: snapshot.co2e_emissions,
-        is_custom_factor: snapshot.has_custom_ef,
-        emission_factor: snapshot.emission_factor_used,
-        category_id: snapshot.category_id,
-        calculation_method_scope3: snapshot.calculation_method_scope3,
-        scope3_activity: snapshot.scope3_activity,
-        biogenic_scope_selection: snapshot.biogenic_scope_selection,
-      };
+    if (!coreData.loading && !initialDataLoaded && snapshot && Object.keys(snapshot).length > 0) {
+      // Get dynamic field values from snapshot
+      const dfv = snapshot.inputs || snapshot.dynamic_field_values || {};
       
-      // Trigger the edit handler to populate form
-      editHook.handleEdit(emissionData);
+      // Directly set form data instead of using handleEdit (which opens dialog)
+      editHook.setFormData({
+        facility_id: snapshot.facility_id || '',
+        scope: snapshot.scope || 'scope1',
+        category: snapshot.category || '',
+        sub_category: snapshot.sub_category || snapshot.fuel_type || '',
+        fuel_id: snapshot.fuel_database_id || '',
+        fuel_type: snapshot.fuel_type || '',
+        quantity: dfv.qty?.value?.toString() || snapshot.quantity?.toString() || '',
+        quantity_unit: dfv.qty?.unit || snapshot.quantity_unit || 'kg',
+        source_of_information: snapshot.source_of_information || '',
+        record_source: snapshot.record_source || '',
+        notes: snapshot.notes || '',
+        justification: snapshot.justification || '',
+        evidence_url: snapshot.evidence_url || '',
+        responsible_person: snapshot.responsible_person || '',
+        responsible_person_designation: snapshot.responsible_person_designation || '',
+        responsible_person_contact: snapshot.responsible_person_contact || '',
+        calorific_value: dfv.cv?.value?.toString() || '',
+        calorific_value_unit: dfv.cv?.unit || 'MJ/kg',
+        calorific_value_justification: dfv.cv?.justification || '',
+        density: dfv.density?.value?.toString() || '',
+        density_justification: dfv.density?.justification || '',
+        process_names: snapshot.process_descriptions?.length > 0 
+          ? snapshot.process_descriptions 
+          : [{ name: snapshot.process_names?.[0] || '', description: '' }],
+        supplier_name: snapshot.supplier_name || dfv.supplier_name?.value || '',
+        supplier_code: snapshot.supplier_code || dfv.supplier_code?.value || '',
+        employee_name: snapshot.employee_name || dfv.employee_name?.value || '',
+        employee_id: snapshot.employee_id || dfv.employee_id?.value || '',
+        asset_name: snapshot.asset_name || dfv.asset_name?.value || '',
+        from_location: snapshot.from_location || dfv.from_location?.value || '',
+        to_location: snapshot.to_location || dfv.to_location?.value || '',
+      });
+      
+      // Set the editing emission reference
+      editHook.setEditingEmission({
+        id: item.entity_id,
+        ...snapshot
+      });
+      
+      // Set dynamic field values directly
+      editHook.setDynamicFieldValues(dfv);
+      
+      // Set Scope 3 state if applicable
+      if (snapshot.scope === 'scope3' || (snapshot.scope === 'biogenic' && dfv.biogenic_scope_selection?.value === 'scope3')) {
+        editHook.setScope3Method(snapshot.calculation_method_scope3 || dfv.calculation_method_scope3?.value || '');
+        editHook.setScope3ActivityType(dfv.scope3_activity_type?.value || '');
+        editHook.setScope3ActivityId(snapshot.scope3_ef_id || dfv.scope3_ef_id?.value || '');
+        editHook.setScope3Subcategory(dfv.scope3_subcategory?.value || '');
+        editHook.setTypeOfProduct(snapshot.type_of_product || dfv.type_of_product?.value || '');
+        editHook.setScope3CustomActivity(snapshot.scope3_activity || dfv.scope3_activity?.value || '');
+        editHook.setUseCustomActivity(dfv.use_custom_activity?.value || false);
+      }
+      
+      // Set biogenic state if applicable
+      if (snapshot.scope === 'biogenic') {
+        editHook.setBiogenicScopeSelection(snapshot.biogenic_scope_selection || dfv.biogenic_scope_selection?.value || 'scope1');
+      }
+      
+      // Set override states
+      editHook.setOverrideCalorificValue(dfv.cv?.is_override || snapshot.has_custom_ef || false);
+      editHook.setOverrideDensity(dfv.density?.is_override || false);
+      
+      // Set calculated emissions from existing outputs
+      if (snapshot.outputs) {
+        editHook.setCalculatedEmissions({
+          co2Emissions: snapshot.outputs.co2?.value || 0,
+          ch4Emissions: snapshot.outputs.ch4?.value || 0,
+          n2oEmissions: snapshot.outputs.n2o?.value || 0,
+          co2eEmissions: snapshot.outputs.co2e?.value || 0,
+        });
+      }
       
       // Store original values for comparison
       setOriginalValues({
-        dynamicFieldValues: snapshot.inputs || snapshot.dynamic_field_values || {},
+        dynamicFieldValues: dfv,
         quantity: snapshot.quantity,
         has_custom_ef: snapshot.has_custom_ef,
         emission_factor: snapshot.emission_factor_used,
@@ -109,7 +154,7 @@ export default function EmissionApprovalWrapper({
       
       setInitialDataLoaded(true);
     }
-  }, [coreData.loading, initialDataLoaded, snapshot, item.entity_id, editHook]);
+  }, [coreData.loading, initialDataLoaded, snapshot, item.entity_id]);
   
   // Track modifications
   const hasModifications = useMemo(() => {
