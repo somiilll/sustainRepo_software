@@ -148,13 +148,18 @@ export default function EmissionApprovalWrapper({
   
   // Compute dynamic input fields from form config
   const dynamicInputFields = useMemo(() => {
-    if (!editFormConfig?.input_field_mappings?.length) return [];
+    if (!editFormConfig?.input_field_mappings?.length) {
+      console.log('[DynamicFields] No input_field_mappings');
+      return [];
+    }
     
     // Required variables are at top level of editFormConfig
     const requiredVars = editFormConfig.required_input_variables || [];
+    console.log('[DynamicFields] Required vars:', requiredVars);
+    console.log('[DynamicFields] Input mappings:', editFormConfig.input_field_mappings);
     
     // Map all input field mappings, filter by required if available
-    return editFormConfig.input_field_mappings
+    const fields = editFormConfig.input_field_mappings
       .filter(mapping => {
         // If no required vars specified, include all fields
         if (requiredVars.length === 0) return true;
@@ -172,6 +177,9 @@ export default function EmissionApprovalWrapper({
         placeholder: mapping.placeholder,
         tooltip: mapping.tooltip,
       }));
+    
+    console.log('[DynamicFields] Computed fields:', fields);
+    return fields;
   }, [editFormConfig]);
   
   // Compute categories for selected scope
@@ -237,9 +245,21 @@ export default function EmissionApprovalWrapper({
   
   // Initialize form with snapshot data once core data AND form config are loaded
   useEffect(() => {
+    console.log('[FormInit] Checking conditions:', {
+      coreDataLoading: coreData.loading,
+      editFormConfigLoading,
+      hasEditFormConfig: !!editFormConfig,
+      initialDataLoaded,
+      hasSnapshot: !!snapshot,
+      snapshotKeys: Object.keys(snapshot).length
+    });
+    
     if (!coreData.loading && !editFormConfigLoading && editFormConfig && !initialDataLoaded && snapshot && Object.keys(snapshot).length > 0) {
+      console.log('[FormInit] All conditions met - initializing form');
+      
       // Get dynamic field values from snapshot
       const dfv = snapshot.inputs || snapshot.dynamic_field_values || {};
+      console.log('[FormInit] Dynamic field values from snapshot:', dfv);
       
       // Directly set form data instead of using handleEdit (which opens dialog)
       editHook.setFormData({
