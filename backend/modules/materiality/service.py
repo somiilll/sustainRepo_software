@@ -112,9 +112,9 @@ class MaterialityService:
         
         gri_topics = [
             # Universal Standards
-            ("101", "Foundation", "Governance", "GRI 101 sets out the purpose and system of GRI Standards, explains key concepts, and how to use the Standards."),
-            ("102", "General Disclosures", "Governance", "GRI 102 is used to report contextual information about an organization and its sustainability reporting practices."),
-            ("103", "Management Approach", "Governance", "GRI 103 is used to report information about how an organization manages a material topic."),
+            ("101", "Biodiversity", "Environmental", "Operational sites in biodiversity-sensitive areas, impacts on biodiversity, habitats protected or restored."),
+            ("102", "Climate Change", "Environmental", "Climate-related risks and opportunities, GHG emissions targets, climate adaptation strategies."),
+            ("103", "Energy", "Environmental", "Energy consumption within and outside the organization, energy intensity, reduction initiatives."),
             # Economic (200 series)
             ("201", "Economic Performance", "Governance", "Direct economic value generated and distributed, financial implications of climate change."),
             ("202", "Market Presence", "Governance", "Entry-level wage ratios and local hiring practices."),
