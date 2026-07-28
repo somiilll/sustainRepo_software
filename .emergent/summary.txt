@@ -11,26 +11,36 @@ PRODUCT REQUIREMENTS ADDED:
 8) Automatic Approval Requirement Detection on Question Save.
 9) Architect a Single Source of Truth for Data Normalization in the UI.
 
-**User's preferred language**: English (INSTRUCTION: Next agent MUST respond in English)
+**User's preferred language**: English (INSTRUCTION: Next agent MUST respond in English only)
 
 **what currently exists?** 
-A mature ESG enterprise reporting system with a V2 Assignment Architecture utilizing a junction table () for multi-user assignment mapping. Dual Save Mechanics are in place: the frontend strictly reads questionnaire responses from , while governance/approval states are tracked centrally in  as the single source of truth for questionnaires. Environmental records (e.g., Water, Energy) track their statuses directly on the record objects themselves. 
+A mature ESG enterprise reporting system with a V2 Assignment Architecture utilizing a junction table () for multi-user assignment mapping. Dual Save Mechanics are in place. The architecture is currently being unified so both BRSR and GRI questionnaires use  as the single source of truth for Tracker reading, and  for underlying approval state. GHG Emissions uses a separate module () but is currently being integrated into the unified V2 assignment and  workflow.
 
 **Last working item**:
-    - Last item agent was working: Investigating why ESG Records (specifically Water/Recycle) are not receiving an  upon creation, despite the existence of an active assignment with . The agent was tracing the  logic to figure out why  fails to bind the assignment to the record during the save flow.
+    - Last item agent was working: Unifying the GHG Emissions update approval flow. The user requested replacing the legacy  and  flow in  with the new unified  pattern (used by ESG metrics).
     - Status: IN PROGRESS
     - Agent Testing Done: N
     - Which testing method agent to use? backend testing agent
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-  Issue 1: ESG Records (Water Recycle) not reflecting pending approval status on save (Priority: P0)
-     - Attempted fixes: Investigated  and . Verified that the admin user is properly assigned in  and the assignment is successfully queried. However, the resolver returns . 
-     - Next debug checklist: Check  inside . Verify how  overlaps are handled when resolving assignments for ESG records (User suggested: is it because assignment for water recycle was created for June to December out of which June to December except Nov data was already there?). Validate the ESG record save logic in  to ensure  correctly attaches when an assignment matches.
-     - Why fix this issue and what will be achieved with the fix? Ensures environmental/social records flow into the Approval Queue properly when designated by an assignment. 
+  Issue 1: Unify GHG Emissions Update Approval Flow (Priority: P0)
+     - Attempted fixes: Investigated  and . Identified that  still uses the legacy  which saves to . 
+     - Next debug checklist: Modify  in  to bypass the old  flow. Instead, generate a unified approval request in the  collection and update the  document with  (mirroring what was just fixed for the create flow).
+     - Why fix this issue and what will be achieved with the fix? Standardizes all approval workflows across the platform to use the  collection, allowing the Approval Queue to fetch all pending approvals from a single source.
      - Status: IN PROGRESS
      - Is recurring issue? N
      - Should Test frontend/backend/both after fix? Backend
+     - Blocked on other issue: None
+
+  Issue 2: Approval Queue not displaying Emission Records (Priority: P0)
+     - Attempted fixes: The agent updated  in  to fetch from  for emission/ESG records. 
+     - Next debug checklist: Ensure the frontend  correctly handles the payload structure for emission records coming from . Confirm the unified emissions update flow (Issue 1) feeds correctly into this queue.
+     - Why fix this issue and what will be achieved with the fix? Ensures approvers can see and act on GHG emission record submissions in their unified queue.
+     - Status: TESTING PENDING
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? Both
+     - Blocked on other issue: Issue 1
 
 **In progress Task List**:
   Task 1: Unify Targets and Internal Data AI to use Dashboard Services (Priority: P1)
@@ -64,15 +74,16 @@ A mature ESG enterprise reporting system with a V2 Assignment Architecture utili
     - P2: SBTi target validation rules.
 
 **Completed work in this session**
-- Add missing section filter to  API endpoint and wire Version History UI with old/new values, approver details, and timestamps in . (DONE)
-- Format raw JSON structures in Version History into readable text (handled boolean control strings). (DONE)
-- Replace raw JSON view in QuestionnaireApprovalPanel with the native . (DONE)
-- Fix Tracker bug displaying pending for not_started questions by purging stale . (DONE)
-- Fix  to properly aggregate multiple assignments (Org + Facility level) for GHG tracking. (DONE)
-- Centralize Questionnaire approvals source of truth: Tracker now reads statuses strictly from , removing redundant writes to . (DONE)
-- Fix Approver edits not syncing back to  by using a case-insensitive regex for the framework field update. (DONE)
-- Fix MyTasks fetching BRSR questionnaire assignments in the ESG Metrics tab by scoping query to . (DONE)
-- Fix missing approval/rejection audit entries by injecting  and explicit  calls to  in workflow service. (DONE)
+- Fixed  bug for unanswered parent questions in GRI Tracker by enforcing . (DONE)
+- Fixed My Tasks  to reflect completion state decoupled from . (DONE)
+- Fixed MongoDB  (conflict with  in  and ) across . (DONE)
+- Fixed GRI Version History UI rendering by updating backend to fetch subpart keys when a parent key is queried ( regex matching). (DONE)
+- Added  to clear the user's own drafts upon final save or approval. (DONE)
+- Formatted Version History payload for the frontend to include , , and correctly computed . (DONE)
+- Fixed Frontend bug in  that was failing to send  and  for facility-level assignments. (DONE)
+- Fixed Backend  to expect/handle dict formats containing . (DONE)
+- Fixed V2 Assignment lookup for Emissions () to use the  junction table instead of legacy . (DONE)
+- Fixed  to correctly update the underlying  document with . (DONE)
 
 **Earlier issues found/mentioned but not fixed**
    Issue 1: Missing filters on seeded Water Withdrawal KPIs.
@@ -83,94 +94,98 @@ A mature ESG enterprise reporting system with a V2 Assignment Architecture utili
 
 **Known issue recurrence from previous fork**
   - Issue recurrence in previous fork: Missing filters on seeded Water Withdrawal KPIs.
-  - Recurrence count: 30
+  - Recurrence count: 32
   - Status: BLOCKED (User explicitly asked to delay fixing this).
 
 **Code Architecture**
 /app/
 ├── backend/
 │   ├── modules/
-│   │   ├── esg_questionnaire/
-│   │   │   ├── service.py (Config, rendering, saving logic, trigger approvals)
+│   │   ├── emissions/
+│   │   │   ├── router.py (GHG record endpoints; holds  & )
+│   │   ├── approvals/
+│   │   │   ├── emission_flow_v2.py (Legacy intercept patterns being deprecated)
 │   │   ├── approval_workflow/
-│   │   │   ├── service.py (Handles multi-entity approvals and triggers version snapshots)
+│   │   │   ├── service.py (Unified queue fetching logic)
+│   │   ├── esg_questionnaire/
+│   │   │   ├── service.py (Handles saving, draft clearing, version history)
 │   │   ├── esg_assignments/
-│   │   │   ├── assignment_resolver.py (Resolves assignments to records)
-│   │   ├── esg_tracking/
-│   │   │   ├── service.py (Tracker single-source-of-truth queries)
+│   │   │   ├── service.py (My Tasks logic, V2 assignments)
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── ESGQuestionnaire.js (Single source of truth for FY normalization + fetches statuses)
-│   │   │   ├── QuestionnaireApprovalPanel.js (Approver UI holding QuestionRenderer)
-│   │   │   ├── ApproverQueue.js / ApprovalModule.js
-│   │   │   ├── DetailedProgressView.js (Facility level matrix view)
+│   │   │   ├── ESGRecordsTracker.js (Assignment wizard integration)
+│   │   │   ├── ApproverQueue.js
 
 **Key Technical Concepts**
-- **Single Source of Truth for Questionnaire Approvals**: The system previously wrote questionnaire approval statuses to both  and . This architecture was cleaned up this session; now,  is the sole source of truth for questionnaire statuses.
-- **Record Approvals vs Questionnaire Approvals**: Questionnaires store their approval status in . ESG Records (e.g., Water, Energy) store their approval status natively inside the record itself (e.g., , ).
-- **Assignment Resolver**: Resolves incoming records against assignments using the  junction table to map multiple users accurately.
+- **Unified Approvals**: The system is migrating away from disparate  logic to a centralized  collection.
+- **V2 Assignment Architecture**: Direct assignment fields (like ) on records are deprecated. Lookups must go through the junction table .
+- **Completion vs Approval**:  (or  in My Tasks) strictly denotes data entry state (pending, in_progress, completed).  handles governance state (pending_approval, approved, rejected).
 
 **key DB schema**
-  - :  (Stores display answers)
-  - :  (Stores questionnaire governance state)
-  - :  (V2 multi-user assignment junction table)
-  - : Logs granular version history including old vs new value comparisons.
+  - : Unified queue for all framework/record approvals.
+  - : Stores GHG Emissions data (recently updated to include ).
+  - : Legacy collection, being deprecated in favor of .
+  - : Holds temporary saved drafts before final submission.
+  - : .
 
 **changes in tech stack**
   - None.
 
 **All files of reference**
-  -  (Currently holds the bug for Issue 1)
-  -  (Save flow for records invoking the assignment resolver)
   - 
-  -  
-  -  
+  - 
+  - 
+  - 
 
 **Areas that need refactoring**:
-  - The assignment resolver's  period matching logic might be overly strict or failing on partial financial/calendar year overlaps. 
+  - The  logic in  needs to be refactored to stop using  and instead utilize the new unified  workflow.
 
 **key api endpoints**
-  -  
-  - 
-  - 
+  -  (Currently uses legacy approval flow, needs refactoring).
+  -  (Approval queue endpoint).
+  -  (Facility assignment saving).
 
 **Critical Info for New Agent**
-- **Data State**: During this session, the user instructed the complete purging of all assignments, tasks, responses, and audit logs for Org1 to test with a clean slate. New assignments were created recently by the user.
-- DO NOT re-add  writes into  for questionnaires. The architecture has explicitly shifted to treating  as the master truth for questionnaire approval state.
-- Before doing any architectural changes to fix Issue 1, carefully assess whether it's just a reporting period string mismatch (e.g. June-Dec overlaps) inside the  function.
+- The user **explicitly instructed** to replace the old  logic for GHG emissions updates. You must migrate  to use  just like ESG metrics do.
+- Ensure any  creation also explicitly updates the underlying record () with .
+- Do not forget the V2 Assignment junction table pattern—always resolve assignees through , never the  field.
 
 **documents and test reports created in this job**
   - 
+  - 
+  - 
+  - 
+  - 
 
 **Last 10 User Messages and any pending HUMAN messages** 
- 1. User: Reported My Tasks showing Awaiting Approval even though approved, version history not capturing approval/rejections, and edits by approver missing.
- 2. Agent: Fixed all three by writing to , correcting framework casing regex, and pulling status directly from .
- 3. User: Reported error Response is not pending approval when an approver tries to save an assignee's re-edits.
- 4. Agent: Identified missing  import masking the actual issue. Added it and fixed the re-edit detection trigger.
- 5. User: Approver edits still missing from the approved record UI.
- 6. Agent: Fixed the lowercase  vs uppercase  sync mismatch in .
- 7. User: Failed to load detailed progress bug.
- 8. Agent: Fixed .
- 9. User: Reported that they created a Water Recycle record, it shows completed but no approval workflow triggers despite having an assignment.
- 10. Agent: Investigated and identified that the assignment resolver is returning  during record save.
- 11. User: (PENDING) Suggested is it because assignment for water recycle was created for June to December out of which June to December except Nov data was already there? Instructed the agent to tell them the issue but don't change anything yet.
+ 1. User: Reported My Tasks showing in_progress when Tracker showed completed, awaiting approval.
+ 2. Agent: Fixed conflation between completion status and approval status.
+ 3. User: Version history for GRI not showing, and saving as draft then final keeps draft status.
+ 4. Agent: Fixed frontend fetching subpart keys and cleared user drafts upon save.
+ 5. User: Draft still not clearing for  and approved value missing.
+ 6. Agent: Found MongoDB   conflict causing save drops; fixed it and cleared drafts.
+ 7. User: Version history showing unknown for submission approvals.
+ 8. Agent: Formatted version history payload to show  and .
+ 9. User: Scope 2 emissions facility assignment not triggering approval.
+ 10. Agent: Found UI sending wrong data shape and backend using legacy assignment lookup. Fixed create flow.
+ 11. User (PENDING): no wait why use pending_emission_records i think that is old code and can be replaced and pending emission records should be stored same way as esg metrics in same collection. you can update the old workflow for approval for emissions
 
 **Project Health Check:**
-- Broken (Water Recycle assignments not mapping to newly created records due to a resolver matching failure).
+- Broken (GHG Emissions update endpoint is mid-refactor for the new approval workflow).
 
 **3rd Party Integrations**
   - OpenAI (Extraction) — requires User API Key
   - Cloudflare R2 via  — requires User API Key
 
 **Testing status**
-  - Testing agent used after significant changes: YES (Attempted, but no actual functional tests triggered before session end).
+  - Testing agent used after significant changes: YES
   - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: None this iteration
-  - Known regressions:  logic in assignment_resolver.py is failing.
+  - Test files created: , 
+  - Known regressions: None detected, but  aborted mid-run.
 
 **Credentials to test flow:**
   - Admin:  ()
 
 **What agent forgot to execute**
-- N/A. Agent was directly investigating the user's explicit question about the assignment resolver when the context window concluded. Check  inside  immediately.</analysis>
+- The testing agent was called multiple times but failed to execute assertions correctly in iterations 126/127 due to test script setups. Ensure actual backend integration tests (via pytest or testing agent) pass successfully on the new Emissions update approval flow once refactored.</analysis>

@@ -970,10 +970,39 @@ class ApprovalWorkflowService:
             # Handle emission_record approval
             elif entity_type == "emission_record":
                 try:
+                    request_type = request.get("request_type")  # 'update', 'create', etc.
+                    entity_snapshot = request.get("entity_snapshot", {})
+                    proposed_changes = entity_snapshot.get("proposed_changes", {})
+                    
                     record_update = {
                         "updated_at": _now_iso(),
                         "approval_status": "approved",
                     }
+                    
+                    # Apply proposed changes for update approvals
+                    if request_type == "update" and proposed_changes:
+                        logger.info(f"Applying proposed_changes for emission update: {list(proposed_changes.keys())}")
+                        for key, value in proposed_changes.items():
+                            if value is not None:
+                                record_update[key] = value
+                        
+                        # Recalculate emission values from outputs if provided
+                        if "outputs" in proposed_changes:
+                            outputs = proposed_changes["outputs"] or {}
+                            record_update["co2_emissions"] = (outputs.get("co2") or {}).get("value", 0) or 0
+                            record_update["ch4_emissions"] = (outputs.get("ch4") or {}).get("value", 0) or 0
+                            record_update["n2o_emissions"] = (outputs.get("n2o") or {}).get("value", 0) or 0
+                            record_update["co2e_emissions"] = (outputs.get("co2e") or {}).get("value", 0) or 0
+                            record_update["total_emissions"] = record_update["co2e_emissions"]
+                        
+                        # Increment version
+                        current_record = await db.emission_records.find_one(
+                            {"id": entity_id},
+                            {"_id": 0, "version": 1}
+                        )
+                        if current_record:
+                            record_update["version"] = current_record.get("version", 0) + 1
+                    
                     await db.emission_records.update_one(
                         {"id": entity_id},
                         {"$set": record_update}
@@ -981,11 +1010,16 @@ class ApprovalWorkflowService:
                     logger.info(f"Updated emission_record {entity_id} approval_status=approved")
                     
                     # Create version snapshot for approval event
+                    changed_fields = ["approval_status"]
+                    if request_type == "update" and proposed_changes:
+                        changed_fields.extend(list(proposed_changes.keys()))
+                    
                     await _create_approval_version_snapshot(
                         collection_name="emission_records",
                         record_id=entity_id,
                         action="approved",
                         user_id=approver.get("id"),
+                        changed_fields=changed_fields,
                     )
                 except Exception as e:
                     logger.error(f"Failed to update emission_record with approval: {e}")
@@ -1578,7 +1612,15 @@ class ApprovalWorkflowService:
         
         Returns enriched items with question configs for display.
         For admin users, returns ALL pending approvals in the org.
+        
+        Also includes pending emission_record and esg_record approvals from approval_requests collection.
         """
+        queue_items = []
+        
+        # =====================================================================
+        # PART 1: Questionnaire Approvals (from esg_responses)
+        # =====================================================================
+        
         # For admins, get all pending approvals regardless of approver assignment
         if is_admin:
             assignment_query = {
@@ -1607,78 +1649,272 @@ class ApprovalWorkflowService:
             {"_id": 0}
         ).to_list(500)
         
-        if not assignments:
-            return []
+        if assignments:
+            # Get question keys and reporting periods
+            question_keys = [a.get("entity_id") for a in assignments if a.get("entity_id")]
+            
+            # Find responses that are pending_approval
+            responses_query = {
+                "organization_id": organization_id,
+                "question_key": {"$in": question_keys},
+                "approval_status": "pending_approval",
+            }
+            
+            responses = await db.esg_responses.find(
+                responses_query,
+                {"_id": 0}
+            ).to_list(500)
+            
+            if responses:
+                # Get question configs for labels
+                config_query = {"question_key": {"$in": question_keys}}
+                configs = await db.esg_question_configs.find(
+                    config_query,
+                    {"_id": 0, "question_key": 1, "label": 1, "question": 1, "description": 1, 
+                     "section": 1, "brsr_section": 1, "framework": 1, "type": 1, "field_config": 1}
+                ).to_list(500)
+                config_map = {c["question_key"]: c for c in configs}
+                
+                # Build assignment map for lookup
+                assignment_map = {a["entity_id"]: a for a in assignments}
+                
+                # Get submitter user info
+                submitter_ids = list(set([r.get("submitted_by") for r in responses if r.get("submitted_by")]))
+                submitters = {}
+                if submitter_ids:
+                    users = await db.users.find(
+                        {"id": {"$in": submitter_ids}},
+                        {"_id": 0, "id": 1, "email": 1, "full_name": 1, "name": 1}
+                    ).to_list(100)
+                    submitters = {u["id"]: u for u in users}
+                
+                # Enrich responses with config and assignment data
+                for response in responses:
+                    question_key = response.get("question_key")
+                    config = config_map.get(question_key, {})
+                    assignment = assignment_map.get(question_key, {})
+                    submitter = submitters.get(response.get("submitted_by"), {})
+                    
+                    queue_items.append({
+                        "id": response.get("id"),
+                        "_response_id": response.get("id"),  # For approval endpoints
+                        "question_key": question_key,
+                        "question_name": config.get("label") or config.get("question") or config.get("description", "")[:100],
+                        "disclosure_name": config.get("label") or config.get("question") or config.get("description", "")[:100],
+                        "question_type": config.get("type"),
+                        "field_config": config.get("field_config"),
+                        "section_id": config.get("brsr_section") or config.get("section"),
+                        "framework": response.get("framework") or config.get("framework", "BRSR"),
+                        "reporting_year": response.get("reporting_year"),
+                        "response_data": response.get("value"),  # The actual response value
+                        "submitted_at": response.get("submitted_at"),
+                        "submitted_by_id": response.get("submitted_by"),
+                        "submitted_by_name": submitter.get("full_name") or submitter.get("name") or submitter.get("email", ""),
+                        "submitted_by_email": submitter.get("email", ""),
+                        "assignment_id": assignment.get("id"),
+                        "due_date": assignment.get("due_date"),
+                        "organization_id": organization_id,
+                        "_source": "questionnaire_approval_v2",  # Mark source for frontend routing
+                    })
         
-        # Get question keys and reporting periods
-        question_keys = [a.get("entity_id") for a in assignments if a.get("entity_id")]
+        # =====================================================================
+        # PART 2: Emission Record & ESG Record Approvals (from approval_requests)
+        # =====================================================================
         
-        # Find responses that are pending_approval
-        responses_query = {
-            "organization_id": organization_id,
-            "question_key": {"$in": question_keys},
-            "approval_status": "pending_approval",
-        }
+        # Query approval_requests for pending emission_record and esg_record approvals
+        if is_admin:
+            approval_requests_query = {
+                "organization_id": organization_id,
+                "entity_type": {"$in": ["emission_record", "esg_record"]},
+                "status": "pending",
+            }
+        else:
+            approval_requests_query = {
+                "organization_id": organization_id,
+                "entity_type": {"$in": ["emission_record", "esg_record"]},
+                "status": "pending",
+                "current_approvers": approver_id,
+            }
         
-        responses = await db.esg_responses.find(
-            responses_query,
+        approval_requests = await db.approval_requests.find(
+            approval_requests_query,
             {"_id": 0}
         ).to_list(500)
         
-        if not responses:
-            return []
-        
-        # Get question configs for labels
-        config_query = {"question_key": {"$in": question_keys}}
-        configs = await db.esg_question_configs.find(
-            config_query,
-            {"_id": 0, "question_key": 1, "label": 1, "question": 1, "description": 1, 
-             "section": 1, "brsr_section": 1, "framework": 1, "type": 1, "field_config": 1}
-        ).to_list(500)
-        config_map = {c["question_key"]: c for c in configs}
-        
-        # Build assignment map for lookup
-        assignment_map = {a["entity_id"]: a for a in assignments}
-        
-        # Get submitter user info
-        submitter_ids = list(set([r.get("submitted_by") for r in responses if r.get("submitted_by")]))
-        submitters = {}
-        if submitter_ids:
-            users = await db.users.find(
-                {"id": {"$in": submitter_ids}},
-                {"_id": 0, "id": 1, "email": 1, "full_name": 1, "name": 1}
-            ).to_list(100)
-            submitters = {u["id"]: u for u in users}
-        
-        # Enrich responses with config and assignment data
-        queue_items = []
-        for response in responses:
-            question_key = response.get("question_key")
-            config = config_map.get(question_key, {})
-            assignment = assignment_map.get(question_key, {})
-            submitter = submitters.get(response.get("submitted_by"), {})
+        if approval_requests:
+            # Get submitter info for all requests
+            submitter_ids = list(set([r.get("submitted_by") for r in approval_requests if r.get("submitted_by")]))
+            submitters = {}
+            if submitter_ids:
+                users = await db.users.find(
+                    {"id": {"$in": submitter_ids}},
+                    {"_id": 0, "id": 1, "email": 1, "full_name": 1, "name": 1}
+                ).to_list(100)
+                submitters = {u["id"]: u for u in users}
             
-            queue_items.append({
-                "id": response.get("id"),
-                "_response_id": response.get("id"),  # For approval endpoints
-                "question_key": question_key,
-                "question_name": config.get("label") or config.get("question") or config.get("description", "")[:100],
-                "disclosure_name": config.get("label") or config.get("question") or config.get("description", "")[:100],
-                "question_type": config.get("type"),
-                "field_config": config.get("field_config"),
-                "section_id": config.get("brsr_section") or config.get("section"),
-                "framework": response.get("framework") or config.get("framework", "BRSR"),
-                "reporting_year": response.get("reporting_year"),
-                "response_data": response.get("value"),  # The actual response value
-                "submitted_at": response.get("submitted_at"),
-                "submitted_by_id": response.get("submitted_by"),
-                "submitted_by_name": submitter.get("full_name") or submitter.get("name") or submitter.get("email", ""),
-                "submitted_by_email": submitter.get("email", ""),
-                "assignment_id": assignment.get("id"),
-                "due_date": assignment.get("due_date"),
+            # Get facility info for display
+            facility_ids = list(set([
+                r.get("entity_snapshot", {}).get("facility_id") 
+                for r in approval_requests 
+                if r.get("entity_snapshot", {}).get("facility_id")
+            ]))
+            facilities = {}
+            if facility_ids:
+                facility_docs = await db.facilities.find(
+                    {"id": {"$in": facility_ids}},
+                    {"_id": 0, "id": 1, "name": 1}
+                ).to_list(100)
+                facilities = {f["id"]: f for f in facility_docs}
+            
+            for req in approval_requests:
+                entity_snapshot = req.get("entity_snapshot", {})
+                submitter = submitters.get(req.get("submitted_by"), {})
+                facility_id = entity_snapshot.get("facility_id")
+                facility = facilities.get(facility_id, {})
+                
+                # Build display name based on entity type
+                entity_type = req.get("entity_type")
+                if entity_type == "emission_record":
+                    scope = entity_snapshot.get("scope", "")
+                    category = entity_snapshot.get("category", "")
+                    disclosure_name = f"GHG Emissions - {scope}"
+                    if category:
+                        disclosure_name += f" ({category})"
+                elif entity_type == "esg_record":
+                    category = entity_snapshot.get("category", "")
+                    subcategory = entity_snapshot.get("subcategory", "")
+                    disclosure_name = category
+                    if subcategory:
+                        disclosure_name += f" - {subcategory}"
+                else:
+                    disclosure_name = req.get("workflow_name", "Unknown Record")
+                
+                queue_items.append({
+                    "id": req.get("id"),
+                    "_approval_request_id": req.get("id"),  # For approval endpoints
+                    "_entity_type": entity_type,
+                    "_entity_id": req.get("entity_id"),
+                    "question_key": None,  # Not a questionnaire item
+                    "question_name": disclosure_name,
+                    "disclosure_name": disclosure_name,
+                    "question_type": "record",
+                    "field_config": None,
+                    "section_id": entity_snapshot.get("scope") or entity_snapshot.get("category"),
+                    "framework": "ESG Records",
+                    "reporting_year": entity_snapshot.get("reporting_period"),
+                    "response_data": entity_snapshot,  # Full snapshot as response data
+                    "submitted_at": req.get("submitted_at"),
+                    "submitted_by_id": req.get("submitted_by"),
+                    "submitted_by_name": req.get("submitted_by_name") or submitter.get("full_name") or submitter.get("name") or submitter.get("email", ""),
+                    "submitted_by_email": req.get("submitted_by_email") or submitter.get("email", ""),
+                    "assignment_id": None,
+                    "due_date": None,
+                    "organization_id": organization_id,
+                    "facility_name": facility.get("name", ""),
+                    "facility_id": facility_id,
+                    "_source": f"{entity_type}_approval",  # Mark source for frontend routing
+                })
+        
+        # =====================================================================
+        # PART 3: Pending Emission Records (from pending_emission_records collection)
+        # This is the older approval flow for emissions
+        # =====================================================================
+        
+        pending_statuses = ["pending_create", "pending_update", "pending_delete"]
+        
+        if is_admin:
+            pending_emissions_query = {
                 "organization_id": organization_id,
-                "_source": "questionnaire_approval_v2",  # Mark source for frontend routing
-            })
+                "approval_status": {"$in": pending_statuses},
+            }
+        else:
+            # For non-admins, we need to check if they're the approver
+            # This requires looking up assignments - for now, admins see all
+            # TODO: Filter by approver assignment
+            pending_emissions_query = {
+                "organization_id": organization_id,
+                "approval_status": {"$in": pending_statuses},
+            }
+        
+        pending_emissions = await db.pending_emission_records.find(
+            pending_emissions_query,
+            {"_id": 0}
+        ).to_list(500)
+        
+        if pending_emissions:
+            # Get submitter info
+            submitter_ids = list(set([p.get("submitted_by") for p in pending_emissions if p.get("submitted_by")]))
+            submitters = {}
+            if submitter_ids:
+                users = await db.users.find(
+                    {"id": {"$in": submitter_ids}},
+                    {"_id": 0, "id": 1, "email": 1, "full_name": 1, "name": 1}
+                ).to_list(100)
+                submitters = {u["id"]: u for u in users}
+            
+            # Get facility info
+            facility_ids = list(set([p.get("facility_id") for p in pending_emissions if p.get("facility_id")]))
+            facilities = {}
+            if facility_ids:
+                facility_docs = await db.facilities.find(
+                    {"id": {"$in": facility_ids}},
+                    {"_id": 0, "id": 1, "name": 1}
+                ).to_list(100)
+                facilities = {f["id"]: f for f in facility_docs}
+            
+            for pending in pending_emissions:
+                submitter = submitters.get(pending.get("submitted_by"), {})
+                facility_id = pending.get("facility_id")
+                facility = facilities.get(facility_id, {})
+                scope = pending.get("scope", "")
+                category = pending.get("category", "")
+                
+                disclosure_name = f"GHG Emissions - {scope}"
+                if category:
+                    disclosure_name += f" ({category})"
+                
+                # Map approval_status to action type for display
+                approval_status = pending.get("approval_status", "")
+                action_type = "update"
+                if "create" in approval_status:
+                    action_type = "create"
+                elif "delete" in approval_status:
+                    action_type = "delete"
+                
+                queue_items.append({
+                    "id": pending.get("id"),
+                    "_pending_emission_id": pending.get("id"),  # For approval endpoints
+                    "_original_record_id": pending.get("original_record_id"),
+                    "_entity_type": "pending_emission_record",
+                    "_action_type": action_type,
+                    "question_key": None,
+                    "question_name": f"{disclosure_name} ({action_type})",
+                    "disclosure_name": disclosure_name,
+                    "question_type": "emission_record",
+                    "field_config": None,
+                    "section_id": scope,
+                    "framework": "GHG Emissions",
+                    "reporting_year": pending.get("reporting_period"),
+                    "response_data": {
+                        "scope": scope,
+                        "category": category,
+                        "sub_category": pending.get("sub_category"),
+                        "total_emissions": pending.get("total_emissions"),
+                        "inputs": pending.get("inputs"),
+                        "outputs": pending.get("outputs"),
+                    },
+                    "submitted_at": pending.get("submitted_at"),
+                    "submitted_by_id": pending.get("submitted_by"),
+                    "submitted_by_name": pending.get("submitted_by_name") or submitter.get("full_name") or submitter.get("name") or "",
+                    "submitted_by_email": pending.get("submitted_by_email") or submitter.get("email", ""),
+                    "assignment_id": None,
+                    "due_date": None,
+                    "organization_id": organization_id,
+                    "facility_name": facility.get("name", ""),
+                    "facility_id": facility_id,
+                    "approval_status": approval_status,
+                    "_source": "pending_emission_record",
+                })
         
         return queue_items
     

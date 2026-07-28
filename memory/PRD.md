@@ -398,3 +398,19 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
 - **DB Migration**: Backfilled `approval_status` field for existing GRI responses that had `approved_at` set
 - **Testing**: All 6 scenarios passed (100% backend test success rate)
 
+### GHG Emissions Update Approval Refactor (Dec 28, 2025)
+- **Issue**: GHG emission record updates used legacy `pending_emission_records` collection instead of unified `approval_requests`
+- **Solution**: Refactored `PUT /api/emissions/{record_id}` to:
+  1. Bypass legacy `approval_intercept_update` flow
+  2. Create unified approval request in `approval_requests` collection for user updates requiring approval
+  3. Update `emission_records` with `approval_status: pending_approval` on submission
+  4. Apply `proposed_changes` on approval via `approval_workflow/service.py`
+- **Files Modified**:
+  - `/app/backend/modules/emissions/router.py` - New `_create_emission_update_approval_request()` helper, refactored update endpoint
+  - `/app/backend/modules/approval_workflow/service.py` - Enhanced `_process_approve()` to apply `proposed_changes` for emission updates
+- **Benefits**:
+  - Unified approval workflow across all record types (ESG metrics + GHG emissions)
+  - Single `approval_requests` collection as source of truth for approval queue
+  - Cleaner codebase with no dual-collection maintenance
+- **Backward Compatibility**: Legacy `pending_emission_records` for CREATE operations still supported for existing pending records
+

@@ -14,7 +14,7 @@ import uuid
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://esg-approval-sync.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://emission-records-v2.preview.emergentagent.com").rstrip("/")
 
 # Admin user with organization (bypass assignment check via skip_assignment_check=True in service)
 EMAIL = "goyalsomil2001@gmail.com"

@@ -4,7 +4,7 @@ Emissions read/list/write router.
 Phase B4 added: GET /emissions, GET /emissions/{id}/history, DELETE /emissions/{id}.
 Phase B5 added: POST /emissions, PUT /emissions/{id}.
 
-V2: Refactored to use emission_flow_v2 with simplified pending_records architecture.
+V3: Refactored to use unified approval_requests collection for all approval workflows.
 """
 import json
 import logging
@@ -21,7 +21,6 @@ from modules.approvals.emission_flow_v2 import (
     find_record,
     intercept_create as approval_intercept_create,
     intercept_delete as approval_intercept_delete,
-    intercept_update as approval_intercept_update,
     fetch_emissions_for_user,
     STATUS_PENDING_UPDATE,
     STATUS_PENDING_DELETE,
@@ -326,7 +325,7 @@ async def _create_emission_approval_request(
     
     # Update the emission record with pending_approval status
     # This ensures the UI shows the record as "awaiting approval" instead of "completed"
-    await db[COLLECTION].update_one(
+    await db[APPROVED_COLLECTION].update_one(
         {"id": emission_record.get("id")},
         {
             "$set": {
@@ -336,6 +335,103 @@ async def _create_emission_approval_request(
         }
     )
     logger.info(f"Updated emission record {emission_record.get('id')} with approval_status=pending_approval")
+
+
+async def _create_emission_update_approval_request(
+    org_id: str,
+    existing_record: dict,
+    updated_data: dict,
+    assignment: dict,
+    user_id: str,
+    current_user: dict,
+):
+    """
+    Create an approval request for an emission record UPDATE.
+    Stores the proposed changes in entity_snapshot for the approver to review.
+    
+    This uses the unified approval_requests collection instead of pending_emission_records.
+    """
+    approver_id = assignment.get("approver_id")
+    approval_chain = assignment.get("approval_chain", [])
+    
+    # Determine approvers
+    if approval_chain and len(approval_chain) > 0:
+        first_item = approval_chain[0]
+        if isinstance(first_item, str):
+            current_approvers = [first_item]
+        else:
+            current_approvers = [first_item.get("approver_id")] if first_item else []
+        total_levels = len(approval_chain)
+    elif approver_id:
+        current_approvers = [approver_id]
+        total_levels = 1
+    else:
+        logger.warning("Assignment requires approval but no approver_id set")
+        return
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Build entity snapshot with both old and proposed values
+    entity_snapshot = {
+        "scope": existing_record.get("scope"),
+        "category": existing_record.get("category"),
+        "sub_category": existing_record.get("sub_category"),
+        "facility_id": existing_record.get("facility_id"),
+        "reporting_period": existing_record.get("reporting_period"),
+        "total_emissions": existing_record.get("total_emissions"),
+        "inputs": existing_record.get("inputs"),
+        "outputs": existing_record.get("outputs"),
+        # Store original values for comparison
+        "original_values": {
+            "inputs": existing_record.get("inputs"),
+            "outputs": existing_record.get("outputs"),
+            "total_emissions": existing_record.get("total_emissions"),
+        },
+        # Store proposed changes
+        "proposed_changes": {
+            "inputs": updated_data.get("inputs"),
+            "outputs": updated_data.get("outputs"),
+        },
+        "edit_type": "update",
+    }
+    
+    # Create approval request document
+    approval_request = {
+        "id": str(uuid.uuid4()),
+        "organization_id": org_id,
+        "workflow_id": f"assignment_{assignment.get('id')}",
+        "workflow_name": f"Emission Update - {existing_record.get('scope')} - {existing_record.get('category')}",
+        
+        # Entity being approved
+        "entity_type": "emission_record",
+        "entity_id": existing_record.get("id"),
+        "entity_subtype": existing_record.get("scope"),
+        "entity_snapshot": entity_snapshot,
+        "request_type": "update",
+        
+        # Submission info
+        "submitted_by": user_id,
+        "submitted_by_email": current_user.get("email", ""),
+        "submitted_by_name": current_user.get("full_name", ""),
+        "submitted_at": now,
+        "submission_comment": None,
+        
+        # Current state
+        "status": "pending",
+        "current_level": 1,
+        "current_approvers": current_approvers,
+        "total_levels": total_levels,
+        
+        # Progress tracking
+        "steps_completed": [],
+        
+        # Metadata
+        "created_at": now,
+        "updated_at": now,
+    }
+    
+    await db.approval_requests.insert_one(approval_request)
+    logger.info(f"Created emission UPDATE approval request {approval_request['id']} for record {existing_record.get('id')}")
 
 
 # Module-level audit logger reference. Resolved lazily so it picks up the
@@ -723,36 +819,70 @@ async def update_emission_record(
 ):
     logger.info(f"[EMISSION_UPDATE] Starting: record_id={record_id}, user={current_user.get('email')}")
     
-    # Find record - checks pending first
-    existing, source_collection = await find_record(record_id)
-    
-    # Also check if there's a pending record for this original_record_id
-    if not existing:
-        pending = await db[PENDING_COLLECTION].find_one(
-            {"original_record_id": record_id},
-            {"_id": 0}
-        )
-        if pending:
-            existing = pending
-            source_collection = PENDING_COLLECTION
-            record_id = pending["id"]  # Use the pending record's ID
+    # Find record directly from emission_records (approved collection)
+    existing = await db[APPROVED_COLLECTION].find_one({"id": record_id}, {"_id": 0})
+    source_collection = APPROVED_COLLECTION if existing else None
     
     if not existing:
         raise HTTPException(status_code=404, detail="Emission record not found")
     
-    # Approval-workflow gate
-    payload_dict = record_data.model_dump()
-    approval_action, approval_result = await approval_intercept_update(
-        record_id, payload_dict, current_user
-    )
+    org_id = existing.get("organization_id")
+    user_id = current_user.get("id")
+    user_role = current_user.get("role", "user")
     
-    if approval_action == "block":
-        raise HTTPException(status_code=403, detail=approval_result or "Not authorized")
-    if approval_action == "queue":
-        # Return the pending record
-        return EmissionRecordResponse(**approval_result) if approval_result else EmissionRecordResponse(**existing)
+    # Check if approval workflow is enabled for org
+    from modules.approvals.emission_flow_v2 import is_approval_enabled_for_org
+    approval_enabled = await is_approval_enabled_for_org(org_id)
     
-    # Direct apply (admin or workflow disabled)
+    # Non-admin users with approval enabled need approval for updates
+    if user_role not in ("admin", "super_admin") and approval_enabled:
+        # Check if there's already a pending approval request for this record
+        existing_request = await db.approval_requests.find_one({
+            "entity_id": record_id,
+            "entity_type": "emission_record",
+            "status": {"$in": ["pending", "in_review"]},
+        }, {"_id": 0})
+        
+        if existing_request:
+            raise HTTPException(
+                status_code=400,
+                detail="This record already has a pending approval request"
+            )
+        
+        # Find the user's assignment to determine if approval is required
+        assignment = await _find_emission_assignment(
+            org_id=org_id,
+            user_id=user_id,
+            scope=record_data.scope,
+            facility_id=record_data.facility_id,
+        )
+        
+        if assignment and assignment.get("requires_approval", False):
+            # Create unified approval request for the update
+            await _create_emission_update_approval_request(
+                org_id=org_id,
+                existing_record=existing,
+                updated_data=record_data.model_dump(),
+                assignment=assignment,
+                user_id=user_id,
+                current_user=current_user,
+            )
+            
+            # Mark record as pending approval
+            await db[APPROVED_COLLECTION].update_one(
+                {"id": record_id},
+                {"$set": {
+                    "approval_status": "pending_approval",
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }}
+            )
+            
+            # Return the record with pending status
+            updated = await db[APPROVED_COLLECTION].find_one({"id": record_id}, {"_id": 0})
+            logger.info(f"[EMISSION_UPDATE] Submitted for approval: record_id={record_id}")
+            return EmissionRecordResponse(**updated)
+    
+    # Direct apply path (admin, super_admin, or workflow disabled)
     # Prevent changing frequency_type once saved
     existing_frequency = existing.get("frequency_type", "monthly")
     new_frequency = record_data.frequency_type or "monthly"
@@ -822,87 +952,7 @@ async def update_emission_record(
     update_dict["updated_by_name"] = current_user.get("full_name", "")
     update_dict["version"] = existing.get("version", 0) + 1
 
-    # ─── Admin auto-approve ──────────────────────────────────────────────
-    # When an admin / super_admin edits a record that currently lives in
-    # pending_records, treat the save as "edit + approve". The admin's
-    # changes are persisted to the pending doc first, then approve_request
-    # promotes it to emission_records and flushes history to
-    # emission_history (single source of truth).
-    if (
-        source_collection == PENDING_COLLECTION
-        and current_user.get("role") in ("admin", "super_admin")
-    ):
-        from modules.approvals.emission_flow_v2 import approve_request
-
-        # Snapshot the pending record BEFORE applying admin's edits so we
-        # can compute the admin's diff alone (vs the user's proposed values).
-        pre_admin_pending = await db[PENDING_COLLECTION].find_one(
-            {"id": record_id}, {"_id": 0}
-        )
-
-        await db[PENDING_COLLECTION].update_one(
-            {"id": record_id},
-            {"$set": update_dict},
-        )
-        pending_doc = await db[PENDING_COLLECTION].find_one({"id": record_id}, {"_id": 0})
-        original_id = (pending_doc or {}).get("original_record_id")
-
-        # admin_field_changes = ONLY what the admin changed during approval.
-        admin_diff: List[dict] = []
-        if pre_admin_pending and pending_doc:
-            admin_diff = compute_field_changes(pre_admin_pending, pending_doc, input_label_map=input_label_map) or []
-
-        ok, message = await approve_request(
-            record_id, current_user, admin_field_changes=admin_diff,
-        )
-        if not ok:
-            raise HTTPException(status_code=400, detail=message)
-        approved_id = original_id or record_id
-        approved = await db[APPROVED_COLLECTION].find_one({"id": approved_id}, {"_id": 0})
-        if not approved:
-            raise HTTPException(status_code=500, detail="Approved record not found after auto-approve")
-
-        await audit_logger.log(
-            action=AuditAction.UPDATE,
-            module=AuditModule.EMISSION,
-            user_id=current_user["id"],
-            user_email=current_user["email"],
-            user_role=current_user.get("role", "user"),
-            organization_id=approved.get("organization_id"),
-            resource_id=approved_id,
-            resource_name=f"{record_data.scope} - {record_data.category} ({record_data.reporting_period})",
-            description=(
-                f"Admin edited & auto-approved pending request for {record_data.category}"
-            ),
-            old_values=existing,
-            new_values=approved,
-            metadata={
-                "scope": record_data.scope,
-                "category": record_data.category,
-                "facility_id": record_data.facility_id,
-                "total_emissions": approved.get("total_emissions"),
-                "auto_approved": True,
-            },
-        )
-
-        try:
-            from events.event_bus import event_bus, Events
-            event_bus.emit_nowait(Events.EMISSION_UPDATED, {
-                "record_id": approved_id,
-                "scope": record_data.scope,
-                "category": record_data.category,
-                "facility_id": record_data.facility_id,
-                "organization_id": approved.get("organization_id"),
-                "user_id": current_user.get("id"),
-                "auto_approved": True,
-            })
-        except Exception:
-            pass
-
-        return EmissionRecordResponse(**approved)
-
-    # ─── Normal direct-apply path (approved record edit by admin, or
-    #     legacy admin direct update) ──────────────────────────────────
+    # ─── Direct-apply path (admin, super_admin, or workflow disabled) ────
     # Save version history entry for this update with detailed field changes
     history_dict = {
         "id": str(uuid.uuid4()),
@@ -926,14 +976,12 @@ async def update_emission_record(
     }
     await db.emission_history.insert_one(history_dict)
 
-    # Determine target collection - if source was pending, update there; otherwise approved
-    target_collection = source_collection or APPROVED_COLLECTION
-    await db[target_collection].update_one({"id": record_id}, {"$set": update_dict})
-    updated = await db[target_collection].find_one({"id": record_id}, {"_id": 0})
+    # Update the record directly in emission_records
+    await db[APPROVED_COLLECTION].update_one({"id": record_id}, {"$set": update_dict})
+    updated = await db[APPROVED_COLLECTION].find_one({"id": record_id}, {"_id": 0})
 
     # Phase B11: emit emission.updated (best-effort).
-    # Skip when we wrote to the pending collection — no approved data changed.
-    if target_collection == APPROVED_COLLECTION:
+    if True:
         try:
             from events.event_bus import event_bus, Events
             event_bus.emit_nowait(Events.EMISSION_UPDATED, {
