@@ -1857,8 +1857,9 @@ class ApprovalWorkflowService:
                         "_response_id": response.get("id"),  # For approval endpoints
                         "question_key": question_key,
                         "question_name": config.get("label") or config.get("question") or config.get("description", "")[:100],
-                        "disclosure_name": config.get("label") or config.get("question") or config.get("description", "")[:100],
-                        "question_type": config.get("type"),
+                        "disclosure_name": config.get("disclosure_name") or config.get("label") or config.get("question") or question_key,
+                        "description": config.get("description", ""),
+                        "question_type": config.get("type") or config.get("input_type"),
                         "field_config": config.get("field_config"),
                         "section_id": config.get("brsr_section") or config.get("section"),
                         "framework": response.get("framework") or config.get("framework", "BRSR"),

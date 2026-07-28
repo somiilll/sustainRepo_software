@@ -166,28 +166,45 @@ export default function ApproverQueue() {
       
       // Transform V2 questionnaire approvals
       const questionnaireV2Approvals = (questionnaireV2Res.data.items || [])
-        .map(item => ({
-          id: item.id,
-          entity_type: 'questionnaire_response',
-          entity_id: item.question_key,
-          section: item.section_id || 'section_b',
-          question_key: item.question_key,
-          disclosure_name: item.question_name,
-          question_type: item.question_type,
-          field_config: item.field_config,
-          framework: item.framework,
-          reporting_year: item.reporting_year,
-          response_data: item.response_data,
-          submitted_by: item.submitted_by_id,
-          submitted_by_name: item.submitted_by_name,
-          submitted_by_email: item.submitted_by_email,
-          submitted_at: item.submitted_at,
-          status: 'pending_approval',
-          due_date: item.due_date,
-          assignment_id: item.assignment_id,
-          _source: 'questionnaire_approval_v2',
-          _response_id: item.id,
-        }));
+        .map(item => {
+          // Build display name: for GRI show "disclosure_name -> description" format
+          let displayName = item.question_name || item.disclosure_name || item.question_key;
+          
+          // For GRI/questionnaire items with disclosure info
+          if (item.disclosure_name && item.description && item.description !== item.disclosure_name) {
+            // Show: "Main Topic -> Specific Question" format
+            const truncatedDesc = item.description.length > 60 
+              ? item.description.substring(0, 60) + '...' 
+              : item.description;
+            displayName = `${item.disclosure_name} → ${truncatedDesc}`;
+          }
+          
+          return {
+            id: item.id,
+            entity_type: 'questionnaire_response',
+            entity_id: item.question_key,
+            section: item.section_id || 'section_b',
+            question_key: item.question_key,
+            disclosure_name: displayName,
+            question_name: item.question_name,
+            question_description: item.description,
+            original_disclosure_name: item.disclosure_name,  // Keep original for detail view
+            question_type: item.question_type,
+            field_config: item.field_config,
+            framework: item.framework,
+            reporting_year: item.reporting_year,
+            response_data: item.response_data,
+            submitted_by: item.submitted_by_id,
+            submitted_by_name: item.submitted_by_name,
+            submitted_by_email: item.submitted_by_email,
+            submitted_at: item.submitted_at,
+            status: 'pending_approval',
+            due_date: item.due_date,
+            assignment_id: item.assignment_id,
+            _source: 'questionnaire_approval_v2',
+            _response_id: item.id,
+          };
+        });
       
       // Combine all sources
       setSubmissions([
