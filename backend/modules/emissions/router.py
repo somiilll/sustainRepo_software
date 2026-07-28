@@ -59,6 +59,8 @@ async def _find_emission_assignment(
     Checks two assignment types:
     1. KPI assignments (entity_type='kpi') with kpi_identifier like 'scope1', 'scope2', 'scope3'
     2. Record category assignments (entity_type='record_category') with category='GHG Emissions' and subcategory matching scope
+    
+    Uses V2 assignment architecture: checks esg_assignment_assignees junction table
     """
     # Normalize scope identifier
     scope_lower = (scope or "").lower().replace(" ", "")
@@ -82,10 +84,40 @@ async def _find_emission_assignment(
     }
     subcategory = scope_to_subcategory.get(scope_lower)
     
+    # V2 Architecture: Get assignment IDs where user is an assignee from junction table
+    v2_assignee_docs = await db.esg_assignment_assignees.find(
+        {
+            "organization_id": org_id,
+            "user_id": user_id,
+            "removed_at": None,  # Not removed
+        },
+        {"_id": 0, "assignment_id": 1}
+    ).to_list(500)
+    v2_assignment_ids = [doc["assignment_id"] for doc in v2_assignee_docs]
+    
     assignments = []
     
-    # Strategy 1: Check KPI assignments
-    kpi_query = {
+    # Strategy 1: Check KPI assignments (V2 - via junction table)
+    if v2_assignment_ids:
+        kpi_query = {
+            "organization_id": org_id,
+            "id": {"$in": v2_assignment_ids},
+            "entity_type": "kpi",
+            "status": {"$nin": ["completed", "cancelled"]},
+            "kpi_identifier": kpi_identifier,
+        }
+        if facility_id:
+            kpi_query["$or"] = [
+                {"facility_id": facility_id},
+                {"assignment_level": "organization"},
+                {"facility_id": None},
+            ]
+        
+        kpi_assignments = await db.esg_assignments.find(kpi_query, {"_id": 0}).to_list(100)
+        assignments.extend(kpi_assignments)
+    
+    # Strategy 1b: Check KPI assignments (V1 legacy - direct assigned_to_user_id)
+    kpi_query_v1 = {
         "organization_id": org_id,
         "assigned_to_user_id": user_id,
         "entity_type": "kpi",
@@ -93,16 +125,50 @@ async def _find_emission_assignment(
         "kpi_identifier": kpi_identifier,
     }
     if facility_id:
-        kpi_query["$or"] = [
+        kpi_query_v1["$or"] = [
             {"facility_id": facility_id},
             {"assignment_level": "organization"},
         ]
     
-    kpi_assignments = await db.esg_assignments.find(kpi_query, {"_id": 0}).to_list(100)
-    assignments.extend(kpi_assignments)
+    kpi_assignments_v1 = await db.esg_assignments.find(kpi_query_v1, {"_id": 0}).to_list(100)
+    assignments.extend(kpi_assignments_v1)
     
-    # Strategy 2: Check record_category assignments for GHG Emissions
-    record_cat_query = {
+    # Strategy 2: Check record_category assignments for GHG Emissions (V2 - via junction table)
+    if v2_assignment_ids:
+        record_cat_query = {
+            "organization_id": org_id,
+            "id": {"$in": v2_assignment_ids},
+            "entity_type": "record_category",
+            "status": {"$nin": ["completed", "cancelled"]},
+            "category": "GHG Emissions",
+        }
+        if subcategory:
+            # Check both exact subcategory match and category-level (no subcategory)
+            record_cat_query["$or"] = [
+                {"subcategory": subcategory},
+                {"subcategory": None},
+                {"subcategory": {"$exists": False}},
+            ]
+        if facility_id:
+            # Combine with facility filter
+            if "$or" in record_cat_query:
+                existing_or = record_cat_query.pop("$or")
+                record_cat_query["$and"] = [
+                    {"$or": existing_or},
+                    {"$or": [{"facility_id": facility_id}, {"assignment_level": "organization"}, {"facility_id": None}]}
+                ]
+            else:
+                record_cat_query["$or"] = [
+                    {"facility_id": facility_id},
+                    {"assignment_level": "organization"},
+                    {"facility_id": None},
+                ]
+        
+        record_cat_assignments = await db.esg_assignments.find(record_cat_query, {"_id": 0}).to_list(100)
+        assignments.extend(record_cat_assignments)
+    
+    # Strategy 2b: Check record_category assignments (V1 legacy - direct assigned_to_user_id)
+    record_cat_query_v1 = {
         "organization_id": org_id,
         "assigned_to_user_id": user_id,
         "entity_type": "record_category",
@@ -110,31 +176,38 @@ async def _find_emission_assignment(
         "category": "GHG Emissions",
     }
     if subcategory:
-        # Check both exact subcategory match and category-level (no subcategory)
-        record_cat_query["$or"] = [
+        record_cat_query_v1["$or"] = [
             {"subcategory": subcategory},
             {"subcategory": None},
             {"subcategory": {"$exists": False}},
         ]
     if facility_id:
-        # Combine with facility filter
-        if "$or" in record_cat_query:
-            existing_or = record_cat_query.pop("$or")
-            record_cat_query["$and"] = [
+        if "$or" in record_cat_query_v1:
+            existing_or = record_cat_query_v1.pop("$or")
+            record_cat_query_v1["$and"] = [
                 {"$or": existing_or},
                 {"$or": [{"facility_id": facility_id}, {"assignment_level": "organization"}]}
             ]
         else:
-            record_cat_query["$or"] = [
+            record_cat_query_v1["$or"] = [
                 {"facility_id": facility_id},
                 {"assignment_level": "organization"},
             ]
     
-    record_cat_assignments = await db.esg_assignments.find(record_cat_query, {"_id": 0}).to_list(100)
-    assignments.extend(record_cat_assignments)
+    record_cat_assignments_v1 = await db.esg_assignments.find(record_cat_query_v1, {"_id": 0}).to_list(100)
+    assignments.extend(record_cat_assignments_v1)
     
     if not assignments:
         return None
+    
+    # Deduplicate by assignment ID
+    seen_ids = set()
+    unique_assignments = []
+    for a in assignments:
+        if a.get("id") not in seen_ids:
+            seen_ids.add(a.get("id"))
+            unique_assignments.append(a)
+    assignments = unique_assignments
     
     # Return the most specific assignment (exact subcategory match > exact facility match > org-level)
     best_match = None

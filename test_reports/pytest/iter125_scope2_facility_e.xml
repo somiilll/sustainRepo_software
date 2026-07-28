@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="5" skipped="0" tests="5" time="1.835" timestamp="2026-07-28T05:37:54.187434+00:00" hostname="agent-env-93d0d05f-62d3-42bb-bee5-39ae20ff9665"><testcase classname="tests.test_scope2_facility_e_approval.TestFindEmissionAssignmentV2" name="test_finds_scope2_facility_e_via_v2_junction" time="0.301"><failure message="AssertionError: Wrong assignment returned: 268748a0-c872-443f-a909-9c68398b18cc (expected 6df2ba47-4340-453b-a2c6-fe7f929d5c0d)&#10;assert '268748a0-c87...-9c68398b18cc' == '6df2ba47-434...-fe7f929d5c0d'&#10;  &#10;  - 6df2ba47-4340-453b-a2c6-fe7f929d5c0d&#10;  + 268748a0-c872-443f-a909-9c68398b18cc">tests/test_scope2_facility_e_approval.py:85: in test_finds_scope2_facility_e_via_v2_junction
+    assert assignment.get("id") == EXPECTED_ASSIGNMENT_ID, (
+E   AssertionError: Wrong assignment returned: 268748a0-c872-443f-a909-9c68398b18cc (expected 6df2ba47-4340-453b-a2c6-fe7f929d5c0d)
+E   assert '268748a0-c87...-9c68398b18cc' == '6df2ba47-434...-fe7f929d5c0d'
+E     
+E     - 6df2ba47-4340-453b-a2c6-fe7f929d5c0d
+E     + 268748a0-c872-443f-a909-9c68398b18cc</failure></testcase><testcase classname="tests.test_scope2_facility_e_approval.TestFindEmissionAssignmentV2" name="test_scope2_lowercase_normalization" time="0.001"><failure message="RuntimeError: Event loop is closed">tests/test_scope2_facility_e_approval.py:103: in test_scope2_lowercase_normalization
+    a = asyncio.run(run())
+        ^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/asyncio/runners.py:190: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/asyncio/base_events.py:654: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_scope2_facility_e_approval.py:99: in run
+    return await _find_emission_assignment(
+modules/emissions/router.py:95: in _find_emission_assignment
+    ).to_list(500)
+      ^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/motor/core.py:1648: in to_list
+    self.get_io_loop(), self._get_more(), self._to_list, length, the_list, future
+                        ^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/motor/core.py:1411: in _get_more
+    return self._refresh()
+           ^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/motor/metaprogramming.py:74: in method
+    return framework.run_on_executor(
+/root/.venv/lib/python3.11/site-packages/motor/frameworks/asyncio/__init__.py:85: in run_on_executor
+    return loop.run_in_executor(_EXECUTOR, functools.partial(fn, *args, **kwargs))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/asyncio/base_events.py:817: in run_in_executor
+    self._check_closed()
+/usr/local/lib/python3.11/asyncio/base_events.py:520: in _check_closed
+    raise RuntimeError('Event loop is closed')
+E   RuntimeError: Event loop is closed</failure></testcase><testcase classname="tests.test_scope2_facility_e_approval.TestFindEmissionAssignmentV2" name="test_no_match_for_unrelated_facility" time="0.001"><failure message="RuntimeError: Event loop is closed">tests/test_scope2_facility_e_approval.py:117: in test_no_match_for_unrelated_facility
+    a = asyncio.run(run())
+        ^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/asyncio/runners.py:190: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/asyncio/base_events.py:654: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_scope2_facility_e_approval.py:112: in run
+    return await _find_emission_assignment(
+modules/emissions/router.py:95: in _find_emission_assignment
+    ).to_list(500)
+      ^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/motor/core.py:1648: in to_list
+    self.get_io_loop(), self._get_more(), self._to_list, length, the_list, future
+                        ^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/motor/core.py:1411: in _get_more
+    return self._refresh()
+           ^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/motor/metaprogramming.py:74: in method
+    return framework.run_on_executor(
+/root/.venv/lib/python3.11/site-packages/motor/frameworks/asyncio/__init__.py:85: in run_on_executor
+    return loop.run_in_executor(_EXECUTOR, functools.partial(fn, *args, **kwargs))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/asyncio/base_events.py:817: in run_in_executor
+    self._check_closed()
+/usr/local/lib/python3.11/asyncio/base_events.py:520: in _check_closed
+    raise RuntimeError('Event loop is closed')
+E   RuntimeError: Event loop is closed</failure></testcase><testcase classname="tests.test_scope2_facility_e_approval.TestScope2ApprovalWorkflowIntegration" name="test_create_scope2_facility_e_triggers_approval" time="1.212"><failure message="RuntimeError: Event loop is closed">tests/test_scope2_facility_e_approval.py:178: in test_create_scope2_facility_e_triggers_approval
+    approval = asyncio.run(find_approval())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/asyncio/runners.py:190: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/asyncio/base_events.py:654: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_scope2_facility_e_approval.py:173: in find_approval
+    return await db.approval_requests.find_one(
+/root/.venv/lib/python3.11/site-packages/motor/metaprogramming.py:74: in method
+    return framework.run_on_executor(
+/root/.venv/lib/python3.11/site-packages/motor/frameworks/asyncio/__init__.py:85: in run_on_executor
+    return loop.run_in_executor(_EXECUTOR, functools.partial(fn, *args, **kwargs))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/asyncio/base_events.py:817: in run_in_executor
+    self._check_closed()
+/usr/local/lib/python3.11/asyncio/base_events.py:520: in _check_closed
+    raise RuntimeError('Event loop is closed')
+E   RuntimeError: Event loop is closed</failure></testcase><testcase classname="tests.test_scope2_facility_e_approval.TestScope2ApprovalWorkflowIntegration" name="test_cleanup_created_record" time="0.001"><failure message="RuntimeError: Event loop is closed">tests/test_scope2_facility_e_approval.py:205: in test_cleanup_created_record
+    asyncio.run(cleanup())
+/usr/local/lib/python3.11/asyncio/runners.py:190: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/asyncio/base_events.py:654: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_scope2_facility_e_approval.py:199: in cleanup
+    await db.emission_records.delete_many({"id": rid})
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/motor/metaprogramming.py:74: in method
+    return framework.run_on_executor(
+/root/.venv/lib/python3.11/site-packages/motor/frameworks/asyncio/__init__.py:85: in run_on_executor
+    return loop.run_in_executor(_EXECUTOR, functools.partial(fn, *args, **kwargs))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/asyncio/base_events.py:817: in run_in_executor
+    self._check_closed()
+/usr/local/lib/python3.11/asyncio/base_events.py:520: in _check_closed
+    raise RuntimeError('Event loop is closed')
+E   RuntimeError: Event loop is closed</failure></testcase></testsuite></testsuites>
