@@ -433,3 +433,20 @@ Build a comprehensive ESG (Environmental, Social, Governance) platform with:
   - `/app/frontend/src/components/ApproverQueue.js`
 - **Backend**: Already properly handles `emission_record` approvals/rejections with history tracking in `emission_history` collection
 
+### GHG Logs Status Column Addition (Dec 28, 2025)
+- **Feature**: Added dedicated Status column to GHG Logs table for all scopes (Scope 1, 2, 3, Biogenic)
+- **Status Values**:
+  - `Completed` (gray) - No approval workflow configured
+  - `Completed, Approved` (green) - Record approved through workflow
+  - `Completed, Rejected` (red) - Record rejected
+  - `Completed, Awaiting approval` (amber) - Pending approval
+- **Changes**:
+  - Removed Quantity column from Scope 1 & 2 (per user request)
+  - Replaced Last Updated column with Status column
+  - Created `getStatusDisplay()` function in `/app/frontend/src/modules/ghg/utils/approvalSchema.js`
+- **Files Modified**:
+  - `/app/frontend/src/pages/emissions/components/EmissionDataGrid.jsx` - Main grid component
+  - `/app/frontend/src/modules/ghg/utils/approvalSchema.js` - Added getStatusDisplay function
+  - `/app/frontend/src/pages/emissions/EmissionTable.js` - Alternative table component (updated for consistency)
+- **Testing**: 100% frontend pass rate (iteration_127)
+
