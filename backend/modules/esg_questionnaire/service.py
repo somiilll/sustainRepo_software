@@ -971,71 +971,96 @@ class ESGQuestionnaireService:
             {"_id": 0, "section": 1, "framework": 1, "frameworks": 1}
         )
         
-        if not question_config:
-            return {
-                "success": False,
-                "message": f"Question config not found for {question_key}"
-            }
-        
-        # Determine framework (use frameworks array or single framework field)
-        framework = question_config.get("framework") or (question_config.get("frameworks", ["GRI"])[0] if question_config.get("frameworks") else "GRI")
-        section = question_config.get("section", "environment")
-        
-        # Save to organization_esg_responses (the correct collection)
-        # This uses the same document structure as save_responses()
-        existing_doc = await self._responses.find_one({
-            "org_id": org_id,
-            "framework": framework,
-            "reporting_year": reporting_period,
-            "section": section,
-        })
-        
-        if existing_doc:
-            # Update existing document - merge the new response
-            await self._responses.update_one(
-                {
+        if question_config:
+            # BRSR/GRI with config - use new organization_esg_responses flow
+            # Determine framework (use frameworks array or single framework field)
+            framework = question_config.get("framework") or (question_config.get("frameworks", ["GRI"])[0] if question_config.get("frameworks") else "GRI")
+            section = question_config.get("section", "environment")
+            
+            # Save to organization_esg_responses (the correct collection)
+            existing_doc = await self._responses.find_one({
+                "org_id": org_id,
+                "framework": framework,
+                "reporting_year": reporting_period,
+                "section": section,
+            })
+            
+            if existing_doc:
+                # Update existing document - merge the new response
+                await self._responses.update_one(
+                    {
+                        "org_id": org_id,
+                        "framework": framework,
+                        "reporting_year": reporting_period,
+                        "section": section,
+                    },
+                    {
+                        "$set": {
+                            f"responses.{question_key}": final_value,
+                            f"response_statuses.{question_key}": {
+                                "status": "saved",
+                                "approval_status": "approved",
+                                "approved_at": now_iso,
+                                "approved_by": approver_user_id,
+                                "approved_by_name": approver_user_name,
+                                "updated_at": now_iso,
+                            },
+                            "updated_at": now_iso,
+                        }
+                    }
+                )
+            else:
+                # Create new document
+                await self._responses.insert_one({
+                    "id": str(uuid.uuid4()),
                     "org_id": org_id,
                     "framework": framework,
                     "reporting_year": reporting_period,
                     "section": section,
-                },
-                {
-                    "$set": {
-                        f"responses.{question_key}": final_value,
-                        f"response_statuses.{question_key}": {
+                    "responses": {question_key: final_value},
+                    "response_statuses": {
+                        question_key: {
                             "status": "saved",
                             "approval_status": "approved",
                             "approved_at": now_iso,
                             "approved_by": approver_user_id,
                             "approved_by_name": approver_user_name,
                             "updated_at": now_iso,
-                        },
-                        "updated_at": now_iso,
-                    }
-                }
-            )
+                        }
+                    },
+                    "created_at": now_iso,
+                    "updated_at": now_iso,
+                })
         else:
-            # Create new document
-            await self._responses.insert_one({
-                "id": str(uuid.uuid4()),
-                "org_id": org_id,
-                "framework": framework,
-                "reporting_year": reporting_period,
-                "section": section,
-                "responses": {question_key: final_value},
-                "response_statuses": {
-                    question_key: {
-                        "status": "saved",
+            # Fallback for GRI questions without config - use old esg_responses flow
+            await db.esg_responses.update_one(
+                {
+                    "organization_id": org_id,
+                    "question_key": question_key,
+                    "reporting_period": reporting_period,
+                },
+                {
+                    "$set": {
+                        "value": final_value,
+                        "status": "approved",
                         "approval_status": "approved",
-                        "approved_at": now_iso,
+                        "reporting_year": reporting_period,
+                        "updated_at": now_iso,
+                        "updated_by": submission["submitted_by_user_id"],
                         "approved_by": approver_user_id,
                         "approved_by_name": approver_user_name,
-                        "updated_at": now_iso,
+                        "approved_at": now_iso,
+                    },
+                    "$setOnInsert": {
+                        "id": str(uuid.uuid4()),
+                        "organization_id": org_id,
+                        "question_key": question_key,
+                        "reporting_period": reporting_period,
+                        "created_at": now_iso,
                     }
                 },
-                "created_at": now_iso,
-                "updated_at": now_iso,
-            })
+                upsert=True
+            )
         
         # Mark this submission as approved
         await db[self.SUBMISSIONS_COLLECTION].update_one(
