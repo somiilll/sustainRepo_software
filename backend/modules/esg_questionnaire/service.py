@@ -2642,6 +2642,12 @@ class ESGQuestionnaireService:
             if not workflow:
                 return  # No workflow configured for ESG responses
             
+            # Ensure workflow has valid levels - default to single level if not configured properly
+            levels = workflow.get("levels", [])
+            if not levels or len(levels) == 0:
+                # Add default single level
+                workflow["levels"] = [{"level": 1, "name": "Approval", "can_delegate": True}]
+            
             # Check if there's already a pending approval request for this entity
             existing_request = await db.approval_requests.find_one({
                 "organization_id": org_id,

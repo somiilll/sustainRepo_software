@@ -429,7 +429,9 @@ class ApprovalWorkflowService:
         # Determine approvers for level 1
         levels = workflow.get("levels", [])
         if not levels:
-            return (False, "Workflow has no approval levels", None)
+            # Default to single-level workflow
+            levels = [{"level": 1, "name": "Approval", "can_delegate": True}]
+            workflow["levels"] = levels
         
         first_level = levels[0]
         current_approvers = await ApprovalWorkflowService._resolve_approvers(
