@@ -203,16 +203,21 @@ export default function ApproverQueue() {
       }
       
       // Combine questionnaire submissions + record approvals
+      // Put recordApprovals FIRST so new approval_requests with correct framework take precedence
       const allItems = [
-        ...(questionnaireRes.data.submissions || []),
-        ...recordApprovals
+        ...recordApprovals,
+        ...(questionnaireRes.data.submissions || [])
       ];
       
-      // Deduplicate by id
+      // Deduplicate by question_key for esg_response items, otherwise by id
       const seen = new Set();
       const deduplicated = allItems.filter(item => {
-        const key = item._approval_request_id || item.id || item.question_key;
-        if (seen.has(key)) {
+        if (!item) return false;
+        // For questionnaire responses, dedupe by question_key to merge old and new systems
+        const key = (item.entity_type === 'esg_response' || !item.entity_type)
+          ? (item.entity_id || item.question_key)
+          : (item._approval_request_id || item.id || item.question_key);
+        if (!key || seen.has(key)) {
           return false;
         }
         seen.add(key);
@@ -301,6 +306,7 @@ export default function ApproverQueue() {
     );
   }
 
+  
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -471,6 +477,7 @@ export default function ApproverQueue() {
         </div>
       )}
 
+     
       {/* Review Dialog - Handle different item types */}
       {selectedQuestion && selectedQuestion._source === 'approval_workflow' ? (
         <Dialog 
@@ -1168,7 +1175,7 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
         const questionKey = item.entity_id || item.question_key;
         if (questionKey) {
           const res = await axios.get(
-            `${API}/api/esg-questionnaire/config/${questionKey}`,
+            `${API}/api/esg-questionnaire/configs/${questionKey}`,
             { headers: getAuthHeader() }
           );
           setQuestionConfig(res.data);
@@ -1254,7 +1261,7 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
     const questionType = config.type || config.input_type;
     
     // Handle principle_toggle type (NGRBC principles)
-    if (questionType === 'principle_toggle' || (value && typeof value === 'object' && ('mode' in value || 'all_enabled' in value || 'principles' in value))) {
+    if (questionType === 'principle_toggle' || questionType === 'principle_toggle_with_description' || (value && typeof value === 'object' && ('mode' in value || 'all_enabled' in value || 'principles' in value))) {
       return <PrincipleToggleDisplay 
         value={value} 
         onChange={isEditing ? setEditedValue : undefined}
@@ -1428,7 +1435,7 @@ function GRIApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
         const questionKey = item.entity_id || item.question_key;
         if (questionKey) {
           const res = await axios.get(
-            `${API}/api/esg-questionnaire/config/${questionKey}`,
+            `${API}/api/esg-questionnaire/configs/${questionKey}`,
             { headers: getAuthHeader() }
           );
           setQuestionConfig(res.data);

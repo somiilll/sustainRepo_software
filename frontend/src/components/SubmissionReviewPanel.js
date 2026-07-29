@@ -81,7 +81,7 @@ export default function SubmissionReviewPanel({
         // Try to fetch question config for display
         try {
           const configRes = await axios.get(
-            `${API}/api/esg-questionnaire/config/${questionKey}`,
+            `${API}/api/esg-questionnaire/configs/${questionKey}`,
             { headers: getAuthHeader() }
           );
           setQuestionConfig(configRes.data);
