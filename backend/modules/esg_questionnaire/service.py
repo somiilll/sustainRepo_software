@@ -1262,16 +1262,10 @@ class ESGQuestionnaireService:
         direct_section = direct_config.get("section", "environment") if direct_config else "environment"
         direct_framework = direct_config.get("framework", "GRI") if direct_config else "GRI"
         
-        # Map status to approval_status for consistency
-        # "saved" without approval workflow = "approved" (auto-approved)
-        # "draft" = no approval_status change needed
-        # "pending" (empty value) = clear approval_status
-        if status == "saved":
-            approval_status_val = "approved"
-        elif status == "pending":
-            approval_status_val = None
-        else:
-            approval_status_val = status
+        # Note: approval_status should only be set by the approval workflow
+        # status field tracks the user's save state: "draft" or "saved"
+        # approval_status tracks workflow state: "pending_approval", "approved", "rejected"
+        # Don't auto-set approval_status here - let the approval workflow handle it
         
         update_fields = {
             "value": value,
@@ -1285,9 +1279,7 @@ class ESGQuestionnaireService:
             "updated_by_email": changed_by_user_email,
         }
         
-        # Set approval_status for consistency (direct save = auto-approved if saved)
-        if approval_status_val:
-            update_fields["approval_status"] = approval_status_val
+        # Do NOT auto-set approval_status - let approval workflow handle it
         
         result = await db.esg_responses.update_one(
             {
@@ -3020,7 +3012,8 @@ class ESGQuestionnaireService:
             qk = r.get("question_key")
             if qk:
                 statuses[qk] = {
-                    "approval_status": r.get("approval_status"),
+                    "status": r.get("status"),  # User save state: draft/saved
+                    "approval_status": r.get("approval_status"),  # Workflow state: pending_approval/approved/rejected
                     "submitted_at": r.get("submitted_at"),
                     "submitted_by": r.get("submitted_by"),
                     "approved_at": r.get("approved_at"),
