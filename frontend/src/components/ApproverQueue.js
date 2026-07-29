@@ -1169,7 +1169,7 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
       const payload = { comment: comment || undefined };
       
       if (hasEdits) {
-        payload.updated_snapshot = { value: editedValue };
+        payload.updated_data = { value: editedValue };
       }
       
       await axios.post(
