@@ -1245,6 +1245,41 @@ class ESGQuestionnaireService:
             # else: use direct save (last save wins) - continue to save below
         
         # Direct save to esg_responses (last save wins, drafts, or empty values)
+        # Get config for framework info (needed for proper querying)
+        direct_config = await self._configs.find_one(
+            {"question_key": question_key},
+            {"_id": 0, "section": 1, "framework": 1}
+        )
+        direct_section = direct_config.get("section", "environment") if direct_config else "environment"
+        direct_framework = direct_config.get("framework", "GRI") if direct_config else "GRI"
+        
+        # Map status to approval_status for consistency
+        # "saved" without approval workflow = "approved" (auto-approved)
+        # "draft" = no approval_status change needed
+        # "pending" (empty value) = clear approval_status
+        if status == "saved":
+            approval_status_val = "approved"
+        elif status == "pending":
+            approval_status_val = None
+        else:
+            approval_status_val = status
+        
+        update_fields = {
+            "value": value,
+            "status": status,
+            "framework": direct_framework,
+            "section": direct_section,
+            "reporting_year": reporting_period,
+            "updated_at": now_iso,
+            "updated_by": changed_by_user_id,
+            "updated_by_name": changed_by_user_name,
+            "updated_by_email": changed_by_user_email,
+        }
+        
+        # Set approval_status for consistency (direct save = auto-approved if saved)
+        if approval_status_val:
+            update_fields["approval_status"] = approval_status_val
+        
         result = await db.esg_responses.update_one(
             {
                 "organization_id": org_id,
@@ -1252,15 +1287,7 @@ class ESGQuestionnaireService:
                 "reporting_period": reporting_period,
             },
             {
-                "$set": {
-                    "value": value,
-                    "status": status,
-                    "reporting_year": reporting_period,  # Also set reporting_year for query compatibility
-                    "updated_at": now_iso,
-                    "updated_by": changed_by_user_id,
-                    "updated_by_name": changed_by_user_name,
-                    "updated_by_email": changed_by_user_email,
-                },
+                "$set": update_fields,
                 "$setOnInsert": {
                     "id": str(uuid.uuid4()),
                     "organization_id": org_id,
@@ -1273,19 +1300,13 @@ class ESGQuestionnaireService:
         )
         
         # Also save to organization_esg_responses for tracker compatibility
-        # Get the section from config
-        config = await self._configs.find_one(
-            {"question_key": question_key},
-            {"_id": 0, "section": 1}
-        )
-        section = config.get("section", "environment") if config else "environment"
-        
+        # (reuse direct_section and direct_framework from above)
         await db.organization_esg_responses.update_one(
             {
                 "org_id": org_id,
-                "framework": "GRI",
+                "framework": direct_framework,
                 "reporting_year": reporting_period,
-                "section": section,
+                "section": direct_section,
             },
             {
                 "$set": {
@@ -1296,8 +1317,8 @@ class ESGQuestionnaireService:
                     "id": str(uuid.uuid4()),
                     "org_id": org_id,
                     "organization_id": org_id,
-                    "framework": "GRI",
-                    "section": section,
+                    "framework": direct_framework,
+                    "section": direct_section,
                     "created_at": now_iso,
                 }
             },
