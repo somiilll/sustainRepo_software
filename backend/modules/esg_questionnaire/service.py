@@ -1333,6 +1333,112 @@ class ESGQuestionnaireService:
         )
         return submission
 
+
+    async def _save_to_unified_collection(
+        self,
+        org_id: str,
+        question_key: str,
+        value: Any,
+        reporting_period: str,
+        framework: str,
+        section: str,
+        status: str,
+        approval_status: Optional[str],
+        changed_by_user_id: Optional[str],
+        changed_by_user_name: Optional[str],
+        now_iso: str,
+        previous_approved_value: Any = None,
+    ) -> bool:
+        """
+        Save a response to the unified organization_esg_responses collection.
+        
+        Handles both simple questions and sub-questions (nested in parent's sub_responses).
+        
+        Returns True if save was acknowledged.
+        """
+        parent_key, sub_key = self._split_question_key(question_key)
+        
+        if parent_key and sub_key:
+            # Sub-question: Update parent document's sub_responses
+            sub_data = {
+                "value": value,
+                "status": status,
+                "updated_at": now_iso,
+                "updated_by": changed_by_user_id,
+                "updated_by_name": changed_by_user_name,
+            }
+            
+            if approval_status:
+                sub_data["approval_status"] = approval_status
+                sub_data["submitted_at"] = now_iso
+                sub_data["submitted_by"] = changed_by_user_id
+            
+            result = await db.organization_esg_responses.update_one(
+                {
+                    "org_id": org_id,
+                    "question_key": parent_key,
+                    "reporting_year": reporting_period,
+                },
+                {
+                    "$set": {
+                        f"sub_responses.{sub_key}": sub_data,
+                        "framework": framework,
+                        "section": section,
+                        "updated_at": now_iso,
+                    },
+                    "$setOnInsert": {
+                        "id": str(uuid.uuid4()),
+                        "org_id": org_id,
+                        "organization_id": org_id,
+                        "question_key": parent_key,
+                        "reporting_year": reporting_period,
+                        "created_at": now_iso,
+                    }
+                },
+                upsert=True
+            )
+        else:
+            # Simple question: Direct document update
+            update_fields = {
+                "value": value,
+                "status": status,
+                "framework": framework,
+                "section": section,
+                "updated_at": now_iso,
+                "updated_by": changed_by_user_id,
+                "updated_by_name": changed_by_user_name,
+            }
+            
+            if approval_status:
+                update_fields["approval_status"] = approval_status
+                update_fields["submitted_at"] = now_iso
+                update_fields["submitted_by"] = changed_by_user_id
+            
+            if previous_approved_value is not None:
+                update_fields["last_approved_value"] = previous_approved_value
+            
+            result = await db.organization_esg_responses.update_one(
+                {
+                    "org_id": org_id,
+                    "question_key": question_key,
+                    "reporting_year": reporting_period,
+                },
+                {
+                    "$set": update_fields,
+                    "$setOnInsert": {
+                        "id": str(uuid.uuid4()),
+                        "org_id": org_id,
+                        "organization_id": org_id,
+                        "question_key": question_key,
+                        "reporting_year": reporting_period,
+                        "created_at": now_iso,
+                    }
+                },
+                upsert=True
+            )
+        
+        return result.acknowledged
+
     async def save_gri_response(
         self,
         org_id: str,
@@ -1408,6 +1514,19 @@ class ESGQuestionnaireService:
         
         is_new = previous_response is None
         
+        # Get config for framework info (needed for all paths)
+        direct_config = await self._configs.find_one(
+            {"question_key": question_key},
+            {"_id": 0, "section": 1, "framework": 1, "frameworks": 1}
+        )
+        direct_section = direct_config.get("section", "environment") if direct_config else "environment"
+        # Framework: prefer 'framework' field, fallback to first in 'frameworks' array
+        direct_framework = direct_config.get("framework") if direct_config else None
+        if not direct_framework and direct_config and direct_config.get("frameworks"):
+            direct_framework = direct_config["frameworks"][0]
+        if not direct_framework:
+            direct_framework = "GRI"  # Default fallback
+        
         # Check workflow logic (only for actual "saved" status, not drafts or empty)
         if status == "saved" and not value_is_empty:
             use_direct_save = await self._should_use_direct_save(
@@ -1415,7 +1534,25 @@ class ESGQuestionnaireService:
             )
             
             if not use_direct_save:
-                # OLD APPROVAL SYSTEM - Route to submission queue
+                # APPROVAL WORKFLOW - Save to unified collection with pending_approval status
+                # Then create submission for approval queue
+                
+                # First, save to organization_esg_responses with pending_approval status
+                await self._save_to_unified_collection(
+                    org_id=org_id,
+                    question_key=question_key,
+                    value=value,
+                    reporting_period=reporting_period,
+                    framework=direct_framework,
+                    section=direct_section,
+                    status="pending_approval",
+                    approval_status="pending_approval",
+                    changed_by_user_id=changed_by_user_id,
+                    changed_by_user_name=changed_by_user_name,
+                    now_iso=now_iso,
+                )
+                
+                # Then create submission for approver queue
                 submission_result = await self._create_submission_for_approval(
                     org_id=org_id,
                     question_key=question_key,
@@ -1442,103 +1579,36 @@ class ESGQuestionnaireService:
             # else: use direct save (last save wins) - continue to save below
         
         # Direct save to organization_esg_responses (UNIFIED COLLECTION)
-        # Get config for framework info (needed for proper querying)
-        direct_config = await self._configs.find_one(
-            {"question_key": question_key},
-            {"_id": 0, "section": 1, "framework": 1, "frameworks": 1}
-        )
-        direct_section = direct_config.get("section", "environment") if direct_config else "environment"
-        direct_framework = direct_config.get("framework", "GRI") if direct_config else "GRI"
-        
         # Check if this question was previously approved (using previous_response from above)
         was_approved = previous_response and previous_response.get("approval_status") == "approved"
         previous_approved_value = previous_response.get("value") if was_approved else None
         value_changed = was_approved and previous_approved_value != value
         
-        # Save to organization_esg_responses (UNIFIED COLLECTION)
-        # Use question-level documents with nested sub_responses for sub-questions
-        parent_key, sub_key = self._split_question_key(question_key)
+        # Determine final status and approval_status
+        final_status = status
+        final_approval_status = None
+        if value_changed and status == "saved":
+            final_approval_status = "pending_approval"
         
-        if parent_key and sub_key:
-            # This is a sub-question - update parent's sub_responses
-            sub_data = {
-                "value": value,
-                "status": status,
-                "updated_at": now_iso,
-                "updated_by": changed_by_user_id,
-                "updated_by_name": changed_by_user_name,
-            }
-            
-            if value_changed and status == "saved":
-                sub_data["approval_status"] = "pending_approval"
-                sub_data["submitted_at"] = now_iso
-                sub_data["submitted_by"] = changed_by_user_id
-            
-            result = await db.organization_esg_responses.update_one(
-                {
-                    "org_id": org_id,
-                    "question_key": parent_key,
-                    "reporting_year": reporting_period,
-                },
-                {
-                    "$set": {
-                        f"sub_responses.{sub_key}": sub_data,
-                        "framework": direct_framework,
-                        "section": direct_section,
-                        "updated_at": now_iso,
-                    },
-                    "$setOnInsert": {
-                        "id": str(uuid.uuid4()),
-                        "org_id": org_id,
-                        "organization_id": org_id,
-                        "question_key": parent_key,
-                        "reporting_year": reporting_period,
-                        "created_at": now_iso,
-                    }
-                },
-                upsert=True
-            )
-        else:
-            # Simple question - direct document
-            update_fields = {
-                "value": value,
-                "status": status,
-                "framework": direct_framework,
-                "section": direct_section,
-                "updated_at": now_iso,
-                "updated_by": changed_by_user_id,
-                "updated_by_name": changed_by_user_name,
-            }
-            
-            if value_changed and status == "saved":
-                update_fields["approval_status"] = "pending_approval"
-                update_fields["last_approved_value"] = previous_approved_value
-                update_fields["submitted_at"] = now_iso
-                update_fields["submitted_by"] = changed_by_user_id
-            
-            result = await db.organization_esg_responses.update_one(
-                {
-                    "org_id": org_id,
-                    "question_key": question_key,
-                    "reporting_year": reporting_period,
-                },
-                {
-                    "$set": update_fields,
-                    "$setOnInsert": {
-                        "id": str(uuid.uuid4()),
-                        "org_id": org_id,
-                        "organization_id": org_id,
-                        "question_key": question_key,
-                        "reporting_year": reporting_period,
-                        "created_at": now_iso,
-                    }
-                },
-                upsert=True
-            )
+        await self._save_to_unified_collection(
+            org_id=org_id,
+            question_key=question_key,
+            value=value,
+            reporting_period=reporting_period,
+            framework=direct_framework,
+            section=direct_section,
+            status=final_status,
+            approval_status=final_approval_status,
+            changed_by_user_id=changed_by_user_id,
+            changed_by_user_name=changed_by_user_name,
+            now_iso=now_iso,
+            previous_approved_value=previous_approved_value if value_changed else None,
+        )
+        result_acknowledged = True
         
         # If this was a successful "saved" (not draft), clear other users' drafts AND own draft
         drafts_cleared = 0
-        if result.acknowledged and status == "saved" and not value_is_empty:
+        if result_acknowledged and status == "saved" and not value_is_empty:
             drafts_cleared = await self._clear_other_users_drafts(
                 org_id, question_key, reporting_period, changed_by_user_id
             )
@@ -1548,7 +1618,7 @@ class ESGQuestionnaireService:
             )
         
         # Log to audit trail for version history (only if value is not empty)
-        if result.acknowledged and not value_is_empty:
+        if result_acknowledged and not value_is_empty:
             # Determine the action type
             if is_new:
                 action = "created"
@@ -1584,7 +1654,7 @@ class ESGQuestionnaireService:
             await db.question_audit_log.insert_one(audit_entry)
         
         return {
-            "success": result.acknowledged,
+            "success": result_acknowledged,
             "submitted_for_approval": False,
             "status": status,
             "drafts_cleared": drafts_cleared,

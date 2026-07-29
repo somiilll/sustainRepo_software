@@ -149,7 +149,7 @@ export default function ApproverQueue() {
             id: r.id,
             entity_type: r.entity_type,
             entity_id: r.entity_id,
-            section: r.entity_subtype || 'environment',
+            section: r.entity_subtype || r.section || 'environment',
             question_key: r.entity_type === 'esg_response' ? r.entity_id : `record_${r.entity_snapshot?.category || 'unknown'}`,
             disclosure_name: displayName,
             reporting_period: r.entity_snapshot?.reporting_year,
@@ -161,6 +161,7 @@ export default function ApproverQueue() {
             workflow_name: r.workflow_name,
             entity_snapshot: r.entity_snapshot,
             request_type: r.request_type,
+            framework: r.framework,  // Preserve framework from approval_request
             _source: 'approval_workflow',
             _approval_request_id: r.id,
             _needs_config: r.entity_type === 'esg_response', // Flag for config enrichment
@@ -186,9 +187,12 @@ export default function ApproverQueue() {
           recordApprovals = recordApprovals.map(item => {
             if (item._needs_config && configMap[item.entity_id]) {
               const cfg = configMap[item.entity_id];
+              // Get framework from config if not already set
+              const cfgFramework = cfg.framework || (cfg.frameworks && cfg.frameworks[0]);
               return {
                 ...item,
                 disclosure_name: cfg.description || cfg.label || cfg.question || item.entity_id,
+                framework: item.framework || cfgFramework,  // Use existing or from config
               };
             }
             return item;
