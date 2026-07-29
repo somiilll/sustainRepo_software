@@ -74,9 +74,7 @@ export default function SubmissionReviewPanel({
           // Use the latest submission
           const latestSubmission = submissions[0];
           setSubmission(latestSubmission);
-          // Handle both string and object values
-          const val = latestSubmission.value;
-          setEditedValue(typeof val === 'object' ? val : (val || ''));
+          setEditedValue(latestSubmission.value || '');
         }
         
         // Try to fetch question config for display
@@ -115,118 +113,6 @@ export default function SubmissionReviewPanel({
     });
   };
 
-  // Format value for display - handles objects, arrays, and primitives
-  const formatValueForDisplay = (val) => {
-    if (val === null || val === undefined) return <span className="italic text-stone-400">No response provided</span>;
-    if (typeof val === 'string') return val || <span className="italic text-stone-400">No response provided</span>;
-    if (typeof val === 'boolean') return val ? 'Yes' : 'No';
-    if (typeof val === 'number') return String(val);
-    
-    // Handle arrays
-    if (Array.isArray(val)) {
-      if (val.length === 0) return <span className="italic text-stone-400">No data</span>;
-      const firstItem = val[0];
-      if (typeof firstItem === 'object' && firstItem !== null) {
-        const columns = Object.keys(firstItem);
-        return (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm border-collapse">
-              <thead>
-                <tr className="bg-stone-100">
-                  {columns.map(col => (
-                    <th key={col} className="border border-stone-200 px-3 py-2 text-left font-medium text-stone-700">
-                      {col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {val.map((row, idx) => (
-                  <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-stone-50'}>
-                    {columns.map(col => (
-                      <td key={col} className="border border-stone-200 px-3 py-2">
-                        {typeof row[col] === 'object' ? JSON.stringify(row[col]) : (row[col] ?? '-')}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        );
-      }
-      return val.join(', ');
-    }
-    
-    // Handle objects
-    if (typeof val === 'object') {
-      const keys = Object.keys(val);
-      if (keys.length === 0) return <span className="italic text-stone-400">No data</span>;
-      
-      // Check if values are nested objects (like FY comparison: {category: {current_fy, previous_fy}})
-      const hasNestedObjects = keys.some(k => typeof val[k] === 'object' && val[k] !== null && !Array.isArray(val[k]));
-      
-      if (hasNestedObjects) {
-        const innerKeys = new Set();
-        keys.forEach(k => {
-          if (typeof val[k] === 'object' && val[k] !== null) {
-            Object.keys(val[k]).forEach(ik => innerKeys.add(ik));
-          }
-        });
-        const innerKeysArr = Array.from(innerKeys);
-        
-        return (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm border-collapse">
-              <thead>
-                <tr className="bg-stone-100">
-                  <th className="border border-stone-200 px-3 py-2 text-left font-medium text-stone-700">Category</th>
-                  {innerKeysArr.map(ik => (
-                    <th key={ik} className="border border-stone-200 px-3 py-2 text-left font-medium text-stone-700">
-                      {ik.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {keys.map((k, idx) => (
-                  <tr key={k} className={idx % 2 === 0 ? 'bg-white' : 'bg-stone-50'}>
-                    <td className="border border-stone-200 px-3 py-2 font-medium text-stone-700">
-                      {k.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                    </td>
-                    {innerKeysArr.map(ik => (
-                      <td key={ik} className="border border-stone-200 px-3 py-2">
-                        {typeof val[k] === 'object' && val[k] !== null ? (val[k][ik] ?? '-') : '-'}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        );
-      }
-      
-      // Simple key-value object (like {mode, all_description, all_enabled})
-      return (
-        <div className="space-y-2">
-          {keys.map(k => (
-            <div key={k} className="flex flex-col gap-0.5">
-              <span className="text-xs font-medium text-stone-500">
-                {k.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-              </span>
-              <span className="text-stone-800">
-                {typeof val[k] === 'boolean' ? (val[k] ? 'Yes' : 'No') : (val[k] ?? '-')}
-              </span>
-            </div>
-          ))}
-        </div>
-      );
-    }
-    
-    return String(val);
-  };
-
   // Get the question display text
   const getQuestionText = () => {
     if (questionConfig) {
@@ -235,14 +121,8 @@ export default function SubmissionReviewPanel({
     return questionKey;
   };
 
-  // Check if response was edited (handles both strings and objects)
-  const hasEdits = submission && (() => {
-    const originalValue = submission.value;
-    if (typeof editedValue === 'object' && typeof originalValue === 'object') {
-      return JSON.stringify(editedValue) !== JSON.stringify(originalValue);
-    }
-    return editedValue !== (originalValue || '');
-  })();
+  // Check if response was edited
+  const hasEdits = submission && editedValue !== (submission.value || '');
 
   // Approve submission
   const handleApprove = async () => {
@@ -373,22 +253,16 @@ export default function SubmissionReviewPanel({
         
         {isEditing ? (
           <Textarea
-            value={typeof editedValue === 'string' ? editedValue : JSON.stringify(editedValue, null, 2)}
-            onChange={(e) => {
-              try {
-                setEditedValue(JSON.parse(e.target.value));
-              } catch {
-                setEditedValue(e.target.value);
-              }
-            }}
+            value={editedValue}
+            onChange={(e) => setEditedValue(e.target.value)}
             className="min-h-[150px] font-mono text-sm"
             placeholder="Enter response..."
           />
         ) : (
           <Card className="p-4 bg-white border-stone-200">
-            <div className="text-stone-700 text-sm leading-relaxed">
-              {formatValueForDisplay(submission.value)}
-            </div>
+            <p className="text-stone-700 whitespace-pre-wrap text-sm leading-relaxed">
+              {submission.value || <span className="italic text-stone-400">No response provided</span>}
+            </p>
           </Card>
         )}
         
