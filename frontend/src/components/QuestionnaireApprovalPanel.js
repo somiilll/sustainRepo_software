@@ -37,6 +37,34 @@ import { toast } from 'sonner';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
+// Map of BRSR response keys to user-friendly labels
+const BRSR_FIELD_LABELS = {
+  all_description: 'Description / Justification',
+  all_enabled: 'Applicable to all principles?',
+  mode: 'Mode',
+  value: 'Value',
+  description: 'Description',
+  justification: 'Justification',
+  response: 'Response',
+  comments: 'Comments',
+  remarks: 'Remarks',
+  explanation: 'Explanation',
+  details: 'Details',
+  yes_no: 'Yes/No',
+  quantity: 'Quantity',
+  unit: 'Unit',
+  percentage: 'Percentage',
+  amount: 'Amount',
+};
+
+// Helper to format a field value for display
+const formatFieldValue = (value) => {
+  if (value === null || value === undefined) return '-';
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'object') return JSON.stringify(value, null, 2);
+  return String(value);
+};
+
 // Helper to safely render response data (handles objects, arrays, strings)
 const formatResponseForDisplay = (data) => {
   if (data === null || data === undefined) {
@@ -49,6 +77,45 @@ const formatResponseForDisplay = (data) => {
     return JSON.stringify(data, null, 2);
   }
   return String(data);
+};
+
+// Component to render BRSR response data with friendly labels
+const ResponseDisplay = ({ data }) => {
+  if (data === null || data === undefined) {
+    return <span className="italic text-stone-400">No response provided</span>;
+  }
+  
+  // If it's a string, just display it
+  if (typeof data === 'string') {
+    return <span className="whitespace-pre-wrap">{data}</span>;
+  }
+  
+  // If it's an object, display with friendly labels
+  if (typeof data === 'object' && !Array.isArray(data)) {
+    const entries = Object.entries(data).filter(([_, v]) => v !== null && v !== undefined && v !== '');
+    
+    if (entries.length === 0) {
+      return <span className="italic text-stone-400">No response provided</span>;
+    }
+    
+    return (
+      <div className="space-y-3">
+        {entries.map(([key, value]) => (
+          <div key={key} className="border-b border-stone-100 pb-2 last:border-0 last:pb-0">
+            <div className="text-xs font-medium text-stone-500 mb-1">
+              {BRSR_FIELD_LABELS[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+            </div>
+            <div className="text-stone-800">
+              {formatFieldValue(value)}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  
+  // Fallback for arrays or other types
+  return <pre className="whitespace-pre-wrap text-sm">{JSON.stringify(data, null, 2)}</pre>;
 };
 
 export default function QuestionnaireApprovalPanel({ 
@@ -86,9 +153,6 @@ export default function QuestionnaireApprovalPanel({
 
   // Check if response was edited
   const hasEdits = editedResponse !== getOriginalValue();
-
-  // Display formatted response
-  const displayResponse = formatResponseForDisplay(item.response_data);
 
   // Approve the response
   const handleApprove = async () => {
@@ -216,9 +280,7 @@ export default function QuestionnaireApprovalPanel({
               />
             ) : (
               <Card className="p-4 bg-white border-stone-200">
-                <pre className="text-stone-700 whitespace-pre-wrap text-sm leading-relaxed font-sans">
-                  {displayResponse || <span className="italic text-stone-400">No response provided</span>}
-                </pre>
+                <ResponseDisplay data={item.response_data} />
               </Card>
             )}
             
