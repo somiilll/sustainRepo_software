@@ -1257,15 +1257,24 @@ class ESGQuestionnaireService:
         # Get config for framework info (needed for proper querying)
         direct_config = await self._configs.find_one(
             {"question_key": question_key},
-            {"_id": 0, "section": 1, "framework": 1}
+            {"_id": 0, "section": 1, "framework": 1, "frameworks": 1}
         )
         direct_section = direct_config.get("section", "environment") if direct_config else "environment"
         direct_framework = direct_config.get("framework", "GRI") if direct_config else "GRI"
         
-        # Note: approval_status should only be set by the approval workflow
-        # status field tracks the user's save state: "draft" or "saved"
-        # approval_status tracks workflow state: "pending_approval", "approved", "rejected"
-        # Don't auto-set approval_status here - let the approval workflow handle it
+        # Check if this question was previously approved
+        existing_response = await db.esg_responses.find_one(
+            {
+                "organization_id": org_id,
+                "question_key": question_key,
+                "reporting_period": reporting_period,
+            },
+            {"_id": 0, "value": 1, "approval_status": 1}
+        )
+        
+        was_approved = existing_response and existing_response.get("approval_status") == "approved"
+        previous_approved_value = existing_response.get("value") if was_approved else None
+        value_changed = was_approved and previous_approved_value != value
         
         update_fields = {
             "value": value,
@@ -1279,7 +1288,12 @@ class ESGQuestionnaireService:
             "updated_by_email": changed_by_user_email,
         }
         
-        # Do NOT auto-set approval_status - let approval workflow handle it
+        # If previously approved and value changed, set to pending_approval and store approved value
+        if value_changed and status == "saved":
+            update_fields["approval_status"] = "pending_approval"
+            update_fields["last_approved_value"] = previous_approved_value
+            update_fields["submitted_at"] = now_iso
+            update_fields["submitted_by"] = changed_by_user_id
         
         result = await db.esg_responses.update_one(
             {
