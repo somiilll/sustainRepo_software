@@ -396,10 +396,11 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
 }
 
 // Individual Question Renderer
-export function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {}, historicalData = null, approvalStatus = null, versionHistory = null, onSaveQuestion = null }) {
+export function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {}, historicalData = null, approvalStatus = null, versionHistory = null, onSaveQuestion = null, onFetchVersionHistory = null }) {
   const { type, question, description, placeholder, options, table_columns, required, conditional, visible_if } = config;
   const [showVersions, setShowVersions] = useState(false);
   const [savingQuestion, setSavingQuestion] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
 
   // Check if question should be hidden based on conditional logic
   if (conditional?.depends_on && conditional?.show_when === 'has_no_answer') {
@@ -427,31 +428,139 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
     if (visible_if.condition === 'not_equals' && depResponse === visible_if.value) return null;
   }
 
+  // Helper to render complex object/array data as a formatted table (for view mode)
+  const renderObjectAsTable = (data) => {
+    if (!data || typeof data !== 'object') return <span className="text-sm">{data ?? '-'}</span>;
+    
+    // If it's an array of objects, render as a standard table
+    if (Array.isArray(data)) {
+      if (data.length === 0) return <span className="text-sm text-text-muted">-</span>;
+      const firstItem = data[0];
+      if (typeof firstItem === 'object' && firstItem !== null) {
+        const columns = Object.keys(firstItem);
+        return (
+          <Table className="text-sm">
+            <TableHeader>
+              <TableRow className="bg-stone-50">
+                {columns.map(col => (
+                  <TableHead key={col} className="text-xs font-medium">
+                    {col.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.map((row, idx) => (
+                <TableRow key={idx}>
+                  {columns.map(col => (
+                    <TableCell key={col} className="text-xs">
+                      {typeof row[col] === 'object' 
+                        ? JSON.stringify(row[col]) 
+                        : (row[col] ?? '-')}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        );
+      }
+      return <span className="text-sm">{data.join(', ')}</span>;
+    }
+    
+    // If it's an object with nested objects (like {bod: {total: 87, trained: 23}})
+    const keys = Object.keys(data);
+    if (keys.length === 0) return <span className="text-sm text-text-muted">-</span>;
+    
+    // Check if values are objects (nested structure)
+    const hasNestedObjects = keys.some(k => typeof data[k] === 'object' && data[k] !== null && !Array.isArray(data[k]));
+    
+    if (hasNestedObjects) {
+      // Get all unique inner keys
+      const innerKeys = new Set();
+      keys.forEach(k => {
+        if (typeof data[k] === 'object' && data[k] !== null) {
+          Object.keys(data[k]).forEach(ik => innerKeys.add(ik));
+        }
+      });
+      const innerKeysArr = Array.from(innerKeys);
+      
+      return (
+        <Table className="text-sm">
+          <TableHeader>
+            <TableRow className="bg-stone-50">
+              <TableHead className="text-xs font-medium">Category</TableHead>
+              {innerKeysArr.map(ik => (
+                <TableHead key={ik} className="text-xs font-medium">
+                  {ik.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {keys.map(k => (
+              <TableRow key={k}>
+                <TableCell className="text-xs font-medium">
+                  {k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                </TableCell>
+                {innerKeysArr.map(ik => (
+                  <TableCell key={ik} className="text-xs">
+                    {typeof data[k] === 'object' && data[k] !== null 
+                      ? (data[k][ik] ?? '-')
+                      : '-'}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      );
+    }
+    
+    // Simple key-value object
+    return (
+      <div className="space-y-1 mt-2">
+        {keys.map(k => (
+          <div key={k} className="flex gap-2 text-sm">
+            <span className="font-medium text-text-muted">
+              {k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}:
+            </span>
+            <span>{data[k] ?? '-'}</span>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   const renderInput = () => {
     switch (type) {
       case 'text':
         return isEditing ? (
           <Input
-            value={value || ''}
+            value={typeof value === 'string' ? value : (value || '')}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder || 'Enter response'}
             className="mt-2"
           />
         ) : (
-          <p className="text-sm text-text-secondary mt-2">{value || '-'}</p>
+          typeof value === 'object' && value !== null 
+            ? <div className="mt-2">{renderObjectAsTable(value)}</div>
+            : <p className="text-sm text-text-secondary mt-2">{value || '-'}</p>
         );
 
       case 'textarea':
         return isEditing ? (
           <Textarea
-            value={value || ''}
+            value={typeof value === 'string' ? value : (value || '')}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder || 'Enter detailed response'}
             rows={3}
             className="mt-2"
           />
         ) : (
-          <p className="text-sm text-text-secondary mt-2 whitespace-pre-wrap">{value || '-'}</p>
+          typeof value === 'object' && value !== null 
+            ? <div className="mt-2">{renderObjectAsTable(value)}</div>
+            : <p className="text-sm text-text-secondary mt-2 whitespace-pre-wrap">{value || '-'}</p>
         );
 
       case 'yes_no':
@@ -704,19 +813,29 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
         return <NGRBCPolicyMatrixRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
 
       default:
+        // For unknown types, try to render object data as a table in view mode
+        if (!isEditing && value && typeof value === 'object') {
+          return <div className="mt-2">{renderObjectAsTable(value)}</div>;
+        }
         return <p className="text-sm text-red-500 mt-2">Unknown question type: {type}</p>;
     }
   };
 
   // Helper to render approval status badge
   const renderStatusBadge = () => {
-    if (!approvalStatus?.approval_status) return null;
+    if (!approvalStatus) return null;
     
-    const status = approvalStatus.approval_status;
+    // Support both approval_status and status fields
+    const status = approvalStatus.approval_status || approvalStatus.status;
+    if (!status) return null;
+    
     const statusConfig = {
       pending_approval: { label: 'Awaiting Approval', className: 'bg-amber-100 text-amber-800' },
       approved: { label: 'Approved', className: 'bg-green-100 text-green-800' },
       rejected: { label: 'Rejected', className: 'bg-red-100 text-red-800' },
+      draft: { label: 'Draft', className: 'bg-blue-100 text-blue-800' },
+      saved: { label: 'Saved', className: 'bg-slate-100 text-slate-700' },
+      pending: { label: 'Pending', className: 'bg-stone-100 text-stone-600' },
     };
     
     const cfg = statusConfig[status];
@@ -930,10 +1049,9 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => hasHistory && setShowVersions(!showVersions)}
-        disabled={!hasHistory}
-        className={`h-7 px-2 text-xs ${!hasHistory ? 'opacity-50' : ''}`}
-        title={hasHistory ? `${versionHistory.length} version(s)` : 'No history'}
+        onClick={handleToggleVersions}
+        className={`h-7 px-2 text-xs ${!hasHistory && !onFetchVersionHistory ? 'opacity-50' : ''}`}
+        title={hasHistory ? `${versionHistory.length} version(s)` : 'View history'}
       >
         <Clock className="w-3 h-3" />
       </Button>
@@ -941,18 +1059,31 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
   };
 
   // Handle question-level save
-  const handleSaveQuestion = async () => {
+  const handleSaveQuestion = async (status = 'saved') => {
     if (!onSaveQuestion) return;
-    setSavingQuestion(true);
+    if (status === 'draft') {
+      setSavingDraft(true);
+    } else {
+      setSavingQuestion(true);
+    }
     try {
-      await onSaveQuestion(config.question_key, value);
+      await onSaveQuestion(config.question_key, value, status);
     } finally {
+      setSavingDraft(false);
       setSavingQuestion(false);
     }
   };
 
+  // Handle version history fetch and toggle
+  const handleToggleVersions = async () => {
+    if (!showVersions && onFetchVersionHistory && (!versionHistory || versionHistory.length === 0)) {
+      await onFetchVersionHistory();
+    }
+    setShowVersions(!showVersions);
+  };
+
   return (
-    <div className="py-4 border-b border-stone-100 last:border-b-0">
+    <div className="py-4 border-b border-stone-100 last:border-b-0" data-testid={`question-${config.question_key}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-start gap-2 flex-1">
           <Label className="text-sm font-medium text-text-primary">
@@ -965,24 +1096,45 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
           {renderStatusBadge()}
-          {/* Rejection reason is shown only in Version History */}
-          {isEditing && onSaveQuestion && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleSaveQuestion}
-              disabled={savingQuestion}
-              className="h-7 px-2 text-xs"
-              title="Save question"
-            >
-              {savingQuestion ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-            </Button>
-          )}
           {renderVersionHistoryButton()}
         </div>
       </div>
       {description && <p className="text-xs text-text-muted mt-1">{description}</p>}
       {renderInput()}
+      
+      {/* Question-level Save Draft and Submit buttons */}
+      {isEditing && onSaveQuestion && (
+        <div className="flex items-center gap-2 mt-3 pt-2 border-t border-stone-100">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleSaveQuestion('draft')}
+            disabled={savingDraft || savingQuestion}
+            className="h-7 px-3 text-xs"
+            data-testid={`save-draft-${config.question_key}`}
+          >
+            {savingDraft ? (
+              <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Saving...</>
+            ) : (
+              <><Save className="w-3 h-3 mr-1" /> Save Draft</>
+            )}
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => handleSaveQuestion('saved')}
+            disabled={savingDraft || savingQuestion}
+            className="h-7 px-3 text-xs bg-primary hover:bg-primary/90"
+            data-testid={`submit-${config.question_key}`}
+          >
+            {savingQuestion ? (
+              <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Submitting...</>
+            ) : (
+              <><CheckCircle2 className="w-3 h-3 mr-1" /> Submit</>
+            )}
+          </Button>
+        </div>
+      )}
+      
       {renderVersionHistory()}
     </div>
   );
@@ -3328,14 +3480,19 @@ export default function ESGQuestionnaire({
   };
 
   // Question-level save (saves only the specified question)
-  const saveQuestion = async (questionKey, value) => {
+  const saveQuestion = async (questionKey, value, status = 'saved') => {
     try {
-      await axios.put(
-        `${API}/esg-questionnaire/responses/${framework}/${section}/${reportingYear}`,
-        { responses: { [questionKey]: value } },
+      await axios.post(
+        `${API}/esg-questionnaire/response`,
+        { 
+          question_key: questionKey, 
+          value, 
+          reporting_period: reportingYear,
+          status 
+        },
         { headers: getAuthHeader() }
       );
-      toast.success('Question saved');
+      toast.success(status === 'draft' ? 'Draft saved' : 'Question saved');
       // Refresh statuses after save
       try {
         const statusesRes = await axios.get(
@@ -3350,6 +3507,27 @@ export default function ESGQuestionnaire({
     } catch (error) {
       console.error('Save question error:', error);
       toast.error('Failed to save question');
+    }
+  };
+
+  // Fetch version history for a specific question
+  const fetchVersionHistory = async (questionKey) => {
+    try {
+      const res = await axios.get(
+        `${API}/esg-questionnaire/history/${questionKey}`,
+        { 
+          params: { reporting_period: reportingYear },
+          headers: getAuthHeader() 
+        }
+      );
+      setQuestionVersions(prev => ({
+        ...prev,
+        [questionKey]: res.data.history || []
+      }));
+      return res.data.history || [];
+    } catch (error) {
+      console.error('Failed to fetch version history:', error);
+      return [];
     }
   };
 
@@ -3466,6 +3644,7 @@ export default function ESGQuestionnaire({
                     approvalStatus={questionStatuses[config.question_key]}
                     versionHistory={questionVersions[config.question_key]}
                     onSaveQuestion={saveQuestion}
+                    onFetchVersionHistory={() => fetchVersionHistory(config.question_key)}
                   />
                 ))}
               </div>

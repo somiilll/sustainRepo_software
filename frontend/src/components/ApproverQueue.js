@@ -1236,6 +1236,16 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
       />;
     }
     
+    // Handle table type (array of objects)
+    if (questionType === 'table' || Array.isArray(value)) {
+      return <TableDisplay 
+        value={value}
+        onChange={isEditing ? setEditedValue : undefined}
+        isEditing={isEditing}
+        config={config}
+      />;
+    }
+    
     // Handle simple text/textarea
     if (typeof value === 'string') {
       return isEditing ? (
@@ -1525,6 +1535,15 @@ function ObjectFieldsDisplay({ value, onChange, isEditing }) {
   const handleFieldChange = (key, newVal) => {
     onChange?.({ ...value, [key]: newVal });
   };
+  
+  // Helper to format any value for display
+  const formatValue = (val) => {
+    if (val === null || val === undefined) return '-';
+    if (typeof val === 'boolean') return val ? 'Yes' : 'No';
+    if (Array.isArray(val)) return `${val.length} item(s)`;
+    if (typeof val === 'object') return JSON.stringify(val, null, 2);
+    return String(val);
+  };
 
   const entries = Object.entries(value || {}).filter(([_, v]) => v !== null && v !== undefined);
   
@@ -1541,7 +1560,11 @@ function ObjectFieldsDisplay({ value, onChange, isEditing }) {
               {FIELD_LABELS[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
             </div>
             <div className="text-stone-800">
-              {typeof val === 'boolean' ? (val ? 'Yes' : 'No') : String(val)}
+              {Array.isArray(val) || (typeof val === 'object' && val !== null) ? (
+                <TableDisplay value={val} isEditing={false} />
+              ) : (
+                formatValue(val)
+              )}
             </div>
           </div>
         ))}
@@ -1575,6 +1598,12 @@ function ObjectFieldsDisplay({ value, onChange, isEditing }) {
               <option value="individual">Individual</option>
               <option value="principle_wise">Principle-wise</option>
             </select>
+          ) : Array.isArray(val) || (typeof val === 'object' && val !== null) ? (
+            <TableDisplay 
+              value={val} 
+              onChange={(newVal) => handleFieldChange(key, newVal)}
+              isEditing={true}
+            />
           ) : (
             <textarea
               value={val || ''}
@@ -1587,4 +1616,146 @@ function ObjectFieldsDisplay({ value, onChange, isEditing }) {
       ))}
     </div>
   );
+}
+
+// Table display/edit component for array data
+function TableDisplay({ value, onChange, isEditing, config = {} }) {
+  // Format column header for display
+  const formatHeader = (key) => {
+    return key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
+  
+  // Format cell value
+  const formatCell = (val) => {
+    if (val === null || val === undefined) return '-';
+    if (typeof val === 'boolean') return val ? 'Yes' : 'No';
+    if (typeof val === 'object') return JSON.stringify(val);
+    return String(val);
+  };
+
+  // Handle array data (standard table)
+  if (Array.isArray(value)) {
+    const data = value;
+    if (data.length === 0) {
+      return <p className="text-stone-400 italic text-sm">No table data</p>;
+    }
+    
+    const columns = Object.keys(data[0] || {});
+    
+    const handleCellChange = (rowIndex, colKey, newValue) => {
+      if (!onChange) return;
+      const newData = [...data];
+      newData[rowIndex] = { ...newData[rowIndex], [colKey]: newValue };
+      onChange(newData);
+    };
+
+    return (
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm border-collapse">
+          <thead>
+            <tr className="bg-stone-100">
+              {columns.map(col => (
+                <th key={col} className="border border-stone-200 px-3 py-2 text-left font-medium text-stone-700">
+                  {formatHeader(col)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((row, rowIndex) => (
+              <tr key={rowIndex} className={rowIndex % 2 === 0 ? 'bg-white' : 'bg-stone-50'}>
+                {columns.map(col => (
+                  <td key={col} className="border border-stone-200 px-3 py-2">
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        value={row[col] ?? ''}
+                        onChange={(e) => handleCellChange(rowIndex, col, e.target.value)}
+                        className="w-full px-2 py-1 border rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    ) : (
+                      <span className="text-stone-800">{formatCell(row[col])}</span>
+                    )}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="text-xs text-stone-500 mt-2">{data.length} row(s)</p>
+      </div>
+    );
+  }
+  
+  // Handle object with nested objects (like {bod: {total: 87, trained: 23}, ...})
+  if (typeof value === 'object' && value !== null) {
+    const keys = Object.keys(value);
+    if (keys.length === 0) {
+      return <p className="text-stone-400 italic text-sm">No data</p>;
+    }
+    
+    // Check if values are nested objects
+    const hasNestedObjects = keys.some(k => typeof value[k] === 'object' && value[k] !== null && !Array.isArray(value[k]));
+    
+    if (hasNestedObjects) {
+      // Get all unique inner keys across all nested objects
+      const innerKeys = new Set();
+      keys.forEach(k => {
+        if (typeof value[k] === 'object' && value[k] !== null) {
+          Object.keys(value[k]).forEach(ik => innerKeys.add(ik));
+        }
+      });
+      const innerKeysArr = Array.from(innerKeys);
+      
+      return (
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm border-collapse">
+            <thead>
+              <tr className="bg-stone-100">
+                <th className="border border-stone-200 px-3 py-2 text-left font-medium text-stone-700">Category</th>
+                {innerKeysArr.map(ik => (
+                  <th key={ik} className="border border-stone-200 px-3 py-2 text-left font-medium text-stone-700">
+                    {formatHeader(ik)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {keys.map((k, idx) => (
+                <tr key={k} className={idx % 2 === 0 ? 'bg-white' : 'bg-stone-50'}>
+                  <td className="border border-stone-200 px-3 py-2 font-medium text-stone-700">
+                    {formatHeader(k)}
+                  </td>
+                  {innerKeysArr.map(ik => (
+                    <td key={ik} className="border border-stone-200 px-3 py-2">
+                      <span className="text-stone-800">
+                        {typeof value[k] === 'object' && value[k] !== null 
+                          ? (value[k][ik] ?? '-')
+                          : '-'}
+                      </span>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+    
+    // Simple key-value object (not nested)
+    return (
+      <div className="space-y-1">
+        {keys.map(k => (
+          <div key={k} className="flex gap-2 text-sm">
+            <span className="font-medium text-stone-600">{formatHeader(k)}:</span>
+            <span className="text-stone-800">{formatCell(value[k])}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  
+  // Fallback for non-object/non-array values
+  return <p className="text-stone-400 italic text-sm">No table data</p>;
 }

@@ -3,7 +3,7 @@
  *
  * Fetches ALL questions from environment + social + governance,
  * groups them by brsr_principle (P1-P9), renders collapsible sections.
- * Saves responses back to their original section.
+ * Each question has individual save/draft, status badges, and version history.
  */
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import axios from 'axios';
@@ -12,7 +12,7 @@ import { QuestionRenderer } from './ESGQuestionnaire';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import {
-  Loader2, Save, CheckCircle2, AlertCircle, ChevronDown,
+  Loader2, Save, CheckCircle2, AlertCircle, ChevronDown, FileText,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -42,8 +42,11 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
   const { getAuthHeader } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingPrinciple, setSavingPrinciple] = useState(null);
   const [allConfigs, setAllConfigs] = useState([]);
   const [allResponses, setAllResponses] = useState({});
+  const [approvalStatuses, setApprovalStatuses] = useState({});
+  const [versionHistories, setVersionHistories] = useState({});
   const [expanded, setExpanded] = useState({});
 
   const fetchData = useCallback(async () => {
@@ -52,15 +55,18 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
     try {
       const headers = getAuthHeader();
 
-      const [configsRes, responsesRes] = await Promise.all([
+      const [configsRes, responsesRes, statusesRes] = await Promise.all([
         axios.get(`${API}/api/esg-questionnaire/configs`, { params: { framework, section: SECTION }, headers })
           .then(r => r.data.configs || []).catch(() => []),
         axios.get(`${API}/api/esg-questionnaire/responses/${framework}/${SECTION}/${reportingYear}`, { headers })
           .then(r => r.data.responses || {}).catch(() => ({})),
+        axios.get(`${API}/api/esg-questionnaire/statuses/${framework}/${SECTION}/${reportingYear}`, { headers })
+          .then(r => r.data.statuses || {}).catch(() => ({})),
       ]);
 
       setAllConfigs(configsRes);
       setAllResponses(responsesRes);
+      setApprovalStatuses(statusesRes);
     } catch (err) {
       console.error('Failed to fetch Section C data:', err);
     } finally {
@@ -109,7 +115,93 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
 
   const collapseAll = () => setExpanded({});
 
-  const saveResponses = async () => {
+  // Save individual question
+  const saveQuestion = async (questionKey, value, status = 'saved') => {
+    try {
+      const headers = getAuthHeader();
+      await axios.post(
+        `${API}/api/esg-questionnaire/response`,
+        {
+          question_key: questionKey,
+          value,
+          status,
+          reporting_period: reportingYear,
+        },
+        { headers }
+      );
+      toast.success(status === 'draft' ? 'Saved as draft' : 'Response saved');
+      
+      // Refresh status for this question
+      try {
+        const statusRes = await axios.get(
+          `${API}/api/esg-questionnaire/statuses/${framework}/${SECTION}/${reportingYear}`,
+          { headers }
+        );
+        setApprovalStatuses(statusRes.data.statuses || {});
+      } catch (e) {
+        // Ignore status fetch errors
+      }
+    } catch (error) {
+      console.error('Save question error:', error);
+      toast.error(error.response?.data?.detail || 'Failed to save');
+      throw error;
+    }
+  };
+
+  // Fetch version history for a question
+  const fetchVersionHistory = async (questionKey) => {
+    try {
+      const headers = getAuthHeader();
+      const res = await axios.get(
+        `${API}/api/esg-questionnaire/history/${questionKey}`,
+        { 
+          params: { reporting_period: reportingYear },
+          headers 
+        }
+      );
+      setVersionHistories(prev => ({
+        ...prev,
+        [questionKey]: res.data.history || []
+      }));
+      return res.data.history || [];
+    } catch (error) {
+      console.error('Failed to fetch version history:', error);
+      return [];
+    }
+  };
+
+  // Save all responses for a principle
+  const savePrincipleResponses = async (principle, status = 'saved') => {
+    const questions = grouped[principle] || [];
+    if (questions.length === 0) return;
+    
+    setSavingPrinciple(principle);
+    try {
+      const headers = getAuthHeader();
+      const responses = {};
+      questions.forEach(q => {
+        if (allResponses[q.question_key] !== undefined) {
+          responses[q.question_key] = allResponses[q.question_key];
+        }
+      });
+      
+      await axios.put(
+        `${API}/api/esg-questionnaire/responses/${framework}/${SECTION}/${reportingYear}`,
+        { responses, status },
+        { headers }
+      );
+      toast.success(`${PRINCIPLE_META[principle]?.name || principle} ${status === 'draft' ? 'saved as draft' : 'saved'}`);
+      fetchData();
+    } catch (err) {
+      console.error('Save principle error:', err);
+      toast.error('Failed to save responses');
+    } finally {
+      setSavingPrinciple(null);
+    }
+  };
+
+  // Save all responses
+  const saveAllResponses = async () => {
     setSaving(true);
     try {
       const headers = getAuthHeader();
@@ -126,6 +218,23 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
     } finally {
       setSaving(false);
     }
+  };
+
+  // Get status badge for a principle
+  const getPrincipleStatus = (principle) => {
+    const questions = grouped[principle] || [];
+    const statuses = questions.map(q => approvalStatuses[q.question_key]?.approval_status).filter(Boolean);
+    
+    if (statuses.length === 0) return null;
+    
+    const hasPending = statuses.includes('pending_approval');
+    const hasRejected = statuses.includes('rejected');
+    const allApproved = statuses.every(s => s === 'approved');
+    
+    if (allApproved) return { label: 'Approved', className: 'bg-green-100 text-green-800' };
+    if (hasRejected) return { label: 'Has Rejections', className: 'bg-red-100 text-red-800' };
+    if (hasPending) return { label: 'Awaiting Approval', className: 'bg-amber-100 text-amber-800' };
+    return null;
   };
 
   if (loading) {
@@ -176,6 +285,8 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
           return v !== undefined && v !== null && v !== '';
         }).length;
         const color = PRINCIPLE_COLORS[p] || '#78716c';
+        const principleStatus = getPrincipleStatus(p);
+        const isSavingThis = savingPrinciple === p;
 
         return (
           <div key={p} className="border rounded-lg bg-white overflow-hidden" data-testid={`principle-${p}`}>
@@ -187,7 +298,14 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
               <div className="flex items-center gap-3">
                 <span className="w-2 h-8 rounded-full" style={{ backgroundColor: color }} />
                 <div className="text-left">
-                  <h3 className="text-sm font-bold text-stone-900">{meta.name}: {meta.title}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-stone-900">{meta.name}: {meta.title}</h3>
+                    {principleStatus && (
+                      <Badge className={`text-xs ${principleStatus.className}`}>
+                        {principleStatus.label}
+                      </Badge>
+                    )}
+                  </div>
                   <p className="text-xs text-stone-500 mt-0.5">{questions.length} questions · {answeredInP} answered</p>
                 </div>
               </div>
@@ -208,33 +326,75 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
             </button>
 
             {isOpen && (
-              <div className="border-t px-5 py-4 space-y-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                {questions.map(config => (
-                  <QuestionRenderer
-                    key={config.question_key}
-                    config={config}
-                    value={allResponses[config.question_key]}
-                    onChange={(val) => handleResponseChange(config.question_key, val)}
-                    isEditing={isEditing}
-                    allResponses={{
-                      ...allResponses,
-                      reporting_year: reportingYear,
-                      framework,
-                    }}
-                    historicalData={null}
-                  />
-                ))}
+              <div className="border-t">
+                {/* Questions */}
+                <div className="px-5 py-4 space-y-1">
+                  {questions.map(config => (
+                    <QuestionRenderer
+                      key={config.question_key}
+                      config={config}
+                      value={allResponses[config.question_key]}
+                      onChange={(val) => handleResponseChange(config.question_key, val)}
+                      isEditing={isEditing}
+                      allResponses={{
+                        ...allResponses,
+                        reporting_year: reportingYear,
+                        framework,
+                      }}
+                      historicalData={null}
+                      approvalStatus={approvalStatuses[config.question_key]}
+                      versionHistory={versionHistories[config.question_key]}
+                      onSaveQuestion={isEditing ? saveQuestion : null}
+                      onFetchVersionHistory={() => fetchVersionHistory(config.question_key)}
+                    />
+                  ))}
+                </div>
+                
+                {/* Principle-level Save Buttons */}
+                {isEditing && questions.length > 0 && (
+                  <div className="flex justify-end gap-2 px-5 py-3 bg-stone-50 border-t">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => savePrincipleResponses(p, 'draft')}
+                      disabled={isSavingThis}
+                    >
+                      <FileText className="w-4 h-4 mr-1" />
+                      Save as Draft
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => savePrincipleResponses(p, 'saved')}
+                      disabled={isSavingThis}
+                      className="bg-primary hover:bg-primary/90"
+                    >
+                      {isSavingThis ? (
+                        <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Saving...</>
+                      ) : (
+                        <><Save className="w-4 h-4 mr-1" /> Save {meta.name}</>
+                      )}
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </div>
         );
       })}
 
-      {/* Save Button */}
+      {/* Global Save Button */}
       {isEditing && allConfigs.length > 0 && (
-        <div className="flex justify-end pt-4 border-t">
-          <Button onClick={saveResponses} disabled={saving} className="bg-primary hover:bg-primary/90 text-white">
-            {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</> : <><Save className="w-4 h-4 mr-2" /> Save Responses</>}
+        <div className="flex justify-end gap-2 pt-4 border-t">
+          <Button
+            variant="outline"
+            onClick={() => saveAllResponses('draft')}
+            disabled={saving}
+          >
+            <FileText className="w-4 h-4 mr-2" />
+            Save All as Draft
+          </Button>
+          <Button onClick={saveAllResponses} disabled={saving} className="bg-primary hover:bg-primary/90 text-white">
+            {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</> : <><Save className="w-4 h-4 mr-2" /> Save All Responses</>}
           </Button>
         </div>
       )}
