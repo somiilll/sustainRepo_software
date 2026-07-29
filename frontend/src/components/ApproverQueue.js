@@ -1259,7 +1259,8 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
   // Import QuestionRenderer dynamically or use inline rendering
   // For now, use a simplified version that handles the common BRSR types
   const renderResponse = () => {
-    const value = isEditing ? editedValue : item.entity_snapshot?.value;
+    // Use submittedValue for view mode (with fallback paths), editedValue for edit mode
+    const value = isEditing ? editedValue : submittedValue;
     const config = questionConfig || {};
     const questionType = config.type || config.input_type;
     
@@ -1521,7 +1522,8 @@ function GRIApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
 
   // Render GRI response - typically simple text, number, or select values
   const renderResponse = () => {
-    const value = isEditing ? editedValue : item.entity_snapshot?.value;
+    // Use submittedValue for view mode (with fallback paths), editedValue for edit mode
+    const value = isEditing ? editedValue : submittedValue;
     const config = questionConfig || {};
     const inputType = config.input_type || config.type || 'textarea';
     

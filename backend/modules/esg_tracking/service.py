@@ -570,20 +570,31 @@ class TrackingService:
                 "$and": [
                     {"$or": [
                         {"brsr_principle": section_id},
+                        {"brsr_principle": {"$regex": f"^{section_id}$", "$options": "i"}},
                         {"brsr_section": section_id},
+                        {"brsr_section": {"$regex": f"^{section_id}$", "$options": "i"}},
                         {"section": section_id},
                         {"topic": section_id},
                     ]}
                 ]
             }
         elif framework_id.upper() == "GRI":
+            # GRI: Match by disclosure_id OR section OR topic (case-insensitive)
             config_query = {
                 "section": section_filter,
                 "$or": [
                     {"framework": {"$regex": f"^{framework_id}$", "$options": "i"}},
                     {"frameworks": {"$regex": f"^{framework_id}$", "$options": "i"}},
                 ],
-                "disclosure_id": section_id,
+                "$and": [
+                    {"$or": [
+                        {"disclosure_id": section_id},
+                        {"disclosure_id": {"$regex": f"^{section_id}$", "$options": "i"}},
+                        {"topic": section_id},
+                        {"topic": {"$regex": f"^{section_id}$", "$options": "i"}},
+                        {"section": section_id},
+                    ]}
+                ]
             }
         else:
             config_query = {
