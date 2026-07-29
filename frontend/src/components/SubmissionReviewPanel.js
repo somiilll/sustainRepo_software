@@ -14,33 +14,28 @@ import {
   DialogFooter,
   DialogDescription,
 } from './ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from './ui/select';
 import { 
   CheckCircle2, 
   XCircle, 
   Loader2, 
   User, 
   Clock,
-  Check,
-  AlertCircle
+  Edit2,
+  AlertCircle,
+  FileText
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
 /**
- * SubmissionReviewPanel - Approver UI for reviewing submissions
+ * SubmissionReviewPanel - Clean approver UI for GRI submissions
  * 
  * Features:
- * - View latest submission
- * - Edit response before approving
- * - Reject with reason
+ * - Shows full question text at top
+ * - Shows submitter info (who and when)
+ * - Shows response once with edit capability
+ * - Approve / Edit & Approve / Reject actions
  */
 export default function SubmissionReviewPanel({ 
   questionKey, 
@@ -50,66 +45,97 @@ export default function SubmissionReviewPanel({
 }) {
   const { getAuthHeader } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [submissions, setSubmissions] = useState([]);
-  const [selectedSubmission, setSelectedSubmission] = useState(null);
+  const [submission, setSubmission] = useState(null);
+  const [questionConfig, setQuestionConfig] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
   const [editedValue, setEditedValue] = useState('');
   const [approving, setApproving] = useState(false);
-  const [rejecting, setRejecting] = useState(null);
+  const [rejecting, setRejecting] = useState(false);
+  const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
 
-  // Fetch submissions for this question
+  // Fetch submission and question config
   useEffect(() => {
-    const fetchSubmissions = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
-        const res = await axios.get(
+        
+        // Fetch submissions for this question
+        const submissionsRes = await axios.get(
           `${API}/api/esg-questionnaire/submissions/${questionKey}`,
           {
             headers: getAuthHeader(),
             params: { reporting_period: reportingPeriod }
           }
         );
-        setSubmissions(res.data.submissions || []);
         
-        // Auto-select if only one submission
-        if (res.data.submissions?.length === 1) {
-          setSelectedSubmission(res.data.submissions[0]);
-          setEditedValue(res.data.submissions[0].value || '');
+        const submissions = submissionsRes.data.submissions || [];
+        if (submissions.length > 0) {
+          // Use the latest submission
+          const latestSubmission = submissions[0];
+          setSubmission(latestSubmission);
+          setEditedValue(latestSubmission.value || '');
         }
+        
+        // Try to fetch question config for display
+        try {
+          const configRes = await axios.get(
+            `${API}/api/esg-questionnaire/config/${questionKey}`,
+            { headers: getAuthHeader() }
+          );
+          setQuestionConfig(configRes.data);
+        } catch (configErr) {
+          console.warn('Could not fetch question config:', configErr);
+        }
+        
       } catch (error) {
-        console.error('Failed to fetch submissions:', error);
-        toast.error('Failed to load submissions');
+        console.error('Failed to fetch submission:', error);
+        toast.error('Failed to load submission');
       } finally {
         setLoading(false);
       }
     };
 
     if (questionKey && reportingPeriod) {
-      fetchSubmissions();
+      fetchData();
     }
   }, [questionKey, reportingPeriod, getAuthHeader]);
 
-  // Handle selecting a submission
-  const handleSelectSubmission = (submission) => {
-    setSelectedSubmission(submission);
-    setEditedValue(submission.value || '');
+  // Format date
+  const formatDate = (dateStr) => {
+    if (!dateStr) return 'N/A';
+    return new Date(dateStr).toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
-  // Approve selected submission
-  const handleApprove = async () => {
-    if (!selectedSubmission) {
-      toast.error('Please select a submission to approve');
-      return;
+  // Get the question display text
+  const getQuestionText = () => {
+    if (questionConfig) {
+      return questionConfig.description || questionConfig.label || questionConfig.question || questionKey;
     }
+    return questionKey;
+  };
 
+  // Check if response was edited
+  const hasEdits = submission && editedValue !== (submission.value || '');
+
+  // Approve submission
+  const handleApprove = async () => {
+    if (!submission) return;
+    
     setApproving(true);
     try {
       const payload = {
-        submission_id: selectedSubmission?.id,
+        submission_id: submission.id,
       };
       
       // If value was edited, include the edited value
-      if (editedValue !== selectedSubmission?.value) {
+      if (hasEdits) {
         payload.merged_value = editedValue;
       }
 
@@ -119,7 +145,7 @@ export default function SubmissionReviewPanel({
         { headers: getAuthHeader() }
       );
 
-      toast.success('Submission approved successfully');
+      toast.success(hasEdits ? 'Response approved with edits' : 'Response approved');
       onApproved?.();
       onClose?.();
     } catch (error) {
@@ -130,227 +156,203 @@ export default function SubmissionReviewPanel({
     }
   };
 
-  // Reject a submission
-  const handleReject = async (submissionId) => {
-    setRejecting(submissionId);
+  // Reject submission
+  const handleReject = async () => {
+    if (!submission) return;
+    if (!rejectionReason.trim()) {
+      toast.error('Please provide a rejection reason');
+      return;
+    }
+
+    setRejecting(true);
     try {
       await axios.post(
-        `${API}/api/esg-questionnaire/submissions/reject/${submissionId}`,
+        `${API}/api/esg-questionnaire/submissions/reject/${submission.id}`,
         { rejection_reason: rejectionReason },
         { headers: getAuthHeader() }
       );
 
       toast.success('Submission rejected');
-      setRejectionReason('');
-      
-      // Refresh submissions
-      const res = await axios.get(
-        `${API}/api/esg-questionnaire/submissions/${questionKey}`,
-        {
-          headers: getAuthHeader(),
-          params: { reporting_period: reportingPeriod }
-        }
-      );
-      setSubmissions(res.data.submissions || []);
-      
-      // Clear selection if rejected submission was selected
-      if (selectedSubmission?.id === submissionId) {
-        setSelectedSubmission(null);
-        setEditedValue('');
-      }
+      setShowRejectDialog(false);
+      onApproved?.();
+      onClose?.();
     } catch (error) {
       console.error('Failed to reject submission:', error);
       toast.error('Failed to reject submission');
     } finally {
-      setRejecting(null);
+      setRejecting(false);
     }
-  };
-
-  // Format date
-  const formatDate = (dateStr) => {
-    if (!dateStr) return 'N/A';
-    const date = new Date(dateStr);
-    return date.toLocaleString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
-        <span className="ml-2 text-text-muted">Loading submissions...</span>
+        <span className="ml-2 text-text-muted">Loading submission...</span>
       </div>
     );
   }
 
-  if (submissions.length === 0) {
+  if (!submission) {
     return (
       <div className="text-center py-8">
         <AlertCircle className="w-12 h-12 text-stone-300 mx-auto mb-3" />
-        <p className="text-text-muted">No pending submissions for this question</p>
+        <p className="text-text-muted">No pending submission for this question</p>
+        <Button variant="outline" onClick={onClose} className="mt-4">
+          Close
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold text-text-primary">
-            Review Submission
-          </h3>
-          <p className="text-sm text-text-muted">
-            {submissions.length} submission(s) pending approval
-          </p>
+    <div className="space-y-5">
+      {/* Question Text - Full formatted question */}
+      <Card className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 border-purple-100">
+        <div className="flex items-start gap-2 mb-2">
+          <Badge variant="outline" className="shrink-0 bg-cyan-100 text-cyan-800">GRI</Badge>
+        </div>
+        <p className="text-stone-800 font-medium leading-relaxed">
+          {getQuestionText()}
+        </p>
+      </Card>
+
+      {/* Submitter Info - Compact single row */}
+      <div className="flex items-center gap-6 text-sm px-1">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
+            <User className="w-3.5 h-3.5 text-blue-600" />
+          </div>
+          <div>
+            <span className="text-stone-500">Submitted by </span>
+            <span className="font-medium text-stone-800">
+              {submission.submitted_by_user_name || submission.submitted_by_user_email || 'Unknown'}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 text-stone-500">
+          <Clock className="w-3.5 h-3.5" />
+          <span>{formatDate(submission.submitted_at)}</span>
         </div>
       </div>
 
-      {/* Submissions list */}
-      <div className="grid grid-cols-1 gap-4 max-h-[400px] overflow-y-auto">
-        {submissions.map((submission) => (
-          <Card 
-            key={submission.id}
-            className={`p-4 cursor-pointer transition-all ${
-              selectedSubmission?.id === submission.id 
-                ? 'ring-2 ring-blue-500 bg-blue-50' 
-                : 'hover:bg-stone-50'
-            }`}
-            onClick={() => handleSelectSubmission(submission)}
-            data-testid={`submission-card-${submission.id}`}
+      {/* Response - Single display with edit toggle */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <Label className="text-sm font-medium text-stone-700">Response</Label>
+          <Button
+            variant={isEditing ? "default" : "outline"}
+            size="sm"
+            onClick={() => setIsEditing(!isEditing)}
+            className="h-7 text-xs gap-1"
           >
-            {/* Submission header */}
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                  <User className="w-4 h-4 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-text-primary">
-                    {submission.submitted_by_user_name}
-                  </p>
-                  <p className="text-xs text-text-muted">
-                    {submission.submitted_by_user_email}
-                  </p>
-                </div>
-              </div>
-              {selectedSubmission?.id === submission.id && (
-                <Badge className="bg-blue-100 text-blue-800">
-                  <Check className="w-3 h-3 mr-1" /> Selected
-                </Badge>
-              )}
-            </div>
-
-            {/* Timestamp */}
-            <div className="flex items-center gap-1 text-xs text-text-muted mb-3">
-              <Clock className="w-3 h-3" />
-              {formatDate(submission.submitted_at)}
-            </div>
-
-            {/* Submission content */}
-            <div className="bg-white border border-stone-200 rounded-lg p-3 mb-3 max-h-[150px] overflow-y-auto">
-              <p className="text-sm text-text-primary whitespace-pre-wrap">
-                {submission.value || <span className="italic text-text-muted">Empty response</span>}
-              </p>
-            </div>
-
-            {/* Action buttons */}
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setRejecting(submission.id);
-                }}
-                className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
-                data-testid={`reject-submission-${submission.id}`}
-              >
-                <XCircle className="w-3 h-3 mr-1" />
-                Reject
-              </Button>
-            </div>
+            <Edit2 className="w-3 h-3" />
+            {isEditing ? 'Editing' : 'Edit'}
+          </Button>
+        </div>
+        
+        {isEditing ? (
+          <Textarea
+            value={editedValue}
+            onChange={(e) => setEditedValue(e.target.value)}
+            className="min-h-[150px] font-mono text-sm"
+            placeholder="Enter response..."
+          />
+        ) : (
+          <Card className="p-4 bg-white border-stone-200">
+            <p className="text-stone-700 whitespace-pre-wrap text-sm leading-relaxed">
+              {submission.value || <span className="italic text-stone-400">No response provided</span>}
+            </p>
           </Card>
-        ))}
+        )}
+        
+        {hasEdits && (
+          <p className="text-xs text-amber-600 flex items-center gap-1">
+            <AlertCircle className="w-3 h-3" />
+            Response has been modified
+          </p>
+        )}
       </div>
 
-      {/* Edit area */}
-      <div className="space-y-2">
-        <Label className="text-sm font-medium">
-          Final Response (Edit if needed)
-        </Label>
-        <Textarea
-          value={editedValue}
-          onChange={(e) => setEditedValue(e.target.value)}
-          placeholder="Select a submission or type your own response..."
-          rows={6}
-          className="bg-white"
-          data-testid="edited-value-textarea"
-        />
-        <p className="text-xs text-text-muted">
-          This value will be saved as the approved response.
-        </p>
-      </div>
-
-      {/* Approval actions */}
-      <div className="flex justify-end gap-3 pt-4 border-t">
+      {/* Action buttons */}
+      <div className="flex gap-2 pt-4 border-t justify-end">
         <Button
           variant="outline"
           onClick={onClose}
-          data-testid="cancel-review-btn"
+          disabled={approving || rejecting}
         >
           Cancel
         </Button>
+        
+        <Button
+          variant="destructive"
+          onClick={() => setShowRejectDialog(true)}
+          disabled={approving || rejecting}
+          className="gap-1.5"
+        >
+          <XCircle className="w-4 h-4" />
+          Reject
+        </Button>
+        
         <Button
           onClick={handleApprove}
-          disabled={approving || (!editedValue.trim() && !selectedSubmission)}
-          className="bg-green-600 hover:bg-green-700"
-          data-testid="approve-submission-btn"
+          disabled={approving || rejecting}
+          className="gap-1.5 bg-green-600 hover:bg-green-700"
         >
           {approving ? (
-            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+            <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
-            <CheckCircle2 className="w-4 h-4 mr-2" />
+            <CheckCircle2 className="w-4 h-4" />
           )}
-          Approve & Save
+          {hasEdits ? 'Approve with Edits' : 'Approve'}
         </Button>
       </div>
 
       {/* Rejection Dialog */}
-      <Dialog open={rejecting !== null} onOpenChange={() => setRejecting(null)}>
+      <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Reject Submission</DialogTitle>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertCircle className="w-5 h-5" />
+              Reject Submission
+            </DialogTitle>
             <DialogDescription>
-              Provide a reason for rejecting this submission. The user will be notified and can revise their response.
+              The assignee will be notified and can resubmit after addressing your feedback.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <Label>Rejection Reason (optional)</Label>
-            <Textarea
-              value={rejectionReason}
-              onChange={(e) => setRejectionReason(e.target.value)}
-              placeholder="Explain why this submission is being rejected..."
-              rows={3}
-              className="mt-2"
-              data-testid="rejection-reason-textarea"
-            />
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label className="text-red-600">Rejection Reason *</Label>
+              <Textarea
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                placeholder="Explain why this submission is being rejected..."
+                className="min-h-[120px]"
+              />
+            </div>
           </div>
+          
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRejecting(null)}>
+            <Button
+              variant="outline"
+              onClick={() => setShowRejectDialog(false)}
+              disabled={rejecting}
+            >
               Cancel
             </Button>
             <Button
               variant="destructive"
-              onClick={() => handleReject(rejecting)}
-              data-testid="confirm-reject-btn"
+              onClick={handleReject}
+              disabled={rejecting || !rejectionReason.trim()}
+              className="gap-2"
             >
-              Reject Submission
+              {rejecting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <XCircle className="w-4 h-4" />
+              )}
+              Confirm Rejection
             </Button>
           </DialogFooter>
         </DialogContent>

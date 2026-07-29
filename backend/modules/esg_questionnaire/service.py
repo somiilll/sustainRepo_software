@@ -840,6 +840,75 @@ class ESGQuestionnaireService:
                 }
             grouped[qk]["submissions"].append(sub)
         
+        # Enrich with question configs for display
+        question_keys = list(grouped.keys())
+        if question_keys:
+            # Also get parent keys for subquestions
+            parent_keys = []
+            for qk in question_keys:
+                if '_' in qk:
+                    parts = qk.rsplit('_', 1)
+                    suffix = parts[1].lower() if len(parts) == 2 else ""
+                    if suffix in ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x', 
+                                  'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']:
+                        parent_keys.append(parts[0])
+                        if '_' in parts[0]:
+                            gp_parts = parts[0].rsplit('_', 1)
+                            gp_suffix = gp_parts[1].lower() if len(gp_parts) == 2 else ""
+                            if gp_suffix in ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']:
+                                parent_keys.append(gp_parts[0])
+            
+            all_keys = list(set(question_keys + parent_keys))
+            configs = await self._configs.find(
+                {"question_key": {"$in": all_keys}},
+                {"_id": 0, "question_key": 1, "label": 1, "question": 1, "description": 1, 
+                 "section": 1, "framework": 1, "sub_questions": 1, "disclosure_name": 1}
+            ).to_list(500)
+            config_map = {c["question_key"]: c for c in configs}
+            
+            # Helper to get subquestion label
+            def get_question_display(qk):
+                if qk in config_map:
+                    cfg = config_map[qk]
+                    return cfg.get("description") or cfg.get("label") or cfg.get("question") or qk
+                
+                # Try parent for subquestion
+                if '_' in qk:
+                    parts = qk.rsplit('_', 1)
+                    parent_key, sub_key = parts
+                    parent_cfg = config_map.get(parent_key, {})
+                    parent_desc = parent_cfg.get("description") or parent_cfg.get("label") or ""
+                    
+                    # Find subquestion label
+                    sub_questions = parent_cfg.get("sub_questions", [])
+                    for sq in sub_questions:
+                        if sq.get("sub_key") == sub_key:
+                            sq_label = sq.get("label") or sq.get("description") or ""
+                            if parent_desc and sq_label:
+                                return f"{parent_desc.rstrip(':').rstrip()}: {sub_key}. {sq_label}"
+                            return sq_label or qk
+                    
+                    # Try grandparent
+                    if '_' in parent_key:
+                        gp_parts = parent_key.rsplit('_', 1)
+                        gp_key = gp_parts[0]
+                        gp_cfg = config_map.get(gp_key, {})
+                        gp_desc = gp_cfg.get("description") or gp_cfg.get("label") or ""
+                        if gp_desc:
+                            return gp_desc
+                    
+                    if parent_desc:
+                        return parent_desc
+                
+                return qk
+            
+            # Add display info to each grouped item
+            for qk, item in grouped.items():
+                cfg = config_map.get(qk, {})
+                item["disclosure_name"] = get_question_display(qk)
+                item["framework"] = cfg.get("framework", "GRI")
+                item["section"] = cfg.get("section")
+        
         return list(grouped.values())
 
     async def approve_submission(
