@@ -1918,28 +1918,31 @@ class ApprovalWorkflowService:
                     assignment = assignment_map.get(question_key, {})
                     submitter = submitters.get(response.get("submitted_by"), {})
                     
-                    # Build display names
-                    disclosure_name = config.get("disclosure_name") or config.get("label") or config.get("question") or ""
+                    # Build the full question display text
+                    # Format: "Parent description: subkey. subquestion label"
+                    # Example: "Report how organization applies the mitigation hierarchy by describing: i. actions taken to avoid negative impacts on biodiversity"
+                    parent_description = config.get("description") or config.get("disclosure_name") or config.get("label") or ""
                     
-                    # For subquestions, show "Disclosure Name → Subquestion Label"
-                    if subq_label and disclosure_name:
-                        display_description = subq_label
+                    if subq_label and subq_key and parent_description:
+                        # Subquestion: combine parent description + subkey + subquestion label
+                        # Ensure parent description ends with colon or similar
+                        parent_desc_clean = parent_description.rstrip(':').rstrip()
+                        full_question_text = f"{parent_desc_clean}: {subq_key}. {subq_label}"
+                    elif parent_description:
+                        # No subquestion, just use parent description
+                        full_question_text = parent_description
                     else:
-                        display_description = config.get("description", "")
-                    
-                    # If no disclosure_name but we have config, use description as display
-                    if not disclosure_name and config:
-                        disclosure_name = config.get("description", question_key)[:100] if config.get("description") else question_key
-                    elif not disclosure_name:
-                        disclosure_name = question_key
+                        # Fallback to question_key
+                        full_question_text = question_key
                     
                     queue_items.append({
                         "id": response.get("id"),
                         "_response_id": response.get("id"),
                         "question_key": question_key,
                         "question_name": config.get("label") or config.get("question") or config.get("description", "")[:100],
-                        "disclosure_name": disclosure_name,
-                        "description": display_description,
+                        "disclosure_name": full_question_text,  # Full formatted question text
+                        "description": subq_label or "",  # Just the subquestion label if any
+                        "parent_description": parent_description,  # Original parent description
                         "question_type": config.get("type") or config.get("input_type"),
                         "field_config": config.get("field_config"),
                         "section_id": config.get("brsr_section") or config.get("section"),

@@ -167,17 +167,9 @@ export default function ApproverQueue() {
       // Transform V2 questionnaire approvals
       const questionnaireV2Approvals = (questionnaireV2Res.data.items || [])
         .map(item => {
-          // Build display name: for GRI show "disclosure_name -> description" format
-          let displayName = item.question_name || item.disclosure_name || item.question_key;
-          
-          // For GRI/questionnaire items with disclosure info
-          if (item.disclosure_name && item.description && item.description !== item.disclosure_name) {
-            // Show: "Main Topic -> Specific Question" format
-            const truncatedDesc = item.description.length > 60 
-              ? item.description.substring(0, 60) + '...' 
-              : item.description;
-            displayName = `${item.disclosure_name} → ${truncatedDesc}`;
-          }
+          // disclosure_name now contains the full formatted question text from backend
+          // Format: "Parent description: subkey. subquestion label"
+          const displayName = item.disclosure_name || item.question_name || item.question_key;
           
           return {
             id: item.id,
@@ -188,7 +180,8 @@ export default function ApproverQueue() {
             disclosure_name: displayName,
             question_name: item.question_name,
             question_description: item.description,
-            original_disclosure_name: item.disclosure_name,  // Keep original for detail view
+            parent_description: item.parent_description,
+            original_disclosure_name: item.disclosure_name,
             question_type: item.question_type,
             field_config: item.field_config,
             framework: item.framework,

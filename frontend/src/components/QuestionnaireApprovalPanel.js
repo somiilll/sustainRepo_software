@@ -2,12 +2,12 @@
  * QuestionnaireApprovalPanel - V2 Questionnaire Response Approval UI
  * 
  * Features:
- * - Displays the question using the same renderer as ESGQuestionnaire
- * - Allows approver to view/edit response before approving
- * - Approve with optional comment
- * - Reject with required reason
+ * - Displays the full question text
+ * - Shows submitter info (who and when)
+ * - Shows the response once with edit capability
+ * - Approve / Edit & Approve / Reject actions
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Card } from './ui/card';
@@ -15,7 +15,6 @@ import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { Badge } from './ui/badge';
 import { Label } from './ui/label';
-import { Switch } from './ui/switch';
 import {
   Dialog,
   DialogContent,
@@ -35,7 +34,6 @@ import {
   FileText
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { QuestionRenderer } from './ESGQuestionnaire';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -46,12 +44,13 @@ export default function QuestionnaireApprovalPanel({
 }) {
   const { getAuthHeader } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
-  const [editedResponse, setEditedResponse] = useState(item.response_data);
+  const [editedResponse, setEditedResponse] = useState(
+    typeof item.response_data === 'string' ? item.response_data : JSON.stringify(item.response_data || '', null, 2)
+  );
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
-  const [approvalComment, setApprovalComment] = useState('');
 
   const formatDate = (dateStr) => {
     if (!dateStr) return 'N/A';
@@ -64,17 +63,33 @@ export default function QuestionnaireApprovalPanel({
     });
   };
 
+  // Get the original response value for comparison
+  const getOriginalValue = () => {
+    if (typeof item.response_data === 'string') return item.response_data;
+    return JSON.stringify(item.response_data || '', null, 2);
+  };
+
+  // Check if response was edited
+  const hasEdits = editedResponse !== getOriginalValue();
+
   // Approve the response
   const handleApprove = async () => {
     setApproving(true);
     try {
-      const payload = {
-        comment: approvalComment || undefined,
-      };
+      const payload = {};
       
       // If response was edited, include the updated response
-      if (isEditing && JSON.stringify(editedResponse) !== JSON.stringify(item.response_data)) {
-        payload.updated_response = editedResponse;
+      if (hasEdits) {
+        // Try to parse as JSON if it looks like JSON
+        let finalValue = editedResponse;
+        if (editedResponse.trim().startsWith('{') || editedResponse.trim().startsWith('[')) {
+          try {
+            finalValue = JSON.parse(editedResponse);
+          } catch {
+            // Keep as string if not valid JSON
+          }
+        }
+        payload.updated_response = finalValue;
       }
 
       await axios.post(
@@ -83,7 +98,7 @@ export default function QuestionnaireApprovalPanel({
         { headers: getAuthHeader() }
       );
 
-      toast.success('Response approved successfully');
+      toast.success(hasEdits ? 'Response approved with edits' : 'Response approved');
       onApproved?.();
       onClose?.();
     } catch (error) {
@@ -121,110 +136,84 @@ export default function QuestionnaireApprovalPanel({
     }
   };
 
-  // Render the response data based on question type
-  const renderResponseValue = (value) => {
-    if (value === null || value === undefined) {
-      return <span className="text-stone-400 italic">No response</span>;
-    }
-    
-    if (typeof value === 'object') {
-      // For complex objects, render as formatted JSON or structured view
-      return (
-        <pre className="bg-stone-50 p-4 rounded-lg text-sm overflow-auto max-h-[400px] whitespace-pre-wrap">
-          {JSON.stringify(value, null, 2)}
-        </pre>
-      );
-    }
-    
-    return <p className="text-stone-700 whitespace-pre-wrap">{String(value)}</p>;
-  };
-
   return (
     <Dialog open={true} onOpenChange={onClose}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="w-5 h-5 text-purple-600" />
-            Review Questionnaire Response
+            Review Submission
           </DialogTitle>
-          <DialogDescription>
-            Review and approve or reject this submission
-          </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
-          {/* Question Info */}
-          <Card className="p-4 bg-stone-50">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 flex-wrap">
-                <Badge variant="outline">{item.framework?.toUpperCase() || 'BRSR'}</Badge>
-                <Badge variant="outline" className="bg-blue-50">{item.section_id?.replace(/_/g, ' ').toUpperCase()}</Badge>
-              </div>
-              <h3 className="font-medium text-stone-900">{item.disclosure_name || item.question_name}</h3>
+        <div className="space-y-5 py-4">
+          {/* Question Text - Full formatted question */}
+          <Card className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 border-purple-100">
+            <div className="flex items-start gap-2 mb-2">
+              <Badge variant="outline" className="shrink-0">{item.framework?.toUpperCase() || 'GRI'}</Badge>
             </div>
+            <p className="text-stone-800 font-medium leading-relaxed">
+              {item.disclosure_name || item.question_name || item.question_key}
+            </p>
           </Card>
 
-          {/* Submission Info */}
-          <div className="grid grid-cols-2 gap-4 text-sm">
+          {/* Submitter Info - Compact single row */}
+          <div className="flex items-center gap-6 text-sm px-1">
             <div className="flex items-center gap-2">
-              <User className="w-4 h-4 text-stone-400" />
-              <span className="text-stone-600">Submitted by:</span>
-              <span className="font-medium">{item.submitted_by_name || item.submitted_by_email || 'Unknown'}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-stone-400" />
-              <span className="text-stone-600">Submitted:</span>
-              <span className="font-medium">{formatDate(item.submitted_at)}</span>
-            </div>
-          </div>
-
-          {/* Response Content - Using QuestionRenderer for proper display */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label className="text-base font-medium">Response</Label>
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="edit-mode"
-                  checked={isEditing}
-                  onCheckedChange={setIsEditing}
-                />
-                <Label htmlFor="edit-mode" className="text-sm cursor-pointer flex items-center gap-1">
-                  <Edit2 className="w-3 h-3" />
-                  Edit Mode
-                </Label>
+              <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
+                <User className="w-3.5 h-3.5 text-blue-600" />
+              </div>
+              <div>
+                <span className="text-stone-500">Submitted by </span>
+                <span className="font-medium text-stone-800">{item.submitted_by_name || item.submitted_by_email || 'Unknown'}</span>
               </div>
             </div>
-            
-            <Card className="p-4">
-              <QuestionRenderer
-                config={{
-                  question_key: item.question_key,
-                  question: item.disclosure_name || item.question_name,
-                  type: item.question_type,
-                  field_config: item.field_config,
-                  options: item.field_config?.fields?.find(f => f.options)?.options,
-                }}
-                value={isEditing ? editedResponse : item.response_data}
-                onChange={isEditing ? setEditedResponse : () => {}}
-                isEditing={isEditing}
-                allResponses={{}}
-              />
-            </Card>
+            <div className="flex items-center gap-1.5 text-stone-500">
+              <Clock className="w-3.5 h-3.5" />
+              <span>{formatDate(item.submitted_at)}</span>
+            </div>
           </div>
 
-          {/* Approval Comment */}
-          <div className="space-y-2">
-            <Label>Approval Comment (optional)</Label>
-            <Textarea
-              value={approvalComment}
-              onChange={(e) => setApprovalComment(e.target.value)}
-              placeholder="Add any notes about this approval..."
-              className="min-h-[80px]"
-            />
+          {/* Response - Single display with edit toggle */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium text-stone-700">Response</Label>
+              <Button
+                variant={isEditing ? "default" : "outline"}
+                size="sm"
+                onClick={() => setIsEditing(!isEditing)}
+                className="h-7 text-xs gap-1"
+              >
+                <Edit2 className="w-3 h-3" />
+                {isEditing ? 'Editing' : 'Edit'}
+              </Button>
+            </div>
+            
+            {isEditing ? (
+              <Textarea
+                value={editedResponse}
+                onChange={(e) => setEditedResponse(e.target.value)}
+                className="min-h-[150px] font-mono text-sm"
+                placeholder="Enter response..."
+              />
+            ) : (
+              <Card className="p-4 bg-white border-stone-200">
+                <p className="text-stone-700 whitespace-pre-wrap text-sm leading-relaxed">
+                  {item.response_data || <span className="italic text-stone-400">No response provided</span>}
+                </p>
+              </Card>
+            )}
+            
+            {hasEdits && (
+              <p className="text-xs text-amber-600 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                Response has been modified
+              </p>
+            )}
           </div>
         </div>
 
-        <DialogFooter className="flex gap-2 sm:gap-2">
+        <DialogFooter className="flex gap-2 sm:gap-2 border-t pt-4">
           <Button
             variant="outline"
             onClick={onClose}
@@ -237,7 +226,7 @@ export default function QuestionnaireApprovalPanel({
             variant="destructive"
             onClick={() => setShowRejectDialog(true)}
             disabled={approving || rejecting}
-            className="gap-2"
+            className="gap-1.5"
           >
             <XCircle className="w-4 h-4" />
             Reject
@@ -246,14 +235,14 @@ export default function QuestionnaireApprovalPanel({
           <Button
             onClick={handleApprove}
             disabled={approving || rejecting}
-            className="gap-2 bg-green-600 hover:bg-green-700"
+            className="gap-1.5 bg-green-600 hover:bg-green-700"
           >
             {approving ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               <CheckCircle2 className="w-4 h-4" />
             )}
-            Approve
+            {hasEdits ? 'Approve with Edits' : 'Approve'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -264,7 +253,7 @@ export default function QuestionnaireApprovalPanel({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-red-600">
               <AlertCircle className="w-5 h-5" />
-              Reject Response
+              Reject Submission
             </DialogTitle>
             <DialogDescription>
               The assignee will be notified and can resubmit after addressing your feedback.
