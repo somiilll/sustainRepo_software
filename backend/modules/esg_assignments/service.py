@@ -611,9 +611,9 @@ class AssignmentService:
                 regex_patterns.append({"question_key": q_id})
                 regex_patterns.append({"question_key": {"$regex": f"^{q_id}_"}})
             
-            status_cursor = db.esg_responses.find(
+            status_cursor = db.organization_esg_responses.find(
                 {
-                    "organization_id": organization_id,
+                    "org_id": organization_id,
                     "$or": regex_patterns,
                     "reporting_year": reporting_period,
                 },
