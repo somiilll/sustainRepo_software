@@ -34,7 +34,7 @@ import {
   Activity
 } from 'lucide-react';
 import { toast } from 'sonner';
-import QuestionnaireApprovalPanel from './QuestionnaireApprovalPanel';
+import SubmissionReviewPanel from './SubmissionReviewPanel';
 import EmissionApprovalWrapper from './EmissionApprovalWrapper';
 import { getCurrentReportingYear, generateReportingYears } from '../utils/reportingYearUtils';
 
@@ -104,6 +104,15 @@ export default function ApproverQueue() {
         params.section = sectionFilter;
       }
       
+      // Fetch questionnaire submissions (old system - GRI disclosures)
+      const questionnairePromise = axios.get(
+        `${API}/api/esg-questionnaire/submissions/pending`,
+        { headers: getAuthHeader(), params }
+      ).catch(err => {
+        console.warn('Failed to fetch questionnaire submissions:', err);
+        return { data: { submissions: [] } };
+      });
+      
       // Fetch ESG record approval requests (GHG emissions, ESG records)
       const recordApprovalsPromise = axios.get(
         `${API}/api/approval-workflows/requests`,
@@ -113,22 +122,12 @@ export default function ApproverQueue() {
         return { data: { requests: [] } };
       });
       
-      // Fetch V2 questionnaire response approvals (GRI/BRSR disclosures)
-      const questionnaireV2Promise = axios.get(
-        `${API}/api/approval-workflows/questionnaire/queue`,
-        { headers: getAuthHeader() }
-      ).catch(err => {
-        console.warn('Failed to fetch questionnaire approvals:', err);
-        return { data: { items: [] } };
-      });
-      
-      const [recordApprovalsRes, questionnaireV2Res] = await Promise.all([
-        recordApprovalsPromise,
-        questionnaireV2Promise
+      const [questionnaireRes, recordApprovalsRes] = await Promise.all([
+        questionnairePromise,
+        recordApprovalsPromise
       ]);
       
       // Transform record approvals (GHG emissions, ESG records)
-      // Handle ONLY esg_record and emission_record types
       const allowedEntityTypes = ['esg_record', 'emission_record'];
       const recordApprovals = (recordApprovalsRes.data.requests || [])
         .filter(r => allowedEntityTypes.includes(r.entity_type))
@@ -153,45 +152,10 @@ export default function ApproverQueue() {
           _approval_request_id: r.id,
         }));
       
-      // Transform V2 questionnaire approvals (GRI/BRSR disclosures)
-      const questionnaireApprovals = (questionnaireV2Res.data.items || [])
-        .map(item => {
-          // disclosure_name now contains the full formatted question text from backend
-          // Format: "Parent description: subkey. subquestion label"
-          const displayName = item.disclosure_name || item.question_name || item.question_key;
-          
-          return {
-            id: item.id,
-            entity_type: 'questionnaire_response',
-            entity_id: item.question_key,
-            section: item.section_id || 'section_b',
-            question_key: item.question_key,
-            disclosure_name: displayName,
-            question_name: item.question_name,
-            question_description: item.description,
-            parent_description: item.parent_description,
-            original_disclosure_name: item.disclosure_name,
-            question_type: item.question_type,
-            field_config: item.field_config,
-            framework: item.framework,
-            reporting_year: item.reporting_year,
-            response_data: item.response_data,
-            submitted_by: item.submitted_by_id,
-            submitted_by_name: item.submitted_by_name,
-            submitted_by_email: item.submitted_by_email,
-            submitted_at: item.submitted_at,
-            status: 'pending_approval',
-            due_date: item.due_date,
-            assignment_id: item.assignment_id,
-            _source: 'questionnaire_approval_v2',
-            _response_id: item.id,
-          };
-        });
-      
-      // Combine all sources
+      // Combine questionnaire submissions + record approvals
       const allItems = [
-        ...recordApprovals,
-        ...questionnaireApprovals
+        ...(questionnaireRes.data.submissions || []),
+        ...recordApprovals
       ];
       
       // Deduplicate by id
@@ -458,15 +422,9 @@ export default function ApproverQueue() {
       )}
 
       {/* Review Dialog - Handle different item types */}
-      {selectedQuestion && selectedQuestion._source === 'questionnaire_approval_v2' ? (
-        <QuestionnaireApprovalPanel
-          item={selectedQuestion}
-          onClose={() => setSelectedQuestion(null)}
-          onApproved={handleApprovalComplete}
-        />
-      ) : (
+      {selectedQuestion && selectedQuestion._source === 'approval_workflow' ? (
         <Dialog 
-          open={selectedQuestion !== null && selectedQuestion._source === 'approval_workflow'} 
+          open={true} 
           onOpenChange={() => setSelectedQuestion(null)}
         >
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -479,39 +437,58 @@ export default function ApproverQueue() {
               </DialogTitle>
             </DialogHeader>
             
-            {selectedQuestion && selectedQuestion._source === 'approval_workflow' && (
-              selectedQuestion.entity_type === 'emission_record' ? (
-                <EmissionApprovalWrapper
-                  item={selectedQuestion}
-                  onClose={() => setSelectedQuestion(null)}
-                  onApproved={handleApprovalComplete}
-                />
-              ) : selectedQuestion.entity_type === 'esg_record' ? (
-                <RecordApprovalPanel
-                  item={selectedQuestion}
-                  onClose={() => setSelectedQuestion(null)}
-                  onApproved={handleApprovalComplete}
-                  getAuthHeader={getAuthHeader}
-                />
-              ) : (
-                <div className="p-6 text-center">
-                  <p className="text-amber-600 font-medium mb-2">Unsupported Record Type</p>
-                  <p className="text-text-muted text-sm">
-                    This approval request type ({selectedQuestion.entity_type || 'unknown'}) is not yet supported in this view.
-                  </p>
-                  <Button 
-                    variant="outline" 
-                    className="mt-4"
-                    onClick={() => setSelectedQuestion(null)}
-                  >
-                    Close
-                  </Button>
-                </div>
-              )
+            {selectedQuestion.entity_type === 'emission_record' ? (
+              <EmissionApprovalWrapper
+                item={selectedQuestion}
+                onClose={() => setSelectedQuestion(null)}
+                onApproved={handleApprovalComplete}
+              />
+            ) : selectedQuestion.entity_type === 'esg_record' ? (
+              <RecordApprovalPanel
+                item={selectedQuestion}
+                onClose={() => setSelectedQuestion(null)}
+                onApproved={handleApprovalComplete}
+                getAuthHeader={getAuthHeader}
+              />
+            ) : (
+              <div className="p-6 text-center">
+                <p className="text-amber-600 font-medium mb-2">Unsupported Record Type</p>
+                <p className="text-text-muted text-sm">
+                  This approval request type ({selectedQuestion.entity_type || 'unknown'}) is not yet supported in this view.
+                </p>
+                <Button 
+                  variant="outline" 
+                  className="mt-4"
+                  onClick={() => setSelectedQuestion(null)}
+                >
+                  Close
+                </Button>
+              </div>
             )}
           </DialogContent>
         </Dialog>
-      )}
+      ) : selectedQuestion ? (
+        <Dialog 
+          open={true} 
+          onOpenChange={() => setSelectedQuestion(null)}
+        >
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-purple-600" />
+                Review GRI Submission
+              </DialogTitle>
+            </DialogHeader>
+            
+            <SubmissionReviewPanel
+              questionKey={selectedQuestion.question_key}
+              reportingPeriod={selectedQuestion.reporting_period || reportingPeriod}
+              onClose={() => setSelectedQuestion(null)}
+              onApproved={handleApprovalComplete}
+            />
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </div>
   );
 }

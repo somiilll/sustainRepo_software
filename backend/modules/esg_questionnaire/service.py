@@ -1146,72 +1146,15 @@ class ESGQuestionnaireService:
             )
             
             if not use_direct_save:
-                # V2 APPROVAL WORKFLOW - Save to esg_responses with pending_approval status
-                # Get config for framework info
-                config = await self._configs.find_one(
-                    {"question_key": question_key},
-                    {"_id": 0, "section": 1, "framework": 1}
-                )
-                section = config.get("section", "environment") if config else "environment"
-                framework = config.get("framework", "GRI") if config else "GRI"
-                
-                await db.esg_responses.update_one(
-                    {
-                        "organization_id": org_id,
-                        "question_key": question_key,
-                        "reporting_period": reporting_period,
-                    },
-                    {
-                        "$set": {
-                            "value": value,
-                            "status": "pending_approval",
-                            "approval_status": "pending_approval",
-                            "framework": framework,
-                            "section": section,
-                            "reporting_year": reporting_period,
-                            "submitted_at": now_iso,
-                            "submitted_by": changed_by_user_id,
-                            "submitted_by_name": changed_by_user_name,
-                            "submitted_by_email": changed_by_user_email,
-                            "updated_at": now_iso,
-                            "updated_by": changed_by_user_id,
-                            "updated_by_name": changed_by_user_name,
-                            "updated_by_email": changed_by_user_email,
-                        },
-                        "$setOnInsert": {
-                            "id": str(uuid.uuid4()),
-                            "organization_id": org_id,
-                            "question_key": question_key,
-                            "reporting_period": reporting_period,
-                            "created_at": now_iso,
-                        }
-                    },
-                    upsert=True
-                )
-                
-                # Also save to organization_esg_responses for tracker compatibility
-                await db.organization_esg_responses.update_one(
-                    {
-                        "org_id": org_id,
-                        "framework": framework,
-                        "reporting_year": reporting_period,
-                        "section": section,
-                    },
-                    {
-                        "$set": {
-                            f"responses.{question_key}": value,
-                            "updated_at": now_iso,
-                        },
-                        "$setOnInsert": {
-                            "id": str(uuid.uuid4()),
-                            "org_id": org_id,
-                            "organization_id": org_id,
-                            "framework": framework,
-                            "section": section,
-                            "created_at": now_iso,
-                        }
-                    },
-                    upsert=True
+                # OLD APPROVAL SYSTEM - Route to submission queue
+                submission_result = await self._create_submission_for_approval(
+                    org_id=org_id,
+                    question_key=question_key,
+                    value=value,
+                    reporting_period=reporting_period,
+                    user_id=changed_by_user_id,
+                    user_name=changed_by_user_name,
+                    user_email=changed_by_user_email,
                 )
                 
                 # Clear the user's draft when they submit for approval
@@ -1222,9 +1165,10 @@ class ESGQuestionnaireService:
                 return {
                     "success": True,
                     "submitted_for_approval": True,
+                    "submission_id": submission_result["submission_id"],
                     "status": "pending_approval",
                     "drafts_cleared": 1,
-                    "message": "Submitted for approval"
+                    "message": "Submitted for approval" if not submission_result["is_update"] else "Submission updated"
                 }
             # else: use direct save (last save wins) - continue to save below
         
