@@ -43,7 +43,7 @@ class TrackingService:
     
     def __init__(self):
         self._configs = db["esg_question_configs"]
-        self._responses = db["esg_responses"]
+        self._responses = db["organization_esg_responses"]
         self._assignments = db["esg_assignments"]
         self._approval_requests = db["approval_requests"]
         self._users = db["users"]
@@ -372,15 +372,39 @@ class TrackingService:
                     if c.get("disclosure_id", "").split("-")[0] in material_codes
                 ]
         
-        # Get responses
+        # Get responses from unified collection (flat storage — one doc per question_key)
         responses = await self._responses.find(
             {
-                "organization_id": organization_id,
+                "$or": [
+                    {"org_id": organization_id},
+                    {"organization_id": organization_id},
+                ],
                 "reporting_year": reporting_period,
             },
-            {"_id": 0, "question_key": 1, "updated_at": 1, "value": 1}
+            {"_id": 0, "question_key": 1, "updated_at": 1, "value": 1, "approval_status": 1, "status": 1, "sub_responses": 1}
         ).to_list(5000)
-        response_map = {r["question_key"]: r for r in responses}
+        
+        # Build response_map handling both flat docs and legacy nested sub_responses
+        response_map = {}
+        for r in responses:
+            q_key = r.get("question_key")
+            if not q_key:
+                continue
+            # Direct flat value
+            if r.get("value") is not None:
+                response_map[q_key] = r
+            # Legacy nested sub_responses (backward compat)
+            if "sub_responses" in r and r["sub_responses"]:
+                for sub_key, sub_data in r["sub_responses"].items():
+                    full_key = f"{q_key}_{sub_key}"
+                    if full_key not in response_map and sub_data.get("value") is not None:
+                        response_map[full_key] = {
+                            "question_key": full_key,
+                            "value": sub_data.get("value"),
+                            "status": sub_data.get("status"),
+                            "approval_status": sub_data.get("approval_status"),
+                            "updated_at": sub_data.get("updated_at") or r.get("updated_at"),
+                        }
         
         # Get assignments
         assignments = await self._assignments.find(
@@ -611,27 +635,20 @@ class TrackingService:
         
         configs = await self._configs.find(config_query, {"_id": 0}).to_list(500)
         
-        # Get responses from organization_esg_responses (unified collection)
-        # This collection now stores question-level documents with nested sub_responses
+        # Get responses from organization_esg_responses (unified collection, flat storage)
         raw_responses = await self._responses.find(
             {
-                "org_id": organization_id,
+                "$or": [
+                    {"org_id": organization_id},
+                    {"organization_id": organization_id},
+                ],
                 "reporting_year": reporting_period,
             },
             {"_id": 0}
         ).to_list(5000)
         
-        # Also check legacy format with organization_id key
-        legacy_responses = await self._responses.find(
-            {
-                "organization_id": organization_id,
-                "reporting_year": reporting_period,
-            },
-            {"_id": 0}
-        ).to_list(5000)
-        
-        # Combine both formats
-        all_responses = raw_responses + legacy_responses
+        # Combine responses (legacy query no longer needed — $or handles both field names)
+        all_responses = raw_responses
         
         # Build response map, handling both flat and nested structures
         response_map = {}

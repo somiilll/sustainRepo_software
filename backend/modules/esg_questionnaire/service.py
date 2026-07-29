@@ -1152,80 +1152,39 @@ class ESGQuestionnaireService:
         )
         
         if question_config:
-            # Use unified organization_esg_responses with question-level documents
+            # Use unified organization_esg_responses with flat storage
             framework = question_config.get("framework") or (question_config.get("frameworks", ["GRI"])[0] if question_config.get("frameworks") else "GRI")
             section = question_config.get("section", "environment")
             
-            # Check if this is a sub-question
-            parent_key, sub_key = self._split_question_key(question_key)
-            
-            if parent_key and sub_key:
-                # Sub-question - update parent's sub_responses
-                sub_data = {
-                    "value": final_value,
-                    "status": "saved",
-                    "approval_status": "approved",
-                    "approved_at": now_iso,
-                    "approved_by": approver_user_id,
-                    "approved_by_name": approver_user_name,
-                    "updated_at": now_iso,
-                }
-                
-                await self._responses.update_one(
-                    {
-                        "org_id": org_id,
-                        "question_key": parent_key,
-                        "reporting_year": reporting_period,
+            await self._responses.update_one(
+                {
+                    "org_id": org_id,
+                    "question_key": question_key,
+                    "reporting_year": reporting_period,
+                },
+                {
+                    "$set": {
+                        "value": final_value,
+                        "status": "saved",
+                        "approval_status": "approved",
+                        "framework": framework,
+                        "section": section,
+                        "approved_at": now_iso,
+                        "approved_by": approver_user_id,
+                        "approved_by_name": approver_user_name,
+                        "updated_at": now_iso,
                     },
-                    {
-                        "$set": {
-                            f"sub_responses.{sub_key}": sub_data,
-                            "framework": framework,
-                            "section": section,
-                            "updated_at": now_iso,
-                        },
-                        "$setOnInsert": {
-                            "id": str(uuid.uuid4()),
-                            "org_id": org_id,
-                            "organization_id": org_id,
-                            "question_key": parent_key,
-                            "reporting_year": reporting_period,
-                            "created_at": now_iso,
-                        }
-                    },
-                    upsert=True
-                )
-            else:
-                # Simple question - direct document
-                await self._responses.update_one(
-                    {
+                    "$setOnInsert": {
+                        "id": str(uuid.uuid4()),
                         "org_id": org_id,
+                        "organization_id": org_id,
                         "question_key": question_key,
                         "reporting_year": reporting_period,
-                    },
-                    {
-                        "$set": {
-                            "value": final_value,
-                            "status": "saved",
-                            "approval_status": "approved",
-                            "framework": framework,
-                            "section": section,
-                            "approved_at": now_iso,
-                            "approved_by": approver_user_id,
-                            "approved_by_name": approver_user_name,
-                            "updated_at": now_iso,
-                        },
-                        "$setOnInsert": {
-                            "id": str(uuid.uuid4()),
-                            "org_id": org_id,
-                            "organization_id": org_id,
-                            "question_key": question_key,
-                            "reporting_year": reporting_period,
-                            "created_at": now_iso,
-                        }
-                    },
-                    upsert=True
-                )
+                        "created_at": now_iso,
+                    }
+                },
+                upsert=True
+            )
         else:
             # Fallback for questions without config - still use unified collection
             await self._responses.update_one(
@@ -1446,90 +1405,47 @@ class ESGQuestionnaireService:
         """
         Save a response to the unified organization_esg_responses collection.
         
-        Handles both simple questions and sub-questions (nested in parent's sub_responses).
+        Uses FLAT storage: each question_key gets its own document (no nesting).
         
         Returns True if save was acknowledged.
         """
-        parent_key, sub_key = self._split_question_key(question_key)
+        update_fields = {
+            "value": value,
+            "status": status,
+            "framework": framework,
+            "section": section,
+            "updated_at": now_iso,
+            "updated_by": changed_by_user_id,
+            "updated_by_name": changed_by_user_name,
+        }
         
-        if parent_key and sub_key:
-            # Sub-question: Update parent document's sub_responses
-            sub_data = {
-                "value": value,
-                "status": status,
-                "updated_at": now_iso,
-                "updated_by": changed_by_user_id,
-                "updated_by_name": changed_by_user_name,
-            }
-            
-            if approval_status:
-                sub_data["approval_status"] = approval_status
-                sub_data["submitted_at"] = now_iso
-                sub_data["submitted_by"] = changed_by_user_id
-            
-            result = await db.organization_esg_responses.update_one(
-                {
+        if approval_status:
+            update_fields["approval_status"] = approval_status
+            update_fields["submitted_at"] = now_iso
+            update_fields["submitted_by"] = changed_by_user_id
+        
+        if previous_approved_value is not None:
+            update_fields["last_approved_value"] = previous_approved_value
+        
+        result = await db.organization_esg_responses.update_one(
+            {
+                "org_id": org_id,
+                "question_key": question_key,
+                "reporting_year": reporting_period,
+            },
+            {
+                "$set": update_fields,
+                "$setOnInsert": {
+                    "id": str(uuid.uuid4()),
                     "org_id": org_id,
-                    "question_key": parent_key,
-                    "reporting_year": reporting_period,
-                },
-                {
-                    "$set": {
-                        f"sub_responses.{sub_key}": sub_data,
-                        "framework": framework,
-                        "section": section,
-                        "updated_at": now_iso,
-                    },
-                    "$setOnInsert": {
-                        "id": str(uuid.uuid4()),
-                        "org_id": org_id,
-                        "organization_id": org_id,
-                        "question_key": parent_key,
-                        "reporting_year": reporting_period,
-                        "created_at": now_iso,
-                    }
-                },
-                upsert=True
-            )
-        else:
-            # Simple question: Direct document update
-            update_fields = {
-                "value": value,
-                "status": status,
-                "framework": framework,
-                "section": section,
-                "updated_at": now_iso,
-                "updated_by": changed_by_user_id,
-                "updated_by_name": changed_by_user_name,
-            }
-            
-            if approval_status:
-                update_fields["approval_status"] = approval_status
-                update_fields["submitted_at"] = now_iso
-                update_fields["submitted_by"] = changed_by_user_id
-            
-            if previous_approved_value is not None:
-                update_fields["last_approved_value"] = previous_approved_value
-            
-            result = await db.organization_esg_responses.update_one(
-                {
-                    "org_id": org_id,
+                    "organization_id": org_id,
                     "question_key": question_key,
                     "reporting_year": reporting_period,
-                },
-                {
-                    "$set": update_fields,
-                    "$setOnInsert": {
-                        "id": str(uuid.uuid4()),
-                        "org_id": org_id,
-                        "organization_id": org_id,
-                        "question_key": question_key,
-                        "reporting_year": reporting_period,
-                        "created_at": now_iso,
-                    }
-                },
-                upsert=True
-            )
+                    "created_at": now_iso,
+                }
+            },
+            upsert=True
+        )
         
         return result.acknowledged
 
@@ -1570,41 +1486,22 @@ class ESGQuestionnaireService:
         if value_is_empty:
             status = "pending"
         
-        # Get previous response from unified collection
-        parent_key, sub_key = self._split_question_key(question_key)
+        # Get previous response from unified collection (flat storage)
         previous_response = None
         previous_value = None
         previous_status = None
         
-        if parent_key and sub_key:
-            # Sub-question - check parent's sub_responses
-            parent_doc = await db.organization_esg_responses.find_one(
-                {
-                    "org_id": org_id,
-                    "question_key": parent_key,
-                    "reporting_year": reporting_period,
-                },
-                {"_id": 0, "sub_responses": 1}
-            )
-            if parent_doc and "sub_responses" in parent_doc:
-                sub_data = parent_doc.get("sub_responses", {}).get(sub_key)
-                if sub_data:
-                    previous_response = sub_data
-                    previous_value = sub_data.get("value")
-                    previous_status = sub_data.get("status")
-        else:
-            # Simple question - direct lookup
-            previous_response = await db.organization_esg_responses.find_one(
-                {
-                    "org_id": org_id,
-                    "question_key": question_key,
-                    "reporting_year": reporting_period,
-                },
-                {"_id": 0, "value": 1, "status": 1, "approval_status": 1, "updated_by": 1, "updated_by_name": 1}
-            )
-            if previous_response:
-                previous_value = previous_response.get("value")
-                previous_status = previous_response.get("status")
+        previous_response = await db.organization_esg_responses.find_one(
+            {
+                "org_id": org_id,
+                "question_key": question_key,
+                "reporting_year": reporting_period,
+            },
+            {"_id": 0, "value": 1, "status": 1, "approval_status": 1, "updated_by": 1, "updated_by_name": 1}
+        )
+        if previous_response:
+            previous_value = previous_response.get("value")
+            previous_status = previous_response.get("status")
         
         is_new = previous_response is None
         

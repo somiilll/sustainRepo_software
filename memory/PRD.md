@@ -8,26 +8,24 @@ Unify database architecture to use only 1 collection (organization_esg_responses
 
 ## Architecture Decisions
 
-### Database Architecture (UNIFIED)
+### Database Architecture (UNIFIED — FLAT STORAGE)
 - **Single Collection**: `organization_esg_responses` 
-- **Document Structure**: Question-level documents with nested sub_responses for sub-questions
+- **Document Structure**: FLAT — one document per question_key (no nesting/sub_responses)
 ```javascript
 {
   org_id: "uuid",
-  question_key: "gri_302_1",  // Parent question key
-  framework: "GRI",           // or "BRSR"
+  question_key: "gri_101_2_a_i",  // Exact key as sent by frontend
+  framework: "GRI",
   reporting_year: "FY 2026-2027",
   section: "environment",
-  value: "...",               // For simple questions
-  sub_responses: {            // For questions with sub-parts
-    "a": { value: "...", status: "pending_approval", ... },
-    "b": { value: "...", status: "saved", ... }
-  },
+  value: "...",
   status: "saved",
-  approval_status: "pending_approval",
+  approval_status: "approved",
   ...
 }
 ```
+- **No `_split_question_key`** — every key gets its own document
+- **Legacy nested `sub_responses` format** still readable for backward compat
 
 ### Approval Queue Architecture
 - **Two data sources merged**:
@@ -76,21 +74,12 @@ Unify database architecture to use only 1 collection (organization_esg_responses
   3. Framework defaults no longer blindly default to "GRI" — uses submission's own framework field + question_key prefix inference
 - **Status**: ✅ Verified — BRSR approval request approved successfully
 
-### Bug Fix: GRI empty after approval + "Unsupported Record Type" + Tracker not updating (P0)
-- **5 symptoms, 4 root causes**:
-  1. Approval handler in `approval_workflow/service.py` defaulted to `framework: "BRSR"` / `section: "section_a"` when config not found → GRI responses written with wrong metadata → invisible in GRI reporting view
-  2. Approval handler never updated `esg_response_submissions.status` → old system endpoint kept showing approved items as "pending"
-  3. Approval handler had no tracker/assignment update logic for `esg_response` type
-  4. Frontend panel routing required exact `framework === 'GRI'` match; items with `null` framework fell to "Unsupported" fallback
-  5. `_create_submission_for_approval` used `entity_type: "esg_response_submission"` for GRI instead of `"esg_response"` — breaking the panel routing
-- **Fixes applied**:
-  1. Approval handler now gets framework/section from: approval_request → config → question_key prefix inference
-  2. After approval, submission status updated to "approved" and other submissions superseded
-  3. After approval, `esg_assignments` updated with `completed_at`, `approved_by`
-  4. Frontend fallback: any `esg_response` or `esg_response_submission` without BRSR framework → GRIApprovalPanel
-  5. `_create_submission_for_approval` now always uses `entity_type: "esg_response"` with framework inferred from question_key prefix
-  6. Rejection handler also fixed to use `organization_esg_responses` (was using old `esg_responses` collection)
-- **Status**: ✅ Verified — GRI approval shows correct panel, writes correct framework/section, submission cleared from queue
+### Bug Fix: Flat Storage Migration + Tracker Collection Fix (P0)
+- **GRI flat storage**: Removed `_split_question_key` from all save paths (`_save_to_unified_collection`, `save_gri_response`, `approve_submission`, approval handler). Every `question_key` now gets its own document — no nesting. 301 incorrectly split config-level keys eliminated.
+- **Data migration**: Migrated 8 nested sub_responses to flat docs, deleted 6 parent-only docs, cleaned 3 orphan docs without question_key.
+- **Tracker fix**: Changed `esg_tracking/service.py` `self._responses` from `db["esg_responses"]` (old empty collection) to `db["organization_esg_responses"]`. Updated `get_framework_sections` and `get_section_disclosures` to query `org_id` and handle flat+legacy nested formats.
+- **Rejection handler**: Fixed to use flat storage (was using nested `_split_question_key`)
+- **Status**: ✅ Verified — GRI responses save/read as flat keys, no nested docs remain
 
 ## Known Issues
 

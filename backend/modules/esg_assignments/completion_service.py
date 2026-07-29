@@ -320,7 +320,7 @@ class DataChecker:
         if period_key:
             query["reporting_year"] = period_key
         
-        # Try direct document lookup
+        # Try direct document lookup (flat storage — one doc per question_key)
         doc = await db.organization_esg_responses.find_one(
             query,
             {"_id": 0, "updated_at": 1, "created_at": 1, "approval_status": 1, "value": 1, "status": 1}
@@ -333,7 +333,7 @@ class DataChecker:
                 updated_at = DataChecker._parse_datetime(doc.get("updated_at") or doc.get("created_at"))
                 return True, updated_at, doc.get("approval_status")
         
-        # If not found, check if this is a sub-question (e.g., gri_302_1_a)
+        # If not found directly, check legacy nested sub_responses format
         if "_" in question_key:
             parent_key, sub_key = DataChecker._split_question_key(question_key)
             if parent_key and sub_key:

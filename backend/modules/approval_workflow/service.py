@@ -1225,76 +1225,36 @@ class ApprovalWorkflowService:
                     if not section:
                         section = "environment"
                     
-                    # Split question key to check for sub-questions
-                    parent_key, sub_key = _split_question_key(question_key)
-                    
-                    if parent_key and sub_key:
-                        # Sub-question: Update parent document's sub_responses
-                        sub_data = {
-                            "value": final_value,
-                            "status": "saved",
-                            "approval_status": "approved",
-                            "approved_at": _now_iso(),
-                            "approved_by": approver.get("id"),
-                            "approved_by_name": approver.get("full_name", approver.get("email", "")),
-                            "updated_at": _now_iso(),
-                        }
-                        
-                        await db.organization_esg_responses.update_one(
-                            {
-                                "org_id": org_id,
-                                "question_key": parent_key,
-                                "reporting_year": reporting_year,
+                    # Save to unified collection using flat storage (one doc per question_key)
+                    await db.organization_esg_responses.update_one(
+                        {
+                            "org_id": org_id,
+                            "question_key": question_key,
+                            "reporting_year": reporting_year,
+                        },
+                        {
+                            "$set": {
+                                "value": final_value,
+                                "status": "saved",
+                                "approval_status": "approved",
+                                "framework": framework,
+                                "section": section,
+                                "approved_at": _now_iso(),
+                                "approved_by": approver.get("id"),
+                                "approved_by_name": approver.get("full_name", approver.get("email", "")),
+                                "updated_at": _now_iso(),
                             },
-                            {
-                                "$set": {
-                                    f"sub_responses.{sub_key}": sub_data,
-                                    "framework": framework,
-                                    "section": section,
-                                    "updated_at": _now_iso(),
-                                },
-                                "$setOnInsert": {
-                                    "id": str(uuid.uuid4()),
-                                    "org_id": org_id,
-                                    "organization_id": org_id,
-                                    "question_key": parent_key,
-                                    "reporting_year": reporting_year,
-                                    "created_at": _now_iso(),
-                                }
-                            },
-                            upsert=True
-                        )
-                    else:
-                        # Simple question: Direct document update
-                        await db.organization_esg_responses.update_one(
-                            {
+                            "$setOnInsert": {
+                                "id": str(uuid.uuid4()),
                                 "org_id": org_id,
+                                "organization_id": org_id,
                                 "question_key": question_key,
                                 "reporting_year": reporting_year,
-                            },
-                            {
-                                "$set": {
-                                    "value": final_value,
-                                    "status": "saved",
-                                    "approval_status": "approved",
-                                    "framework": framework,
-                                    "section": section,
-                                    "approved_at": _now_iso(),
-                                    "approved_by": approver.get("id"),
-                                    "approved_by_name": approver.get("full_name", approver.get("email", "")),
-                                    "updated_at": _now_iso(),
-                                },
-                                "$setOnInsert": {
-                                    "id": str(uuid.uuid4()),
-                                    "org_id": org_id,
-                                    "organization_id": org_id,
-                                    "question_key": question_key,
-                                    "reporting_year": reporting_year,
-                                    "created_at": _now_iso(),
-                                }
-                            },
-                            upsert=True
-                        )
+                                "created_at": _now_iso(),
+                            }
+                        },
+                        upsert=True
+                    )
                     
                     logger.info(f"Updated organization_esg_responses for {question_key} approval_status=approved, framework={framework}, section={section}")
                     
@@ -1593,41 +1553,26 @@ class ApprovalWorkflowService:
                 )
             
             elif entity_type == "esg_response":
-                # Update the unified collection for rejection
+                # Update the unified collection for rejection (flat storage)
                 question_key = entity_id
                 reporting_year = request.get("entity_snapshot", {}).get("reporting_year") or request.get("entity_snapshot", {}).get("reporting_period")
                 
-                # Get framework/section from request
                 framework = request.get("framework")
-                section = request.get("section") or request.get("entity_subtype")
                 if not framework:
                     if question_key.startswith("gri_"):
                         framework = "GRI"
                     else:
                         framework = "BRSR"
                 
-                parent_key, sub_key = _split_question_key(question_key)
-                
-                if parent_key and sub_key:
-                    await db.organization_esg_responses.update_one(
-                        {"org_id": org_id, "question_key": parent_key, "reporting_year": reporting_year},
-                        {"$set": {
-                            f"sub_responses.{sub_key}.approval_status": "rejected",
-                            f"sub_responses.{sub_key}.status": "rejected",
-                            f"sub_responses.{sub_key}.rejection_reason": comment,
-                            f"sub_responses.{sub_key}.updated_at": _now_iso(),
-                        }}
-                    )
-                else:
-                    await db.organization_esg_responses.update_one(
-                        {"org_id": org_id, "question_key": question_key, "reporting_year": reporting_year},
-                        {"$set": {
-                            "approval_status": "rejected",
-                            "status": "rejected",
-                            "rejection_reason": comment,
-                            "updated_at": _now_iso(),
-                        }}
-                    )
+                await db.organization_esg_responses.update_one(
+                    {"org_id": org_id, "question_key": question_key, "reporting_year": reporting_year},
+                    {"$set": {
+                        "approval_status": "rejected",
+                        "status": "rejected",
+                        "rejection_reason": comment,
+                        "updated_at": _now_iso(),
+                    }}
+                )
                 logger.info(f"Updated organization_esg_responses {question_key} approval_status to rejected")
                 
                 # Update linked submission
