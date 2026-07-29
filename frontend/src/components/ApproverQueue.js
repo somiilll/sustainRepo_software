@@ -1730,7 +1730,7 @@ function TableDisplay({ value, onChange, isEditing, config = {} }) {
                     <td key={ik} className="border border-stone-200 px-3 py-2">
                       <span className="text-stone-800">
                         {typeof value[k] === 'object' && value[k] !== null 
-                          ? (value[k][ik] ?? '-')
+                          ? formatCell(value[k][ik])
                           : '-'}
                       </span>
                     </td>

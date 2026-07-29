@@ -1002,6 +1002,14 @@ class ESGQuestionnaireService:
                 {
                     "$set": {
                         f"responses.{question_key}": final_value,
+                        f"response_statuses.{question_key}": {
+                            "status": "saved",
+                            "approval_status": "approved",
+                            "approved_at": now_iso,
+                            "approved_by": approver_user_id,
+                            "approved_by_name": approver_user_name,
+                            "updated_at": now_iso,
+                        },
                         "updated_at": now_iso,
                     }
                 }
@@ -1015,6 +1023,16 @@ class ESGQuestionnaireService:
                 "reporting_year": reporting_period,
                 "section": section,
                 "responses": {question_key: final_value},
+                "response_statuses": {
+                    question_key: {
+                        "status": "saved",
+                        "approval_status": "approved",
+                        "approved_at": now_iso,
+                        "approved_by": approver_user_id,
+                        "approved_by_name": approver_user_name,
+                        "updated_at": now_iso,
+                    }
+                },
                 "created_at": now_iso,
                 "updated_at": now_iso,
             })
@@ -2607,6 +2625,38 @@ class ESGQuestionnaireService:
             else:
                 approval_status = "approved"  # Auto-approved if no approval required
             
+            # Get question config to find framework and section
+            question_config = await self._configs.find_one(
+                {"question_key": question_key},
+                {"_id": 0, "section": 1, "framework": 1, "frameworks": 1}
+            )
+            
+            if question_config:
+                framework = question_config.get("framework") or (question_config.get("frameworks", ["GRI"])[0] if question_config.get("frameworks") else "GRI")
+                section = question_config.get("section", "environment")
+                
+                # Update status in organization_esg_responses (the correct collection)
+                await self._responses.update_one(
+                    {
+                        "org_id": org_id,
+                        "framework": framework,
+                        "reporting_year": reporting_year,
+                        "section": section,
+                    },
+                    {
+                        "$set": {
+                            f"response_statuses.{question_key}": {
+                                "status": "saved",
+                                "approval_status": approval_status,
+                                "submitted_at": now_iso,
+                                "submitted_by": changed_by_user_id,
+                                "updated_at": now_iso,
+                            }
+                        }
+                    }
+                )
+            
+            # Also keep esg_responses updated for backwards compatibility
             if existing_response:
                 # Update existing
                 await db.esg_responses.update_one(
@@ -3031,31 +3081,46 @@ class ESGQuestionnaireService:
         if not section_question_keys:
             return {"statuses": {}, "versions": {}}
         
-        # Get esg_responses for these specific question_keys
-        responses = await db.esg_responses.find(
+        # Get esg_responses statuses from organization_esg_responses
+        org_response_doc = await self._responses.find_one(
             {
-                "organization_id": org_id,
-                "question_key": {"$in": section_question_keys},
+                "org_id": org_id,
+                "framework": framework.upper(),
                 "reporting_year": reporting_year,
+                "section": section,
             },
-            {"_id": 0}
-        ).to_list(500)
+            {"_id": 0, "response_statuses": 1}
+        )
         
-        # Build status map
+        # Also check with lowercase framework
+        if not org_response_doc:
+            org_response_doc = await self._responses.find_one(
+                {
+                    "org_id": org_id,
+                    "framework": framework,
+                    "reporting_year": reporting_year,
+                    "section": section,
+                },
+                {"_id": 0, "response_statuses": 1}
+            )
+        
+        response_statuses = org_response_doc.get("response_statuses", {}) if org_response_doc else {}
+        
+        # Build status map from organization_esg_responses
         statuses = {}
-        for r in responses:
-            qk = r.get("question_key")
-            if qk:
+        for qk in section_question_keys:
+            if qk in response_statuses:
+                status_data = response_statuses[qk]
                 statuses[qk] = {
-                    "status": r.get("status"),  # User save state: draft/saved
-                    "approval_status": r.get("approval_status"),  # Workflow state: pending_approval/approved/rejected
-                    "submitted_at": r.get("submitted_at"),
-                    "submitted_by": r.get("submitted_by"),
-                    "approved_at": r.get("approved_at"),
-                    "approved_by": r.get("approved_by"),
-                    "rejected_at": r.get("rejected_at"),
-                    "rejected_by": r.get("rejected_by"),
-                    "rejection_reason": r.get("rejection_reason"),
+                    "status": status_data.get("status"),
+                    "approval_status": status_data.get("approval_status"),
+                    "submitted_at": status_data.get("submitted_at"),
+                    "submitted_by": status_data.get("submitted_by"),
+                    "approved_at": status_data.get("approved_at"),
+                    "approved_by": status_data.get("approved_by"),
+                    "rejected_at": status_data.get("rejected_at"),
+                    "rejected_by": status_data.get("rejected_by"),
+                    "rejection_reason": status_data.get("rejection_reason"),
                 }
         
         # Get version history from question_audit_log (this is where versions are stored)
