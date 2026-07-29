@@ -1185,7 +1185,7 @@ class ApprovalWorkflowService:
                     import traceback
                     traceback.print_exc()
             
-            # Handle esg_response approval (BRSR questionnaire responses)
+            # Handle esg_response approval (BRSR/GRI questionnaire responses)
             elif entity_type == "esg_response":
                 try:
                     question_key = entity_id  # entity_id is the question_key for esg_response
@@ -1199,19 +1199,37 @@ class ApprovalWorkflowService:
                         final_value = updated_data["value"]
                         logger.info(f"Applying approver edits to esg_response {question_key}")
                     
-                    # Get the section from question config
-                    config = await db.esg_question_configs.find_one(
-                        {"question_key": question_key},
-                        {"_id": 0, "section": 1, "framework": 1}
-                    )
-                    section = config.get("section", "section_a") if config else "section_a"
-                    framework = config.get("framework", "BRSR") if config else "BRSR"
+                    # Get framework/section from: 1) approval_request itself, 2) config, 3) question_key inference
+                    framework = request.get("framework")
+                    section = request.get("section") or request.get("entity_subtype")
+                    
+                    if not framework or not section:
+                        config = await db.esg_question_configs.find_one(
+                            {"question_key": question_key},
+                            {"_id": 0, "section": 1, "framework": 1, "frameworks": 1}
+                        )
+                        if config:
+                            if not framework:
+                                framework = config.get("framework") or (config.get("frameworks", [None])[0] if config.get("frameworks") else None)
+                            if not section:
+                                section = config.get("section")
+                    
+                    # Infer from question_key prefix as last resort
+                    if not framework:
+                        if question_key.startswith("gri_"):
+                            framework = "GRI"
+                        elif question_key.startswith("brsr_") or question_key.startswith("section_") or question_key.startswith("policy_") or question_key.startswith("principle_"):
+                            framework = "BRSR"
+                        else:
+                            framework = "GRI"
+                    if not section:
+                        section = "environment"
                     
                     # Split question key to check for sub-questions
                     parent_key, sub_key = _split_question_key(question_key)
                     
                     if parent_key and sub_key:
-                        # Sub-question - update parent's sub_responses
+                        # Sub-question: Update parent document's sub_responses
                         sub_data = {
                             "value": final_value,
                             "status": "saved",
@@ -1247,7 +1265,7 @@ class ApprovalWorkflowService:
                             upsert=True
                         )
                     else:
-                        # Simple question - direct document update
+                        # Simple question: Direct document update
                         await db.organization_esg_responses.update_one(
                             {
                                 "org_id": org_id,
@@ -1278,7 +1296,56 @@ class ApprovalWorkflowService:
                             upsert=True
                         )
                     
-                    logger.info(f"Updated organization_esg_responses for {question_key} approval_status=approved")
+                    logger.info(f"Updated organization_esg_responses for {question_key} approval_status=approved, framework={framework}, section={section}")
+                    
+                    # Update the linked submission in esg_response_submissions
+                    submission_id = request.get("_submission_id")
+                    if submission_id:
+                        await db.esg_response_submissions.update_one(
+                            {"id": submission_id},
+                            {
+                                "$set": {
+                                    "status": "approved",
+                                    "approved_by_user_id": approver.get("id"),
+                                    "approved_by_user_name": approver.get("full_name", approver.get("email", "")),
+                                    "approved_at": _now_iso(),
+                                    "final_value": final_value,
+                                    "updated_at": _now_iso(),
+                                }
+                            }
+                        )
+                        # Supersede other pending submissions for same question
+                        await db.esg_response_submissions.update_many(
+                            {
+                                "organization_id": org_id,
+                                "question_key": question_key,
+                                "status": "pending_approval",
+                                "id": {"$ne": submission_id},
+                            },
+                            {
+                                "$set": {
+                                    "status": "superseded",
+                                    "rejection_reason": f"Another submission approved by {approver.get('full_name', approver.get('email', ''))}",
+                                    "updated_at": _now_iso(),
+                                }
+                            }
+                        )
+                        logger.info(f"Updated submission {submission_id} status to approved")
+                    
+                    # Update ESG assignments/tracker for this question
+                    await db.esg_assignments.update_many(
+                        {
+                            "organization_id": org_id,
+                            "entity_id": question_key,
+                        },
+                        {
+                            "$set": {
+                                "updated_at": _now_iso(),
+                                "completed_at": _now_iso(),
+                                "approved_by_user_id": approver.get("id"),
+                            }
+                        }
+                    )
                     
                     # Create version snapshot
                     await _create_approval_version_snapshot(
@@ -1526,28 +1593,60 @@ class ApprovalWorkflowService:
                 )
             
             elif entity_type == "esg_response":
-                # Update the ESG response (questionnaire answer) for rejection
-                await db.esg_responses.update_one(
-                    {"id": entity_id, "organization_id": org_id},
-                    {"$set": update_doc}
-                )
-                logger.info(f"Updated esg_response {entity_id} approval_status to rejected")
+                # Update the unified collection for rejection
+                question_key = entity_id
+                reporting_year = request.get("entity_snapshot", {}).get("reporting_year") or request.get("entity_snapshot", {}).get("reporting_period")
                 
-                # Also update the assignment using AssignmentResolver
-                # Find the question key from the response
-                response = await db.esg_responses.find_one(
-                    {"id": entity_id},
-                    {"_id": 0, "question_key": 1}
-                )
-                if response and response.get("question_key"):
-                    await db.esg_assignments.update_one(
-                        {
-                            "organization_id": org_id,
-                            "entity_type": "question",
-                            "entity_id": response.get("question_key"),
-                        },
-                        {"$set": {"updated_at": now}}
+                # Get framework/section from request
+                framework = request.get("framework")
+                section = request.get("section") or request.get("entity_subtype")
+                if not framework:
+                    if question_key.startswith("gri_"):
+                        framework = "GRI"
+                    else:
+                        framework = "BRSR"
+                
+                parent_key, sub_key = _split_question_key(question_key)
+                
+                if parent_key and sub_key:
+                    await db.organization_esg_responses.update_one(
+                        {"org_id": org_id, "question_key": parent_key, "reporting_year": reporting_year},
+                        {"$set": {
+                            f"sub_responses.{sub_key}.approval_status": "rejected",
+                            f"sub_responses.{sub_key}.status": "rejected",
+                            f"sub_responses.{sub_key}.rejection_reason": comment,
+                            f"sub_responses.{sub_key}.updated_at": _now_iso(),
+                        }}
                     )
+                else:
+                    await db.organization_esg_responses.update_one(
+                        {"org_id": org_id, "question_key": question_key, "reporting_year": reporting_year},
+                        {"$set": {
+                            "approval_status": "rejected",
+                            "status": "rejected",
+                            "rejection_reason": comment,
+                            "updated_at": _now_iso(),
+                        }}
+                    )
+                logger.info(f"Updated organization_esg_responses {question_key} approval_status to rejected")
+                
+                # Update linked submission
+                submission_id = request.get("_submission_id")
+                if submission_id:
+                    await db.esg_response_submissions.update_one(
+                        {"id": submission_id},
+                        {"$set": {
+                            "status": "rejected",
+                            "rejection_reason": comment,
+                            "updated_at": _now_iso(),
+                        }}
+                    )
+                
+                # Update assignments
+                await db.esg_assignments.update_many(
+                    {"organization_id": org_id, "entity_id": question_key},
+                    {"$set": {"updated_at": now}}
+                )
             elif entity_type == "esg_task":
                 # NOTE: task.approval_status is now computed from RECORDS.
                 # Only update audit/metadata fields here.

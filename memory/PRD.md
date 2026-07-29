@@ -76,6 +76,22 @@ Unify database architecture to use only 1 collection (organization_esg_responses
   3. Framework defaults no longer blindly default to "GRI" — uses submission's own framework field + question_key prefix inference
 - **Status**: ✅ Verified — BRSR approval request approved successfully
 
+### Bug Fix: GRI empty after approval + "Unsupported Record Type" + Tracker not updating (P0)
+- **5 symptoms, 4 root causes**:
+  1. Approval handler in `approval_workflow/service.py` defaulted to `framework: "BRSR"` / `section: "section_a"` when config not found → GRI responses written with wrong metadata → invisible in GRI reporting view
+  2. Approval handler never updated `esg_response_submissions.status` → old system endpoint kept showing approved items as "pending"
+  3. Approval handler had no tracker/assignment update logic for `esg_response` type
+  4. Frontend panel routing required exact `framework === 'GRI'` match; items with `null` framework fell to "Unsupported" fallback
+  5. `_create_submission_for_approval` used `entity_type: "esg_response_submission"` for GRI instead of `"esg_response"` — breaking the panel routing
+- **Fixes applied**:
+  1. Approval handler now gets framework/section from: approval_request → config → question_key prefix inference
+  2. After approval, submission status updated to "approved" and other submissions superseded
+  3. After approval, `esg_assignments` updated with `completed_at`, `approved_by`
+  4. Frontend fallback: any `esg_response` or `esg_response_submission` without BRSR framework → GRIApprovalPanel
+  5. `_create_submission_for_approval` now always uses `entity_type: "esg_response"` with framework inferred from question_key prefix
+  6. Rejection handler also fixed to use `organization_esg_responses` (was using old `esg_responses` collection)
+- **Status**: ✅ Verified — GRI approval shows correct panel, writes correct framework/section, submission cleared from queue
+
 ## Known Issues
 
 ### Issue 1: Tracker not updating status

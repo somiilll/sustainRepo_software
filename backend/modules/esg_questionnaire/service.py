@@ -686,13 +686,17 @@ class ESGQuestionnaireService:
         
         # Determine framework and entity_type for proper routing in approval queue
         framework = None
-        entity_type = "esg_response_submission"  # Default for GRI
+        entity_type = "esg_response"  # Use esg_response for all questionnaire items
         if question_config:
             frameworks = question_config.get("frameworks", [])
             framework = question_config.get("framework") or (frameworks[0] if frameworks else None)
-            # BRSR questions should use esg_response entity_type for BRSRApprovalPanel routing
-            if framework and framework.upper() == "BRSR":
-                entity_type = "esg_response"
+        
+        # Infer framework from question_key prefix if config didn't provide it
+        if not framework:
+            if question_key.startswith("gri_"):
+                framework = "GRI"
+            elif question_key.startswith("brsr_") or question_key.startswith("section_") or question_key.startswith("policy_") or question_key.startswith("principle_"):
+                framework = "BRSR"
         
         # Check if user already has a pending submission for this question
         existing_submission = await db[self.SUBMISSIONS_COLLECTION].find_one({

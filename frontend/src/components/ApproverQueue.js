@@ -130,7 +130,7 @@ export default function ApproverQueue() {
       ]);
       
       // Transform record approvals (GHG emissions, ESG records, BRSR responses)
-      const allowedEntityTypes = ['esg_record', 'emission_record', 'esg_response'];
+      const allowedEntityTypes = ['esg_record', 'emission_record', 'esg_response', 'esg_response_submission'];
       let recordApprovals = (recordApprovalsRes.data.requests || [])
         .filter(r => allowedEntityTypes.includes(r.entity_type))
         .map(r => {
@@ -514,7 +514,7 @@ export default function ApproverQueue() {
                 onApproved={handleApprovalComplete}
                 getAuthHeader={getAuthHeader}
               />
-            ) : selectedQuestion.entity_type === 'esg_response' && selectedQuestion.framework?.toUpperCase() === 'GRI' ? (
+            ) : (selectedQuestion.entity_type === 'esg_response' || selectedQuestion.entity_type === 'esg_response_submission') ? (
               <GRIApprovalPanel
                 item={selectedQuestion}
                 onClose={() => setSelectedQuestion(null)}
@@ -551,14 +551,14 @@ export default function ApproverQueue() {
               </DialogTitle>
             </DialogHeader>
             
-            {selectedQuestion.submissions[0].entity_type === 'esg_response' && selectedQuestion.framework?.toUpperCase() === 'BRSR' ? (
+            {selectedQuestion.submissions?.[0]?.entity_type === 'esg_response' && selectedQuestion.framework?.toUpperCase() === 'BRSR' ? (
               <BRSRApprovalPanel
                 item={selectedQuestion}
                 onClose={() => setSelectedQuestion(null)}
                 onApproved={handleApprovalComplete}
                 getAuthHeader={getAuthHeader}
               />
-            ) : selectedQuestion.entity_type === 'esg_response' && selectedQuestion.framework?.toUpperCase() === 'GRI' ? (
+            ) : (selectedQuestion.entity_type === 'esg_response' || selectedQuestion.submissions?.[0]?.entity_type === 'esg_response' || selectedQuestion.entity_type === 'esg_response_submission') ? (
               <GRIApprovalPanel
                 item={selectedQuestion}
                 onClose={() => setSelectedQuestion(null)}
