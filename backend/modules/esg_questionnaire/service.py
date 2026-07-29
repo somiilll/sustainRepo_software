@@ -1160,6 +1160,14 @@ class ESGQuestionnaireService:
                 
                 # ALSO save to esg_responses with pending_approval status
                 # This ensures the value is visible in UI while awaiting approval
+                # Get config for framework info
+                config = await self._configs.find_one(
+                    {"question_key": question_key},
+                    {"_id": 0, "section": 1, "framework": 1}
+                )
+                section = config.get("section", "environment") if config else "environment"
+                framework = config.get("framework", "GRI") if config else "GRI"
+                
                 await db.esg_responses.update_one(
                     {
                         "organization_id": org_id,
@@ -1171,7 +1179,13 @@ class ESGQuestionnaireService:
                             "value": value,
                             "status": "pending_approval",
                             "approval_status": "pending_approval",
+                            "framework": framework,
+                            "section": section,
                             "reporting_year": reporting_period,
+                            "submitted_at": now_iso,
+                            "submitted_by": changed_by_user_id,
+                            "submitted_by_name": changed_by_user_name,
+                            "submitted_by_email": changed_by_user_email,
                             "updated_at": now_iso,
                             "updated_by": changed_by_user_id,
                             "updated_by_name": changed_by_user_name,
@@ -1189,11 +1203,6 @@ class ESGQuestionnaireService:
                 )
                 
                 # ALSO save to organization_esg_responses for tracker compatibility
-                config = await self._configs.find_one(
-                    {"question_key": question_key},
-                    {"_id": 0, "section": 1}
-                )
-                section = config.get("section", "environment") if config else "environment"
                 
                 await db.organization_esg_responses.update_one(
                     {
