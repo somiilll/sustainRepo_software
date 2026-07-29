@@ -9,7 +9,7 @@ import pytest
 import requests
 from datetime import datetime, timezone, timedelta
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://dual-framework-queue.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://esg-unified-db.preview.emergentagent.com").rstrip("/")
 ADMIN_EMAIL = "goyalsomil2001@gmail.com"
 ADMIN_PASSWORD = "TestUser123!"
 REPORTING_PERIOD = "FY 2026-2027"

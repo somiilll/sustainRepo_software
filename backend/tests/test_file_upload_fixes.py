@@ -14,7 +14,7 @@ import requests
 import os
 import io
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://dual-framework-queue.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://esg-unified-db.preview.emergentagent.com')
 
 # Test credentials
 SUPER_ADMIN_EMAIL = "superadmin@ecotrack.com"
