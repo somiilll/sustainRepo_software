@@ -428,139 +428,31 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
     if (visible_if.condition === 'not_equals' && depResponse === visible_if.value) return null;
   }
 
-  // Helper to render complex object/array data as a formatted table (for view mode)
-  const renderObjectAsTable = (data) => {
-    if (!data || typeof data !== 'object') return <span className="text-sm">{data ?? '-'}</span>;
-    
-    // If it's an array of objects, render as a standard table
-    if (Array.isArray(data)) {
-      if (data.length === 0) return <span className="text-sm text-text-muted">-</span>;
-      const firstItem = data[0];
-      if (typeof firstItem === 'object' && firstItem !== null) {
-        const columns = Object.keys(firstItem);
-        return (
-          <Table className="text-sm">
-            <TableHeader>
-              <TableRow className="bg-stone-50">
-                {columns.map(col => (
-                  <TableHead key={col} className="text-xs font-medium">
-                    {col.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.map((row, idx) => (
-                <TableRow key={idx}>
-                  {columns.map(col => (
-                    <TableCell key={col} className="text-xs">
-                      {typeof row[col] === 'object' 
-                        ? JSON.stringify(row[col]) 
-                        : (row[col] ?? '-')}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        );
-      }
-      return <span className="text-sm">{data.join(', ')}</span>;
-    }
-    
-    // If it's an object with nested objects (like {bod: {total: 87, trained: 23}})
-    const keys = Object.keys(data);
-    if (keys.length === 0) return <span className="text-sm text-text-muted">-</span>;
-    
-    // Check if values are objects (nested structure)
-    const hasNestedObjects = keys.some(k => typeof data[k] === 'object' && data[k] !== null && !Array.isArray(data[k]));
-    
-    if (hasNestedObjects) {
-      // Get all unique inner keys
-      const innerKeys = new Set();
-      keys.forEach(k => {
-        if (typeof data[k] === 'object' && data[k] !== null) {
-          Object.keys(data[k]).forEach(ik => innerKeys.add(ik));
-        }
-      });
-      const innerKeysArr = Array.from(innerKeys);
-      
-      return (
-        <Table className="text-sm">
-          <TableHeader>
-            <TableRow className="bg-stone-50">
-              <TableHead className="text-xs font-medium">Category</TableHead>
-              {innerKeysArr.map(ik => (
-                <TableHead key={ik} className="text-xs font-medium">
-                  {ik.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {keys.map(k => (
-              <TableRow key={k}>
-                <TableCell className="text-xs font-medium">
-                  {k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                </TableCell>
-                {innerKeysArr.map(ik => (
-                  <TableCell key={ik} className="text-xs">
-                    {typeof data[k] === 'object' && data[k] !== null 
-                      ? (data[k][ik] ?? '-')
-                      : '-'}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      );
-    }
-    
-    // Simple key-value object
-    return (
-      <div className="space-y-1 mt-2">
-        {keys.map(k => (
-          <div key={k} className="flex gap-2 text-sm">
-            <span className="font-medium text-text-muted">
-              {k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}:
-            </span>
-            <span>{data[k] ?? '-'}</span>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
   const renderInput = () => {
     switch (type) {
       case 'text':
         return isEditing ? (
           <Input
-            value={typeof value === 'string' ? value : (value || '')}
+            value={value || ''}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder || 'Enter response'}
             className="mt-2"
           />
         ) : (
-          typeof value === 'object' && value !== null 
-            ? <div className="mt-2">{renderObjectAsTable(value)}</div>
-            : <p className="text-sm text-text-secondary mt-2">{value || '-'}</p>
+          <p className="text-sm text-text-secondary mt-2">{value || '-'}</p>
         );
 
       case 'textarea':
         return isEditing ? (
           <Textarea
-            value={typeof value === 'string' ? value : (value || '')}
+            value={value || ''}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder || 'Enter detailed response'}
             rows={3}
             className="mt-2"
           />
         ) : (
-          typeof value === 'object' && value !== null 
-            ? <div className="mt-2">{renderObjectAsTable(value)}</div>
-            : <p className="text-sm text-text-secondary mt-2 whitespace-pre-wrap">{value || '-'}</p>
+          <p className="text-sm text-text-secondary mt-2 whitespace-pre-wrap">{value || '-'}</p>
         );
 
       case 'yes_no':
@@ -813,10 +705,6 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
         return <NGRBCPolicyMatrixRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
 
       default:
-        // For unknown types, try to render object data as a table in view mode
-        if (!isEditing && value && typeof value === 'object') {
-          return <div className="mt-2">{renderObjectAsTable(value)}</div>;
-        }
         return <p className="text-sm text-red-500 mt-2">Unknown question type: {type}</p>;
     }
   };

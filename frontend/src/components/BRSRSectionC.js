@@ -60,7 +60,7 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
           .then(r => r.data.configs || []).catch(() => []),
         axios.get(`${API}/api/esg-questionnaire/responses/${framework}/${SECTION}/${reportingYear}`, { headers })
           .then(r => r.data.responses || {}).catch(() => ({})),
-        axios.get(`${API}/api/esg-questionnaire/statuses/${framework}/${SECTION}/${reportingYear}`, { headers })
+        axios.get(`${API}/api/esg-questionnaire/responses/${framework}/${SECTION}/${reportingYear}/statuses`, { headers })
           .then(r => r.data.statuses || {}).catch(() => ({})),
       ]);
 
@@ -134,7 +134,7 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
       // Refresh status for this question
       try {
         const statusRes = await axios.get(
-          `${API}/api/esg-questionnaire/statuses/${framework}/${SECTION}/${reportingYear}`,
+          `${API}/api/esg-questionnaire/responses/${framework}/${SECTION}/${reportingYear}/statuses`,
           { headers }
         );
         setApprovalStatuses(statusRes.data.statuses || {});
