@@ -6,7 +6,7 @@ import requests
 
 sys.path.insert(0, "/app/backend")
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://esg-approval-queue.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://gri-workflow.preview.emergentagent.com").rstrip("/")
 LOGIN_EMAIL = "goyalsomil2001@gmail.com"
 LOGIN_PASSWORD = "TestUser123!"
 

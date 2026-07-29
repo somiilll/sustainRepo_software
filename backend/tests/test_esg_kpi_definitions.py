@@ -6,7 +6,7 @@ import uuid
 import pytest
 import requests
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://esg-approval-queue.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://gri-workflow.preview.emergentagent.com').rstrip('/')
 API = f"{BASE_URL}/api"
 
 SUPER_ADMIN_EMAIL = "esg-superadmin@sustainrepo.com"
