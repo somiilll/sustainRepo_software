@@ -551,7 +551,7 @@ export default function ApproverQueue() {
               </DialogTitle>
             </DialogHeader>
             
-            {selectedQuestion.entity_type === 'esg_response' && selectedQuestion.framework?.toUpperCase() === 'BRSR' ? (
+            {selectedQuestion.submissions[0].entity_type === 'esg_response' && selectedQuestion.framework?.toUpperCase() === 'BRSR' ? (
               <BRSRApprovalPanel
                 item={selectedQuestion}
                 onClose={() => setSelectedQuestion(null)}
@@ -1162,10 +1162,13 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
   const [isEditing, setIsEditing] = useState(false);
   const [questionConfig, setQuestionConfig] = useState(null);
   const [loadingConfig, setLoadingConfig] = useState(true);
-  const [editedValue, setEditedValue] = useState(item.entity_snapshot?.value || {});
+  
+  // Get value from multiple possible paths (entity_snapshot for new system, value for old system)
+  const submittedValue = item.entity_snapshot?.value || item.value || item.submissions?.[0]?.value || {};
+  const [editedValue, setEditedValue] = useState(submittedValue);
   
   // Track if value was edited
-  const originalValue = JSON.stringify(item.entity_snapshot?.value || {});
+  const originalValue = JSON.stringify(submittedValue);
   const hasEdits = JSON.stringify(editedValue) !== originalValue;
   
   // Fetch question config on mount
@@ -1422,10 +1425,13 @@ function GRIApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
   const [isEditing, setIsEditing] = useState(false);
   const [questionConfig, setQuestionConfig] = useState(null);
   const [loadingConfig, setLoadingConfig] = useState(true);
-  const [editedValue, setEditedValue] = useState(item.entity_snapshot?.value || '');
+  
+  // Get value from multiple possible paths (entity_snapshot for new system, value for old system)
+  const submittedValue = item.entity_snapshot?.value || item.value || item.submissions?.[0]?.value || '';
+  const [editedValue, setEditedValue] = useState(submittedValue);
   
   // Track if value was edited
-  const originalValue = JSON.stringify(item.entity_snapshot?.value || '');
+  const originalValue = JSON.stringify(submittedValue);
   const hasEdits = JSON.stringify(editedValue) !== originalValue;
   
   // Fetch question config on mount
