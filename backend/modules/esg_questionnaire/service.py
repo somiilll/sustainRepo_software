@@ -344,8 +344,9 @@ class ESGQuestionnaireService:
                     sub_submissions = submissions_map.get(sub_response_key, [])
                     user_draft_value = user_drafts_map.get(sub_response_key)
                     
-                    # Determine status: user draft > pending_approval > saved status
+                    # Determine status from both status and approval_status fields
                     sub_status = sub_response.get("status")
+                    sub_approval_status = sub_response.get("approval_status")
                     sub_value = sub_response.get("value")
                     user_has_pending = any(s["submitted_by_user_id"] == user_id for s in sub_submissions) if user_id else False
                     user_has_draft = user_draft_value is not None
@@ -357,26 +358,29 @@ class ESGQuestionnaireService:
                     else:
                         all_have_value = False
                     
-                    # For display: if user has draft, show as "draft" for this user
+                    # Determine effective status using approval_status as primary indicator
                     display_status = sub_status
                     if user_has_draft:
                         display_status = "draft"
                         has_any_user_draft = True
                         all_approved = False
-                    elif user_has_pending:
+                    elif user_has_pending or sub_approval_status == "pending_approval":
                         display_status = "pending_approval"
                         has_any_pending_approval = True
                         all_approved = False
-                    elif sub_status == "approved":
+                    elif sub_approval_status == "approved":
+                        display_status = "approved"
                         has_any_approved = True
-                        has_any_saved = True  # approved counts as saved/completed
+                        has_any_saved = True
+                    elif sub_approval_status == "rejected":
+                        display_status = "rejected"
+                        all_approved = False
                     elif sub_status == "saved":
+                        display_status = "saved"
                         has_any_saved = True
                         all_approved = False
-                    elif sub_status == "pending_approval":
-                        has_any_pending_approval = True
-                        all_approved = False
                     elif sub_status == "draft":
+                        display_status = "draft"
                         has_any_draft = True
                         all_approved = False
                     else:
@@ -433,11 +437,20 @@ class ESGQuestionnaireService:
                 question_data["has_user_draft"] = user_has_draft
                 question_data["saved_status"] = response.get("status")
                 
-                # Determine display status
+                # Determine display status using approval_status as primary indicator
+                response_approval = response.get("approval_status")
                 if user_has_draft:
                     question_data["status"] = "draft"
-                elif user_has_pending:
+                elif user_has_pending or response_approval == "pending_approval":
                     question_data["status"] = "pending_approval"
+                elif response_approval == "approved":
+                    question_data["status"] = "approved"
+                elif response_approval == "rejected":
+                    question_data["status"] = "rejected"
+                elif response.get("status") == "saved":
+                    question_data["status"] = "saved"
+                elif response.get("status") == "draft":
+                    question_data["status"] = "draft"
                 else:
                     question_data["status"] = response.get("status", "pending") if response else "pending"
                 
