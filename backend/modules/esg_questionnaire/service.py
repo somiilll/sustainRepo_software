@@ -255,14 +255,14 @@ class ESGQuestionnaireService:
             else:
                 all_response_keys.append(q_key)
         
-        # Fetch responses from esg_responses collection (include status)
-        responses_cursor = db.esg_responses.find(
+        # Fetch responses from unified organization_esg_responses collection (flat storage)
+        responses_cursor = self._responses.find(
             {
-                "organization_id": org_id,
+                "org_id": org_id,
                 "question_key": {"$in": all_response_keys},
-                "reporting_period": reporting_period,
+                "reporting_year": reporting_period,
             },
-            {"_id": 0, "question_key": 1, "value": 1, "status": 1, "updated_at": 1, "updated_by_name": 1}
+            {"_id": 0, "question_key": 1, "value": 1, "status": 1, "updated_at": 1, "updated_by_name": 1, "approval_status": 1}
         )
         responses_list = await responses_cursor.to_list(1000)
         responses_map = {r["question_key"]: r for r in responses_list}
