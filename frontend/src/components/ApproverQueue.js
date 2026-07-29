@@ -496,7 +496,7 @@ export default function ApproverQueue() {
                 onApproved={handleApprovalComplete}
                 getAuthHeader={getAuthHeader}
               />
-            ) : selectedQuestion.entity_type === 'esg_response' ? (
+            ) : selectedQuestion.entity_type === 'esg_response' || selectedQuestion.framework?.toUpperCase() === 'BRSR' ? (
               <BRSRApprovalPanel
                 item={selectedQuestion}
                 onClose={() => setSelectedQuestion(null)}
@@ -529,16 +529,25 @@ export default function ApproverQueue() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <FileText className="w-5 h-5 text-purple-600" />
-                Review GRI Submission
+                {selectedQuestion.framework?.toUpperCase() === 'BRSR' ? 'Review BRSR Submission' : 'Review GRI Submission'}
               </DialogTitle>
             </DialogHeader>
             
-            <SubmissionReviewPanel
-              questionKey={selectedQuestion.question_key}
-              reportingPeriod={selectedQuestion.reporting_period || reportingPeriod}
-              onClose={() => setSelectedQuestion(null)}
-              onApproved={handleApprovalComplete}
-            />
+            {selectedQuestion.entity_type === 'esg_response' || selectedQuestion.framework?.toUpperCase() === 'BRSR' ? (
+              <BRSRApprovalPanel
+                item={selectedQuestion}
+                onClose={() => setSelectedQuestion(null)}
+                onApproved={handleApprovalComplete}
+                getAuthHeader={getAuthHeader}
+              />
+            ) : (
+              <SubmissionReviewPanel
+                questionKey={selectedQuestion.question_key}
+                reportingPeriod={selectedQuestion.reporting_period || reportingPeriod}
+                onClose={() => setSelectedQuestion(null)}
+                onApproved={handleApprovalComplete}
+              />
+            )}
           </DialogContent>
         </Dialog>
       ) : null}

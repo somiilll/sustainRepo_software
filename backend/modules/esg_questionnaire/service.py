@@ -678,6 +678,22 @@ class ESGQuestionnaireService:
         now = datetime.now(timezone.utc)
         submission_id = str(uuid.uuid4())
         
+        # Get question config to determine framework
+        question_config = await self._configs.find_one(
+            {"question_key": question_key},
+            {"_id": 0, "frameworks": 1, "framework": 1, "section": 1}
+        )
+        
+        # Determine framework and entity_type for proper routing in approval queue
+        framework = None
+        entity_type = "esg_response_submission"  # Default for GRI
+        if question_config:
+            frameworks = question_config.get("frameworks", [])
+            framework = question_config.get("framework") or (frameworks[0] if frameworks else None)
+            # BRSR questions should use esg_response entity_type for BRSRApprovalPanel routing
+            if framework and framework.upper() == "BRSR":
+                entity_type = "esg_response"
+        
         # Check if user already has a pending submission for this question
         existing_submission = await db[self.SUBMISSIONS_COLLECTION].find_one({
             "organization_id": org_id,
@@ -695,6 +711,8 @@ class ESGQuestionnaireService:
                     "$set": {
                         "value": value,
                         "updated_at": now,
+                        "entity_type": entity_type,  # Update entity_type in case it was missing
+                        "framework": framework,
                     }
                 }
             )
@@ -712,6 +730,9 @@ class ESGQuestionnaireService:
                 "submitted_at": now,
                 "value": value,
                 "status": "pending_approval",
+                "entity_type": entity_type,
+                "framework": framework,
+                "section": question_config.get("section") if question_config else None,
                 "approval_request_id": None,
                 "approved_by_user_id": None,
                 "approved_by_user_name": None,
