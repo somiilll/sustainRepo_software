@@ -27,8 +27,6 @@ import {
   Loader2, 
   User, 
   Clock,
-  GitMerge,
-  Copy,
   Check,
   AlertCircle
 } from 'lucide-react';
@@ -37,13 +35,12 @@ import { toast } from 'sonner';
 const API = process.env.REACT_APP_BACKEND_URL;
 
 /**
- * SubmissionReviewPanel - Approver UI for reviewing multiple submissions
+ * SubmissionReviewPanel - Approver UI for reviewing submissions
  * 
  * Features:
- * - Side-by-side comparison of submissions
- * - Select one submission to approve
- * - Merge/edit submissions before approving
- * - Reject individual submissions with reason
+ * - View latest submission
+ * - Edit response before approving
+ * - Reject with reason
  */
 export default function SubmissionReviewPanel({ 
   questionKey, 
@@ -55,8 +52,7 @@ export default function SubmissionReviewPanel({
   const [loading, setLoading] = useState(true);
   const [submissions, setSubmissions] = useState([]);
   const [selectedSubmission, setSelectedSubmission] = useState(null);
-  const [mergedValue, setMergedValue] = useState('');
-  const [isMergeMode, setIsMergeMode] = useState(false);
+  const [editedValue, setEditedValue] = useState('');
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
@@ -78,7 +74,7 @@ export default function SubmissionReviewPanel({
         // Auto-select if only one submission
         if (res.data.submissions?.length === 1) {
           setSelectedSubmission(res.data.submissions[0]);
-          setMergedValue(res.data.submissions[0].value || '');
+          setEditedValue(res.data.submissions[0].value || '');
         }
       } catch (error) {
         console.error('Failed to fetch submissions:', error);
@@ -96,25 +92,12 @@ export default function SubmissionReviewPanel({
   // Handle selecting a submission
   const handleSelectSubmission = (submission) => {
     setSelectedSubmission(submission);
-    if (!isMergeMode) {
-      setMergedValue(submission.value || '');
-    }
-  };
-
-  // Copy submission value to merge editor
-  const copyToMerge = (value) => {
-    if (isMergeMode) {
-      setMergedValue(prev => prev ? `${prev}\n\n---\n\n${value}` : value);
-      toast.success('Added to merge editor');
-    } else {
-      setMergedValue(value);
-      toast.success('Copied to editor');
-    }
+    setEditedValue(submission.value || '');
   };
 
   // Approve selected submission
   const handleApprove = async () => {
-    if (!selectedSubmission && !isMergeMode) {
+    if (!selectedSubmission) {
       toast.error('Please select a submission to approve');
       return;
     }
@@ -125,9 +108,9 @@ export default function SubmissionReviewPanel({
         submission_id: selectedSubmission?.id,
       };
       
-      // If merge mode or value was edited, include merged_value
-      if (isMergeMode || mergedValue !== selectedSubmission?.value) {
-        payload.merged_value = mergedValue;
+      // If value was edited, include the edited value
+      if (editedValue !== selectedSubmission?.value) {
+        payload.merged_value = editedValue;
       }
 
       await axios.post(
@@ -173,7 +156,7 @@ export default function SubmissionReviewPanel({
       // Clear selection if rejected submission was selected
       if (selectedSubmission?.id === submissionId) {
         setSelectedSubmission(null);
-        setMergedValue('');
+        setEditedValue('');
       }
     } catch (error) {
       console.error('Failed to reject submission:', error);
@@ -216,29 +199,20 @@ export default function SubmissionReviewPanel({
 
   return (
     <div className="space-y-6">
-      {/* Header with mode toggle */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold text-text-primary">
-            Review Submissions
+            Review Submission
           </h3>
           <p className="text-sm text-text-muted">
             {submissions.length} submission(s) pending approval
           </p>
         </div>
-        <Button
-          variant={isMergeMode ? "default" : "outline"}
-          size="sm"
-          onClick={() => setIsMergeMode(!isMergeMode)}
-          className="gap-2"
-        >
-          <GitMerge className="w-4 h-4" />
-          {isMergeMode ? 'Merge Mode ON' : 'Enable Merge'}
-        </Button>
       </div>
 
-      {/* Submissions comparison grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[400px] overflow-y-auto">
+      {/* Submissions list */}
+      <div className="grid grid-cols-1 gap-4 max-h-[400px] overflow-y-auto">
         {submissions.map((submission) => (
           <Card 
             key={submission.id}
@@ -292,19 +266,6 @@ export default function SubmissionReviewPanel({
                 variant="ghost"
                 onClick={(e) => {
                   e.stopPropagation();
-                  copyToMerge(submission.value);
-                }}
-                className="text-xs"
-                data-testid={`copy-submission-${submission.id}`}
-              >
-                <Copy className="w-3 h-3 mr-1" />
-                {isMergeMode ? 'Add to Merge' : 'Copy'}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={(e) => {
-                  e.stopPropagation();
                   setRejecting(submission.id);
                 }}
                 className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
@@ -318,27 +279,21 @@ export default function SubmissionReviewPanel({
         ))}
       </div>
 
-      {/* Merge/Edit area */}
+      {/* Edit area */}
       <div className="space-y-2">
         <Label className="text-sm font-medium">
-          {isMergeMode ? 'Merged Response (Edit as needed)' : 'Final Response'}
+          Final Response (Edit if needed)
         </Label>
         <Textarea
-          value={mergedValue}
-          onChange={(e) => setMergedValue(e.target.value)}
-          placeholder={isMergeMode 
-            ? "Click 'Add to Merge' on submissions to combine them here..." 
-            : "Select a submission or type your own response..."
-          }
+          value={editedValue}
+          onChange={(e) => setEditedValue(e.target.value)}
+          placeholder="Select a submission or type your own response..."
           rows={6}
           className="bg-white"
-          data-testid="merged-value-textarea"
+          data-testid="edited-value-textarea"
         />
         <p className="text-xs text-text-muted">
-          {isMergeMode 
-            ? "You can combine multiple submissions and edit the final text before approving."
-            : "This value will be saved as the approved response."
-          }
+          This value will be saved as the approved response.
         </p>
       </div>
 
@@ -353,7 +308,7 @@ export default function SubmissionReviewPanel({
         </Button>
         <Button
           onClick={handleApprove}
-          disabled={approving || (!mergedValue.trim() && !selectedSubmission)}
+          disabled={approving || (!editedValue.trim() && !selectedSubmission)}
           className="bg-green-600 hover:bg-green-700"
           data-testid="approve-submission-btn"
         >
