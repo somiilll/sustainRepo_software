@@ -1146,20 +1146,7 @@ class ESGQuestionnaireService:
             )
             
             if not use_direct_save:
-                # APPROVAL WORKFLOW LOGIC
-                # Route to submission queue instead of direct save
-                submission_result = await self._create_submission_for_approval(
-                    org_id=org_id,
-                    question_key=question_key,
-                    value=value,
-                    reporting_period=reporting_period,
-                    user_id=changed_by_user_id,
-                    user_name=changed_by_user_name,
-                    user_email=changed_by_user_email,
-                )
-                
-                # ALSO save to esg_responses with pending_approval status
-                # This ensures the value is visible in UI while awaiting approval
+                # V2 APPROVAL WORKFLOW - Save to esg_responses with pending_approval status
                 # Get config for framework info
                 config = await self._configs.find_one(
                     {"question_key": question_key},
@@ -1202,12 +1189,11 @@ class ESGQuestionnaireService:
                     upsert=True
                 )
                 
-                # ALSO save to organization_esg_responses for tracker compatibility
-                
+                # Also save to organization_esg_responses for tracker compatibility
                 await db.organization_esg_responses.update_one(
                     {
                         "org_id": org_id,
-                        "framework": "GRI",
+                        "framework": framework,
                         "reporting_year": reporting_period,
                         "section": section,
                     },
@@ -1220,7 +1206,7 @@ class ESGQuestionnaireService:
                             "id": str(uuid.uuid4()),
                             "org_id": org_id,
                             "organization_id": org_id,
-                            "framework": "GRI",
+                            "framework": framework,
                             "section": section,
                             "created_at": now_iso,
                         }
@@ -1229,7 +1215,6 @@ class ESGQuestionnaireService:
                 )
                 
                 # Clear the user's draft when they submit for approval
-                # Draft is no longer needed once submitted
                 await self._clear_user_draft_for_question(
                     org_id, question_key, reporting_period, changed_by_user_id
                 )
@@ -1237,10 +1222,9 @@ class ESGQuestionnaireService:
                 return {
                     "success": True,
                     "submitted_for_approval": True,
-                    "submission_id": submission_result["submission_id"],
                     "status": "pending_approval",
                     "drafts_cleared": 1,
-                    "message": "Submitted for approval" if not submission_result["is_update"] else "Submission updated"
+                    "message": "Submitted for approval"
                 }
             # else: use direct save (last save wins) - continue to save below
         

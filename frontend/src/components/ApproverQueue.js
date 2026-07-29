@@ -34,7 +34,6 @@ import {
   Activity
 } from 'lucide-react';
 import { toast } from 'sonner';
-import SubmissionReviewPanel from './SubmissionReviewPanel';
 import QuestionnaireApprovalPanel from './QuestionnaireApprovalPanel';
 import EmissionApprovalWrapper from './EmissionApprovalWrapper';
 import { getCurrentReportingYear, generateReportingYears } from '../utils/reportingYearUtils';
@@ -105,16 +104,7 @@ export default function ApproverQueue() {
         params.section = sectionFilter;
       }
       
-      // Fetch questionnaire submissions (old system)
-      const questionnairePromise = axios.get(
-        `${API}/api/esg-questionnaire/submissions/pending`,
-        { headers: getAuthHeader(), params }
-      ).catch(err => {
-        console.warn('Failed to fetch questionnaire submissions:', err);
-        return { data: { submissions: [] } };
-      });
-      
-      // Fetch ESG record approval requests
+      // Fetch ESG record approval requests (GHG emissions, ESG records)
       const recordApprovalsPromise = axios.get(
         `${API}/api/approval-workflows/requests`,
         { headers: getAuthHeader(), params: { status: 'pending', my_approvals: true } }
@@ -123,29 +113,28 @@ export default function ApproverQueue() {
         return { data: { requests: [] } };
       });
       
-      // Fetch V2 questionnaire response approvals
+      // Fetch V2 questionnaire response approvals (GRI/BRSR disclosures)
       const questionnaireV2Promise = axios.get(
         `${API}/api/approval-workflows/questionnaire/queue`,
         { headers: getAuthHeader() }
       ).catch(err => {
-        console.warn('Failed to fetch V2 questionnaire approvals:', err);
+        console.warn('Failed to fetch questionnaire approvals:', err);
         return { data: { items: [] } };
       });
       
-      const [questionnaireRes, recordApprovalsRes, questionnaireV2Res] = await Promise.all([
-        questionnairePromise,
+      const [recordApprovalsRes, questionnaireV2Res] = await Promise.all([
         recordApprovalsPromise,
         questionnaireV2Promise
       ]);
       
-      // Transform record approvals to match submission format
-      // Handle ONLY esg_record and emission_record types - explicitly filter out others like esg_response
+      // Transform record approvals (GHG emissions, ESG records)
+      // Handle ONLY esg_record and emission_record types
       const allowedEntityTypes = ['esg_record', 'emission_record'];
       const recordApprovals = (recordApprovalsRes.data.requests || [])
         .filter(r => allowedEntityTypes.includes(r.entity_type))
         .map(r => ({
           id: r.id,
-          entity_type: r.entity_type,  // Keep original type (esg_record or emission_record)
+          entity_type: r.entity_type,
           entity_id: r.entity_id,
           section: r.entity_subtype || 'environment',
           question_key: `record_${r.entity_snapshot?.category || 'unknown'}`,
@@ -159,13 +148,13 @@ export default function ApproverQueue() {
           status: r.status,
           workflow_name: r.workflow_name,
           entity_snapshot: r.entity_snapshot,
-          request_type: r.request_type,  // 'create', 'update', 'delete'
+          request_type: r.request_type,
           _source: 'approval_workflow',
           _approval_request_id: r.id,
         }));
       
-      // Transform V2 questionnaire approvals
-      const questionnaireV2Approvals = (questionnaireV2Res.data.items || [])
+      // Transform V2 questionnaire approvals (GRI/BRSR disclosures)
+      const questionnaireApprovals = (questionnaireV2Res.data.items || [])
         .map(item => {
           // disclosure_name now contains the full formatted question text from backend
           // Format: "Parent description: subkey. subquestion label"
@@ -199,18 +188,15 @@ export default function ApproverQueue() {
           };
         });
       
-      // Combine all sources and deduplicate
-      // Priority: questionnaire_approval_v2 > recordApprovals > old submissions
+      // Combine all sources
       const allItems = [
-        ...(questionnaireRes.data.submissions || []),
         ...recordApprovals,
-        ...questionnaireV2Approvals
+        ...questionnaireApprovals
       ];
       
-      // Deduplicate by id or _approval_request_id
+      // Deduplicate by id
       const seen = new Set();
       const deduplicated = allItems.filter(item => {
-        // Use _approval_request_id for records, id for others
         const key = item._approval_request_id || item.id || item.question_key;
         if (seen.has(key)) {
           return false;
@@ -480,7 +466,7 @@ export default function ApproverQueue() {
         />
       ) : (
         <Dialog 
-          open={selectedQuestion !== null && selectedQuestion._source !== 'questionnaire_approval_v2'} 
+          open={selectedQuestion !== null && selectedQuestion._source === 'approval_workflow'} 
           onOpenChange={() => setSelectedQuestion(null)}
         >
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -488,14 +474,12 @@ export default function ApproverQueue() {
               <DialogTitle className="flex items-center gap-2">
                 <FileText className="w-5 h-5 text-purple-600" />
                 <span className="font-mono">
-                  {selectedQuestion?._source === 'approval_workflow' 
-                    ? selectedQuestion.disclosure_name 
-                    : selectedQuestion?.question_key}
+                  {selectedQuestion?.disclosure_name || selectedQuestion?.question_key}
                 </span>
               </DialogTitle>
             </DialogHeader>
             
-            {selectedQuestion && selectedQuestion._source === 'approval_workflow' ? (
+            {selectedQuestion && selectedQuestion._source === 'approval_workflow' && (
               selectedQuestion.entity_type === 'emission_record' ? (
                 <EmissionApprovalWrapper
                   item={selectedQuestion}
@@ -510,7 +494,6 @@ export default function ApproverQueue() {
                   getAuthHeader={getAuthHeader}
                 />
               ) : (
-                // Safety fallback for unknown entity types - prevents crashes
                 <div className="p-6 text-center">
                   <p className="text-amber-600 font-medium mb-2">Unsupported Record Type</p>
                   <p className="text-text-muted text-sm">
@@ -525,14 +508,7 @@ export default function ApproverQueue() {
                   </Button>
                 </div>
               )
-            ) : selectedQuestion ? (
-              <SubmissionReviewPanel
-                questionKey={selectedQuestion.question_key}
-                reportingPeriod={selectedQuestion.reporting_period || reportingPeriod}
-                onClose={() => setSelectedQuestion(null)}
-                onApproved={handleApprovalComplete}
-              />
-            ) : null}
+            )}
           </DialogContent>
         </Dialog>
       )}
