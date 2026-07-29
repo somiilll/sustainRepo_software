@@ -38,7 +38,7 @@ Unify database architecture to use only 1 collection (organization_esg_responses
   - BRSR questions → BRSRApprovalPanel (amber gradient)
   - GRI questions → GRIApprovalPanel (emerald gradient)
 
-## Completed Work This Session
+## Completed Work (Previous Session)
 
 ### Backend Fixes
 1. ✅ Created `_save_to_unified_collection` helper method for consistent saves
@@ -56,21 +56,32 @@ Unify database architecture to use only 1 collection (organization_esg_responses
 6. ✅ Created GRIApprovalPanel for GRI-specific approval UI
 7. ✅ Added framework propagation in approval queue item mapping
 
-## Known Issues (Not Fixed)
+## Completed Work (Current Session — Jul 29 2026)
 
-### Issue 1: Response not showing for Pending Approval
-- **Symptom**: Questions with pending_approval status don't show their response value in questionnaire UI
-- **Root Cause**: `get_responses()` method may not be returning pending_approval responses correctly
-- **Files to check**: `/app/backend/modules/esg_questionnaire/service.py` - `get_responses()` method
+### Bug Fix: GRI Responses not showing for Pending Approval (P0)
+- **Root Cause**: `get_responses()` used `config_keys` from `esg_question_configs` as a proxy for section filtering. If a question_key (e.g., `gri_302_1`) had no matching config, it was silently dropped.
+- **Fix**: Replaced config_keys filtering with direct `section` field in DB query (section is stored on every question-level doc). Configs are now only used for `response_modes` (FY merging), matching the pre-refactoring behavior.
+- **Also fixed**: `_calculate_previous_fy()` crashed on `"FY2024-25"` format (no space after FY, 2-digit end year). Now handles all FY formats.
+- **Status**: ✅ Verified — `gri_302_1`, `gri_302_2` responses now returned correctly
 
-### Issue 2: Tracker not updating status
+### Bug Fix: "Approval request not found" when approving BRSR (P0)
+- **Root Cause (5-step chain)**:
+  1. `_create_submission_for_approval` never set `current_approvers` on the approval_request
+  2. Frontend calls `/api/approval-workflows/requests?my_approvals=true` → backend filters by `current_approvers`
+  3. BRSR approval_request not returned → item only comes from old system endpoint (no `_approval_request_id`)
+  4. Frontend calls `/api/approval-workflows/requests/undefined/approve` → 404
+- **Fix**: 
+  1. `_create_submission_for_approval` now resolves `current_approvers` (from esg_assignments → section assignments → org admins fallback)
+  2. Submission doc's `approval_request_id` is now linked back after upsert
+  3. Framework defaults no longer blindly default to "GRI" — uses submission's own framework field + question_key prefix inference
+- **Status**: ✅ Verified — BRSR approval request approved successfully
+
+## Known Issues
+
+### Issue 1: Tracker not updating status
 - **Symptom**: GRI/BRSR tracker not showing correct status updates
 - **Root Cause**: Needs investigation of tracker query logic
 - **Files to check**: `/app/backend/modules/esg_tracking/service.py`
-
-### Issue 3: Potential caching issues
-- **Symptom**: Frontend may show stale data due to browser caching
-- **Workaround**: Hard refresh or clear cache
 
 ## Key Files Reference
 

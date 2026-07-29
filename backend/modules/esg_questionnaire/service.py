@@ -745,13 +745,57 @@ class ESGQuestionnaireService:
         
         # ALSO create an approval_request for unified Approver Queue
         # This ensures both GRI and BRSR show up in the same queue
+        
+        # Resolve current_approvers so the request shows up in /api/approval-workflows/requests
+        # Look up assigned approvers from esg_assignments, fall back to org admins
+        current_approvers = []
+        assignments = await db["esg_assignments"].find(
+            {
+                "organization_id": org_id,
+                "entity_id": question_key,
+                "approver_ids": {"$exists": True, "$ne": []},
+            },
+            {"_id": 0, "approver_ids": 1}
+        ).to_list(10)
+        for a in assignments:
+            current_approvers.extend(a.get("approver_ids", []))
+        
+        if not current_approvers:
+            # Also check section-level assignments
+            section_name = question_config.get("section") if question_config else None
+            if section_name:
+                section_assignments = await db["esg_assignments"].find(
+                    {
+                        "organization_id": org_id,
+                        "section": {"$in": [section_name, section_name.lower(), section_name.upper()]},
+                        "approver_ids": {"$exists": True, "$ne": []},
+                    },
+                    {"_id": 0, "approver_ids": 1}
+                ).to_list(10)
+                for a in section_assignments:
+                    current_approvers.extend(a.get("approver_ids", []))
+        
+        if not current_approvers:
+            # Fall back to org admins so the request is always visible to someone
+            admin_users = await db.users.find(
+                {
+                    "organization_id": org_id,
+                    "role": {"$in": ["admin", "super_admin"]},
+                    "is_deleted": {"$ne": True},
+                },
+                {"_id": 0, "id": 1}
+            ).to_list(50)
+            current_approvers = [u["id"] for u in admin_users]
+        
+        current_approvers = list(set(current_approvers))
+        
         approval_request_id = str(uuid.uuid4())
         approval_request = {
             "id": approval_request_id,
             "organization_id": org_id,
             "workflow_id": f"questionnaire_{question_key}",
             "workflow_name": f"{framework or 'ESG'} Response Approval - {question_key}",
-            "entity_type": "esg_response",  # Use esg_response for all questionnaire items
+            "entity_type": "esg_response",
             "entity_id": question_key,
             "entity_subtype": question_config.get("section") if question_config else "environment",
             "request_type": "update",
@@ -767,13 +811,16 @@ class ESGQuestionnaireService:
             "submitted_at": now.isoformat(),
             "framework": framework,
             "section": question_config.get("section") if question_config else None,
-            "_submission_id": submission_id,  # Link back to submission
+            "current_approvers": current_approvers,
+            "current_level": 1,
+            "total_levels": 1,
+            "_submission_id": submission_id,
             "created_at": now.isoformat(),
             "updated_at": now.isoformat(),
         }
         
         # Upsert to prevent duplicates
-        await db.approval_requests.update_one(
+        upsert_result = await db.approval_requests.update_one(
             {
                 "organization_id": org_id,
                 "entity_type": "esg_response",
@@ -788,6 +835,7 @@ class ESGQuestionnaireService:
                     "submitted_by_email": user_email,
                     "submitted_at": now.isoformat(),
                     "framework": framework,
+                    "current_approvers": current_approvers,
                     "updated_at": now.isoformat(),
                     "_submission_id": submission_id,
                 },
@@ -802,10 +850,32 @@ class ESGQuestionnaireService:
                     "request_type": "update",
                     "status": "pending",
                     "section": approval_request["section"],
+                    "current_level": 1,
+                    "total_levels": 1,
                     "created_at": now.isoformat(),
                 },
             },
             upsert=True
+        )
+        
+        # Get the actual approval_request_id (may be existing doc's id if not inserted)
+        if not upsert_result.upserted_id:
+            existing_ar = await db.approval_requests.find_one(
+                {
+                    "organization_id": org_id,
+                    "entity_type": "esg_response",
+                    "entity_id": question_key,
+                    "status": "pending",
+                },
+                {"_id": 0, "id": 1}
+            )
+            if existing_ar:
+                approval_request_id = existing_ar["id"]
+        
+        # Update submission with the linked approval_request_id
+        await db[self.SUBMISSIONS_COLLECTION].update_one(
+            {"id": submission_id},
+            {"$set": {"approval_request_id": approval_request_id}}
         )
         
         # Log to audit trail
@@ -934,8 +1004,16 @@ class ESGQuestionnaireService:
                 grouped[qk] = {
                     "question_key": qk,
                     "reporting_period": sub["reporting_period"],
-                    "submissions": []
+                    "submissions": [],
+                    # Carry framework from submission doc if available
+                    "_sub_framework": sub.get("framework"),
+                    "_approval_request_id": sub.get("approval_request_id"),
                 }
+            # Keep the most recent approval_request_id
+            if sub.get("approval_request_id") and not grouped[qk].get("_approval_request_id"):
+                grouped[qk]["_approval_request_id"] = sub["approval_request_id"]
+            if sub.get("framework") and not grouped[qk].get("_sub_framework"):
+                grouped[qk]["_sub_framework"] = sub["framework"]
             grouped[qk]["submissions"].append(sub)
         
         # Enrich with question configs for display
@@ -1004,12 +1082,20 @@ class ESGQuestionnaireService:
             for qk, item in grouped.items():
                 cfg = config_map.get(qk, {})
                 item["disclosure_name"] = get_question_display(qk)
-                # Get framework from either 'framework' field or 'frameworks' array
+                # Get framework: 1) from config, 2) from submission doc, 3) infer from question_key prefix
                 fw = cfg.get("framework")
                 if not fw and cfg.get("frameworks"):
                     fw = cfg["frameworks"][0]
-                item["framework"] = fw or "GRI"
-                item["section"] = cfg.get("section")
+                if not fw:
+                    fw = item.get("_sub_framework")
+                if not fw:
+                    # Infer from question_key prefix
+                    if qk.startswith("gri_"):
+                        fw = "GRI"
+                    elif qk.startswith("brsr_") or qk.startswith("section_") or qk.startswith("policy_") or qk.startswith("principle_"):
+                        fw = "BRSR"
+                item["framework"] = fw
+                item["section"] = cfg.get("section") or item.get("_sub_framework_section")
         
         return list(grouped.values())
 
@@ -2271,33 +2357,61 @@ class ESGQuestionnaireService:
         # Fetch question configs to get response_mode for each question
         configs = await self.list_question_configs(framework=framework, section=section)
         response_modes = {c["question_key"]: c.get("response_mode", "fy_comparison") for c in configs}
-        config_keys = set(c["question_key"] for c in configs)
         
-        # Fetch all question-level documents for current year
-        current_docs = await self._responses.find(
-            {
+        # Build section query — filter by section in DB (like the old section-level approach)
+        # Also handle case-insensitive section matching
+        section_lower = section.lower() if section else None
+        section_upper = section.upper() if section else None
+        
+        def _build_year_query(year):
+            q = {
                 "org_id": org_id,
-                "reporting_year": reporting_year,
+                "reporting_year": year,
                 "$or": [
                     {"framework": framework.upper()},
                     {"framework": framework.lower()},
                     {"framework": framework},
                 ],
-            },
+            }
+            if section:
+                q["$and"] = [
+                    q.pop("$or"),  # move $or into $and
+                    {"$or": [
+                        {"section": section},
+                        {"section": section_lower},
+                        {"section": section_upper},
+                    ]}
+                ]
+                q["$or"] = q["$and"][0]  # restore framework $or at top level
+                del q["$and"]
+                # Use proper compound query
+                q = {
+                    "org_id": org_id,
+                    "reporting_year": year,
+                    "$and": [
+                        {"$or": [
+                            {"framework": framework.upper()},
+                            {"framework": framework.lower()},
+                            {"framework": framework},
+                        ]},
+                        {"$or": [
+                            {"section": section},
+                            {"section": section_lower},
+                            {"section": section_upper},
+                        ]}
+                    ]
+                }
+            return q
+        
+        # Fetch all question-level documents for current year
+        current_docs = await self._responses.find(
+            _build_year_query(reporting_year),
             {"_id": 0}
         ).to_list(1000)
         
         # Fetch all question-level documents for previous year
         previous_docs = await self._responses.find(
-            {
-                "org_id": org_id,
-                "reporting_year": previous_year,
-                "$or": [
-                    {"framework": framework.upper()},
-                    {"framework": framework.lower()},
-                    {"framework": framework},
-                ],
-            },
+            _build_year_query(previous_year),
             {"_id": 0}
         ).to_list(1000)
         
@@ -2305,57 +2419,33 @@ class ESGQuestionnaireService:
         current_responses = {}
         previous_responses = {}
         
-        for doc in current_docs:
-            q_key = doc.get("question_key")
-            if not q_key:
-                continue
-            
-            # Check if this question is in the requested section
-            if q_key not in config_keys and not any(q_key.startswith(ck + "_") or ck.startswith(q_key + "_") for ck in config_keys):
-                continue
-            
-            # Handle direct value
-            if doc.get("value") is not None:
-                current_responses[q_key] = doc.get("value")
-            
-            # Handle nested sub_responses (Option B structure)
-            if "sub_responses" in doc and doc["sub_responses"]:
-                for sub_key, sub_data in doc["sub_responses"].items():
-                    full_key = f"{q_key}_{sub_key}"
-                    if sub_data.get("value") is not None:
-                        current_responses[full_key] = sub_data.get("value")
-            
-            # Also include legacy responses format
-            if "responses" in doc:
-                for rkey, rval in doc.get("responses", {}).items():
-                    if rkey not in current_responses:
-                        current_responses[rkey] = rval
+        def _extract_responses(docs):
+            responses = {}
+            for doc in docs:
+                q_key = doc.get("question_key")
+                if not q_key:
+                    continue
+                
+                # Handle direct value
+                if doc.get("value") is not None:
+                    responses[q_key] = doc.get("value")
+                
+                # Handle nested sub_responses (Option B structure)
+                if "sub_responses" in doc and doc["sub_responses"]:
+                    for sub_key, sub_data in doc["sub_responses"].items():
+                        full_key = f"{q_key}_{sub_key}"
+                        if sub_data.get("value") is not None:
+                            responses[full_key] = sub_data.get("value")
+                
+                # Also include legacy responses format
+                if "responses" in doc:
+                    for rkey, rval in doc.get("responses", {}).items():
+                        if rkey not in responses:
+                            responses[rkey] = rval
+            return responses
         
-        for doc in previous_docs:
-            q_key = doc.get("question_key")
-            if not q_key:
-                continue
-            
-            # Check if this question is in the requested section
-            if q_key not in config_keys and not any(q_key.startswith(ck + "_") or ck.startswith(q_key + "_") for ck in config_keys):
-                continue
-            
-            # Handle direct value
-            if doc.get("value") is not None:
-                previous_responses[q_key] = doc.get("value")
-            
-            # Handle nested sub_responses
-            if "sub_responses" in doc and doc["sub_responses"]:
-                for sub_key, sub_data in doc["sub_responses"].items():
-                    full_key = f"{q_key}_{sub_key}"
-                    if sub_data.get("value") is not None:
-                        previous_responses[full_key] = sub_data.get("value")
-            
-            # Also include legacy responses format
-            if "responses" in doc:
-                for rkey, rval in doc.get("responses", {}).items():
-                    if rkey not in previous_responses:
-                        previous_responses[rkey] = rval
+        current_responses = _extract_responses(current_docs)
+        previous_responses = _extract_responses(previous_docs)
         
         if not current_responses and not previous_responses:
             return None
@@ -3378,20 +3468,39 @@ class ESGQuestionnaireService:
         
         Examples:
             "FY 2025-2026" -> "FY 2024-2025"
-            "CY 2025" -> "CY 2024"
+            "FY2024-25"    -> "FY2023-24"
+            "CY 2025"      -> "CY 2024"
+            "2025"          -> "2024"
         """
+        import re
+        
         if reporting_year.startswith("CY "):
-            # Calendar year format: "CY 2025"
             year = int(reporting_year.replace("CY ", ""))
             return f"CY {year - 1}"
-        elif reporting_year.startswith("FY "):
-            # Handle "FY 2025-2026" format
-            parts = reporting_year.replace("FY ", "").split("-")
-            start_year = int(parts[0])
-            return f"FY {start_year - 1}-{start_year}"
-        else:
-            # Default: assume numeric year
+        
+        # Match FY with optional space, e.g. "FY 2025-2026" or "FY2024-25"
+        fy_match = re.match(r'^FY\s*(\d{4})-(\d{2,4})$', reporting_year)
+        if fy_match:
+            prefix = reporting_year[:reporting_year.index(fy_match.group(1))]  # "FY " or "FY"
+            start_year = int(fy_match.group(1))
+            end_str = fy_match.group(2)
+            if len(end_str) == 2:
+                # Short format: FY2024-25 -> FY2023-24
+                prev_start = start_year - 1
+                prev_end = int(end_str) - 1
+                if prev_end < 0:
+                    prev_end = 99
+                return f"{prefix}{prev_start}-{prev_end:02d}"
+            else:
+                # Long format: FY 2025-2026 -> FY 2024-2025
+                return f"{prefix}{start_year - 1}-{start_year}"
+        
+        # Default: try numeric year
+        try:
             return str(int(reporting_year) - 1)
+        except ValueError:
+            # Can't parse — return as-is with a suffix to avoid matching anything
+            return f"{reporting_year}_prev"
 
     # =========================================================================
     # Helper Methods
