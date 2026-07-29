@@ -1160,6 +1160,91 @@ class ApprovalWorkflowService:
                     logger.error(f"Failed to update emission_record with approval: {e}")
                     import traceback
                     traceback.print_exc()
+            
+            # Handle esg_response approval (BRSR questionnaire responses)
+            elif entity_type == "esg_response":
+                try:
+                    question_key = entity_id  # entity_id is the question_key for esg_response
+                    entity_snapshot = request.get("entity_snapshot", {})
+                    org_id = request.get("organization_id")
+                    reporting_year = entity_snapshot.get("reporting_year") or entity_snapshot.get("reporting_period")
+                    
+                    # Get the edited value if approver made changes
+                    final_value = entity_snapshot.get("value")
+                    if updated_data and "value" in updated_data:
+                        final_value = updated_data["value"]
+                        logger.info(f"Applying approver edits to esg_response {question_key}")
+                    
+                    # Update esg_responses collection
+                    response_update = {
+                        "approval_status": "approved",
+                        "status": "approved",
+                        "updated_at": _now_iso(),
+                        "approved_at": _now_iso(),
+                        "approved_by": approver.get("id"),
+                        "approved_by_name": approver.get("full_name", approver.get("email", "")),
+                    }
+                    
+                    # Include edited value if changed
+                    if updated_data and "value" in updated_data:
+                        response_update["value"] = final_value
+                    
+                    await db.esg_responses.update_one(
+                        {
+                            "organization_id": org_id,
+                            "question_key": question_key,
+                        },
+                        {"$set": response_update}
+                    )
+                    logger.info(f"Updated esg_response {question_key} approval_status=approved")
+                    
+                    # CRITICAL: Sync value to organization_esg_responses (what UI reads)
+                    if final_value is not None:
+                        # Get the section from question config
+                        config = await db.esg_question_configs.find_one(
+                            {"question_key": question_key},
+                            {"_id": 0, "section": 1, "framework": 1}
+                        )
+                        section = config.get("section", "section_a") if config else "section_a"
+                        framework = config.get("framework", "BRSR") if config else "BRSR"
+                        
+                        await db.organization_esg_responses.update_one(
+                            {
+                                "org_id": org_id,
+                                "framework": framework,
+                                "reporting_year": reporting_year,
+                                "section": section,
+                            },
+                            {
+                                "$set": {
+                                    f"responses.{question_key}": final_value,
+                                    "updated_at": _now_iso(),
+                                },
+                                "$setOnInsert": {
+                                    "id": str(uuid.uuid4()),
+                                    "org_id": org_id,
+                                    "organization_id": org_id,
+                                    "framework": framework,
+                                    "section": section,
+                                    "created_at": _now_iso(),
+                                }
+                            },
+                            upsert=True
+                        )
+                        logger.info(f"Synced approved value to organization_esg_responses for {question_key}")
+                    
+                    # Create version snapshot
+                    await _create_approval_version_snapshot(
+                        collection_name="esg_responses",
+                        record_id=question_key,
+                        action="approved",
+                        user_id=approver.get("id"),
+                        changed_fields=["approval_status", "value"] if updated_data else ["approval_status"],
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to update esg_response with approval: {e}")
+                    import traceback
+                    traceback.print_exc()
         
         # Record history
         await ApprovalWorkflowService._record_history(
