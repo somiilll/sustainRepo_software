@@ -1765,12 +1765,10 @@ class ApprovalWorkflowService:
         is_admin: bool = False,
     ) -> List[dict]:
         """
-        Get questionnaire responses pending approval for the given approver.
+        Get questionnaire responses pending approval.
         
-        Returns enriched items with question configs for display.
-        For admin users, returns ALL pending approvals in the org.
-        
-        Also includes pending emission_record and esg_record approvals from approval_requests collection.
+        Returns ALL responses with approval_status="pending_approval" for the organization.
+        Enriches items with question configs for display.
         """
         queue_items = []
         
@@ -1778,186 +1776,139 @@ class ApprovalWorkflowService:
         # PART 1: Questionnaire Approvals (from esg_responses)
         # =====================================================================
         
-        # For admins, get all pending approvals regardless of approver assignment
-        if is_admin:
-            assignment_query = {
-                "organization_id": organization_id,
-                "entity_type": "question",
-                "requires_approval": True,
-            }
-        else:
-            # Find assignments where current user is the approver
-            assignment_query = {
-                "organization_id": organization_id,
-                "entity_type": "question",
-                "requires_approval": True,
-                "$or": [
-                    {"approver_id": approver_id},
-                    {"approval_chain": approver_id},
-                    {"approver_ids": approver_id},  # Support array field
-                ]
-            }
+        # Fetch ALL pending approval responses for the organization
+        responses_query = {
+            "organization_id": organization_id,
+            "approval_status": "pending_approval",
+        }
         
         if framework:
-            assignment_query["framework_id"] = framework.lower()
+            responses_query["framework"] = framework.upper()
         
-        assignments = await db.esg_assignments.find(
-            assignment_query,
+        responses = await db.esg_responses.find(
+            responses_query,
             {"_id": 0}
         ).to_list(500)
         
-        if assignments:
-            # Get question keys and reporting periods
-            question_keys = [a.get("entity_id") for a in assignments if a.get("entity_id")]
+        if responses:
+            # Get question configs for labels
+            response_keys = [r.get("question_key") for r in responses if r.get("question_key")]
             
-            # Find responses that are pending_approval
-            responses_query = {
-                "organization_id": organization_id,
-                "question_key": {"$in": question_keys},
-                "approval_status": "pending_approval",
-            }
+            # Also include potential parent keys for nested subquestions
+            parent_keys = []
+            for key in response_keys:
+                if '_' in key:
+                    parts = key.rsplit('_', 1)
+                    suffix = parts[1].lower() if len(parts) == 2 else ""
+                    if suffix in ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x', 
+                                  'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']:
+                        parent_keys.append(parts[0])
+                        # Also try grandparent
+                        if '_' in parts[0]:
+                            gp_parts = parts[0].rsplit('_', 1)
+                            gp_suffix = gp_parts[1].lower() if len(gp_parts) == 2 else ""
+                            if gp_suffix in ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']:
+                                parent_keys.append(gp_parts[0])
             
-            responses = await db.esg_responses.find(
-                responses_query,
-                {"_id": 0}
+            all_keys_to_fetch = list(set(response_keys + parent_keys))
+            configs = await db.esg_question_configs.find(
+                {"question_key": {"$in": all_keys_to_fetch}},
+                {"_id": 0, "question_key": 1, "label": 1, "question": 1, "description": 1, 
+                 "section": 1, "brsr_section": 1, "framework": 1, "type": 1, "input_type": 1,
+                 "field_config": 1, "disclosure_name": 1, "disclosure_id": 1, "material_topic": 1,
+                 "sub_questions": 1}
             ).to_list(500)
+            config_map = {c["question_key"]: c for c in configs}
             
-            if responses:
-                # Get question configs for labels
-                # Also include potential parent keys for nested subquestions (e.g., gri_101_2_a_i -> gri_101_2_a)
-                parent_keys = []
-                response_keys = [r.get("question_key") for r in responses if r.get("question_key")]
-                all_relevant_keys = list(set(question_keys + response_keys))
+            # Get submitter user info
+            submitter_ids = list(set([r.get("submitted_by") for r in responses if r.get("submitted_by")]))
+            submitters = {}
+            if submitter_ids:
+                users = await db.users.find(
+                    {"id": {"$in": submitter_ids}},
+                    {"_id": 0, "id": 1, "email": 1, "full_name": 1, "name": 1}
+                ).to_list(100)
+                submitters = {u["id"]: u for u in users}
+            
+            def get_subquestion_info(question_key: str) -> tuple:
+                """
+                For a subquestion key like 'gri_101_2_a_i', find the parent config
+                and the specific subquestion's label from sub_questions array.
+                Returns (parent_config, subquestion_label, subquestion_key)
+                """
+                if '_' not in question_key:
+                    return config_map.get(question_key, {}), None, None
                 
-                for key in all_relevant_keys:
-                    # Try to extract parent key (remove last _suffix like _i, _ii, _iii, _a, _b, etc.)
-                    if '_' in key:
-                        parts = key.rsplit('_', 1)
-                        suffix = parts[1].lower() if len(parts) == 2 else ""
-                        # Check if last part looks like a roman numeral or letter suffix
-                        if suffix in ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x', 
-                                      'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']:
-                            parent_keys.append(parts[0])
-                            # Also try grandparent (e.g., gri_101_2_a_i -> gri_101_2_a -> gri_101_2)
-                            if '_' in parts[0]:
-                                gp_parts = parts[0].rsplit('_', 1)
-                                gp_suffix = gp_parts[1].lower() if len(gp_parts) == 2 else ""
-                                if gp_suffix in ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']:
-                                    parent_keys.append(gp_parts[0])
+                # Try direct match first
+                if question_key in config_map:
+                    return config_map[question_key], None, None
                 
-                all_keys_to_fetch = list(set(all_relevant_keys + parent_keys))
-                config_query = {"question_key": {"$in": all_keys_to_fetch}}
-                configs = await db.esg_question_configs.find(
-                    config_query,
-                    {"_id": 0, "question_key": 1, "label": 1, "question": 1, "description": 1, 
-                     "section": 1, "brsr_section": 1, "framework": 1, "type": 1, "input_type": 1,
-                     "field_config": 1, "disclosure_name": 1, "disclosure_id": 1, "material_topic": 1,
-                     "sub_questions": 1}
-                ).to_list(500)
-                config_map = {c["question_key"]: c for c in configs}
+                # Extract potential sub_key suffix
+                parts = question_key.rsplit('_', 1)
+                if len(parts) != 2:
+                    return {}, None, None
                 
-                # Build assignment map for lookup
-                assignment_map = {a["entity_id"]: a for a in assignments}
+                parent_key, sub_key = parts
+                parent_config = config_map.get(parent_key, {})
                 
-                # Get submitter user info
-                submitter_ids = list(set([r.get("submitted_by") for r in responses if r.get("submitted_by")]))
-                submitters = {}
-                if submitter_ids:
-                    users = await db.users.find(
-                        {"id": {"$in": submitter_ids}},
-                        {"_id": 0, "id": 1, "email": 1, "full_name": 1, "name": 1}
-                    ).to_list(100)
-                    submitters = {u["id"]: u for u in users}
+                # Check if parent has sub_questions array
+                sub_questions = parent_config.get("sub_questions", [])
+                if sub_questions:
+                    for sq in sub_questions:
+                        if sq.get("sub_key") == sub_key:
+                            return parent_config, sq.get("label") or sq.get("description"), sub_key
                 
-                def get_subquestion_info(question_key: str) -> tuple:
-                    """
-                    For a subquestion key like 'gri_101_2_a_i', find:
-                    - The parent config (e.g., 'gri_101_2_a' or 'gri_101_2')
-                    - The specific subquestion's label from sub_questions array
-                    Returns (parent_config, subquestion_label, subquestion_key)
-                    """
-                    if '_' not in question_key:
-                        return config_map.get(question_key, {}), None, None
-                    
-                    # Try direct match first
-                    if question_key in config_map:
-                        return config_map[question_key], None, None
-                    
-                    # Extract potential sub_key suffix (last part like 'i', 'ii', 'a', 'b')
-                    parts = question_key.rsplit('_', 1)
-                    if len(parts) != 2:
-                        return {}, None, None
-                    
-                    parent_key, sub_key = parts
-                    parent_config = config_map.get(parent_key, {})
-                    
-                    # Check if parent has sub_questions array
-                    sub_questions = parent_config.get("sub_questions", [])
-                    if sub_questions:
-                        for sq in sub_questions:
-                            if sq.get("sub_key") == sub_key:
-                                return parent_config, sq.get("label") or sq.get("description"), sub_key
-                    
-                    # Try grandparent (e.g., gri_101_2_e_test -> gri_101_2_e -> gri_101_2)
-                    if '_' in parent_key:
-                        gp_parts = parent_key.rsplit('_', 1)
-                        gp_key, middle_key = gp_parts
-                        gp_config = config_map.get(gp_key, {})
-                        gp_sub_questions = gp_config.get("sub_questions", [])
-                        for sq in gp_sub_questions:
-                            if sq.get("sub_key") == middle_key:
-                                return gp_config, sq.get("label") or sq.get("description"), middle_key
-                    
-                    # Fallback to parent config without subquestion info
-                    return parent_config if parent_config else {}, None, None
+                # Try grandparent
+                if '_' in parent_key:
+                    gp_parts = parent_key.rsplit('_', 1)
+                    gp_key, middle_key = gp_parts
+                    gp_config = config_map.get(gp_key, {})
+                    gp_sub_questions = gp_config.get("sub_questions", [])
+                    for sq in gp_sub_questions:
+                        if sq.get("sub_key") == middle_key:
+                            return gp_config, sq.get("label") or sq.get("description"), middle_key
                 
-                # Enrich responses with config and assignment data
-                for response in responses:
-                    question_key = response.get("question_key")
-                    config, subq_label, subq_key = get_subquestion_info(question_key)
-                    assignment = assignment_map.get(question_key, {})
-                    submitter = submitters.get(response.get("submitted_by"), {})
-                    
-                    # Build the full question display text
-                    # Format: "Parent description: subkey. subquestion label"
-                    # Example: "Report how organization applies the mitigation hierarchy by describing: i. actions taken to avoid negative impacts on biodiversity"
-                    parent_description = config.get("description") or config.get("disclosure_name") or config.get("label") or ""
-                    
-                    if subq_label and subq_key and parent_description:
-                        # Subquestion: combine parent description + subkey + subquestion label
-                        # Ensure parent description ends with colon or similar
-                        parent_desc_clean = parent_description.rstrip(':').rstrip()
-                        full_question_text = f"{parent_desc_clean}: {subq_key}. {subq_label}"
-                    elif parent_description:
-                        # No subquestion, just use parent description
-                        full_question_text = parent_description
-                    else:
-                        # Fallback to question_key
-                        full_question_text = question_key
-                    
-                    queue_items.append({
-                        "id": response.get("id"),
-                        "_response_id": response.get("id"),
-                        "question_key": question_key,
-                        "question_name": config.get("label") or config.get("question") or config.get("description", "")[:100],
-                        "disclosure_name": full_question_text,  # Full formatted question text
-                        "description": subq_label or "",  # Just the subquestion label if any
-                        "parent_description": parent_description,  # Original parent description
-                        "question_type": config.get("type") or config.get("input_type"),
-                        "field_config": config.get("field_config"),
-                        "section_id": config.get("brsr_section") or config.get("section"),
-                        "framework": response.get("framework") or config.get("framework", "BRSR"),
-                        "reporting_year": response.get("reporting_year"),
-                        "response_data": response.get("value"),
-                        "submitted_at": response.get("submitted_at"),
-                        "submitted_by_id": response.get("submitted_by"),
-                        "submitted_by_name": submitter.get("full_name") or submitter.get("name") or submitter.get("email", ""),
-                        "submitted_by_email": submitter.get("email", ""),
-                        "assignment_id": assignment.get("id"),
-                        "due_date": assignment.get("due_date"),
-                        "organization_id": organization_id,
-                        "_source": "questionnaire_approval_v2",
-                    })
+                # Fallback to parent config without subquestion info
+                return parent_config if parent_config else {}, None, None
+            
+            # Enrich responses with config data
+            for response in responses:
+                question_key = response.get("question_key")
+                config, subq_label, subq_key = get_subquestion_info(question_key)
+                submitter = submitters.get(response.get("submitted_by"), {})
+                
+                # Build the full question display text
+                parent_description = config.get("description") or config.get("disclosure_name") or config.get("label") or ""
+                
+                if subq_label and subq_key and parent_description:
+                    parent_desc_clean = parent_description.rstrip(':').rstrip()
+                    full_question_text = f"{parent_desc_clean}: {subq_key}. {subq_label}"
+                elif parent_description:
+                    full_question_text = parent_description
+                else:
+                    full_question_text = question_key
+                
+                queue_items.append({
+                    "id": response.get("id"),
+                    "_response_id": response.get("id"),
+                    "question_key": question_key,
+                    "question_name": config.get("label") or config.get("question") or config.get("description", "")[:100],
+                    "disclosure_name": full_question_text,
+                    "description": subq_label or "",
+                    "parent_description": parent_description,
+                    "question_type": config.get("type") or config.get("input_type"),
+                    "field_config": config.get("field_config"),
+                    "section_id": config.get("brsr_section") or config.get("section"),
+                    "framework": response.get("framework") or config.get("framework", "BRSR"),
+                    "reporting_year": response.get("reporting_year"),
+                    "response_data": response.get("value"),
+                    "submitted_at": response.get("submitted_at"),
+                    "submitted_by_id": response.get("submitted_by"),
+                    "submitted_by_name": submitter.get("full_name") or submitter.get("name") or submitter.get("email", ""),
+                    "submitted_by_email": submitter.get("email", ""),
+                    "organization_id": organization_id,
+                    "_source": "questionnaire_approval_v2",
+                })
         
         # =====================================================================
         # PART 2: Emission Record & ESG Record Approvals (from approval_requests)
