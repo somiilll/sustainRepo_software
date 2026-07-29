@@ -1120,7 +1120,7 @@ function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
 
 /**
  * BRSRApprovalPanel - Review panel for BRSR response approvals (esg_response entity type)
- * Clean UI matching the V2 design with editable fields
+ * Uses the existing QuestionRenderer from ESGQuestionnaire for consistent rendering
  */
 function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
   const [processing, setProcessing] = useState(false);
@@ -1128,30 +1128,11 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
   const [isEditing, setIsEditing] = useState(false);
   const [questionConfig, setQuestionConfig] = useState(null);
   const [loadingConfig, setLoadingConfig] = useState(true);
+  const [editedValue, setEditedValue] = useState(item.entity_snapshot?.value || {});
   
-  // Parse the original value - handle both string and object
-  const originalValueObj = typeof item.entity_snapshot?.value === 'object' 
-    ? item.entity_snapshot?.value 
-    : {};
-  
-  // Editable fields state - maintain as object for friendly editing
-  const [editedFields, setEditedFields] = useState({ ...originalValueObj });
-  
-  // Check if any field was edited
-  const hasEdits = JSON.stringify(editedFields) !== JSON.stringify(originalValueObj);
-  
-  // Map BRSR response keys to user-friendly labels
-  const BRSR_FIELD_LABELS = {
-    all_description: 'Description / Justification',
-    all_enabled: 'Applicable to all principles?',
-    mode: 'Mode',
-    value: 'Value',
-    description: 'Description',
-    justification: 'Justification',
-    response: 'Response',
-    comments: 'Comments',
-    remarks: 'Remarks',
-  };
+  // Track if value was edited
+  const originalValue = JSON.stringify(item.entity_snapshot?.value || {});
+  const hasEdits = JSON.stringify(editedValue) !== originalValue;
   
   // Fetch question config on mount
   useEffect(() => {
@@ -1181,102 +1162,14 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
     }
     return item.disclosure_name || item.entity_id || item.question_key;
   };
-  
-  // Update a single field
-  const updateField = (key, value) => {
-    setEditedFields(prev => ({ ...prev, [key]: value }));
-  };
-  
-  // Format response value for display (read-only mode)
-  const renderDisplayFields = (data) => {
-    if (data === null || data === undefined) return null;
-    if (typeof data === 'string') return <span className="whitespace-pre-wrap">{data}</span>;
-    
-    if (typeof data === 'object' && !Array.isArray(data)) {
-      const entries = Object.entries(data).filter(([_, v]) => v !== null && v !== undefined && v !== '');
-      if (entries.length === 0) return null;
-      
-      return (
-        <div className="space-y-3">
-          {entries.map(([key, value]) => (
-            <div key={key} className="border-b border-stone-100 pb-2 last:border-0 last:pb-0">
-              <div className="text-xs font-medium text-stone-500 mb-1">
-                {BRSR_FIELD_LABELS[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-              </div>
-              <div className="text-stone-800">
-                {typeof value === 'boolean' ? (value ? 'Yes' : 'No') : String(value)}
-              </div>
-            </div>
-          ))}
-        </div>
-      );
-    }
-    
-    return <pre className="whitespace-pre-wrap text-sm">{JSON.stringify(data, null, 2)}</pre>;
-  };
-  
-  // Render editable fields with friendly labels
-  const renderEditableFields = () => {
-    const entries = Object.entries(editedFields);
-    if (entries.length === 0) {
-      return (
-        <textarea
-          value=""
-          onChange={(e) => setEditedFields({ value: e.target.value })}
-          className="w-full min-h-[100px] px-3 py-2 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Enter response..."
-        />
-      );
-    }
-    
-    return (
-      <div className="space-y-4">
-        {entries.map(([key, value]) => (
-          <div key={key} className="space-y-1">
-            <label className="text-xs font-medium text-stone-600">
-              {BRSR_FIELD_LABELS[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-            </label>
-            {typeof value === 'boolean' ? (
-              <select
-                value={value ? 'yes' : 'no'}
-                onChange={(e) => updateField(key, e.target.value === 'yes')}
-                className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
-              </select>
-            ) : key === 'mode' ? (
-              <select
-                value={value || ''}
-                onChange={(e) => updateField(key, e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all_together">All Together</option>
-                <option value="individual">Individual</option>
-                <option value="partially">Partially</option>
-              </select>
-            ) : (
-              <textarea
-                value={value || ''}
-                onChange={(e) => updateField(key, e.target.value)}
-                className="w-full min-h-[80px] px-3 py-2 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder={`Enter ${BRSR_FIELD_LABELS[key] || key}...`}
-              />
-            )}
-          </div>
-        ))}
-      </div>
-    );
-  };
 
   const handleApprove = async () => {
     setProcessing(true);
     try {
       const payload = { comment: comment || undefined };
       
-      // If edited, include updated snapshot with the edited fields
       if (hasEdits) {
-        payload.updated_snapshot = { value: editedFields };
+        payload.updated_snapshot = { value: editedValue };
       }
       
       await axios.post(
@@ -1324,6 +1217,49 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
       month: 'short', day: 'numeric', year: 'numeric',
       hour: '2-digit', minute: '2-digit'
     });
+  };
+
+  // Import QuestionRenderer dynamically or use inline rendering
+  // For now, use a simplified version that handles the common BRSR types
+  const renderResponse = () => {
+    const value = isEditing ? editedValue : item.entity_snapshot?.value;
+    const config = questionConfig || {};
+    const questionType = config.type || config.input_type;
+    
+    // Handle principle_toggle type (NGRBC principles)
+    if (questionType === 'principle_toggle' || (value && typeof value === 'object' && ('mode' in value || 'all_enabled' in value || 'principles' in value))) {
+      return <PrincipleToggleDisplay 
+        value={value} 
+        onChange={isEditing ? setEditedValue : undefined}
+        isEditing={isEditing}
+        config={config}
+      />;
+    }
+    
+    // Handle simple text/textarea
+    if (typeof value === 'string') {
+      return isEditing ? (
+        <textarea
+          value={value}
+          onChange={(e) => setEditedValue(e.target.value)}
+          className="w-full min-h-[100px] px-3 py-2 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Enter response..."
+        />
+      ) : (
+        <p className="text-stone-700 whitespace-pre-wrap">{value || '-'}</p>
+      );
+    }
+    
+    // Handle other object types with friendly display
+    if (typeof value === 'object' && value !== null) {
+      return <ObjectFieldsDisplay 
+        value={value}
+        onChange={isEditing ? setEditedValue : undefined}
+        isEditing={isEditing}
+      />;
+    }
+    
+    return <p className="text-stone-400 italic">No response provided</p>;
   };
 
   return (
@@ -1379,16 +1315,9 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
           </Button>
         </div>
         
-        {isEditing ? (
-          <Card className="p-4 bg-white border-stone-200">
-            {renderEditableFields()}
-          </Card>
-        ) : (
-          <Card className="p-4 bg-white border-stone-200">
-            {renderDisplayFields(item.entity_snapshot?.value) || 
-              <span className="italic text-stone-400">No response provided</span>}
-          </Card>
-        )}
+        <Card className="p-4 bg-white border-stone-200">
+          {renderResponse()}
+        </Card>
         
         {hasEdits && (
           <p className="text-xs text-amber-600 flex items-center gap-1">
@@ -1435,6 +1364,227 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
           {hasEdits ? 'Approve with Edits' : 'Approve'}
         </Button>
       </div>
+    </div>
+  );
+}
+
+// NGRBC Principles list
+const NGRBC_PRINCIPLES = [
+  { key: "P1", name: "Ethics, Transparency and Accountability" },
+  { key: "P2", name: "Sustainable and Safe Products/Services" },
+  { key: "P3", name: "Employee Wellbeing" },
+  { key: "P4", name: "Stakeholder Responsiveness" },
+  { key: "P5", name: "Human Rights" },
+  { key: "P6", name: "Environment Protection" },
+  { key: "P7", name: "Policy Advocacy" },
+  { key: "P8", name: "Inclusive Growth" },
+  { key: "P9", name: "Customer Value" },
+];
+
+// Principle Toggle Display/Edit component (handles NGRBC all_together vs principle_wise)
+function PrincipleToggleDisplay({ value, onChange, isEditing, config = {} }) {
+  const data = value || { mode: 'all_together', all_enabled: null, all_description: '', principles: {} };
+  
+  const handleModeChange = (newMode) => {
+    onChange?.({ ...data, mode: newMode });
+  };
+
+  const handleAllChange = (field, val) => {
+    onChange?.({ ...data, [field]: val });
+  };
+
+  const handlePrincipleChange = (key, field, val) => {
+    const principles = { ...data.principles };
+    if (!principles[key]) principles[key] = { enabled: null, description: '' };
+    principles[key][field] = val;
+    onChange?.({ ...data, principles });
+  };
+
+  // Read-only display
+  if (!isEditing) {
+    return (
+      <div className="space-y-3">
+        <Badge variant="outline" className="mb-2">
+          Mode: {data.mode === 'all_together' ? 'All Principles Together' : 'Principle-wise'}
+        </Badge>
+        {data.mode === 'all_together' ? (
+          <div className="bg-stone-50 p-3 rounded space-y-1">
+            <p className="text-sm"><strong>Applicable to all principles:</strong> {data.all_enabled === true ? 'Yes' : data.all_enabled === false ? 'No' : '-'}</p>
+            <p className="text-sm"><strong>Description / Justification:</strong> {data.all_description || '-'}</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {NGRBC_PRINCIPLES.map((p) => {
+              const pData = data.principles?.[p.key] || {};
+              return (
+                <div key={p.key} className="bg-stone-50 p-2 rounded text-sm">
+                  <strong>{p.key} - {p.name}:</strong>{' '}
+                  {pData.enabled === true ? 'Yes' : pData.enabled === false ? 'No' : '-'}
+                  {pData.description && <span className="text-stone-600"> - {pData.description}</span>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Editing mode
+  return (
+    <div className="space-y-4">
+      {/* Mode selector */}
+      <div className="flex items-center gap-4">
+        <label className="text-sm font-medium">Mode:</label>
+        <select
+          value={data.mode || 'all_together'}
+          onChange={(e) => handleModeChange(e.target.value)}
+          className="px-3 py-1.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="all_together">Fill All Principles Together</option>
+          <option value="principle_wise">Fill Principle-wise Separately</option>
+        </select>
+      </div>
+
+      {data.mode === 'all_together' ? (
+        <div className="space-y-3 bg-stone-50 p-4 rounded-lg">
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-stone-600">Applicable to all principles?</label>
+            <select
+              value={data.all_enabled === true ? 'yes' : data.all_enabled === false ? 'no' : ''}
+              onChange={(e) => handleAllChange('all_enabled', e.target.value === 'yes' ? true : e.target.value === 'no' ? false : null)}
+              className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Select...</option>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-stone-600">Description / Justification</label>
+            <textarea
+              value={data.all_description || ''}
+              onChange={(e) => handleAllChange('all_description', e.target.value)}
+              className="w-full min-h-[80px] px-3 py-2 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Enter description or justification..."
+            />
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {NGRBC_PRINCIPLES.map((p) => {
+            const pData = data.principles?.[p.key] || {};
+            return (
+              <div key={p.key} className="bg-stone-50 p-3 rounded-lg space-y-2">
+                <p className="text-sm font-medium">{p.key} - {p.name}</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs text-stone-600">Applicable?</label>
+                    <select
+                      value={pData.enabled === true ? 'yes' : pData.enabled === false ? 'no' : ''}
+                      onChange={(e) => handlePrincipleChange(p.key, 'enabled', e.target.value === 'yes' ? true : e.target.value === 'no' ? false : null)}
+                      className="w-full px-2 py-1.5 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select...</option>
+                      <option value="yes">Yes</option>
+                      <option value="no">No</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-stone-600">Description</label>
+                    <input
+                      type="text"
+                      value={pData.description || ''}
+                      onChange={(e) => handlePrincipleChange(p.key, 'description', e.target.value)}
+                      className="w-full px-2 py-1.5 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter description..."
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Generic object fields display/edit (for non-principle BRSR fields)
+function ObjectFieldsDisplay({ value, onChange, isEditing }) {
+  const FIELD_LABELS = {
+    all_description: 'Description / Justification',
+    all_enabled: 'Applicable to all principles?',
+    mode: 'Mode',
+    value: 'Value',
+    description: 'Description',
+    justification: 'Justification',
+    response: 'Response',
+  };
+
+  const handleFieldChange = (key, newVal) => {
+    onChange?.({ ...value, [key]: newVal });
+  };
+
+  const entries = Object.entries(value || {}).filter(([_, v]) => v !== null && v !== undefined);
+  
+  if (entries.length === 0) {
+    return <p className="text-stone-400 italic">No response provided</p>;
+  }
+
+  if (!isEditing) {
+    return (
+      <div className="space-y-3">
+        {entries.map(([key, val]) => (
+          <div key={key} className="border-b border-stone-100 pb-2 last:border-0 last:pb-0">
+            <div className="text-xs font-medium text-stone-500 mb-1">
+              {FIELD_LABELS[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+            </div>
+            <div className="text-stone-800">
+              {typeof val === 'boolean' ? (val ? 'Yes' : 'No') : String(val)}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {entries.map(([key, val]) => (
+        <div key={key} className="space-y-1">
+          <label className="text-xs font-medium text-stone-600">
+            {FIELD_LABELS[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+          </label>
+          {typeof val === 'boolean' ? (
+            <select
+              value={val ? 'yes' : 'no'}
+              onChange={(e) => handleFieldChange(key, e.target.value === 'yes')}
+              className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select>
+          ) : key === 'mode' ? (
+            <select
+              value={val || ''}
+              onChange={(e) => handleFieldChange(key, e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all_together">All Together</option>
+              <option value="individual">Individual</option>
+              <option value="principle_wise">Principle-wise</option>
+            </select>
+          ) : (
+            <textarea
+              value={val || ''}
+              onChange={(e) => handleFieldChange(key, e.target.value)}
+              className="w-full min-h-[60px] px-3 py-2 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder={`Enter ${FIELD_LABELS[key] || key}...`}
+            />
+          )}
+        </div>
+      ))}
     </div>
   );
 }
