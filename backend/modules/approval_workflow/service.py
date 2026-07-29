@@ -1824,7 +1824,18 @@ class ApprovalWorkflowService:
             
             if responses:
                 # Get question configs for labels
-                config_query = {"question_key": {"$in": question_keys}}
+                # Also include potential parent keys for nested subquestions (e.g., gri_101_2_a_i -> gri_101_2_a)
+                parent_keys = []
+                for key in question_keys:
+                    # Try to extract parent key (remove last _suffix like _i, _ii, _iii)
+                    if '_' in key:
+                        parts = key.rsplit('_', 1)
+                        # Check if last part looks like a roman numeral suffix (i, ii, iii, iv, v, etc.)
+                        if len(parts) == 2 and parts[1] in ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x']:
+                            parent_keys.append(parts[0])
+                
+                all_keys_to_fetch = list(set(question_keys + parent_keys))
+                config_query = {"question_key": {"$in": all_keys_to_fetch}}
                 configs = await db.esg_question_configs.find(
                     config_query,
                     {"_id": 0, "question_key": 1, "label": 1, "question": 1, "description": 1, 
@@ -1846,10 +1857,22 @@ class ApprovalWorkflowService:
                     ).to_list(100)
                     submitters = {u["id"]: u for u in users}
                 
+                # Helper to get config with parent fallback
+                def get_config_with_fallback(key):
+                    config = config_map.get(key)
+                    if config:
+                        return config
+                    # Try parent key
+                    if '_' in key:
+                        parts = key.rsplit('_', 1)
+                        if len(parts) == 2 and parts[1] in ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x']:
+                            return config_map.get(parts[0], {})
+                    return {}
+                
                 # Enrich responses with config and assignment data
                 for response in responses:
                     question_key = response.get("question_key")
-                    config = config_map.get(question_key, {})
+                    config = get_config_with_fallback(question_key)
                     assignment = assignment_map.get(question_key, {})
                     submitter = submitters.get(response.get("submitted_by"), {})
                     
