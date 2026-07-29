@@ -37,16 +37,32 @@ import { toast } from 'sonner';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
+// Helper to safely render response data (handles objects, arrays, strings)
+const formatResponseForDisplay = (data) => {
+  if (data === null || data === undefined) {
+    return null;
+  }
+  if (typeof data === 'string') {
+    return data;
+  }
+  if (typeof data === 'object') {
+    return JSON.stringify(data, null, 2);
+  }
+  return String(data);
+};
+
 export default function QuestionnaireApprovalPanel({ 
   item, // The queue item from questionnaire/queue endpoint
   onClose,
   onApproved 
 }) {
   const { getAuthHeader } = useAuth();
+  
+  // Format response data for editing
+  const initialResponse = formatResponseForDisplay(item.response_data) || '';
+  
   const [isEditing, setIsEditing] = useState(false);
-  const [editedResponse, setEditedResponse] = useState(
-    typeof item.response_data === 'string' ? item.response_data : JSON.stringify(item.response_data || '', null, 2)
-  );
+  const [editedResponse, setEditedResponse] = useState(initialResponse);
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
@@ -65,12 +81,14 @@ export default function QuestionnaireApprovalPanel({
 
   // Get the original response value for comparison
   const getOriginalValue = () => {
-    if (typeof item.response_data === 'string') return item.response_data;
-    return JSON.stringify(item.response_data || '', null, 2);
+    return initialResponse;
   };
 
   // Check if response was edited
   const hasEdits = editedResponse !== getOriginalValue();
+
+  // Display formatted response
+  const displayResponse = formatResponseForDisplay(item.response_data);
 
   // Approve the response
   const handleApprove = async () => {
@@ -198,9 +216,9 @@ export default function QuestionnaireApprovalPanel({
               />
             ) : (
               <Card className="p-4 bg-white border-stone-200">
-                <p className="text-stone-700 whitespace-pre-wrap text-sm leading-relaxed">
-                  {item.response_data || <span className="italic text-stone-400">No response provided</span>}
-                </p>
+                <pre className="text-stone-700 whitespace-pre-wrap text-sm leading-relaxed font-sans">
+                  {displayResponse || <span className="italic text-stone-400">No response provided</span>}
+                </pre>
               </Card>
             )}
             
