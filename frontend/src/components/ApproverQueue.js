@@ -131,7 +131,7 @@ export default function ApproverQueue() {
       
       // Transform record approvals (GHG emissions, ESG records, BRSR responses)
       const allowedEntityTypes = ['esg_record', 'emission_record', 'esg_response'];
-      const recordApprovals = (recordApprovalsRes.data.requests || [])
+      let recordApprovals = (recordApprovalsRes.data.requests || [])
         .filter(r => allowedEntityTypes.includes(r.entity_type))
         .map(r => {
           // Build display name based on entity type
@@ -139,7 +139,7 @@ export default function ApproverQueue() {
           if (r.entity_type === 'emission_record') {
             displayName = `GHG ${r.entity_snapshot?.scope?.toUpperCase() || ''} - ${r.entity_snapshot?.category || 'Emissions'}${r.entity_snapshot?.sub_category ? ' → ' + r.entity_snapshot.sub_category : ''}`;
           } else if (r.entity_type === 'esg_response') {
-            // BRSR response - use entity_id as question_key
+            // BRSR response - will be enriched with config below
             displayName = r.entity_id || 'BRSR Disclosure';
           } else {
             displayName = `${r.entity_snapshot?.category}${r.entity_snapshot?.subcategory ? ' → ' + r.entity_snapshot.subcategory : ''}`;
@@ -163,8 +163,40 @@ export default function ApproverQueue() {
             request_type: r.request_type,
             _source: 'approval_workflow',
             _approval_request_id: r.id,
+            _needs_config: r.entity_type === 'esg_response', // Flag for config enrichment
           };
         });
+      
+      // Fetch question configs for BRSR items to get proper display names
+      const brsrItems = recordApprovals.filter(r => r._needs_config);
+      if (brsrItems.length > 0) {
+        try {
+          const questionKeys = brsrItems.map(r => r.entity_id).filter(Boolean);
+          const configRes = await axios.post(
+            `${API}/api/esg-questionnaire/configs/batch`,
+            { question_keys: questionKeys },
+            { headers: getAuthHeader() }
+          );
+          const configMap = {};
+          (configRes.data.configs || []).forEach(cfg => {
+            configMap[cfg.question_key] = cfg;
+          });
+          
+          // Enrich BRSR items with config data
+          recordApprovals = recordApprovals.map(item => {
+            if (item._needs_config && configMap[item.entity_id]) {
+              const cfg = configMap[item.entity_id];
+              return {
+                ...item,
+                disclosure_name: cfg.description || cfg.label || cfg.question || item.entity_id,
+              };
+            }
+            return item;
+          });
+        } catch (configErr) {
+          console.warn('Could not fetch BRSR question configs:', configErr);
+        }
+      }
       
       // Combine questionnaire submissions + record approvals
       const allItems = [
@@ -1088,23 +1120,25 @@ function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
 
 /**
  * BRSRApprovalPanel - Review panel for BRSR response approvals (esg_response entity type)
- * Clean UI matching the V2 design
+ * Clean UI matching the V2 design with editable fields
  */
 function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
   const [processing, setProcessing] = useState(false);
   const [comment, setComment] = useState('');
   const [isEditing, setIsEditing] = useState(false);
-  const [editedValue, setEditedValue] = useState(
-    typeof item.entity_snapshot?.value === 'string' 
-      ? item.entity_snapshot?.value 
-      : JSON.stringify(item.entity_snapshot?.value || '', null, 2)
-  );
+  const [questionConfig, setQuestionConfig] = useState(null);
+  const [loadingConfig, setLoadingConfig] = useState(true);
   
-  const originalValue = typeof item.entity_snapshot?.value === 'string' 
+  // Parse the original value - handle both string and object
+  const originalValueObj = typeof item.entity_snapshot?.value === 'object' 
     ? item.entity_snapshot?.value 
-    : JSON.stringify(item.entity_snapshot?.value || '', null, 2);
+    : {};
   
-  const hasEdits = editedValue !== originalValue;
+  // Editable fields state - maintain as object for friendly editing
+  const [editedFields, setEditedFields] = useState({ ...originalValueObj });
+  
+  // Check if any field was edited
+  const hasEdits = JSON.stringify(editedFields) !== JSON.stringify(originalValueObj);
   
   // Map BRSR response keys to user-friendly labels
   const BRSR_FIELD_LABELS = {
@@ -1114,12 +1148,49 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
     value: 'Value',
     description: 'Description',
     justification: 'Justification',
+    response: 'Response',
+    comments: 'Comments',
+    remarks: 'Remarks',
   };
   
-  // Format response value for display
-  const formatResponseDisplay = (data) => {
+  // Fetch question config on mount
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const questionKey = item.entity_id || item.question_key;
+        if (questionKey) {
+          const res = await axios.get(
+            `${API}/api/esg-questionnaire/config/${questionKey}`,
+            { headers: getAuthHeader() }
+          );
+          setQuestionConfig(res.data);
+        }
+      } catch (err) {
+        console.warn('Could not fetch question config:', err);
+      } finally {
+        setLoadingConfig(false);
+      }
+    };
+    fetchConfig();
+  }, [item.entity_id, item.question_key, getAuthHeader]);
+  
+  // Get question display name
+  const getQuestionText = () => {
+    if (questionConfig) {
+      return questionConfig.description || questionConfig.label || questionConfig.question || item.entity_id;
+    }
+    return item.disclosure_name || item.entity_id || item.question_key;
+  };
+  
+  // Update a single field
+  const updateField = (key, value) => {
+    setEditedFields(prev => ({ ...prev, [key]: value }));
+  };
+  
+  // Format response value for display (read-only mode)
+  const renderDisplayFields = (data) => {
     if (data === null || data === undefined) return null;
-    if (typeof data === 'string') return data;
+    if (typeof data === 'string') return <span className="whitespace-pre-wrap">{data}</span>;
     
     if (typeof data === 'object' && !Array.isArray(data)) {
       const entries = Object.entries(data).filter(([_, v]) => v !== null && v !== undefined && v !== '');
@@ -1143,19 +1214,69 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
     
     return <pre className="whitespace-pre-wrap text-sm">{JSON.stringify(data, null, 2)}</pre>;
   };
+  
+  // Render editable fields with friendly labels
+  const renderEditableFields = () => {
+    const entries = Object.entries(editedFields);
+    if (entries.length === 0) {
+      return (
+        <textarea
+          value=""
+          onChange={(e) => setEditedFields({ value: e.target.value })}
+          className="w-full min-h-[100px] px-3 py-2 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Enter response..."
+        />
+      );
+    }
+    
+    return (
+      <div className="space-y-4">
+        {entries.map(([key, value]) => (
+          <div key={key} className="space-y-1">
+            <label className="text-xs font-medium text-stone-600">
+              {BRSR_FIELD_LABELS[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+            </label>
+            {typeof value === 'boolean' ? (
+              <select
+                value={value ? 'yes' : 'no'}
+                onChange={(e) => updateField(key, e.target.value === 'yes')}
+                className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+            ) : key === 'mode' ? (
+              <select
+                value={value || ''}
+                onChange={(e) => updateField(key, e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all_together">All Together</option>
+                <option value="individual">Individual</option>
+                <option value="partially">Partially</option>
+              </select>
+            ) : (
+              <textarea
+                value={value || ''}
+                onChange={(e) => updateField(key, e.target.value)}
+                className="w-full min-h-[80px] px-3 py-2 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder={`Enter ${BRSR_FIELD_LABELS[key] || key}...`}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   const handleApprove = async () => {
     setProcessing(true);
     try {
       const payload = { comment: comment || undefined };
       
-      // If edited, include updated snapshot
+      // If edited, include updated snapshot with the edited fields
       if (hasEdits) {
-        try {
-          payload.updated_snapshot = { value: JSON.parse(editedValue) };
-        } catch {
-          payload.updated_snapshot = { value: editedValue };
-        }
+        payload.updated_snapshot = { value: editedFields };
       }
       
       await axios.post(
@@ -1212,9 +1333,16 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
         <div className="flex items-start gap-2 mb-2">
           <Badge variant="outline" className="shrink-0 bg-amber-100 text-amber-800">BRSR</Badge>
         </div>
-        <p className="text-stone-800 font-medium leading-relaxed">
-          {item.disclosure_name || item.question_key || item.entity_id}
-        </p>
+        {loadingConfig ? (
+          <div className="flex items-center gap-2 text-stone-500">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span>Loading question...</span>
+          </div>
+        ) : (
+          <p className="text-stone-800 font-medium leading-relaxed">
+            {getQuestionText()}
+          </p>
+        )}
       </Card>
 
       {/* Submitter Info */}
@@ -1252,15 +1380,12 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
         </div>
         
         {isEditing ? (
-          <textarea
-            value={editedValue}
-            onChange={(e) => setEditedValue(e.target.value)}
-            className="w-full min-h-[150px] px-3 py-2 border rounded-lg font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter response..."
-          />
+          <Card className="p-4 bg-white border-stone-200">
+            {renderEditableFields()}
+          </Card>
         ) : (
           <Card className="p-4 bg-white border-stone-200">
-            {formatResponseDisplay(item.entity_snapshot?.value) || 
+            {renderDisplayFields(item.entity_snapshot?.value) || 
               <span className="italic text-stone-400">No response provided</span>}
           </Card>
         )}

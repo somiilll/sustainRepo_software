@@ -40,6 +40,18 @@ class ESGQuestionnaireService:
             {"_id": 0}
         )
 
+    async def get_question_configs_batch(self, question_keys: List[str]) -> List[Dict[str, Any]]:
+        """Get multiple question configs by their keys."""
+        if not question_keys:
+            return []
+        configs = await self._configs.find(
+            {"question_key": {"$in": question_keys}},
+            {"_id": 0, "question_key": 1, "label": 1, "question": 1, "description": 1, 
+             "section": 1, "framework": 1, "disclosure_name": 1}
+        ).to_list(500)
+        return configs
+
+
     async def list_question_configs(
         self,
         framework: Optional[str] = None,

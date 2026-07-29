@@ -85,6 +85,24 @@ async def bulk_create_question_configs(
     return {"message": f"Created {len(results)} question configs", "configs": results}
 
 
+@router.post("/configs/batch")
+async def batch_get_question_configs(
+    request: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get multiple question configs by their keys.
+    Used for enriching approval queue items with question descriptions.
+    """
+    question_keys = request.get("question_keys", [])
+    if not question_keys:
+        return {"configs": []}
+    
+    configs = await esg_questionnaire_service.get_question_configs_batch(question_keys)
+    return {"configs": configs}
+
+
+
 @router.patch("/configs/{question_key}")
 async def update_question_config(
     question_key: str,
