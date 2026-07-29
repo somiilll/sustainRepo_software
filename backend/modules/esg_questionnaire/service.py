@@ -960,7 +960,7 @@ class ESGQuestionnaireService:
             configs = await self._configs.find(
                 {"question_key": {"$in": all_keys}},
                 {"_id": 0, "question_key": 1, "label": 1, "question": 1, "description": 1, 
-                 "section": 1, "framework": 1, "sub_questions": 1, "disclosure_name": 1}
+                 "section": 1, "framework": 1, "frameworks": 1, "sub_questions": 1, "disclosure_name": 1}
             ).to_list(500)
             config_map = {c["question_key"]: c for c in configs}
             
@@ -1004,7 +1004,11 @@ class ESGQuestionnaireService:
             for qk, item in grouped.items():
                 cfg = config_map.get(qk, {})
                 item["disclosure_name"] = get_question_display(qk)
-                item["framework"] = cfg.get("framework", "GRI")
+                # Get framework from either 'framework' field or 'frameworks' array
+                fw = cfg.get("framework")
+                if not fw and cfg.get("frameworks"):
+                    fw = cfg["frameworks"][0]
+                item["framework"] = fw or "GRI"
                 item["section"] = cfg.get("section")
         
         return list(grouped.values())
