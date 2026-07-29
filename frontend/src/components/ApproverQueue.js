@@ -31,7 +31,9 @@ import {
   ScrollText,
   BarChart3,
   Download,
-  Activity
+  Activity,
+  XCircle,
+  AlertCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
 import SubmissionReviewPanel from './SubmissionReviewPanel';
@@ -127,30 +129,42 @@ export default function ApproverQueue() {
         recordApprovalsPromise
       ]);
       
-      // Transform record approvals (GHG emissions, ESG records)
-      const allowedEntityTypes = ['esg_record', 'emission_record'];
+      // Transform record approvals (GHG emissions, ESG records, BRSR responses)
+      const allowedEntityTypes = ['esg_record', 'emission_record', 'esg_response'];
       const recordApprovals = (recordApprovalsRes.data.requests || [])
         .filter(r => allowedEntityTypes.includes(r.entity_type))
-        .map(r => ({
-          id: r.id,
-          entity_type: r.entity_type,
-          entity_id: r.entity_id,
-          section: r.entity_subtype || 'environment',
-          question_key: `record_${r.entity_snapshot?.category || 'unknown'}`,
-          disclosure_name: r.entity_type === 'emission_record' 
-            ? `GHG ${r.entity_snapshot?.scope?.toUpperCase() || ''} - ${r.entity_snapshot?.category || 'Emissions'}${r.entity_snapshot?.sub_category ? ' → ' + r.entity_snapshot.sub_category : ''}`
-            : `${r.entity_snapshot?.category}${r.entity_snapshot?.subcategory ? ' → ' + r.entity_snapshot.subcategory : ''}`,
-          submitted_by: r.submitted_by,
-          submitted_by_name: r.submitted_by_name,
-          submitted_by_email: r.submitted_by_email,
-          submitted_at: r.submitted_at,
-          status: r.status,
-          workflow_name: r.workflow_name,
-          entity_snapshot: r.entity_snapshot,
-          request_type: r.request_type,
-          _source: 'approval_workflow',
-          _approval_request_id: r.id,
-        }));
+        .map(r => {
+          // Build display name based on entity type
+          let displayName;
+          if (r.entity_type === 'emission_record') {
+            displayName = `GHG ${r.entity_snapshot?.scope?.toUpperCase() || ''} - ${r.entity_snapshot?.category || 'Emissions'}${r.entity_snapshot?.sub_category ? ' → ' + r.entity_snapshot.sub_category : ''}`;
+          } else if (r.entity_type === 'esg_response') {
+            // BRSR response - use entity_id as question_key
+            displayName = r.entity_id || 'BRSR Disclosure';
+          } else {
+            displayName = `${r.entity_snapshot?.category}${r.entity_snapshot?.subcategory ? ' → ' + r.entity_snapshot.subcategory : ''}`;
+          }
+          
+          return {
+            id: r.id,
+            entity_type: r.entity_type,
+            entity_id: r.entity_id,
+            section: r.entity_subtype || 'environment',
+            question_key: r.entity_type === 'esg_response' ? r.entity_id : `record_${r.entity_snapshot?.category || 'unknown'}`,
+            disclosure_name: displayName,
+            reporting_period: r.entity_snapshot?.reporting_year,
+            submitted_by: r.submitted_by,
+            submitted_by_name: r.submitted_by_name,
+            submitted_by_email: r.submitted_by_email,
+            submitted_at: r.submitted_at,
+            status: r.status,
+            workflow_name: r.workflow_name,
+            entity_snapshot: r.entity_snapshot,
+            request_type: r.request_type,
+            _source: 'approval_workflow',
+            _approval_request_id: r.id,
+          };
+        });
       
       // Combine questionnaire submissions + record approvals
       const allItems = [
@@ -445,6 +459,13 @@ export default function ApproverQueue() {
               />
             ) : selectedQuestion.entity_type === 'esg_record' ? (
               <RecordApprovalPanel
+                item={selectedQuestion}
+                onClose={() => setSelectedQuestion(null)}
+                onApproved={handleApprovalComplete}
+                getAuthHeader={getAuthHeader}
+              />
+            ) : selectedQuestion.entity_type === 'esg_response' ? (
+              <BRSRApprovalPanel
                 item={selectedQuestion}
                 onClose={() => setSelectedQuestion(null)}
                 onApproved={handleApprovalComplete}
@@ -1063,3 +1084,232 @@ function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
   );
 }
 
+
+
+/**
+ * BRSRApprovalPanel - Review panel for BRSR response approvals (esg_response entity type)
+ * Clean UI matching the V2 design
+ */
+function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
+  const [processing, setProcessing] = useState(false);
+  const [comment, setComment] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedValue, setEditedValue] = useState(
+    typeof item.entity_snapshot?.value === 'string' 
+      ? item.entity_snapshot?.value 
+      : JSON.stringify(item.entity_snapshot?.value || '', null, 2)
+  );
+  
+  const originalValue = typeof item.entity_snapshot?.value === 'string' 
+    ? item.entity_snapshot?.value 
+    : JSON.stringify(item.entity_snapshot?.value || '', null, 2);
+  
+  const hasEdits = editedValue !== originalValue;
+  
+  // Map BRSR response keys to user-friendly labels
+  const BRSR_FIELD_LABELS = {
+    all_description: 'Description / Justification',
+    all_enabled: 'Applicable to all principles?',
+    mode: 'Mode',
+    value: 'Value',
+    description: 'Description',
+    justification: 'Justification',
+  };
+  
+  // Format response value for display
+  const formatResponseDisplay = (data) => {
+    if (data === null || data === undefined) return null;
+    if (typeof data === 'string') return data;
+    
+    if (typeof data === 'object' && !Array.isArray(data)) {
+      const entries = Object.entries(data).filter(([_, v]) => v !== null && v !== undefined && v !== '');
+      if (entries.length === 0) return null;
+      
+      return (
+        <div className="space-y-3">
+          {entries.map(([key, value]) => (
+            <div key={key} className="border-b border-stone-100 pb-2 last:border-0 last:pb-0">
+              <div className="text-xs font-medium text-stone-500 mb-1">
+                {BRSR_FIELD_LABELS[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+              </div>
+              <div className="text-stone-800">
+                {typeof value === 'boolean' ? (value ? 'Yes' : 'No') : String(value)}
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    
+    return <pre className="whitespace-pre-wrap text-sm">{JSON.stringify(data, null, 2)}</pre>;
+  };
+
+  const handleApprove = async () => {
+    setProcessing(true);
+    try {
+      const payload = { comment: comment || undefined };
+      
+      // If edited, include updated snapshot
+      if (hasEdits) {
+        try {
+          payload.updated_snapshot = { value: JSON.parse(editedValue) };
+        } catch {
+          payload.updated_snapshot = { value: editedValue };
+        }
+      }
+      
+      await axios.post(
+        `${API}/api/approval-workflows/requests/${item._approval_request_id}/approve`,
+        payload,
+        { headers: getAuthHeader() }
+      );
+      toast.success(hasEdits ? 'BRSR response approved with edits' : 'BRSR response approved');
+      onApproved?.();
+      onClose?.();
+    } catch (error) {
+      console.error('Failed to approve BRSR response:', error);
+      toast.error(error.response?.data?.detail || 'Failed to approve');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!comment.trim()) {
+      toast.error('Please provide a rejection reason');
+      return;
+    }
+    setProcessing(true);
+    try {
+      await axios.post(
+        `${API}/api/approval-workflows/requests/${item._approval_request_id}/reject`,
+        { comment },
+        { headers: getAuthHeader() }
+      );
+      toast.success('BRSR response rejected');
+      onApproved?.();
+      onClose?.();
+    } catch (error) {
+      console.error('Failed to reject BRSR response:', error);
+      toast.error(error.response?.data?.detail || 'Failed to reject');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return 'N/A';
+    return new Date(dateStr).toLocaleString(undefined, {
+      month: 'short', day: 'numeric', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* Question Text */}
+      <Card className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 border-amber-100">
+        <div className="flex items-start gap-2 mb-2">
+          <Badge variant="outline" className="shrink-0 bg-amber-100 text-amber-800">BRSR</Badge>
+        </div>
+        <p className="text-stone-800 font-medium leading-relaxed">
+          {item.disclosure_name || item.question_key || item.entity_id}
+        </p>
+      </Card>
+
+      {/* Submitter Info */}
+      <div className="flex items-center gap-6 text-sm px-1">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
+            <User className="w-3.5 h-3.5 text-blue-600" />
+          </div>
+          <div>
+            <span className="text-stone-500">Submitted by </span>
+            <span className="font-medium text-stone-800">
+              {item.submitted_by_name || item.submitted_by_email || 'Unknown'}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 text-stone-500">
+          <Clock className="w-3.5 h-3.5" />
+          <span>{formatDate(item.submitted_at)}</span>
+        </div>
+      </div>
+
+      {/* Response Display */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <label className="text-sm font-medium text-stone-700">Response</label>
+          <Button
+            variant={isEditing ? "default" : "outline"}
+            size="sm"
+            onClick={() => setIsEditing(!isEditing)}
+            className="h-7 text-xs gap-1"
+          >
+            <Activity className="w-3 h-3" />
+            {isEditing ? 'Editing' : 'Edit'}
+          </Button>
+        </div>
+        
+        {isEditing ? (
+          <textarea
+            value={editedValue}
+            onChange={(e) => setEditedValue(e.target.value)}
+            className="w-full min-h-[150px] px-3 py-2 border rounded-lg font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Enter response..."
+          />
+        ) : (
+          <Card className="p-4 bg-white border-stone-200">
+            {formatResponseDisplay(item.entity_snapshot?.value) || 
+              <span className="italic text-stone-400">No response provided</span>}
+          </Card>
+        )}
+        
+        {hasEdits && (
+          <p className="text-xs text-amber-600 flex items-center gap-1">
+            <AlertCircle className="w-3 h-3" />
+            Response has been modified
+          </p>
+        )}
+      </div>
+
+      {/* Comment */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-stone-700">
+          Comment {processing ? '' : '(required for rejection)'}
+        </label>
+        <textarea
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          placeholder="Add a comment..."
+          className="w-full px-3 py-2 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+          rows={3}
+          disabled={processing}
+        />
+      </div>
+
+      {/* Actions */}
+      <div className="flex justify-end gap-3 pt-4 border-t">
+        <Button variant="outline" onClick={onClose} disabled={processing}>
+          Cancel
+        </Button>
+        <Button
+          variant="destructive"
+          onClick={handleReject}
+          disabled={processing}
+        >
+          {processing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <XCircle className="w-4 h-4 mr-2" />}
+          Reject
+        </Button>
+        <Button
+          onClick={handleApprove}
+          disabled={processing}
+          className="bg-green-600 hover:bg-green-700"
+        >
+          {processing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+          {hasEdits ? 'Approve with Edits' : 'Approve'}
+        </Button>
+      </div>
+    </div>
+  );
+}
