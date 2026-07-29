@@ -743,6 +743,71 @@ class ESGQuestionnaireService:
             }
             await db[self.SUBMISSIONS_COLLECTION].insert_one(submission_doc)
         
+        # ALSO create an approval_request for unified Approver Queue
+        # This ensures both GRI and BRSR show up in the same queue
+        approval_request_id = str(uuid.uuid4())
+        approval_request = {
+            "id": approval_request_id,
+            "organization_id": org_id,
+            "workflow_id": f"questionnaire_{question_key}",
+            "workflow_name": f"{framework or 'ESG'} Response Approval - {question_key}",
+            "entity_type": "esg_response",  # Use esg_response for all questionnaire items
+            "entity_id": question_key,
+            "entity_subtype": question_config.get("section") if question_config else "environment",
+            "request_type": "update",
+            "entity_snapshot": {
+                "value": value,
+                "question_key": question_key,
+                "reporting_year": reporting_period,
+            },
+            "status": "pending",
+            "submitted_by": user_id,
+            "submitted_by_name": user_name,
+            "submitted_by_email": user_email,
+            "submitted_at": now.isoformat(),
+            "framework": framework,
+            "section": question_config.get("section") if question_config else None,
+            "_submission_id": submission_id,  # Link back to submission
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat(),
+        }
+        
+        # Upsert to prevent duplicates
+        await db.approval_requests.update_one(
+            {
+                "organization_id": org_id,
+                "entity_type": "esg_response",
+                "entity_id": question_key,
+                "status": "pending",
+            },
+            {
+                "$set": {
+                    "entity_snapshot": approval_request["entity_snapshot"],
+                    "submitted_by": user_id,
+                    "submitted_by_name": user_name,
+                    "submitted_by_email": user_email,
+                    "submitted_at": now.isoformat(),
+                    "framework": framework,
+                    "updated_at": now.isoformat(),
+                    "_submission_id": submission_id,
+                },
+                "$setOnInsert": {
+                    "id": approval_request_id,
+                    "organization_id": org_id,
+                    "workflow_id": approval_request["workflow_id"],
+                    "workflow_name": approval_request["workflow_name"],
+                    "entity_type": "esg_response",
+                    "entity_id": question_key,
+                    "entity_subtype": approval_request["entity_subtype"],
+                    "request_type": "update",
+                    "status": "pending",
+                    "section": approval_request["section"],
+                    "created_at": now.isoformat(),
+                },
+            },
+            upsert=True
+        )
+        
         # Log to audit trail
         audit_entry = {
             "id": str(uuid.uuid4()),
@@ -993,90 +1058,104 @@ class ESGQuestionnaireService:
         )
         
         if question_config:
-            # BRSR/GRI with config - use new organization_esg_responses flow
-            # Determine framework (use frameworks array or single framework field)
+            # Use unified organization_esg_responses with question-level documents
             framework = question_config.get("framework") or (question_config.get("frameworks", ["GRI"])[0] if question_config.get("frameworks") else "GRI")
             section = question_config.get("section", "environment")
             
-            # Save to organization_esg_responses (the correct collection)
-            existing_doc = await self._responses.find_one({
-                "org_id": org_id,
-                "framework": framework,
-                "reporting_year": reporting_period,
-                "section": section,
-            })
+            # Check if this is a sub-question
+            parent_key, sub_key = self._split_question_key(question_key)
             
-            if existing_doc:
-                # Update existing document - merge the new response
+            if parent_key and sub_key:
+                # Sub-question - update parent's sub_responses
+                sub_data = {
+                    "value": final_value,
+                    "status": "saved",
+                    "approval_status": "approved",
+                    "approved_at": now_iso,
+                    "approved_by": approver_user_id,
+                    "approved_by_name": approver_user_name,
+                    "updated_at": now_iso,
+                }
+                
                 await self._responses.update_one(
                     {
                         "org_id": org_id,
-                        "framework": framework,
+                        "question_key": parent_key,
                         "reporting_year": reporting_period,
-                        "section": section,
                     },
                     {
                         "$set": {
-                            f"responses.{question_key}": final_value,
-                            f"response_statuses.{question_key}": {
-                                "status": "saved",
-                                "approval_status": "approved",
-                                "approved_at": now_iso,
-                                "approved_by": approver_user_id,
-                                "approved_by_name": approver_user_name,
-                                "updated_at": now_iso,
-                            },
+                            f"sub_responses.{sub_key}": sub_data,
+                            "framework": framework,
+                            "section": section,
                             "updated_at": now_iso,
+                        },
+                        "$setOnInsert": {
+                            "id": str(uuid.uuid4()),
+                            "org_id": org_id,
+                            "organization_id": org_id,
+                            "question_key": parent_key,
+                            "reporting_year": reporting_period,
+                            "created_at": now_iso,
                         }
-                    }
+                    },
+                    upsert=True
                 )
             else:
-                # Create new document
-                await self._responses.insert_one({
-                    "id": str(uuid.uuid4()),
-                    "org_id": org_id,
-                    "framework": framework,
-                    "reporting_year": reporting_period,
-                    "section": section,
-                    "responses": {question_key: final_value},
-                    "response_statuses": {
-                        question_key: {
+                # Simple question - direct document
+                await self._responses.update_one(
+                    {
+                        "org_id": org_id,
+                        "question_key": question_key,
+                        "reporting_year": reporting_period,
+                    },
+                    {
+                        "$set": {
+                            "value": final_value,
                             "status": "saved",
                             "approval_status": "approved",
+                            "framework": framework,
+                            "section": section,
                             "approved_at": now_iso,
                             "approved_by": approver_user_id,
                             "approved_by_name": approver_user_name,
                             "updated_at": now_iso,
+                        },
+                        "$setOnInsert": {
+                            "id": str(uuid.uuid4()),
+                            "org_id": org_id,
+                            "organization_id": org_id,
+                            "question_key": question_key,
+                            "reporting_year": reporting_period,
+                            "created_at": now_iso,
                         }
                     },
-                    "created_at": now_iso,
-                    "updated_at": now_iso,
-                })
+                    upsert=True
+                )
         else:
-            # Fallback for GRI questions without config - use old esg_responses flow
-            await db.esg_responses.update_one(
+            # Fallback for questions without config - still use unified collection
+            await self._responses.update_one(
                 {
-                    "organization_id": org_id,
+                    "org_id": org_id,
                     "question_key": question_key,
-                    "reporting_period": reporting_period,
+                    "reporting_year": reporting_period,
                 },
                 {
                     "$set": {
                         "value": final_value,
-                        "status": "approved",
+                        "status": "saved",
                         "approval_status": "approved",
-                        "reporting_year": reporting_period,
-                        "updated_at": now_iso,
-                        "updated_by": submission["submitted_by_user_id"],
+                        "approved_at": now_iso,
                         "approved_by": approver_user_id,
                         "approved_by_name": approver_user_name,
-                        "approved_at": now_iso,
+                        "updated_at": now_iso,
                     },
                     "$setOnInsert": {
                         "id": str(uuid.uuid4()),
+                        "org_id": org_id,
                         "organization_id": org_id,
                         "question_key": question_key,
-                        "reporting_period": reporting_period,
+                        "reporting_year": reporting_period,
                         "created_at": now_iso,
                     }
                 },
@@ -1291,18 +1370,42 @@ class ESGQuestionnaireService:
         if value_is_empty:
             status = "pending"
         
-        # Get previous response
-        previous_response = await db.esg_responses.find_one(
-            {
-                "organization_id": org_id,
-                "question_key": question_key,
-                "reporting_period": reporting_period,
-            },
-            {"_id": 0, "value": 1, "status": 1, "updated_by": 1, "updated_by_name": 1}
-        )
+        # Get previous response from unified collection
+        parent_key, sub_key = self._split_question_key(question_key)
+        previous_response = None
+        previous_value = None
+        previous_status = None
         
-        previous_value = previous_response.get("value") if previous_response else None
-        previous_status = previous_response.get("status") if previous_response else None
+        if parent_key and sub_key:
+            # Sub-question - check parent's sub_responses
+            parent_doc = await db.organization_esg_responses.find_one(
+                {
+                    "org_id": org_id,
+                    "question_key": parent_key,
+                    "reporting_year": reporting_period,
+                },
+                {"_id": 0, "sub_responses": 1}
+            )
+            if parent_doc and "sub_responses" in parent_doc:
+                sub_data = parent_doc.get("sub_responses", {}).get(sub_key)
+                if sub_data:
+                    previous_response = sub_data
+                    previous_value = sub_data.get("value")
+                    previous_status = sub_data.get("status")
+        else:
+            # Simple question - direct lookup
+            previous_response = await db.organization_esg_responses.find_one(
+                {
+                    "org_id": org_id,
+                    "question_key": question_key,
+                    "reporting_year": reporting_period,
+                },
+                {"_id": 0, "value": 1, "status": 1, "approval_status": 1, "updated_by": 1, "updated_by_name": 1}
+            )
+            if previous_response:
+                previous_value = previous_response.get("value")
+                previous_status = previous_response.get("status")
+        
         is_new = previous_response is None
         
         # Check workflow logic (only for actual "saved" status, not drafts or empty)
@@ -1338,7 +1441,7 @@ class ESGQuestionnaireService:
                 }
             # else: use direct save (last save wins) - continue to save below
         
-        # Direct save to esg_responses (last save wins, drafts, or empty values)
+        # Direct save to organization_esg_responses (UNIFIED COLLECTION)
         # Get config for framework info (needed for proper querying)
         direct_config = await self._configs.find_one(
             {"question_key": question_key},
@@ -1347,83 +1450,91 @@ class ESGQuestionnaireService:
         direct_section = direct_config.get("section", "environment") if direct_config else "environment"
         direct_framework = direct_config.get("framework", "GRI") if direct_config else "GRI"
         
-        # Check if this question was previously approved
-        existing_response = await db.esg_responses.find_one(
-            {
-                "organization_id": org_id,
-                "question_key": question_key,
-                "reporting_period": reporting_period,
-            },
-            {"_id": 0, "value": 1, "approval_status": 1}
-        )
-        
-        was_approved = existing_response and existing_response.get("approval_status") == "approved"
-        previous_approved_value = existing_response.get("value") if was_approved else None
+        # Check if this question was previously approved (using previous_response from above)
+        was_approved = previous_response and previous_response.get("approval_status") == "approved"
+        previous_approved_value = previous_response.get("value") if was_approved else None
         value_changed = was_approved and previous_approved_value != value
         
-        update_fields = {
-            "value": value,
-            "status": status,
-            "framework": direct_framework,
-            "section": direct_section,
-            "reporting_year": reporting_period,
-            "updated_at": now_iso,
-            "updated_by": changed_by_user_id,
-            "updated_by_name": changed_by_user_name,
-            "updated_by_email": changed_by_user_email,
-        }
+        # Save to organization_esg_responses (UNIFIED COLLECTION)
+        # Use question-level documents with nested sub_responses for sub-questions
+        parent_key, sub_key = self._split_question_key(question_key)
         
-        # If previously approved and value changed, set to pending_approval and store approved value
-        if value_changed and status == "saved":
-            update_fields["approval_status"] = "pending_approval"
-            update_fields["last_approved_value"] = previous_approved_value
-            update_fields["submitted_at"] = now_iso
-            update_fields["submitted_by"] = changed_by_user_id
-        
-        result = await db.esg_responses.update_one(
-            {
-                "organization_id": org_id,
-                "question_key": question_key,
-                "reporting_period": reporting_period,
-            },
-            {
-                "$set": update_fields,
-                "$setOnInsert": {
-                    "id": str(uuid.uuid4()),
-                    "organization_id": org_id,
-                    "question_key": question_key,
-                    "reporting_period": reporting_period,
-                    "created_at": now_iso,
-                }
-            },
-            upsert=True
-        )
-        
-        # Also save to organization_esg_responses for tracker compatibility
-        # (reuse direct_section and direct_framework from above)
-        await db.organization_esg_responses.update_one(
-            {
-                "org_id": org_id,
-                "framework": direct_framework,
-                "reporting_year": reporting_period,
-                "section": direct_section,
-            },
-            {
-                "$set": {
-                    f"responses.{question_key}": value,
-                    "updated_at": now_iso,
-                },
-                "$setOnInsert": {
-                    "id": str(uuid.uuid4()),
+        if parent_key and sub_key:
+            # This is a sub-question - update parent's sub_responses
+            sub_data = {
+                "value": value,
+                "status": status,
+                "updated_at": now_iso,
+                "updated_by": changed_by_user_id,
+                "updated_by_name": changed_by_user_name,
+            }
+            
+            if value_changed and status == "saved":
+                sub_data["approval_status"] = "pending_approval"
+                sub_data["submitted_at"] = now_iso
+                sub_data["submitted_by"] = changed_by_user_id
+            
+            result = await db.organization_esg_responses.update_one(
+                {
                     "org_id": org_id,
-                    "organization_id": org_id,
-                    "framework": direct_framework,
-                    "section": direct_section,
-                    "created_at": now_iso,
-                }
-            },
-            upsert=True
-        )
+                    "question_key": parent_key,
+                    "reporting_year": reporting_period,
+                },
+                {
+                    "$set": {
+                        f"sub_responses.{sub_key}": sub_data,
+                        "framework": direct_framework,
+                        "section": direct_section,
+                        "updated_at": now_iso,
+                    },
+                    "$setOnInsert": {
+                        "id": str(uuid.uuid4()),
+                        "org_id": org_id,
+                        "organization_id": org_id,
+                        "question_key": parent_key,
+                        "reporting_year": reporting_period,
+                        "created_at": now_iso,
+                    }
+                },
+                upsert=True
+            )
+        else:
+            # Simple question - direct document
+            update_fields = {
+                "value": value,
+                "status": status,
+                "framework": direct_framework,
+                "section": direct_section,
+                "updated_at": now_iso,
+                "updated_by": changed_by_user_id,
+                "updated_by_name": changed_by_user_name,
+            }
+            
+            if value_changed and status == "saved":
+                update_fields["approval_status"] = "pending_approval"
+                update_fields["last_approved_value"] = previous_approved_value
+                update_fields["submitted_at"] = now_iso
+                update_fields["submitted_by"] = changed_by_user_id
+            
+            result = await db.organization_esg_responses.update_one(
+                {
+                    "org_id": org_id,
+                    "question_key": question_key,
+                    "reporting_year": reporting_period,
+                },
+                {
+                    "$set": update_fields,
+                    "$setOnInsert": {
+                        "id": str(uuid.uuid4()),
+                        "org_id": org_id,
+                        "organization_id": org_id,
+                        "question_key": question_key,
+                        "reporting_year": reporting_period,
+                        "created_at": now_iso,
+                    }
+                },
+                upsert=True
+            )
         
         # If this was a successful "saved" (not draft), clear other users' drafts AND own draft
         drafts_cleared = 0
@@ -2078,59 +2189,120 @@ class ESGQuestionnaireService:
         """
         Get responses for a specific org+framework+year+section.
         
-        This method fetches the current year's document and the previous year's
-        document, then merges them back into the frontend-expected format with
-        `*_current_fy` and `*_previous_fy` suffixes for fy_comparison questions,
-        while preserving atomic questions as-is.
+        This method fetches question-level documents from the unified collection
+        and reconstructs them into the frontend-expected format.
         """
         previous_year = self._calculate_previous_fy(reporting_year)
         
         # Fetch question configs to get response_mode for each question
         configs = await self.list_question_configs(framework=framework, section=section)
         response_modes = {c["question_key"]: c.get("response_mode", "fy_comparison") for c in configs}
+        config_keys = set(c["question_key"] for c in configs)
         
-        # Fetch both year documents
-        current_doc = await self._responses.find_one(
+        # Fetch all question-level documents for current year
+        current_docs = await self._responses.find(
             {
                 "org_id": org_id,
-                "framework": framework,
                 "reporting_year": reporting_year,
-                "section": section,
+                "$or": [
+                    {"framework": framework.upper()},
+                    {"framework": framework.lower()},
+                    {"framework": framework},
+                ],
             },
             {"_id": 0}
-        )
+        ).to_list(1000)
         
-        previous_doc = await self._responses.find_one(
+        # Fetch all question-level documents for previous year
+        previous_docs = await self._responses.find(
             {
                 "org_id": org_id,
-                "framework": framework,
                 "reporting_year": previous_year,
-                "section": section,
+                "$or": [
+                    {"framework": framework.upper()},
+                    {"framework": framework.lower()},
+                    {"framework": framework},
+                ],
             },
             {"_id": 0}
-        )
+        ).to_list(1000)
         
-        if not current_doc and not previous_doc:
+        # Build response maps from question-level documents
+        current_responses = {}
+        previous_responses = {}
+        
+        for doc in current_docs:
+            q_key = doc.get("question_key")
+            if not q_key:
+                continue
+            
+            # Check if this question is in the requested section
+            if q_key not in config_keys and not any(q_key.startswith(ck + "_") or ck.startswith(q_key + "_") for ck in config_keys):
+                continue
+            
+            # Handle direct value
+            if doc.get("value") is not None:
+                current_responses[q_key] = doc.get("value")
+            
+            # Handle nested sub_responses (Option B structure)
+            if "sub_responses" in doc and doc["sub_responses"]:
+                for sub_key, sub_data in doc["sub_responses"].items():
+                    full_key = f"{q_key}_{sub_key}"
+                    if sub_data.get("value") is not None:
+                        current_responses[full_key] = sub_data.get("value")
+            
+            # Also include legacy responses format
+            if "responses" in doc:
+                for rkey, rval in doc.get("responses", {}).items():
+                    if rkey not in current_responses:
+                        current_responses[rkey] = rval
+        
+        for doc in previous_docs:
+            q_key = doc.get("question_key")
+            if not q_key:
+                continue
+            
+            # Check if this question is in the requested section
+            if q_key not in config_keys and not any(q_key.startswith(ck + "_") or ck.startswith(q_key + "_") for ck in config_keys):
+                continue
+            
+            # Handle direct value
+            if doc.get("value") is not None:
+                previous_responses[q_key] = doc.get("value")
+            
+            # Handle nested sub_responses
+            if "sub_responses" in doc and doc["sub_responses"]:
+                for sub_key, sub_data in doc["sub_responses"].items():
+                    full_key = f"{q_key}_{sub_key}"
+                    if sub_data.get("value") is not None:
+                        previous_responses[full_key] = sub_data.get("value")
+            
+            # Also include legacy responses format
+            if "responses" in doc:
+                for rkey, rval in doc.get("responses", {}).items():
+                    if rkey not in previous_responses:
+                        previous_responses[rkey] = rval
+        
+        if not current_responses and not previous_responses:
             return None
         
         # Merge responses with FY suffixes for frontend compatibility
         merged_responses = self._merge_year_responses(
-            current_doc.get("responses", {}) if current_doc else {},
-            previous_doc.get("responses", {}) if previous_doc else {},
+            current_responses,
+            previous_responses,
             response_modes
         )
         
         # Return in expected format
-        base_doc = current_doc or previous_doc
         return {
-            "id": base_doc.get("id"),
+            "id": str(uuid.uuid4()),
             "org_id": org_id,
             "framework": framework,
             "reporting_year": reporting_year,
             "section": section,
             "responses": merged_responses,
-            "created_at": base_doc.get("created_at"),
-            "updated_at": base_doc.get("updated_at"),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
         }
 
     async def get_responses_raw(
@@ -2140,16 +2312,55 @@ class ESGQuestionnaireService:
         reporting_year: str,
         section: str,
     ) -> Optional[Dict[str, Any]]:
-        """Get raw responses for a single year document (no merging)."""
-        return await self._responses.find_one(
+        """
+        Get raw responses for a single year (no merging).
+        Returns reconstructed section document from question-level docs.
+        """
+        # Fetch question-level documents
+        docs = await self._responses.find(
             {
                 "org_id": org_id,
-                "framework": framework,
                 "reporting_year": reporting_year,
-                "section": section,
+                "$or": [
+                    {"framework": framework.upper()},
+                    {"framework": framework.lower()},
+                    {"framework": framework},
+                ],
             },
             {"_id": 0}
-        )
+        ).to_list(1000)
+        
+        if not docs:
+            return None
+        
+        # Reconstruct responses dict
+        responses = {}
+        for doc in docs:
+            q_key = doc.get("question_key")
+            if not q_key:
+                continue
+            
+            if doc.get("value") is not None:
+                responses[q_key] = doc.get("value")
+            
+            if "sub_responses" in doc and doc["sub_responses"]:
+                for sub_key, sub_data in doc["sub_responses"].items():
+                    full_key = f"{q_key}_{sub_key}"
+                    if sub_data.get("value") is not None:
+                        responses[full_key] = sub_data.get("value")
+            
+            if "responses" in doc:
+                for rkey, rval in doc.get("responses", {}).items():
+                    if rkey not in responses:
+                        responses[rkey] = rval
+        
+        return {
+            "org_id": org_id,
+            "framework": framework,
+            "reporting_year": reporting_year,
+            "section": section,
+            "responses": responses,
+        }
 
     def _merge_year_responses(
         self,
@@ -2544,6 +2755,33 @@ class ESGQuestionnaireService:
             else:
                 result[key] = value
         return result
+
+    def _split_question_key(self, question_key: str) -> tuple:
+        """
+        Split a question key into parent and sub-key for nested storage.
+        
+        Examples:
+          "gri_302_1_a" → ("gri_302_1", "a")
+          "gri_302_1_a_i" → ("gri_302_1_a", "i")
+          "gri_302_1" → (None, None) - no sub-key
+          "p1_essential_indicators" → (None, None) - BRSR with underscores
+        
+        Returns: (parent_key, sub_key) or (None, None) if not a sub-question
+        """
+        if not question_key or "_" not in question_key:
+            return None, None
+        
+        # Known sub-question suffixes (roman numerals and letters)
+        sub_suffixes = {'i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x',
+                       'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'j', 'k', 'l', 'm', 'n'}
+        
+        parts = question_key.rsplit("_", 1)
+        if len(parts) == 2:
+            potential_parent, potential_sub = parts
+            if potential_sub.lower() in sub_suffixes:
+                return potential_parent, potential_sub
+        
+        return None, None
 
     def _response_has_value(self, value: Any) -> bool:
         """Check if a response has meaningful value (not empty/null)."""
@@ -3127,47 +3365,65 @@ class ESGQuestionnaireService:
         if not section_question_keys:
             return {"statuses": {}, "versions": {}}
         
-        # Get esg_responses statuses from organization_esg_responses
-        org_response_doc = await self._responses.find_one(
+        # Get response statuses from organization_esg_responses (question-level documents)
+        response_docs = await self._responses.find(
             {
                 "org_id": org_id,
-                "framework": framework.upper(),
                 "reporting_year": reporting_year,
-                "section": section,
+                "$or": [
+                    {"framework": framework.upper()},
+                    {"framework": framework.lower()},
+                    {"framework": framework},
+                ],
             },
-            {"_id": 0, "response_statuses": 1}
-        )
+            {"_id": 0, "question_key": 1, "status": 1, "approval_status": 1, "sub_responses": 1,
+             "submitted_at": 1, "submitted_by": 1, "approved_at": 1, "approved_by": 1,
+             "rejected_at": 1, "rejected_by": 1, "rejection_reason": 1}
+        ).to_list(1000)
         
-        # Also check with lowercase framework
-        if not org_response_doc:
-            org_response_doc = await self._responses.find_one(
-                {
-                    "org_id": org_id,
-                    "framework": framework,
-                    "reporting_year": reporting_year,
-                    "section": section,
-                },
-                {"_id": 0, "response_statuses": 1}
-            )
-        
-        response_statuses = org_response_doc.get("response_statuses", {}) if org_response_doc else {}
-        
-        # Build status map from organization_esg_responses
+        # Build status map from question-level documents
         statuses = {}
-        for qk in section_question_keys:
-            if qk in response_statuses:
-                status_data = response_statuses[qk]
-                statuses[qk] = {
-                    "status": status_data.get("status"),
-                    "approval_status": status_data.get("approval_status"),
-                    "submitted_at": status_data.get("submitted_at"),
-                    "submitted_by": status_data.get("submitted_by"),
-                    "approved_at": status_data.get("approved_at"),
-                    "approved_by": status_data.get("approved_by"),
-                    "rejected_at": status_data.get("rejected_at"),
-                    "rejected_by": status_data.get("rejected_by"),
-                    "rejection_reason": status_data.get("rejection_reason"),
-                }
+        for doc in response_docs:
+            qk = doc.get("question_key")
+            if not qk:
+                continue
+            
+            # Check if this question or parent is in section_question_keys
+            in_section = qk in section_question_keys or any(qk.startswith(sk + "_") for sk in section_question_keys)
+            if not in_section:
+                # Check if any section key starts with this question (parent question)
+                in_section = any(sk.startswith(qk + "_") for sk in section_question_keys)
+            
+            if in_section:
+                # Add direct question status
+                if doc.get("status") or doc.get("approval_status"):
+                    statuses[qk] = {
+                        "status": doc.get("status"),
+                        "approval_status": doc.get("approval_status"),
+                        "submitted_at": doc.get("submitted_at"),
+                        "submitted_by": doc.get("submitted_by"),
+                        "approved_at": doc.get("approved_at"),
+                        "approved_by": doc.get("approved_by"),
+                        "rejected_at": doc.get("rejected_at"),
+                        "rejected_by": doc.get("rejected_by"),
+                        "rejection_reason": doc.get("rejection_reason"),
+                    }
+                
+                # Also add nested sub_responses
+                if "sub_responses" in doc and doc["sub_responses"]:
+                    for sub_key, sub_data in doc["sub_responses"].items():
+                        full_key = f"{qk}_{sub_key}"
+                        statuses[full_key] = {
+                            "status": sub_data.get("status"),
+                            "approval_status": sub_data.get("approval_status"),
+                            "submitted_at": sub_data.get("submitted_at"),
+                            "submitted_by": sub_data.get("submitted_by"),
+                            "approved_at": sub_data.get("approved_at"),
+                            "approved_by": sub_data.get("approved_by"),
+                            "rejected_at": sub_data.get("rejected_at"),
+                            "rejected_by": sub_data.get("rejected_by"),
+                            "rejection_reason": sub_data.get("rejection_reason"),
+                        }
         
         # Get version history from question_audit_log (this is where versions are stored)
         versions = {}

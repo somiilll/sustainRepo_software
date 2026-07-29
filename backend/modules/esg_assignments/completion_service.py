@@ -19,7 +19,7 @@ Architecture:
 """
 
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional, Tuple, Set
 from enum import Enum
 import logging
 
@@ -298,44 +298,137 @@ class DataChecker:
         period_key: str,
     ) -> Tuple[bool, Optional[datetime], Optional[str]]:
         """
-        Check esg_responses for questionnaire completion.
+        Check organization_esg_responses for questionnaire completion.
         
         Returns: (has_data, last_updated, approval_status)
         
         NOTE: Draft responses are excluded - only submitted/completed responses count.
         PRIORITY: When multiple responses exist, returns best status (approved > pending > rejected)
+        
+        Uses the unified organization_esg_responses collection which stores:
+        - Simple questions: Direct documents with question_key
+        - Sub-questions: Nested within parent document's sub_responses
         """
+        # First, try direct question lookup
         query = {
-            "organization_id": organization_id,
+            "org_id": organization_id,
             "question_key": question_key,
-            # EXCLUDE DRAFTS: Only count submitted/completed responses
             "status": {"$ne": "draft"},
         }
         
         # Parse period_key for matching
-        # esg_responses might store reporting_period as year string or as object
+        if period_key:
+            query["reporting_year"] = period_key
+        
+        # Try direct document lookup
+        doc = await db.organization_esg_responses.find_one(
+            query,
+            {"_id": 0, "updated_at": 1, "created_at": 1, "approval_status": 1, "value": 1, "status": 1}
+        )
+        
+        if doc:
+            # Check if has meaningful value
+            value = doc.get("value")
+            if DataChecker._has_value(value):
+                updated_at = DataChecker._parse_datetime(doc.get("updated_at") or doc.get("created_at"))
+                return True, updated_at, doc.get("approval_status")
+        
+        # If not found, check if this is a sub-question (e.g., gri_302_1_a)
+        if "_" in question_key:
+            parent_key, sub_key = DataChecker._split_question_key(question_key)
+            if parent_key and sub_key:
+                parent_query = {
+                    "org_id": organization_id,
+                    "question_key": parent_key,
+                }
+                if period_key:
+                    parent_query["reporting_year"] = period_key
+                
+                parent_doc = await db.organization_esg_responses.find_one(
+                    parent_query,
+                    {"_id": 0, "sub_responses": 1, "updated_at": 1}
+                )
+                
+                if parent_doc and "sub_responses" in parent_doc:
+                    sub_data = parent_doc.get("sub_responses", {}).get(sub_key)
+                    if sub_data and sub_data.get("status") != "draft":
+                        value = sub_data.get("value")
+                        if DataChecker._has_value(value):
+                            updated_at = DataChecker._parse_datetime(sub_data.get("updated_at") or parent_doc.get("updated_at"))
+                            return True, updated_at, sub_data.get("approval_status")
+        
+        # Fallback: Check legacy esg_responses collection for backward compatibility
+        legacy_query = {
+            "organization_id": organization_id,
+            "question_key": question_key,
+            "status": {"$ne": "draft"},
+        }
         if period_key:
             if len(period_key) == 4:
-                # Yearly: "2026"
-                query["$or"] = [
+                legacy_query["$or"] = [
                     {"reporting_period": period_key},
                     {"reporting_period": int(period_key)},
                     {"reporting_period.year": int(period_key)},
+                    {"reporting_year": period_key},
                 ]
             elif "-" in period_key:
-                # Monthly or quarterly
-                query["reporting_period"] = period_key
+                legacy_query["$or"] = [
+                    {"reporting_period": period_key},
+                    {"reporting_year": period_key},
+                ]
         
-        # Get ALL responses for this question and find the best approval_status
         records = await db.esg_responses.find(
-            query,
-            {"_id": 0, "updated_at": 1, "created_at": 1, "approval_status": 1}
+            legacy_query,
+            {"_id": 0, "updated_at": 1, "created_at": 1, "approval_status": 1, "value": 1}
         ).to_list(100)
         
-        if records:
-            last_updated, approval_status = DataChecker._get_best_approval_status(records)
+        # Filter for records with actual values
+        valid_records = [r for r in records if DataChecker._has_value(r.get("value"))]
+        
+        if valid_records:
+            last_updated, approval_status = DataChecker._get_best_approval_status(valid_records)
             return True, last_updated, approval_status
+        
         return False, None, None
+    
+    @staticmethod
+    def _split_question_key(question_key: str) -> Tuple[Optional[str], Optional[str]]:
+        """Split question key into parent and sub-key if applicable."""
+        if not question_key or "_" not in question_key:
+            return None, None
+        
+        sub_suffixes = {'i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x',
+                       'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'j', 'k', 'l', 'm', 'n'}
+        
+        parts = question_key.rsplit("_", 1)
+        if len(parts) == 2 and parts[1].lower() in sub_suffixes:
+            return parts[0], parts[1]
+        return None, None
+    
+    @staticmethod
+    def _has_value(value: Any) -> bool:
+        """Check if a value is meaningful (not empty/null)."""
+        if value is None:
+            return False
+        if isinstance(value, str):
+            return bool(value.strip())
+        if isinstance(value, (list, dict)):
+            return bool(value)
+        return True
+    
+    @staticmethod
+    def _parse_datetime(dt_value: Any) -> Optional[datetime]:
+        """Parse datetime from various formats."""
+        if not dt_value:
+            return None
+        if isinstance(dt_value, datetime):
+            return dt_value
+        if isinstance(dt_value, str):
+            try:
+                return datetime.fromisoformat(dt_value.replace("Z", "+00:00"))
+            except (ValueError, TypeError):
+                return None
+        return None
     
     @staticmethod
     async def _check_ghg(

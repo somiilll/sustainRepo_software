@@ -47,6 +47,28 @@ def _now_iso() -> str:
     return _now().isoformat()
 
 
+def _split_question_key(question_key: str) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Split a question key into parent and sub-key for nested storage.
+    
+    Examples:
+      "gri_302_1_a" → ("gri_302_1", "a")
+      "gri_302_1" → (None, None) - no sub-key
+    
+    Returns: (parent_key, sub_key) or (None, None) if not a sub-question
+    """
+    if not question_key or "_" not in question_key:
+        return None, None
+    
+    sub_suffixes = {'i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x',
+                   'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'j', 'k', 'l', 'm', 'n'}
+    
+    parts = question_key.rsplit("_", 1)
+    if len(parts) == 2 and parts[1].lower() in sub_suffixes:
+        return parts[0], parts[1]
+    return None, None
+
+
 async def _create_approval_version_snapshot(
     collection_name: str,
     record_id: str,
@@ -1177,67 +1199,90 @@ class ApprovalWorkflowService:
                         final_value = updated_data["value"]
                         logger.info(f"Applying approver edits to esg_response {question_key}")
                     
-                    # Update esg_responses collection
-                    response_update = {
-                        "approval_status": "approved",
-                        "status": "approved",
-                        "updated_at": _now_iso(),
-                        "approved_at": _now_iso(),
-                        "approved_by": approver.get("id"),
-                        "approved_by_name": approver.get("full_name", approver.get("email", "")),
-                    }
-                    
-                    # Include edited value if changed
-                    if updated_data and "value" in updated_data:
-                        response_update["value"] = final_value
-                    
-                    await db.esg_responses.update_one(
-                        {
-                            "organization_id": org_id,
-                            "question_key": question_key,
-                        },
-                        {"$set": response_update}
+                    # Get the section from question config
+                    config = await db.esg_question_configs.find_one(
+                        {"question_key": question_key},
+                        {"_id": 0, "section": 1, "framework": 1}
                     )
-                    logger.info(f"Updated esg_response {question_key} approval_status=approved")
+                    section = config.get("section", "section_a") if config else "section_a"
+                    framework = config.get("framework", "BRSR") if config else "BRSR"
                     
-                    # CRITICAL: Sync value to organization_esg_responses (what UI reads)
-                    if final_value is not None:
-                        # Get the section from question config
-                        config = await db.esg_question_configs.find_one(
-                            {"question_key": question_key},
-                            {"_id": 0, "section": 1, "framework": 1}
-                        )
-                        section = config.get("section", "section_a") if config else "section_a"
-                        framework = config.get("framework", "BRSR") if config else "BRSR"
+                    # Split question key to check for sub-questions
+                    parent_key, sub_key = _split_question_key(question_key)
+                    
+                    if parent_key and sub_key:
+                        # Sub-question - update parent's sub_responses
+                        sub_data = {
+                            "value": final_value,
+                            "status": "saved",
+                            "approval_status": "approved",
+                            "approved_at": _now_iso(),
+                            "approved_by": approver.get("id"),
+                            "approved_by_name": approver.get("full_name", approver.get("email", "")),
+                            "updated_at": _now_iso(),
+                        }
                         
                         await db.organization_esg_responses.update_one(
                             {
                                 "org_id": org_id,
-                                "framework": framework,
+                                "question_key": parent_key,
                                 "reporting_year": reporting_year,
-                                "section": section,
                             },
                             {
                                 "$set": {
-                                    f"responses.{question_key}": final_value,
+                                    f"sub_responses.{sub_key}": sub_data,
+                                    "framework": framework,
+                                    "section": section,
                                     "updated_at": _now_iso(),
                                 },
                                 "$setOnInsert": {
                                     "id": str(uuid.uuid4()),
                                     "org_id": org_id,
                                     "organization_id": org_id,
-                                    "framework": framework,
-                                    "section": section,
+                                    "question_key": parent_key,
+                                    "reporting_year": reporting_year,
                                     "created_at": _now_iso(),
                                 }
                             },
                             upsert=True
                         )
-                        logger.info(f"Synced approved value to organization_esg_responses for {question_key}")
+                    else:
+                        # Simple question - direct document update
+                        await db.organization_esg_responses.update_one(
+                            {
+                                "org_id": org_id,
+                                "question_key": question_key,
+                                "reporting_year": reporting_year,
+                            },
+                            {
+                                "$set": {
+                                    "value": final_value,
+                                    "status": "saved",
+                                    "approval_status": "approved",
+                                    "framework": framework,
+                                    "section": section,
+                                    "approved_at": _now_iso(),
+                                    "approved_by": approver.get("id"),
+                                    "approved_by_name": approver.get("full_name", approver.get("email", "")),
+                                    "updated_at": _now_iso(),
+                                },
+                                "$setOnInsert": {
+                                    "id": str(uuid.uuid4()),
+                                    "org_id": org_id,
+                                    "organization_id": org_id,
+                                    "question_key": question_key,
+                                    "reporting_year": reporting_year,
+                                    "created_at": _now_iso(),
+                                }
+                            },
+                            upsert=True
+                        )
+                    
+                    logger.info(f"Updated organization_esg_responses for {question_key} approval_status=approved")
                     
                     # Create version snapshot
                     await _create_approval_version_snapshot(
-                        collection_name="esg_responses",
+                        collection_name="organization_esg_responses",
                         record_id=question_key,
                         action="approved",
                         user_id=approver.get("id"),

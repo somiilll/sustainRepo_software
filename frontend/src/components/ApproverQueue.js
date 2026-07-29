@@ -496,8 +496,15 @@ export default function ApproverQueue() {
                 onApproved={handleApprovalComplete}
                 getAuthHeader={getAuthHeader}
               />
-            ) : selectedQuestion.entity_type === 'esg_response' || selectedQuestion.framework?.toUpperCase() === 'BRSR' ? (
+            ) : selectedQuestion.entity_type === 'esg_response' && selectedQuestion.framework?.toUpperCase() === 'BRSR' ? (
               <BRSRApprovalPanel
+                item={selectedQuestion}
+                onClose={() => setSelectedQuestion(null)}
+                onApproved={handleApprovalComplete}
+                getAuthHeader={getAuthHeader}
+              />
+            ) : selectedQuestion.entity_type === 'esg_response' && selectedQuestion.framework?.toUpperCase() === 'GRI' ? (
+              <GRIApprovalPanel
                 item={selectedQuestion}
                 onClose={() => setSelectedQuestion(null)}
                 onApproved={handleApprovalComplete}
@@ -533,8 +540,15 @@ export default function ApproverQueue() {
               </DialogTitle>
             </DialogHeader>
             
-            {selectedQuestion.entity_type === 'esg_response' || selectedQuestion.framework?.toUpperCase() === 'BRSR' ? (
+            {selectedQuestion.entity_type === 'esg_response' && selectedQuestion.framework?.toUpperCase() === 'BRSR' ? (
               <BRSRApprovalPanel
+                item={selectedQuestion}
+                onClose={() => setSelectedQuestion(null)}
+                onApproved={handleApprovalComplete}
+                getAuthHeader={getAuthHeader}
+              />
+            ) : selectedQuestion.entity_type === 'esg_response' && selectedQuestion.framework?.toUpperCase() === 'GRI' ? (
+              <GRIApprovalPanel
                 item={selectedQuestion}
                 onClose={() => setSelectedQuestion(null)}
                 onApproved={handleApprovalComplete}
@@ -1287,6 +1301,287 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
       <Card className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 border-amber-100">
         <div className="flex items-start gap-2 mb-2">
           <Badge variant="outline" className="shrink-0 bg-amber-100 text-amber-800">BRSR</Badge>
+        </div>
+        {loadingConfig ? (
+          <div className="flex items-center gap-2 text-stone-500">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span>Loading question...</span>
+          </div>
+        ) : (
+          <p className="text-stone-800 font-medium leading-relaxed">
+            {getQuestionText()}
+          </p>
+        )}
+      </Card>
+
+      {/* Submitter Info */}
+      <div className="flex items-center gap-6 text-sm px-1">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
+            <User className="w-3.5 h-3.5 text-blue-600" />
+          </div>
+          <div>
+            <span className="text-stone-500">Submitted by </span>
+            <span className="font-medium text-stone-800">
+              {item.submitted_by_name || item.submitted_by_email || 'Unknown'}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 text-stone-500">
+          <Clock className="w-3.5 h-3.5" />
+          <span>{formatDate(item.submitted_at)}</span>
+        </div>
+      </div>
+
+      {/* Response Display */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <label className="text-sm font-medium text-stone-700">Response</label>
+          <Button
+            variant={isEditing ? "default" : "outline"}
+            size="sm"
+            onClick={() => setIsEditing(!isEditing)}
+            className="h-7 text-xs gap-1"
+          >
+            <Activity className="w-3 h-3" />
+            {isEditing ? 'Editing' : 'Edit'}
+          </Button>
+        </div>
+        
+        <Card className="p-4 bg-white border-stone-200">
+          {renderResponse()}
+        </Card>
+        
+        {hasEdits && (
+          <p className="text-xs text-amber-600 flex items-center gap-1">
+            <AlertCircle className="w-3 h-3" />
+            Response has been modified
+          </p>
+        )}
+      </div>
+
+      {/* Comment */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-stone-700">
+          Comment {processing ? '' : '(required for rejection)'}
+        </label>
+        <textarea
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          placeholder="Add a comment..."
+          className="w-full px-3 py-2 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+          rows={3}
+          disabled={processing}
+        />
+      </div>
+
+      {/* Actions */}
+      <div className="flex justify-end gap-3 pt-4 border-t">
+        <Button variant="outline" onClick={onClose} disabled={processing}>
+          Cancel
+        </Button>
+        <Button
+          variant="destructive"
+          onClick={handleReject}
+          disabled={processing}
+        >
+          {processing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <XCircle className="w-4 h-4 mr-2" />}
+          Reject
+        </Button>
+        <Button
+          onClick={handleApprove}
+          disabled={processing}
+          className="bg-green-600 hover:bg-green-700"
+        >
+          {processing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+          {hasEdits ? 'Approve with Edits' : 'Approve'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * GRIApprovalPanel - Review panel for GRI response approvals
+ * GRI responses are typically simpler text/number values
+ */
+function GRIApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
+  const [processing, setProcessing] = useState(false);
+  const [comment, setComment] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [questionConfig, setQuestionConfig] = useState(null);
+  const [loadingConfig, setLoadingConfig] = useState(true);
+  const [editedValue, setEditedValue] = useState(item.entity_snapshot?.value || '');
+  
+  // Track if value was edited
+  const originalValue = JSON.stringify(item.entity_snapshot?.value || '');
+  const hasEdits = JSON.stringify(editedValue) !== originalValue;
+  
+  // Fetch question config on mount
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const questionKey = item.entity_id || item.question_key;
+        if (questionKey) {
+          const res = await axios.get(
+            `${API}/api/esg-questionnaire/config/${questionKey}`,
+            { headers: getAuthHeader() }
+          );
+          setQuestionConfig(res.data);
+        }
+      } catch (err) {
+        console.warn('Could not fetch question config:', err);
+      } finally {
+        setLoadingConfig(false);
+      }
+    };
+    fetchConfig();
+  }, [item.entity_id, item.question_key, getAuthHeader]);
+  
+  // Get question display name
+  const getQuestionText = () => {
+    if (questionConfig) {
+      return questionConfig.description || questionConfig.label || questionConfig.question || item.entity_id;
+    }
+    return item.disclosure_name || item.entity_id || item.question_key;
+  };
+
+  const handleApprove = async () => {
+    setProcessing(true);
+    try {
+      const payload = { comment: comment || undefined };
+      
+      if (hasEdits) {
+        payload.updated_data = { value: editedValue };
+      }
+      
+      await axios.post(
+        `${API}/api/approval-workflows/requests/${item._approval_request_id}/approve`,
+        payload,
+        { headers: getAuthHeader() }
+      );
+      toast.success(hasEdits ? 'GRI response approved with edits' : 'GRI response approved');
+      onApproved?.();
+      onClose?.();
+    } catch (error) {
+      console.error('Failed to approve GRI response:', error);
+      toast.error(error.response?.data?.detail || 'Failed to approve');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!comment.trim()) {
+      toast.error('Please provide a rejection reason');
+      return;
+    }
+    setProcessing(true);
+    try {
+      await axios.post(
+        `${API}/api/approval-workflows/requests/${item._approval_request_id}/reject`,
+        { comment },
+        { headers: getAuthHeader() }
+      );
+      toast.success('GRI response rejected');
+      onApproved?.();
+      onClose?.();
+    } catch (error) {
+      console.error('Failed to reject GRI response:', error);
+      toast.error(error.response?.data?.detail || 'Failed to reject');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return 'N/A';
+    return new Date(dateStr).toLocaleString(undefined, {
+      month: 'short', day: 'numeric', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+  };
+
+  // Render GRI response - typically simple text, number, or select values
+  const renderResponse = () => {
+    const value = isEditing ? editedValue : item.entity_snapshot?.value;
+    const config = questionConfig || {};
+    const inputType = config.input_type || config.type || 'textarea';
+    
+    if (isEditing) {
+      // Editable mode
+      if (inputType === 'number') {
+        return (
+          <input
+            type="number"
+            value={value || ''}
+            onChange={(e) => setEditedValue(e.target.value)}
+            className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Enter value..."
+          />
+        );
+      }
+      
+      if (inputType === 'select' && config.options) {
+        return (
+          <select
+            value={value || ''}
+            onChange={(e) => setEditedValue(e.target.value)}
+            className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Select an option</option>
+            {config.options.map((opt) => (
+              <option key={opt.value || opt} value={opt.value || opt}>
+                {opt.label || opt}
+              </option>
+            ))}
+          </select>
+        );
+      }
+      
+      // Default to textarea
+      return (
+        <textarea
+          value={typeof value === 'string' ? value : JSON.stringify(value, null, 2)}
+          onChange={(e) => setEditedValue(e.target.value)}
+          className="w-full min-h-[100px] px-3 py-2 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Enter response..."
+        />
+      );
+    }
+    
+    // Display mode
+    if (value === null || value === undefined || value === '') {
+      return <p className="text-stone-400 italic">No response provided</p>;
+    }
+    
+    if (typeof value === 'string' || typeof value === 'number') {
+      return <p className="text-stone-700 whitespace-pre-wrap">{value}</p>;
+    }
+    
+    // Handle arrays or objects (shouldn't happen for GRI but just in case)
+    if (typeof value === 'object') {
+      return (
+        <pre className="text-sm text-stone-700 bg-stone-50 p-3 rounded overflow-auto">
+          {JSON.stringify(value, null, 2)}
+        </pre>
+      );
+    }
+    
+    return <p className="text-stone-700">{String(value)}</p>;
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* Question Text */}
+      <Card className="p-4 bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-100">
+        <div className="flex items-start gap-2 mb-2">
+          <Badge variant="outline" className="shrink-0 bg-emerald-100 text-emerald-800">GRI</Badge>
+          {questionConfig?.disclosure_number && (
+            <Badge variant="outline" className="shrink-0 bg-stone-100 text-stone-600">
+              {questionConfig.disclosure_number}
+            </Badge>
+          )}
         </div>
         {loadingConfig ? (
           <div className="flex items-center gap-2 text-stone-500">

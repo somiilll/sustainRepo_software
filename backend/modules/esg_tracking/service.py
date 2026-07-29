@@ -600,54 +600,80 @@ class TrackingService:
         
         configs = await self._configs.find(config_query, {"_id": 0}).to_list(500)
         
-        # Get responses from organization_esg_responses (drafts/submissions)
-        responses = await self._responses.find(
+        # Get responses from organization_esg_responses (unified collection)
+        # This collection now stores question-level documents with nested sub_responses
+        raw_responses = await self._responses.find(
+            {
+                "org_id": organization_id,
+                "reporting_year": reporting_period,
+            },
+            {"_id": 0}
+        ).to_list(5000)
+        
+        # Also check legacy format with organization_id key
+        legacy_responses = await self._responses.find(
             {
                 "organization_id": organization_id,
                 "reporting_year": reporting_period,
             },
             {"_id": 0}
         ).to_list(5000)
-        response_map = {r["question_key"]: r for r in responses}
         
-        # Also get final/approved responses from esg_responses (includes approval_status)
-        # GRI responses may use 'status' field (e.g., "approved", "pending") instead of 'approval_status'
-        final_responses = await db.esg_responses.find(
-            {
-                "organization_id": organization_id,
-                "reporting_year": reporting_period,
-            },
-            {"_id": 0, "question_key": 1, "approval_status": 1, "status": 1, "rejection_reason": 1, 
-             "value": 1, "updated_at": 1, "submitted_at": 1, "submitted_by": 1, "approved_at": 1}
-        ).to_list(5000)
+        # Combine both formats
+        all_responses = raw_responses + legacy_responses
         
-        # Merge approval status from esg_responses into response_map
-        for fr in final_responses:
-            qk = fr.get("question_key")
-            if qk:
-                # Normalize approval_status: GRI uses 'status' field (approved/pending), BRSR uses 'approval_status'
-                effective_approval_status = fr.get("approval_status")
+        # Build response map, handling both flat and nested structures
+        response_map = {}
+        for r in all_responses:
+            q_key = r.get("question_key")
+            if not q_key:
+                continue
+            
+            # Handle nested sub_responses structure (Option B)
+            if "sub_responses" in r and r["sub_responses"]:
+                for sub_key, sub_data in r["sub_responses"].items():
+                    full_key = f"{q_key}_{sub_key}"
+                    response_map[full_key] = {
+                        "question_key": full_key,
+                        "value": sub_data.get("value"),
+                        "status": sub_data.get("status"),
+                        "approval_status": sub_data.get("approval_status"),
+                        "updated_at": sub_data.get("updated_at"),
+                        "submitted_at": sub_data.get("submitted_at"),
+                        "submitted_by": sub_data.get("submitted_by"),
+                        "approved_at": sub_data.get("approved_at"),
+                        "rejection_reason": sub_data.get("rejection_reason"),
+                    }
+            
+            # Also include direct question responses
+            if r.get("value") is not None or r.get("responses"):
+                # Normalize approval_status
+                effective_approval_status = r.get("approval_status")
                 if not effective_approval_status:
-                    # Fallback to 'status' field for GRI responses
-                    status_val = fr.get("status")
-                    if status_val == "approved" or fr.get("approved_at"):
+                    status_val = r.get("status")
+                    if status_val == "approved" or r.get("approved_at"):
                         effective_approval_status = "approved"
                     elif status_val == "pending_approval":
                         effective_approval_status = "pending_approval"
                     elif status_val == "rejected":
                         effective_approval_status = "rejected"
-                    # Note: "pending" or "saved" status means no approval workflow triggered yet
                 
-                if qk in response_map:
-                    # Merge approval fields into existing response
-                    response_map[qk]["approval_status"] = effective_approval_status
-                    response_map[qk]["rejection_reason"] = fr.get("rejection_reason")
-                    response_map[qk]["submitted_at"] = fr.get("submitted_at")
-                    response_map[qk]["submitted_by"] = fr.get("submitted_by")
-                else:
-                    # Use the esg_responses entry with normalized approval_status
-                    fr["approval_status"] = effective_approval_status
-                    response_map[qk] = fr
+                response_map[q_key] = {
+                    **r,
+                    "approval_status": effective_approval_status,
+                }
+                
+                # Also flatten any responses dict (legacy section-level format)
+                if "responses" in r:
+                    for resp_key, resp_val in r["responses"].items():
+                        if resp_key not in response_map:
+                            response_map[resp_key] = {
+                                "question_key": resp_key,
+                                "value": resp_val,
+                                "status": r.get("status"),
+                                "approval_status": effective_approval_status,
+                                "updated_at": r.get("updated_at"),
+                            }
         
         # Get assignments and aggregate by entity_id for multi-assignee support
         raw_assignments = await self._assignments.find(
