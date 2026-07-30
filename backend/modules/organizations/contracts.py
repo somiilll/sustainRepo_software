@@ -10,6 +10,7 @@ VALID_ESG_FRAMEWORKS = ["BRSR", "GRI"]
 
 class OrganizationCreate(BaseModel):
     name: str
+    org_type: Optional[str] = "customer"  # customer, supplier, customer_supplier
     logo: Optional[str] = None
     corporate_address: Optional[str] = None
     city: Optional[str] = None
@@ -100,6 +101,7 @@ class OrganizationResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
     name: str
+    org_type: Optional[str] = "customer"  # customer, supplier, customer_supplier
     logo: Optional[str] = None
     corporate_address: str
     city: Optional[str] = None

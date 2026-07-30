@@ -208,6 +208,58 @@ The following files still have `toLocaleString()` calls that should be updated i
 - Phase 2 Executive Dashboard enhancements
 - Complete remaining toLocaleString() migration
 
+## Completed Work (Current Session — Jul 30 2026 continued)
+
+### Supplier Assessment Module (P0) - NEW FEATURE
+Complete implementation of a new top-level module for supplier ESG and GHG assessment.
+
+**Architecture:**
+- Extended `organizations` collection with `org_type` field (customer/supplier/customer_supplier)
+- Extended `users` collection with `user_type` field (admin/employee/supplier/super_admin)
+- New collections: `supplier_relationships`, `supplier_questionnaires`, `supplier_questions`, `supplier_questionnaire_responses`
+- Supplier emissions stored in existing `emission_records` with `source: supplier` metadata
+
+**Backend Implementation:**
+- `/app/backend/modules/supplier_assessment/` - Complete module with:
+  - `contracts.py` - Pydantic schemas for all entities
+  - `service.py` - Business logic for supplier management, questionnaires, scoring
+  - `router.py` - 25+ API endpoints for full CRUD operations
+  - `email_templates.py` - Invitation and reminder email templates
+
+**Frontend Implementation:**
+- `/app/frontend/src/modules/supplier-assessment/` - Complete module with:
+  - `SupplierList.jsx` - Supplier management with Add/Edit/View/Remind/Deactivate
+  - `QuestionnaireBuilder.jsx` - Full questionnaire builder with questions management
+  - `SupplierRanking.jsx` - Rankings based on ESG + GHG scores
+  - `SupplierGHGView.jsx` - Customer admin view of all supplier emissions
+  - `SupplierDashboard.jsx` - Supplier-side dashboard
+  - `SupplierQuestionnaire.jsx` - Supplier questionnaire completion interface
+  - `SupplierEmissions.jsx` - Simplified Scope 1 & 2 emission entry
+
+**Key Features:**
+1. **Supplier Management (Customer Admin)**:
+   - Create suppliers with company name, contact, email, due date
+   - Auto-create supplier org + user + send invitation email
+   - View progress, completion %, scores
+   - Send reminder emails with pending items
+
+2. **ESG Questionnaire Builder (Customer Admin)**:
+   - Create/edit/duplicate/delete questionnaires
+   - Add questions with 4 response types: Yes/No, Numeric, Text, Dropdown
+   - Configure question weight, category (E/S/G), required flag
+   - Support both question-level and section-based scoring
+
+3. **Supplier Rankings**:
+   - Combined ESG + GHG performance scores
+   - Ranked table with completion status
+
+4. **Supplier Portal**:
+   - Revenue percentage question
+   - Questionnaire completion with draft/submit
+   - Simplified GHG emission entry (Scope 1 & 2 only)
+
+**Status**: ✅ Fully Implemented and Tested
+
 ## Future Tasks (P2)
 - Materiality Assessment Phase 2+
 - Dashboard Scope 1 & 3 Emissions Deduplication

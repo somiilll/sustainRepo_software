@@ -52,6 +52,7 @@ class UserResponse(BaseModel):
     email: str
     full_name: str
     role: str
+    user_type: Optional[str] = None  # admin, employee, supplier, super_admin
     organization_id: Optional[str] = None
     assigned_facilities: List[str] = []
     requires_password_change: bool = False

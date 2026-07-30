@@ -69,6 +69,13 @@ import WorkflowApproverQueue from './pages/WorkflowApproverQueue';
 import WorkflowTracker from './pages/WorkflowTracker';
 import WorkflowMyTask from './pages/WorkflowMyTask';
 import PeerBenchmarking from './pages/PeerBenchmarking';
+import SupplierAssessmentSuppliers from './pages/SupplierAssessmentSuppliers';
+import SupplierAssessmentESG from './pages/SupplierAssessmentESG';
+import SupplierAssessmentGHG from './pages/SupplierAssessmentGHG';
+import SupplierAssessmentRanking from './pages/SupplierAssessmentRanking';
+import SupplierPortalDashboard from './pages/SupplierPortalDashboard';
+import SupplierPortalQuestionnaire from './pages/SupplierPortalQuestionnaire';
+import SupplierPortalEmissions from './pages/SupplierPortalEmissions';
 import { initializeCategoryModules } from './modules/emissions';
 
 // Initialize the emissions Category Registry once at app boot.
@@ -312,6 +319,34 @@ const AppRoutes = () => {
           <Route path="targets/voluntary/ghg" element={<Navigate to="/targets/voluntary/environment" replace />} />
           <Route path="reports" element={<Reports />} />
           <Route path="peer-benchmarking" element={<PeerBenchmarking />} />
+          
+          {/* Supplier Assessment Routes (Customer Admin) */}
+          <Route path="supplier-assessment/suppliers" element={
+            <AdminRoute>
+              <SupplierAssessmentSuppliers />
+            </AdminRoute>
+          } />
+          <Route path="supplier-assessment/esg" element={
+            <AdminRoute>
+              <SupplierAssessmentESG />
+            </AdminRoute>
+          } />
+          <Route path="supplier-assessment/ghg" element={
+            <AdminRoute>
+              <SupplierAssessmentGHG />
+            </AdminRoute>
+          } />
+          <Route path="supplier-assessment/ranking" element={
+            <AdminRoute>
+              <SupplierAssessmentRanking />
+            </AdminRoute>
+          } />
+          
+          {/* Supplier Portal Routes (Supplier Users) */}
+          <Route path="supplier-assessment/supplier" element={<SupplierPortalDashboard />} />
+          <Route path="supplier-assessment/questionnaire/:questionnaireId" element={<SupplierPortalQuestionnaire />} />
+          <Route path="supplier-assessment/emissions" element={<SupplierPortalEmissions />} />
+          
           <Route path="users" element={
             <AdminRoute>
               <UserManagement />

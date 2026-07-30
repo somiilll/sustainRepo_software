@@ -142,6 +142,21 @@ const sidebarConfig = [
     path: '/peer-benchmarking',
   },
   {
+    key: 'supplier_assessment',
+    label: 'Supplier Assessment',
+    icon: 'Truck',
+    children: [
+      { key: 'supplier_assessment.suppliers', label: 'Suppliers', icon: 'Building2', path: '/supplier-assessment/suppliers', adminOnly: true },
+      { key: 'supplier_assessment.esg', label: 'ESG Questionnaire', icon: 'ClipboardList', path: '/supplier-assessment/esg', adminOnly: true },
+      { key: 'supplier_assessment.ghg', label: 'GHG Emissions', icon: 'Cloud', path: '/supplier-assessment/ghg', adminOnly: true },
+      { key: 'supplier_assessment.ranking', label: 'Ranking', icon: 'Trophy', path: '/supplier-assessment/ranking', adminOnly: true },
+      // Supplier-side routes (shown only for supplier users)
+      { key: 'supplier_assessment.supplier', label: 'Supplier', icon: 'User', path: '/supplier-assessment/supplier', supplierOnly: true },
+      { key: 'supplier_assessment.my_esg', label: 'ESG', icon: 'ClipboardList', path: '/supplier-assessment/supplier', supplierOnly: true },
+      { key: 'supplier_assessment.my_ghg', label: 'GHG', icon: 'Cloud', path: '/supplier-assessment/emissions', supplierOnly: true },
+    ],
+  },
+  {
     key: 'users',
     label: 'Users',
     icon: 'Users',

@@ -35,8 +35,15 @@ function MenuItem(props) {
   var location = props.location;
   var hasAccess = props.hasAccess;
   var userRole = props.userRole;
+  var userType = props.userType;
+  var orgType = props.orgType;
 
+  // Check adminOnly
   if (item.adminOnly && userRole !== 'admin' && userRole !== 'super_admin') return null;
+  // Check supplierOnly - only show to supplier users
+  if (item.supplierOnly && userType !== 'supplier' && orgType !== 'supplier') return null;
+  // Hide admin supplier items from supplier users
+  if (!item.supplierOnly && item.key?.startsWith('supplier_assessment.') && (userType === 'supplier' || orgType === 'supplier')) return null;
   if (!hasAccess(item.key)) return null;
 
   var hasChildren = item.children && item.children.length > 0;
@@ -64,7 +71,8 @@ function MenuItem(props) {
         item.children.map(function(child) {
           return React.createElement(MenuItem, {
             key: child.key, item: child, depth: depth + 1, expanded: expanded,
-            onToggle: onToggle, location: location, hasAccess: hasAccess, userRole: userRole
+            onToggle: onToggle, location: location, hasAccess: hasAccess, userRole: userRole,
+            userType: userType, orgType: orgType
           });
         })
       ) : null
@@ -139,7 +147,7 @@ export default function Sidebar() {
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-3" data-testid="sidebar-nav">
         {activeConfig.map(item => (
-          <MenuItem key={item.key} item={item} depth={0} expanded={expanded} onToggle={toggleMenu} location={location} hasAccess={hasAccess} userRole={user.role} />
+          <MenuItem key={item.key} item={item} depth={0} expanded={expanded} onToggle={toggleMenu} location={location} hasAccess={hasAccess} userRole={user.role} userType={user.user_type} orgType={user.org_type} />
         ))}
       </nav>
 

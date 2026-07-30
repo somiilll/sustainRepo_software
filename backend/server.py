@@ -203,6 +203,10 @@ api_router.include_router(benchmarking_router, tags=["Peer Benchmarking"])
 # Materiality Assessment Module
 api_router.include_router(materiality_router, tags=["Materiality Assessment"])
 
+# Supplier Assessment Module
+from modules.supplier_assessment.router import router as supplier_assessment_router
+api_router.include_router(supplier_assessment_router, tags=["Supplier Assessment"])
+
 # Run module contract verifier at import time. Phase B1: log-only, will be
 # escalated to fail-fast in dev once all modules expose their contracts.
 verify_module_contracts()
