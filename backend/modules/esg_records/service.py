@@ -1614,24 +1614,27 @@ class ESGRecordsService:
         record_id: str,
         org_id: str,
         user_id: Optional[str] = None,
-        force_delete: bool = False,  # Admin-only: bypass approval workflow
+        user_role: str = "user",
+        force_delete: bool = False,  # Legacy param - kept for backward compatibility
     ) -> Dict[str, Any]:
         """
         Delete a record - with approval workflow support.
         
         DELETE APPROVAL WORKFLOW:
-        1. If record has approval workflow enabled, create DELETE approval request
-        2. Record is NOT deleted until approval is granted
-        3. Record is marked with `pending_deletion=True` while awaiting approval
-        4. If approved: Record is hard deleted
-        5. If rejected: pending_deletion flag is removed, record remains
+        1. Admins always bypass approval (direct delete) - matching GHG behavior
+        2. For non-admins with approval workflow enabled, create DELETE approval request
+        3. Record is NOT deleted until approval is granted
+        4. Record is marked with `pending_deletion=True` while awaiting approval
+        5. If approved: Record is hard deleted
+        6. If rejected: pending_deletion flag is removed, record remains
         
         Args:
             section: ESG section (environment, social, governance)
             record_id: Record ID to delete
             org_id: Organization ID
             user_id: User requesting deletion
-            force_delete: Admin bypass for immediate deletion
+            user_role: User's role (admin, super_admin, user)
+            force_delete: Legacy bypass parameter
         
         Returns:
             Dict with status: 'deleted', 'pending_approval', or 'not_found'
@@ -1647,15 +1650,17 @@ class ESGRecordsService:
         if not record:
             return {"status": "not_found", "message": "Record not found"}
         
-        # Check if this record requires approval workflow
-        # Look up the assignment to see if approval is required
+        # Admins bypass approval workflow (matching GHG delete behavior)
+        if user_role in ("admin", "super_admin") or force_delete:
+            return await self._perform_hard_delete(collection, record, org_id)
+        
+        # Check if this record requires approval workflow for non-admins
         requires_approval = False
         assignment = None
         
-        if not force_delete:
-            assignment = await self._find_assignment_for_record(record, org_id)
-            if assignment and assignment.get("requires_approval"):
-                requires_approval = True
+        assignment = await self._find_assignment_for_record(record, org_id)
+        if assignment and assignment.get("requires_approval"):
+            requires_approval = True
         
         # If approval required and record is already approved, create DELETE approval request
         if requires_approval and record.get("approval_status") == "approved":

@@ -581,12 +581,14 @@ async def delete_record(
         raise HTTPException(status_code=400, detail="No organization assigned")
     
     user_id = current_user.get("id")
+    user_role = current_user.get("role", "user")
     
     deleted = await esg_records_service.delete_record(
         section=section,
         record_id=record_id,
         org_id=org_id,
         user_id=user_id,
+        user_role=user_role,
     )
     
     if not deleted:
