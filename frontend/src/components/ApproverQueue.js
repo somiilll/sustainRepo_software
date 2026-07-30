@@ -7,6 +7,7 @@ import { useOrganization } from '../contexts/OrganizationContext';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import {
   Select,
   SelectContent,
@@ -36,7 +37,9 @@ import {
   Download,
   Activity,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  History,
+  Eye
 } from 'lucide-react';
 import { toast } from 'sonner';
 import SubmissionReviewPanel from './SubmissionReviewPanel';
@@ -62,6 +65,12 @@ export default function ApproverQueue() {
   const [submissions, setSubmissions] = useState([]);
   const [selectedQuestion, setSelectedQuestion] = useState(null);
   const [organization, setOrganization] = useState(null);
+  
+  // History state
+  const [activeTab, setActiveTab] = useState('pending');
+  const [historyItems, setHistoryItems] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [selectedHistoryItem, setSelectedHistoryItem] = useState(null);
   
   // Filters
   const [reportingPeriod, setReportingPeriod] = useState(null);
@@ -238,9 +247,80 @@ export default function ApproverQueue() {
     }
   }, [getAuthHeader, reportingPeriod, sectionFilter]);
 
+  // Fetch approval history (approved/rejected items)
+  const fetchHistory = useCallback(async () => {
+    if (!reportingPeriod) return;
+    
+    try {
+      setHistoryLoading(true);
+      
+      // Fetch completed approval requests (approved + rejected)
+      const [approvedRes, rejectedRes] = await Promise.all([
+        axios.get(`${API}/api/approval-workflows/requests`, {
+          headers: getAuthHeader(),
+          params: { status: 'approved' }
+        }).catch(() => ({ data: { requests: [] } })),
+        axios.get(`${API}/api/approval-workflows/requests`, {
+          headers: getAuthHeader(),
+          params: { status: 'rejected' }
+        }).catch(() => ({ data: { requests: [] } }))
+      ]);
+      
+      const approved = (approvedRes.data.requests || []).map(r => ({ ...r, _historyStatus: 'approved' }));
+      const rejected = (rejectedRes.data.requests || []).map(r => ({ ...r, _historyStatus: 'rejected' }));
+      
+      // Combine and sort by updated_at (most recent first)
+      const allHistory = [...approved, ...rejected]
+        .filter(r => r.entity_type && ['esg_record', 'emission_record', 'esg_response', 'esg_response_submission'].includes(r.entity_type))
+        .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
+      
+      // Enrich BRSR items with config data
+      const brsrItems = allHistory.filter(r => r.entity_type === 'esg_response');
+      if (brsrItems.length > 0) {
+        try {
+          const questionKeys = brsrItems.map(r => r.entity_id).filter(Boolean);
+          const uniqueKeys = [...new Set(questionKeys)];
+          const configRes = await axios.post(
+            `${API}/api/esg-questionnaire/configs/batch`,
+            { question_keys: uniqueKeys },
+            { headers: getAuthHeader() }
+          );
+          const configMap = {};
+          (configRes.data.configs || []).forEach(cfg => {
+            configMap[cfg.question_key] = cfg;
+          });
+          
+          // Enrich items with disclosure names
+          allHistory.forEach(item => {
+            if (item.entity_type === 'esg_response' && configMap[item.entity_id]) {
+              const cfg = configMap[item.entity_id];
+              item._disclosure_name = cfg.description || cfg.label || cfg.question || item.entity_id;
+            }
+          });
+        } catch (configErr) {
+          console.warn('Could not fetch BRSR question configs for history:', configErr);
+        }
+      }
+      
+      setHistoryItems(allHistory);
+    } catch (error) {
+      console.error('Failed to fetch approval history:', error);
+      toast.error('Failed to load approval history');
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [getAuthHeader, reportingPeriod]);
+
   useEffect(() => {
     fetchSubmissions();
   }, [fetchSubmissions]);
+  
+  // Fetch history when tab changes to history
+  useEffect(() => {
+    if (activeTab === 'history' && historyItems.length === 0) {
+      fetchHistory();
+    }
+  }, [activeTab, fetchHistory, historyItems.length]);
 
   // Handle approval complete
   const handleApprovalComplete = () => {
@@ -284,10 +364,18 @@ export default function ApproverQueue() {
   };
 
   // Calculate total pending count
-  const totalPending = submissions.reduce(
-    (acc, q) => acc + (q.submissions?.length || 0), 
-    0
-  );
+  // Handle both formats: questionnaire items have nested submissions array, approval workflow items are flat
+  const totalPending = submissions.reduce((acc, q) => {
+    if (q.submissions && Array.isArray(q.submissions)) {
+      // Questionnaire format: has nested submissions array
+      return acc + q.submissions.length;
+    } else if (q._source === 'approval_workflow' || q._approval_request_id) {
+      // Approval workflow format: each item is a single submission
+      return acc + 1;
+    }
+    // Fallback: count as 1 if it's a valid item
+    return acc + 1;
+  }, 0);
 
   if (loading || !reportingPeriod) {
     return (
@@ -369,107 +457,214 @@ export default function ApproverQueue() {
         </div>
       </Card>
 
-      {/* Submissions list */}
-      {submissions.length === 0 ? (
-        <Card className="p-12 text-center">
-          <CheckCircle2 className="w-16 h-16 text-green-300 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-text-primary mb-2">
-            All Caught Up!
-          </h3>
-          <p className="text-text-muted">
-            No pending submissions require your approval.
-          </p>
-        </Card>
-      ) : (
-        <div className="space-y-3">
-          {submissions.map((item) => {
-            const isRecordApproval = item._source === 'approval_workflow';
-            const isEmissionRecord = item.entity_type === 'emission_record';
-            const isQuestionnaireApproval = item._source === 'questionnaire_approval_v2';
-            return (
-              <Card 
-                key={item.id || item.question_key}
-                className="p-4 hover:bg-stone-50 transition-colors cursor-pointer"
-                onClick={() => setSelectedQuestion(item)}
-                data-testid={`queue-item-${item.question_key || item.id}`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-start gap-4">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isEmissionRecord ? 'bg-teal-100' : isRecordApproval ? 'bg-emerald-100' : 'bg-purple-100'}`}>
-                      {isEmissionRecord ? (
-                        <BarChart3 className="w-5 h-5 text-teal-600" />
-                      ) : (
-                        <FileText className={`w-5 h-5 ${isRecordApproval ? 'text-emerald-600' : 'text-purple-600'}`} />
-                      )}
-                    </div>
-                    
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-text-primary">
-                          {item.disclosure_name || item.question_name || item.question_key}
-                        </span>
-                        {isEmissionRecord ? (
-                          <Badge className="bg-teal-100 text-teal-800">GHG Emission</Badge>
-                        ) : item.entity_type === 'esg_response' || item.entity_type === 'esg_response_submission' ? (
-                          getSectionBadge(item)
-                        ) : isRecordApproval ? (
-                          <Badge className="bg-emerald-100 text-emerald-800">Data Record</Badge>
-                        ) : (
-                          getSectionBadge(item)
-                        )}
-                        {item.request_type && item.request_type !== 'create' && (
-                          <Badge variant="outline" className="text-xs">
-                            {item.request_type.toUpperCase()}
-                          </Badge>
-                        )}
+      {/* Tabs for Pending and History */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="pending" className="flex items-center gap-2" data-testid="pending-tab">
+            <Inbox className="w-4 h-4" />
+            Pending ({totalPending})
+          </TabsTrigger>
+          <TabsTrigger value="history" className="flex items-center gap-2" data-testid="history-tab">
+            <History className="w-4 h-4" />
+            History ({historyItems.length})
+          </TabsTrigger>
+        </TabsList>
+        
+        {/* Pending Tab */}
+        <TabsContent value="pending" className="mt-4">
+          {submissions.length === 0 ? (
+            <Card className="p-12 text-center">
+              <CheckCircle2 className="w-16 h-16 text-green-300 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-text-primary mb-2">
+                All Caught Up!
+              </h3>
+              <p className="text-text-muted">
+                No pending submissions require your approval.
+              </p>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {submissions.map((item) => {
+                const isRecordApproval = item._source === 'approval_workflow';
+                const isEmissionRecord = item.entity_type === 'emission_record';
+                const isQuestionnaireApproval = item._source === 'questionnaire_approval_v2';
+                return (
+                  <Card 
+                    key={item.id || item.question_key}
+                    className="p-4 hover:bg-stone-50 transition-colors cursor-pointer"
+                    onClick={() => setSelectedQuestion(item)}
+                    data-testid={`queue-item-${item.question_key || item.id}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-start gap-4">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isEmissionRecord ? 'bg-teal-100' : isRecordApproval ? 'bg-emerald-100' : 'bg-purple-100'}`}>
+                          {isEmissionRecord ? (
+                            <BarChart3 className="w-5 h-5 text-teal-600" />
+                          ) : (
+                            <FileText className={`w-5 h-5 ${isRecordApproval ? 'text-emerald-600' : 'text-purple-600'}`} />
+                          )}
+                        </div>
+                        
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-text-primary">
+                              {item.disclosure_name || item.question_name || item.question_key}
+                            </span>
+                            {isEmissionRecord ? (
+                              <Badge className="bg-teal-100 text-teal-800">GHG Emission</Badge>
+                            ) : item.entity_type === 'esg_response' || item.entity_type === 'esg_response_submission' ? (
+                              getSectionBadge(item)
+                            ) : isRecordApproval ? (
+                              <Badge className="bg-emerald-100 text-emerald-800">Data Record</Badge>
+                            ) : (
+                              getSectionBadge(item)
+                            )}
+                            {item.request_type && item.request_type !== 'create' && (
+                              <Badge variant="outline" className="text-xs">
+                                {item.request_type.toUpperCase()}
+                              </Badge>
+                            )}
+                          </div>
+                          
+                          <div className="flex items-center gap-4 text-sm text-text-muted">
+                            {isQuestionnaireApproval ? (
+                              <>
+                                <span className="flex items-center gap-1">
+                                  <User className="w-3 h-3" />
+                                  {item.submitted_by_name || item.submitted_by_email || 'Unknown'}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Clock className="w-3 h-3" />
+                                  {formatDateTime(item.submitted_at)}
+                                </span>
+                              </>
+                            ) : isRecordApproval ? (
+                              <>
+                                <span className="flex items-center gap-1">
+                                  <User className="w-3 h-3" />
+                                  {item.submitted_by_name || 'Unknown'}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Clock className="w-3 h-3" />
+                                  {formatDateTime(item.submitted_at)}
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                <span className="flex items-center gap-1">
+                                  <Users className="w-3 h-3" />
+                                  {item.submissions?.length || 0} submission{(item.submissions?.length || 0) !== 1 ? 's' : ''}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Clock className="w-3 h-3" />
+                                  Latest: {formatDateTime(item.submissions?.[0]?.submitted_at)}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
                       </div>
                       
-                      <div className="flex items-center gap-4 text-sm text-text-muted">
-                        {isQuestionnaireApproval ? (
-                          <>
-                            <span className="flex items-center gap-1">
-                              <User className="w-3 h-3" />
-                              {item.submitted_by_name || item.submitted_by_email || 'Unknown'}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              {formatDateTime(item.submitted_at)}
-                            </span>
-                          </>
-                        ) : isRecordApproval ? (
-                          <>
-                            <span className="flex items-center gap-1">
-                              <User className="w-3 h-3" />
-                              {item.submitted_by_name || 'Unknown'}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              {formatDateTime(item.submitted_at)}
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <span className="flex items-center gap-1">
-                              <Users className="w-3 h-3" />
-                              {item.submissions?.length || 0} submission{(item.submissions?.length || 0) !== 1 ? 's' : ''}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              Latest: {formatDateTime(item.submissions?.[0]?.submitted_at)}
-                            </span>
-                          </>
-                        )}
-                      </div>
+                      <ChevronRight className="w-5 h-5 text-stone-400" />
                     </div>
-                  </div>
-                  
-                  <ChevronRight className="w-5 h-5 text-stone-400" />
-                </div>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </TabsContent>
+        
+        {/* History Tab */}
+        <TabsContent value="history" className="mt-4">
+          {historyLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+              <span className="ml-2 text-text-muted">Loading history...</span>
+            </div>
+          ) : historyItems.length === 0 ? (
+            <Card className="p-12 text-center">
+              <History className="w-16 h-16 text-stone-300 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-text-primary mb-2">
+                No History Yet
+              </h3>
+              <p className="text-text-muted">
+                Previously approved or rejected submissions will appear here.
+              </p>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {historyItems.map((item) => {
+                const isApproved = item._historyStatus === 'approved';
+                const isEmissionRecord = item.entity_type === 'emission_record';
+                const displayName = item._disclosure_name || 
+                  (isEmissionRecord 
+                    ? `GHG ${item.entity_snapshot?.scope?.toUpperCase() || ''} - ${item.entity_snapshot?.category || 'Emissions'}`
+                    : item.entity_id || 'Unknown');
+                
+                return (
+                  <Card 
+                    key={item.id}
+                    className="p-4 hover:bg-stone-50 transition-colors cursor-pointer"
+                    onClick={() => setSelectedHistoryItem(item)}
+                    data-testid={`history-card-${item.id}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-start gap-4">
+                        <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${
+                          isApproved ? 'bg-green-100' : 'bg-red-100'
+                        }`}>
+                          {isApproved ? (
+                            <CheckCircle2 className="w-5 h-5 text-green-600" />
+                          ) : (
+                            <XCircle className="w-5 h-5 text-red-600" />
+                          )}
+                        </div>
+                        
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge className={isApproved ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                              {isApproved ? 'Approved' : 'Rejected'}
+                            </Badge>
+                            {item.framework && (
+                              <Badge className="bg-stone-100 text-stone-800">{item.framework}</Badge>
+                            )}
+                            {item.request_type === 'delete' && (
+                              <Badge className="bg-red-100 text-red-800">Delete</Badge>
+                            )}
+                          </div>
+                          <h4 className="font-medium text-text-primary">
+                            {displayName}
+                          </h4>
+                          <div className="flex items-center gap-4 mt-1 text-xs text-text-muted">
+                            <span className="flex items-center gap-1">
+                              <User className="w-3 h-3" />
+                              Submitted by: {item.submitted_by_name || 'Unknown'}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {formatDateTime(item.updated_at || item.created_at)}
+                            </span>
+                          </div>
+                          {!isApproved && item.rejection_reason && (
+                            <div className="mt-2 text-xs text-red-600 bg-red-50 p-2 rounded">
+                              <strong>Rejection Reason:</strong> {item.rejection_reason}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <Button variant="ghost" size="sm" className="text-stone-500">
+                        <Eye className="w-4 h-4 mr-1" />
+                        View
+                      </Button>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
 
      
       {/* Review Dialog - Handle different item types */}
@@ -570,6 +765,213 @@ export default function ApproverQueue() {
           </DialogContent>
         </Dialog>
       ) : null}
+      
+      {/* History View Dialog - Read Only */}
+      {selectedHistoryItem && (
+        <Dialog open={true} onOpenChange={() => setSelectedHistoryItem(null)}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <History className="w-5 h-5 text-stone-600" />
+                {selectedHistoryItem._historyStatus === 'approved' ? 'Approved Submission' : 'Rejected Submission'}
+              </DialogTitle>
+            </DialogHeader>
+            
+            <HistoryViewPanel
+              item={selectedHistoryItem}
+              onClose={() => setSelectedHistoryItem(null)}
+              formatDateTime={formatDateTime}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
+  );
+}
+
+/**
+ * HistoryViewPanel - Read-only view for historical approved/rejected items
+ * Shows submission data without any edit or action capabilities
+ */
+function HistoryViewPanel({ item, onClose, formatDateTime }) {
+  const isApproved = item._historyStatus === 'approved';
+  const snapshot = item.entity_snapshot || {};
+  const isEmissionRecord = item.entity_type === 'emission_record';
+  const isBRSR = item.framework?.toUpperCase() === 'BRSR';
+  
+  // Format the display name
+  const displayName = item._disclosure_name || 
+    (isEmissionRecord 
+      ? `GHG ${snapshot.scope?.toUpperCase() || ''} - ${snapshot.category || 'Emissions'}`
+      : item.entity_id || 'Unknown');
+  
+  return (
+    <div className="space-y-6">
+      {/* Status Banner */}
+      <div className={`p-4 rounded-lg ${isApproved ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+        <div className="flex items-center gap-3">
+          {isApproved ? (
+            <CheckCircle2 className="w-6 h-6 text-green-600" />
+          ) : (
+            <XCircle className="w-6 h-6 text-red-600" />
+          )}
+          <div>
+            <p className={`font-semibold ${isApproved ? 'text-green-800' : 'text-red-800'}`}>
+              {isApproved ? 'Approved' : 'Rejected'}
+            </p>
+            <p className="text-sm text-stone-600">
+              {formatDateTime(item.updated_at || item.created_at)}
+            </p>
+          </div>
+        </div>
+        
+        {!isApproved && item.rejection_reason && (
+          <div className="mt-3 p-3 bg-white rounded border border-red-100">
+            <p className="text-sm font-medium text-red-700 mb-1">Rejection Reason:</p>
+            <p className="text-sm text-red-600">{item.rejection_reason}</p>
+          </div>
+        )}
+      </div>
+      
+      {/* Submission Details */}
+      <Card className="p-4">
+        <h3 className="font-semibold text-text-primary mb-3 flex items-center gap-2">
+          <FileText className="w-4 h-4" />
+          Submission Details
+        </h3>
+        
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <span className="text-text-muted">Disclosure:</span>
+            <p className="font-medium">{displayName}</p>
+          </div>
+          <div>
+            <span className="text-text-muted">Framework:</span>
+            <p className="font-medium">{item.framework || 'N/A'}</p>
+          </div>
+          <div>
+            <span className="text-text-muted">Submitted By:</span>
+            <p className="font-medium">{item.submitted_by_name || 'Unknown'}</p>
+          </div>
+          <div>
+            <span className="text-text-muted">Submitted At:</span>
+            <p className="font-medium">{formatDateTime(item.submitted_at)}</p>
+          </div>
+          {item.request_type && (
+            <div>
+              <span className="text-text-muted">Request Type:</span>
+              <p className="font-medium capitalize">{item.request_type}</p>
+            </div>
+          )}
+          {snapshot.reporting_year && (
+            <div>
+              <span className="text-text-muted">Reporting Period:</span>
+              <p className="font-medium">{snapshot.reporting_year}</p>
+            </div>
+          )}
+        </div>
+      </Card>
+      
+      {/* Submitted Data */}
+      <Card className="p-4">
+        <h3 className="font-semibold text-text-primary mb-3 flex items-center gap-2">
+          <ScrollText className="w-4 h-4" />
+          Submitted Data
+        </h3>
+        
+        {isEmissionRecord ? (
+          <div className="space-y-3">
+            {snapshot.scope && (
+              <div className="flex justify-between py-2 border-b">
+                <span className="text-text-muted">Scope</span>
+                <span className="font-medium">{snapshot.scope}</span>
+              </div>
+            )}
+            {snapshot.category && (
+              <div className="flex justify-between py-2 border-b">
+                <span className="text-text-muted">Category</span>
+                <span className="font-medium">{snapshot.category}</span>
+              </div>
+            )}
+            {snapshot.sub_category && (
+              <div className="flex justify-between py-2 border-b">
+                <span className="text-text-muted">Sub-category</span>
+                <span className="font-medium">{snapshot.sub_category}</span>
+              </div>
+            )}
+            {snapshot.co2e_emissions !== undefined && (
+              <div className="flex justify-between py-2 border-b">
+                <span className="text-text-muted">CO2e Emissions</span>
+                <span className="font-medium">{snapshot.co2e_emissions?.toLocaleString()} tCO2e</span>
+              </div>
+            )}
+            {snapshot.dynamic_field_values && Object.entries(snapshot.dynamic_field_values).map(([key, val]) => (
+              <div key={key} className="flex justify-between py-2 border-b">
+                <span className="text-text-muted capitalize">{key.replace(/_/g, ' ')}</span>
+                <span className="font-medium">
+                  {typeof val === 'object' ? `${val.value} ${val.unit || ''}` : String(val)}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : isBRSR ? (
+          <div className="space-y-3">
+            {snapshot.value && typeof snapshot.value === 'object' ? (
+              <>
+                {snapshot.value.mode && (
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-text-muted">Mode</span>
+                    <span className="font-medium capitalize">{snapshot.value.mode.replace(/_/g, ' ')}</span>
+                  </div>
+                )}
+                {snapshot.value.all_enabled !== undefined && (
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-text-muted">Enabled</span>
+                    <span className="font-medium">{snapshot.value.all_enabled ? 'Yes' : 'No'}</span>
+                  </div>
+                )}
+                {snapshot.value.all_description && (
+                  <div className="py-2 border-b">
+                    <span className="text-text-muted block mb-1">Description</span>
+                    <p className="font-medium text-sm bg-stone-50 p-2 rounded">{snapshot.value.all_description}</p>
+                  </div>
+                )}
+                {snapshot.value.principles && Object.keys(snapshot.value.principles).length > 0 && (
+                  <div className="py-2">
+                    <span className="text-text-muted block mb-2">Principles</span>
+                    <div className="space-y-2">
+                      {Object.entries(snapshot.value.principles).map(([key, val]) => (
+                        <div key={key} className="bg-stone-50 p-2 rounded text-sm">
+                          <span className="font-medium">{key}:</span> {typeof val === 'object' ? JSON.stringify(val) : String(val)}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="py-2">
+                <span className="text-text-muted block mb-1">Value</span>
+                <p className="font-medium bg-stone-50 p-3 rounded">{String(snapshot.value)}</p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="py-2">
+            <span className="text-text-muted block mb-1">Value</span>
+            <pre className="font-medium bg-stone-50 p-3 rounded text-sm whitespace-pre-wrap">
+              {typeof snapshot.value === 'object' ? JSON.stringify(snapshot.value, null, 2) : String(snapshot.value || 'N/A')}
+            </pre>
+          </div>
+        )}
+      </Card>
+      
+      {/* Close Button */}
+      <div className="flex justify-end">
+        <Button variant="outline" onClick={onClose}>
+          Close
+        </Button>
+      </div>
     </div>
   );
 }
