@@ -131,6 +131,25 @@ class KPICalculator:
         Returns:
             Calculation result with value, unit, record_count, metadata
         """
+        # Check if this is a synthetic GHG target KPI (ghg_scope1_total, ghg_scope1_2_total, etc.)
+        ghg_target_mapping = {
+            "ghg_scope1_total": "scope1_total",
+            "ghg_scope2_total": "scope2_total",
+            "ghg_scope3_total": "scope3_total",
+            "ghg_total_all": "total_all_scopes",
+            "ghg_scope1_2_total": "scope1_2_total",
+        }
+        
+        if kpi_id in ghg_target_mapping:
+            mapping_key = ghg_target_mapping[kpi_id]
+            return await calculate_ghg_kpi(
+                mapping_key=mapping_key,
+                org_id=org_id,
+                scope_type=scope_type,
+                facility_ids=facility_ids,
+                period=period,
+            )
+        
         # Fetch KPI definition
         kpi = await self.get_kpi_definition(kpi_id)
         

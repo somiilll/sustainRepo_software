@@ -33,14 +33,26 @@ def _build_emission_query(
     mapping: Dict[str, Any],
     facility_ids: List[str],
     scope_filter: Optional[str] = None,
+    use_org_id: bool = False,
+    org_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Build a MongoDB query targeting emission_records by facility_ids."""
-    query: Dict[str, Any] = {"facility_id": {"$in": facility_ids}}
-
-    # Scope filter
+    """Build a MongoDB query targeting emission_records."""
+    query: Dict[str, Any] = {}
+    
+    # Query by facility_ids or organization_id
+    if use_org_id and org_id:
+        query["organization_id"] = org_id
+    elif facility_ids:
+        query["facility_id"] = {"$in": facility_ids}
+    
+    # Scope filter - handle both string and list of scopes
     target_scope = scope_filter or mapping.get("scope")
     if target_scope:
-        query["scope"] = target_scope
+        if isinstance(target_scope, list):
+            # Multiple scopes (for aggregate targets like scope1_2_total)
+            query["scope"] = {"$in": target_scope}
+        else:
+            query["scope"] = target_scope
 
     # Category filter (exact prefix match to avoid C1 matching C10)
     target_category = mapping.get("category")
@@ -107,20 +119,20 @@ async def calculate_ghg_kpi(
 
     # Resolve facility IDs: GHG data is stored per-facility,
     # so for org-scope we fetch ALL org facilities and sum across them.
+    # If no facilities found, fallback to querying by organization_id directly.
+    resolved_facility_ids = None
+    use_org_id_query = False
+    
     if scope_type == "facility" and facility_ids:
         resolved_facility_ids = facility_ids
     else:
         resolved_facility_ids = await _get_org_facility_ids(org_id)
         if not resolved_facility_ids:
-            return format_result(
-                value=None,
-                unit="tCO2e",
-                record_count=0,
-                metadata={"error": "No facilities found for organization"},
-            )
+            # Fallback: query by organization_id instead of facility_id
+            use_org_id_query = True
 
     # Build query
-    query = _build_emission_query(mapping, resolved_facility_ids)
+    query = _build_emission_query(mapping, resolved_facility_ids or [], use_org_id=use_org_id_query, org_id=org_id)
 
     # Add period filter
     if period:
