@@ -685,7 +685,8 @@ class ApprovalWorkflowService:
         status: Optional[str] = None,
     ) -> List[dict]:
         """Get past (completed/rejected/cancelled) approval requests.
-        If user_id provided, only requests where user was an approver."""
+        If user_id provided, only requests where user was an approver.
+        Enriches rejected items with rejection_reason from steps_completed or resolution_comment."""
         completed_statuses = [
             ApprovalStatus.APPROVED.value,
             ApprovalStatus.REJECTED.value,
@@ -699,8 +700,51 @@ class ApprovalWorkflowService:
             query["$or"] = [
                 {"current_approvers": user_id},
                 {"history.actor_id": user_id},
+                {"steps_completed.actor_id": user_id},
             ]
-        return await db[REQUESTS_COLLECTION].find(query, {"_id": 0}).sort("submitted_at", -1).to_list(500)
+        requests = await db[REQUESTS_COLLECTION].find(query, {"_id": 0}).sort("submitted_at", -1).to_list(500)
+        
+        # Enrich with rejection_reason from steps_completed, history, or resolution_comment
+        for req in requests:
+            if req.get("status") == ApprovalStatus.REJECTED.value:
+                rejection_reason = None
+                rejected_by_name = None
+                rejected_at = None
+                
+                # Try resolution_comment first
+                if req.get("resolution_comment"):
+                    rejection_reason = req.get("resolution_comment")
+                    rejected_by_name = req.get("resolved_by_name")
+                    rejected_at = req.get("resolved_at")
+                
+                # Try steps_completed if no resolution_comment
+                if not rejection_reason:
+                    steps = req.get("steps_completed", [])
+                    for step in reversed(steps):  # Check from most recent
+                        if step.get("action") == "reject":
+                            rejection_reason = step.get("comment") or step.get("notes")
+                            rejected_by_name = step.get("actor_name")
+                            rejected_at = step.get("timestamp")
+                            break
+                
+                # Try history if still no reason
+                if not rejection_reason:
+                    history = req.get("history", [])
+                    for entry in reversed(history):
+                        if entry.get("action") == "rejected":
+                            rejection_reason = entry.get("comment") or entry.get("notes")
+                            rejected_by_name = entry.get("actor_name")
+                            rejected_at = entry.get("timestamp")
+                            break
+                
+                if rejection_reason:
+                    req["rejection_reason"] = rejection_reason
+                if rejected_by_name:
+                    req["rejected_by_name"] = rejected_by_name
+                if rejected_at:
+                    req["rejected_at"] = rejected_at
+        
+        return requests
 
     
     # =========================================================================

@@ -254,23 +254,13 @@ export default function ApproverQueue() {
     try {
       setHistoryLoading(true);
       
-      // Fetch completed approval requests (approved + rejected)
-      const [approvedRes, rejectedRes] = await Promise.all([
-        axios.get(`${API}/api/approval-workflows/requests`, {
-          headers: getAuthHeader(),
-          params: { status: 'approved' }
-        }).catch(() => ({ data: { requests: [] } })),
-        axios.get(`${API}/api/approval-workflows/requests`, {
-          headers: getAuthHeader(),
-          params: { status: 'rejected' }
-        }).catch(() => ({ data: { requests: [] } }))
-      ]);
+      // Use the dedicated history endpoint that includes rejection_reason
+      const res = await axios.get(`${API}/api/approval-workflows/requests/history`, {
+        headers: getAuthHeader()
+      }).catch(() => ({ data: { requests: [] } }));
       
-      const approved = (approvedRes.data.requests || []).map(r => ({ ...r, _historyStatus: 'approved' }));
-      const rejected = (rejectedRes.data.requests || []).map(r => ({ ...r, _historyStatus: 'rejected' }));
-      
-      // Combine and sort by updated_at (most recent first)
-      const allHistory = [...approved, ...rejected]
+      const allHistory = (res.data.requests || [])
+        .map(r => ({ ...r, _historyStatus: r.status }))
         .filter(r => r.entity_type && ['esg_record', 'emission_record', 'esg_response', 'esg_response_submission'].includes(r.entity_type))
         .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
       
