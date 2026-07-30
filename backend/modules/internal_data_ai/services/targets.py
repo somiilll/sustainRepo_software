@@ -17,9 +17,6 @@ async def get_progress(org_id: str, facility_ids: list = None, **kwargs) -> dict
         sbti_query["target_name"] = {"$regex": target_name, "$options": "i"}
     sbti_targets = await db.sbti_targets.find(sbti_query, {"_id": 0}).to_list(10)
 
-    # Emission targets
-    em_targets = await db.emission_targets.find({"organization_id": org_id}, {"_id": 0}).to_list(10)
-
     results = []
     for t in esg_targets:
         results.append({
@@ -46,14 +43,6 @@ async def get_progress(org_id: str, facility_ids: list = None, **kwargs) -> dict
             "target_year": t.get("target_year"),
             "tracking_mode": t.get("tracking_mode"),
             "kpi_name": t.get("kpi_name"),
-        })
-
-    for t in em_targets:
-        results.append({
-            "type": "Emission Target",
-            "name": t.get("name"),
-            "mode": t.get("target_mode"),
-            "config": t.get("target_configuration"),
         })
 
     return {"total_targets": len(results), "targets": results}
