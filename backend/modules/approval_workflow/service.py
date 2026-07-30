@@ -780,26 +780,58 @@ class ApprovalWorkflowService:
         previous_status = current_status
         
         if action == ApprovalAction.APPROVE.value:
-            return await ApprovalWorkflowService._process_approve(
+            result = await ApprovalWorkflowService._process_approve(
                 request, workflow, current_user, decision.comment, previous_status, decision.updated_data
             )
-        
         elif action == ApprovalAction.REJECT.value:
-            return await ApprovalWorkflowService._process_reject(
+            result = await ApprovalWorkflowService._process_reject(
                 request, current_user, decision.comment, previous_status
             )
-        
         elif action == ApprovalAction.REQUEST_CHANGES.value:
-            return await ApprovalWorkflowService._process_request_changes(
+            result = await ApprovalWorkflowService._process_request_changes(
                 request, current_user, decision.comment, previous_status
             )
-        
         elif action == ApprovalAction.DELEGATE.value:
-            return await ApprovalWorkflowService._process_delegate(
+            result = await ApprovalWorkflowService._process_delegate(
                 request, current_user, decision.delegate_to, decision.comment, previous_status
             )
+        else:
+            return (False, f"Unknown action: {action}", None)
         
-        return (False, f"Unknown action: {action}", None)
+        # Send bell notification to submitter on approve/reject
+        success = result[0]
+        if success and action in (ApprovalAction.APPROVE.value, ApprovalAction.REJECT.value):
+            try:
+                from shared.notifications import create_notification
+                submitter_id = request.get("submitted_by")
+                org_id = request.get("organization_id")
+                entity_id = request.get("entity_id", "")
+                decider_name = current_user.get("full_name") or current_user.get("email", "").split("@")[0]
+                
+                if submitter_id and submitter_id != current_user.get("id"):
+                    if action == ApprovalAction.APPROVE.value:
+                        await create_notification(
+                            user_id=submitter_id, org_id=org_id,
+                            title="Submission Approved",
+                            message=f"{decider_name} approved your submission: {entity_id}",
+                            notification_type="approval",
+                            link="/environment",
+                            metadata={"entity_id": entity_id, "request_id": request_id},
+                        )
+                    else:
+                        reason = f" — {decision.comment}" if decision.comment else ""
+                        await create_notification(
+                            user_id=submitter_id, org_id=org_id,
+                            title="Submission Rejected",
+                            message=f"{decider_name} rejected your submission: {entity_id}{reason}",
+                            notification_type="approval",
+                            link="/environment",
+                            metadata={"entity_id": entity_id, "request_id": request_id},
+                        )
+            except Exception as e:
+                logger.error(f"Failed to send decision notification: {e}")
+        
+        return result
     
     @staticmethod
     async def _process_approve(

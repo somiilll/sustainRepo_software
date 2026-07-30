@@ -895,6 +895,23 @@ class ESGQuestionnaireService:
             {"$set": {"approval_request_id": approval_request_id}}
         )
         
+        # Notify approvers via bell notification
+        try:
+            from shared.notifications import create_notification
+            display_key = question_key.replace("_", " ").title()
+            for approver_id in current_approvers:
+                await create_notification(
+                    user_id=approver_id, org_id=org_id,
+                    title="Approval Required",
+                    message=f"{user_name} submitted {display_key} for approval",
+                    notification_type="approval",
+                    link="/approval-queue",
+                    metadata={"entity_id": question_key, "framework": framework},
+                )
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Failed to send submission notification: {e}")
+        
         # Log to audit trail
         audit_entry = {
             "id": str(uuid.uuid4()),
@@ -1593,6 +1610,26 @@ class ESGQuestionnaireService:
         final_approval_status = None
         if value_changed and status == "saved":
             final_approval_status = "pending_approval"
+            # Notify approvers that a previously-approved answer was re-edited
+            try:
+                from shared.notifications import create_notification
+                display_key = question_key.replace("_", " ").title()
+                admin_users = await db.users.find(
+                    {"organization_id": org_id, "role": {"$in": ["admin", "super_admin"]}, "is_deleted": {"$ne": True}},
+                    {"_id": 0, "id": 1}
+                ).to_list(50)
+                for u in admin_users:
+                    if u["id"] != changed_by_user_id:
+                        await create_notification(
+                            user_id=u["id"], org_id=org_id,
+                            title="Approved Answer Edited",
+                            message=f"{changed_by_user_name} edited previously approved: {display_key}",
+                            notification_type="approval",
+                            link="/approval-queue",
+                            metadata={"entity_id": question_key},
+                        )
+            except Exception:
+                pass
         
         await self._save_to_unified_collection(
             org_id=org_id,
