@@ -15,6 +15,7 @@ class OrganizationCreate(BaseModel):
     city: Optional[str] = None
     state: Optional[str] = None
     country: Optional[str] = None
+    timezone: Optional[str] = None  # IANA timezone (e.g., 'Asia/Kolkata', 'America/New_York')
     pincode: Optional[str] = None
     general_description: Optional[str] = None
     mission: Optional[str] = None
@@ -104,6 +105,7 @@ class OrganizationResponse(BaseModel):
     city: Optional[str] = None
     state: Optional[str] = None
     country: Optional[str] = None
+    timezone: Optional[str] = None  # IANA timezone (e.g., 'Asia/Kolkata', 'America/New_York')
     pincode: Optional[str] = None
     general_description: Optional[str] = None
     mission: Optional[str] = None

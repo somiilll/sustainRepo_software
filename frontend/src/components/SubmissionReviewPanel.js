@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { useDateFormatter } from '../hooks/useDateFormatter';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
@@ -44,6 +45,7 @@ export default function SubmissionReviewPanel({
   onApproved 
 }) {
   const { getAuthHeader } = useAuth();
+  const { formatDateTime } = useDateFormatter();
   const [loading, setLoading] = useState(true);
   const [submission, setSubmission] = useState(null);
   const [questionConfig, setQuestionConfig] = useState(null);
@@ -101,18 +103,6 @@ export default function SubmissionReviewPanel({
       fetchData();
     }
   }, [questionKey, reportingPeriod, getAuthHeader]);
-
-  // Format date
-  const formatDate = (dateStr) => {
-    if (!dateStr) return 'N/A';
-    return new Date(dateStr).toLocaleString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
 
   // Format value for display - handles objects, arrays, and primitives safely
   const formatValueForDisplay = (val) => {
@@ -365,7 +355,7 @@ export default function SubmissionReviewPanel({
         </div>
         <div className="flex items-center gap-1.5 text-stone-500">
           <Clock className="w-3.5 h-3.5" />
-          <span>{formatDate(submission.submitted_at)}</span>
+          <span>{formatDateTime(submission.submitted_at)}</span>
         </div>
       </div>
 

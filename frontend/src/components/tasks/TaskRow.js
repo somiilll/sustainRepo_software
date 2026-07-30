@@ -10,8 +10,10 @@ import { ArrowRight, Eye, Building2 } from 'lucide-react';
 import { TaskStatusBadges } from './StatusBadge';
 import RoleBadge from './RoleBadge';
 import { formatDueDate, canUserEdit } from './utils';
+import { useDateFormatter } from '../../hooks/useDateFormatter';
 
 export default function TaskRow({ task, onFill, onView }) {
+  const { formatDateTime } = useDateFormatter();
   const dueInfo = formatDueDate(task);
   const userCanEdit = canUserEdit(task);
   const isCompleted = task.status === 'completed';
@@ -39,14 +41,7 @@ export default function TaskRow({ task, onFill, onView }) {
         
         {/* Due Date */}
         <div className={`text-sm ${dueInfo.isOverdue && !isCompleted ? 'text-red-600' : dueInfo.isUrgent ? 'text-orange-600' : 'text-text-muted'}`}>
-          Due: {task.due_at 
-            ? new Date(task.due_at).toLocaleString('en-US', { 
-                month: 'short', 
-                day: 'numeric', 
-                hour: 'numeric', 
-                minute: '2-digit' 
-              }) 
-            : '-'}
+          Due: {task.due_at ? formatDateTime(task.due_at) : '-'}
         </div>
         
         {/* Overdue Badge - only show if NOT completed */}

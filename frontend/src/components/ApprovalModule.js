@@ -15,6 +15,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { useDateFormatter } from '../hooks/useDateFormatter';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -63,6 +64,7 @@ export default function ApprovalModule({
   compact = false
 }) {
   const { getAuthHeader, token } = useAuth();
+  const { formatDateTime } = useDateFormatter();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [submissions, setSubmissions] = useState([]);
@@ -283,18 +285,6 @@ export default function ApprovalModule({
     );
   };
 
-  // Format date
-  const formatDate = (dateStr) => {
-    if (!dateStr) return 'N/A';
-    const date = new Date(dateStr);
-    return date.toLocaleString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
   // Calculate stats
   const totalPending = submissions.reduce(
     (acc, q) => acc + (q.submissions?.length || 0), 
@@ -485,7 +475,7 @@ export default function ApprovalModule({
                             </span>
                             <span className="flex items-center gap-1">
                               <Clock className="w-3 h-3" />
-                              {formatDate(questionGroup.submitted_at)}
+                              {formatDateTime(questionGroup.submitted_at)}
                             </span>
                           </>
                         ) : isMetricApproval ? (
@@ -496,7 +486,7 @@ export default function ApprovalModule({
                             </span>
                             <span className="flex items-center gap-1">
                               <Clock className="w-3 h-3" />
-                              {formatDate(questionGroup.submitted_at)}
+                              {formatDateTime(questionGroup.submitted_at)}
                             </span>
                           </>
                         ) : (
@@ -507,7 +497,7 @@ export default function ApprovalModule({
                             </span>
                             <span className="flex items-center gap-1">
                               <Clock className="w-3 h-3" />
-                              Latest: {formatDate(questionGroup.submissions?.[0]?.submitted_at)}
+                              Latest: {formatDateTime(questionGroup.submissions?.[0]?.submitted_at)}
                             </span>
                           </>
                         )}

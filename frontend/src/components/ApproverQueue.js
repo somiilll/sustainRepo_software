@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { useDateFormatter } from '../hooks/useDateFormatter';
+import { formatDateTime as formatDateTimeUtil } from '../utils/dateTimeUtils';
+import { useOrganization } from '../contexts/OrganizationContext';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -53,6 +56,7 @@ const API = process.env.REACT_APP_BACKEND_URL;
  */
 export default function ApproverQueue() {
   const { getAuthHeader, token } = useAuth();
+  const { formatDateTime } = useDateFormatter();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [submissions, setSubmissions] = useState([]);
@@ -279,18 +283,6 @@ export default function ApproverQueue() {
     return <Badge className="bg-gray-100 text-gray-800">General</Badge>;
   };
 
-  // Format date
-  const formatDate = (dateStr) => {
-    if (!dateStr) return 'N/A';
-    const date = new Date(dateStr);
-    return date.toLocaleString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
   // Calculate total pending count
   const totalPending = submissions.reduce(
     (acc, q) => acc + (q.submissions?.length || 0), 
@@ -441,7 +433,7 @@ export default function ApproverQueue() {
                             </span>
                             <span className="flex items-center gap-1">
                               <Clock className="w-3 h-3" />
-                              {formatDate(item.submitted_at)}
+                              {formatDateTime(item.submitted_at)}
                             </span>
                           </>
                         ) : isRecordApproval ? (
@@ -452,7 +444,7 @@ export default function ApproverQueue() {
                             </span>
                             <span className="flex items-center gap-1">
                               <Clock className="w-3 h-3" />
-                              {formatDate(item.submitted_at)}
+                              {formatDateTime(item.submitted_at)}
                             </span>
                           </>
                         ) : (
@@ -463,7 +455,7 @@ export default function ApproverQueue() {
                             </span>
                             <span className="flex items-center gap-1">
                               <Clock className="w-3 h-3" />
-                              Latest: {formatDate(item.submissions?.[0]?.submitted_at)}
+                              Latest: {formatDateTime(item.submissions?.[0]?.submitted_at)}
                             </span>
                           </>
                         )}
@@ -588,10 +580,14 @@ export default function ApproverQueue() {
  * Shows ALL fields defined for the category, not just filled ones
  */
 function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
+  const { timezone } = useOrganization();
   const [processing, setProcessing] = useState(false);
   const [comment, setComment] = useState('');
   const [editedFields, setEditedFields] = useState({});
   const [hasEdits, setHasEdits] = useState(false);
+  
+  // Format date using organization timezone
+  const formatDateTime = (dateStr) => formatDateTimeUtil(dateStr, timezone);
   
   const snapshot = item.entity_snapshot || {};
   const originalFieldValues = snapshot.field_values || {};
@@ -995,7 +991,7 @@ function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
           <div>
             <span className="text-text-muted">Submitted At:</span>
             <p className="font-medium">
-              {item.submitted_at ? new Date(item.submitted_at).toLocaleString() : 'N/A'}
+              {item.submitted_at ? formatDateTime(item.submitted_at) : 'N/A'}
             </p>
           </div>
           {snapshot.reporting_period && (
@@ -1159,11 +1155,15 @@ function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
  * Uses the existing QuestionRenderer from ESGQuestionnaire for consistent rendering
  */
 function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
+  const { timezone } = useOrganization();
   const [processing, setProcessing] = useState(false);
   const [comment, setComment] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [questionConfig, setQuestionConfig] = useState(null);
   const [loadingConfig, setLoadingConfig] = useState(true);
+  
+  // Format date using organization timezone
+  const formatDate = (dateStr) => formatDateTimeUtil(dateStr, timezone);
   
   // Get value from multiple possible paths (entity_snapshot for new system, value for old system)
   const submittedValue = item.entity_snapshot?.value || item.value || item.submissions?.[0]?.value || {};
@@ -1253,14 +1253,6 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
     } finally {
       setProcessing(false);
     }
-  };
-
-  const formatDate = (dateStr) => {
-    if (!dateStr) return 'N/A';
-    return new Date(dateStr).toLocaleString(undefined, {
-      month: 'short', day: 'numeric', year: 'numeric',
-      hour: '2-digit', minute: '2-digit'
-    });
   };
 
   // Import QuestionRenderer dynamically or use inline rendering
@@ -1428,11 +1420,15 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
  * GRI responses are typically simpler text/number values
  */
 function GRIApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
+  const { timezone } = useOrganization();
   const [processing, setProcessing] = useState(false);
   const [comment, setComment] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [questionConfig, setQuestionConfig] = useState(null);
   const [loadingConfig, setLoadingConfig] = useState(true);
+  
+  // Format date using organization timezone
+  const formatDate = (dateStr) => formatDateTimeUtil(dateStr, timezone);
   
   // Get value from multiple possible paths (entity_snapshot for new system, value for old system)
   const submittedValue = item.entity_snapshot?.value || item.value || item.submissions?.[0]?.value || '';
@@ -1522,14 +1518,6 @@ function GRIApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
     } finally {
       setProcessing(false);
     }
-  };
-
-  const formatDate = (dateStr) => {
-    if (!dateStr) return 'N/A';
-    return new Date(dateStr).toLocaleString(undefined, {
-      month: 'short', day: 'numeric', year: 'numeric',
-      hour: '2-digit', minute: '2-digit'
-    });
   };
 
   // Render GRI response - typically simple text, number, or select values

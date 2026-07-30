@@ -2,6 +2,7 @@ import React from 'react';
 import '@/App.css';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { OrganizationProvider } from './contexts/OrganizationContext';
 import { Toaster } from './components/ui/sonner';
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
@@ -332,12 +333,14 @@ const AppRoutes = () => {
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <div className="App">
-          <AppRoutes />
-          <Toaster position="top-right" />
-        </div>
-      </BrowserRouter>
+      <OrganizationProvider>
+        <BrowserRouter>
+          <div className="App">
+            <AppRoutes />
+            <Toaster position="top-right" />
+          </div>
+        </BrowserRouter>
+      </OrganizationProvider>
     </AuthProvider>
   );
 }

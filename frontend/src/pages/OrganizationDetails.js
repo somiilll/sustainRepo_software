@@ -120,6 +120,7 @@ export default function OrganizationDetails() {
     city: '',
     state: '',
     country: '',
+    timezone: '',  // IANA timezone string
     pincode: '',
     logo: '',
     general_description: '',
@@ -144,6 +145,8 @@ export default function OrganizationDetails() {
     ghg_reduction_initiatives: '',
     internal_performance_tracking: ''
   });
+  
+  const [timezones, setTimezones] = useState([]);  // Available timezone options
 
   const [newAttachment, setNewAttachment] = useState({ name: '', url: '' });
 
@@ -202,6 +205,7 @@ export default function OrganizationDetails() {
       city: data.city || null,
       state: data.state || null,
       country: data.country || null,
+      timezone: data.timezone || null,
       pincode: data.pincode || null,
       logo: data.logo || null
     };
@@ -236,6 +240,36 @@ export default function OrganizationDetails() {
   useEffect(() => {
     fetchOrganization();
   }, []);
+
+  // Fetch available timezones on component mount
+  useEffect(() => {
+    const fetchTimezones = async () => {
+      try {
+        const response = await axios.get(`${API}/timezones`, { headers: getAuthHeader() });
+        setTimezones(response.data || []);
+      } catch (error) {
+        console.error('Failed to fetch timezones:', error);
+      }
+    };
+    fetchTimezones();
+  }, [getAuthHeader]);
+
+  // Update timezone when country changes (suggest default)
+  const handleCountryChange = async (country) => {
+    setFormData(prev => ({ ...prev, country }));
+    
+    // If no timezone set yet, fetch the default for this country
+    if (country && !formData.timezone) {
+      try {
+        const response = await axios.get(`${API}/timezones/default/${encodeURIComponent(country)}`, { headers: getAuthHeader() });
+        if (response.data?.timezone) {
+          setFormData(prev => ({ ...prev, timezone: response.data.timezone }));
+        }
+      } catch (error) {
+        console.error('Failed to get default timezone:', error);
+      }
+    }
+  };
 
   // Fetch yearly data when year changes
   const fetchYearlyData = useCallback(async () => {
@@ -340,6 +374,7 @@ export default function OrganizationDetails() {
         city: response.data.city || '',
         state: response.data.state || '',
         country: response.data.country || '',
+        timezone: response.data.timezone || '',
         pincode: response.data.pincode || '',
         logo: logoUrl,
         general_description: response.data.general_description || '',
@@ -703,6 +738,12 @@ export default function OrganizationDetails() {
                         {organization.country}
                       </Badge>
                     )}
+                    {organization?.timezone && (
+                      <Badge variant="outline" className="bg-stone-50 text-stone-700 border-stone-200">
+                        <Clock className="w-3 h-3 mr-1" />
+                        {timezones.find(tz => tz.value === organization.timezone)?.label || organization.timezone}
+                      </Badge>
+                    )}
                     {organization?.esg_frameworks_enabled?.map((framework) => (
                       <Badge key={framework} className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100">
                         <Shield className="w-3 h-3 mr-1" />
@@ -862,11 +903,26 @@ export default function OrganizationDetails() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Country <span className="text-red-500">*</span></Label>
-                  <select value={formData.country} onChange={(e) => setFormData({ ...formData, country: e.target.value })} className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3" required>
+                  <select value={formData.country} onChange={(e) => handleCountryChange(e.target.value)} className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3" required>
                     <option value="">Select Country</option>
                     {COUNTRIES.map(c => (<option key={c} value={c}>{c}</option>))}
                   </select>
                 </div>
+                <div className="space-y-2">
+                  <Label>Timezone</Label>
+                  <select 
+                    value={formData.timezone} 
+                    onChange={(e) => setFormData({ ...formData, timezone: e.target.value })} 
+                    className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                  >
+                    <option value="">Select Timezone</option>
+                    {timezones.map(tz => (
+                      <option key={tz.value} value={tz.value}>{tz.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>PIN/ZIP Code <span className="text-red-500">*</span></Label>
                   <Input 
@@ -1414,6 +1470,14 @@ export default function OrganizationDetails() {
                   <div className="flex justify-between">
                     <span className="text-text-muted">Country</span>
                     <span className="text-text-primary">{organization.country}</span>
+                  </div>
+                )}
+                {organization?.timezone && (
+                  <div className="flex justify-between">
+                    <span className="text-text-muted">Timezone</span>
+                    <span className="text-text-primary">
+                      {timezones.find(tz => tz.value === organization.timezone)?.label || organization.timezone}
+                    </span>
                   </div>
                 )}
                 {organization?.pincode && (

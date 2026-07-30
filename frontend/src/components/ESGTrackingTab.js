@@ -14,6 +14,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { useDateFormatter } from '../hooks/useDateFormatter';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -284,6 +285,7 @@ export default function ESGTrackingTab({
   frameworkFilter = null
 }) {
   const { getAuthHeader, user } = useAuth();
+  const { formatDateTime, formatDate } = useDateFormatter();
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   
   // State
@@ -1030,7 +1032,7 @@ export default function ESGTrackingTab({
                       <TableCell>
                         {disc.due_date ? (
                           <div className="text-sm">
-                            <div>{new Date(disc.due_date).toLocaleDateString()}</div>
+                            <div>{formatDate(disc.due_date)}</div>
                             {disc.days_until_due !== null && (
                               <div className={`text-xs ${disc.days_until_due < 0 ? 'text-red-600' : disc.days_until_due <= 7 ? 'text-amber-600' : 'text-text-muted'}`}>
                                 {disc.days_until_due < 0 

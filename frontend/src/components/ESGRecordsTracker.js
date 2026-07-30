@@ -21,6 +21,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { useDateFormatter } from '../hooks/useDateFormatter';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -155,6 +156,7 @@ export default function ESGRecordsTracker({
   hideReportingPeriodSelector = false
 }) {
   const { token, user } = useAuth();
+  const { formatDateTime } = useDateFormatter();
   // Role check - only admins can assign and see org-wide data
   const isUserAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   
@@ -1380,15 +1382,7 @@ export default function ESGRecordsTracker({
                       {/* Last Updated with date and time */}
                       {lastUpdated ? (
                         <span className="text-xs text-text-muted">
-                          {new Date(lastUpdated).toLocaleDateString('en-IN', { 
-                            day: '2-digit', 
-                            month: 'short', 
-                            year: 'numeric' 
-                          })}, {new Date(lastUpdated).toLocaleTimeString('en-IN', {
-                            hour: 'numeric',
-                            minute: '2-digit',
-                            hour12: true
-                          })}
+                          {formatDateTime(lastUpdated)}
                         </span>
                       ) : (
                         <span className="text-xs text-text-muted">-</span>
@@ -1568,15 +1562,7 @@ export default function ESGRecordsTracker({
                           {/* Last Updated with date and time */}
                           {lastUpdated ? (
                             <span className="text-xs text-text-muted">
-                              {new Date(lastUpdated).toLocaleDateString('en-IN', { 
-                                day: '2-digit', 
-                                month: 'short', 
-                                year: 'numeric' 
-                              })}, {new Date(lastUpdated).toLocaleTimeString('en-IN', {
-                                hour: 'numeric',
-                                minute: '2-digit',
-                                hour12: true
-                              })}
+                              {formatDateTime(lastUpdated)}
                             </span>
                           ) : (
                             <span className="text-xs text-text-muted">-</span>
@@ -1716,15 +1702,7 @@ export default function ESGRecordsTracker({
                               {/* Last Updated with date and time */}
                               {subsubLastUpdated ? (
                                 <span className="text-xs text-text-muted">
-                                  {new Date(subsubLastUpdated).toLocaleDateString('en-IN', { 
-                                    day: '2-digit', 
-                                    month: 'short', 
-                                    year: 'numeric' 
-                                  })}, {new Date(subsubLastUpdated).toLocaleTimeString('en-IN', {
-                                    hour: 'numeric',
-                                    minute: '2-digit',
-                                    hour12: true
-                                  })}
+                                  {formatDateTime(subsubLastUpdated)}
                                 </span>
                               ) : (
                                 <span className="text-xs text-text-muted">-</span>

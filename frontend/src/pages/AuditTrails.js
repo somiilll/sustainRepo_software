@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { useDateFormatter } from '../hooks/useDateFormatter';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -99,6 +100,8 @@ const MODULE_LABELS = {
 };
 
 export default function AuditTrails() {
+  const { getAuthHeader, user } = useAuth();
+  const { formatDateTime } = useDateFormatter();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
@@ -123,8 +126,6 @@ export default function AuditTrails() {
   
   const [sortBy, setSortBy] = useState('timestamp');
   const [sortOrder, setSortOrder] = useState('desc');
-  
-  const { getAuthHeader, user } = useAuth();
   
   useEffect(() => {
     fetchLogs();
@@ -213,8 +214,7 @@ export default function AuditTrails() {
   };
   
   const formatTimestamp = (timestamp) => {
-    const date = new Date(timestamp);
-    return date.toLocaleString();
+    return formatDateTime(timestamp);
   };
   
   const formatTimeAgo = (timestamp) => {

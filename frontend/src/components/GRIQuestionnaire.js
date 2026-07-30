@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { useDateFormatter } from '../hooks/useDateFormatter';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
@@ -56,6 +57,7 @@ const API = process.env.REACT_APP_BACKEND_URL;
  */
 export default function GRIQuestionnaire({ section, isEditing = false }) {
   const { getAuthHeader, token } = useAuth();
+  const { formatDateTime } = useDateFormatter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState({});
   const [disclosures, setDisclosures] = useState([]);
@@ -520,19 +522,6 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
     return 'pending';
   };
 
-  // Format date for display
-  const formatDate = (dateStr) => {
-    if (!dateStr) return 'N/A';
-    const date = new Date(dateStr);
-    return date.toLocaleString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
   // Get action icon for history
   const getActionIcon = (action) => {
     switch (action) {
@@ -990,7 +979,7 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
                       <div className="flex items-center gap-2">
                         {getStatusBadge(userDrafts[disclosure.disclosure_id].draft_status)}
                         <span className="text-sm text-text-secondary">
-                          Last updated: {formatDate(userDrafts[disclosure.disclosure_id].updated_at)}
+                          Last updated: {formatDateTime(userDrafts[disclosure.disclosure_id].updated_at)}
                         </span>
                       </div>
                     </div>
@@ -1079,7 +1068,7 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
                       )}
                     </div>
                     <span className="text-xs text-text-muted">
-                      {formatDate(entry.timestamp)}
+                      {formatDateTime(entry.timestamp)}
                     </span>
                   </div>
                   

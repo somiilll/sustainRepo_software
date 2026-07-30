@@ -81,6 +81,53 @@ Unify database architecture to use only 1 collection (organization_esg_responses
 - **Rejection handler**: Fixed to use flat storage (was using nested `_split_question_key`)
 - **Status**: ✅ Verified — GRI responses save/read as flat keys, no nested docs remain
 
+## Completed Work (Current Session — Jul 30 2026)
+
+### Organization Timezone Setting Implementation (P0)
+- **Backend Changes**:
+  - Added `timezone` field to Organization model (`/app/backend/modules/organizations/contracts.py`)
+  - Created `/app/backend/shared/utils/timezone_utils.py` with:
+    - Country-to-timezone mapping (50+ countries)
+    - Common IANA timezone list for dropdown
+    - `get_default_timezone_for_country()` helper
+    - `is_valid_timezone()` validator
+  - Added API endpoints:
+    - `GET /api/timezones` - Returns list of common timezones
+    - `GET /api/timezones/default/{country}` - Returns default timezone for country
+  - Updated module-config endpoint to include `timezone` field
+
+- **Frontend Changes**:
+  - Created `/app/frontend/src/utils/dateTimeUtils.js` - Centralized date formatting utility
+    - `formatDateTime()`, `formatDate()`, `formatTime()`, `formatRelativeTime()`
+    - All use IANA timezone with consistent `'en-GB'` locale
+  - Created `/app/frontend/src/contexts/OrganizationContext.js` - Provides timezone to app
+  - Created `/app/frontend/src/hooks/useDateFormatter.js` - Hook for easy access to formatters
+  - Updated `App.js` to wrap with `OrganizationProvider`
+  - Updated Organization Details page with timezone selector (auto-suggests based on country)
+
+- **Components Updated to Use New Formatter**:
+  - NotificationBell.js
+  - ApproverQueue.js (including BRSRApprovalPanel, GRIApprovalPanel, RecordApprovalPanel)
+  - QuestionnaireApprovalPanel.js
+  - SubmissionReviewPanel.js
+  - ESGQuestionnaire.js (QuestionRenderer)
+  - ESGRecordsTracker.js
+  - GRIQuestionnaire.js
+  - ApprovalModule.js
+  - ESGTrackingTab.js
+  - tasks/TaskRow.js
+  - tasks/utils.js
+  - AuditTrails.js
+
+- **Key Design Decisions**:
+  - Backend stores ALL timestamps in UTC (no change)
+  - Frontend displays in organization's configured timezone
+  - Default timezone derived from country, but admin can override
+  - Single formatting utility replaces all `toLocaleString()` calls
+  - Consistent `'en-GB'` locale for uniform date format (DD MMM YYYY, HH:MM AM/PM)
+
+- **Status**: ✅ Implemented and tested
+
 ## Known Issues
 
 (None currently active — all tracked issues resolved)
@@ -93,21 +140,52 @@ Unify database architecture to use only 1 collection (organization_esg_responses
 - `/app/backend/modules/esg_tracking/service.py` - Tracker service
 - `/app/backend/modules/esg_assignments/completion_service.py` - Completion status
 - `/app/backend/modules/approval_workflow/service.py` - Approval workflow
+- `/app/backend/modules/organizations/router.py` - Timezone endpoints
+- `/app/backend/shared/utils/timezone_utils.py` - Timezone utilities
 
 ### Frontend
 - `/app/frontend/src/components/ApproverQueue.js` - Approval queue with GRI/BRSR panels
 - `/app/frontend/src/components/SubmissionReviewPanel.js` - Legacy submission review
 - `/app/frontend/src/components/ESGQuestionnaire.js` - Questionnaire UI
+- `/app/frontend/src/utils/dateTimeUtils.js` - Centralized date formatting
+- `/app/frontend/src/contexts/OrganizationContext.js` - Organization context with timezone
+- `/app/frontend/src/hooks/useDateFormatter.js` - Date formatting hook
+- `/app/frontend/src/pages/OrganizationDetails.js` - Organization settings with timezone
 
 ## Test Credentials
 - Admin: goyalsomil2001@gmail.com / TestUser123!
 - Organization ID: 9067d872-8a3a-4ed9-8494-e3ef04952f7c
+
+## Remaining toLocaleString() Files (Lower Priority)
+The following files still have `toLocaleString()` calls that should be updated in a future pass:
+- EmissionApprovalWrapper.jsx
+- TargetProgressChart.js
+- BRSRYearlySections.js
+- ESGTargetVersionHistory.js
+- ESGTargetForm.js
+- TaskCalendarGrid.js
+- WorkforceDataTable.js
+- Layout.js
+- ESGRecordsDataEntry.js
+- assignment-wizard/StepSchedule.jsx
+- assignment-wizard/StepReview.jsx
+- tasks/TaskLedger.js
+- tracker/TrackerTableRow.js
+- DataCoverageGrid.js
+- FacilityProductionSection.js
+- ESGRecords.js
+- BRSRDetailsSection.js
+- ESGTargetsTab.js
+- PropertyValuesEditor.js
+- RepoPilot.js
+- dashboard/components/*.jsx
 
 ## Upcoming Tasks (P1)
 - Multi-level Approval Flow Implementation
 - Module Access Super Admin UI
 - Cron job for marking tasks as "overdue"
 - Phase 2 Executive Dashboard enhancements
+- Complete remaining toLocaleString() migration
 
 ## Future Tasks (P2)
 - Materiality Assessment Phase 2+

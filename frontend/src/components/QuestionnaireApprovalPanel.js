@@ -10,6 +10,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { useDateFormatter } from '../hooks/useDateFormatter';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
@@ -124,6 +125,7 @@ export default function QuestionnaireApprovalPanel({
   onApproved 
 }) {
   const { getAuthHeader } = useAuth();
+  const { formatDateTime } = useDateFormatter();
   
   // Format response data for editing
   const initialResponse = formatResponseForDisplay(item.response_data) || '';
@@ -134,17 +136,6 @@ export default function QuestionnaireApprovalPanel({
   const [rejecting, setRejecting] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
-
-  const formatDate = (dateStr) => {
-    if (!dateStr) return 'N/A';
-    return new Date(dateStr).toLocaleString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
 
   // Get the original response value for comparison
   const getOriginalValue = () => {
@@ -252,7 +243,7 @@ export default function QuestionnaireApprovalPanel({
             </div>
             <div className="flex items-center gap-1.5 text-stone-500">
               <Clock className="w-3.5 h-3.5" />
-              <span>{formatDate(item.submitted_at)}</span>
+              <span>{formatDateTime(item.submitted_at)}</span>
             </div>
           </div>
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { useDateFormatter } from '../hooks/useDateFormatter';
 
 // FY normalization utility - normalize once at response boundary
 import { normalizeAllResponses } from './ESGQuestionnaire/utils/fyNormalization';
@@ -397,6 +398,7 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
 
 // Individual Question Renderer
 export function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {}, historicalData = null, approvalStatus = null, versionHistory = null, onSaveQuestion = null, onFetchVersionHistory = null }) {
+  const { formatDateTime } = useDateFormatter();
   const { type, question, description, placeholder, options, table_columns, required, conditional, visible_if } = config;
   const [showVersions, setShowVersions] = useState(false);
   const [savingQuestion, setSavingQuestion] = useState(false);
@@ -1014,7 +1016,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
                       {v.change_type || 'Updated'}
                     </span>
                     <span className="text-stone-500">
-                      {v.created_at ? new Date(v.created_at).toLocaleString() : '-'}
+                      {v.created_at ? formatDateTime(v.created_at) : '-'}
                     </span>
                   </div>
                   {v.created_by && (

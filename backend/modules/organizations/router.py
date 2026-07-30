@@ -1,13 +1,14 @@
 """Organization "self" routes — Admin can edit, User views own org."""
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime, timezone
 
 from audit_logger import AuditAction, AuditModule, get_audit_logger
 from modules.auth.dependencies import get_admin_user, get_current_user
 from modules.organizations.contracts import OrganizationCreate, OrganizationResponse
 from shared.database.mongo import db
+from shared.utils.timezone_utils import get_common_timezones, get_default_timezone_for_country
 
 router = APIRouter()
 
@@ -33,6 +34,24 @@ async def get_software_asset(asset_name: str):
         raise HTTPException(status_code=500, detail="Failed to generate URL")
 
 
+class TimezoneOption(BaseModel):
+    """Timezone option for dropdown selection."""
+    value: str
+    label: str
+    offset: str
+
+
+@router.get("/timezones", response_model=List[TimezoneOption])
+async def get_timezones():
+    """Get list of common timezones for dropdown selection."""
+    return get_common_timezones()
+
+
+@router.get("/timezones/default/{country}")
+async def get_default_timezone(country: str):
+    """Get default timezone for a country."""
+    tz = get_default_timezone_for_country(country)
+    return {"timezone": tz, "country": country}
 
 
 class YearlyDataCreate(BaseModel):
@@ -54,6 +73,7 @@ class OrgModuleConfig(BaseModel):
     esg_frameworks_enabled: Optional[list] = None
     approval_workflow_enabled: bool = False  # Single-level approval workflow
     multi_level_approval_enabled: bool = False  # Multi-level approval chain feature flag
+    timezone: str = "UTC"  # Organization's IANA timezone
 
 
 @router.get("/organization/module-config")
@@ -67,7 +87,8 @@ async def get_org_module_config(current_user: dict = Depends(get_current_user)):
             enabled_access=["scope1_2_3"],
             esg_frameworks_enabled=["BRSR", "GRI"],
             approval_workflow_enabled=True,
-            multi_level_approval_enabled=True  # Super admin can see all features
+            multi_level_approval_enabled=True,  # Super admin can see all features
+            timezone="UTC"  # Super admin uses UTC
         )
     
     org_id = current_user.get("organization_id")
@@ -76,7 +97,7 @@ async def get_org_module_config(current_user: dict = Depends(get_current_user)):
     
     org = await db.organizations.find_one(
         {"id": org_id},
-        {"_id": 0, "has_ghg": 1, "has_esg": 1, "enabled_access": 1, "esg_frameworks_enabled": 1, "approval_workflow_enabled": 1, "multi_level_approval_enabled": 1}
+        {"_id": 0, "has_ghg": 1, "has_esg": 1, "enabled_access": 1, "esg_frameworks_enabled": 1, "approval_workflow_enabled": 1, "multi_level_approval_enabled": 1, "timezone": 1}
     )
     
     if not org:
@@ -88,7 +109,8 @@ async def get_org_module_config(current_user: dict = Depends(get_current_user)):
         enabled_access=org.get("enabled_access"),
         esg_frameworks_enabled=org.get("esg_frameworks_enabled"),
         approval_workflow_enabled=org.get("approval_workflow_enabled", False),
-        multi_level_approval_enabled=org.get("multi_level_approval_enabled", False)
+        multi_level_approval_enabled=org.get("multi_level_approval_enabled", False),
+        timezone=org.get("timezone", "UTC")
     )
 
 

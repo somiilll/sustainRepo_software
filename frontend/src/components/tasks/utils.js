@@ -5,6 +5,7 @@
  */
 
 import { TASK_STATUS, TASK_TYPE, APPROVAL_STATUS } from './constants';
+import { formatDateTime as formatDateTimeUtil, formatDate as formatDateUtil } from '../../utils/dateTimeUtils';
 
 /**
  * Check if task is operationally complete (work is done)
@@ -66,7 +67,7 @@ export const categorizeTask = (task) => {
  * Now respects task completion status - completed tasks are NOT marked overdue
  */
 export const formatDueDate = (task, options = {}) => {
-  const { showTime = true, showRelative = true } = options;
+  const { showTime = true, showRelative = true, timezone = 'UTC' } = options;
   const dateStr = task.due_at || task.due_date;
   if (!dateStr) return { text: '-', isOverdue: false, isUrgent: false };
   
@@ -74,17 +75,12 @@ export const formatDueDate = (task, options = {}) => {
   const now = new Date();
   const diffDays = Math.ceil((date - now) / (1000 * 60 * 60 * 24));
   
-  const formatted = date.toLocaleDateString('en-US', { 
-    month: 'short', 
-    day: 'numeric',
-    year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
-  });
+  // Use the shared formatter with timezone support
+  const formatted = showTime 
+    ? formatDateTimeUtil(date, timezone)
+    : formatDateUtil(date, timezone);
   
-  const time = showTime 
-    ? date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-    : null;
-  
-  let text = time ? `${formatted}, ${time}` : formatted;
+  let text = formatted;
   let suffix = '';
   
   // Check if task work is done - completed OR pending_approval (submitted, awaiting review)
@@ -116,19 +112,19 @@ export const formatDueDate = (task, options = {}) => {
 /**
  * Format period range for display
  */
-export const formatPeriodRange = (task) => {
+export const formatPeriodRange = (task, timezone = 'UTC') => {
   if (!task.period_start) return null;
   
   const start = new Date(task.period_start);
   const end = task.period_end ? new Date(task.period_end) : start;
   
-  const formatOpts = { month: 'short', day: 'numeric' };
-  
   if (start.getTime() === end.getTime()) {
-    return start.toLocaleDateString('en-US', formatOpts);
+    return formatDateUtil(start, timezone, { month: 'short', day: 'numeric' });
   }
   
-  return `${start.toLocaleDateString('en-US', formatOpts)} - ${end.toLocaleDateString('en-US', formatOpts)}`;
+  const startFormatted = formatDateUtil(start, timezone, { month: 'short', day: 'numeric' });
+  const endFormatted = formatDateUtil(end, timezone, { month: 'short', day: 'numeric' });
+  return `${startFormatted} - ${endFormatted}`;
 };
 
 /**
