@@ -418,6 +418,8 @@ export default function ApproverQueue() {
                         </span>
                         {isEmissionRecord ? (
                           <Badge className="bg-teal-100 text-teal-800">GHG Emission</Badge>
+                        ) : item.entity_type === 'esg_response' || item.entity_type === 'esg_response_submission' ? (
+                          getSectionBadge(item)
                         ) : isRecordApproval ? (
                           <Badge className="bg-emerald-100 text-emerald-800">Data Record</Badge>
                         ) : (
@@ -1279,8 +1281,8 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
       />;
     }
     
-    // Handle table type (array of objects)
-    if (questionType === 'table' || Array.isArray(value)) {
+    // Handle table type (array of objects or table-like types)
+    if (questionType === 'table' || questionType?.includes('table') || Array.isArray(value)) {
       return <TableDisplay 
         value={value}
         onChange={isEditing ? setEditedValue : undefined}
@@ -2094,12 +2096,26 @@ function TableDisplay({ value, onChange, isEditing, config = {} }) {
     }
     
     // Simple key-value object (not nested)
+    const handleSimpleChange = (k, newValue) => {
+      if (!onChange) return;
+      onChange({ ...value, [k]: newValue });
+    };
+
     return (
       <div className="space-y-1">
         {keys.map(k => (
-          <div key={k} className="flex gap-2 text-sm">
-            <span className="font-medium text-stone-600">{formatHeader(k)}:</span>
-            <span className="text-stone-800">{formatCell(value[k])}</span>
+          <div key={k} className="flex gap-2 text-sm items-center">
+            <span className="font-medium text-stone-600 shrink-0">{formatHeader(k)}:</span>
+            {isEditing && onChange ? (
+              <input
+                type="text"
+                value={value[k] ?? ''}
+                onChange={(e) => handleSimpleChange(k, e.target.value)}
+                className="flex-1 px-2 py-1 border rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            ) : (
+              <span className="text-stone-800">{formatCell(value[k])}</span>
+            )}
           </div>
         ))}
       </div>
