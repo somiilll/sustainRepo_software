@@ -986,8 +986,8 @@ class ApprovalWorkflowService:
                             if current_record:
                                 record_update["version"] = current_record.get("version", 0) + 1
                         
-                        # Update field_values if provided (legacy path)
-                        elif updated_data and "field_values" in updated_data:
+                        # Apply approver's field_values edits (works for both immutable and legacy paths)
+                        if updated_data and "field_values" in updated_data:
                             record_update["field_values"] = updated_data["field_values"]
                         
                         # Also update the entity_snapshot in the approval request to reflect changes
@@ -1564,16 +1564,37 @@ class ApprovalWorkflowService:
                     else:
                         framework = "BRSR"
                 
-                await db.organization_esg_responses.update_one(
+                # Check if there's a last_approved_value to revert to
+                existing_doc = await db.organization_esg_responses.find_one(
                     {"org_id": org_id, "question_key": question_key, "reporting_year": reporting_year},
-                    {"$set": {
-                        "approval_status": "rejected",
-                        "status": "rejected",
-                        "rejection_reason": comment,
-                        "updated_at": _now_iso(),
-                    }}
+                    {"_id": 0, "last_approved_value": 1}
                 )
-                logger.info(f"Updated organization_esg_responses {question_key} approval_status to rejected")
+                
+                if existing_doc and existing_doc.get("last_approved_value") is not None:
+                    # Revert to previously approved value
+                    await db.organization_esg_responses.update_one(
+                        {"org_id": org_id, "question_key": question_key, "reporting_year": reporting_year},
+                        {"$set": {
+                            "value": existing_doc["last_approved_value"],
+                            "status": "saved",
+                            "approval_status": "approved",
+                            "updated_at": _now_iso(),
+                        },
+                        "$unset": {"last_approved_value": "", "rejection_reason": ""}}
+                    )
+                    logger.info(f"Reverted {question_key} to last_approved_value after rejection")
+                else:
+                    # First creation rejection — mark as rejected
+                    await db.organization_esg_responses.update_one(
+                        {"org_id": org_id, "question_key": question_key, "reporting_year": reporting_year},
+                        {"$set": {
+                            "approval_status": "rejected",
+                            "status": "rejected",
+                            "rejection_reason": comment,
+                            "updated_at": _now_iso(),
+                        }}
+                    )
+                logger.info(f"Updated organization_esg_responses {question_key} after rejection")
                 
                 # Update linked submission
                 submission_id = request.get("_submission_id")

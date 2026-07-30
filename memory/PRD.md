@@ -83,11 +83,7 @@ Unify database architecture to use only 1 collection (organization_esg_responses
 
 ## Known Issues
 
-### Issue 1: Tracker not updating status (PARTIALLY FIXED)
-- **Tracker collection**: Fixed to read from `organization_esg_responses` instead of `esg_responses`
-- **Questionnaire form status**: Fixed to use `approval_status` field as primary indicator
-- **Status mapping**: approved → "Approved", pending_approval → "Awaiting Approval", no approval + saved → "Completed", draft → "Draft"
-- **Files to check**: `/app/backend/modules/esg_tracking/service.py`, `/app/backend/modules/esg_questionnaire/service.py`
+(None currently active — all tracked issues resolved)
 
 ## Key Files Reference
 

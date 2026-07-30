@@ -51,11 +51,35 @@ async def get_question_config(
 ):
     """
     Get a single question config by key.
+    For sub-question keys (e.g. gri_101_2_a_i), returns the parent config
+    with a `matched_sub_question` field containing the sub-question details.
     """
     config = await esg_questionnaire_service.get_question_config(question_key)
-    if not config:
-        raise HTTPException(status_code=404, detail="Question config not found")
-    return config
+    if config:
+        return config
+    
+    # If not found, try to resolve as a sub-question by splitting off the last suffix
+    sub_suffixes = {'i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x',
+                    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'j', 'k', 'l', 'm', 'n'}
+    if "_" in question_key:
+        parts = question_key.rsplit("_", 1)
+        if len(parts) == 2 and parts[1].lower() in sub_suffixes:
+            parent_key = parts[0]
+            sub_key = parts[1]
+            parent_config = await esg_questionnaire_service.get_question_config(parent_key)
+            if parent_config:
+                # Find the matching sub_question
+                matched_sub = None
+                for sq in parent_config.get("sub_questions", []):
+                    if sq.get("sub_key") == sub_key:
+                        matched_sub = sq
+                        break
+                parent_config["matched_sub_question"] = matched_sub
+                parent_config["resolved_from_parent"] = True
+                parent_config["original_question_key"] = question_key
+                return parent_config
+    
+    raise HTTPException(status_code=404, detail="Question config not found")
 
 
 @router.post("/configs")

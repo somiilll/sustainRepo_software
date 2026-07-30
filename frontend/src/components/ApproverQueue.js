@@ -1192,10 +1192,15 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
     fetchConfig();
   }, [item.entity_id, item.question_key, getAuthHeader]);
   
-  // Get question display name
+  // Get question display name (handles sub-question resolution)
   const getQuestionText = () => {
     if (questionConfig) {
-      return questionConfig.description || questionConfig.label || questionConfig.question || item.entity_id;
+      const desc = questionConfig.description || questionConfig.label || questionConfig.question || item.entity_id;
+      if (questionConfig.resolved_from_parent && questionConfig.matched_sub_question) {
+        const sub = questionConfig.matched_sub_question;
+        return `${desc} → ${sub.sub_key}. ${sub.label}`;
+      }
+      return desc;
     }
     return item.disclosure_name || item.entity_id || item.question_key;
   };
@@ -1456,10 +1461,15 @@ function GRIApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
     fetchConfig();
   }, [item.entity_id, item.question_key, getAuthHeader]);
   
-  // Get question display name
+  // Get question display name (handles sub-question resolution)
   const getQuestionText = () => {
     if (questionConfig) {
-      return questionConfig.description || questionConfig.label || questionConfig.question || item.entity_id;
+      const desc = questionConfig.description || questionConfig.label || questionConfig.question || item.entity_id;
+      if (questionConfig.resolved_from_parent && questionConfig.matched_sub_question) {
+        const sub = questionConfig.matched_sub_question;
+        return `${desc} → ${sub.sub_key}. ${sub.label}`;
+      }
+      return desc;
     }
     return item.disclosure_name || item.entity_id || item.question_key;
   };
@@ -2030,6 +2040,14 @@ function TableDisplay({ value, onChange, isEditing, config = {} }) {
       });
       const innerKeysArr = Array.from(innerKeys);
       
+      const handleNestedCellChange = (outerKey, innerKey, newValue) => {
+        if (!onChange) return;
+        onChange({
+          ...value,
+          [outerKey]: { ...(value[outerKey] || {}), [innerKey]: newValue }
+        });
+      };
+      
       return (
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm border-collapse">
@@ -2051,11 +2069,20 @@ function TableDisplay({ value, onChange, isEditing, config = {} }) {
                   </td>
                   {innerKeysArr.map(ik => (
                     <td key={ik} className="border border-stone-200 px-3 py-2">
-                      <span className="text-stone-800">
-                        {typeof value[k] === 'object' && value[k] !== null 
-                          ? formatCell(value[k][ik])
-                          : '-'}
-                      </span>
+                      {isEditing && onChange ? (
+                        <input
+                          type="text"
+                          value={typeof value[k] === 'object' && value[k] !== null ? (value[k][ik] ?? '') : ''}
+                          onChange={(e) => handleNestedCellChange(k, ik, e.target.value)}
+                          className="w-full px-2 py-1 border rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      ) : (
+                        <span className="text-stone-800">
+                          {typeof value[k] === 'object' && value[k] !== null 
+                            ? formatCell(value[k][ik])
+                            : '-'}
+                        </span>
+                      )}
                     </td>
                   ))}
                 </tr>
