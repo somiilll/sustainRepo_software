@@ -83,25 +83,16 @@ const NGRBC_PRINCIPLES = [
 
 // NGRBC Policy Matrix Renderer
 function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
-  // Default values for state
+  // Default structure for the data
   const defaultAllTogether = { covered: null, board_approved: null, web_link: '', reasons: {} };
   const defaultPrincipleWise = {};
   
-  // Local state - initialized with defaults, synced via useEffect when value changes
-  const [mode, setMode] = useState('together');
-  const [allTogether, setAllTogether] = useState(defaultAllTogether);
-  const [principleWise, setPrincipleWise] = useState(defaultPrincipleWise);
-  const [initialized, setInitialized] = useState(false);
-
-  // Sync state when value prop changes (handles async data loading)
-  useEffect(() => {
-    if (value) {
-      setMode(value.mode || 'together');
-      setAllTogether(value.all_together || defaultAllTogether);
-      setPrincipleWise(value.principle_wise || defaultPrincipleWise);
-      setInitialized(true);
-    }
-  }, [value]);
+  // Use direct data manipulation pattern (like PrincipleToggleRenderer)
+  // This ensures onChange is always called with complete data on any interaction
+  const data = value || { mode: 'together', all_together: defaultAllTogether, principle_wise: defaultPrincipleWise };
+  const mode = data.mode || 'together';
+  const allTogether = data.all_together || defaultAllTogether;
+  const principleWise = data.principle_wise || defaultPrincipleWise;
 
   const noReasons = [
     { key: 'not_material', label: 'The entity does not consider the Principles material to its business' },
@@ -111,49 +102,55 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
     { key: 'other', label: 'Any other reason (please specify)', hasText: true }
   ];
 
-  // Push state changes back to parent (only after initial sync)
-  useEffect(() => {
-    if (initialized) {
-      onChange({ mode, all_together: allTogether, principle_wise: principleWise });
-    }
-  }, [mode, allTogether, principleWise, initialized]);
-
+  // Direct onChange handlers - immediately push changes to parent
   const handleModeChange = (newMode) => {
-    setMode(newMode);
+    onChange({ ...data, mode: newMode });
   };
 
   const handleAllTogetherChange = (field, val) => {
-    setAllTogether(prev => ({ ...prev, [field]: val }));
+    onChange({ 
+      ...data, 
+      all_together: { ...allTogether, [field]: val } 
+    });
   };
 
   const handleAllTogetherReasonChange = (reasonKey, checked, textVal = '') => {
-    setAllTogether(prev => ({
-      ...prev,
-      reasons: {
-        ...prev.reasons,
-        [reasonKey]: checked ? (reasonKey === 'other' ? textVal || true : true) : false
-      }
-    }));
-  };
-
-  const handlePrincipleChange = (principle, field, val) => {
-    setPrincipleWise(prev => ({
-      ...prev,
-      [principle]: { ...prev[principle], [field]: val }
-    }));
-  };
-
-  const handlePrincipleReasonChange = (principle, reasonKey, checked, textVal = '') => {
-    setPrincipleWise(prev => ({
-      ...prev,
-      [principle]: {
-        ...prev[principle],
+    onChange({
+      ...data,
+      all_together: {
+        ...allTogether,
         reasons: {
-          ...prev[principle]?.reasons,
+          ...allTogether.reasons,
           [reasonKey]: checked ? (reasonKey === 'other' ? textVal || true : true) : false
         }
       }
-    }));
+    });
+  };
+
+  const handlePrincipleChange = (principle, field, val) => {
+    onChange({
+      ...data,
+      principle_wise: {
+        ...principleWise,
+        [principle]: { ...principleWise[principle], [field]: val }
+      }
+    });
+  };
+
+  const handlePrincipleReasonChange = (principle, reasonKey, checked, textVal = '') => {
+    onChange({
+      ...data,
+      principle_wise: {
+        ...principleWise,
+        [principle]: {
+          ...principleWise[principle],
+          reasons: {
+            ...principleWise[principle]?.reasons,
+            [reasonKey]: checked ? (reasonKey === 'other' ? textVal || true : true) : false
+          }
+        }
+      }
+    });
   };
 
   if (!isEditing) {

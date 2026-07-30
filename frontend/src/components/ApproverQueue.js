@@ -1263,6 +1263,16 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
     const config = questionConfig || {};
     const questionType = config.type || config.input_type;
     
+    // Handle ngrbc_policy_matrix type (different structure from principle_toggle)
+    if (questionType === 'ngrbc_policy_matrix' || (value && typeof value === 'object' && ('all_together' in value || 'principle_wise' in value))) {
+      return <NGRBCPolicyMatrixDisplay 
+        value={value} 
+        onChange={isEditing ? setEditedValue : undefined}
+        isEditing={isEditing}
+        config={config}
+      />;
+    }
+    
     // Handle principle_toggle type (NGRBC principles)
     if (questionType === 'principle_toggle' || questionType === 'principle_toggle_with_description' || (value && typeof value === 'object' && ('mode' in value || 'all_enabled' in value || 'principles' in value))) {
       return <PrincipleToggleDisplay 
@@ -1834,6 +1844,249 @@ function PrincipleToggleDisplay({ value, onChange, isEditing, config = {} }) {
                     />
                   </div>
                 </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// NGRBC Policy Matrix Display/Edit component (handles ngrbc_policy_matrix type)
+// Different from PrincipleToggleDisplay - uses all_together/principle_wise structure
+function NGRBCPolicyMatrixDisplay({ value, onChange, isEditing, config = {} }) {
+  const defaultAllTogether = { covered: null, board_approved: null, web_link: '', reasons: {} };
+  const data = value || { mode: 'together', all_together: defaultAllTogether, principle_wise: {} };
+  const mode = data.mode || 'together';
+  const allTogether = data.all_together || defaultAllTogether;
+  const principleWise = data.principle_wise || {};
+  
+  const noReasons = [
+    { key: 'not_material', label: 'Not material to business' },
+    { key: 'not_ready', label: 'Not ready to implement' },
+    { key: 'no_resources', label: 'No resources available' },
+    { key: 'planned_next_fy', label: 'Planned for next FY' },
+    { key: 'other', label: 'Other reason', hasText: true }
+  ];
+
+  const handleModeChange = (newMode) => {
+    onChange?.({ ...data, mode: newMode });
+  };
+
+  const handleAllTogetherChange = (field, val) => {
+    onChange?.({ 
+      ...data, 
+      all_together: { ...allTogether, [field]: val } 
+    });
+  };
+
+  const handleAllTogetherReasonChange = (reasonKey, checked, textVal = '') => {
+    onChange?.({
+      ...data,
+      all_together: {
+        ...allTogether,
+        reasons: {
+          ...allTogether.reasons,
+          [reasonKey]: checked ? (reasonKey === 'other' ? textVal || true : true) : false
+        }
+      }
+    });
+  };
+
+  const handlePrincipleChange = (principle, field, val) => {
+    onChange?.({
+      ...data,
+      principle_wise: {
+        ...principleWise,
+        [principle]: { ...principleWise[principle], [field]: val }
+      }
+    });
+  };
+
+  // Read-only display
+  if (!isEditing) {
+    return (
+      <div className="space-y-3">
+        <Badge variant="outline" className="mb-2">
+          Mode: {mode === 'together' ? 'All Principles Together' : 'Principle-wise'}
+        </Badge>
+        {mode === 'together' ? (
+          <div className="bg-stone-50 p-3 rounded space-y-2">
+            <p className="text-sm"><strong>Policies cover NGRBCs:</strong> {allTogether.covered === true ? 'Yes' : allTogether.covered === false ? 'No' : '-'}</p>
+            {allTogether.covered === true && (
+              <>
+                <p className="text-sm"><strong>Board Approved:</strong> {allTogether.board_approved === true ? 'Yes' : allTogether.board_approved === false ? 'No' : '-'}</p>
+                <p className="text-sm"><strong>Web Link:</strong> {allTogether.web_link || '-'}</p>
+              </>
+            )}
+            {allTogether.covered === false && allTogether.reasons && Object.keys(allTogether.reasons).length > 0 && (
+              <div className="text-sm">
+                <strong>Reasons:</strong>
+                <ul className="list-disc pl-5 text-xs mt-1">
+                  {noReasons.filter(r => allTogether.reasons?.[r.key]).map(r => (
+                    <li key={r.key}>{r.label}{r.key === 'other' && typeof allTogether.reasons?.other === 'string' ? `: ${allTogether.reasons.other}` : ''}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {NGRBC_PRINCIPLES.map((p) => {
+              const pData = principleWise[p.key] || {};
+              return (
+                <div key={p.key} className="bg-stone-50 p-2 rounded text-sm">
+                  <strong className="text-violet-700">{p.key} - {p.name}:</strong>{' '}
+                  <span>{pData.covered === true ? 'Yes' : pData.covered === false ? 'No' : '-'}</span>
+                  {pData.covered === true && (
+                    <span className="text-stone-600 ml-2">
+                      | Board: {pData.board_approved === true ? 'Yes' : pData.board_approved === false ? 'No' : '-'}
+                      {pData.web_link && <> | Link: {pData.web_link}</>}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Editing mode
+  return (
+    <div className="space-y-4">
+      {/* Mode selector */}
+      <div className="flex items-center gap-4">
+        <label className="text-sm font-medium">Mode:</label>
+        <select 
+          value={mode} 
+          onChange={(e) => handleModeChange(e.target.value)}
+          className="px-3 py-1.5 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="together">All Principles Together</option>
+          <option value="separate">Principle-wise Separately</option>
+        </select>
+      </div>
+
+      {/* All Together Mode */}
+      {mode === 'together' && (
+        <div className="border rounded p-3 space-y-3">
+          <div className="flex items-center gap-4">
+            <label className="text-sm font-medium">Policies cover NGRBCs:</label>
+            <select
+              value={allTogether.covered === true ? 'yes' : allTogether.covered === false ? 'no' : ''}
+              onChange={(e) => handleAllTogetherChange('covered', e.target.value === 'yes' ? true : e.target.value === 'no' ? false : null)}
+              className="px-3 py-1.5 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Select...</option>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+          
+          {allTogether.covered === true && (
+            <div className="pl-4 border-l-2 border-green-300 space-y-3">
+              <div className="flex items-center gap-4">
+                <label className="text-sm">Board Approved:</label>
+                <select
+                  value={allTogether.board_approved === true ? 'yes' : allTogether.board_approved === false ? 'no' : ''}
+                  onChange={(e) => handleAllTogetherChange('board_approved', e.target.value === 'yes' ? true : e.target.value === 'no' ? false : null)}
+                  className="px-3 py-1.5 border rounded text-sm"
+                >
+                  <option value="">Select...</option>
+                  <option value="yes">Yes</option>
+                  <option value="no">No</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-sm">Web Link:</label>
+                <input
+                  type="text"
+                  value={allTogether.web_link || ''}
+                  onChange={(e) => handleAllTogetherChange('web_link', e.target.value)}
+                  className="w-full mt-1 px-3 py-1.5 border rounded text-sm"
+                  placeholder="https://..."
+                />
+              </div>
+            </div>
+          )}
+          
+          {allTogether.covered === false && (
+            <div className="pl-4 border-l-2 border-red-300 space-y-2">
+              <label className="text-sm font-medium">Reasons:</label>
+              {noReasons.map(reason => (
+                <div key={reason.key} className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    checked={!!allTogether.reasons?.[reason.key]}
+                    onChange={(e) => handleAllTogetherReasonChange(reason.key, e.target.checked)}
+                    className="mt-1"
+                  />
+                  <span className="text-sm">{reason.label}</span>
+                  {reason.hasText && allTogether.reasons?.[reason.key] && (
+                    <input
+                      type="text"
+                      value={typeof allTogether.reasons?.other === 'string' ? allTogether.reasons.other : ''}
+                      onChange={(e) => handleAllTogetherReasonChange('other', true, e.target.value)}
+                      className="flex-1 px-2 py-1 border rounded text-sm"
+                      placeholder="Specify..."
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Principle-wise Mode */}
+      {mode === 'separate' && (
+        <div className="space-y-3">
+          {NGRBC_PRINCIPLES.map((p) => {
+            const pData = principleWise[p.key] || {};
+            return (
+              <div key={p.key} className="border rounded p-3">
+                <div className="font-medium text-sm text-violet-700 mb-2">{p.key}: {p.name}</div>
+                <div className="flex items-center gap-4">
+                  <label className="text-sm">Covered:</label>
+                  <select
+                    value={pData.covered === true ? 'yes' : pData.covered === false ? 'no' : ''}
+                    onChange={(e) => handlePrincipleChange(p.key, 'covered', e.target.value === 'yes' ? true : e.target.value === 'no' ? false : null)}
+                    className="px-2 py-1 border rounded text-sm"
+                  >
+                    <option value="">Select...</option>
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                  </select>
+                </div>
+                {pData.covered === true && (
+                  <div className="mt-2 pl-3 border-l-2 border-green-300 space-y-2">
+                    <div className="flex items-center gap-4">
+                      <label className="text-xs">Board Approved:</label>
+                      <select
+                        value={pData.board_approved === true ? 'yes' : pData.board_approved === false ? 'no' : ''}
+                        onChange={(e) => handlePrincipleChange(p.key, 'board_approved', e.target.value === 'yes' ? true : e.target.value === 'no' ? false : null)}
+                        className="px-2 py-1 border rounded text-xs"
+                      >
+                        <option value="">Select...</option>
+                        <option value="yes">Yes</option>
+                        <option value="no">No</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs">Web Link:</label>
+                      <input
+                        type="text"
+                        value={pData.web_link || ''}
+                        onChange={(e) => handlePrincipleChange(p.key, 'web_link', e.target.value)}
+                        className="w-full mt-1 px-2 py-1 border rounded text-xs"
+                        placeholder="https://..."
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
