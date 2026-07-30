@@ -199,6 +199,19 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
     setFutureYears(years);
   }, [orgReportingType]);
 
+  // Re-fetch GHG baseline when target_type changes to/from intensity
+  useEffect(() => {
+    // Only for GHG Emissions category and when we have a KPI selected
+    if (formData.category !== 'GHG Emissions' || !formData.kpi_id) return;
+    
+    const kpi = availableKPIs.find(k => k.kpi_id === formData.kpi_id);
+    if (!kpi) return;
+    
+    // Re-fetch baseline with the new target_type
+    fetchGHGBaseline(kpi, formData.target_type);
+  }, [formData.target_type, formData.category, formData.kpi_id]);
+
+
   // Update form field
   const updateField = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -277,7 +290,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
   };
 
   // Fetch GHG baseline from emission records
-  const fetchGHGBaseline = async (kpi) => {
+  const fetchGHGBaseline = async (kpi, targetType = null) => {
     // Map KPI to scope for GHG endpoint
     const scopeMap = {
       'ghg_scope1_total': 'scope1',
@@ -295,12 +308,20 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
       ? `FY ${currentYear - 1}-${currentYear}` 
       : `CY ${currentYear - 1}`;
     
+    // Use passed targetType or fall back to formData.target_type
+    const effectiveTargetType = targetType || formData.target_type;
+    
     try {
       const facilityId = formData.scope_type === 'facility' && formData.facility_ids?.[0] 
         ? formData.facility_ids[0] 
         : '';
       const params = new URLSearchParams({ scope, base_year: baseYear });
       if (facilityId) params.append('facility_id', facilityId);
+      
+      // Include target_type for intensity calculations
+      if (effectiveTargetType === 'intensity_revenue' || effectiveTargetType === 'intensity_production') {
+        params.append('target_type', effectiveTargetType);
+      }
       
       const res = await axios.get(`${API}/api/esg-targets/baseline/ghg-emissions?${params.toString()}`, { headers });
       
