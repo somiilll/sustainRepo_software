@@ -1129,11 +1129,13 @@ async def get_ghg_baseline_from_records(
     scope: str = Query(..., description="GHG scope: scope1, scope2, scope3, total, scope1_2"),
     base_year: str = Query(..., description="Base year period (e.g., 'FY 2026-2027')"),
     facility_id: Optional[str] = Query(None, description="Optional facility filter"),
+    target_type: Optional[str] = Query(None, description="Target type: absolute, intensity_revenue, intensity_production"),
     current_user: dict = Depends(get_current_user)
 ):
     """
     Fetch GHG baseline value directly from emission records.
     Aggregates both monthly records within the FY range and yearly records.
+    For intensity targets, divides emissions by revenue or production.
     """
     from shared.database.mongo import db
     
@@ -1181,11 +1183,39 @@ async def get_ghg_baseline_from_records(
             total_emissions += val
             records_found += 1
     
-    return {
+    # For intensity targets, divide by revenue or production
+    final_value = round(total_emissions, 4) if records_found > 0 else None
+    final_unit = "tCO2e"
+    intensity_denominator = None
+    intensity_error = None
+    
+    if target_type in ("intensity_revenue", "intensity_production") and final_value is not None:
+        # Extract year from base_year for denominator lookup
+        base_year_int = extract_year(base_year)
+        if base_year_int:
+            # Build a mock target dict to reuse _get_denominator_for_intensity
+            mock_target = {
+                "target_type": target_type,
+                "scope_type": "facility" if facility_id else "organization",
+                "facility_ids": [facility_id] if facility_id else [],
+                "_reporting_type": "FY" if "FY" in base_year.upper() else "CY"
+            }
+            denom_result = await _get_denominator_for_intensity(mock_target, org_id, {"year": base_year_int})
+            
+            if denom_result.get("error"):
+                intensity_error = denom_result.get("error")
+            elif denom_result.get("value"):
+                intensity_denominator = denom_result.get("value")
+                denom_unit = denom_result.get("unit", "")
+                # Calculate intensity = emissions / denominator
+                final_value = round(total_emissions / intensity_denominator, 6)
+                final_unit = f"tCO2e/{denom_unit}" if denom_unit else "tCO2e/unit"
+    
+    response = {
         "scope": scope,
         "base_year": base_year,
-        "value": round(total_emissions, 4) if records_found > 0 else None,
-        "unit": "tCO2e",
+        "value": final_value,
+        "unit": final_unit,
         "records_count": records_found,
         "facility_id": facility_id,
         "periods_searched": {
@@ -1193,6 +1223,18 @@ async def get_ghg_baseline_from_records(
             "yearly": yearly_variants
         }
     }
+    
+    # Include intensity details if applicable
+    if target_type in ("intensity_revenue", "intensity_production"):
+        response["target_type"] = target_type
+        response["raw_emissions"] = round(total_emissions, 4) if records_found > 0 else None
+        response["raw_emissions_unit"] = "tCO2e"
+        if intensity_denominator:
+            response["intensity_denominator"] = intensity_denominator
+        if intensity_error:
+            response["intensity_error"] = intensity_error
+    
+    return response
 
 
 def _get_monthly_periods_for_fy(fy_str: str) -> list:
