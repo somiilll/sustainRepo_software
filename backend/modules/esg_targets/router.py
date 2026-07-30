@@ -992,7 +992,10 @@ async def get_categories_for_targets(
     """
     Get categories and subcategories with their KPI definitions for target selection.
     Fetches from esg_kpi_definitions where target_enabled=true and status=active.
-    Returns hierarchical structure: Category → Subcategory → KPIs
+    
+    Special handling for GHG Emissions category in environment section:
+    - Returns predefined subcategories (Scope 1, Scope 2, Scope 3, Total, Scope 1+2)
+    - Baseline values fetched from actual emission records
     """
     from shared.database.mongo import db
     
@@ -1037,9 +1040,82 @@ async def get_categories_for_targets(
             "description": kpi.get("description")
         })
     
+    # Special handling for GHG Emissions in environment section
+    if section == "environment":
+        hierarchy["GHG Emissions"] = _get_ghg_subcategories()
+    
     return {
         "section": section,
         "hierarchy": hierarchy
+    }
+
+
+def _get_ghg_subcategories() -> dict:
+    """
+    Returns predefined GHG subcategories for target setting.
+    These map directly to emission record aggregations.
+    """
+    return {
+        "Scope 1 Emissions": [{
+            "kpi_id": "ghg_scope1_total",
+            "metric_name": "Total Scope 1 GHG Emissions",
+            "metric_code": "GHG_S1",
+            "baseline_mapping_key": "scope1_total",
+            "short_name": "Scope 1",
+            "unit": "tCO2e",
+            "output_type": "number",
+            "aggregation_type": "sum",
+            "description": "Total greenhouse gas emissions from direct sources (Scope 1)",
+            "source": "emission_records"
+        }],
+        "Scope 2 Emissions": [{
+            "kpi_id": "ghg_scope2_total",
+            "metric_name": "Total Scope 2 GHG Emissions",
+            "metric_code": "GHG_S2",
+            "baseline_mapping_key": "scope2_total",
+            "short_name": "Scope 2",
+            "unit": "tCO2e",
+            "output_type": "number",
+            "aggregation_type": "sum",
+            "description": "Total greenhouse gas emissions from purchased energy (Scope 2)",
+            "source": "emission_records"
+        }],
+        "Scope 3 Emissions": [{
+            "kpi_id": "ghg_scope3_total",
+            "metric_name": "Total Scope 3 GHG Emissions",
+            "metric_code": "GHG_S3",
+            "baseline_mapping_key": "scope3_total",
+            "short_name": "Scope 3",
+            "unit": "tCO2e",
+            "output_type": "number",
+            "aggregation_type": "sum",
+            "description": "Total greenhouse gas emissions from value chain (Scope 3)",
+            "source": "emission_records"
+        }],
+        "Total Emissions": [{
+            "kpi_id": "ghg_total_all",
+            "metric_name": "Total GHG Emissions (All Scopes)",
+            "metric_code": "GHG_TOTAL",
+            "baseline_mapping_key": "total_all_scopes",
+            "short_name": "Total",
+            "unit": "tCO2e",
+            "output_type": "number",
+            "aggregation_type": "sum",
+            "description": "Total greenhouse gas emissions across all scopes",
+            "source": "emission_records"
+        }],
+        "Scope 1 + Scope 2 Emissions": [{
+            "kpi_id": "ghg_scope1_2_total",
+            "metric_name": "Total Scope 1 + Scope 2 GHG Emissions",
+            "metric_code": "GHG_S1_S2",
+            "baseline_mapping_key": "scope1_2_total",
+            "short_name": "Scope 1+2",
+            "unit": "tCO2e",
+            "output_type": "number",
+            "aggregation_type": "sum",
+            "description": "Combined Scope 1 and Scope 2 greenhouse gas emissions",
+            "source": "emission_records"
+        }]
     }
 
 
@@ -1047,6 +1123,62 @@ async def get_categories_for_targets(
 # =============================================================================
 # Baseline Lookup Endpoints (GHG Module Integration)
 # =============================================================================
+
+@router.get("/baseline/ghg-emissions")
+async def get_ghg_baseline_from_records(
+    scope: str = Query(..., description="GHG scope: scope1, scope2, scope3, total, scope1_2"),
+    base_year: str = Query(..., description="Base year period (e.g., 'FY 2024-2025')"),
+    facility_id: Optional[str] = Query(None, description="Optional facility filter"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Fetch GHG baseline value directly from emission records.
+    Used for GHG Emissions targets where data comes from actual emission records.
+    """
+    from shared.database.mongo import db
+    
+    org_id = _get_org_id(current_user)
+    
+    # Map scope to collection(s)
+    scope_collections = {
+        "scope1": ["scope1_emissions"],
+        "scope2": ["scope2_emissions"],
+        "scope3": ["scope3_emissions"],
+        "total": ["scope1_emissions", "scope2_emissions", "scope3_emissions"],
+        "scope1_2": ["scope1_emissions", "scope2_emissions"]
+    }
+    
+    collections = scope_collections.get(scope)
+    if not collections:
+        return {"error": f"Invalid scope: {scope}", "value": None, "unit": "tCO2e"}
+    
+    total_emissions = 0.0
+    records_found = 0
+    
+    # Build query filter
+    query = {"org_id": org_id, "reporting_period": base_year}
+    if facility_id:
+        query["facility_id"] = facility_id
+    
+    # Aggregate emissions from relevant collections
+    for coll_name in collections:
+        collection = db[coll_name]
+        records = await collection.find(query, {"_id": 0, "total_co2e": 1}).to_list(10000)
+        for rec in records:
+            val = rec.get("total_co2e") or 0
+            if isinstance(val, (int, float)):
+                total_emissions += val
+                records_found += 1
+    
+    return {
+        "scope": scope,
+        "base_year": base_year,
+        "value": round(total_emissions, 4) if records_found > 0 else None,
+        "unit": "tCO2e",
+        "records_count": records_found,
+        "facility_id": facility_id
+    }
+
 
 @router.get("/baseline/lookup")
 async def lookup_baseline_value(

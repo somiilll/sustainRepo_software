@@ -240,6 +240,13 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
     
     // Get the KPI to find its baseline_mapping_key (preferred) or metric_code for baseline lookup
     const kpi = availableKPIs.find(k => k.kpi_id === formData.kpi_id);
+    
+    // Special handling for GHG Emissions - fetch from emission records directly
+    if (kpi?.source === 'emission_records' || formData.category === 'GHG Emissions') {
+      await fetchGHGBaseline(kpi);
+      return;
+    }
+    
     const lookupKey = kpi?.baseline_mapping_key || formData.baseline_mapping_key || kpi?.metric_code;
     if (!lookupKey) return;
     
@@ -266,6 +273,49 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
       // Silent fail - user can fill baseline manually
       setBaselineFromGHG(false);
       console.log('Baseline auto-fetch not available');
+    }
+  };
+
+  // Fetch GHG baseline from emission records
+  const fetchGHGBaseline = async (kpi) => {
+    // Map KPI to scope for GHG endpoint
+    const scopeMap = {
+      'ghg_scope1_total': 'scope1',
+      'ghg_scope2_total': 'scope2',
+      'ghg_scope3_total': 'scope3',
+      'ghg_total_all': 'total',
+      'ghg_scope1_2_total': 'scope1_2'
+    };
+    
+    const scope = scopeMap[kpi?.kpi_id] || 'total';
+    
+    // Use previous year as default base year
+    const currentYear = new Date().getFullYear();
+    const baseYear = orgReportingType === 'FY' 
+      ? `FY ${currentYear - 1}-${currentYear}` 
+      : `CY ${currentYear - 1}`;
+    
+    try {
+      const facilityId = formData.scope_type === 'facility' && formData.facility_ids?.[0] 
+        ? formData.facility_ids[0] 
+        : '';
+      const params = new URLSearchParams({ scope, base_year: baseYear });
+      if (facilityId) params.append('facility_id', facilityId);
+      
+      const res = await axios.get(`${API}/api/esg-targets/baseline/ghg-emissions?${params.toString()}`, { headers });
+      
+      if (res.data?.value !== null && res.data?.value !== undefined) {
+        updateField('baseline', {
+          period: res.data.base_year || baseYear,
+          value: res.data.value?.toString() || ''
+        });
+        setBaselineFromGHG(true);
+      } else {
+        setBaselineFromGHG(false);
+      }
+    } catch (error) {
+      setBaselineFromGHG(false);
+      console.log('GHG baseline auto-fetch not available');
     }
   };
 

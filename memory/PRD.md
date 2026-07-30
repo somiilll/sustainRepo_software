@@ -83,6 +83,27 @@ Unify database architecture to use only 1 collection (organization_esg_responses
 
 ## Completed Work (Current Session — Jul 30 2026)
 
+### GHG Emissions Targets - Subcategories & Baseline from Records (P1)
+- **Backend** (`/app/backend/modules/esg_targets/router.py`):
+  - Added `_get_ghg_subcategories()` helper returning predefined subcategories:
+    - Scope 1 Emissions, Scope 2 Emissions, Scope 3 Emissions, Total Emissions, Scope 1 + Scope 2 Emissions
+  - Updated `/api/esg-targets/lookup/categories` to inject GHG Emissions category for environment section
+  - Added new endpoint `GET /api/esg-targets/baseline/ghg-emissions` to fetch baseline from actual emission records
+- **Frontend** (`/app/frontend/src/components/ESGTargetForm.js`):
+  - Added `fetchGHGBaseline()` function for GHG-specific baseline lookup
+  - Modified `fetchBaseline()` to detect GHG category and route to appropriate endpoint
+- **Status**: ✅ Implemented
+
+### BRSR ngrbc_policy_matrix Fix (P0)
+- Fixed `NGRBCPolicyMatrixRenderer` in ESGQuestionnaire.js - removed broken `initialized` state pattern
+- Added `NGRBCPolicyMatrixDisplay` component to ApproverQueue.js for proper approval workflow display/edit
+- **Status**: ✅ Implemented
+
+### ESG Records Admin Delete Bypass (P1)
+- Updated `/app/backend/modules/esg_records/service.py` `delete_record()` to accept `user_role` parameter
+- Admins now bypass approval workflow for deletes (matching GHG behavior)
+- **Status**: ✅ Implemented
+
 ### Organization Timezone Setting Implementation (P0)
 - **Backend Changes**:
   - Added `timezone` field to Organization model (`/app/backend/modules/organizations/contracts.py`)
