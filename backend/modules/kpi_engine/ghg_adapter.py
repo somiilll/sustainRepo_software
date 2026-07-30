@@ -94,19 +94,27 @@ def _build_period_regex(period: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 
 async def calculate_ghg_kpi(
-    kpi: Dict[str, Any],
-    org_id: str,
+    kpi: Optional[Dict[str, Any]] = None,
+    org_id: str = "",
     scope_type: str = "organization",
     facility_ids: Optional[List[str]] = None,
     period: Optional[Dict[str, Any]] = None,
+    mapping_key: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Calculate a GHG KPI value from emission_records.
 
     Returns the same shape as kpi_engine's format_result so the caller
     doesn't need to know the data came from a different collection.
+    
+    Can be called two ways:
+    1. With a kpi dict containing baseline_mapping_key (standard KPI path)
+    2. With a direct mapping_key string (synthetic GHG target KPIs)
     """
-    mapping_key = kpi.get("baseline_mapping_key")
+    # Resolve mapping_key from either direct param or kpi dict
+    if mapping_key is None and kpi:
+        mapping_key = kpi.get("baseline_mapping_key")
+    
     mapping = get_metric_mapping(mapping_key)
 
     if not mapping:
@@ -167,9 +175,9 @@ async def calculate_ghg_kpi(
         record_count=len(records),
         aggregation_type="sum",
         metadata={
-            "kpi_id": kpi.get("id"),
-            "kpi_name": kpi.get("metric_name"),
-            "metric_code": kpi.get("metric_code"),
+            "kpi_id": kpi.get("id") if kpi else f"synthetic_{mapping_key}",
+            "kpi_name": kpi.get("metric_name") if kpi else mapping.get("description", mapping_key),
+            "metric_code": kpi.get("metric_code") if kpi else mapping_key,
             "baseline_mapping_key": mapping_key,
             "ghg_scope": mapping.get("scope"),
             "ghg_category": mapping.get("category"),
