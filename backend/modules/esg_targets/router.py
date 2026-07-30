@@ -1043,6 +1043,10 @@ async def get_categories_for_targets(
     # Special handling for GHG Emissions in environment section
     if section == "environment":
         hierarchy["GHG Emissions"] = _get_ghg_subcategories()
+        # Add Total Energy Consumption to Energy category
+        if "Energy" not in hierarchy:
+            hierarchy["Energy"] = {}
+        hierarchy["Energy"]["Total Energy Consumption"] = _get_energy_total_kpi()
     
     return {
         "section": section,
@@ -1118,6 +1122,24 @@ def _get_ghg_subcategories() -> dict:
         }]
     }
 
+
+def _get_energy_total_kpi() -> list:
+    """
+    Returns the Total Energy Consumption KPI for target setting.
+    Aggregates energy from all sources (GHG + ESG Metrics).
+    """
+    return [{
+        "kpi_id": "energy_total_consumption",
+        "metric_name": "Total Energy Consumption",
+        "metric_code": "ENERGY_TOTAL",
+        "baseline_mapping_key": "energy_total",
+        "short_name": "Total Energy",
+        "unit": "GJ",
+        "output_type": "number",
+        "aggregation_type": "sum",
+        "description": "Total energy consumption aggregating Fuel, Electricity, Steam, Heating, and Cooling from all sources",
+        "source": "emission_records + environment_records"
+    }]
 
 
 # =============================================================================

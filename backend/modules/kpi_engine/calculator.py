@@ -44,6 +44,7 @@ from .utils import (
 from .filters import FilterBuilder
 from .aggregators import Aggregator
 from .ghg_adapter import is_ghg_kpi, calculate_ghg_kpi
+from .energy_adapter import is_energy_kpi, calculate_total_energy
 
 
 class KPICalculator:
@@ -144,6 +145,15 @@ class KPICalculator:
             mapping_key = ghg_target_mapping[kpi_id]
             return await calculate_ghg_kpi(
                 mapping_key=mapping_key,
+                org_id=org_id,
+                scope_type=scope_type,
+                facility_ids=facility_ids,
+                period=period,
+            )
+        
+        # Check if this is a synthetic Energy target KPI
+        if is_energy_kpi(kpi_id):
+            return await calculate_total_energy(
                 org_id=org_id,
                 scope_type=scope_type,
                 facility_ids=facility_ids,
