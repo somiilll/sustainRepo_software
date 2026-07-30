@@ -1163,7 +1163,7 @@ class AssignmentService:
                 title="Reminder",
                 message=f"Reminder: {entity_id_display} is pending your action",
                 notification_type="reminder",
-                link="/environment",
+                link="/workflow/my-tasks",
                 metadata={"assignment_id": assignment_id, "entity_id": entity_id_display},
             )
             
@@ -1235,7 +1235,7 @@ class AssignmentService:
                     title="New Assignment",
                     message=f"You've been assigned: {entity_id}",
                     notification_type="assignment",
-                    link="/environment",
+                    link="/workflow/my-tasks",
                     metadata={"assignment_id": assignment.get("id"), "entity_id": entity_id},
                 )
 

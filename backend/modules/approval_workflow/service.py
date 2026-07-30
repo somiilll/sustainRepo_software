@@ -815,7 +815,7 @@ class ApprovalWorkflowService:
                             title="Submission Approved",
                             message=f"{decider_name} approved your submission: {entity_id}",
                             notification_type="approval",
-                            link="/environment",
+                            link="/workflow/my-tasks",
                             metadata={"entity_id": entity_id, "request_id": request_id},
                         )
                     else:
@@ -825,7 +825,7 @@ class ApprovalWorkflowService:
                             title="Submission Rejected",
                             message=f"{decider_name} rejected your submission: {entity_id}{reason}",
                             notification_type="approval",
-                            link="/environment",
+                            link="/workflow/my-tasks",
                             metadata={"entity_id": entity_id, "request_id": request_id},
                         )
             except Exception as e:
