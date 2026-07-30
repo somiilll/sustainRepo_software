@@ -56,8 +56,50 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
     let cancelled = false;
     (async () => {
       try {
-        const res = await axios.get(`${API}/targets`, { headers: getAuthHeader() });
-        if (!cancelled) setTargets(res.data || []);
+        // Fetch GHG targets from esg_targets where category is "GHG Emissions"
+        const res = await axios.get(`${API}/esg-targets/with-progress?section=environment&category=GHG Emissions`, { headers: getAuthHeader() });
+        if (!cancelled) {
+          // Transform esg_targets format to match expected target format for gauge card
+          const ghgTargets = (res.data || []).map(t => {
+            const baseValue = parseFloat(t.baseline?.value) || 0;
+            const targetValue = parseFloat(t.target_value) || 0;
+            const currentValue = t.progress?.actual_value;
+            
+            // Calculate target reduction amount based on target type
+            let reductionTarget = 0;
+            if (t.target_type === 'percentage') {
+              reductionTarget = (baseValue * targetValue) / 100;
+            } else if (t.target_type === 'absolute') {
+              reductionTarget = baseValue - targetValue;
+            }
+            
+            return {
+              id: t.id,
+              name: t.name,
+              target_mode: 'total', // Simplify to total mode
+              target_configuration: {
+                base_year: t.baseline?.period,
+                base_value: baseValue,
+                target_year: t.target_year,
+                target_value: targetValue,
+                current_value: currentValue,
+                reduction_target: reductionTarget,
+                progress_percentage: t.progress?.progress_percentage,
+                target_type: t.target_type,
+                value: t.target_type === 'percentage' ? targetValue : reductionTarget,
+              },
+              kpi_id: t.kpi_id,
+              category: t.category,
+              subcategory: t.subcategory,
+              // Pre-computed values for easy access
+              _baseValue: baseValue,
+              _currentValue: currentValue,
+              _reductionTarget: reductionTarget,
+              _progressPct: t.progress?.progress_percentage,
+            };
+          });
+          setTargets(ghgTargets);
+        }
       } catch { /* leave empty */ }
     })();
     return () => { cancelled = true; };
@@ -123,46 +165,36 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
     targets.find((t) => t.id === selectedTargetId) ||
     targets?.[0];
   
-  const hasBaseYear = baseYearComparison?.baseTotal != null && baseYearComparison?.baseTotal > 0;
-  const baseYearTotal = hasBaseYear ? baseYearComparison.baseTotal : null;
-  const currentYearTotal =
-    baseYearComparison?.currentTotal ||
-    totals.total ||
+  // Use base year from selected target if available, otherwise from organization's base year comparison
+  const targetBaseValue = selectedTarget?._baseValue;
+  const hasTargetBaseYear = targetBaseValue != null && targetBaseValue > 0;
+  const hasOrgBaseYear = baseYearComparison?.baseTotal != null && baseYearComparison?.baseTotal > 0;
+  const hasBaseYear = hasTargetBaseYear || hasOrgBaseYear;
+  
+  // Prefer target's base value, fallback to org's base year
+  const baseYearTotal = hasTargetBaseYear ? targetBaseValue : (hasOrgBaseYear ? baseYearComparison.baseTotal : null);
+  
+  // Use current value from target progress if available
+  const currentYearTotal = selectedTarget?._currentValue ?? 
+    baseYearComparison?.currentTotal ??
+    totals.total ??
     0;
 
   const achievedReduction = hasBaseYear
-  ? Math.max(baseYearTotal - currentYearTotal, 0)
-  : 0;
-  const getAbsoluteReduction = (config) => {
-    if (!config) return 0;
+    ? Math.max(baseYearTotal - currentYearTotal, 0)
+    : 0;
 
-  // fetching target value
-  // % target
-  if (
-    config.target_type === 'percentage' ||
-    config.target_type === '%'
-  ) {
-    return ((config.value || 0) * baseYearTotal) / 100;
-  }
-  // absolute target
-  return config.value || 0;
-};
+  // Use pre-computed reduction target from ESG targets
+  let targetReduction = hasBaseYear ? (selectedTarget?._reductionTarget || 0) : null;
 
-  // let targetReduction = 0;
-  let targetReduction = hasBaseYear ? 0 : null;
-
-  if (!hasBaseYear) {
-    targetReduction = null;
-  } else if (selectedTarget?.target_mode === 'total') {
-    targetReduction = getAbsoluteReduction(selectedTarget.target_configuration);
-  } else if (selectedTarget?.target_mode === 'scope') {
-    Object.values(selectedTarget.target_configuration || {}).forEach((config) => {
-      targetReduction += getAbsoluteReduction(config);
-    });
-  } else if (selectedTarget?.target_mode === 'category') {
-    Object.values(selectedTarget.target_configuration || {}).forEach((config) => {
-      targetReduction += getAbsoluteReduction(config);
-    });
+  // Fallback to manual calculation for legacy targets
+  if (!targetReduction && selectedTarget?.target_configuration) {
+    const config = selectedTarget.target_configuration;
+    if (config.target_type === 'percentage' || config.target_type === '%') {
+      targetReduction = ((config.value || 0) * baseYearTotal) / 100;
+    } else {
+      targetReduction = config.value || 0;
+    }
   }
 
     const reductionAchievedPct = hasBaseYear && targetReduction > 0

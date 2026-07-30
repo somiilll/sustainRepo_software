@@ -64,7 +64,6 @@ import WasteAnalysis from './pages/WasteAnalysis';
 import SocialAnalysis from './pages/SocialAnalysis';
 import GovernanceAnalysis from './pages/GovernanceAnalysis';
 import MaterialityAssessment from './pages/MaterialityAssessment';
-import GHGTargetsPage from './pages/GHGTargetsPage';
 import ESGTargetsTab from './components/ESGTargetsTab';
 import WorkflowApproverQueue from './pages/WorkflowApproverQueue';
 import WorkflowTracker from './pages/WorkflowTracker';
@@ -301,7 +300,6 @@ const AppRoutes = () => {
           <Route path="uploads/bulk" element={<BulkUpload />} />
           <Route path="uploads/ocr" element={<PlaceholderPage title="OCR Detection" />} />
           <Route path="uploads/kpi-metrics" element={<PlaceholderPage title="KPI Metrics" />} />
-          <Route path="targets/voluntary/ghg" element={<GHGTargetsPage />} />
           <Route path="targets/voluntary/environment" element={<ESGTargetsTab section="environment" />} />
           <Route path="targets/voluntary/social" element={<ESGTargetsTab section="social" />} />
           <Route path="targets/voluntary/governance" element={<ESGTargetsTab section="governance" />} />
@@ -310,7 +308,8 @@ const AppRoutes = () => {
           <Route path="my-assignments" element={<Navigate to="/workflow/my-task" replace />} />
           <Route path="approver-queue" element={<Navigate to="/workflow/approver-queue" replace />} />
           <Route path="bulk-upload" element={<Navigate to="/uploads/bulk" replace />} />
-          <Route path="base-year-emissions" element={<Navigate to="/targets/voluntary/ghg" replace />} />
+          <Route path="base-year-emissions" element={<Navigate to="/targets/voluntary/environment" replace />} />
+          <Route path="targets/voluntary/ghg" element={<Navigate to="/targets/voluntary/environment" replace />} />
           <Route path="reports" element={<Reports />} />
           <Route path="peer-benchmarking" element={<PeerBenchmarking />} />
           <Route path="users" element={
