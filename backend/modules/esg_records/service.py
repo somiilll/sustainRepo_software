@@ -630,6 +630,22 @@ class ESGRecordsService:
             
             await db.approval_requests.insert_one(approval_request)
             print(f"Created approval request {approval_request['id']} for record {record.get('id')} (is_edit={is_edit})")
+            
+            # Notify approvers via bell
+            try:
+                from shared.notifications import create_notification
+                category = record.get("category", "Record")
+                for aid in current_approvers:
+                    await create_notification(
+                        user_id=aid, org_id=org_id,
+                        title="Approval Required",
+                        message=f"{submitter_name or 'A user'} submitted {category} for approval",
+                        notification_type="approval",
+                        link="/workflow/approver-queue",
+                        metadata={"entity_id": record.get("id"), "category": category},
+                    )
+            except Exception as ne:
+                print(f"Warning: Failed to send approval notification: {ne}")
         except Exception as e:
             print(f"Warning: Failed to create approval request: {e}")
 
@@ -758,6 +774,22 @@ class ESGRecordsService:
             
             await db.approval_requests.insert_one(approval_request)
             print(f"Created immutable edit approval request {approval_request['id']} for record {record_id}")
+            
+            # Notify approvers via bell
+            try:
+                from shared.notifications import create_notification
+                cat_name = current_record.get("category", "Record")
+                for aid in current_approvers:
+                    await create_notification(
+                        user_id=aid, org_id=org_id,
+                        title="Edit Approval Required",
+                        message=f"{submitter_name or 'A user'} edited {cat_name} — review needed",
+                        notification_type="approval",
+                        link="/workflow/approver-queue",
+                        metadata={"entity_id": record_id, "category": cat_name},
+                    )
+            except Exception as ne:
+                print(f"Warning: Failed to send edit approval notification: {ne}")
             
             # Update the record's approval_status to "pending_approval" 
             # This shows the correct status in UI while keeping field_values unchanged

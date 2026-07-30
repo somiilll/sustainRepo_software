@@ -530,7 +530,7 @@ class ApprovalWorkflowService:
                         title="Approval Required",
                         message=f"{submitter_name} submitted {data.entity_id} for approval",
                         notification_type="approval",
-                        link="/approval-queue",
+                        link="/workflow/approver-queue",
                         metadata={"request_id": request.id, "entity_id": data.entity_id},
                     )
         except Exception as e:

@@ -1271,7 +1271,7 @@ class AssignmentService:
                         title="Assigned as Approver",
                         message=f"You're the approver for: {entity_id}",
                         notification_type="approval",
-                        link="/approval-queue",
+                        link="/workflow/approver-queue",
                         metadata={"assignment_id": assignment.get("id"), "entity_id": entity_id},
                     )
 

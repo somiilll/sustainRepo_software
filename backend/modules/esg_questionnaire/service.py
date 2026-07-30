@@ -905,7 +905,7 @@ class ESGQuestionnaireService:
                     title="Approval Required",
                     message=f"{user_name} submitted {display_key} for approval",
                     notification_type="approval",
-                    link="/approval-queue",
+                    link="/workflow/approver-queue",
                     metadata={"entity_id": question_key, "framework": framework},
                 )
         except Exception as e:
@@ -1625,7 +1625,7 @@ class ESGQuestionnaireService:
                             title="Approved Answer Edited",
                             message=f"{changed_by_user_name} edited previously approved: {display_key}",
                             notification_type="approval",
-                            link="/approval-queue",
+                            link="/workflow/approver-queue",
                             metadata={"entity_id": question_key},
                         )
             except Exception:
