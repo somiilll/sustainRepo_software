@@ -1315,6 +1315,28 @@ class ApprovalWorkflowService:
                         user_id=approver.get("id"),
                         changed_fields=["approval_status", "value"] if updated_data else ["approval_status"],
                     )
+                    
+                    # Write to question_audit_log for version history display
+                    await db.question_audit_log.insert_one({
+                        "id": str(uuid.uuid4()),
+                        "question_key": question_key,
+                        "reporting_period": reporting_year,
+                        "organization_id": org_id,
+                        "action": "submission_approved",
+                        "timestamp": _now_iso(),
+                        "performed_by": {
+                            "user_id": approver.get("id"),
+                            "name": approver.get("full_name", approver.get("email", "")),
+                            "email": approver.get("email", ""),
+                        },
+                        "change_details": {
+                            "old_value": entity_snapshot.get("value"),
+                            "final_value": final_value,
+                            "new_value": final_value,
+                            "was_merged": bool(updated_data and "value" in updated_data),
+                            "submitted_by": request.get("submitted_by_name", ""),
+                        },
+                    })
                 except Exception as e:
                     logger.error(f"Failed to update esg_response with approval: {e}")
                     import traceback
@@ -1613,6 +1635,27 @@ class ApprovalWorkflowService:
                     {"organization_id": org_id, "entity_id": question_key},
                     {"$set": {"updated_at": now}}
                 )
+                
+                # Write to question_audit_log for version history display
+                await db.question_audit_log.insert_one({
+                    "id": str(uuid.uuid4()),
+                    "question_key": question_key,
+                    "reporting_period": reporting_year,
+                    "organization_id": org_id,
+                    "action": "submission_rejected",
+                    "timestamp": _now_iso(),
+                    "performed_by": {
+                        "user_id": rejector_id,
+                        "name": rejector.get("full_name", rejector.get("email", "")),
+                        "email": rejector.get("email", ""),
+                    },
+                    "change_details": {
+                        "submitted_by": request.get("submitted_by_name", ""),
+                        "rejection_reason": comment,
+                        "old_value": request.get("entity_snapshot", {}).get("value"),
+                        "reverted_to_approved": existing_doc.get("last_approved_value") is not None if existing_doc else False,
+                    },
+                })
             elif entity_type == "esg_task":
                 # NOTE: task.approval_status is now computed from RECORDS.
                 # Only update audit/metadata fields here.

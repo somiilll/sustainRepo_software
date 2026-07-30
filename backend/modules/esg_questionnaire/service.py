@@ -1695,10 +1695,27 @@ class ESGQuestionnaireService:
         
         entries = await cursor.to_list(200)
         
-        # Process each entry to add computed fields for display
+        # Process each entry to add computed fields and normalize names for frontend
         for entry in entries:
             change_details = entry.get("change_details", {})
             action = entry.get("action", "")
+            
+            # Normalize field names for frontend compatibility
+            entry["change_type"] = action or "updated"
+            entry["created_at"] = entry.get("timestamp")
+            performed_by = entry.get("performed_by", {})
+            if isinstance(performed_by, dict):
+                entry["created_by"] = performed_by.get("name") or performed_by.get("email") or "Unknown"
+            else:
+                entry["created_by"] = str(performed_by) if performed_by else "Unknown"
+            entry["old_value"] = change_details.get("old_value") or change_details.get("original_value")
+            entry["new_value"] = change_details.get("new_value") or change_details.get("final_value") or change_details.get("value")
+            if change_details.get("rejection_reason"):
+                entry["rejection_reason"] = change_details["rejection_reason"]
+            if change_details.get("was_merged"):
+                entry["was_merged"] = True
+            if change_details.get("submitted_by"):
+                entry["submitted_by_name"] = change_details["submitted_by"]
             
             # Extract old and new values based on action type
             # Different actions store values in different keys
