@@ -110,7 +110,7 @@ async def get_org_module_config(current_user: dict = Depends(get_current_user)):
         esg_frameworks_enabled=org.get("esg_frameworks_enabled"),
         approval_workflow_enabled=org.get("approval_workflow_enabled", False),
         multi_level_approval_enabled=org.get("multi_level_approval_enabled", False),
-        timezone=org.get("timezone", "UTC")
+        timezone=org.get("timezone") or "Asia/Kolkata"  # Default to IST
     )
 
 
@@ -126,6 +126,13 @@ async def get_my_organization(current_user: dict = Depends(get_current_user)):
     org = await db.organizations.find_one({"id": current_user["organization_id"]}, {"_id": 0})
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
+    
+    # Apply defaults for existing orgs without these fields
+    if "org_type" not in org or not org.get("org_type"):
+        org["org_type"] = "customer"
+    if "timezone" not in org or not org.get("timezone"):
+        org["timezone"] = "Asia/Kolkata"  # IST
+    
     return OrganizationResponse(**org)
 
 
