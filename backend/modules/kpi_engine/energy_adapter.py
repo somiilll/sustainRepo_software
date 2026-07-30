@@ -5,12 +5,8 @@ Calculates Total Energy Consumption by aggregating energy from:
 1. GHG Module (emission_records): Fuel, Electricity, Steam/Heat
 2. ESG Metrics (environment_records): All energy subcategories
 
-Energy sources aggregated:
-- Fuel Within Organization (Scope 1 fuel: qty × calorific value)
-- Electricity Within Organization (Scope 2 electricity)
-- Steam Within Organization (Scope 2 steam/heat)
-- Heating Within Organization (from both sources)
-- Cooling Within Organization (from environment_records)
+Reuses the existing GHGIntegrationService.get_energy_from_ghg() for GHG data
+to ensure consistency with the dashboard.
 
 All values converted to GJ (Gigajoules) as the standard unit.
 """
@@ -83,109 +79,47 @@ def to_gj(value: float, unit: str) -> float:
     return mwh_to_gj(value)
 
 
-def _cv_to_tj_per_kg(value: float, unit: str) -> float:
-    """Convert a calorific value to TJ/kg regardless of source unit."""
-    u = unit.lower().replace(" ", "")
-    if "tj/kg" in u:
-        return value
-    if "gj/kg" in u:
-        return value * 1e-3
-    if "mj/kg" in u:
-        return value * 1e-6
-    if "kj/kg" in u:
-        return value * 1e-9
-    if "gj/tonne" in u or "gj/t" in u:
-        return value * 1e-3 / 1000
-    if "mj/tonne" in u or "mj/t" in u:
-        return value * 1e-6 / 1000
-    if "tj/tonne" in u or "tj/t" in u:
-        return value / 1000
-    if "kcal/kg" in u:
-        return value * 4.184e-9
-    if "btu/lb" in u:
-        return value * 1.055e-9 * 2.20462
-    return value
-
-
 # =============================================================================
 # Energy Adapter Functions
 # =============================================================================
 
-async def _get_org_facility_ids(org_id: str) -> List[str]:
-    """Get all facility IDs for an organization."""
-    facilities = await db.facilities.find(
-        {"organization_id": org_id},
-        {"_id": 0, "id": 1, "equity_share_percentage": 1}
-    ).to_list(1000)
-    return facilities
-
-
-async def _get_fuel_database_cache() -> tuple:
-    """Load fuel database for calorific values and density."""
-    fuel_cv_cache = {}
-    fuel_density_cache = {}
-    
-    fuels = await db.fuel_database.find({}, {"_id": 0}).to_list(10000)
-    for fuel in fuels:
-        fuel_name = (fuel.get("fuel_name") or "").lower()
-        fuel_id = fuel.get("id", "")
-        cv = fuel.get("calorific_value")
-        cv_unit = (fuel.get("calorific_value_unit") or "TJ/kg").lower()
-        density = fuel.get("density")
-        
-        if cv:
-            fuel_cv_cache[fuel_name] = _cv_to_tj_per_kg(float(cv), cv_unit)
-            fuel_cv_cache[fuel_id] = _cv_to_tj_per_kg(float(cv), cv_unit)
-        if density:
-            fuel_density_cache[fuel_name] = float(density)
-            fuel_density_cache[fuel_id] = float(density)
-    
-    return fuel_cv_cache, fuel_density_cache
-
-
-def _build_period_filter(period: Dict[str, Any]) -> List[str]:
-    """Build list of period strings to match for a given year."""
+def _get_date_range_for_period(period: Dict[str, Any]) -> tuple:
+    """Convert period dict to start_date and end_date strings for GHG service."""
     year = period.get("year")
     month = period.get("month")
     
     if not year:
-        return []
-    
-    periods = []
+        return None, None
     
     if month:
         # Specific month
-        periods.append(f"{year}-{month:02d}")
+        start_date = f"{year}-{month:02d}-01"
+        # End of month
+        if month == 12:
+            end_date = f"{year + 1}-01-01"
+        else:
+            end_date = f"{year}-{month + 1:02d}-01"
     else:
-        # Full year - include all months
-        for m in range(1, 13):
-            periods.append(f"{year}-{m:02d}")
-        # Also include FY/CY formats
-        periods.extend([
-            f"FY {year}-{year+1}",
-            f"FY {year}-{str(year+1)[-2:]}",
-            f"FY{year}-{year+1}",
-            f"CY {year}",
-            f"CY{year}",
-            str(year)
-        ])
+        # Full year - use FY (Apr to Mar) or CY (Jan to Dec)
+        # Default to calendar year for simplicity
+        start_date = f"{year}-01-01"
+        end_date = f"{year}-12-31"
     
-    return periods
+    return start_date, end_date
 
 
 async def _get_ghg_energy(
     org_id: str,
-    facility_ids: List[str],
+    facility_ids: Optional[List[str]] = None,
     period: Optional[Dict[str, Any]] = None
 ) -> Dict[str, float]:
     """
-    Get energy from GHG emission_records.
+    Get energy from GHG emission_records using the existing GHGIntegrationService.
     
-    Returns energy in GJ for each subcategory:
-    - fuel: Scope 1 fuel (qty × calorific value)
-    - electricity: Scope 2 electricity
-    - steam_heating: Scope 2 steam/heat
+    Returns energy in GJ for each subcategory.
     """
+    from modules.esg_records.ghg_integration import get_ghg_integration_service
+    
     result = {
         "fuel": 0.0,
         "electricity": 0.0,
@@ -194,117 +128,54 @@ async def _get_ghg_energy(
         "record_count": 0
     }
     
-    if not facility_ids:
-        return result
-    
-    # Load fuel database
-    fuel_cv_cache, fuel_density_cache = await _get_fuel_database_cache()
-    
-    # Get facility equity shares
-    facilities = await db.facilities.find(
-        {"id": {"$in": facility_ids}},
-        {"_id": 0, "id": 1, "equity_share_percentage": 1}
-    ).to_list(1000)
-    facility_equity = {f["id"]: (f.get("equity_share_percentage") or 100) / 100 for f in facilities}
-    
-    # Build query
-    query = {"facility_id": {"$in": facility_ids}}
-    
-    # Add period filter
-    if period:
-        period_strings = _build_period_filter(period)
-        if period_strings:
-            query["reporting_period"] = {"$in": period_strings}
-    
-    # Fetch emission records
-    records = await db.emission_records.find(query, {"_id": 0}).to_list(100000)
-    
-    for rec in records:
-        fac_id = rec.get("facility_id")
-        scope = (rec.get("scope") or "").lower()
-        equity_factor = facility_equity.get(fac_id, 1.0)
+    try:
+        ghg_service = get_ghg_integration_service(db)
         
-        if scope == "scope1":
-            # Fuel energy: qty × calorific value
-            dfv = rec.get("dynamic_field_values") or {}
-            qty_data = dfv.get("qty") or {}
-            quantity = float(qty_data.get("value") or 0)
-            quantity_unit = (qty_data.get("unit") or "").lower()
-            
-            if quantity <= 0:
-                continue
-            
-            # Get fuel info
-            fuel_name = (rec.get("fuel_name") or rec.get("fuel_type") or "").lower()
-            fuel_db_id = rec.get("fuel_database_id") or ""
-            
-            # Get calorific value - override preferred
-            cv_data = dfv.get("cv") or {}
-            cv = cv_data.get("value")
-            if cv:
-                cv_unit = (cv_data.get("unit") or "TJ/kg").lower()
-                cv = _cv_to_tj_per_kg(float(cv), cv_unit)
-            else:
-                cv = fuel_cv_cache.get(fuel_name) or fuel_cv_cache.get(fuel_db_id)
-            
-            if not cv:
-                continue
-            
-            # Get density for volume-to-mass conversion
-            density_data = dfv.get("density") or {}
-            density = density_data.get("value")
-            if density:
-                density = float(density)
-            else:
-                density = fuel_density_cache.get(fuel_name) or fuel_density_cache.get(fuel_db_id) or 0.85
-            
-            # Normalize quantity to kg
-            if "tonne" in quantity_unit or quantity_unit == "t":
-                quantity_kg = quantity * 1000
-            elif "litre" in quantity_unit or quantity_unit == "l":
-                quantity_kg = quantity * density
-            elif quantity_unit == "kg":
-                quantity_kg = quantity
-            else:
-                quantity_kg = quantity
-            
-            # Calculate energy: Quantity (kg) × CV (TJ/kg) = TJ, then convert to GJ
-            energy_tj = quantity_kg * cv
-            energy_gj = tj_to_gj(energy_tj) * equity_factor
-            
-            result["fuel"] += energy_gj
-            result["record_count"] += 1
+        # Convert period to date range
+        start_date, end_date = None, None
+        if period:
+            start_date, end_date = _get_date_range_for_period(period)
         
-        elif scope == "scope2":
-            category_name = (rec.get("category") or "").lower()
-            is_steam_heat = "steam" in category_name or "heat" in category_name
+        # Use the same function as the dashboard
+        records = await ghg_service.get_energy_from_ghg(
+            org_id=org_id,
+            facility_ids=facility_ids,
+            start_date=start_date,
+            end_date=end_date
+        )
+        
+        for rec in records:
+            fv = rec.get("field_values", {})
+            energy_val = float(fv.get("total_energy", 0))
+            unit = fv.get("energy_unit", "MWh")
+            subcategory = (rec.get("subcategory") or "").lower()
             
-            dfv = rec.get("dynamic_field_values") or {}
-            qty_data = dfv.get("qty_energy") or {}
-            quantity = float(qty_data.get("value") or 0)
-            quantity_unit = (qty_data.get("unit") or "kwh").lower()
+            # Convert to GJ based on source unit
+            energy_gj = to_gj(energy_val, unit)
             
-            if quantity <= 0:
-                continue
-            
-            # Convert to GJ
-            energy_gj = to_gj(quantity, quantity_unit) * equity_factor
-            
-            if is_steam_heat:
+            if "fuel" in subcategory:
+                result["fuel"] += energy_gj
+            elif "electricity" in subcategory:
+                result["electricity"] += energy_gj
+            elif "heating" in subcategory or "steam" in subcategory:
                 result["steam_heating"] += energy_gj
             else:
-                result["electricity"] += energy_gj
+                # Other energy sources
+                result["total"] += energy_gj
             
             result["record_count"] += 1
-    
-    result["total"] = result["fuel"] + result["electricity"] + result["steam_heating"]
-    
-    # Round all values
-    for key in result:
-        if isinstance(result[key], float):
-            result[key] = round(result[key], 4)
-    
-    return result
+        
+        result["total"] += result["fuel"] + result["electricity"] + result["steam_heating"]
+        
+        # Round all values
+        for key in result:
+            if isinstance(result[key], float):
+                result[key] = round(result[key], 4)
+        
+        return result
+    except Exception as e:
+        print(f"Error fetching GHG energy: {e}")
+        return result
 
 
 async def _get_esg_energy(
@@ -419,18 +290,15 @@ async def calculate_total_energy(
     """
     Calculate total energy consumption by aggregating all sources.
     
+    Uses the same GHGIntegrationService as the dashboard for consistency.
     Returns energy in GJ (Gigajoules).
     """
-    # Get facility IDs if not provided
-    if scope_type == "organization" or not facility_ids:
-        facilities = await _get_org_facility_ids(org_id)
-        resolved_facility_ids = [f["id"] for f in facilities]
-    else:
-        resolved_facility_ids = facility_ids
+    # Get facility IDs if scope is facility
+    resolved_facility_ids = facility_ids if scope_type == "facility" and facility_ids else None
     
     # Get energy from both sources
     ghg_energy = await _get_ghg_energy(org_id, resolved_facility_ids, period)
-    esg_energy = await _get_esg_energy(org_id, resolved_facility_ids if scope_type == "facility" else None, period)
+    esg_energy = await _get_esg_energy(org_id, resolved_facility_ids, period)
     
     # Aggregate totals (sum both sources)
     total_fuel = ghg_energy["fuel"] + esg_energy["fuel"]
