@@ -694,6 +694,7 @@ async def get_record_stats(
     section: ESG_SECTION,
     category: str = None,
     subcategory: str = None,
+    categories: str = None,  # Comma-separated list of categories (for "Others" virtual category)
     current_user: dict = Depends(get_current_user)
 ):
     """Get record statistics for the organization."""
@@ -701,11 +702,17 @@ async def get_record_stats(
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization assigned")
     
+    # Handle multiple categories (for "Others" virtual category)
+    category_list = None
+    if categories:
+        category_list = [c.strip() for c in categories.split(',') if c.strip()]
+    
     stats = await esg_records_service.get_record_stats(
         section=section,
         org_id=org_id,
         category=category,
         subcategory=subcategory,
+        category_list=category_list,
     )
     
     return stats

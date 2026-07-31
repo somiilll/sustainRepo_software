@@ -2151,11 +2151,21 @@ class ESGRecordsService:
         org_id: str,
         category: str = None,
         subcategory: str = None,
+        category_list: List[str] = None,
     ) -> Dict[str, Any]:
-        """Get record statistics for an organization."""
+        """Get record statistics for an organization.
+        
+        Args:
+            category_list: List of categories to filter by (for "Others" virtual category)
+        """
         collection = self._get_records_collection(section)
         base_filter = {"org_id": org_id, "is_current": True}
-        if category:
+        
+        # Handle category filtering
+        if category_list:
+            # Multiple categories (for "Others" virtual category)
+            base_filter["category"] = {"$in": category_list}
+        elif category:
             base_filter["category"] = category
         if subcategory:
             base_filter["subcategory"] = subcategory
