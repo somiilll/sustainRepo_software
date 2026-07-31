@@ -10,7 +10,6 @@ import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import Facilities from './pages/Facilities';
 import Emissions from './pages/Emissions';
-import ApprovalSection from './modules/ghg/sections/ApprovalSection';
 import Sinks from './pages/Sinks';
 import BaseYearEmissions from './pages/BaseYearEmissions';
 import BaseYearAndTargets from './pages/BaseYearAndTargets';
@@ -273,7 +272,6 @@ const AppRoutes = () => {
           <Route path="ghg/scope2" element={<Emissions />} />
           <Route path="ghg/scope3" element={<Emissions />} />
           <Route path="ghg/biogenic" element={<Emissions />} />
-          <Route path="ghg/approvals" element={<ApprovalSection />} />
           <Route path="emissions/dynamic" element={<DynamicEmissionsTest />} />
           <Route path="bulk-upload" element={<BulkUpload />} />
           <Route path="ghg/analysis" element={<GHGAnalysis />} />
