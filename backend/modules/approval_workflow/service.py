@@ -1176,7 +1176,11 @@ class ApprovalWorkflowService:
                         logger.info(f"Applying proposed_changes for emission update: {list(proposed_changes.keys())}")
                         for key, value in proposed_changes.items():
                             if value is not None:
-                                record_update[key] = value
+                                # Map 'inputs' to 'dynamic_field_values' (emission_records schema)
+                                if key == "inputs":
+                                    record_update["dynamic_field_values"] = value
+                                else:
+                                    record_update[key] = value
                         
                         # Recalculate emission values from outputs if provided
                         if "outputs" in proposed_changes:
