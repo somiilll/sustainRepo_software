@@ -1333,23 +1333,28 @@ class ESGRecordsService:
         
         # =========================================================================
         # IMMUTABLE APPROVED DATA PRINCIPLE
-        # If editing an approved record WITH approval required:
+        # If editing a record that requires approval:
         #   - DO NOT mutate the live record
-        #   - Store proposed_changes in approval request
+        #   - Store proposed_changes in approval request (proposal)
         #   - On approval: apply changes
         #   - On rejection: discard request (no rollback needed)
         # 
-        # This ensures dashboards always show approved data until new approval.
+        # This ensures dashboards always show approved/current data until new approval.
+        # 
+        # Applies to:
+        #   - Records with approval_status == "approved" (previously approved)
+        #   - Records with approval_status == "not_required" (admin-created, but 
+        #     assignment now requires approval for non-admin edits)
         # =========================================================================
         old_approval_status = current.get("approval_status")
-        is_editing_approved_record = (
-            old_approval_status == "approved" and 
+        is_editing_record_requiring_approval = (
+            old_approval_status in ["approved", "not_required"] and 
             "field_values" in changed_fields and 
             requires_approval and
             not is_admin_override
         )
         
-        if is_editing_approved_record:
+        if is_editing_record_requiring_approval:
             # DON'T MUTATE THE RECORD - create approval request with proposed changes
             proposed_changes = {}
             if data.field_values is not None:
@@ -1403,7 +1408,7 @@ class ESGRecordsService:
             except NoApproverConfiguredError as e:
                 raise ValueError(f"No approver configured for this assignment: {e.assignment_id}")
             
-            print(f"Created edit approval request for approved record {record_id}. Record NOT mutated.")
+            print(f"Created edit proposal for record {record_id} (old_status={old_approval_status}). Record NOT mutated.")
             
             # Return the UNCHANGED record with a flag indicating pending edit
             return {
@@ -1415,7 +1420,7 @@ class ESGRecordsService:
                 }
             }
         
-        # For non-approved records or admin override: proceed with normal update
+        # For records not requiring approval workflow or admin override: proceed with normal update
         # Increment version
         new_version = current["version"] + 1
         update_data["version"] = new_version
