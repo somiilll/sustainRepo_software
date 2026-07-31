@@ -332,21 +332,41 @@ async def list_records(
     is_admin = user_role in ["admin", "super_admin"]
     
     # For non-admin users, get their assigned categories
+    # V2 Architecture: Query esg_assignment_assignees (many-to-many) instead of
+    # the legacy assigned_to_user_id field on esg_assignments
     assigned_categories = None
     if not is_admin:
         from shared.database.mongo import db
-        assignments_cursor = db.esg_assignments.find(
+        
+        # Step 1: Get assignment IDs where user is an active assignee (V2 architecture)
+        assignee_records = await db.esg_assignment_assignees.find(
             {
+                "user_id": user_id,
                 "organization_id": org_id,
-                "assigned_to_user_id": user_id,
-                "entity_type": "record_category",
+                "$or": [
+                    {"removed_at": None},
+                    {"removed_at": {"$exists": False}},
+                ],
             },
-            {"_id": 0, "category": 1, "subcategory": 1, "sub_subcategory": 1}
-        )
-        assignments = await assignments_cursor.to_list(500)
+            {"_id": 0, "assignment_id": 1}
+        ).to_list(500)
+        
+        assignment_ids = [a["assignment_id"] for a in assignee_records]
+        
+        # Step 2: Get assignments for those IDs
+        assignments = []
+        if assignment_ids:
+            assignments = await db.esg_assignments.find(
+                {
+                    "id": {"$in": assignment_ids},
+                    "organization_id": org_id,
+                    "entity_type": "record_category",
+                },
+                {"_id": 0, "category": 1, "subcategory": 1, "sub_subcategory": 1}
+            ).to_list(500)
         
         if assignments:
-            # Build list of (category, subcategory) tuples user is assigned to
+            # Build list of (category, subcategory, sub_subcategory) tuples user is assigned to
             assigned_categories = [
                 (a.get("category"), a.get("subcategory"), a.get("sub_subcategory"))
                 for a in assignments
@@ -1260,10 +1280,14 @@ async def get_my_tasks(
     )
     
     # Get assignment count for this user (to show if they have assignments even without tasks)
-    assignment_count = await db.esg_assignments.count_documents({
+    # V2 Architecture: Count via esg_assignment_assignees junction table
+    assignment_count = await db.esg_assignment_assignees.count_documents({
         "organization_id": org_id,
-        "assigned_to_user_id": user_id,
-        "entity_type": "record_category",
+        "user_id": user_id,
+        "$or": [
+            {"removed_at": None},
+            {"removed_at": {"$exists": False}},
+        ],
     })
     
     return {"tasks": tasks, "total": len(tasks), "assignment_count": assignment_count}
