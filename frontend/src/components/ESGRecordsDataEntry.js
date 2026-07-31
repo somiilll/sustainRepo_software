@@ -679,8 +679,14 @@ export default function ESGRecordsDataEntry({
       }
     }
     
+    // If user has a pending proposal, show their proposed values instead of record values
+    const hasPendingProposal = !!record._user_pending_proposal;
+    const fieldValues = hasPendingProposal 
+      ? (record._user_pending_proposal.proposed_values || record.field_values || {})
+      : (record.field_values || {});
+    
     setEditData({
-      field_values: record.field_values || {},
+      field_values: fieldValues,
       subcategory: record.subcategory || '',
       notes: record.notes || '',
       source_of_information: record.source_of_information || '',
@@ -693,6 +699,8 @@ export default function ESGRecordsDataEntry({
       // Facility/org level
       facility_id: record.facility_id || '',
       record_level: record.record_level || 'organization',
+      // Track if viewing pending proposal
+      _viewing_pending_proposal: hasPendingProposal,
     });
     
     // Fetch category config for dynamic fields
@@ -1562,6 +1570,20 @@ export default function ESGRecordsDataEntry({
           </DialogHeader>
           
           <div className="space-y-4 py-4">
+            {/* Pending Proposal Banner */}
+            {editData._viewing_pending_proposal && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-3">
+                <Clock className="w-5 h-5 text-amber-600 mt-0.5" />
+                <div>
+                  <p className="font-medium text-amber-800">Your Pending Proposal</p>
+                  <p className="text-sm text-amber-700">
+                    You are viewing your proposed changes that are awaiting approval. 
+                    The original record values will remain unchanged until your proposal is approved.
+                  </p>
+                </div>
+              </div>
+            )}
+            
             {/* Reporting Period Section */}
             <div className="space-y-3 pb-3 border-b">
               <p className="text-sm font-medium text-text-primary flex items-center gap-2">
