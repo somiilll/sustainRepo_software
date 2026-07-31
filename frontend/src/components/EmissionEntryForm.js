@@ -76,7 +76,16 @@ export default function EmissionEntryForm({
   onFormChange, // Callback when form becomes dirty (#19)
   editingEmission = null,
   configLabels = null, // Centralized label configuration
-  organization = null // Organization data for reporting year type
+  organization = null, // Organization data for reporting year type
+  // KPI Access Control props
+  kpiAccessInfo = null,
+  kpiCanAccessScope = null,
+  kpiCanAccessPeriod = null,
+  kpiGetPeriodRestrictions = null,
+  kpiAllowedScopes = null,
+  kpiPeriodRestrictions = null,
+  filterFacilitiesByScope = null,
+  hasFullKPIAccess = true,
 }) {
   // Helper to get method labels from centralized config (no hardcoded fallbacks)
   const getMethodLabel = useCallback((method, short = false) => {
@@ -2628,6 +2637,11 @@ export default function EmissionEntryForm({
           setEmployeeName={setEmployeeName}
           employeeId={employeeId}
           setEmployeeId={setEmployeeId}
+          // KPI Access Control
+          kpiCanAccessScope={kpiCanAccessScope}
+          kpiAllowedScopes={kpiAllowedScopes}
+          filterFacilitiesByScope={filterFacilitiesByScope}
+          hasFullKPIAccess={hasFullKPIAccess}
         />
       )}
 

@@ -140,6 +140,10 @@ class KPIAccessHelper:
                     ...
                 },
                 "has_sinks_access": bool,  # Special flag for sinks module access
+                "period_restrictions": {  # Date range restrictions per scope
+                    "scope1": {"start_date": "2026-04-01", "end_date": "2026-06-30"} or None,
+                    ...
+                },
             }
         """
         # Admins always have full access
@@ -149,6 +153,7 @@ class KPIAccessHelper:
                 "allowed_scopes": ["scope1", "scope2", "scope3", "biogenic"],
                 "allowed_subcategories": list(GHG_SUBCATEGORY_TO_SCOPE.keys()),
                 "facility_restrictions": {},
+                "period_restrictions": {},
                 "has_sinks_access": True,
             }
         
@@ -176,6 +181,7 @@ class KPIAccessHelper:
                     "allowed_scopes": ["scope1", "scope2", "scope3", "biogenic"],
                     "allowed_subcategories": list(GHG_SUBCATEGORY_TO_SCOPE.keys()),
                     "facility_restrictions": {},
+                    "period_restrictions": {},
                     "has_sinks_access": True,
                 }
             else:
@@ -185,6 +191,7 @@ class KPIAccessHelper:
                     "allowed_scopes": [],
                     "allowed_subcategories": [],
                     "facility_restrictions": {},
+                    "period_restrictions": {},
                     "has_sinks_access": False,
                 }
         
@@ -192,12 +199,15 @@ class KPIAccessHelper:
         allowed_scopes = set()
         allowed_subcategories = set()
         facility_restrictions = {}
+        period_restrictions = {}
         has_sinks_access = False
         
         for assignment in assignments:
             subcategory = assignment.get("subcategory")
             facility_id = assignment.get("facility_id")
             assignment_level = assignment.get("assignment_level", "organization")
+            start_date = assignment.get("start_date")
+            end_date = assignment.get("end_date")
             
             if not subcategory:
                 # Category-level assignment (no subcategory) = full GHG access
@@ -207,6 +217,7 @@ class KPIAccessHelper:
                 # Clear facility restrictions for these scopes (org-level)
                 for scope in ["scope1", "scope2", "scope3", "biogenic", "sinks"]:
                     facility_restrictions[scope] = None
+                    period_restrictions[scope] = None
                 continue
             
             # Map subcategory to scope(s)
@@ -227,12 +238,35 @@ class KPIAccessHelper:
                 else:
                     # Organization-level = all facilities
                     facility_restrictions[scope] = None
+                
+                # Track period restrictions
+                if start_date or end_date:
+                    period_info = {}
+                    if start_date:
+                        period_info["start_date"] = start_date.isoformat() if hasattr(start_date, 'isoformat') else str(start_date)
+                    if end_date:
+                        period_info["end_date"] = end_date.isoformat() if hasattr(end_date, 'isoformat') else str(end_date)
+                    
+                    # Merge with existing period restrictions (expand the range)
+                    if scope in period_restrictions and period_restrictions[scope]:
+                        existing = period_restrictions[scope]
+                        if period_info.get("start_date") and existing.get("start_date"):
+                            # Use earliest start date
+                            if period_info["start_date"] < existing["start_date"]:
+                                existing["start_date"] = period_info["start_date"]
+                        if period_info.get("end_date") and existing.get("end_date"):
+                            # Use latest end date
+                            if period_info["end_date"] > existing["end_date"]:
+                                existing["end_date"] = period_info["end_date"]
+                    else:
+                        period_restrictions[scope] = period_info
         
         return {
             "has_full_access": False,
             "allowed_scopes": list(allowed_scopes),
             "allowed_subcategories": list(allowed_subcategories),
             "facility_restrictions": facility_restrictions,
+            "period_restrictions": period_restrictions,
             "has_sinks_access": has_sinks_access,
         }
     

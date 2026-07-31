@@ -4,9 +4,16 @@
  * This is a large step component (~700 lines extracted from EmissionEntryForm.js)
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Label } from '../../../../../../components/ui/label';
 import { Input } from '../../../../../../components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../../../../../components/ui/select';
 import { Search, X } from 'lucide-react';
 
 /**
@@ -105,6 +112,12 @@ export const Step1BasicSelection = ({
   setEmployeeName,
   employeeId,
   setEmployeeId,
+  
+  // KPI Access Control props
+  kpiCanAccessScope = null,
+  kpiAllowedScopes = null,
+  filterFacilitiesByScope = null,
+  hasFullKPIAccess = true,
 }) => {
   // Activity type display labels
   const activityTypeLabels = {
@@ -120,38 +133,75 @@ export const Step1BasicSelection = ({
     'others': 'Others',
   };
 
+  // Filter facilities based on selected scope (if KPI access is restricted)
+  const filteredFacilities = useMemo(() => {
+    let result = facilities.filter(f => f.is_active !== false);
+    
+    // Apply KPI-based facility filtering if not full access
+    if (!hasFullKPIAccess && filterFacilitiesByScope && scope) {
+      result = filterFacilitiesByScope(result, scope);
+    }
+    
+    return result;
+  }, [facilities, scope, hasFullKPIAccess, filterFacilitiesByScope]);
+
+  // Filter scopes based on KPI access
+  const filteredScopes = useMemo(() => {
+    const defaultScopes = dynamicScopes.length > 0 ? dynamicScopes : [
+      { code: 'scope1', name: 'Scope 1' },
+      { code: 'scope2', name: 'Scope 2' },
+      { code: 'biogenic', name: 'Biogenic' },
+    ];
+    
+    let result = defaultScopes.filter(s => s.code !== 'scope3' || hasScope3Access);
+    
+    // Apply KPI-based scope filtering if not full access
+    if (!hasFullKPIAccess && kpiAllowedScopes && kpiAllowedScopes.length > 0) {
+      result = result.filter(s => kpiAllowedScopes.includes(s.code));
+    }
+    
+    return result;
+  }, [dynamicScopes, hasScope3Access, hasFullKPIAccess, kpiAllowedScopes]);
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
-        {/* Facility */}
+        {/* Facility - Using shadcn Select for Safari compatibility */}
         <div className="space-y-2">
           <Label>Facility <span className="text-red-500">*</span></Label>
-          <select
-            value={facilityId}
-            onChange={(e) => setFacilityId(e.target.value)}
-            className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-            data-testid="emission-facility-select"
-          >
-            <option value="">Select Facility</option>
-            {facilities.filter(f => f.is_active !== false).map(f => (
-              <option key={f.id} value={f.id}>
-                {f.name} {f.country ? `(${f.country})` : ''}
-              </option>
-            ))}
-          </select>
+          <Select value={facilityId} onValueChange={setFacilityId}>
+            <SelectTrigger 
+              className="w-full h-10 bg-stone-50 border border-stone-200"
+              data-testid="emission-facility-select"
+            >
+              <SelectValue placeholder="Select Facility" />
+            </SelectTrigger>
+            <SelectContent>
+              {filteredFacilities.length === 0 ? (
+                <SelectItem value="_no_facilities" disabled>
+                  No facilities available for this scope
+                </SelectItem>
+              ) : (
+                filteredFacilities.map(f => (
+                  <SelectItem key={f.id} value={f.id}>
+                    {f.name} {f.country ? `(${f.country})` : ''}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+          {!hasFullKPIAccess && filteredFacilities.length === 0 && scope && (
+            <p className="text-xs text-amber-600">
+              You don&apos;t have access to any facilities for {scope}. Contact your admin.
+            </p>
+          )}
         </div>
 
         {/* Scope */}
         <div className="space-y-2">
           <Label>Scope <span className="text-red-500">*</span></Label>
           <div className="flex gap-4 h-10 items-center flex-wrap">
-            {(dynamicScopes.length > 0 ? dynamicScopes : [
-              { code: 'scope1', name: 'Scope 1' },
-              { code: 'scope2', name: 'Scope 2' },
-              { code: 'biogenic', name: 'Biogenic' },
-            ])
-              .filter(s => s.code !== 'scope3' || hasScope3Access)
-              .map(s => (
+            {filteredScopes.map(s => (
                 <label key={s.code} className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="radio"
@@ -168,6 +218,10 @@ export const Step1BasicSelection = ({
                       if (s.code !== 'biogenic') {
                         setBiogenicScopeSelection('');
                       }
+                      // Reset facility when scope changes (KPI access may differ)
+                      if (!hasFullKPIAccess) {
+                        setFacilityId('');
+                      }
                     }}
                     className="text-primary"
                     data-testid={`entry-scope-${s.code}`}
@@ -176,6 +230,11 @@ export const Step1BasicSelection = ({
                 </label>
               ))}
           </div>
+          {!hasFullKPIAccess && filteredScopes.length === 0 && (
+            <p className="text-xs text-amber-600">
+              You don&apos;t have access to any scopes. Contact your admin.
+            </p>
+          )}
         </div>
         
         {/* Biogenic Scope Selection */}
@@ -231,13 +290,13 @@ export const Step1BasicSelection = ({
         )}
       </div>
 
-      {/* Category */}
+      {/* Category - Using shadcn Select for Safari compatibility */}
       <div className="space-y-2">
         <Label>Category <span className="text-red-500">*</span></Label>
-        <select
-          value={category}
-          onChange={(e) => {
-            setCategory(e.target.value);
+        <Select 
+          value={category} 
+          onValueChange={(value) => {
+            setCategory(value);
             setFuelId('');
             setScope3Method('');
             setScope3ActivityType('');
@@ -248,14 +307,25 @@ export const Step1BasicSelection = ({
             setSelectedTemplate(null);
             setTemplateInputValues({});
           }}
-          className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-          data-testid="emission-category-select"
         >
-          <option value="">Select Category</option>
-          {categoriesForScope.map(cat => (
-            <option key={cat} value={cat}>{cat}</option>
-          ))}
-        </select>
+          <SelectTrigger 
+            className="w-full h-10 bg-stone-50 border border-stone-200"
+            data-testid="emission-category-select"
+          >
+            <SelectValue placeholder="Select Category" />
+          </SelectTrigger>
+          <SelectContent>
+            {categoriesForScope.length === 0 ? (
+              <SelectItem value="_no_categories" disabled>
+                No categories available for this scope
+              </SelectItem>
+            ) : (
+              categoriesForScope.map(cat => (
+                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+              ))
+            )}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Biogenic Indirect: Calculation Method */}
@@ -677,7 +747,7 @@ export const Step1BasicSelection = ({
                 ))}
               </select>
               {fuelSearchTerm && filteredFuelsForCategory.length === 0 && (
-                <p className="text-xs text-amber-600">No fuel types match "{fuelSearchTerm}"</p>
+                <p className="text-xs text-amber-600">No fuel types match &quot;{fuelSearchTerm}&quot;</p>
               )}
             </div>
           ) : (

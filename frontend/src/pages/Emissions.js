@@ -58,9 +58,12 @@ export default function Emissions() {
     loading: kpiAccessLoading,
     canAccessScope: kpiCanAccessScope,
     canAccessFacility: kpiCanAccessFacility,
+    canAccessPeriod: kpiCanAccessPeriod,
+    getPeriodRestrictions: kpiGetPeriodRestrictions,
     filterFacilitiesByScope,
     hasFullAccess: hasFullKPIAccess,
     allowedScopes: kpiAllowedScopes,
+    periodRestrictions: kpiPeriodRestrictions,
   } = useGHGAccess();
   
   // ============================================================================
@@ -3077,7 +3080,7 @@ export default function Emissions() {
                 </DialogHeader>
               {!editingEmission ? (
                 <EmissionEntryForm
-                  facilities={facilities}
+                  facilities={hasFullKPIAccess ? facilities : kpiFilteredFacilities}
                   fuelDatabase={fuelDatabase}
                   centralizedUnits={centralizedUnits}
                   formulaDefinitions={formulaDefinitions}
@@ -3092,6 +3095,14 @@ export default function Emissions() {
                   configLabels={configLabels}
                   organization={organization}
                   onFormChange={markFormDirty}
+                  kpiAccessInfo={kpiAccessInfo}
+                  kpiCanAccessScope={kpiCanAccessScope}
+                  kpiCanAccessPeriod={kpiCanAccessPeriod}
+                  kpiGetPeriodRestrictions={kpiGetPeriodRestrictions}
+                  kpiAllowedScopes={kpiAllowedScopes}
+                  kpiPeriodRestrictions={kpiPeriodRestrictions}
+                  filterFacilitiesByScope={filterFacilitiesByScope}
+                  hasFullKPIAccess={hasFullKPIAccess}
                   onSuccess={() => {
                     setDialogOpen(false);
                     setIsFormDirty(false);
@@ -3151,11 +3162,20 @@ export default function Emissions() {
                   setOverrideDensity={setOverrideDensity}
                   setOverrideJustification={setOverrideJustification}
                   // ---------- core data ----------
-                  facilities={facilities}
+                  facilities={hasFullKPIAccess ? facilities : kpiFilteredFacilities}
                   dynamicScopes={dynamicScopes}
                   hasScope3Access={hasScope3Access}
                   centralizedUnits={centralizedUnits}
                   fuelDatabase={fuelDatabase}
+                  // ---------- KPI access control ----------
+                  kpiAccessInfo={kpiAccessInfo}
+                  kpiCanAccessScope={kpiCanAccessScope}
+                  kpiCanAccessPeriod={kpiCanAccessPeriod}
+                  kpiGetPeriodRestrictions={kpiGetPeriodRestrictions}
+                  kpiAllowedScopes={kpiAllowedScopes}
+                  kpiPeriodRestrictions={kpiPeriodRestrictions}
+                  filterFacilitiesByScope={filterFacilitiesByScope}
+                  hasFullKPIAccess={hasFullKPIAccess}
                   // ---------- computed/derived ----------
                   selectedFuel={selectedFuel}
                   activeCategoryModule={activeCategoryModule}
