@@ -50,7 +50,6 @@ export default function MultiProposalReview({
   onActionComplete,
 }) {
   const { getAuthHeader } = useAuth();
-  const headers = getAuthHeader();
   
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
@@ -95,6 +94,8 @@ export default function MultiProposalReview({
   const fetchProposals = useCallback(async () => {
     setLoading(true);
     try {
+      const headers = getAuthHeader();
+      
       // Fetch pending proposals for this record
       const proposalsRes = await axios.get(
         `${API}/api/proposals/record/${entityType}/${recordId}`,
@@ -121,7 +122,7 @@ export default function MultiProposalReview({
     } finally {
       setLoading(false);
     }
-  }, [recordId, entityType, section, headers]);
+  }, [recordId, entityType, section, getAuthHeader]);
 
   useEffect(() => {
     fetchProposals();
@@ -134,7 +135,7 @@ export default function MultiProposalReview({
       await axios.post(
         `${API}/api/proposals/${proposalId}/approve`,
         { comment: actionComment || 'Approved' },
-        { headers }
+        { headers: getAuthHeader() }
       );
       toast.success('Proposal approved successfully');
       setActionComment('');
@@ -158,7 +159,7 @@ export default function MultiProposalReview({
       await axios.post(
         `${API}/api/proposals/${proposalId}/reject`,
         { reason: actionComment },
-        { headers }
+        { headers: getAuthHeader() }
       );
       toast.success('Proposal rejected');
       setActionComment('');
@@ -185,7 +186,7 @@ export default function MultiProposalReview({
       await axios.put(
         `${API}/api/proposals/${editingProposal.id}/edit`,
         { field_values: editValues },
-        { headers }
+        { headers: getAuthHeader() }
       );
       toast.success('Proposal updated');
       setEditingProposal(null);
