@@ -56,16 +56,90 @@ class ESGQuestionnaireService:
         self,
         framework: Optional[str] = None,
         section: Optional[str] = None,
+        org_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        filter_by_assignment: bool = False,
     ) -> List[Dict[str, Any]]:
-        """List question configs with optional filtering."""
+        """
+        List question configs with optional filtering.
+        
+        If filter_by_assignment=True and user_id is provided, only returns configs
+        for questions/disclosures the user is assigned to via V2 architecture.
+        """
         query = {}
         if framework:
-            query["frameworks"] = framework
+            # Handle both storage formats: 'framework' field or 'frameworks' array
+            query["$or"] = [
+                {"framework": framework},
+                {"frameworks": framework}
+            ]
         if section:
             query["section"] = section
         
         cursor = self._configs.find(query, {"_id": 0}).sort("order", 1)
-        return await cursor.to_list(500)
+        configs = await cursor.to_list(500)
+        
+        # Apply V2 assignment filtering for non-admin users
+        if filter_by_assignment and user_id and org_id:
+            # Step 1: Get assignment IDs for this user via V2 (esg_assignment_assignees)
+            assignee_records = await db.esg_assignment_assignees.find(
+                {
+                    "user_id": user_id,
+                    "organization_id": org_id,
+                    "$or": [{"removed_at": None}, {"removed_at": {"$exists": False}}],
+                },
+                {"_id": 0, "assignment_id": 1}
+            ).to_list(500)
+            
+            assignment_ids = [a["assignment_id"] for a in assignee_records]
+            
+            if not assignment_ids:
+                # User has no assignments - return empty list
+                return []
+            
+            # Step 2: Get the actual assignments to find entity_ids (question_keys, disclosure_ids, sections)
+            assignments = await db.esg_assignments.find(
+                {
+                    "id": {"$in": assignment_ids},
+                    "entity_type": {"$in": ["disclosure", "question", "section", "material_topic"]},
+                },
+                {"_id": 0, "entity_id": 1, "entity_type": 1, "disclosure_id": 1, "question_key": 1, "section": 1}
+            ).to_list(500)
+            
+            # Build sets of allowed entity IDs
+            allowed_disclosure_ids = set()
+            allowed_question_keys = set()
+            allowed_sections = set()
+            
+            for a in assignments:
+                entity_type = a.get("entity_type")
+                if entity_type == "disclosure":
+                    allowed_disclosure_ids.add(a.get("entity_id") or a.get("disclosure_id"))
+                elif entity_type == "question":
+                    allowed_question_keys.add(a.get("entity_id") or a.get("question_key"))
+                elif entity_type == "section":
+                    allowed_sections.add(a.get("entity_id") or a.get("section"))
+                elif entity_type == "material_topic":
+                    # If assigned to a material topic, include all disclosures in that topic
+                    topic_id = a.get("entity_id")
+                    if topic_id:
+                        topic_disclosures = [c.get("disclosure_id") for c in configs 
+                                            if c.get("material_topic_id") == topic_id]
+                        allowed_disclosure_ids.update(topic_disclosures)
+            
+            # Filter configs to only include assigned items
+            if allowed_disclosure_ids or allowed_question_keys or allowed_sections:
+                configs = [
+                    c for c in configs 
+                    if c.get("disclosure_id") in allowed_disclosure_ids 
+                    or c.get("question_key") in allowed_question_keys
+                    or c.get("section") in allowed_sections
+                ]
+            else:
+                # User has assignments but none match disclosure/question/section types
+                return []
+        
+        return configs
 
     async def create_question_config(self, config: QuestionConfigCreate) -> Dict[str, Any]:
         """Create a new question config."""

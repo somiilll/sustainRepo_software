@@ -31,10 +31,22 @@ async def list_question_configs(
 ):
     """
     List ESG question configs with optional filtering.
+    
+    Role-based behavior:
+    - Admin/Super Admin: See ALL question configs
+    - Regular User: See ONLY question configs they are assigned to (via V2 architecture)
     """
+    org_id = current_user.get("organization_id")
+    user_id = current_user.get("id")
+    user_role = current_user.get("role", "user")
+    is_admin = user_role in ["admin", "super_admin"]
+    
     configs = await esg_questionnaire_service.list_question_configs(
         framework=framework,
-        section=section
+        section=section,
+        org_id=org_id,
+        user_id=user_id if not is_admin else None,  # Only filter by user for non-admins
+        filter_by_assignment=not is_admin,
     )
     return {
         "framework": framework,
@@ -202,12 +214,16 @@ async def get_gri_disclosures(
 @router.post("/response")
 async def save_gri_response(
     data: dict,
-    current_user: dict = Depends(get_admin_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """
-    Save a single GRI disclosure response.
+    Save a single GRI/BRSR disclosure response.
     Expects: { question_key, value, reporting_period, status? }
     status: "draft" (saves as draft, shown as pending) or "saved" (final save)
+    
+    Access control:
+    - Admins can save any response
+    - Non-admins can save responses for questions they are assigned to
     
     Implements "last save wins" logic:
     - If no approval workflow OR no approver assigned to question:
@@ -217,6 +233,10 @@ async def save_gri_response(
       - Submission goes to approval queue for approver review
     """
     org_id = current_user.get("organization_id")
+    user_id = current_user.get("id")
+    user_role = current_user.get("role", "user")
+    is_admin = user_role in ["admin", "super_admin"]
+    
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization assigned")
     
@@ -230,6 +250,41 @@ async def save_gri_response(
     
     if not question_key or not reporting_period:
         raise HTTPException(status_code=400, detail="question_key and reporting_period are required")
+    
+    # For non-admins, verify they have assignment access to this question
+    if not is_admin:
+        from shared.database.mongo import db
+        
+        # Get assignment IDs for this user via V2 architecture
+        assignee_records = await db.esg_assignment_assignees.find(
+            {
+                "user_id": user_id,
+                "organization_id": org_id,
+                "$or": [{"removed_at": None}, {"removed_at": {"$exists": False}}],
+            },
+            {"_id": 0, "assignment_id": 1}
+        ).to_list(500)
+        
+        assignment_ids = [a["assignment_id"] for a in assignee_records]
+        
+        # Check if user is assigned to this question
+        has_access = False
+        if assignment_ids:
+            assignment = await db.esg_assignments.find_one({
+                "id": {"$in": assignment_ids},
+                "entity_type": {"$in": ["question", "disclosure"]},
+                "$or": [
+                    {"entity_id": question_key},
+                    {"question_key": question_key},
+                ]
+            })
+            has_access = assignment is not None
+        
+        if not has_access:
+            raise HTTPException(
+                status_code=403,
+                detail=f"You are not assigned to question '{question_key}'"
+            )
     
     # Determine the actual status that will be saved
     # Empty values should be marked as "pending", not "saved" or "draft"
