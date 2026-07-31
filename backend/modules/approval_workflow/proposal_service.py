@@ -625,19 +625,27 @@ class ProposalService:
             # For emission records, copy all relevant fields from apply_data
             
             # Determine the final dynamic_field_values to use
+            # IMPORTANT: Check proposed_changes.inputs FIRST as it contains the NEW values
+            # dynamic_field_values in the snapshot contains ORIGINAL values
             final_dfv = None
-            if "dynamic_field_values" in apply_data:
-                final_dfv = apply_data["dynamic_field_values"]
-            elif "proposed_changes" in apply_data and "inputs" in apply_data.get("proposed_changes", {}):
-                # If proposed_changes.inputs exists, merge it into dynamic_field_values
+            
+            if "proposed_changes" in apply_data and "inputs" in apply_data.get("proposed_changes", {}):
+                # proposed_changes.inputs contains the NEW proposed values - use these
                 current_dfv = current.get("dynamic_field_values", {})
                 proposed_inputs = apply_data["proposed_changes"]["inputs"]
                 final_dfv = {**current_dfv}
                 for key, value in proposed_inputs.items():
                     final_dfv[key] = value
-            elif "inputs" in apply_data:
-                # Legacy format - inputs directly in apply_data
+                logger.info(f"[APPROVAL] Using proposed_changes.inputs for update: {list(proposed_inputs.keys())}")
+            elif "inputs" in apply_data and "dynamic_field_values" not in apply_data:
+                # Legacy format - inputs directly in apply_data (no snapshot structure)
                 final_dfv = apply_data["inputs"]
+                logger.info(f"[APPROVAL] Using legacy inputs format for update")
+            elif "dynamic_field_values" in apply_data:
+                # Fallback to dynamic_field_values only if no proposed_changes
+                # This handles cases where the entire record is being created/replaced
+                final_dfv = apply_data["dynamic_field_values"]
+                logger.info(f"[APPROVAL] Using dynamic_field_values from snapshot for update")
             
             if final_dfv:
                 update_fields["dynamic_field_values"] = final_dfv
@@ -661,19 +669,24 @@ class ProposalService:
                 update_fields["total_emissions"] = recalculated.get("total_emissions", 0)
             else:
                 # Use values from proposal (original calculation or no recalc needed)
-                # Copy outputs (calculated emissions breakdown)
-                if "outputs" in apply_data:
-                    update_fields["outputs"] = apply_data["outputs"]
-                elif "proposed_changes" in apply_data and "outputs" in apply_data.get("proposed_changes", {}):
+                # IMPORTANT: Check proposed_changes.outputs FIRST as it contains the NEW calculated values
+                if "proposed_changes" in apply_data and "outputs" in apply_data.get("proposed_changes", {}):
                     update_fields["outputs"] = apply_data["proposed_changes"]["outputs"]
+                    logger.info(f"[APPROVAL] Using proposed_changes.outputs for update")
+                elif "outputs" in apply_data:
+                    update_fields["outputs"] = apply_data["outputs"]
                 
-                # Copy emission values
+                # Copy emission values - check proposed_changes first for these too
+                proposed_changes = apply_data.get("proposed_changes", {})
                 emission_fields = [
                     "co2e_emissions", "co2_emissions", "ch4_emissions", "n2o_emissions",
                     "total_emissions", "biogenic_co2_emissions"
                 ]
                 for field in emission_fields:
-                    if field in apply_data:
+                    # First check proposed_changes for updated emission values
+                    if field in proposed_changes:
+                        update_fields[field] = proposed_changes[field]
+                    elif field in apply_data:
                         update_fields[field] = apply_data[field]
             
             # Copy other emission-specific fields (regardless of recalculation)
