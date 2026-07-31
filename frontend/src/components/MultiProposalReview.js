@@ -209,7 +209,7 @@ export default function MultiProposalReview({
     setProcessing(true);
     try {
       await axios.put(
-        `${API}/api/proposals/${editingProposal.id}/edit`,
+        `${API}/api/proposals/${editingProposal.id}`,
         { field_values: editValues },
         { headers: getAuthHeader() }
       );
