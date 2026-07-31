@@ -175,7 +175,32 @@ export default function MultiProposalReview({
   // Open edit dialog
   const openEditDialog = (proposal) => {
     setEditingProposal(proposal);
-    setEditValues(proposal.entity_snapshot?.field_values || {});
+    // For emission records, use dynamic_field_values or proposed_changes.inputs
+    const snapshot = proposal.entity_snapshot || {};
+    let initialValues = snapshot.field_values || {};
+    
+    if (entityType === 'emission_record') {
+      // Check proposed_changes.inputs first (for edit proposals)
+      if (snapshot.proposed_changes?.inputs && Object.keys(snapshot.proposed_changes.inputs).length > 0) {
+        initialValues = snapshot.proposed_changes.inputs;
+      } else if (snapshot.dynamic_field_values && Object.keys(snapshot.dynamic_field_values).length > 0) {
+        initialValues = snapshot.dynamic_field_values;
+      } else if (snapshot.inputs && Object.keys(snapshot.inputs).length > 0) {
+        initialValues = snapshot.inputs;
+      }
+    }
+    
+    // Flatten object values (e.g., {value: 123, unit: 'kg'} -> 123)
+    const flattenedValues = {};
+    Object.entries(initialValues).forEach(([key, val]) => {
+      if (val && typeof val === 'object' && val.value !== undefined) {
+        flattenedValues[key] = val.value;
+      } else {
+        flattenedValues[key] = val;
+      }
+    });
+    
+    setEditValues(flattenedValues);
   };
 
   // Save edited proposal
@@ -262,18 +287,54 @@ export default function MultiProposalReview({
                 {formatReportingPeriod(approvedRecord.reporting_period)}
               </div>
             )}
+            {/* Show emission-specific summary for approved record */}
+            {entityType === 'emission_record' && (
+              <div className="flex flex-wrap gap-3 mt-2 text-sm">
+                {approvedRecord.scope && (
+                  <span className="px-2 py-0.5 bg-green-100 text-green-800 rounded capitalize">
+                    {approvedRecord.scope}
+                  </span>
+                )}
+                {approvedRecord.category && (
+                  <span className="text-stone-600">{approvedRecord.category}</span>
+                )}
+                {approvedRecord.co2e_emissions !== undefined && (
+                  <span className="font-medium text-green-700">
+                    {Number(approvedRecord.co2e_emissions).toFixed(2)} tCO₂e
+                  </span>
+                )}
+              </div>
+            )}
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {Object.entries(approvedRecord.field_values || {}).map(([key, value]) => (
-                <div key={key} className="space-y-1">
-                  <p className="text-xs text-stone-500">{getFieldLabel(key)}</p>
-                  <p className="font-medium text-stone-900">
-                    {value === null || value === undefined ? '-' : String(value)}
-                  </p>
+            {(() => {
+              // For emission records, use dynamic_field_values or inputs
+              const displayValues = entityType === 'emission_record'
+                ? (approvedRecord.dynamic_field_values || approvedRecord.inputs || approvedRecord.field_values || {})
+                : (approvedRecord.field_values || {});
+              
+              // Format value for display
+              const formatVal = (val) => {
+                if (val === null || val === undefined) return '-';
+                if (typeof val === 'object' && val.value !== undefined) {
+                  return `${val.value}${val.unit ? ` ${val.unit}` : ''}`;
+                }
+                return String(val);
+              };
+              
+              return (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {Object.entries(displayValues).map(([key, value]) => (
+                    <div key={key} className="space-y-1">
+                      <p className="text-xs text-stone-500">{getFieldLabel(key)}</p>
+                      <p className="font-medium text-stone-900">
+                        {formatVal(value)}
+                      </p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              );
+            })()}
           </CardContent>
         </Card>
       )}
@@ -293,8 +354,51 @@ export default function MultiProposalReview({
       <div className="space-y-4">
         {proposals.map((proposal, idx) => {
           const snapshot = proposal.entity_snapshot || {};
-          const fieldValues = snapshot.field_values || {};
+          // For ESG records: field_values
+          // For emission records: dynamic_field_values, proposed_changes.inputs, or inputs
+          let fieldValues = snapshot.field_values || {};
+          let proposedInputs = null;
+          
+          // Handle emission_record type - extract proposed values from different locations
+          if (entityType === 'emission_record') {
+            // First check proposed_changes.inputs (for edit proposals)
+            if (snapshot.proposed_changes?.inputs) {
+              proposedInputs = snapshot.proposed_changes.inputs;
+            }
+            // Then check dynamic_field_values
+            if (snapshot.dynamic_field_values && Object.keys(snapshot.dynamic_field_values).length > 0) {
+              fieldValues = snapshot.dynamic_field_values;
+            }
+            // Fallback to inputs
+            if (snapshot.inputs && Object.keys(snapshot.inputs).length > 0 && Object.keys(fieldValues).length === 0) {
+              fieldValues = snapshot.inputs;
+            }
+            // If we have proposedInputs, merge them to show as the proposed values
+            if (proposedInputs) {
+              fieldValues = { ...fieldValues, ...proposedInputs };
+            }
+          }
+          
           const reportingPeriod = snapshot.reporting_period;
+          
+          // Get the comparison values for emission records
+          const getApprovedFieldValue = (key) => {
+            if (entityType === 'emission_record') {
+              return approvedRecord?.dynamic_field_values?.[key] 
+                || approvedRecord?.inputs?.[key]
+                || approvedRecord?.field_values?.[key];
+            }
+            return approvedRecord?.field_values?.[key];
+          };
+          
+          // Format value for display (handles {value, unit} objects)
+          const formatFieldValue = (val) => {
+            if (val === null || val === undefined) return '-';
+            if (typeof val === 'object' && val.value !== undefined) {
+              return `${val.value}${val.unit ? ` ${val.unit}` : ''}`;
+            }
+            return String(val);
+          };
           
           return (
             <Card key={proposal.id} className="border-blue-200">
@@ -318,22 +422,42 @@ export default function MultiProposalReview({
                     </span>
                   )}
                 </div>
+                {/* Show emission-specific summary info */}
+                {entityType === 'emission_record' && (
+                  <div className="flex flex-wrap gap-3 mt-2 text-sm">
+                    {snapshot.scope && (
+                      <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded capitalize">
+                        {snapshot.scope}
+                      </span>
+                    )}
+                    {snapshot.category && (
+                      <span className="text-stone-600">{snapshot.category}</span>
+                    )}
+                    {snapshot.co2e_emissions !== undefined && (
+                      <span className="font-medium text-primary">
+                        {Number(snapshot.co2e_emissions).toFixed(2)} tCO₂e
+                      </span>
+                    )}
+                  </div>
+                )}
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Field Values */}
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-4 bg-stone-50 rounded-lg">
                   {Object.entries(fieldValues).map(([key, value]) => {
-                    const approvedValue = approvedRecord?.field_values?.[key];
-                    const isChanged = JSON.stringify(value) !== JSON.stringify(approvedValue);
+                    const approvedValue = getApprovedFieldValue(key);
+                    const formattedValue = formatFieldValue(value);
+                    const formattedApproved = formatFieldValue(approvedValue);
+                    const isChanged = formattedValue !== formattedApproved;
                     
                     return (
                       <div key={key} className="space-y-1">
                         <p className="text-xs text-stone-500">{getFieldLabel(key)}</p>
                         <p className={`font-medium ${isChanged ? 'text-blue-700' : 'text-stone-900'}`}>
-                          {value === null || value === undefined ? '-' : String(value)}
+                          {formattedValue}
                           {isChanged && approvedValue !== undefined && (
                             <span className="text-xs text-stone-400 ml-2">
-                              (was: {String(approvedValue)})
+                              (was: {formattedApproved})
                             </span>
                           )}
                         </p>
@@ -387,15 +511,40 @@ export default function MultiProposalReview({
             <DialogTitle>Edit Proposal</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {editingProposal && Object.entries(editingProposal.entity_snapshot?.field_values || {}).map(([key, _]) => (
-              <div key={key} className="space-y-2">
-                <Label>{getFieldLabel(key)}</Label>
-                <Input
-                  value={editValues[key] || ''}
-                  onChange={(e) => setEditValues(prev => ({ ...prev, [key]: e.target.value }))}
-                />
-              </div>
-            ))}
+            {editingProposal && (() => {
+              // Get the field keys to edit based on entity type
+              const snapshot = editingProposal.entity_snapshot || {};
+              let editableFields = snapshot.field_values || {};
+              
+              if (entityType === 'emission_record') {
+                // Check proposed_changes.inputs first
+                if (snapshot.proposed_changes?.inputs && Object.keys(snapshot.proposed_changes.inputs).length > 0) {
+                  editableFields = snapshot.proposed_changes.inputs;
+                } else if (snapshot.dynamic_field_values && Object.keys(snapshot.dynamic_field_values).length > 0) {
+                  editableFields = snapshot.dynamic_field_values;
+                } else if (snapshot.inputs && Object.keys(snapshot.inputs).length > 0) {
+                  editableFields = snapshot.inputs;
+                }
+              }
+              
+              return Object.entries(editableFields).map(([key, originalValue]) => {
+                // Get unit if the original value has one
+                const unit = (originalValue && typeof originalValue === 'object' && originalValue.unit) 
+                  ? originalValue.unit 
+                  : '';
+                
+                return (
+                  <div key={key} className="space-y-2">
+                    <Label>{getFieldLabel(key)}{unit ? ` (${unit})` : ''}</Label>
+                    <Input
+                      value={editValues[key] ?? ''}
+                      onChange={(e) => setEditValues(prev => ({ ...prev, [key]: e.target.value }))}
+                      placeholder={`Enter ${getFieldLabel(key).toLowerCase()}`}
+                    />
+                  </div>
+                );
+              });
+            })()}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingProposal(null)}>

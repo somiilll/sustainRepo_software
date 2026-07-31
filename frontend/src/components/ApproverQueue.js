@@ -187,9 +187,11 @@ export default function ApproverQueue() {
       
       // GROUP esg_record proposals by entity_id for multi-proposal review
       const esgRecordProposals = recordApprovals.filter(r => r.entity_type === 'esg_record');
-      const otherApprovals = recordApprovals.filter(r => r.entity_type !== 'esg_record');
+      // GROUP emission_record proposals by entity_id for multi-proposal review
+      const emissionRecordProposals = recordApprovals.filter(r => r.entity_type === 'emission_record');
+      const otherApprovals = recordApprovals.filter(r => r.entity_type !== 'esg_record' && r.entity_type !== 'emission_record');
       
-      // Group by entity_id (record_id)
+      // Group ESG records by entity_id (record_id)
       const groupedByRecord = {};
       esgRecordProposals.forEach(proposal => {
         const recordId = proposal.entity_id;
@@ -211,11 +213,34 @@ export default function ApproverQueue() {
         }
       });
       
+      // Group emission records by entity_id (record_id)
+      const groupedEmissionsByRecord = {};
+      emissionRecordProposals.forEach(proposal => {
+        const recordId = proposal.entity_id;
+        if (!groupedEmissionsByRecord[recordId]) {
+          groupedEmissionsByRecord[recordId] = {
+            ...proposal,
+            _proposals: [proposal],
+            _proposal_count: 1,
+            _submitters: [proposal.submitted_by_name || proposal.submitted_by_email || 'Unknown'],
+          };
+        } else {
+          groupedEmissionsByRecord[recordId]._proposals.push(proposal);
+          groupedEmissionsByRecord[recordId]._proposal_count += 1;
+          groupedEmissionsByRecord[recordId]._submitters.push(proposal.submitted_by_name || proposal.submitted_by_email || 'Unknown');
+          // Use the earliest submission time for sorting
+          if (new Date(proposal.submitted_at) < new Date(groupedEmissionsByRecord[recordId].submitted_at)) {
+            groupedEmissionsByRecord[recordId].submitted_at = proposal.submitted_at;
+          }
+        }
+      });
+      
       // Convert grouped records back to array
       const groupedEsgRecords = Object.values(groupedByRecord);
+      const groupedEmissionRecords = Object.values(groupedEmissionsByRecord);
       
-      // Merge grouped ESG records with other approvals
-      recordApprovals = [...groupedEsgRecords, ...otherApprovals];
+      // Merge grouped ESG records, grouped emission records with other approvals
+      recordApprovals = [...groupedEsgRecords, ...groupedEmissionRecords, ...otherApprovals];
       
       // Fetch question configs for BRSR items to get proper display names
       const brsrItems = recordApprovals.filter(r => r._needs_config);
@@ -517,12 +542,29 @@ export default function ApproverQueue() {
                 const hasMultipleProposals = item._proposal_count && item._proposal_count > 1;
                 const isEsgRecord = item.entity_type === 'esg_record';
                 
-                // Handle click based on whether it's a multi-proposal ESG record
+                // Handle click based on whether it's a multi-proposal record (ESG or GHG Emission)
                 const handleClick = () => {
-                  if (isEsgRecord && hasMultipleProposals) {
+                  if (isEmissionRecord && hasMultipleProposals) {
+                    // Open multi-proposal review for grouped emission records
+                    setMultiProposalRecord({
+                      recordId: item.entity_id,
+                      entityType: 'emission_record',
+                      section: item.section,
+                      displayName: item.disclosure_name,
+                    });
+                  } else if (isEmissionRecord) {
+                    // Single proposal emission record - use multi-proposal review for consistency
+                    setMultiProposalRecord({
+                      recordId: item.entity_id,
+                      entityType: 'emission_record',
+                      section: item.section,
+                      displayName: item.disclosure_name,
+                    });
+                  } else if (isEsgRecord && hasMultipleProposals) {
                     // Open multi-proposal review for grouped ESG records
                     setMultiProposalRecord({
                       recordId: item.entity_id,
+                      entityType: 'esg_record',
                       section: item.section,
                       displayName: item.disclosure_name,
                     });
@@ -530,6 +572,7 @@ export default function ApproverQueue() {
                     // Single proposal ESG record - also use multi-proposal review for consistency
                     setMultiProposalRecord({
                       recordId: item.entity_id,
+                      entityType: 'esg_record',
                       section: item.section,
                       displayName: item.disclosure_name,
                     });
@@ -853,7 +896,7 @@ export default function ApproverQueue() {
         </Dialog>
       )}
       
-      {/* Multi-Proposal Review Dialog for ESG Records */}
+      {/* Multi-Proposal Review Dialog for ESG Records and Emission Records */}
       {multiProposalRecord && (
         <Dialog open={true} onOpenChange={() => setMultiProposalRecord(null)}>
           <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
@@ -865,7 +908,7 @@ export default function ApproverQueue() {
             </DialogHeader>
             <MultiProposalReview
               recordId={multiProposalRecord.recordId}
-              entityType="esg_record"
+              entityType={multiProposalRecord.entityType || 'esg_record'}
               section={multiProposalRecord.section}
               onClose={() => setMultiProposalRecord(null)}
               onActionComplete={() => {
