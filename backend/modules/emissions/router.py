@@ -1437,13 +1437,36 @@ async def get_emission_records(
 async def get_emission_record(record_id: str, current_user: dict = Depends(get_current_user)):
     """Fetch a single emission record from pending_records OR emission_records.
     
-    Checks pending_records first so users see their latest submitted values.
-    Also checks for pending records by original_record_id for update/delete requests.
-    """
-    # First try to find by ID (checks pending first)
-    record, source = await find_record(record_id)
+    Priority for non-admin users:
+    1. User's own pending edit for this record (by original_record_id)
+    2. The record itself (pending or approved)
     
-    # If not found, check if there's a pending record for this original_record_id
+    This ensures users see their submitted values while awaiting approval.
+    """
+    user_id = current_user.get("id")
+    user_role = current_user.get("role", "user")
+    
+    record = None
+    
+    # For non-admin users, check if they have a pending edit for this record FIRST
+    if user_role not in ["admin", "super_admin"]:
+        pending = await db[PENDING_COLLECTION].find_one(
+            {
+                "original_record_id": record_id,
+                "submitted_by": user_id,
+                "approval_status": {"$in": ["pending_update", "pending_create", "pending_delete"]}
+            },
+            {"_id": 0}
+        )
+        if pending:
+            record = pending
+    
+    # If no user-specific pending found, use standard lookup
+    if not record:
+        record, source = await find_record(record_id)
+    
+    # Still not found? Check if there's ANY pending record for this original_record_id
+    # (for admins to see pending edits)
     if not record:
         pending = await db[PENDING_COLLECTION].find_one(
             {"original_record_id": record_id},
