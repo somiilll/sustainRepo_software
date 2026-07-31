@@ -869,19 +869,23 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     
     # Check if approval is required via assignment-based workflow
     # This is the ONLY approval mechanism for emissions
+    # ADMIN BYPASS: Admins don't require approval
     requires_approval = False
+    is_admin = user_role in ["admin", "super_admin"]
     assignment = None
-    try:
-        assignment = await _find_emission_assignment(
-            org_id=record_dict["organization_id"],
-            user_id=current_user["id"],
-            scope=record_data.scope,
-            facility_id=record_data.facility_id,
-        )
-        if assignment and assignment.get("requires_approval", False):
-            requires_approval = True
-    except Exception as e:
-        logger.warning(f"[EMISSION_CREATE] Assignment check failed: {e}")
+    
+    if not is_admin:
+        try:
+            assignment = await _find_emission_assignment(
+                org_id=record_dict["organization_id"],
+                user_id=current_user["id"],
+                scope=record_data.scope,
+                facility_id=record_data.facility_id,
+            )
+            if assignment and assignment.get("requires_approval", False):
+                requires_approval = True
+        except Exception as e:
+            logger.warning(f"[EMISSION_CREATE] Assignment check failed: {e}")
     
     if requires_approval:
         # Set pending status and insert record
@@ -1132,13 +1136,26 @@ async def update_emission_record(
     org_id = existing.get("organization_id")
     user_id = current_user.get("id")
     user_role = current_user.get("role", "user")
+    is_admin = user_role in ["admin", "super_admin"]
     
     # Check if approval workflow is enabled for org
     from modules.approvals.emission_flow_v2 import is_approval_enabled_for_org
     approval_enabled = await is_approval_enabled_for_org(org_id)
     
-    # All users (including admins) go through approval workflow if enabled and assignment requires it
-    if approval_enabled:
+    # ADMIN BYPASS: Admins don't require approval
+    # If admin edits a record with pending approval, delete the pending request
+    if is_admin:
+        # Delete any pending approval requests for this record
+        deleted_result = await db.approval_requests.delete_many({
+            "entity_id": record_id,
+            "entity_type": "emission_record",
+            "status": {"$in": ["pending", "in_review"]},
+        })
+        if deleted_result.deleted_count > 0:
+            logger.info(f"[EMISSION_UPDATE] Admin override: Deleted {deleted_result.deleted_count} pending approval request(s) for record {record_id}")
+    
+    # Non-admin users go through approval workflow if enabled and assignment requires it
+    if approval_enabled and not is_admin:
         # Check if there's already a pending approval request for this record
         existing_request = await db.approval_requests.find_one({
             "entity_id": record_id,

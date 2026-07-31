@@ -279,6 +279,7 @@ async def create_record(
             data=data,
             skip_assignment_check=False,  # Always check to get requires_approval
             allow_without_assignment=is_admin,  # Admins can proceed without assignment
+            is_admin=is_admin,  # Admins bypass approval workflow
         )
     except ValueError as e:
         raise HTTPException(status_code=403, detail=str(e))
@@ -522,19 +523,20 @@ async def update_record(
     section: ESG_SECTION,
     record_id: str,
     data: UpdateRecordRequest,
-    admin_override: bool = Query(False, description="Admin bypass for pending approval (use with caution)"),
+    admin_override: bool = Query(False, description="Deprecated - admins always bypass approval now"),
     current_user: dict = Depends(get_current_user)
 ):
     """
     Update a record (creates new version).
     
-    CONCURRENCY SAFEGUARDS:
+    CONCURRENCY SAFEGUARDS (for non-admin users):
     - Cannot edit records with pending approval (prevents race conditions)
     - Cannot edit records that were rejected (user must create new submission)
     - Only one edit request can be pending at a time
     
-    Admins can use `admin_override=true` to bypass these checks, but this should
-    be used sparingly and only when necessary.
+    ADMIN BEHAVIOR:
+    - Admins automatically bypass approval workflow
+    - If user has pending approval, admin edit deletes the pending request and saves directly
     """
     org_id = current_user.get("organization_id")
     if not org_id:
@@ -543,15 +545,8 @@ async def update_record(
     user_id = current_user.get("id") or current_user.get("user_id")
     user_role = current_user.get("role", "user")
     
-    # Admin override only allowed for admin/super_admin roles
-    is_admin_override = False
-    if admin_override:
-        if user_role not in ["admin", "super_admin"]:
-            raise HTTPException(
-                status_code=403,
-                detail="Admin override is only available to admin users"
-            )
-        is_admin_override = True
+    # Admins always bypass approval workflow
+    is_admin_override = user_role in ["admin", "super_admin"]
     
     # Verify record exists and belongs to org
     existing = await esg_records_service.get_record(section, record_id, org_id)

@@ -83,6 +83,7 @@ class ESGRecordsService:
         data: CreateRecordRequest,
         skip_assignment_check: bool = False,  # For admin override
         allow_without_assignment: bool = False,  # Allow if no assignment found (admin)
+        is_admin: bool = False,  # Admin bypasses approval requirement
     ) -> Dict[str, Any]:
         """
         Create a new ESG record.
@@ -94,6 +95,7 @@ class ESGRecordsService:
             skip_assignment_check: If True, skip assignment lookup entirely
             allow_without_assignment: If True, allow record creation even without assignment
                                       (but still look up assignment to get requires_approval)
+            is_admin: If True, admin bypasses approval workflow (record saved directly as approved)
         """
         collection = self._get_records_collection(section)
         now = datetime.now(timezone.utc)
@@ -170,7 +172,12 @@ class ESGRecordsService:
         else:
             # Completed: mark as completed, check if approval is required
             record_status = "completed"
-            record_approval_status = "pending_approval" if requires_approval else "not_required"
+            # Admin bypasses approval - record is directly approved/not_required
+            if is_admin:
+                record_approval_status = "not_required"
+                requires_approval = False  # Admin doesn't trigger approval workflow
+            else:
+                record_approval_status = "pending_approval" if requires_approval else "not_required"
         
         # =========================================================================
         # DUPLICATE SUBMISSION PREVENTION
@@ -1107,9 +1114,9 @@ class ESGRecordsService:
         
         CONCURRENCY SAFEGUARDS:
         1. Rejected records cannot be edited (user must create new submission)
-        2. Records with pending approval cannot be edited (prevents race conditions)
-        3. Multiple pending edit requests are blocked (one approval at a time)
-        4. Admin override is available but with clear warnings
+        2. Records with pending approval cannot be edited by users (prevents race conditions)
+        3. Multiple pending edit requests are blocked for users (one approval at a time)
+        4. Admin override: Admin can edit anytime - deletes pending requests and saves directly
         """
         collection = self._get_records_collection(section)
         now = datetime.now(timezone.utc).isoformat()
@@ -1125,10 +1132,23 @@ class ESGRecordsService:
         org_id = current.get("org_id")
         
         # =========================================================================
+        # ADMIN OVERRIDE: Delete any pending approval requests and proceed with edit
+        # =========================================================================
+        if is_admin_override:
+            # Delete any pending approval requests for this record
+            deleted_result = await db.approval_requests.delete_many({
+                "entity_id": record_id,
+                "entity_type": "esg_record",
+                "status": {"$in": ["pending", "in_review"]},
+            })
+            if deleted_result.deleted_count > 0:
+                print(f"Admin override: Deleted {deleted_result.deleted_count} pending approval request(s) for record {record_id}")
+        
+        # =========================================================================
         # RESUBMISSION RULE: Rejected records cannot be edited
         # User must create a brand-new submission after rejection
         # =========================================================================
-        if current.get("approval_status") == "rejected":
+        if current.get("approval_status") == "rejected" and not is_admin_override:
             # Coerce datetime fields to isoformat string to avoid JSON serialization errors
             rejected_at = current.get("rejected_at")
             if rejected_at and hasattr(rejected_at, 'isoformat'):
@@ -1299,7 +1319,11 @@ class ESGRecordsService:
             elif incoming_status in ["submitted", "completed"]:
                 # Completing the record: status = completed, approval_status based on workflow
                 update_data["status"] = "completed"
-                update_data["approval_status"] = "pending_approval" if requires_approval else "not_required"
+                # Admin bypasses approval - record is directly saved without approval
+                if is_admin_override:
+                    update_data["approval_status"] = "not_required"
+                else:
+                    update_data["approval_status"] = "pending_approval" if requires_approval else "not_required"
                 changed_fields.append("status")
                 changed_fields.append("approval_status")
             else:

@@ -102,6 +102,16 @@ function OrgCard({ org, onEdit, onToggleActive, onPermanentDelete, onViewEmissio
       </div>
       {/* Report Access Badges */}
       <div className="flex flex-wrap gap-1 mt-2">
+        {/* Org Type Badge */}
+        <span className={`text-xs px-2 py-0.5 rounded ${
+          org.org_type === 'supplier' ? 'bg-purple-100 text-purple-700' :
+          org.org_type === 'customer_supplier' ? 'bg-indigo-100 text-indigo-700' :
+          'bg-emerald-100 text-emerald-700'
+        }`}>
+          {org.org_type === 'supplier' ? 'Supplier' :
+           org.org_type === 'customer_supplier' ? 'Customer & Supplier' :
+           'Customer'}
+        </span>
         {(org.enabled_access || ['scope1_2']).map(access => (
           <span key={access} className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700">
             {access === 'scope1_2' ? 'Scope 1 & 2' : 
@@ -347,6 +357,7 @@ export default function OrganizationManagement() {
     setEditingOrg(org);
     setFormData({
       name: org.name,
+      org_type: org.org_type || 'customer',
       corporate_address: org.corporate_address,
       city: org.city || '',
       state: org.state || '',
@@ -392,6 +403,7 @@ export default function OrganizationManagement() {
     setEditingOrg(null);
     setFormData({
       name: '',
+      org_type: 'customer',
       corporate_address: '',
       city: '',
       state: '',
@@ -501,6 +513,25 @@ export default function OrganizationManagement() {
                   className="bg-stone-50"
                   data-testid="org-name-input"
                 />
+              </div>
+              
+              {/* Organization Type */}
+              <div className="space-y-2">
+                <Label htmlFor="org_type">Organization Type</Label>
+                <select
+                  id="org_type"
+                  value={formData.org_type || 'customer'}
+                  onChange={(e) => setFormData({ ...formData, org_type: e.target.value })}
+                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                  data-testid="org-type-select"
+                >
+                  <option value="customer">Customer</option>
+                  <option value="supplier">Supplier</option>
+                  <option value="customer_supplier">Customer & Supplier</option>
+                </select>
+                <p className="text-xs text-stone-500">
+                  Customer: Full platform access | Supplier: Only Supplier Assessment module | Customer & Supplier: Both
+                </p>
               </div>
 
               {/* Address Section */}
