@@ -33,31 +33,17 @@ const SortableHeader = ({ label, sortKey, currentSort, onSort, className = '' })
 const StatusCell = ({ emission }) => {
   const baseStatus = getStatusDisplay(emission.approval_status);
   
-  // Show user's own pending proposal
+  // Show user's own pending proposal as "Completed, Awaiting Approval"
   if (emission.is_my_pending_proposal) {
     return (
-      <div className="flex flex-col items-center gap-1">
-        <span className="inline-flex px-2 py-0.5 text-xs font-medium rounded bg-amber-100 text-amber-700">
-          Your Pending Edit
-        </span>
-      </div>
+      <span className="inline-flex px-2 py-0.5 text-xs font-medium rounded bg-amber-100 text-amber-700">
+        Completed, Awaiting Approval
+      </span>
     );
   }
   
-  // Show if someone else has a pending proposal
-  if (emission.has_pending_proposal) {
-    return (
-      <div className="flex flex-col items-center gap-1">
-        <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${baseStatus.cls}`}>
-          {baseStatus.text}
-        </span>
-        <span className="inline-flex px-1.5 py-0.5 text-[10px] font-medium rounded bg-orange-100 text-orange-700" title={`Pending edit by ${emission.pending_proposal_by}`}>
-          Edit pending by {emission.pending_proposal_by?.split(' ')[0] || 'Other'}
-        </span>
-      </div>
-    );
-  }
-  
+  // For others viewing a record where someone else has pending proposal,
+  // just show the normal status (Completed, Approved) - no extra badge
   return (
     <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${baseStatus.cls}`}>
       {baseStatus.text}

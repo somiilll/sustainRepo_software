@@ -140,7 +140,7 @@ class SupplierAssessmentService:
         customer_name = customer_org.get("name", "Your Customer") if customer_org else "Your Customer"
         
         # Send invitation email
-        frontend_url = os.environ.get('FRONTEND_URL', 'https://supplier-assess.preview.emergentagent.com')
+        frontend_url = os.environ.get('FRONTEND_URL', 'https://esg-tracking-v2.preview.emergentagent.com')
         login_link = f"{frontend_url}/login"
         
         email_body = supplier_invitation_email(
@@ -254,7 +254,7 @@ class SupplierAssessmentService:
         )
         customer_name = customer_org.get("name", "Your Customer") if customer_org else "Your Customer"
         
-        frontend_url = os.environ.get('FRONTEND_URL', 'https://supplier-assess.preview.emergentagent.com')
+        frontend_url = os.environ.get('FRONTEND_URL', 'https://esg-tracking-v2.preview.emergentagent.com')
         login_link = f"{frontend_url}/login"
         
         # Determine pending modules
