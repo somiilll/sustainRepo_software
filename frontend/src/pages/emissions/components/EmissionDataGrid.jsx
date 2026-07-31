@@ -29,6 +29,42 @@ const SortableHeader = ({ label, sortKey, currentSort, onSort, className = '' })
   );
 };
 
+// Status display helper - shows pending proposal indicator
+const StatusCell = ({ emission }) => {
+  const baseStatus = getStatusDisplay(emission.approval_status);
+  
+  // Show user's own pending proposal
+  if (emission.is_my_pending_proposal) {
+    return (
+      <div className="flex flex-col items-center gap-1">
+        <span className="inline-flex px-2 py-0.5 text-xs font-medium rounded bg-amber-100 text-amber-700">
+          Your Pending Edit
+        </span>
+      </div>
+    );
+  }
+  
+  // Show if someone else has a pending proposal
+  if (emission.has_pending_proposal) {
+    return (
+      <div className="flex flex-col items-center gap-1">
+        <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${baseStatus.cls}`}>
+          {baseStatus.text}
+        </span>
+        <span className="inline-flex px-1.5 py-0.5 text-[10px] font-medium rounded bg-orange-100 text-orange-700" title={`Pending edit by ${emission.pending_proposal_by}`}>
+          Edit pending by {emission.pending_proposal_by?.split(' ')[0] || 'Other'}
+        </span>
+      </div>
+    );
+  }
+  
+  return (
+    <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${baseStatus.cls}`}>
+      {baseStatus.text}
+    </span>
+  );
+};
+
 export default function EmissionDataGrid({
   activeScope,
   filteredEmissions,
@@ -332,9 +368,7 @@ export default function EmissionDataGrid({
                     </span>
                   </div>
                   <div className="w-44 flex-shrink-0 text-center">
-                    <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusDisplay(emission.approval_status).cls}`}>
-                      {getStatusDisplay(emission.approval_status).text}
-                    </span>
+                    <StatusCell emission={emission} />
                   </div>
                 </>
               )}
@@ -374,9 +408,7 @@ export default function EmissionDataGrid({
                     </span>
                   </div>
                   <div className="w-44 flex-shrink-0 text-center">
-                    <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusDisplay(emission.approval_status).cls}`}>
-                      {getStatusDisplay(emission.approval_status).text}
-                    </span>
+                    <StatusCell emission={emission} />
                   </div>
                 </>
               )}
@@ -436,9 +468,7 @@ export default function EmissionDataGrid({
                     </span>
                   </div>
                   <div className="w-44 flex-shrink-0 text-center">
-                    <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusDisplay(emission.approval_status).cls}`}>
-                      {getStatusDisplay(emission.approval_status).text}
-                    </span>
+                    <StatusCell emission={emission} />
                   </div>
                 </>
               )}

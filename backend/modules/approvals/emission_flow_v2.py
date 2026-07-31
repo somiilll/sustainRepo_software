@@ -858,34 +858,147 @@ async def fetch_emissions_for_user(
         facility_ids = [f["id"] for f in facilities]
         base_query = {**query, "facility_id": {"$in": facility_ids}}
     else:
-        assigned = current_user.get("assigned_facilities", [])
-        base_query = {**query, "facility_id": {"$in": assigned}}
+        # V2 Architecture: Get facilities from esg_assignment_assignees
+        # First, get all assignment IDs for this user
+        assignee_records = await db.esg_assignment_assignees.find(
+            {
+                "user_id": user_id,
+                "organization_id": org_id,
+                "$or": [{"removed_at": None}, {"removed_at": {"$exists": False}}],
+            },
+            {"_id": 0, "assignment_id": 1}
+        ).to_list(500)
+        
+        assignment_ids = [a["assignment_id"] for a in assignee_records]
+        
+        if not assignment_ids:
+            # Fallback: check if any assignments exist for org
+            any_assignments = await db.esg_assignments.count_documents({
+                "organization_id": org_id,
+                "category": "GHG Emissions",
+            })
+            if any_assignments == 0:
+                # No GHG assignments configured - use org-level facility access
+                facilities = await db.facilities.find(
+                    {"organization_id": org_id},
+                    {"_id": 0, "id": 1}
+                ).to_list(1000)
+                facility_ids = [f["id"] for f in facilities]
+            else:
+                # Assignments exist but user has none
+                facility_ids = []
+        else:
+            # Get facility IDs from assignments
+            assignments = await db.esg_assignments.find(
+                {
+                    "id": {"$in": assignment_ids},
+                    "organization_id": org_id,
+                },
+                {"_id": 0, "facility_id": 1, "assignment_level": 1}
+            ).to_list(500)
+            
+            # Check for org-level assignments
+            has_org_level = any(a.get("assignment_level") == "organization" for a in assignments)
+            
+            if has_org_level:
+                # Org-level = access to all facilities
+                facilities = await db.facilities.find(
+                    {"organization_id": org_id},
+                    {"_id": 0, "id": 1}
+                ).to_list(1000)
+                facility_ids = [f["id"] for f in facilities]
+            else:
+                # Collect unique facility IDs from assignments
+                facility_ids = list(set(
+                    a["facility_id"] for a in assignments 
+                    if a.get("facility_id")
+                ))
+                
+                # If no facility-specific assignments, grant all facilities
+                # (this handles category-level assignments)
+                if not facility_ids:
+                    facilities = await db.facilities.find(
+                        {"organization_id": org_id},
+                        {"_id": 0, "id": 1}
+                    ).to_list(1000)
+                    facility_ids = [f["id"] for f in facilities]
+        
+        base_query = {**query, "facility_id": {"$in": facility_ids}}
 
     # Admin / super_admin path — scope tabs show approved data only.
     if user_role in ("admin", "super_admin"):
-        return await db[APPROVED_COLLECTION].find(base_query, {"_id": 0}).to_list(10000)
+        records = await db[APPROVED_COLLECTION].find(base_query, {"_id": 0}).to_list(10000)
+        
+        # For admins, also check for pending proposals and add indicator
+        pending_records = await db[PENDING_COLLECTION].find({
+            **base_query,
+            "approval_status": {"$in": list(PENDING_STATUSES)},
+        }, {"_id": 0, "original_record_id": 1, "submitted_by_name": 1, "approval_status": 1}).to_list(10000)
+        
+        pending_by_original = {p["original_record_id"]: p for p in pending_records if p.get("original_record_id")}
+        
+        for rec in records:
+            if rec["id"] in pending_by_original:
+                pending_info = pending_by_original[rec["id"]]
+                rec["has_pending_proposal"] = True
+                rec["pending_proposal_by"] = pending_info.get("submitted_by_name")
+                rec["pending_proposal_status"] = pending_info.get("approval_status")
+        
+        return records
 
     # Regular-user path — merge approved + their own pending records,
-    # hiding any approved row that has a pending update/delete.
-    approved_query = {
-        **base_query,
-        "approval_status": {"$nin": [STATUS_PENDING_UPDATE, STATUS_PENDING_DELETE]},
-    }
-    approved = await db[APPROVED_COLLECTION].find(approved_query, {"_id": 0}).to_list(10000)
-
+    # hiding any approved row that has a pending update/delete FROM THIS USER.
+    # But show original records with pending edits from others (marked as "has_pending_proposal").
+    
+    # Step 1: Get user's own pending records
     pending_query = {
         **base_query,
         "approval_status": {"$in": list(PENDING_STATUSES)},
         "submitted_by": user_id,
     }
-    pending = await db[PENDING_COLLECTION].find(pending_query, {"_id": 0}).to_list(10000)
-
-    pending_original_ids = {
-        p.get("original_record_id") for p in pending if p.get("original_record_id")
+    my_pending = await db[PENDING_COLLECTION].find(pending_query, {"_id": 0}).to_list(10000)
+    
+    my_pending_original_ids = {
+        p.get("original_record_id") for p in my_pending if p.get("original_record_id")
     }
-
-    result = [rec for rec in approved if rec["id"] not in pending_original_ids]
-    result.extend(pending)
+    
+    # Step 2: Get approved records, excluding those I have pending updates for
+    approved_query = {
+        **base_query,
+    }
+    approved = await db[APPROVED_COLLECTION].find(approved_query, {"_id": 0}).to_list(10000)
+    
+    # Step 3: Get all pending records (from others) to mark records with pending proposals
+    others_pending_query = {
+        **base_query,
+        "approval_status": {"$in": list(PENDING_STATUSES)},
+        "submitted_by": {"$ne": user_id},
+    }
+    others_pending = await db[PENDING_COLLECTION].find(others_pending_query, {"_id": 0, "original_record_id": 1, "submitted_by_name": 1, "approval_status": 1}).to_list(10000)
+    
+    others_pending_by_original = {p["original_record_id"]: p for p in others_pending if p.get("original_record_id")}
+    
+    # Step 4: Build result
+    result = []
+    for rec in approved:
+        # Skip if I have my own pending update for this record
+        if rec["id"] in my_pending_original_ids:
+            continue
+        
+        # Mark if someone else has a pending proposal
+        if rec["id"] in others_pending_by_original:
+            pending_info = others_pending_by_original[rec["id"]]
+            rec["has_pending_proposal"] = True
+            rec["pending_proposal_by"] = pending_info.get("submitted_by_name")
+            rec["pending_proposal_status"] = pending_info.get("approval_status")
+        
+        result.append(rec)
+    
+    # Add my own pending records (they show my proposed values)
+    for p in my_pending:
+        p["is_my_pending_proposal"] = True
+    result.extend(my_pending)
+    
     return result
 
 

@@ -6,7 +6,16 @@
 - **Role**: admin
 - **Organization ID**: 9067d872-8a3a-4ed9-8494-e3ef04952f7c
 
-## Non-Admin User Account (for testing KPI access restrictions)
+## Non-Admin User Accounts (for testing KPI access restrictions)
+
+### Aman
+- **Email**: goyalsomil+1@hotmail.com
+- **Password**: TestUser123!
+- **Role**: user
+- **Organization ID**: 9067d872-8a3a-4ed9-8494-e3ef04952f7c
+- **GHG Access**: scope1 only, restricted to Facility E (39ecd9be-9417-4df6-93c4-e583abf49260)
+
+### Ravi
 - **Email**: goyalsomil+4@hotmail.com
 - **Password**: TestUser123!
 - **Role**: user
@@ -15,5 +24,6 @@
 
 ## Notes
 - Admin account has full access to the platform
-- Non-admin user has limited GHG access based on V2 KPI assignments
+- Non-admin users have limited GHG access based on V2 KPI assignments
+- Both Aman and Ravi have identical assignments (Scope 1 @ Facility E)
 - Used for testing emissions, ESG records, approvals, and access control features
