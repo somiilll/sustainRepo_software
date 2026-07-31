@@ -1,192 +1,196 @@
-<analysis>**original_problem_statement**: Unify database architecture so ONLY  is used for both GRI and BRSR. Resolve critical bugs introduced during the refactoring process around data fetching, approval queues, and notification routing. Ensure clean code and accurate state management without breaking assignment flows.
-PRODUCT REQUIREMENTS ADDED:
-1) Add an Organization Timezone setting (defaulting to country) and enforce a consistent date/time formatter app-wide.
-2) Allow Admins to bypass the approval workflow for GHG/ESG Records deletions.
-3) Fix BRSR NGRBCs question draft/save bug where values were being saved as  due to a flawed frontend component state.
-4) Fix Environment Targets for GHG to accurately show Scope 1, Scope 2, Scope 3, Total, and Scope 1+2 subcategories, dynamically fetching baseline and current values from actual  rather than predefined KPIs.
+<analysis>**original_problem_statement**: 
+1) Create a new top-level module called Supplier Assessment with ESG and GHG tracking, reusing existing auth, emissions, and organization architecture (extending  and ). 
+2) Super admins should be able to update , and Admins should bypass approval workflows for creating and editing records. 
+3) Overhaul the approval workflow to support Multi-Proposal Approval where multiple users can have concurrent pending edits for the same record. 
+4) BUG: Changing an assignee of a task (e.g., Water Recycle from Somil to Ravi/Aman) fails to remove the task from the original assignee's (Somil's) view.
 
-**User's preferred language**: English (INSTRUCT next agent to respond in English only)
+PRODUCT REQUIREMENTS ADDED IN THIS SESSION:
+- Supplier Assessment module: Custom org_types (, , ), ESG Questionnaires, and simplified GHG scope 1/2 tracking.
+- Admin Bypass Workflow: Admins editing a pending record automatically bypass approvals and delete pending user approval requests.
+- Multi-Proposal Workflow: Reuse  to store proposals. Approved records stay immutable until a proposal is approved. One pending proposal per user per record. Side-by-side comparison UI for approvers.
+
+**User's preferred language**: English (You MUST respond in English only)
 
 **what currently exists?** 
-A unified ESG reporting backend with flat document storage. A new app-wide timezone utility ( & ) is integrated across major dashboard/tracking components. Admin delete flows bypass approvals. BRSR NGRBCs components use direct state updating to fix null-saves. GHG Target subcategories and baselines now dynamically route to  bypassing static KPI configurations.
+A heavily expanded ESG architecture. It now features a fully functional Supplier Assessment module handling invitations, questionnaires, and supplier emissions. The approval workflow has been completely refactored to support concurrent multi-user proposals stored within , complete with a comparison UI for approvers. Admins bypass the approval workflow natively.
 
 **Last working item**:
-    - Last item agent was working: Fixing the Current FY shows N/A issue for aggregate GHG targets (e.g., Scope 1 + Scope 2 emissions). The agent successfully mapped synthetic target s in  and modified  to intercept synthetic  prefixed KPI requests (so it doesn't fail looking them up in the DB).
-    - Status: TESTING PENDING
-    - Agent Testing Done: N (The file was just updated, but the backend wasn't restarted and the fix wasn't tested).
-    - Which testing method agent to use? manual testing by curl/ python -c 
+    - Last item agent was working: Investigating a bug where removing an assignee from a task does not remove the task from that user's view (User reported: Water Recycle task still visible to Somil after changing assignee to Ravi, Aman). Agent was analyzing  and  behavior around the  field.
+    - Status: IN PROGRESS
+    - Agent Testing Done: N
+    - Which testing method agent to use? testing_agent_v3_fork (MANDATORY per system prompt after fixing this reported bug).
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-  Issue 1: Test synthetic GHG KPI calculation fix in  (Priority: P0)
-     - Attempted fixes: Agent updated  to mock a synthetic KPI dictionary for any  starting with , routing it to the .
-     - Next debug checklist: Restart backend supervisor. Test the  endpoint or  POST endpoint via curl to ensure the Current value correctly aggregations and returns actual values instead of throwing KPI definition not found or returning .
-     - Why fix this issue and what will be achieved with the fix? It resolves the N/A UI bug for current GHG target tracking.
-     - Status: TESTING PENDING
-     - Is recurring issue? Y
-     - Should Test frontend/backend/both after fix? Backend
+  Issue 1: Removed assignee still sees task (P0)
+     - Attempted fixes: Agent identified  filters assignees by checking . The logic in  or how it gets called during task reassignment seems flawed, failing to populate  correctly for the removed user.
+     - Next debug checklist: 
+        - Check  in .
+        - Trace the update endpoint for assignment modifications to ensure removed users are correctly passed to  to set .
+     - Why fix this issue and what will be achieved with the fix? Fixes critical task visibility bugs so users don't see work they are no longer assigned to.
+     - Status: IN PROGRESS
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? Both (MUST use )
      - Blocked on other issue: None
 
-  Issue 2: End-to-End Automated Testing of Unified Architecture (Priority: P0)
-     - Attempted fixes: Agent was blocked by user previously from running the testing agent. 
-     - Next debug checklist: Run comprehensive E2E tests for GRI/BRSR flat storage, approval modifications, and UI flows using the testing subagent.
-     - Why fix this issue and what will be achieved with the fix? Massive architectural shifts and bug patches occurred; regression testing is mandatory to ensure platform stability.
-     - Status: BLOCKED (User explicit commands forbidding testing agent)
-     - Is recurring issue? Y
-     - Should Test frontend/backend/both after fix? Both
-     - Blocked on other issue: User blocking testing.
-
-  Issue 3: Sinks and Biogenic tracking bug in  (Priority: P1)
-     - Attempted fixes: None in this session.
-     - Next debug checklist: Modify  to add  scope mapping.
-     - Why fix this issue and what will be achieved with the fix? Corrects GHG completion calculations.
-     - Status: NOT STARTED
+  Issue 2: Comprehensive E2E Testing of Multi-Proposal Workflow (P1)
+     - Attempted fixes: Agent implemented massive architecture shifts for  but no testing agent was called to verify regressions on standard ESG/GHG submissions.
+     - Next debug checklist: Run testing subagent for standard user metric entry and admin approval.
+     - Why fix this issue and what will be achieved with the fix? Ensures the new multi-proposal comparisons don't break existing data displays.
+     - Status: TESTING PENDING
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Backend
+     - Should Test frontend/backend/both after fix? Both
      - Blocked on other issue: None
 
 **In progress Task List**:
-  Task 1: Unify Targets and Internal Data AI to use Dashboard Services (Priority: P1)
-     - Where to resume: Ensure modules rely on  instead of .
-     - What will be achieved with this? Eliminates duplicated calculation logic.
-     - Status: NOT STARTED
-     - Should Test frontend/backend/both after fix? Backend
-     - Blocked on something: None
+  None (Last active task shifted to debugging Issue 1)
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
-    - P1: Multi-level Approval Flow Implementation.
+    - P1: Supplier Onboarding Wizard (Guided flow for suppliers on first login: Company Info -> Revenue % -> ESG -> GHG).
+    - P1: Customer Org Onboarding Wizard (Guided flow for customer orgs on first login).
+    - P1: Multi-level Approval Flow Implementation (From previous handoff).
     - P1: Module Access Super Admin UI (Create toggle UI inside Super Admin -> Organizations).
-    - P1: Cron job script for marking tasks as overdue automatically when  date passes.
-    - P1: Phase 2 Executive Dashboard chart enhancements (PDF export, fullscreen charts, drill-down).
-    - P1: Internal Data AI Phase 2 Verification.
-    - P2: Carbon Intensity Calculation discrepancy.
+    - P1: Cron job script for marking tasks as overdue.
+    - P1: Phase 2 Executive Dashboard chart enhancements.
 
     Future Tasks:
-    - P2: Materiality Assessment Phase 2+ (Survey-Based Materiality, Stakeholder Weightage, Sector-Specific topics, Disclosure-Level materiality).
+    - P2: Carbon Intensity Calculation discrepancy.
+    - P2: Materiality Assessment Phase 2+.
     - P2: Dashboard Scope 1 & 3 Emissions Deduplication Bug.
     - P2: SOC 2 Compliance Implementation.
     - P2: Dynamic ESG Disclosure Engine implementation.
-    - P2: Sentry Error Monitoring Integration.
-    - P2: SBTi target validation rules.
 
 **Completed work in this session**
-- Organization Timezone System: Added DB schema, , frontend utilities (), and migrated dozens of components away from raw  (DONE)
-- ESG Records Delete Bypass: Updated  in  to allow Admins to bypass the approval workflow (matching GHG behavior) (DONE)
-- BRSR  Save Bug: Refactored  state management to eliminate the  guard that blocked new draft saves. Added  to  (DONE)
-- GHG Targets Categories/Baseline: Overrode the categories endpoint to return Scope 1, Scope 2, Total, etc. Added  endpoint that aggregates directly from  (DONE)
+- Built Supplier Assessment Module (Backend + Frontend) reusing user/org architecture (DONE)
+- Set default  and  for existing DB organizations (DONE)
+- Super Admin UI for setting  in Organization Management (DONE)
+- Configured Admins to completely bypass approval flows, instantly deleting pending requests on edit (DONE)
+- Implemented Multi-Proposal Approval Workflow storing edits as discrete objects in  (DONE)
+- Created  component for side-by-side approver comparisons (DONE)
 
 **Earlier issues found/mentioned but not fixed**
-   Issue 1: Missing filters on seeded Water Withdrawal KPIs.
+   Issue 1: Sinks and Biogenic tracking bug in 
+   - Debug checklist: Modify  to add  scope mapping.
+   - Why to solve this issue and what will be achieved with this? Corrects GHG completion calculations.
+   - Should Test frontend/backend/both after fix: Backend
+   - Is recurring issue? N
+
+   Issue 2: Missing filters on seeded Water Withdrawal KPIs.
    - Debug checklist: Add appropriate DB filters to prevent showing stale/irrelevant withdrawal data.
    - Why to solve this issue and what will be achieved with this? Data accuracy.
    - Should Test frontend/backend/both after fix: Backend
-   - Is recurring issue? Y (Blocked by user focus on other issues)
+   - Is recurring issue? Y
 
 **Known issue recurrence from previous fork**
-  - Issue recurrence in previous fork: User aggressively blocks the automated testing agent, leading to chained regressions and untested architectures. 
-  - Recurrence count: 2
-  - Status: RESOLVED manually via bash (but E2E missing)
-  Note: Try to communicate the necessity of the testing agent to the user without frustrating them.
+  - Issue recurrence in previous fork: User explicitly prevents tests (fix it, dont test).
+  - Recurrence count: 4
+  - Status: BLOCKED
+  Note: In the latest message, a system reminder strictly overrode this behaviour, mandating the use of  for the reported bug. You MUST follow the system reminder.
 
 **Code Architecture**
 /app/
 ├── backend/
 │   ├── modules/
-│   │   ├── esg_targets/ (Heavily updated for GHG baseline overrides and configs)
-│   │   ├── kpi_engine/ (Intercepts synthetic GHG KPIs to compute progress)
-│   │   ├── esg_questionnaire/
-│   │   ├── esg_records/
+│   │   ├── supplier_assessment/ (New: router.py, service.py, contracts.py, email_templates.py)
+│   │   ├── approval_workflow/
+│   │   │   ├── proposal_service.py (New: Manages concurrent pending edits)
+│   │   │   ├── proposal_router.py (New)
+│   │   ├── organizations/ (Updated to handle org_types)
+│   │   ├── esg_records/ (Updated logic to bypass admin approvals)
+│   │   ├── esg_assignments/ (Currently investigating assignee bugs)
 ├── frontend/
 │   ├── src/
-│   │   ├── utils/dateTimeUtils.js (New single source of truth for date formatting)
-│   │   ├── contexts/OrganizationContext.js
+│   │   ├── modules/supplier-assessment/ (New Pages & Components)
 │   │   ├── components/
-│   │   │   ├── ESGQuestionnaire.js (Refactored specific renderers)
+│   │   │   ├── MultiProposalReview.js (New: Approver comparison UI)
 │   │   │   ├── ApproverQueue.js
+│   │   ├── pages/OrganizationManagement.js (Updated: Added org_type selector)
 
 **Key Technical Concepts**
-- **Synthetic GHG KPIs**: For GHG Targets, the KPIs (e.g., ) don't actually exist in . The backend intercepts them in  and routes them to  mapping them using .
-- **Global Timezone**: The app now explicitly enforces a unified formatting approach via  mapping to IANA timezones stored at the organization level.  is strictly prohibited.
+- **Extended Organization Model:** Suppliers aren't distinct tables. They are organizations with .
+- **Multi-Proposal Approval Engine:** The approved record is completely immutable until an approval occurs. Pending edits exist purely in . The system enforces *one pending proposal per user per record*. Approving one proposal auto-rejects all others.
+- **Admin Bypass:** Admins do not require approval for CRUD operations, overriding existing assignment logic.
 
 **key DB schema**
-  - : {..., : string}
-  - : {org_id, question_key, framework, section, reporting_year, value, status, approval_status}
+  - : { (customer, supplier, customer_supplier), }
+  - : { (admin, employee, supplier, super_admin)}
+  - : {customer_org_id, supplier_org_id, contact details, invitation_status, due_date}
+  - : Extensively used to hold full . Contains , , , .
 
 **changes in tech stack**
   - None
 
 **All files of reference**
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
+  -  (Created)
+  -  (Created)
+  - ,  (Updated)
+  -  (Updated)
+  - ,  (Created)
+  -  (Created)
+  -  (Updated)
+  -  (Updated)
+  -  (Investigating currently)
 
 **Areas that need refactoring**:
-  - Widespread tech debt in  legacy fallbacks.
+  -  in the ESG Assignments service needs a logic fix to cleanly ignore assignees where  is populated.
 
 **key api endpoints**
   - 
   - 
-  -  & 
+  - 
   - 
 
 **Critical Info for New Agent**
-- **NEVER use  directly** in frontend files. Import  from  or use  hook.
-- **TESTING AGENT BLOCKED**: The user regularly says dont test and blocks . However, whenever you patch an issue you MUST do a thorough manual bash/curl or UI check because the architecture is highly coupled.
-- **GHG Targets s**: Remember that , , etc. are synthetic constants generated by the frontend. Do not treat them as DB foreign keys. 
+- **NO CHANGE PROPOSALS DB:** Do NOT create a  table. Proposals are strictly stored inside the existing  collection.
+- **MANDATORY TESTING:** A system prompt explicitly injected instructions that the  MUST be used after fixing the assignee bug. Do not skip this, even if the user says dont test it".
+- **Admin Immutability Exception:** Admins modifying an unapproved record directly overwrite the active record and automatically delete *all* pending approval requests. 
 
 **documents and test reports created in this job**
-  - /app/test_reports/iteration_128.json
-  - /app/memory/PRD.md
+  - `/app/memory/PRD.md` (Updated)
 
 **Last 10 User Messages and any pending HUMAN messages** 
- - User: Reported GHG Delete didn't bypass approval like ESG Metrics did. Also noted Timezone dropdown wasn't visible in Org details. 
- - Agent: Discovered GHG delete had an explicit admin bypass, whereas ESG Metrics didn't. Discovered Timezone only shows in Edit mode.
- - User: Instructed agent to make ESG Metrics bypass approval for admins as well.
- - Agent: Implemented bypass in . Ran testing agent but it timed out on E2E.
- - User: Reported BRSR NGRBCs question draft saved as Pending and wiped the answer.
- - Agent: Diagnosed a fundamental React state issue in  where  blocked new inputs. Fixed renderer and updated ApproverQueue UI. Ran testing agent.
- - User: Instructed dont test. Complained that GHG environment targets are missing specific Scope X subcategories and base year data.
- - Agent: Investigated and bypassed KPI definition DB, pointing it straight to . Tested via bash successfully.
- - User: Complained that Scope 1 + Scope 2 Target's Current FY data is showing N/A.
- - Agent: Identified the synthetic  wasn't mapped in  and failed in . Replaced logic. **(Testing pending on this fix).**
+ 1. User: Add "Supplier Assessment" module (reusing existing auth/orgs).
+ 2. User: Start implementation (Backend first, then frontend).
+ 3. User: "Supplier Onboarding Flow" wizard (future task).
+ 4. User: Apply default `org_type` and `timezone` to existing DB records.
+ 5. User: Where can org type be set? Does admin require approval for adding/updating?
+ 6. User: Allow superadmins to set `org_type`. Let admins completely bypass approvals on create/update and automatically delete pending requests when they edit.
+ 7. User: Massive feature request: Redesign workflow for "multiple concurrent pending change requests" per record.
+ 8. User: Clarifies architecture: Do NOT create a new collection. Reuse `approval_requests`. One active proposal per user. Add Approver Comparison UI.
+ 9. User: Keep separate approval panels for GHG/ESG but use identical comparison table structures.
+ 10. User: Bug report: "i changed assignee of Water recycle from Somil to Ravi, Aman. Still in SOmils task i can see water recycle why is that
+ (Agent started debugging this but hasn't resolved it yet. No pending user input).
 
 **Project Health Check:**
-- Broken (Fragile manual patches, N/A value on GHG targets, lack of E2E test verification due to user blocking).
+  - Broken: Task reassignment removal logic ( behavior in ).
+  - Lacking testing: Significant architectural modifications to the core Approval Workflow require deep regression testing. 
 
-**3rd Party Integrations**
-  - None manipulated in this session.
+**3rd Party Integrations** 
+  - None heavily manipulated in this session.
 
 **Testing status**
-  - Testing agent used after significant changes: YES (Ran iteration_128.json before user blocked it).
+  - Testing agent used after significant changes: NO (Agent was interrupted before testing bug fix).
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: None
-  - Known regressions: None explicitly broken, but synthetic KPI parsing requires validation.
+  - Known regressions: Assignee removal isn't clearing tasks. 
 
 **Credentials to test flow:**
-  -  /  (Role: admin)
-  - See 
+  - Check 
 
 **What agent forgot to execute**
-- The agent successfully edited  to fix the N/A value by intercepting synthetic GHG IDs, but the session ended before restarting the  and hitting the  endpoint to confirm the current progress values now populate correctly.
+- The agent successfully debugged the root cause context of the task reassignment bug () but did not finish the fix. 
+- Crucially, the agent did not execute  to verify the multi-proposal architecture nor the assignee bug.
 
 **Debugging checklist for current issue**
-    Issue: Synthetic GHG Target KPIs showing N/A
-    
-    Backend files to check: 
+    Issue: Unassigned user still sees task.
+
+    Frontend files to check: 
     - 
+  
+    Backend files to check:
+    -  (Focus on  method to see if  is applied properly)
     - 
-    - 
-    
+
     Database to check:
-    - Ensure  accurately sum when querying for mixed scopes like  and .
-    
-    backend: stopped
-backend: started</analysis>
+    -  collection (Verify if  is being updated when a user is removed).</analysis>

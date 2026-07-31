@@ -830,3 +830,34 @@ async def get_bulk_progress_endpoint(
         }
     
     return result
+
+
+
+# ============================================
+# ADMIN UTILITY ENDPOINTS
+# ============================================
+
+@router.post("/admin/sync-task-assignees")
+async def sync_task_assignees(
+    current_user: dict = Depends(get_admin_user),
+):
+    """
+    Sync task assignees with assignment assignees (Admin only).
+    
+    This fixes data consistency issues where:
+    1. Users were removed from assignments but their task assignees weren't deactivated
+    2. Users were added to assignments but their task assignees weren't created
+    
+    Useful for fixing existing data after the assignee sync feature was added.
+    """
+    from .assignees_service import assignment_assignees_service
+    
+    result = await assignment_assignees_service.sync_task_assignees_with_assignment_assignees(
+        organization_id=current_user["organization_id"]
+    )
+    
+    return {
+        "success": True,
+        "message": "Task assignees synced with assignment assignees",
+        **result
+    }
