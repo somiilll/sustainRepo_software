@@ -891,15 +891,64 @@ async def save_responses(
     section: str,
     reporting_year: str,
     data: ESGResponseCreate,
-    current_user: dict = Depends(get_admin_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """
-    Save ESG responses for org+framework+section+year. Admin only.
-    Automatically tracks version history for each question.
+    Save ESG responses for org+framework+section+year.
+    
+    Access control:
+    - Admins can save any response
+    - Non-admins can save responses for questions they are assigned to
+      (if no approval is required, saves directly; otherwise submits for approval)
     """
     org_id = current_user.get("organization_id")
+    user_id = current_user.get("id")
+    user_role = current_user.get("role", "user")
+    is_admin = user_role in ["admin", "super_admin"]
+    
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    # For non-admins, verify they have assignment access to the questions being saved
+    if not is_admin and data.responses:
+        # Get user's assigned question keys via V2 architecture
+        from shared.database.mongo import db
+        
+        # Get assignment IDs for this user
+        assignee_records = await db.esg_assignment_assignees.find(
+            {
+                "user_id": user_id,
+                "organization_id": org_id,
+                "$or": [{"removed_at": None}, {"removed_at": {"$exists": False}}],
+            },
+            {"_id": 0, "assignment_id": 1}
+        ).to_list(500)
+        
+        assignment_ids = [a["assignment_id"] for a in assignee_records]
+        
+        # Get the actual assignments to find question keys
+        assigned_question_keys = set()
+        if assignment_ids:
+            assignments = await db.esg_assignments.find(
+                {
+                    "id": {"$in": assignment_ids},
+                    "entity_type": {"$in": ["question", "disclosure"]},
+                },
+                {"_id": 0, "entity_id": 1, "question_key": 1}
+            ).to_list(500)
+            
+            for a in assignments:
+                key = a.get("question_key") or a.get("entity_id")
+                if key:
+                    assigned_question_keys.add(key)
+        
+        # Check if user is trying to save questions they're not assigned to
+        for question_key in data.responses.keys():
+            if question_key not in assigned_question_keys:
+                raise HTTPException(
+                    status_code=403, 
+                    detail=f"You are not assigned to question '{question_key}'"
+                )
     
     result = await esg_questionnaire_service.save_responses(
         org_id=org_id,
@@ -907,7 +956,7 @@ async def save_responses(
         reporting_year=reporting_year,
         section=section,
         data=data,
-        changed_by_user_id=current_user.get("id"),
+        changed_by_user_id=user_id,
     )
     
     return {

@@ -3080,7 +3080,7 @@ export default function Emissions() {
                 </DialogHeader>
               {!editingEmission ? (
                 <EmissionEntryForm
-                  facilities={hasFullKPIAccess ? facilities : kpiFilteredFacilities}
+                  facilities={facilities}
                   fuelDatabase={fuelDatabase}
                   centralizedUnits={centralizedUnits}
                   formulaDefinitions={formulaDefinitions}
@@ -3162,7 +3162,7 @@ export default function Emissions() {
                   setOverrideDensity={setOverrideDensity}
                   setOverrideJustification={setOverrideJustification}
                   // ---------- core data ----------
-                  facilities={hasFullKPIAccess ? facilities : kpiFilteredFacilities}
+                  facilities={facilities}
                   dynamicScopes={dynamicScopes}
                   hasScope3Access={hasScope3Access}
                   centralizedUnits={centralizedUnits}

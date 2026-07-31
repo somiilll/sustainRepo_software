@@ -196,20 +196,32 @@ class ESGQuestionnaireService:
             }
         
         # If filtering by assignment, get user's assigned disclosure/question IDs
+        # Using V2 architecture: query esg_assignment_assignees junction table
         assigned_disclosure_ids = None
         assigned_question_keys = None
         if filter_by_assignment and user_id:
-            # Get assignments for this user from esg_assignments
-            assignments_cursor = db.esg_assignments.find(
+            # Step 1: Get assignment IDs for this user via V2 (esg_assignment_assignees)
+            assignee_records = await db.esg_assignment_assignees.find(
                 {
+                    "user_id": user_id,
                     "organization_id": org_id,
-                    "assigned_to_user_id": user_id,
-                    "entity_type": {"$in": ["disclosure", "question", "material_topic"]},
-                    "reporting_period": reporting_period,
+                    "$or": [{"removed_at": None}, {"removed_at": {"$exists": False}}],
                 },
-                {"_id": 0, "entity_id": 1, "entity_type": 1, "disclosure_id": 1, "question_key": 1}
-            )
-            assignments = await assignments_cursor.to_list(500)
+                {"_id": 0, "assignment_id": 1}
+            ).to_list(500)
+            
+            assignment_ids = [a["assignment_id"] for a in assignee_records]
+            
+            # Step 2: Get assignments for those IDs
+            assignments = []
+            if assignment_ids:
+                assignments = await db.esg_assignments.find(
+                    {
+                        "id": {"$in": assignment_ids},
+                        "entity_type": {"$in": ["disclosure", "question", "material_topic"]},
+                    },
+                    {"_id": 0, "entity_id": 1, "entity_type": 1, "disclosure_id": 1, "question_key": 1}
+                ).to_list(500)
             
             assigned_disclosure_ids = set()
             assigned_question_keys = set()
