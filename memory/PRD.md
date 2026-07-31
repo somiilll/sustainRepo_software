@@ -260,6 +260,48 @@ Complete implementation of a new top-level module for supplier ESG and GHG asses
 
 **Status**: ✅ Fully Implemented and Tested
 
+## Completed Work (Current Session — Jul 31 2026)
+
+### GHG Emissions V2 Assignment Filtering (P0)
+- **Issue**: Non-admin users couldn't see emission records because `fetch_emissions_for_user` used legacy V1 `assigned_facilities` field
+- **Fix**: Updated `/app/backend/modules/approvals/emission_flow_v2.py` to query V2 `esg_assignment_assignees` table
+- **Result**: Both Aman and Ravi now see the same 5 Scope 1 records at Facility E
+- **Status**: ✅ Fixed and Tested
+
+### GHG Emissions Pending Proposal Display (P0)
+- **Issue 1**: Non-admin user's pending edit values not shown in edit form - showed approved values instead
+- **Root Cause**: `GET /api/emissions/{id}` queried `pending_records` but emission updates write to `approval_requests`
+- **Fix**: Updated `/app/backend/modules/emissions/router.py` to check `approval_requests` for user's pending proposal and overlay `proposed_changes.inputs` onto `dynamic_field_values`
+- **Status**: ✅ Fixed and Tested
+
+### GHG Emissions Approval Field Mapping Bug (P0)
+- **Issue 2**: After approval, `dynamic_field_values` showed old values while `co2e_emissions` had new values
+- **Root Cause**: Approval handler in `service.py` mapped `proposed_changes.inputs` to `record_update["inputs"]` but DB uses `dynamic_field_values`
+- **Fix**: Updated `/app/backend/modules/approval_workflow/service.py` line 1177-1183 to map `inputs` → `dynamic_field_values`
+- **Status**: ✅ Fixed and Tested
+
+### Facilities Access for Non-Admin Users (P1)
+- **Issue**: `/api/facilities` returned empty array for non-admin users
+- **Fix**: Updated `/app/backend/modules/facilities/router.py` to return V2-assigned facilities for non-admin users
+- **Status**: ✅ Fixed
+
+### ESG Questionnaire Configs V2 Filtering (P1)
+- **Issue**: BRSR disclosures not filtered by user assignment
+- **Fix**: Updated `/app/backend/modules/esg_questionnaire/service.py` and `router.py` to filter configs by V2 assignments for non-admins
+- **Status**: ✅ Fixed
+
+### Frontend Pending Proposal Badges (P1)
+- **Fix**: Added `StatusCell` component to `/app/frontend/src/pages/emissions/components/EmissionDataGrid.jsx`
+- **Shows**: "Your Pending Edit" for user's own pending edits, "Edit pending by X" for others
+- **Status**: ✅ Implemented
+
+## Pending Issues (Noted for Later)
+1. Safari: Existing data entry for Scope 1 / Facility E not showing
+2. Safari: Fuel type dropdown not showing after choosing category
+3. Workflow module conditional access (bypass restrictions when workflow disabled)
+4. Replace remaining legacy V1 `assigned_to_user_id` usages (~34 occurrences)
+5. Task status shows "Completed" instead of "Pending Approval"
+
 ## Future Tasks (P2)
 - Materiality Assessment Phase 2+
 - Dashboard Scope 1 & 3 Emissions Deduplication

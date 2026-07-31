@@ -1435,11 +1435,11 @@ async def get_emission_records(
 
 @router.get("/emissions/{record_id}", response_model=EmissionRecordResponse)
 async def get_emission_record(record_id: str, current_user: dict = Depends(get_current_user)):
-    """Fetch a single emission record from pending_records OR emission_records.
+    """Fetch a single emission record with user's pending proposal overlaid if applicable.
     
     Priority for non-admin users:
-    1. User's own pending edit for this record (by original_record_id)
-    2. The record itself (pending or approved)
+    1. Check if user has pending edit in approval_requests → overlay proposed values
+    2. Return the approved record (with proposed values merged if pending edit exists)
     
     This ensures users see their submitted values while awaiting approval.
     """
@@ -1447,26 +1447,24 @@ async def get_emission_record(record_id: str, current_user: dict = Depends(get_c
     user_role = current_user.get("role", "user")
     
     record = None
+    user_pending_proposal = None
     
-    # For non-admin users, check if they have a pending edit for this record FIRST
+    # For non-admin users, check if they have a pending edit in approval_requests
     if user_role not in ["admin", "super_admin"]:
-        pending = await db[PENDING_COLLECTION].find_one(
+        user_pending_proposal = await db.approval_requests.find_one(
             {
-                "original_record_id": record_id,
+                "entity_type": "emission_record",
+                "entity_id": record_id,
                 "submitted_by": user_id,
-                "approval_status": {"$in": ["pending_update", "pending_create", "pending_delete"]}
+                "status": {"$in": ["pending", "in_review"]}
             },
-            {"_id": 0}
+            {"_id": 0, "entity_snapshot": 1, "status": 1}
         )
-        if pending:
-            record = pending
     
-    # If no user-specific pending found, use standard lookup
-    if not record:
-        record, source = await find_record(record_id)
+    # Get the base record using standard lookup
+    record, source = await find_record(record_id)
     
-    # Still not found? Check if there's ANY pending record for this original_record_id
-    # (for admins to see pending edits)
+    # Still not found? Check pending_records by original_record_id
     if not record:
         pending = await db[PENDING_COLLECTION].find_one(
             {"original_record_id": record_id},
@@ -1477,6 +1475,29 @@ async def get_emission_record(record_id: str, current_user: dict = Depends(get_c
     
     if not record:
         raise HTTPException(status_code=404, detail="Emission record not found")
+    
+    # If user has a pending proposal, overlay their proposed values onto the record
+    if user_pending_proposal:
+        entity_snapshot = user_pending_proposal.get("entity_snapshot", {})
+        proposed_changes = entity_snapshot.get("proposed_changes", {})
+        
+        # Overlay proposed inputs onto dynamic_field_values
+        if "inputs" in proposed_changes and proposed_changes["inputs"]:
+            record["dynamic_field_values"] = proposed_changes["inputs"]
+        
+        # Overlay proposed outputs
+        if "outputs" in proposed_changes and proposed_changes["outputs"]:
+            record["outputs"] = proposed_changes["outputs"]
+            outputs = proposed_changes["outputs"]
+            record["co2_emissions"] = (outputs.get("co2") or {}).get("value", 0) or 0
+            record["ch4_emissions"] = (outputs.get("ch4") or {}).get("value", 0) or 0
+            record["n2o_emissions"] = (outputs.get("n2o") or {}).get("value", 0) or 0
+            record["co2e_emissions"] = (outputs.get("co2e") or {}).get("value", 0) or 0
+            record["total_emissions"] = record["co2e_emissions"]
+        
+        # Mark that this record has user's pending proposal overlaid
+        record["is_my_pending_proposal"] = True
+        record["approval_status"] = "pending_approval"
 
     # Role-based access check
     role = current_user.get("role")
