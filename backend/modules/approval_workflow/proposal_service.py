@@ -221,6 +221,8 @@ class ProposalService:
         """
         Approver edits a proposal before approving.
         Preserves original submission for audit trail.
+        
+        Handles both ESG records (field_values) and emission records (dynamic_field_values).
         """
         proposal = await db.approval_requests.find_one(
             {"id": proposal_id, "status": {"$in": ["pending", "in_review"]}},
@@ -231,6 +233,7 @@ class ProposalService:
             return None
         
         now = datetime.now(timezone.utc).isoformat()
+        entity_type = proposal.get("entity_type", "esg_record")
         
         # Get approver info
         approver = await db.users.find_one({"id": approver_id}, {"_id": 0, "email": 1, "full_name": 1})
@@ -241,6 +244,62 @@ class ProposalService:
         original = proposal.get("original_proposal_data")
         if not original:
             original = proposal.get("entity_snapshot")
+        
+        # Build the updated entity_snapshot based on entity type
+        current_snapshot = proposal.get("entity_snapshot", {})
+        new_snapshot = {**current_snapshot}
+        
+        if entity_type == "emission_record":
+            # For emission records, update the correct nested field
+            field_values = modified_data.get("field_values", {})
+            
+            if field_values:
+                # Update dynamic_field_values if it exists
+                if "dynamic_field_values" in new_snapshot:
+                    updated_dfv = {**new_snapshot.get("dynamic_field_values", {})}
+                    for key, value in field_values.items():
+                        # Preserve the {value, unit} structure if the field originally had it
+                        if key in updated_dfv and isinstance(updated_dfv[key], dict) and "value" in updated_dfv[key]:
+                            updated_dfv[key] = {**updated_dfv[key], "value": value}
+                        else:
+                            updated_dfv[key] = value
+                    new_snapshot["dynamic_field_values"] = updated_dfv
+                
+                # Also update proposed_changes.inputs if it exists
+                if "proposed_changes" in new_snapshot and "inputs" in new_snapshot.get("proposed_changes", {}):
+                    updated_inputs = {**new_snapshot["proposed_changes"].get("inputs", {})}
+                    for key, value in field_values.items():
+                        if key in updated_inputs and isinstance(updated_inputs[key], dict) and "value" in updated_inputs[key]:
+                            updated_inputs[key] = {**updated_inputs[key], "value": value}
+                        else:
+                            updated_inputs[key] = value
+                    new_snapshot["proposed_changes"] = {
+                        **new_snapshot.get("proposed_changes", {}),
+                        "inputs": updated_inputs
+                    }
+                
+                # Also update inputs if it exists (legacy format)
+                if "inputs" in new_snapshot and "proposed_changes" not in new_snapshot:
+                    updated_inputs = {**new_snapshot.get("inputs", {})}
+                    for key, value in field_values.items():
+                        if key in updated_inputs and isinstance(updated_inputs[key], dict) and "value" in updated_inputs[key]:
+                            updated_inputs[key] = {**updated_inputs[key], "value": value}
+                        else:
+                            updated_inputs[key] = value
+                    new_snapshot["inputs"] = updated_inputs
+        else:
+            # For ESG records, update field_values directly
+            if "field_values" in modified_data:
+                new_snapshot["field_values"] = {
+                    **new_snapshot.get("field_values", {}),
+                    **modified_data["field_values"]
+                }
+            # Also merge any other top-level modifications
+            for key, value in modified_data.items():
+                if key != "field_values":
+                    new_snapshot[key] = value
+        
+        new_snapshot["approver_edited"] = True
         
         # Update with approver's modifications
         update_data = {
@@ -253,11 +312,7 @@ class ProposalService:
                 "modified_at": now,
                 "modified_data": modified_data,
             },
-            "entity_snapshot": {
-                **proposal.get("entity_snapshot", {}),
-                **modified_data,
-                "approver_edited": True,
-            },
+            "entity_snapshot": new_snapshot,
             "updated_at": now,
         }
         
