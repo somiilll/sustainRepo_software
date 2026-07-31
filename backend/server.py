@@ -151,6 +151,10 @@ api_router.include_router(approvals_router)
 # Enterprise Approval Workflow Engine
 api_router.include_router(approval_workflow_router)
 
+# Multi-Proposal Management
+from modules.approval_workflow.proposal_router import router as proposal_router
+api_router.include_router(proposal_router)
+
 # ESG Tracking Module
 api_router.include_router(esg_tracking_router)
 

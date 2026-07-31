@@ -499,18 +499,38 @@ async def list_records(
 async def get_record(
     section: ESG_SECTION,
     record_id: str,
+    include_proposals: bool = Query(False, description="Include pending proposals"),
     current_user: dict = Depends(get_current_user)
 ):
-    """Get a single record."""
+    """
+    Get a single record.
+    
+    If include_proposals=true:
+    - Normal users: Returns record + their pending proposal (if any)
+    - Admins/Approvers: Returns record + all pending proposals
+    """
     org_id = current_user.get("organization_id")
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization assigned")
     
-    record = await esg_records_service.get_record(
-        section=section,
-        record_id=record_id,
-        org_id=org_id
-    )
+    user_id = current_user.get("id")
+    user_role = current_user.get("role", "user")
+    is_admin = user_role in ["admin", "super_admin"]
+    
+    if include_proposals:
+        record = await esg_records_service.get_record_with_user_proposal(
+            section=section,
+            record_id=record_id,
+            org_id=org_id,
+            user_id=user_id,
+            is_approver=is_admin,
+        )
+    else:
+        record = await esg_records_service.get_record(
+            section=section,
+            record_id=record_id,
+            org_id=org_id
+        )
     
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")

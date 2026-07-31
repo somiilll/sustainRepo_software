@@ -1372,16 +1372,36 @@ class ESGRecordsService:
             )
             
             # Create approval request with proposed changes (record stays unchanged)
-            await self._create_edit_approval_request(
-                org_id=org_id,
-                record_id=record_id,
-                current_record=current,
-                proposed_changes=proposed_changes,
-                changes_summary=changes_summary,
-                assignment=assignment,
-                user_id=user_id,
-                section=section,
-            )
+            # Uses ProposalService to enforce one pending proposal per user per record
+            from modules.approval_workflow.proposal_service import proposal_service, NoApproverConfiguredError
+            
+            # Build the full proposed data
+            proposed_data = {
+                "category": current.get("category"),
+                "subcategory": current.get("subcategory"),
+                "sub_subcategory": current.get("sub_subcategory"),
+                "reporting_period": current.get("reporting_period"),
+                "facility_id": current.get("facility_id"),
+                "field_values": data.field_values or current.get("field_values", {}),
+                "evidence_files": data.evidence_files if data.evidence_files is not None else current.get("evidence_files"),
+                "source_of_information": data.source_of_information if data.source_of_information is not None else current.get("source_of_information"),
+                "notes": data.notes if data.notes is not None else current.get("notes"),
+            }
+            
+            try:
+                await proposal_service.create_or_update_proposal(
+                    record_id=record_id,
+                    entity_type="esg_record",
+                    entity_subtype=section,
+                    org_id=org_id,
+                    user_id=user_id,
+                    proposed_data=proposed_data,
+                    current_record=current,
+                    assignment=assignment,
+                    changes_summary=changes_summary,
+                )
+            except NoApproverConfiguredError as e:
+                raise ValueError(f"No approver configured for this assignment: {e.assignment_id}")
             
             print(f"Created edit approval request for approved record {record_id}. Record NOT mutated.")
             
@@ -1547,6 +1567,49 @@ class ESGRecordsService:
             {"id": record_id, "org_id": org_id, "is_current": True},
             {"_id": 0}
         )
+    
+    async def get_record_with_user_proposal(
+        self,
+        section: ESG_SECTION,
+        record_id: str,
+        org_id: str,
+        user_id: str,
+        is_approver: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get a record with the user's pending proposal (if any).
+        
+        For normal users: Returns approved record + their own pending proposal
+        For approvers: Returns approved record + all pending proposals
+        """
+        from modules.approval_workflow.proposal_service import proposal_service
+        
+        # Get the approved record
+        record = await self.get_record(section, record_id, org_id)
+        if not record:
+            return None
+        
+        if is_approver:
+            # Approvers see all pending proposals
+            proposals = await proposal_service.get_all_pending_proposals(
+                record_id=record_id,
+                entity_type="esg_record",
+            )
+            record["_pending_proposals"] = proposals
+            record["_pending_proposals_count"] = len(proposals)
+        else:
+            # Normal users see only their own pending proposal
+            user_proposal = await proposal_service.get_user_pending_proposal(
+                record_id=record_id,
+                user_id=user_id,
+                entity_type="esg_record",
+            )
+            if user_proposal:
+                record["_user_pending_proposal"] = user_proposal
+                # Return the proposed values for the user to see their edits
+                record["_display_values"] = user_proposal.get("entity_snapshot", {})
+        
+        return record
     
     async def list_records(
         self,
