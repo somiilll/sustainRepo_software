@@ -9,10 +9,13 @@ Handles the new workflow where:
 """
 
 import uuid
+import logging
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
 from shared.database.mongo import db
+
+logger = logging.getLogger(__name__)
 
 
 class NoApproverConfiguredError(Exception):
@@ -621,37 +624,59 @@ class ProposalService:
         if entity_type == "emission_record":
             # For emission records, copy all relevant fields from apply_data
             
-            # Copy dynamic_field_values (main input values like qty, density, etc.)
+            # Determine the final dynamic_field_values to use
+            final_dfv = None
             if "dynamic_field_values" in apply_data:
-                update_fields["dynamic_field_values"] = apply_data["dynamic_field_values"]
+                final_dfv = apply_data["dynamic_field_values"]
             elif "proposed_changes" in apply_data and "inputs" in apply_data.get("proposed_changes", {}):
                 # If proposed_changes.inputs exists, merge it into dynamic_field_values
                 current_dfv = current.get("dynamic_field_values", {})
                 proposed_inputs = apply_data["proposed_changes"]["inputs"]
-                merged_dfv = {**current_dfv}
+                final_dfv = {**current_dfv}
                 for key, value in proposed_inputs.items():
-                    merged_dfv[key] = value
-                update_fields["dynamic_field_values"] = merged_dfv
+                    final_dfv[key] = value
             elif "inputs" in apply_data:
                 # Legacy format - inputs directly in apply_data
-                update_fields["dynamic_field_values"] = apply_data["inputs"]
+                final_dfv = apply_data["inputs"]
             
-            # Copy outputs (calculated emissions breakdown)
-            if "outputs" in apply_data:
-                update_fields["outputs"] = apply_data["outputs"]
-            elif "proposed_changes" in apply_data and "outputs" in apply_data.get("proposed_changes", {}):
-                update_fields["outputs"] = apply_data["proposed_changes"]["outputs"]
+            if final_dfv:
+                update_fields["dynamic_field_values"] = final_dfv
             
-            # Copy emission values
-            emission_fields = [
-                "co2e_emissions", "co2_emissions", "ch4_emissions", "n2o_emissions",
-                "total_emissions", "biogenic_co2_emissions"
-            ]
-            for field in emission_fields:
-                if field in apply_data:
-                    update_fields[field] = apply_data[field]
+            # Check if approver modified the proposal - if so, recalculate emissions
+            approver_modified = proposal.get("approver_modified", False)
+            recalculated = {}
             
-            # Copy other emission-specific fields
+            if approver_modified and final_dfv:
+                logger.info(f"[APPROVAL] Approver modified emission proposal, recalculating emissions...")
+                recalculated = await self._recalculate_emissions(current, final_dfv)
+            
+            # Use recalculated values if available, otherwise fall back to proposal values
+            if recalculated:
+                # Use recalculated outputs and emissions
+                update_fields["outputs"] = recalculated.get("outputs", {})
+                update_fields["co2_emissions"] = recalculated.get("co2_emissions", 0)
+                update_fields["ch4_emissions"] = recalculated.get("ch4_emissions", 0)
+                update_fields["n2o_emissions"] = recalculated.get("n2o_emissions", 0)
+                update_fields["co2e_emissions"] = recalculated.get("co2e_emissions", 0)
+                update_fields["total_emissions"] = recalculated.get("total_emissions", 0)
+            else:
+                # Use values from proposal (original calculation or no recalc needed)
+                # Copy outputs (calculated emissions breakdown)
+                if "outputs" in apply_data:
+                    update_fields["outputs"] = apply_data["outputs"]
+                elif "proposed_changes" in apply_data and "outputs" in apply_data.get("proposed_changes", {}):
+                    update_fields["outputs"] = apply_data["proposed_changes"]["outputs"]
+                
+                # Copy emission values
+                emission_fields = [
+                    "co2e_emissions", "co2_emissions", "ch4_emissions", "n2o_emissions",
+                    "total_emissions", "biogenic_co2_emissions"
+                ]
+                for field in emission_fields:
+                    if field in apply_data:
+                        update_fields[field] = apply_data[field]
+            
+            # Copy other emission-specific fields (regardless of recalculation)
             other_emission_fields = [
                 "category", "sub_category", "fuel_type", "scope", 
                 "reporting_period", "frequency_type", "notes",
@@ -689,6 +714,121 @@ class ProposalService:
             "entity_type": entity_type,
             "status": {"$in": ["pending", "in_review"]},
         })
+    
+    async def _recalculate_emissions(
+        self,
+        current_record: Dict[str, Any],
+        new_dynamic_field_values: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Recalculate emissions using CalcEngine when approver modifies input values.
+        
+        Args:
+            current_record: The existing approved emission record
+            new_dynamic_field_values: The updated input values from approver
+            
+        Returns:
+            Dict with recalculated outputs and emission values, or empty dict on failure
+        """
+        try:
+            from calc_engine.execution import CalcEngine, CalculationError
+            from calc_engine.formulas import resolve_formula_id, get_decision_tree_for_category
+            
+            # Get formula_id from the record
+            formula_id = current_record.get("formula_id")
+            category_id = current_record.get("category_id")
+            scope = current_record.get("scope", "scope1")
+            
+            # If no formula_id, try to resolve from decision tree
+            if not formula_id and category_id:
+                try:
+                    decision_inputs = {
+                        "calculation_method_scope3": current_record.get("calculation_method_scope3"),
+                        "scope3_activity": current_record.get("scope3_activity"),
+                    }
+                    formula_id, _ = await resolve_formula_id(
+                        db, category_id, decision_inputs
+                    )
+                except Exception as e:
+                    logger.warning(f"[RECALC] Failed to resolve formula from decision tree: {e}")
+            
+            if not formula_id:
+                logger.warning(f"[RECALC] No formula_id found for record, skipping recalculation")
+                return {}
+            
+            # Fetch the formula
+            formula_doc = await db.ce_formulas.find_one({"id": formula_id}, {"_id": 0})
+            if not formula_doc:
+                logger.warning(f"[RECALC] Formula {formula_id} not found")
+                return {}
+            
+            formula = formula_doc.get("definition", formula_doc)
+            
+            # Build inputs from new_dynamic_field_values
+            # The CalcEngine expects inputs in format: { "qty": {"value": 100, "unit": "L"} }
+            inputs = {}
+            user_overrides = {}
+            
+            for key, val in new_dynamic_field_values.items():
+                if val is None:
+                    continue
+                    
+                if isinstance(val, dict) and "value" in val:
+                    # Already in correct format
+                    if val.get("is_override"):
+                        user_overrides[key] = val
+                    else:
+                        inputs[key] = val
+                else:
+                    # Simple value - wrap it
+                    inputs[key] = {"value": val, "unit": ""}
+            
+            # Build context
+            context = {
+                "fuel_code": current_record.get("fuel_database_id") or current_record.get("fuel_type"),
+                "fuel_database_id": current_record.get("fuel_database_id"),
+                "fuel_name": current_record.get("fuel_type") or current_record.get("sub_category"),
+                "scope": scope,
+                "category_id": category_id,
+                "reporting_period": current_record.get("reporting_period"),
+            }
+            
+            # Execute CalcEngine
+            calc_engine = CalcEngine(db)
+            result = await calc_engine.execute(
+                formula,
+                inputs,
+                context=context,
+                user_overrides=user_overrides,
+                dry_run=False,
+                emission_record_id=current_record.get("id"),
+                org_id=current_record.get("organization_id"),
+            )
+            
+            outputs = result.get("outputs", {})
+            
+            # Extract emission values
+            recalculated = {
+                "outputs": outputs,
+                "co2_emissions": outputs.get("co2", {}).get("value", 0) or 0,
+                "ch4_emissions": outputs.get("ch4", {}).get("value", 0) or 0,
+                "n2o_emissions": outputs.get("n2o", {}).get("value", 0) or 0,
+                "co2e_emissions": outputs.get("co2e", {}).get("value", 0) or 0,
+                "total_emissions": outputs.get("co2e", {}).get("value", 0) or 0,
+            }
+            
+            logger.info(f"[RECALC] Successfully recalculated emissions: co2e={recalculated['co2e_emissions']}")
+            return recalculated
+            
+        except ImportError as e:
+            logger.error(f"[RECALC] CalcEngine import error: {e}")
+            return {}
+        except CalculationError as e:
+            logger.error(f"[RECALC] Calculation error: {e}")
+            return {}
+        except Exception as e:
+            logger.error(f"[RECALC] Unexpected error during recalculation: {e}")
+            return {}
 
 
 # Singleton instance
