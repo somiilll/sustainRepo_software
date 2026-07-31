@@ -560,6 +560,8 @@ class ProposalService:
         """
         Apply approved proposal data to the record.
         Creates version history entry.
+        
+        Handles both ESG records (field_values) and emission records (dynamic_field_values).
         """
         now = datetime.now(timezone.utc).isoformat()
         
@@ -616,14 +618,60 @@ class ProposalService:
             "last_approved_by": approver_id,
         }
         
-        # Merge in the approved field values
-        if "field_values" in apply_data:
-            update_fields["field_values"] = apply_data["field_values"]
-        
-        # Copy other approved fields
-        for key in ["category", "subcategory", "sub_subcategory", "reporting_period", "notes"]:
-            if key in apply_data:
-                update_fields[key] = apply_data[key]
+        if entity_type == "emission_record":
+            # For emission records, copy all relevant fields from apply_data
+            
+            # Copy dynamic_field_values (main input values like qty, density, etc.)
+            if "dynamic_field_values" in apply_data:
+                update_fields["dynamic_field_values"] = apply_data["dynamic_field_values"]
+            elif "proposed_changes" in apply_data and "inputs" in apply_data.get("proposed_changes", {}):
+                # If proposed_changes.inputs exists, merge it into dynamic_field_values
+                current_dfv = current.get("dynamic_field_values", {})
+                proposed_inputs = apply_data["proposed_changes"]["inputs"]
+                merged_dfv = {**current_dfv}
+                for key, value in proposed_inputs.items():
+                    merged_dfv[key] = value
+                update_fields["dynamic_field_values"] = merged_dfv
+            elif "inputs" in apply_data:
+                # Legacy format - inputs directly in apply_data
+                update_fields["dynamic_field_values"] = apply_data["inputs"]
+            
+            # Copy outputs (calculated emissions breakdown)
+            if "outputs" in apply_data:
+                update_fields["outputs"] = apply_data["outputs"]
+            elif "proposed_changes" in apply_data and "outputs" in apply_data.get("proposed_changes", {}):
+                update_fields["outputs"] = apply_data["proposed_changes"]["outputs"]
+            
+            # Copy emission values
+            emission_fields = [
+                "co2e_emissions", "co2_emissions", "ch4_emissions", "n2o_emissions",
+                "total_emissions", "biogenic_co2_emissions"
+            ]
+            for field in emission_fields:
+                if field in apply_data:
+                    update_fields[field] = apply_data[field]
+            
+            # Copy other emission-specific fields
+            other_emission_fields = [
+                "category", "sub_category", "fuel_type", "scope", 
+                "reporting_period", "frequency_type", "notes",
+                "evidence_files", "has_custom_ef", "emission_factor_used",
+                "calculation_method_scope3", "scope3_activity", "biogenic_scope_selection"
+            ]
+            for field in other_emission_fields:
+                if field in apply_data:
+                    update_fields[field] = apply_data[field]
+                    
+        else:
+            # For ESG records, use existing logic
+            # Merge in the approved field values
+            if "field_values" in apply_data:
+                update_fields["field_values"] = apply_data["field_values"]
+            
+            # Copy other approved fields
+            for key in ["category", "subcategory", "sub_subcategory", "reporting_period", "notes"]:
+                if key in apply_data:
+                    update_fields[key] = apply_data[key]
         
         await collection.update_one(
             {"id": record_id},
