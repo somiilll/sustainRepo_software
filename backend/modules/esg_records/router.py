@@ -406,7 +406,8 @@ async def list_records(
         section=section,
         org_id=org_id,
         filters=filters,
-        assigned_categories=assigned_categories,  # Pass filter for non-admin users
+        assigned_categories=assigned_categories,
+        user_id=user_id,  # Pass user_id to enrich records with pending proposals
     )
     
     # Get GHG-imported records if enabled and section is environment

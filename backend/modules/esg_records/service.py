@@ -1622,12 +1622,16 @@ class ESGRecordsService:
         org_id: str,
         filters: RecordListFilters,
         assigned_categories: Optional[List[tuple]] = None,
+        user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         List records with filtering and pagination.
         
         If assigned_categories is provided, only returns records matching those categories.
         assigned_categories is a list of (category, subcategory, sub_subcategory) tuples.
+        
+        If user_id is provided, each record is enriched with the user's pending proposal
+        (if any) so the frontend can display "Awaiting Approval" status.
         """
         collection = self._get_records_collection(section)
         
@@ -1691,6 +1695,35 @@ class ESGRecordsService:
         skip = (filters.page - 1) * filters.limit
         cursor = collection.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(filters.limit)
         records = await cursor.to_list(None)
+        
+        # Enrich records with user's pending proposals (if user_id provided)
+        if user_id and records:
+            from modules.approval_workflow.proposal_service import proposal_service
+            record_ids = [r["id"] for r in records]
+            
+            # Batch fetch user's pending proposals for all records
+            user_proposals = await db.approval_requests.find(
+                {
+                    "entity_id": {"$in": record_ids},
+                    "entity_type": "esg_record",
+                    "submitted_by": user_id,
+                    "status": {"$in": ["pending", "in_review"]},
+                },
+                {"_id": 0, "entity_id": 1, "entity_snapshot": 1, "submitted_at": 1, "id": 1}
+            ).to_list(500)
+            
+            # Create lookup map
+            proposal_map = {p["entity_id"]: p for p in user_proposals}
+            
+            # Enrich each record
+            for record in records:
+                if record["id"] in proposal_map:
+                    proposal = proposal_map[record["id"]]
+                    record["_user_pending_proposal"] = {
+                        "proposal_id": proposal["id"],
+                        "submitted_at": proposal["submitted_at"],
+                        "proposed_values": proposal.get("entity_snapshot", {}).get("field_values"),
+                    }
         
         return {
             "records": records,

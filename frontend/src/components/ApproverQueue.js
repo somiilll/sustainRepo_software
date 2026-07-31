@@ -44,6 +44,7 @@ import {
 import { toast } from 'sonner';
 import SubmissionReviewPanel from './SubmissionReviewPanel';
 import EmissionApprovalWrapper from './EmissionApprovalWrapper';
+import MultiProposalReview from './MultiProposalReview';
 import { getCurrentReportingYear, generateReportingYears } from '../utils/reportingYearUtils';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -65,6 +66,9 @@ export default function ApproverQueue() {
   const [submissions, setSubmissions] = useState([]);
   const [selectedQuestion, setSelectedQuestion] = useState(null);
   const [organization, setOrganization] = useState(null);
+  
+  // Multi-proposal review state
+  const [multiProposalRecord, setMultiProposalRecord] = useState(null);
   
   // History state
   const [activeTab, setActiveTab] = useState('pending');
@@ -174,12 +178,44 @@ export default function ApproverQueue() {
             workflow_name: r.workflow_name,
             entity_snapshot: r.entity_snapshot,
             request_type: r.request_type,
-            framework: r.framework,  // Preserve framework from approval_request
+            framework: r.framework,
             _source: 'approval_workflow',
             _approval_request_id: r.id,
-            _needs_config: r.entity_type === 'esg_response', // Flag for config enrichment
+            _needs_config: r.entity_type === 'esg_response',
           };
         });
+      
+      // GROUP esg_record proposals by entity_id for multi-proposal review
+      const esgRecordProposals = recordApprovals.filter(r => r.entity_type === 'esg_record');
+      const otherApprovals = recordApprovals.filter(r => r.entity_type !== 'esg_record');
+      
+      // Group by entity_id (record_id)
+      const groupedByRecord = {};
+      esgRecordProposals.forEach(proposal => {
+        const recordId = proposal.entity_id;
+        if (!groupedByRecord[recordId]) {
+          groupedByRecord[recordId] = {
+            ...proposal,
+            _proposals: [proposal],
+            _proposal_count: 1,
+            _submitters: [proposal.submitted_by_name || proposal.submitted_by_email || 'Unknown'],
+          };
+        } else {
+          groupedByRecord[recordId]._proposals.push(proposal);
+          groupedByRecord[recordId]._proposal_count += 1;
+          groupedByRecord[recordId]._submitters.push(proposal.submitted_by_name || proposal.submitted_by_email || 'Unknown');
+          // Use the earliest submission time for sorting
+          if (new Date(proposal.submitted_at) < new Date(groupedByRecord[recordId].submitted_at)) {
+            groupedByRecord[recordId].submitted_at = proposal.submitted_at;
+          }
+        }
+      });
+      
+      // Convert grouped records back to array
+      const groupedEsgRecords = Object.values(groupedByRecord);
+      
+      // Merge grouped ESG records with other approvals
+      recordApprovals = [...groupedEsgRecords, ...otherApprovals];
       
       // Fetch question configs for BRSR items to get proper display names
       const brsrItems = recordApprovals.filter(r => r._needs_config);
@@ -478,11 +514,35 @@ export default function ApproverQueue() {
                 const isRecordApproval = item._source === 'approval_workflow';
                 const isEmissionRecord = item.entity_type === 'emission_record';
                 const isQuestionnaireApproval = item._source === 'questionnaire_approval_v2';
+                const hasMultipleProposals = item._proposal_count && item._proposal_count > 1;
+                const isEsgRecord = item.entity_type === 'esg_record';
+                
+                // Handle click based on whether it's a multi-proposal ESG record
+                const handleClick = () => {
+                  if (isEsgRecord && hasMultipleProposals) {
+                    // Open multi-proposal review for grouped ESG records
+                    setMultiProposalRecord({
+                      recordId: item.entity_id,
+                      section: item.section,
+                      displayName: item.disclosure_name,
+                    });
+                  } else if (isEsgRecord) {
+                    // Single proposal ESG record - also use multi-proposal review for consistency
+                    setMultiProposalRecord({
+                      recordId: item.entity_id,
+                      section: item.section,
+                      displayName: item.disclosure_name,
+                    });
+                  } else {
+                    setSelectedQuestion(item);
+                  }
+                };
+                
                 return (
                   <Card 
                     key={item.id || item.question_key}
                     className="p-4 hover:bg-stone-50 transition-colors cursor-pointer"
-                    onClick={() => setSelectedQuestion(item)}
+                    onClick={handleClick}
                     data-testid={`queue-item-${item.question_key || item.id}`}
                   >
                     <div className="flex items-center justify-between">
@@ -509,6 +569,12 @@ export default function ApproverQueue() {
                             ) : (
                               getSectionBadge(item)
                             )}
+                            {hasMultipleProposals && (
+                              <Badge className="bg-blue-100 text-blue-800">
+                                <Users className="w-3 h-3 mr-1" />
+                                {item._proposal_count} proposals
+                              </Badge>
+                            )}
                             {item.request_type && item.request_type !== 'create' && (
                               <Badge variant="outline" className="text-xs">
                                 {item.request_type.toUpperCase()}
@@ -517,7 +583,18 @@ export default function ApproverQueue() {
                           </div>
                           
                           <div className="flex items-center gap-4 text-sm text-text-muted">
-                            {isQuestionnaireApproval ? (
+                            {hasMultipleProposals ? (
+                              <>
+                                <span className="flex items-center gap-1">
+                                  <Users className="w-3 h-3" />
+                                  {item._submitters.join(', ')}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Clock className="w-3 h-3" />
+                                  {formatDateTime(item.submitted_at)}
+                                </span>
+                              </>
+                            ) : isQuestionnaireApproval ? (
                               <>
                                 <span className="flex items-center gap-1">
                                   <User className="w-3 h-3" />
@@ -771,6 +848,30 @@ export default function ApproverQueue() {
               item={selectedHistoryItem}
               onClose={() => setSelectedHistoryItem(null)}
               formatDateTime={formatDateTime}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
+      
+      {/* Multi-Proposal Review Dialog for ESG Records */}
+      {multiProposalRecord && (
+        <Dialog open={true} onOpenChange={() => setMultiProposalRecord(null)}>
+          <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Users className="w-5 h-5 text-blue-600" />
+                Review Proposals: {multiProposalRecord.displayName}
+              </DialogTitle>
+            </DialogHeader>
+            <MultiProposalReview
+              recordId={multiProposalRecord.recordId}
+              entityType="esg_record"
+              section={multiProposalRecord.section}
+              onClose={() => setMultiProposalRecord(null)}
+              onActionComplete={() => {
+                setMultiProposalRecord(null);
+                fetchSubmissions();
+              }}
             />
           </DialogContent>
         </Dialog>

@@ -816,6 +816,9 @@ export default function ESGRecordsDataEntry({
    * - 'saved' → completed (no approval needed)
    * - 'submitted' → completed (check approval_status for whether approval is needed)
    * - null/undefined → pending
+   * 
+   * Multi-proposal workflow:
+   * - If user has a pending proposal (_user_pending_proposal), show "Awaiting Approval"
    */
   const renderRecordStatusBadges = (record, isLocked = false) => {
     if (isLocked) {
@@ -829,6 +832,7 @@ export default function ESGRecordsDataEntry({
     
     const operationalStatus = record.status;
     const approvalStatus = record.approval_status;
+    const hasPendingProposal = !!record._user_pending_proposal;
     
     // Draft status - show draft badge
     if (operationalStatus === 'draft') {
@@ -844,8 +848,12 @@ export default function ESGRecordsDataEntry({
     let displayStatus = operationalStatus;
     let displayApprovalStatus = approvalStatus;
     
+    // If user has a pending proposal, show "pending_approval" regardless of record status
+    if (hasPendingProposal) {
+      displayApprovalStatus = 'pending_approval';
+    }
     // Legacy 'saved' status = completed with no approval needed
-    if (operationalStatus === 'saved') {
+    else if (operationalStatus === 'saved') {
       displayStatus = 'completed';
       displayApprovalStatus = 'not_required';
     }
