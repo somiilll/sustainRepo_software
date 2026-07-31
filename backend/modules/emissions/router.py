@@ -1156,10 +1156,12 @@ async def update_emission_record(
     
     # Non-admin users go through approval workflow if enabled and assignment requires it
     if approval_enabled and not is_admin:
-        # Check if there's already a pending approval request for this record
+        # Check if THIS USER already has a pending approval request for this record
+        # (Multi-proposal: each user can have their own pending edit)
         existing_request = await db.approval_requests.find_one({
             "entity_id": record_id,
             "entity_type": "emission_record",
+            "submitted_by": user_id,  # Only find current user's pending request
             "status": {"$in": ["pending", "in_review"]},
         }, {"_id": 0})
         

@@ -1634,15 +1634,16 @@ class ApprovalWorkflowService:
                     else:
                         logger.info(f"Updated emission_record {entity_id} approval_status to rejected")
                 else:
-                    # For UPDATE/DELETE requests, the record should exist
+                    # For UPDATE/DELETE requests, the original record still exists
+                    # Revert approval_status to "approved" (the data was never changed)
                     await db.emission_records.update_one(
                         {"id": entity_id},
                         {"$set": {
-                            "approval_status": "rejected",
+                            "approval_status": "approved",
                             "updated_at": _now_iso(),
                         }}
                     )
-                    logger.info(f"Updated emission_record {entity_id} approval_status to rejected (was {request_type})")
+                    logger.info(f"Reverted emission_record {entity_id} approval_status to approved (rejected {request_type})")
                 
                 # Create version snapshot for rejection event
                 await _create_approval_version_snapshot(
