@@ -270,15 +270,30 @@ Complete implementation of a new top-level module for supplier ESG and GHG asses
 
 ### GHG Emissions Pending Proposal Display (P0)
 - **Issue 1**: Non-admin user's pending edit values not shown in edit form - showed approved values instead
-- **Root Cause**: `GET /api/emissions/{id}` queried `pending_records` but emission updates write to `approval_requests`
-- **Fix**: Updated `/app/backend/modules/emissions/router.py` to check `approval_requests` for user's pending proposal and overlay `proposed_changes.inputs` onto `dynamic_field_values`
-- **Status**: ✅ Fixed and Tested
+- **Root Cause**: `GET /api/emissions` (grid) queried only `pending_records` but emission updates write to `approval_requests`
+- **Fix**: Updated `/app/backend/modules/approvals/emission_flow_v2.py` `fetch_emissions_for_user` to also check `approval_requests` and overlay user's proposed values
+- **Status**: ✅ Fixed - Ravi now sees his proposed qty=6282, Aman sees original qty=2312
+
+### GHG Emissions Status Display for Others (P0)
+- **Issue 2**: After user submits edit, everyone sees "Awaiting Approval" instead of just the submitter
+- **Root Cause**: PUT endpoint updated `emission_records.approval_status` to `pending_approval` in the database
+- **Fix**: 
+  - Removed DB update of `approval_status` in UPDATE flow (line 1198-1205 in router.py)
+  - `fetch_emissions_for_user` now overlays `approval_status: pending_approval` only for the submitter
+  - Others see `approval_status: approved` with `has_pending_proposal: True` badge
+- **Status**: ✅ Fixed - Aman sees "Approved" with "pending by Ravi" badge, Ravi sees "Awaiting Approval"
 
 ### GHG Emissions Approval Field Mapping Bug (P0)
-- **Issue 2**: After approval, `dynamic_field_values` showed old values while `co2e_emissions` had new values
+- **Issue 3**: After approval, `dynamic_field_values` showed old values while `co2e_emissions` had new values
 - **Root Cause**: Approval handler in `service.py` mapped `proposed_changes.inputs` to `record_update["inputs"]` but DB uses `dynamic_field_values`
 - **Fix**: Updated `/app/backend/modules/approval_workflow/service.py` line 1177-1183 to map `inputs` → `dynamic_field_values`
-- **Status**: ✅ Fixed and Tested
+- **Status**: ✅ Fixed
+
+### GHG Multi-Proposal Support (P0)
+- **Issue 4**: When Ravi submitted edit, it overwrote Aman's pending request
+- **Root Cause**: `existing_request` query didn't filter by `submitted_by`
+- **Fix**: Added `"submitted_by": user_id` filter to query in `/app/backend/modules/emissions/router.py` line 1160-1165
+- **Status**: ✅ Fixed
 
 ### Facilities Access for Non-Admin Users (P1)
 - **Issue**: `/api/facilities` returned empty array for non-admin users

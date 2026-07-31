@@ -950,7 +950,7 @@ async def fetch_emissions_for_user(
     # hiding any approved row that has a pending update/delete FROM THIS USER.
     # But show original records with pending edits from others (marked as "has_pending_proposal").
     
-    # Step 1: Get user's own pending records
+    # Step 1: Get user's own pending records from BOTH pending_records AND approval_requests
     pending_query = {
         **base_query,
         "approval_status": {"$in": list(PENDING_STATUSES)},
@@ -958,11 +958,27 @@ async def fetch_emissions_for_user(
     }
     my_pending = await db[PENDING_COLLECTION].find(pending_query, {"_id": 0}).to_list(10000)
     
+    # Also check approval_requests for user's pending proposals (emission edits go here)
+    my_approval_requests = await db.approval_requests.find({
+        "entity_type": "emission_record",
+        "submitted_by": user_id,
+        "status": {"$in": ["pending", "in_review"]},
+    }, {"_id": 0, "entity_id": 1, "entity_snapshot": 1}).to_list(10000)
+    
+    # Build a map of entity_id -> proposed values from approval_requests
+    my_proposals_by_entity = {}
+    for ar in my_approval_requests:
+        entity_id = ar.get("entity_id")
+        snapshot = ar.get("entity_snapshot", {})
+        proposed = snapshot.get("proposed_changes", {})
+        if entity_id and proposed:
+            my_proposals_by_entity[entity_id] = proposed
+    
     my_pending_original_ids = {
         p.get("original_record_id") for p in my_pending if p.get("original_record_id")
     }
     
-    # Step 2: Get approved records, excluding those I have pending updates for
+    # Step 2: Get approved records
     approved_query = {
         **base_query,
     }
@@ -978,11 +994,45 @@ async def fetch_emissions_for_user(
     
     others_pending_by_original = {p["original_record_id"]: p for p in others_pending if p.get("original_record_id")}
     
+    # Also check approval_requests for others' pending proposals
+    others_approval_requests = await db.approval_requests.find({
+        "entity_type": "emission_record",
+        "submitted_by": {"$ne": user_id},
+        "status": {"$in": ["pending", "in_review"]},
+    }, {"_id": 0, "entity_id": 1, "submitted_by_name": 1, "status": 1}).to_list(10000)
+    
+    for ar in others_approval_requests:
+        entity_id = ar.get("entity_id")
+        if entity_id and entity_id not in others_pending_by_original:
+            others_pending_by_original[entity_id] = {
+                "submitted_by_name": ar.get("submitted_by_name"),
+                "approval_status": "pending_approval",
+            }
+    
     # Step 4: Build result
     result = []
     for rec in approved:
-        # Skip if I have my own pending update for this record
+        # Skip if I have my own pending update for this record (from pending_records)
         if rec["id"] in my_pending_original_ids:
+            continue
+        
+        # Check if I have a pending proposal in approval_requests
+        if rec["id"] in my_proposals_by_entity:
+            proposed = my_proposals_by_entity[rec["id"]]
+            # Overlay my proposed values onto the record
+            if "inputs" in proposed and proposed["inputs"]:
+                rec["dynamic_field_values"] = proposed["inputs"]
+            if "outputs" in proposed and proposed["outputs"]:
+                rec["outputs"] = proposed["outputs"]
+                outputs = proposed["outputs"]
+                rec["co2_emissions"] = (outputs.get("co2") or {}).get("value", 0) or 0
+                rec["ch4_emissions"] = (outputs.get("ch4") or {}).get("value", 0) or 0
+                rec["n2o_emissions"] = (outputs.get("n2o") or {}).get("value", 0) or 0
+                rec["co2e_emissions"] = (outputs.get("co2e") or {}).get("value", 0) or 0
+                rec["total_emissions"] = rec["co2e_emissions"]
+            rec["is_my_pending_proposal"] = True
+            rec["approval_status"] = "pending_approval"
+            result.append(rec)
             continue
         
         # Mark if someone else has a pending proposal

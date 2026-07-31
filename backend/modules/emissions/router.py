@@ -445,8 +445,9 @@ async def _create_emission_approval_request(
     await db.approval_requests.insert_one(approval_request)
     logger.info(f"Created emission approval request {approval_request['id']} for record {emission_record.get('id')}")
     
-    # Update the emission record with pending_approval status
-    # This ensures the UI shows the record as "awaiting approval" instead of "completed"
+    # NOTE: For CREATE flow, we DO update the record's approval_status to pending_approval
+    # because the record itself is new and hasn't been approved yet.
+    # This is different from UPDATE flow where the existing approved data stays visible to others.
     await db[APPROVED_COLLECTION].update_one(
         {"id": emission_record.get("id")},
         {
@@ -456,7 +457,7 @@ async def _create_emission_approval_request(
             }
         }
     )
-    logger.info(f"Updated emission record {emission_record.get('id')} with approval_status=pending_approval")
+    logger.info(f"Updated emission record {emission_record.get('id')} with approval_status=pending_approval (CREATE flow)")
 
 
 async def _create_emission_update_approval_request(
@@ -1195,19 +1196,17 @@ async def update_emission_record(
                     current_user=current_user,
                 )
             
-            # Mark record as pending approval
-            await db[APPROVED_COLLECTION].update_one(
-                {"id": record_id},
-                {"$set": {
-                    "approval_status": "pending_approval",
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                }}
-            )
+            # NOTE: We intentionally do NOT update emission_records.approval_status here.
+            # The record stays as "approved" in the database.
+            # For the submitter, fetch_emissions_for_user overlays approval_status="pending_approval"
+            # For others, they see the original "approved" status.
+            # This mirrors the ESG records immutable-edit pattern.
             
-            # Return the record with pending status
-            updated = await db[APPROVED_COLLECTION].find_one({"id": record_id}, {"_id": 0})
+            # Return the existing record with pending indicators for the submitter
+            existing["is_my_pending_proposal"] = True
+            existing["approval_status"] = "pending_approval"  # Only in response, not DB
             logger.info(f"[EMISSION_UPDATE] Submitted for approval: record_id={record_id}")
-            return EmissionRecordResponse(**updated)
+            return EmissionRecordResponse(**existing)
     
     # Direct apply path (admin, super_admin, or workflow disabled)
     # Prevent changing frequency_type once saved
