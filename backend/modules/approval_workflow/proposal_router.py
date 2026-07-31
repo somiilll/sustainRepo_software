@@ -84,12 +84,39 @@ async def get_proposals_for_record(
     
     - Normal users: Get their own pending proposal only
     - Approvers/Admins: Get all pending proposals
+    
+    Also returns the current record data for comparison.
     """
     user_id = current_user.get("id")
     user_role = current_user.get("role", "user")
     
     # Check if user is admin/approver
     is_admin = user_role in ["admin", "super_admin"]
+    
+    # Fetch the current record based on entity_type
+    current_record = None
+    if entity_type == "esg_record":
+        current_record = await db.environment_records.find_one(
+            {"id": record_id},
+            {"_id": 0}
+        )
+        if not current_record:
+            # Try social_records
+            current_record = await db.social_records.find_one(
+                {"id": record_id},
+                {"_id": 0}
+            )
+        if not current_record:
+            # Try governance_records
+            current_record = await db.governance_records.find_one(
+                {"id": record_id},
+                {"_id": 0}
+            )
+    elif entity_type == "emission_record":
+        current_record = await db.emission_records.find_one(
+            {"id": record_id},
+            {"_id": 0}
+        )
     
     if is_admin:
         # Return all pending proposals
@@ -101,6 +128,7 @@ async def get_proposals_for_record(
             "proposals": proposals,
             "count": len(proposals),
             "is_approver_view": True,
+            "current_record": current_record,
         }
     else:
         # Return only user's proposal
@@ -113,6 +141,7 @@ async def get_proposals_for_record(
             "proposals": [proposal] if proposal else [],
             "count": 1 if proposal else 0,
             "is_approver_view": False,
+            "current_record": current_record,
         }
 
 
