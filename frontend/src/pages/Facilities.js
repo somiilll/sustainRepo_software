@@ -93,7 +93,6 @@ export default function Facilities() {
     if (!data.country || data.country.trim() === '') return false;
     if (!data.pincode || data.pincode.trim() === '') return false;
     if (data.pincode && !/^\d{6}$/.test(data.pincode)) return false;
-    if (!data.products_services || data.products_services.trim() === '') return false;
     if (!data.responsible_person || data.responsible_person.trim() === '') return false;
     
     // Check frequency validation
@@ -253,26 +252,23 @@ export default function Facilities() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validation: Products/Services is mandatory
-    if (!formData.products_services || formData.products_services.trim() === '') {
-      toast.error('Products/Services is mandatory');
-      return;
-    }
+    // Suppliers only need name
+    if (!isSupplier) {
+      // Validation: Person Responsible is mandatory for non-suppliers
+      if (!formData.responsible_person || formData.responsible_person.trim() === '') {
+        toast.error('Person Responsible is mandatory');
+        return;
+      }
+      
+      // Validation: Monitoring frequency must be shorter than or equal to reporting frequency
+      const frequencyOrder = { 'daily': 1, 'weekly': 2, 'monthly': 3, 'quarterly': 4, 'yearly': 5 };
+      const monitoringLevel = frequencyOrder[formData.monitoring_frequency] || 3;
+      const reportingLevel = frequencyOrder[formData.reporting_frequency] || 3;
     
-    // Validation: Person Responsible is mandatory
-    if (!formData.responsible_person || formData.responsible_person.trim() === '') {
-      toast.error('Person Responsible is mandatory');
-      return;
-    }
-    
-    // Validation: Monitoring frequency must be shorter than or equal to reporting frequency
-    const frequencyOrder = { 'daily': 1, 'weekly': 2, 'monthly': 3, 'quarterly': 4, 'yearly': 5 };
-    const monitoringLevel = frequencyOrder[formData.monitoring_frequency] || 3;
-    const reportingLevel = frequencyOrder[formData.reporting_frequency] || 3;
-    
-    if (monitoringLevel > reportingLevel) {
-      toast.error('Monitoring frequency must be shorter than or equal to reporting frequency. (e.g., if reporting is monthly, monitoring can be daily, weekly, or monthly)');
-      return;
+      if (monitoringLevel > reportingLevel) {
+        toast.error('Monitoring frequency must be shorter than or equal to reporting frequency. (e.g., if reporting is monthly, monitoring can be daily, weekly, or monthly)');
+        return;
+      }
     }
     
     // Get the ID to check - either from editing or from auto-save
@@ -646,14 +642,13 @@ export default function Facilities() {
 
                 {/* Products/Services - Full width textarea */}
                 <div className="space-y-2">
-                  <Label htmlFor="products_services">Products/Services <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="products_services">Products/Services</Label>
                   <textarea
                     id="products_services"
                     value={formData.products_services}
                     onChange={(e) => setFormData({ ...formData, products_services: e.target.value })}
                     className="w-full min-h-[100px] px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg resize-y"
                     placeholder="Describe the products manufactured or services provided by this facility"
-                    required
                   />
                 </div>
 
