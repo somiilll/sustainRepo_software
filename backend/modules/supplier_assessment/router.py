@@ -601,9 +601,11 @@ async def create_my_emission(
     data: SupplierEmissionCreate,
     current_user: dict = Depends(get_supplier_user),
 ):
-    """Create simplified emission record for supplier."""
+    """Create emission record for supplier with CalcEngine calculation."""
     import uuid
     from datetime import datetime, timezone
+    from calc_engine.execution import CalcEngine
+    from calc_engine.formulas import resolve_formula_id
     
     relationship = await supplier_service.get_supplier_relationship_for_user(
         user_id=current_user["id"],
@@ -613,40 +615,131 @@ async def create_my_emission(
     if not relationship:
         raise HTTPException(status_code=404, detail="No active supplier relationship found")
     
-    # Validate scope (only scope1 and scope2 allowed)
-    if data.scope not in ["scope1", "scope2"]:
-        raise HTTPException(status_code=400, detail="Only Scope 1 and Scope 2 emissions are allowed")
+    # Validate scope (only scope1 and scope2 allowed for suppliers)
+    allowed_scopes = relationship.get("ghg_scopes_enabled", ["scope1", "scope2"])
+    if data.scope not in allowed_scopes:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Scope {data.scope} is not enabled. Allowed: {allowed_scopes}"
+        )
     
     # Get or create a default facility for the supplier org
     supplier_facility = await db.facilities.find_one(
         {"organization_id": current_user["organization_id"], "is_active": True},
-        {"_id": 0, "id": 1}
+        {"_id": 0, "id": 1, "name": 1}
     )
     
     facility_id = supplier_facility["id"] if supplier_facility else None
+    facility_name = supplier_facility["name"] if supplier_facility else "Default Facility"
+    
     if not facility_id:
-        # Create a default facility
+        # Create a default facility for the supplier
         facility_id = str(uuid.uuid4())
+        facility_name = f"{relationship.get('company_name', 'Supplier')} - Default Facility"
         await db.facilities.insert_one({
             "id": facility_id,
             "organization_id": current_user["organization_id"],
-            "name": "Default Facility",
+            "name": facility_name,
             "is_active": True,
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
     
+    # Run CalcEngine to calculate emissions
+    calc_result = None
+    co2_emissions = 0
+    ch4_emissions = 0
+    n2o_emissions = 0
+    co2e_emissions = 0
+    outputs = {}
+    formula_id = None
+    
+    if data.category_id and data.dynamic_field_values:
+        try:
+            # Resolve formula from category
+            decision_inputs = data.decision_inputs or {}
+            resolved_formula_id, _ = await resolve_formula_id(
+                db, data.category_id, decision_inputs
+            )
+            
+            if resolved_formula_id:
+                formula_id = resolved_formula_id
+                formula_doc = await db.ce_formulas.find_one(
+                    {"id": resolved_formula_id}, {"_id": 0}
+                )
+                
+                if formula_doc:
+                    # Build inputs for CalcEngine
+                    inputs = {}
+                    user_overrides = {}
+                    for key, val in (data.dynamic_field_values or {}).items():
+                        if val is None:
+                            continue
+                        if isinstance(val, dict) and "value" in val:
+                            if val.get("is_override"):
+                                user_overrides[key] = val
+                            else:
+                                inputs[key] = val
+                        else:
+                            inputs[key] = {"value": val, "unit": ""}
+                    
+                    # Build context
+                    context = {
+                        "fuel_code": data.fuel_database_id or data.fuel_type,
+                        "fuel_database_id": data.fuel_database_id,
+                        "fuel_name": data.fuel_type or data.sub_category,
+                        "scope": data.scope,
+                        "category_id": data.category_id,
+                        "reporting_period": data.reporting_period,
+                    }
+                    
+                    # Execute calculation
+                    calc_engine = CalcEngine(db)
+                    calc_result = await calc_engine.execute(
+                        formula_doc.get("definition", formula_doc),
+                        inputs,
+                        context=context,
+                        user_overrides=user_overrides,
+                        dry_run=False,
+                        org_id=current_user["organization_id"],
+                    )
+                    
+                    outputs = calc_result.get("outputs", {})
+                    co2_emissions = outputs.get("co2", {}).get("value", 0) or 0
+                    ch4_emissions = outputs.get("ch4", {}).get("value", 0) or 0
+                    n2o_emissions = outputs.get("n2o", {}).get("value", 0) or 0
+                    co2e_emissions = outputs.get("co2e", {}).get("value", 0) or 0
+                    
+        except Exception as e:
+            # Log error but don't fail - allow manual entry
+            print(f"CalcEngine error for supplier emission: {e}")
+    
     # Create emission record with supplier metadata
     emission_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    
     emission_record = {
         "id": emission_id,
         "facility_id": facility_id,
+        "facility_name": facility_name,
         "organization_id": current_user["organization_id"],
         "reporting_period": data.reporting_period,
+        "frequency_type": data.frequency_type or "monthly",
         "scope": data.scope,
         "category": data.category,
+        "category_id": data.category_id,
         "sub_category": data.sub_category,
         "fuel_type": data.fuel_type,
+        "fuel_database_id": data.fuel_database_id,
         "dynamic_field_values": data.dynamic_field_values or {},
+        "outputs": outputs,
+        "formula_id": formula_id,
+        # Calculated emissions
+        "co2_emissions": co2_emissions,
+        "ch4_emissions": ch4_emissions,
+        "n2o_emissions": n2o_emissions,
+        "co2e_emissions": co2e_emissions,
+        "total_emissions": co2e_emissions,
+        # Notes
         "notes": data.notes,
         # Supplier metadata
         "source": "supplier",
@@ -654,20 +747,24 @@ async def create_my_emission(
         "customer_org_id": relationship["customer_org_id"],
         # Audit fields
         "status": "draft",
+        "approval_status": "draft",
         "created_by": current_user["id"],
         "created_by_email": current_user["email"],
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": now,
+        "updated_at": now,
     }
-    
-    # TODO: Run calculation engine here to compute emissions
-    # For now, just save the record
     
     await db.emission_records.insert_one(emission_record)
     
     # Update completion status
     await supplier_service._update_completion_status(relationship["id"])
     
-    return {"id": emission_id, "message": "Emission record created"}
+    return {
+        "id": emission_id, 
+        "message": "Emission record created",
+        "co2e_emissions": co2e_emissions,
+        "total_emissions": co2e_emissions,
+    }
 
 
 # ============================================================================

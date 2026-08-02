@@ -86,6 +86,8 @@ export default function EmissionEntryForm({
   kpiPeriodRestrictions = null,
   filterFacilitiesByScope = null,
   hasFullKPIAccess = true,
+  // Supplier context for supplier portal emissions
+  supplierContext = null,
 }) {
   // Helper to get method labels from centralized config (no hardcoded fallbacks)
   const getMethodLabel = useCallback((method, short = false) => {
@@ -2530,6 +2532,8 @@ export default function EmissionEntryForm({
     evaluateFormula, buildDecisionInputs,
     // Editing
     editingEmission,
+    // Supplier context (optional)
+    supplierContext,
   });
 
   // Step indicators

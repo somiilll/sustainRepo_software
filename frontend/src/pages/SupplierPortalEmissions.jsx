@@ -1,6 +1,6 @@
 import React from 'react';
-import SupplierEmissions from '../modules/supplier-assessment/SupplierEmissions';
+import SupplierEmissionsForm from '../modules/supplier-assessment/SupplierEmissionsForm';
 
 export default function SupplierPortalEmissions() {
-  return <SupplierEmissions />;
+  return <SupplierEmissionsForm />;
 }

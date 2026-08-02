@@ -218,15 +218,21 @@ class SupplierQuestionnaireStatusResponse(BaseModel):
 # ============================================================================
 
 class SupplierEmissionCreate(BaseModel):
-    """Simplified emission record for suppliers."""
-    reporting_period: str  # e.g., "2024-01" for monthly
-    scope: str  # scope1 or scope2 only
+    """Emission record for suppliers - same structure as main GHG emissions."""
+    reporting_period: str  # e.g., "2024-01" for monthly or "FY2024" for yearly
+    frequency_type: Optional[str] = "monthly"  # monthly or yearly
+    scope: str  # scope1 or scope2 only for suppliers
     category: str
-    sub_category: str
+    category_id: Optional[str] = None  # For CalcEngine formula resolution
+    sub_category: Optional[str] = None
     fuel_type: Optional[str] = None
+    fuel_database_id: Optional[str] = None  # For emission factor lookup
     
-    # Dynamic field values for calculation
+    # Dynamic field values for calculation (same format as main emissions)
     dynamic_field_values: Optional[Dict[str, Dict[str, Any]]] = {}
+    
+    # Decision inputs for formula resolution
+    decision_inputs: Optional[Dict[str, Any]] = {}
     
     # Notes
     notes: Optional[str] = None
