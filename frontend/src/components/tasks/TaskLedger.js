@@ -6,9 +6,8 @@
 
 import React from 'react';
 import { Card } from '../ui/card';
-import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { ArrowRight, Eye, ClipboardList, Pencil } from 'lucide-react';
+import { ClipboardList } from 'lucide-react';
 import { OperationalStatusBadge, ApprovalStatusBadge } from './StatusBadge';
 import { formatDueDate, categorizeTask } from './utils';
 import { TASK_TYPE } from './constants';
@@ -83,9 +82,6 @@ function getTaskDisplayInfo(task) {
 export default function TaskLedger({ 
   tasks, 
   filters,
-  onFillTask, 
-  onViewTask,
-  onEditTask,
   emptyMessage = 'No tasks found',
   hasAssignments = false,
 }) {
@@ -171,9 +167,6 @@ export default function TaskLedger({
           <TaskLedgerRow 
             key={task.id} 
             task={task} 
-            onFill={onFillTask}
-            onView={onViewTask}
-            onEdit={onEditTask || onFillTask}
           />
         ))}
       </div>
@@ -181,24 +174,19 @@ export default function TaskLedger({
   );
 }
 
-function TaskLedgerRow({ task, onFill, onView, onEdit }) {
+function TaskLedgerRow({ task }) {
   const dueInfo = formatDueDate(task, { showTime: true, showRelative: false });
   const periodDisplay = formatPeriodDisplay(task);
   const taskType = categorizeTask(task);
   const displayInfo = getTaskDisplayInfo(task);
   
-  // Determine if task is completed or approved
+  // Determine if task is completed
   const isCompleted = task.status === 'completed';
-  const isApproved = task.approval_status === 'approved';
   
   // Check if approval status should be shown (has a meaningful value, not null/not_required)
   const hasApprovalStatus = task.approval_status && 
     task.approval_status !== 'not_required' && 
     task.approval_status !== 'none';
-  
-  // Check if user can edit
-  const role = task.user_role || 'editor';
-  const canEdit = ['owner', 'editor'].includes(role);
 
   return (
     <div 
@@ -294,57 +282,9 @@ function TaskLedgerRow({ task, onFill, onView, onEdit }) {
         )}
       </div>
 
-      {/* Action */}
+      {/* Action - temporarily hidden, will be re-enabled with module redirect functionality */}
       <div className="col-span-2 text-right flex items-center justify-end gap-2">
-        {isCompleted ? (
-          <>
-            {/* View button for completed tasks */}
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => onView?.(task)}
-              className="gap-1 text-stone-600 h-7 text-xs"
-              data-testid={`task-view-btn-${task.id}`}
-            >
-              <Eye className="w-3 h-3" />
-              View
-            </Button>
-            {/* Edit button for completed tasks (if can edit and not approved) */}
-            {canEdit && !isApproved && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => onEdit?.(task)}
-                className="gap-1 h-7 text-xs"
-                data-testid={`task-edit-btn-${task.id}`}
-              >
-                <Pencil className="w-3 h-3" />
-                Edit
-              </Button>
-            )}
-          </>
-        ) : canEdit ? (
-          <Button
-            size="sm"
-            onClick={() => onFill(task)}
-            className="bg-emerald-600 hover:bg-emerald-700 gap-1 h-7 text-xs"
-            data-testid={`task-fill-btn-${task.id}`}
-          >
-            Fill
-            <ArrowRight className="w-3 h-3" />
-          </Button>
-        ) : (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => onView?.(task)}
-            className="gap-1 text-stone-500 h-7 text-xs"
-            data-testid={`task-view-btn-${task.id}`}
-          >
-            <Eye className="w-3 h-3" />
-            View
-          </Button>
-        )}
+        {/* Buttons hidden until redirect logic is implemented */}
       </div>
     </div>
   );

@@ -4,18 +4,16 @@
  */
 
 import React from 'react';
-import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { ArrowRight, Eye, Building2 } from 'lucide-react';
+import { Building2 } from 'lucide-react';
 import { TaskStatusBadges } from './StatusBadge';
 import RoleBadge from './RoleBadge';
-import { formatDueDate, canUserEdit } from './utils';
+import { formatDueDate } from './utils';
 import { useDateFormatter } from '../../hooks/useDateFormatter';
 
-export default function TaskRow({ task, onFill, onView }) {
+export default function TaskRow({ task }) {
   const { formatDateTime } = useDateFormatter();
   const dueInfo = formatDueDate(task);
-  const userCanEdit = canUserEdit(task);
   const isCompleted = task.status === 'completed';
   
   return (
@@ -59,30 +57,7 @@ export default function TaskRow({ task, onFill, onView }) {
         {/* Status Badges (operational + approval) */}
         <TaskStatusBadges task={task} />
         
-        {/* Action Button */}
-        {userCanEdit ? (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => onFill(task)}
-            className="gap-1"
-            data-testid={`task-fill-btn-${task.id}`}
-          >
-            Fill
-            <ArrowRight className="w-3 h-3" />
-          </Button>
-        ) : (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => onView?.(task)}
-            className="gap-1 text-stone-500"
-            data-testid={`task-view-btn-${task.id}`}
-          >
-            <Eye className="w-3 h-3" />
-            View
-          </Button>
-        )}
+        {/* Action buttons temporarily hidden - will be re-enabled with module redirect functionality */}
       </div>
     </div>
   );

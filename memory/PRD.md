@@ -407,6 +407,14 @@ Complete implementation of a new top-level module for supplier ESG and GHG asses
 - **Backend Already Supported**: The backend `/api/emissions/{record_id}` DELETE endpoint already has `approval_intercept_delete` which returns `{"message": "Delete request submitted for approval"}` when approval is required
 - **Status**: ✅ Implemented
 
+### Task Action Buttons Hidden (Temporary)
+- **Request**: User requested to hide View/Fill/Edit buttons from My Tasks temporarily until module redirect functionality is implemented
+- **Changes**:
+  - `/app/frontend/src/components/tasks/TaskRow.js` - Removed Fill/View buttons
+  - `/app/frontend/src/components/tasks/TaskLedger.js` - Removed Fill/View/Edit buttons
+  - `/app/frontend/src/components/MyTasks.js` - Removed unused handler functions and navigate import
+- **Status**: ✅ Implemented (Buttons hidden, ready for future re-implementation with proper redirects)
+
 ## Future Tasks (P2)
 - Materiality Assessment Phase 2+
 - Dashboard Scope 1 & 3 Emissions Deduplication
