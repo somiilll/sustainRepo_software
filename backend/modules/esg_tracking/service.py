@@ -482,9 +482,15 @@ class TrackingService:
                 # Assignment
                 if assignment:
                     assigned += 1
-                    user_id = assignment.get("assigned_to_user_id")
-                    if user_id:
-                        assigned_user_ids.add(user_id)
+                    # Get assignees via V2 architecture
+                    assignment_id = assignment.get("id")
+                    if assignment_id:
+                        assignees = await db.esg_assignment_assignees.find(
+                            {"assignment_id": assignment_id, "removed_at": None},
+                            {"_id": 0, "user_id": 1}
+                        ).to_list(100)
+                        for assignee in assignees:
+                            assigned_user_ids.add(assignee["user_id"])
                     
                     due_date = assignment.get("due_date")
                     if due_date:
@@ -731,13 +737,8 @@ class TrackingService:
                 assignees_by_assignment[aid] = []
             assignees_by_assignment[aid].append(assignee)
         
-        # Get user details for all assignees
+        # Get user details for all assignees (V2 only)
         all_user_ids = list(set([a["user_id"] for a in raw_assignees]))
-        # Also include legacy assigned_to_user_id
-        for a in raw_assignments:
-            if a.get("assigned_to_user_id"):
-                all_user_ids.append(a["assigned_to_user_id"])
-        all_user_ids = list(set(all_user_ids))
         
         users_cursor = db.users.find(
             {"id": {"$in": all_user_ids}},
@@ -758,7 +759,7 @@ class TrackingService:
             
             assignment_id = a.get("id")
             
-            # First, try to get assignees from the new esg_assignment_assignees table
+            # Get assignees from the V2 esg_assignment_assignees table
             if assignment_id and assignment_id in assignees_by_assignment:
                 for assignee in assignees_by_assignment[assignment_id]:
                     user = user_map_local.get(assignee["user_id"])
@@ -772,18 +773,6 @@ class TrackingService:
                     existing_ids = [x["user_id"] for x in assignment_map[entity_id]["assignees"]]
                     if assignee_entry["user_id"] not in existing_ids:
                         assignment_map[entity_id]["assignees"].append(assignee_entry)
-            
-            # Fallback: use legacy assigned_to_user_id if no assignees found
-            if not assignment_map[entity_id]["assignees"] and a.get("assigned_to_user_id"):
-                user = user_map_local.get(a["assigned_to_user_id"])
-                assignee_entry = {
-                    "user_id": a["assigned_to_user_id"],
-                    "user_name": user.get("full_name") or user.get("name") if user else None,
-                    "user_email": user.get("email") if user else None,
-                    "role": a.get("role", "editor"),
-                    "assignment_id": assignment_id,
-                }
-                assignment_map[entity_id]["assignees"].append(assignee_entry)
         
         # Set primary assignee name for backward compatibility
         for entity_id, asgn in assignment_map.items():
@@ -871,7 +860,7 @@ class TrackingService:
                     }
             
             # Helper function to build a disclosure item
-            def build_disclosure_item(
+            async def build_disclosure_item(
                 item_key, display_name, item_type, 
                 response, assignment, approval,
                 parent_key=None, sub_key=None,
@@ -928,7 +917,6 @@ class TrackingService:
                 
                 # Assignment details
                 is_assigned = assignment is not None
-                assigned_to_user_id = None
                 assigned_by_user_id = None
                 assignment_id = None
                 assignment_role = None
@@ -940,13 +928,13 @@ class TrackingService:
                 filling_freq = None
                 requires_appr = False
                 assignees_list = []  # Multi-assignee support
+                v2_assignee_user_ids = []  # V2 assignee user IDs for filtering
                 appr_status_val = None  # Approval status from assignment
                 approver_id = None  # Approver user ID
                 approval_chain = []  # Multi-level approval chain
                 
                 if assignment:
                     assigned += 1
-                    assigned_to_user_id = assignment.get("assigned_to_user_id")
                     assigned_by_user_id = assignment.get("assigned_by_user_id")
                     assignment_id = assignment.get("id")
                     assignment_role = assignment.get("role")
@@ -954,6 +942,16 @@ class TrackingService:
                     requires_appr = assignment.get("requires_approval", False)
                     last_reminder = assignment.get("last_reminder_sent_at")
                     assignees_list = assignment.get("assignees", [])
+                    
+                    # Get assignees via V2 architecture and add to assigned_user_ids
+                    if assignment_id:
+                        v2_assignees = await db.esg_assignment_assignees.find(
+                            {"assignment_id": assignment_id, "removed_at": None},
+                            {"_id": 0, "user_id": 1}
+                        ).to_list(100)
+                        for assignee in v2_assignees:
+                            assigned_user_ids.add(assignee["user_id"])
+                            v2_assignee_user_ids.append(assignee["user_id"])
                     
                     # Extract approver info
                     approval_chain = assignment.get("approval_chain", [])
@@ -964,9 +962,6 @@ class TrackingService:
                     
                     if approver_id:
                         approver_user_ids.add(approver_id)
-                    
-                    if assigned_to_user_id:
-                        assigned_user_ids.add(assigned_to_user_id)
                     
                     due_date_val = assignment.get("due_date")
                     if due_date_val:
@@ -1014,7 +1009,8 @@ class TrackingService:
                         return None
                     if filters.is_due_soon is True and not is_due_soon_flag:
                         return None
-                    if filters.assigned_to_user_id and assigned_to_user_id != filters.assigned_to_user_id:
+                    # V2 filter: check if filtered user is in assignees list
+                    if filters.assigned_to_user_id and filters.assigned_to_user_id not in v2_assignee_user_ids:
                         return None
                     if filters.status:
                         if filters.status == "completed" and not is_completed:
@@ -1037,7 +1033,7 @@ class TrackingService:
                     response_data=response.get("value") if response and isinstance(response.get("value"), dict) else ({"value": response.get("value")} if response and response.get("value") is not None else None),
                     last_response_updated_at=resp_updated,
                     is_assigned=is_assigned,
-                    assigned_to_user_id=assigned_to_user_id,
+                    assigned_to_user_id=v2_assignee_user_ids[0] if v2_assignee_user_ids else None,  # Primary assignee for backward compat
                     assigned_to_user_name=None,
                     assigned_to_user_email=None,
                     assigned_by_user_id=assigned_by_user_id,
@@ -1081,7 +1077,7 @@ class TrackingService:
                         parent_desc = parent_desc[:80] + "..."
                     display_name = f"{parent_desc} → {sub_label}"
                     
-                    item = build_disclosure_item(
+                    item = await build_disclosure_item(
                         full_sub_key, display_name, "sub_question",
                         response, assignment, approval,
                         parent_key=q_key, sub_key=sub_key,
@@ -1099,7 +1095,7 @@ class TrackingService:
                 assignment = assignment_map.get(q_key)
                 approval = approval_map.get(q_key)
                 
-                item = build_disclosure_item(
+                item = await build_disclosure_item(
                     q_key, self._get_display_name(config, q_key), "question",
                     response, assignment, approval,
                     item_domain=config_domain,
@@ -1409,9 +1405,21 @@ class TrackingService:
         if not assignment:
             return {"success": False, "error": "No assignment found for this disclosure"}
         
-        assigned_user_id = assignment.get("assigned_to_user_id")
-        if not assigned_user_id:
+        # Get assignees via V2 architecture
+        assignment_id = assignment.get("id")
+        assignee_ids = []
+        if assignment_id:
+            assignees = await db.esg_assignment_assignees.find(
+                {"assignment_id": assignment_id, "removed_at": None},
+                {"_id": 0, "user_id": 1}
+            ).to_list(100)
+            assignee_ids = [a["user_id"] for a in assignees]
+        
+        if not assignee_ids:
             return {"success": False, "error": "No user assigned"}
+        
+        # Use first assignee as primary for email
+        assigned_user_id = assignee_ids[0]
         
         # Get user details
         user = await self._users.find_one(
@@ -1561,6 +1569,17 @@ class TrackingService:
             if due_date and due_date.tzinfo is None:
                 due_date = due_date.replace(tzinfo=timezone.utc)
             
+            # Get primary assignee via V2 architecture
+            assignment_id = assignment.get("id")
+            primary_assignee_id = None
+            if assignment_id:
+                first_assignee = await db.esg_assignment_assignees.find_one(
+                    {"assignment_id": assignment_id, "removed_at": None},
+                    {"_id": 0, "user_id": 1}
+                )
+                if first_assignee:
+                    primary_assignee_id = first_assignee["user_id"]
+            
             items.append(DisclosureTrackingItem(
                 disclosure_id=q_key,
                 disclosure_name=self._get_display_name(config, q_key),
@@ -1571,8 +1590,8 @@ class TrackingService:
                 is_completed=False,
                 completion_status=CompletionStatus.NOT_STARTED,
                 is_assigned=True,
-                assigned_to_user_id=assignment.get("assigned_to_user_id"),
-                assignment_id=assignment.get("id"),
+                assigned_to_user_id=primary_assignee_id,
+                assignment_id=assignment_id,
                 due_date=due_date,
                 is_overdue=True,
                 days_until_due=(due_date - now).days if due_date else None,

@@ -92,18 +92,11 @@ class ReminderScheduler:
             if not overdue:
                 continue
             
-            # Group by user - now supports V2 architecture (multiple assignees per assignment)
+            # Group by user - V2 architecture (multiple assignees per assignment)
             by_user = {}
             for a in overdue:
-                # Get assignees from V2 architecture
+                # Get assignees from V2 architecture only
                 assignee_ids = await self._get_assignment_assignees(a.get("id"), org_id)
-                
-                # Fallback to legacy assigned_to_user_id
-                # TODO: Remove after migration
-                if not assignee_ids:
-                    legacy_user = a.get("assigned_to_user_id")
-                    if legacy_user:
-                        assignee_ids = [legacy_user]
                 
                 for user_id in assignee_ids:
                     if user_id not in by_user:
@@ -148,19 +141,12 @@ class ReminderScheduler:
         Creates in-app notification and sends email.
         Returns True if email was sent successfully.
         
-        Now supports V2 architecture (multiple assignees per assignment).
+        Uses V2 architecture (multiple assignees per assignment).
         """
-        # Get assignees from V2 architecture
+        # Get assignees from V2 architecture only
         assignment_id = assignment.get("id")
         org_id = assignment.get("organization_id")
         assignee_ids = await self._get_assignment_assignees(assignment_id, org_id)
-        
-        # Fallback to legacy assigned_to_user_id
-        # TODO: Remove after migration
-        if not assignee_ids:
-            legacy_user = assignment.get("assigned_to_user_id")
-            if legacy_user:
-                assignee_ids = [legacy_user]
         
         additional_recipients = assignment.get("reminder_recipients") or []
         

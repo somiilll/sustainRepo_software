@@ -108,6 +108,20 @@ class AssignmentService:
         
         await self._assignments.insert_one(assignment)
         
+        # V2 Architecture: Create assignee record in junction table
+        if request.assigned_to_user_id:
+            assignee_doc = {
+                "id": str(uuid.uuid4()),
+                "assignment_id": assignment["id"],
+                "user_id": request.assigned_to_user_id,
+                "organization_id": organization_id,
+                "role": request.role.value if request.role else "editor",
+                "assigned_at": now,
+                "assigned_by": assigned_by_user_id,
+                "removed_at": None,
+            }
+            await db.esg_assignment_assignees.insert_one(assignee_doc)
+        
         # Auto-generate tasks if start_date and filling_frequency are provided
         if request.start_date and request.filling_frequency:
             try:
@@ -475,6 +489,27 @@ class AssignmentService:
                 "updated_at": now,
             }}
         )
+        
+        # V2 Architecture: Update assignee records
+        # Mark old assignee as removed
+        if old_user_id:
+            await db.esg_assignment_assignees.update_one(
+                {"assignment_id": assignment_id, "user_id": old_user_id, "removed_at": None},
+                {"$set": {"removed_at": now.isoformat()}}
+            )
+        
+        # Add new assignee
+        assignee_doc = {
+            "id": str(uuid.uuid4()),
+            "assignment_id": assignment_id,
+            "user_id": request.new_user_id,
+            "organization_id": organization_id,
+            "role": current.get("role", "editor"),
+            "assigned_at": now.isoformat(),
+            "assigned_by": reassigned_by_user_id,
+            "removed_at": None,
+        }
+        await db.esg_assignment_assignees.insert_one(assignee_doc)
         
         # Log history with reason
         await self._log_history(

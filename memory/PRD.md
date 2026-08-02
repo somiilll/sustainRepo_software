@@ -314,11 +314,28 @@ Complete implementation of a new top-level module for supplier ESG and GHG asses
 1. Safari: Existing data entry for Scope 1 / Facility E not showing
 2. Safari: Fuel type dropdown not showing after choosing category
 3. Workflow module conditional access (bypass restrictions when workflow disabled)
-4. Replace remaining legacy V1 `assigned_to_user_id` usages (~34 occurrences)
-5. Task status shows "Completed" instead of "Pending Approval"
-6. SuperAdmin: Add supplier org names visibility to Organizations view
+4. Task status shows "Completed" instead of "Pending Approval"
+5. SuperAdmin: Add supplier org names visibility to Organizations view
 
 ## Completed Work (Current Session — Dec 2025)
+
+### Legacy V1 `assigned_to_user_id` Migration to V2
+- **Scope**: Migrated core access control and query logic from V1 (single `assigned_to_user_id` field) to V2 (multi-assignee `esg_assignment_assignees` collection)
+- **Files Updated**:
+  - `esg_assignments/access_control.py`: Removed legacy fallbacks, now V2-only
+  - `esg_assignments/service.py`: Create/reassign now creates V2 assignee records
+  - `esg_assignments/scheduler.py`: Reminders now V2-only
+  - `esg_assignments/kpi_access_helper.py`: Access checks now V2-only
+  - `esg_tracking/service.py`: Disclosure tracking now uses V2 for assignee lookups
+- **Key Changes**:
+  - `create_assignment()` now creates V2 assignee record in `esg_assignment_assignees`
+  - `reassign_assignment()` marks old assignee as removed, creates new V2 record
+  - All access control queries now use V2 junction table exclusively
+  - Disclosure tracking items now populate assignee info from V2
+- **Backward Compatibility**:
+  - API contracts/models still include `assigned_to_user_id` for response compatibility
+  - Database writes still include field for data consistency during transition
+- **Status**: ✅ Core migration complete - V2 is now the source of truth for access control
 
 ### Simplified Facility Form for Suppliers
 - **Requirement**: Suppliers should only need to provide facility name when creating facilities

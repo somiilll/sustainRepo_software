@@ -53,14 +53,12 @@ class AccessControlService:
         """
         Check if user is assigned to a specific assignment.
         
-        Uses V2 architecture (esg_assignment_assignees) first,
-        then falls back to legacy (assigned_to_user_id).
-        
-        TODO: Remove legacy fallback after migration is complete.
+        Uses V2 architecture (esg_assignment_assignees) exclusively.
+        Legacy assigned_to_user_id has been fully deprecated.
         """
         assignment_id = assignment.get("id")
         
-        # Check V2 architecture
+        # Check V2 architecture only
         v2_assignee = await db.esg_assignment_assignees.find_one({
             "assignment_id": assignment_id,
             "user_id": user_id,
@@ -69,15 +67,7 @@ class AccessControlService:
                 {"removed_at": {"$exists": False}},
             ],
         })
-        if v2_assignee:
-            return True
-        
-        # Fallback to legacy
-        # TODO: Remove after migration
-        if assignment.get("assigned_to_user_id") == user_id:
-            return True
-        
-        return False
+        return v2_assignee is not None
 
     
     async def can_access_question(
@@ -236,15 +226,12 @@ class AccessControlService:
         # Get assignment IDs where user is an assignee (V2 architecture)
         v2_assignment_ids = await self._get_user_assignment_ids(organization_id, user_id)
         
-        # Find all assignments for this user (V2 + legacy)
+        # Find all assignments for this user via V2 architecture
         query = {
             "organization_id": organization_id,
             "entity_type": EntityType.QUESTION.value,
             "reporting_period": reporting_period,
-            "$or": [
-                {"id": {"$in": v2_assignment_ids}} if v2_assignment_ids else {"id": None},
-                {"assigned_to_user_id": user_id},  # Legacy fallback - TODO: remove after migration
-            ],
+            "id": {"$in": v2_assignment_ids} if v2_assignment_ids else {"$in": []},
         }
         
         cursor = self._assignments.find(query, {"_id": 0})
@@ -313,25 +300,22 @@ class AccessControlService:
             "reporting_period": reporting_period,
         }
         
-        # Add user filter (V2 + legacy)
-        user_filter = {
-            "$or": [
-                {"id": {"$in": v2_assignment_ids}} if v2_assignment_ids else {"id": None},
-                {"assigned_to_user_id": user_id},  # Legacy fallback - TODO: remove after migration
-            ],
-        }
+        # Add user filter via V2 architecture only
+        if v2_assignment_ids:
+            base_query["id"] = {"$in": v2_assignment_ids}
+        else:
+            base_query["id"] = {"$in": []}  # No assignments
         
-        query = {**base_query, **user_filter}
+        query = base_query
         
         if facility_id:
-            query["$and"] = [
-                user_filter,
-                {"$or": [
+            query = {
+                **base_query,
+                "$or": [
                     {"facility_id": facility_id},
                     {"facility_id": None},
-                ]}
-            ]
-            del query["$or"]  # Remove from top level since it's now in $and
+                ]
+            }
         
         cursor = self._assignments.find(query, {"_id": 0})
         assignments = await cursor.to_list(500)

@@ -99,7 +99,7 @@ class KPIAccessHelper:
         
         assignment_ids_from_new = [a["assignment_id"] for a in assignee_records]
         
-        # Build query for assignments
+        # Build query for assignments via V2 architecture only
         query = {
             "organization_id": organization_id,
             "category": category,
@@ -109,14 +109,12 @@ class KPIAccessHelper:
         if reporting_period:
             query["reporting_period"] = reporting_period
         
-        # Find assignments where user is in assignees table OR has old assigned_to_user_id
+        # Find assignments where user is in assignees table (V2 only)
         if assignment_ids_from_new:
-            query["$or"] = [
-                {"id": {"$in": assignment_ids_from_new}},
-                {"assigned_to_user_id": user_id},  # Legacy support
-            ]
+            query["id"] = {"$in": assignment_ids_from_new}
         else:
-            query["assigned_to_user_id"] = user_id  # Legacy only
+            # No V2 assignments found for this user
+            return []
         
         cursor = self._assignments.find(query, {"_id": 0})
         return await cursor.to_list(100)
@@ -315,30 +313,13 @@ class KPIAccessHelper:
         if reporting_period:
             base_query["reporting_period"] = reporting_period
         
-        # Query for user's assignments (new model OR legacy)
+        # Query for user's assignments via V2 architecture only
         user_query = {**base_query}
         if assignment_ids_from_new:
-            user_query["$or"] = [
-                {"id": {"$in": assignment_ids_from_new}},
-                {"assigned_to_user_id": user_id},
-            ]
+            user_query["id"] = {"$in": assignment_ids_from_new}
         else:
-            user_query["assigned_to_user_id"] = user_id
-        
-        if subcategory:
-            user_query["$and"] = user_query.get("$and", []) + [
-                {"$or": [
-                    {"subcategory": subcategory},
-                    {"subcategory": None},
-                    {"subcategory": {"$exists": False}},
-                ]}
-            ]
-        
-        cursor = self._assignments.find(user_query, {"_id": 0})
-        assignments = await cursor.to_list(100)
-        
-        if not assignments:
-            # Check if ANY assignments exist for this category
+            # No V2 assignments - user has no access through assignments
+            # Check if ANY assignments exist for this org/category
             any_assignments = await self._assignments.count_documents({
                 "organization_id": organization_id,
                 "category": category,
@@ -350,16 +331,40 @@ class KPIAccessHelper:
                 # No assignments at all - full access
                 return {
                     "has_full_access": True,
-                    "allowed_facility_ids": None,
-                    "assignment_level": None,
+                    "allowed_scopes": [],
+                    "allowed_subcategories": [],
+                    "facility_restrictions": {},
+                    "assignments": [],
                 }
             else:
-                # Assignments exist but not for this user - no access
+                # Assignments exist but user has none
                 return {
                     "has_full_access": False,
-                    "allowed_facility_ids": [],
-                    "assignment_level": None,
+                    "allowed_scopes": [],
+                    "allowed_subcategories": [],
+                    "facility_restrictions": {},
+                    "assignments": [],
+                    "reason": "no_assignment",
                 }
+        
+        if subcategory:
+            user_query["$or"] = [
+                {"subcategory": subcategory},
+                {"subcategory": None},
+                {"subcategory": {"$exists": False}},
+            ]
+        
+        cursor = self._assignments.find(user_query, {"_id": 0})
+        assignments = await cursor.to_list(100)
+        
+        if not assignments:
+            # User has V2 assignments but none match this specific query
+            # This can happen with subcategory filtering
+            return {
+                "has_full_access": False,
+                "allowed_facility_ids": [],
+                "assignment_level": None,
+            }
         
         # Process assignments
         allowed_facilities = set()
