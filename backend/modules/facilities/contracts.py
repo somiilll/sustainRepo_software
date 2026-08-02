@@ -48,7 +48,7 @@ class FacilityResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
     name: str
-    address: str
+    address: Optional[str] = None  # Optional for suppliers
     city: Optional[str] = None
     state: Optional[str] = None
     country: Optional[str] = None
@@ -71,4 +71,4 @@ class FacilityResponse(BaseModel):
     remarks: Optional[str] = None
     is_active: bool = True
     equity_share_percentage: Optional[float] = 100.0
-    created_at: str
+    created_at: Optional[str] = None  # Also make optional for older records

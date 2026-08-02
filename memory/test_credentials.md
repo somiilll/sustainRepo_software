@@ -6,6 +6,13 @@
 - **Role**: admin
 - **Organization ID**: 9067d872-8a3a-4ed9-8494-e3ef04952f7c
 
+## Supplier Account
+- **Email**: goyalsomil+919@hotmail.com
+- **Password**: TestUser123!
+- **Role**: admin
+- **User Type**: supplier
+- **Organization ID**: 6d542131-4540-494c-9f8e-08152ca20954
+
 ## Non-Admin User Accounts (for testing KPI access restrictions)
 
 ### Aman
