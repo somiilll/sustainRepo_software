@@ -148,7 +148,7 @@ export function getStatusDisplay(approvalStatus) {
     case 'approved':
       return { text: 'Completed, Approved', cls: 'bg-green-100 text-green-700' };
     default:
-      // No approval workflow - just "Completed"
-      return { text: 'Completed', cls: 'bg-stone-100 text-stone-700' };
+      // No approval workflow - just "Completed" (green like Approved)
+      return { text: 'Completed', cls: 'bg-green-100 text-green-700' };
   }
 }

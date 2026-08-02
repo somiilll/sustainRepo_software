@@ -12,7 +12,7 @@ import requests
 import os
 import json
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://esg-revenue-track.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://brsr-history-fix.preview.emergentagent.com').rstrip('/')
 
 class TestOrganizationControlTypes:
     """Test Organization control types functionality"""

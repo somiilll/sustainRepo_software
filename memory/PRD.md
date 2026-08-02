@@ -386,6 +386,27 @@ Complete implementation of a new top-level module for supplier ESG and GHG asses
   - `EmissionEntryForm` now uses the same comprehensive hydration logic as the main Emissions.js
 - **Status**: ✅ Implemented — Single source of truth for edit hydration
 
+
+## Completed Work (Current Session — Dec 2025)
+
+### "Completed" Status Color Fix (P2)
+- **Issue**: "Completed" status (without approval workflow) was showing in gray/stone color instead of green
+- **Fix**: Updated `getStatusDisplay()` in `/app/frontend/src/modules/ghg/utils/approvalSchema.js` to return green color (`bg-green-100 text-green-700`) for default "Completed" status, matching "Completed, Approved"
+- **Status**: ✅ Implemented
+
+### Bulk Delete Approval Workflow Integration (P1)
+- **Issue**: Bulk delete in GHG Emissions and ESG Records was bypassing approval workflows by issuing direct DELETE requests via Promise.all
+- **Fix**: Updated bulk delete handlers in:
+  - `/app/frontend/src/pages/Emissions.js` (`handleBulkDelete`)
+  - `/app/frontend/src/components/ESGRecordsDataEntry.js` (`handleBulkDelete`)
+- **New Behavior**:
+  - Process each delete request individually (not in parallel)
+  - Check response message for "submitted for approval" to detect queued requests
+  - Track deleted, queued, and failed counts separately
+  - Show appropriate toast messages for each outcome type
+- **Backend Already Supported**: The backend `/api/emissions/{record_id}` DELETE endpoint already has `approval_intercept_delete` which returns `{"message": "Delete request submitted for approval"}` when approval is required
+- **Status**: ✅ Implemented
+
 ## Future Tasks (P2)
 - Materiality Assessment Phase 2+
 - Dashboard Scope 1 & 3 Emissions Deduplication

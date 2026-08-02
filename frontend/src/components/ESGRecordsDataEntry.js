@@ -42,6 +42,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { Textarea } from './ui/textarea';
+import { Checkbox } from './ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from './ui/dialog';
@@ -124,6 +125,10 @@ export default function ESGRecordsDataEntry({
   
   // Sorting state
   const [sort, setSort] = useState({ key: null, direction: 'desc' });
+  
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   
   // Modal states
   const [showVersionsModal, setShowVersionsModal] = useState(false);
@@ -640,6 +645,77 @@ export default function ESGRecordsDataEntry({
       toast.error('Failed to delete record');
     } finally {
       setSaving(prev => ({ ...prev, [`delete_${record.id}`]: false }));
+    }
+  };
+
+  // Bulk selection handlers
+  const handleSelectRecord = (id) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedIds.size === sortedRecords.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(sortedRecords.map(r => r.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    
+    if (!window.confirm(`Delete ${selectedIds.size} record(s)? This action cannot be undone.`)) {
+      return;
+    }
+    
+    setBulkDeleting(true);
+    try {
+      // Track results for each delete request to handle approval workflows
+      let deletedCount = 0;
+      let queuedForApprovalCount = 0;
+      let failedCount = 0;
+      
+      // Process each delete individually to handle approval workflow responses
+      for (const id of Array.from(selectedIds)) {
+        try {
+          const response = await axios.delete(`${API}/api/esg-records/records/${section}/${id}`, { headers });
+          // Check if queued for approval vs direct delete
+          if (response.data?.message?.toLowerCase().includes('submitted for approval')) {
+            queuedForApprovalCount++;
+          } else {
+            deletedCount++;
+          }
+        } catch (error) {
+          failedCount++;
+        }
+      }
+      
+      // Show appropriate toast messages based on results
+      if (deletedCount > 0) {
+        toast.success(`${deletedCount} record(s) deleted`);
+      }
+      if (queuedForApprovalCount > 0) {
+        toast.info(`${queuedForApprovalCount} record(s) submitted for approval`);
+      }
+      if (failedCount > 0) {
+        toast.error(`${failedCount} record(s) could not be deleted`);
+      }
+      
+      setSelectedIds(new Set());
+      fetchRecords();
+      fetchStats();
+    } catch (error) {
+      toast.error('Failed to delete some records');
+    } finally {
+      setBulkDeleting(false);
     }
   };
 
@@ -1262,11 +1338,40 @@ export default function ESGRecordsDataEntry({
         </div>
       </Card>
 
+      {/* Bulk Actions Bar */}
+      {selectedIds.size > 0 && (
+        <Card className="p-3 bg-amber-50 border-amber-200 flex items-center justify-between">
+          <span className="text-sm text-amber-800">
+            {selectedIds.size} record{selectedIds.size > 1 ? 's' : ''} selected
+          </span>
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={handleBulkDelete}
+            disabled={bulkDeleting}
+            className="bg-red-600 hover:bg-red-700"
+          >
+            {bulkDeleting ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Trash2 className="w-4 h-4 mr-2" />
+            )}
+            Delete Selected
+          </Button>
+        </Card>
+      )}
+
       {/* Records Table */}
       <Card>
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-10">
+                <Checkbox
+                  checked={sortedRecords.length > 0 && selectedIds.size === sortedRecords.length}
+                  onCheckedChange={handleSelectAll}
+                />
+              </TableHead>
               <SortableTableHead label="Category" sortKey="category" currentSort={sort} onSort={handleSort} />
               <SortableTableHead label="Facility" sortKey="facility" currentSort={sort} onSort={handleSort} />
               <SortableTableHead label="Period" sortKey="period" currentSort={sort} onSort={handleSort} />
@@ -1278,13 +1383,13 @@ export default function ESGRecordsDataEntry({
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8">
+                <TableCell colSpan={7} className="text-center py-8">
                   <Loader2 className="w-6 h-6 animate-spin mx-auto text-emerald-600" />
                 </TableCell>
               </TableRow>
             ) : records.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-text-muted">
+                <TableCell colSpan={7} className="text-center py-8 text-text-muted">
                   No metrics found
                 </TableCell>
               </TableRow>
@@ -1313,7 +1418,13 @@ export default function ESGRecordsDataEntry({
                 }
                 
                 return (
-                  <TableRow key={record.id} className={`${hasDraft ? 'bg-yellow-50' : ''} ${isImported ? 'bg-emerald-50/30' : ''}`}>
+                  <TableRow key={record.id} className={`${hasDraft ? 'bg-yellow-50' : ''} ${isImported ? 'bg-emerald-50/30' : ''} ${selectedIds.has(record.id) ? 'bg-amber-50' : ''}`}>
+                    <TableCell className="w-10">
+                      <Checkbox
+                        checked={selectedIds.has(record.id)}
+                        onCheckedChange={() => handleSelectRecord(record.id)}
+                      />
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         {isImported && (

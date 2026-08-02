@@ -2400,13 +2400,42 @@ export default function Emissions() {
     if (bulkDeleteIds.length === 0) return;
     
     try {
-      // Delete each emission (could be optimized with a bulk delete API)
-      const deletePromises = bulkDeleteIds.map(id =>
-        axios.delete(`${API}/emissions/${id}`, { headers: getAuthHeader() })
-      );
+      // Track results for each delete request
+      let deletedCount = 0;
+      let queuedForApprovalCount = 0;
+      let failedCount = 0;
       
-      await Promise.all(deletePromises);
-      toast.success(`${bulkDeleteIds.length} emission record(s) deleted successfully`);
+      // Process each delete individually to handle approval workflow responses
+      for (const id of bulkDeleteIds) {
+        try {
+          const response = await axios.delete(`${API}/emissions/${id}`, { headers: getAuthHeader() });
+          // Check if queued for approval vs direct delete
+          if (response.data?.message?.toLowerCase().includes('submitted for approval')) {
+            queuedForApprovalCount++;
+          } else {
+            deletedCount++;
+          }
+        } catch (error) {
+          // 403 means blocked - not authorized or requires approval and blocked
+          if (error.response?.status === 403) {
+            failedCount++;
+          } else {
+            failedCount++;
+          }
+        }
+      }
+      
+      // Show appropriate toast messages based on results
+      if (deletedCount > 0) {
+        toast.success(`${deletedCount} record(s) deleted successfully`);
+      }
+      if (queuedForApprovalCount > 0) {
+        toast.info(`${queuedForApprovalCount} record(s) submitted for approval`);
+      }
+      if (failedCount > 0) {
+        toast.error(`${failedCount} record(s) could not be deleted`);
+      }
+      
       setBulkDeleteConfirmOpen(false);
       setBulkDeleteIds([]);
       fetchData();
