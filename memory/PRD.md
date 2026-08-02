@@ -396,3 +396,4 @@ Complete implementation of a new top-level module for supplier ESG and GHG asses
 ## Technical Debt / Refactoring (P2)
 - **Emission Form Refactoring**: Refactor Edit and Add emission forms (`EmissionEntryForm.js`, `Emissions.js`, `editEmissionDispatch.js`) to be fully reusable components. Currently tightly coupled with page-level state. Goal: single form component usable across main GHG, supplier portal, and any future contexts.
 - **SuperAdmin Org View**: Add supplier org names visibility to Organizations management page
+- **Hash-based Integrity Verification for Evidence Files**: Implement SHA-256 hash storage for all uploaded evidence files. Calculate hash on upload, store in DB alongside file URL, verify hash on download/access. Required for tamper detection and compliance (SOC 2, ISO 27001).
