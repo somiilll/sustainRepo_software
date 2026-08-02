@@ -6,7 +6,7 @@
  * 
  * Used by:
  * - editEmissionDispatch.js (full Emissions.js edit flow)
- * - SupplierEmissionsForm.jsx (supplier portal edit flow)
+ * - EmissionEntryForm.js (standalone edit mode hydration)
  * 
  * @param {Object} emission - The emission record to hydrate from
  * @param {Object} config - Configuration containing fuel database and lookup data

@@ -74,7 +74,7 @@ import SupplierAssessmentGHG from './pages/SupplierAssessmentGHG';
 import SupplierAssessmentRanking from './pages/SupplierAssessmentRanking';
 import SupplierPortalDashboard from './pages/SupplierPortalDashboard';
 import SupplierPortalQuestionnaire from './pages/SupplierPortalQuestionnaire';
-import SupplierPortalEmissions from './pages/SupplierPortalEmissions';
+// SupplierPortalEmissions removed - suppliers use main GHG Emissions flow
 import { initializeCategoryModules } from './modules/emissions';
 
 // Initialize the emissions Category Registry once at app boot.
@@ -343,7 +343,7 @@ const AppRoutes = () => {
           {/* Supplier Portal Routes (Supplier Users) */}
           <Route path="supplier-assessment/supplier" element={<SupplierPortalDashboard />} />
           <Route path="supplier-assessment/questionnaire/:questionnaireId" element={<SupplierPortalQuestionnaire />} />
-          <Route path="supplier-assessment/emissions" element={<SupplierPortalEmissions />} />
+          {/* supplier-assessment/emissions route removed - suppliers use main GHG Emissions flow */}
           
           <Route path="users" element={
             <AdminRoute>

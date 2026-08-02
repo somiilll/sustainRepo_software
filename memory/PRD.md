@@ -316,8 +316,25 @@ Complete implementation of a new top-level module for supplier ESG and GHG asses
 3. Workflow module conditional access (bypass restrictions when workflow disabled)
 4. Replace remaining legacy V1 `assigned_to_user_id` usages (~34 occurrences)
 5. Task status shows "Completed" instead of "Pending Approval"
+6. SuperAdmin: Add supplier org names visibility to Organizations view
 
 ## Completed Work (Current Session — Dec 2025)
+
+### Supplier GHG Architecture Simplification
+- **Decision**: Suppliers will use the main GHG Emissions flow (same as regular users) instead of a custom form
+- **Rationale**: 
+  - Single source of truth for emission entry/edit (no code duplication)
+  - Existing GHG edit flow already works correctly
+  - Simpler architecture, less maintenance burden
+- **Removed Files**:
+  - `/app/frontend/src/modules/supplier-assessment/SupplierEmissionsForm.jsx` — custom supplier emission form (unused)
+  - `/app/frontend/src/pages/SupplierPortalEmissions.jsx` — page wrapper (unused)
+  - Removed route `supplier-assessment/emissions` from App.js
+- **Kept Files**:
+  - `/app/frontend/src/modules/supplier-assessment/SupplierGHGView.jsx` — customer admin view of supplier emissions
+  - `/app/frontend/src/pages/emissions/utils/hydrateEmissionForm.js` — reusable hydration utility
+- **Supplier Org Name**: Auto-filled from customer-provided `company_name` when relationship is created (already implemented in `service.py` line 86)
+- **Status**: ✅ Implemented — Code cleaned up, bundle size reduced
 
 ### Supplier Emissions Form Edit Hydration Utility (P0)
 - **Issue**: Supplier Emissions Form Edit mode showed empty fields instead of pre-populated values with live calculations
