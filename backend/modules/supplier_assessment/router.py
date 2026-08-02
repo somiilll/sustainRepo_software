@@ -81,6 +81,8 @@ async def create_supplier(
             due_date=data.due_date,
             created_by=current_user["id"],
             created_by_email=current_user["email"],
+            modules_enabled=data.modules_enabled,
+            ghg_scopes_enabled=data.ghg_scopes_enabled,
         )
         return result
     except ValueError as e:

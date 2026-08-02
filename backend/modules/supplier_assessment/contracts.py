@@ -1,7 +1,7 @@
 """
 Supplier Assessment Pydantic contracts/schemas.
 """
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Literal
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, ConfigDict, Field
 
@@ -17,6 +17,9 @@ class SupplierCreate(BaseModel):
     email: EmailStr
     contact_number: Optional[str] = None
     due_date: Optional[str] = None  # ISO date string
+    # Module configuration
+    modules_enabled: List[Literal["esg", "ghg"]] = ["esg", "ghg"]  # Default: both enabled
+    ghg_scopes_enabled: List[Literal["scope1", "scope2"]] = ["scope1", "scope2"]  # Default: both scopes
 
 
 class SupplierUpdate(BaseModel):
@@ -26,6 +29,9 @@ class SupplierUpdate(BaseModel):
     contact_number: Optional[str] = None
     due_date: Optional[str] = None
     is_active: Optional[bool] = None
+    # Module configuration
+    modules_enabled: Optional[List[Literal["esg", "ghg"]]] = None
+    ghg_scopes_enabled: Optional[List[Literal["scope1", "scope2"]]] = None
 
 
 class SupplierResponse(BaseModel):
@@ -45,6 +51,10 @@ class SupplierResponse(BaseModel):
     last_reminder_sent: Optional[str] = None
     reminder_count: int = 0
     is_active: bool = True
+    
+    # Module configuration
+    modules_enabled: List[str] = ["esg", "ghg"]
+    ghg_scopes_enabled: List[str] = ["scope1", "scope2"]
     
     # Progress tracking
     esg_completion_percent: float = 0.0

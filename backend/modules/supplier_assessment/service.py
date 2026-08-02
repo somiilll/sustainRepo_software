@@ -32,6 +32,8 @@ class SupplierAssessmentService:
         due_date: Optional[str],
         created_by: str,
         created_by_email: str,
+        modules_enabled: Optional[List[str]] = None,
+        ghg_scopes_enabled: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
         Create a new supplier:
@@ -40,6 +42,12 @@ class SupplierAssessmentService:
         3. Generate temp password and send invitation email
         4. Create supplier_relationship record
         """
+        # Default module configuration
+        if modules_enabled is None:
+            modules_enabled = ["esg", "ghg"]
+        if ghg_scopes_enabled is None:
+            ghg_scopes_enabled = ["scope1", "scope2"]
+        
         # Check if supplier org already exists with this email
         existing_user = await db.users.find_one(
             {"email": email, "is_deleted": {"$ne": True}},
@@ -120,6 +128,10 @@ class SupplierAssessmentService:
             "last_reminder_sent": None,
             "reminder_count": 0,
             "is_active": True,
+            # Module configuration
+            "modules_enabled": modules_enabled,
+            "ghg_scopes_enabled": ghg_scopes_enabled,
+            # Progress tracking
             "esg_completion_percent": 0.0,
             "ghg_completion_percent": 0.0,
             "overall_completion_percent": 0.0,

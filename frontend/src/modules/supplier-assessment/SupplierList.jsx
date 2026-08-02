@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Badge } from '../../components/ui/badge';
+import { Checkbox } from '../../components/ui/checkbox';
 import {
   Table,
   TableBody,
@@ -33,6 +34,8 @@ import {
   Calendar,
   TrendingUp,
   Percent,
+  Leaf,
+  Factory,
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -63,6 +66,8 @@ export default function SupplierList() {
     email: '',
     contact_number: '',
     due_date: '',
+    modules_enabled: ['esg', 'ghg'],
+    ghg_scopes_enabled: ['scope1', 'scope2'],
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -101,7 +106,15 @@ export default function SupplierList() {
       });
       toast.success('Supplier added and invitation sent');
       setShowAddDialog(false);
-      setFormData({ company_name: '', contact_person: '', email: '', contact_number: '', due_date: '' });
+      setFormData({ 
+        company_name: '', 
+        contact_person: '', 
+        email: '', 
+        contact_number: '', 
+        due_date: '',
+        modules_enabled: ['esg', 'ghg'],
+        ghg_scopes_enabled: ['scope1', 'scope2'],
+      });
       fetchSuppliers();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Failed to add supplier');
@@ -162,6 +175,8 @@ export default function SupplierList() {
       email: supplier.contact_email,
       contact_number: supplier.contact_number || '',
       due_date: supplier.due_date || '',
+      modules_enabled: supplier.modules_enabled || ['esg', 'ghg'],
+      ghg_scopes_enabled: supplier.ghg_scopes_enabled || ['scope1', 'scope2'],
     });
     setShowEditDialog(true);
   };
@@ -169,6 +184,40 @@ export default function SupplierList() {
   const openViewDialog = (supplier) => {
     setSelectedSupplier(supplier);
     setShowViewDialog(true);
+  };
+
+  // Toggle module in modules_enabled array
+  const toggleModule = (module) => {
+    setFormData(prev => {
+      const current = prev.modules_enabled || [];
+      if (current.includes(module)) {
+        // Don't allow removing all modules
+        if (current.length === 1) {
+          toast.error('At least one module must be enabled');
+          return prev;
+        }
+        return { ...prev, modules_enabled: current.filter(m => m !== module) };
+      } else {
+        return { ...prev, modules_enabled: [...current, module] };
+      }
+    });
+  };
+
+  // Toggle scope in ghg_scopes_enabled array
+  const toggleScope = (scope) => {
+    setFormData(prev => {
+      const current = prev.ghg_scopes_enabled || [];
+      if (current.includes(scope)) {
+        // Don't allow removing all scopes if GHG is enabled
+        if (current.length === 1 && prev.modules_enabled?.includes('ghg')) {
+          toast.error('At least one scope must be enabled for GHG');
+          return prev;
+        }
+        return { ...prev, ghg_scopes_enabled: current.filter(s => s !== scope) };
+      } else {
+        return { ...prev, ghg_scopes_enabled: [...current, scope] };
+      }
+    });
   };
 
   return (
@@ -417,6 +466,74 @@ export default function SupplierList() {
                 data-testid="supplier-due-date"
               />
             </div>
+            
+            {/* Module Selection */}
+            <div className="space-y-3 pt-2 border-t">
+              <Label className="text-base font-medium">Assessment Modules *</Label>
+              <p className="text-sm text-stone-500">Select which modules the supplier needs to complete</p>
+              
+              <div className="flex gap-6">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="module-esg"
+                    checked={formData.modules_enabled?.includes('esg')}
+                    onCheckedChange={() => toggleModule('esg')}
+                    data-testid="module-esg-checkbox"
+                  />
+                  <label htmlFor="module-esg" className="flex items-center gap-2 text-sm cursor-pointer">
+                    <Leaf className="h-4 w-4 text-emerald-600" />
+                    ESG Questionnaire
+                  </label>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="module-ghg"
+                    checked={formData.modules_enabled?.includes('ghg')}
+                    onCheckedChange={() => toggleModule('ghg')}
+                    data-testid="module-ghg-checkbox"
+                  />
+                  <label htmlFor="module-ghg" className="flex items-center gap-2 text-sm cursor-pointer">
+                    <Factory className="h-4 w-4 text-blue-600" />
+                    GHG Emissions
+                  </label>
+                </div>
+              </div>
+            </div>
+            
+            {/* GHG Scope Selection - Only shown if GHG is enabled */}
+            {formData.modules_enabled?.includes('ghg') && (
+              <div className="space-y-3 pl-4 border-l-2 border-blue-200 ml-2">
+                <Label className="text-sm font-medium">GHG Scopes</Label>
+                <p className="text-xs text-stone-500">Select which scopes the supplier should report</p>
+                
+                <div className="flex gap-6">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="scope-1"
+                      checked={formData.ghg_scopes_enabled?.includes('scope1')}
+                      onCheckedChange={() => toggleScope('scope1')}
+                      data-testid="scope1-checkbox"
+                    />
+                    <label htmlFor="scope-1" className="text-sm cursor-pointer">
+                      Scope 1 (Direct Emissions)
+                    </label>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="scope-2"
+                      checked={formData.ghg_scopes_enabled?.includes('scope2')}
+                      onCheckedChange={() => toggleScope('scope2')}
+                      data-testid="scope2-checkbox"
+                    />
+                    <label htmlFor="scope-2" className="text-sm cursor-pointer">
+                      Scope 2 (Indirect Emissions)
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddDialog(false)}>
@@ -465,6 +582,68 @@ export default function SupplierList() {
                 onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
               />
             </div>
+            
+            {/* Module Selection */}
+            <div className="space-y-3 pt-2 border-t">
+              <Label className="text-base font-medium">Assessment Modules</Label>
+              
+              <div className="flex gap-6">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="edit-module-esg"
+                    checked={formData.modules_enabled?.includes('esg')}
+                    onCheckedChange={() => toggleModule('esg')}
+                  />
+                  <label htmlFor="edit-module-esg" className="flex items-center gap-2 text-sm cursor-pointer">
+                    <Leaf className="h-4 w-4 text-emerald-600" />
+                    ESG Questionnaire
+                  </label>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="edit-module-ghg"
+                    checked={formData.modules_enabled?.includes('ghg')}
+                    onCheckedChange={() => toggleModule('ghg')}
+                  />
+                  <label htmlFor="edit-module-ghg" className="flex items-center gap-2 text-sm cursor-pointer">
+                    <Factory className="h-4 w-4 text-blue-600" />
+                    GHG Emissions
+                  </label>
+                </div>
+              </div>
+            </div>
+            
+            {/* GHG Scope Selection */}
+            {formData.modules_enabled?.includes('ghg') && (
+              <div className="space-y-3 pl-4 border-l-2 border-blue-200 ml-2">
+                <Label className="text-sm font-medium">GHG Scopes</Label>
+                
+                <div className="flex gap-6">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="edit-scope-1"
+                      checked={formData.ghg_scopes_enabled?.includes('scope1')}
+                      onCheckedChange={() => toggleScope('scope1')}
+                    />
+                    <label htmlFor="edit-scope-1" className="text-sm cursor-pointer">
+                      Scope 1 (Direct)
+                    </label>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="edit-scope-2"
+                      checked={formData.ghg_scopes_enabled?.includes('scope2')}
+                      onCheckedChange={() => toggleScope('scope2')}
+                    />
+                    <label htmlFor="edit-scope-2" className="text-sm cursor-pointer">
+                      Scope 2 (Indirect)
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEditDialog(false)}>
