@@ -1104,6 +1104,11 @@ function HistoryViewPanel({ item, onClose, formatDateTime }) {
                 </div>
               </div>
             )}
+            
+            {/* BRSR Table format - Previous FY / Current FY comparison tables */}
+            {isBRSR && snapshot.value && typeof snapshot.value === 'object' && (
+              <BRSRTableRenderer value={snapshot.value} />
+            )}
           </div>
         ) : (
           <div className="py-2">
@@ -1121,6 +1126,160 @@ function HistoryViewPanel({ item, onClose, formatDateTime }) {
           Close
         </Button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * BRSRTableRenderer - Renders various BRSR table formats
+ * Handles: previous_fy/current_fy comparisons, principle_wise, nested objects
+ * Only used for BRSR framework data
+ */
+function BRSRTableRenderer({ value }) {
+  if (!value || typeof value !== 'object') return null;
+  
+  // Skip already-handled keys
+  const handledKeys = ['mode', 'all_enabled', 'all_description', 'principles', 'has_value', 'fields'];
+  const unhandledKeys = Object.keys(value).filter(k => !handledKeys.includes(k));
+  
+  if (unhandledKeys.length === 0) return null;
+  
+  // Helper to format field names
+  const formatLabel = (key) => key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  
+  // Helper to render a value (handles primitives and objects)
+  const renderValue = (val) => {
+    if (val === null || val === undefined) return <span className="text-stone-400">-</span>;
+    if (typeof val === 'boolean') return val ? 'Yes' : 'No';
+    if (typeof val !== 'object') return String(val);
+    
+    // For arrays
+    if (Array.isArray(val)) {
+      if (val.length === 0) return <span className="text-stone-400">None</span>;
+      return (
+        <ul className="list-disc list-inside">
+          {val.map((item, i) => (
+            <li key={i} className="text-sm">{typeof item === 'object' ? JSON.stringify(item) : String(item)}</li>
+          ))}
+        </ul>
+      );
+    }
+    
+    // For nested objects, render recursively
+    return (
+      <div className="pl-2 border-l-2 border-stone-200 space-y-1">
+        {Object.entries(val).map(([k, v]) => (
+          <div key={k} className="text-sm">
+            <span className="text-text-muted">{formatLabel(k)}:</span>{' '}
+            <span className="font-medium">{renderValue(v)}</span>
+          </div>
+        ))}
+      </div>
+    );
+  };
+  
+  // Check if this looks like a FY comparison table (has previous_fy/current_fy structure)
+  const isFYComparison = (obj) => {
+    if (!obj || typeof obj !== 'object') return false;
+    const keys = Object.keys(obj);
+    return keys.includes('previous_fy') || keys.includes('current_fy');
+  };
+  
+  // Render FY comparison table
+  const renderFYTable = (label, data) => {
+    if (!data || typeof data !== 'object') return null;
+    
+    const prevFY = data.previous_fy;
+    const currFY = data.current_fy;
+    const details = data.details;
+    
+    return (
+      <div className="border rounded-lg overflow-hidden">
+        <div className="bg-stone-100 px-3 py-2 font-medium text-sm border-b">
+          {formatLabel(label)}
+        </div>
+        <div className="p-3">
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <span className="text-text-muted block mb-1">Previous FY</span>
+              <div className="font-medium bg-stone-50 p-2 rounded">{renderValue(prevFY)}</div>
+            </div>
+            <div>
+              <span className="text-text-muted block mb-1">Current FY</span>
+              <div className="font-medium bg-stone-50 p-2 rounded">{renderValue(currFY)}</div>
+            </div>
+          </div>
+          {details && (
+            <div className="mt-3 pt-3 border-t">
+              <span className="text-text-muted block mb-1">Details</span>
+              <div className="font-medium bg-stone-50 p-2 rounded text-sm">{renderValue(details)}</div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+  
+  // Render principle-wise data
+  const renderPrincipleWise = (data) => {
+    if (!data || typeof data !== 'object') return null;
+    
+    const principles = Object.entries(data).sort(([a], [b]) => a.localeCompare(b));
+    
+    return (
+      <div className="border rounded-lg overflow-hidden">
+        <div className="bg-stone-100 px-3 py-2 font-medium text-sm border-b">
+          Principle-wise Breakdown
+        </div>
+        <div className="divide-y">
+          {principles.map(([principle, pData]) => (
+            <div key={principle} className="p-3">
+              <div className="font-medium text-sm mb-2 text-blue-700">{principle}</div>
+              <div className="pl-2">{renderValue(pData)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+  
+  return (
+    <div className="space-y-4 py-2 border-t mt-2">
+      <span className="text-text-muted block mb-2">Table Data</span>
+      
+      {unhandledKeys.map(key => {
+        const data = value[key];
+        
+        // Special handling for principle_wise
+        if (key === 'principle_wise') {
+          return <div key={key}>{renderPrincipleWise(data)}</div>;
+        }
+        
+        // FY comparison tables (directors_coi, kmps_coi, rd, capex, etc.)
+        if (isFYComparison(data)) {
+          return <div key={key}>{renderFYTable(key, data)}</div>;
+        }
+        
+        // Generic nested object
+        if (typeof data === 'object' && data !== null) {
+          return (
+            <div key={key} className="border rounded-lg overflow-hidden">
+              <div className="bg-stone-100 px-3 py-2 font-medium text-sm border-b">
+                {formatLabel(key)}
+              </div>
+              <div className="p-3">{renderValue(data)}</div>
+            </div>
+          );
+        }
+        
+        // Simple value
+        return (
+          <div key={key} className="flex justify-between py-2 bg-stone-50 px-3 rounded">
+            <span className="text-text-muted">{formatLabel(key)}</span>
+            <span className="font-medium">{renderValue(data)}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
