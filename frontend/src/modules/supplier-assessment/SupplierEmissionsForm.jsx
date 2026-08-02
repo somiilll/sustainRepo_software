@@ -146,19 +146,11 @@ export default function SupplierEmissionsForm() {
       setGwpConfig(gwpRes.data || null);
       setProcessTemplates(templatesRes.data || []);
       
-      // Filter scopes to only Scope 1 and Scope 2 for suppliers
-      const allScopes = scopesRes.data || [];
-      const supplierScopes = allScopes.filter(s => 
-        s.scope_code === 'scope1' || s.scope_code === 'scope2'
-      );
-      setDynamicScopes(supplierScopes);
-      
-      // Filter categories to Scope 1 and Scope 2 only
-      const allCategories = catsRes.data || [];
-      const supplierCategories = allCategories.filter(c => 
-        c.scope_code === 'scope1' || c.scope_code === 'scope2'
-      );
-      setDynamicCategories(supplierCategories);
+      // Store ALL scopes and categories - don't filter here
+      // The UI will limit to allowed scopes, but the data structures need to be complete
+      // for field mapping to work correctly
+      setDynamicScopes(scopesRes.data || []);
+      setDynamicCategories(catsRes.data || []);
       
       if (labelsRes.data) {
         setConfigLabels(labelsRes.data);
