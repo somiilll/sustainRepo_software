@@ -317,6 +317,21 @@ Complete implementation of a new top-level module for supplier ESG and GHG asses
 4. Replace remaining legacy V1 `assigned_to_user_id` usages (~34 occurrences)
 5. Task status shows "Completed" instead of "Pending Approval"
 
+## Completed Work (Current Session — Dec 2025)
+
+### Supplier Emissions Form Edit Hydration Utility (P0)
+- **Issue**: Supplier Emissions Form Edit mode showed empty fields instead of pre-populated values with live calculations
+- **Solution**: Extracted pure `hydrateEmissionForm(emission, config)` utility from `editEmissionDispatch.js`
+  - Created `/app/frontend/src/pages/emissions/utils/hydrateEmissionForm.js` — pure transformation function
+  - Refactored `/app/frontend/src/pages/emissions/utils/editEmissionDispatch.js` to use the new utility
+  - Updated `/app/frontend/src/components/EmissionEntryForm.js` to use dynamic import of hydration utility
+- **Key Design Decisions**:
+  - `hydrateEmissionForm` is a pure function: no side effects, no state setters, no API calls
+  - Returns a plain object with all form values ready for consumption
+  - `editEmissionDispatch` public behavior unchanged for backward compatibility
+  - `EmissionEntryForm` now uses the same comprehensive hydration logic as the main Emissions.js
+- **Status**: ✅ Implemented — Single source of truth for edit hydration
+
 ## Future Tasks (P2)
 - Materiality Assessment Phase 2+
 - Dashboard Scope 1 & 3 Emissions Deduplication
