@@ -10,8 +10,9 @@
  * - CalcEngine integration for calculations
  * - Scope 1 and Scope 2 support (no Scope 3 for suppliers)
  * - Monthly/Yearly data entry
+ * - Edit with live recalculation
  */
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'sonner';
@@ -70,6 +71,7 @@ export default function SupplierEmissionsForm() {
   const [coreDataLoading, setCoreDataLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingEmission, setEditingEmission] = useState(null);
+  const [formKey, setFormKey] = useState(0); // Key to force form remount on edit
   
   // Allowed scopes based on supplier relationship config
   const [allowedScopes, setAllowedScopes] = useState(['scope1', 'scope2']);
@@ -182,12 +184,40 @@ export default function SupplierEmissionsForm() {
     }];
   }, [supplierOrg]);
 
-  // Handle successful emission creation
+  // Handle clicking edit - fetch full emission record for proper hydration
+  const handleEditClick = async (emission) => {
+    try {
+      // Fetch the full emission record to ensure we have all data
+      const res = await axios.get(`${API}/emissions/${emission.id}`, {
+        headers: getAuthHeader(),
+      });
+      const fullEmission = res.data;
+      
+      // Set the editing emission and increment form key to force remount
+      setEditingEmission(fullEmission);
+      setFormKey(prev => prev + 1);
+      setDialogOpen(true);
+    } catch (err) {
+      console.error('Failed to fetch emission for editing:', err);
+      // Fall back to using the emission from the list
+      setEditingEmission(emission);
+      setFormKey(prev => prev + 1);
+      setDialogOpen(true);
+    }
+  };
+
+  // Handle successful emission creation/update
   const handleEmissionSuccess = async () => {
     setDialogOpen(false);
     setEditingEmission(null);
     await fetchEmissions();
     toast.success('Emission record saved successfully');
+  };
+
+  // Handle closing dialog
+  const handleCloseDialog = () => {
+    setDialogOpen(false);
+    setEditingEmission(null);
   };
 
   // Calculate totals
@@ -343,10 +373,7 @@ export default function SupplierEmissionsForm() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => {
-                          setEditingEmission(emission);
-                          setDialogOpen(true);
-                        }}
+                        onClick={() => handleEditClick(emission)}
                       >
                         <Edit2 className="h-4 w-4" />
                       </Button>
@@ -361,8 +388,8 @@ export default function SupplierEmissionsForm() {
 
       {/* Add/Edit Emission Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(open) => {
-        setDialogOpen(open);
-        if (!open) setEditingEmission(null);
+        if (!open) handleCloseDialog();
+        else setDialogOpen(open);
       }}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -371,8 +398,9 @@ export default function SupplierEmissionsForm() {
             </DialogTitle>
           </DialogHeader>
           
-          {virtualFacilities.length > 0 && (
+          {virtualFacilities.length > 0 && dialogOpen && (
             <EmissionEntryForm
+              key={formKey}
               facilities={virtualFacilities}
               fuelDatabase={fuelDatabase}
               centralizedUnits={centralizedUnits}
@@ -398,10 +426,7 @@ export default function SupplierEmissionsForm() {
                 supplierOrgId: supplierOrg?.id,
               }}
               onSuccess={handleEmissionSuccess}
-              onCancel={() => {
-                setDialogOpen(false);
-                setEditingEmission(null);
-              }}
+              onCancel={handleCloseDialog}
             />
           )}
         </DialogContent>

@@ -217,6 +217,117 @@ export default function EmissionEntryForm({
     setFugitiveEmissionsData,
   });
 
+  // ============================================================================
+  // EDIT MODE HYDRATION
+  // Auto-populate form fields from editingEmission when editing
+  // This is a simplified version of editEmissionDispatch for standalone use
+  // ============================================================================
+  useEffect(() => {
+    if (!editingEmission) return;
+    
+    // Hydrate basic selection fields (Step 1)
+    if (editingEmission.facility_id) {
+      setFacilityId(editingEmission.facility_id);
+    }
+    if (editingEmission.scope) {
+      setScope(editingEmission.scope);
+    }
+    if (editingEmission.category) {
+      setCategory(editingEmission.category);
+    }
+    if (editingEmission.fuel_database_id) {
+      setFuelId(editingEmission.fuel_database_id);
+    } else if (editingEmission.fuel_type) {
+      // Try to find matching fuel by name
+      const matchingFuel = fuelDatabase.find(f => 
+        f.fuel_name === editingEmission.fuel_type || 
+        f.name === editingEmission.fuel_type
+      );
+      if (matchingFuel) {
+        setFuelId(matchingFuel.id);
+      }
+    }
+    
+    // Hydrate reporting period
+    if (editingEmission.reporting_period) {
+      const rp = editingEmission.reporting_period;
+      // Extract year from reporting period (e.g., "2024-01" or "FY2024")
+      const yearMatch = rp.match(/(\d{4})/);
+      if (yearMatch) {
+        setReportingYear(yearMatch[1]);
+      }
+    }
+    
+    // Hydrate notes
+    if (editingEmission.notes) {
+      setNotes(editingEmission.notes);
+    }
+    
+    // Hydrate responsible person info
+    if (editingEmission.responsible_person) {
+      setResponsiblePerson(editingEmission.responsible_person);
+    }
+    if (editingEmission.responsible_person_designation) {
+      setResponsiblePersonDesignation(editingEmission.responsible_person_designation);
+    }
+    if (editingEmission.responsible_person_contact) {
+      setResponsiblePersonContact(editingEmission.responsible_person_contact);
+    }
+    
+    // Hydrate biogenic scope selection
+    if (editingEmission.scope === 'biogenic' && editingEmission.biogenic_scope_selection) {
+      setBiogenicScopeSelection(editingEmission.biogenic_scope_selection);
+    }
+    
+    // Hydrate Scope 3 fields if applicable
+    if (editingEmission.scope === 'scope3') {
+      if (editingEmission.calculation_method_scope3) {
+        setScope3Method(editingEmission.calculation_method_scope3);
+      }
+      if (editingEmission.scope3_activity_type) {
+        setScope3ActivityType(editingEmission.scope3_activity_type);
+      }
+      if (editingEmission.scope3_activity) {
+        setScope3ActivityId(editingEmission.scope3_activity);
+      }
+    }
+    
+    // Hydrate monthly data for monthly frequency
+    if (editingEmission.frequency_type === 'monthly' || !editingEmission.frequency_type) {
+      const dfv = editingEmission.dynamic_field_values || editingEmission.inputs || {};
+      const monthKey = editingEmission.reporting_period?.split('-')[1]; // e.g., "01" from "2024-01"
+      
+      if (monthKey) {
+        const monthData = {};
+        Object.entries(dfv).forEach(([key, val]) => {
+          if (val && typeof val === 'object' && 'value' in val) {
+            monthData[key] = val.value;
+            if (val.unit) {
+              monthData[`${key}_unit`] = val.unit;
+            }
+          } else {
+            monthData[key] = val;
+          }
+        });
+        
+        // Also include calculated values if they exist
+        if (editingEmission.co2e_emissions !== undefined) {
+          monthData.calculatedCO2e = editingEmission.co2e_emissions;
+        }
+        if (editingEmission.co2_emissions !== undefined) {
+          monthData.calculatedCO2 = editingEmission.co2_emissions;
+        }
+        
+        setMonthlyData(prev => ({
+          ...prev,
+          [monthKey]: monthData
+        }));
+      }
+    }
+    
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingEmission?.id, fuelDatabase]);
+
   // Sync decisionFieldValues + custom-activity auto-enable now live inside
   // useEmissionFormState (F2 integration). The corresponding inline useEffects
   // were removed here.
