@@ -320,6 +320,16 @@ Complete implementation of a new top-level module for supplier ESG and GHG asses
 
 ## Completed Work (Current Session — Dec 2025)
 
+### Simplified Facility Form for Suppliers
+- **Requirement**: Suppliers should only need to provide facility name when creating facilities
+- **Changes**:
+  - Frontend (`/app/frontend/src/pages/Facilities.js`): Added `isSupplier` check using `user.user_type === 'supplier'`
+  - Suppliers see simplified form with only "Facility Name" field
+  - Full form fields hidden until supplier becomes a customer (subscription)
+  - Updated `validateFacilityForm` to only require name for suppliers
+  - Backend (`/app/backend/modules/facilities/contracts.py`): Made `address` field optional (was required)
+- **Status**: ✅ Implemented
+
 ### Supplier GHG Architecture Simplification
 - **Decision**: Suppliers will use the main GHG Emissions flow (same as regular users) instead of a custom form
 - **Rationale**: 

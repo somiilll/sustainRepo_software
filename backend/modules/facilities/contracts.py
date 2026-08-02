@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, field_validator
 
 class FacilityCreate(BaseModel):
     name: str
-    address: str
+    address: Optional[str] = None  # Optional for suppliers, required for regular users (validated in router)
     city: Optional[str] = None
     state: Optional[str] = None
     country: Optional[str] = None
