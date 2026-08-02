@@ -861,6 +861,17 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     record_dict["co2e_emissions"] = outputs.get("co2e", {}).get("value", 0) or 0
     record_dict["total_emissions"] = record_dict["co2e_emissions"]
     
+    # If user is a supplier, mark the emission as supplier-sourced
+    if current_user.get("user_type") == "supplier":
+        record_dict["source"] = "supplier"
+        # Find the supplier relationship linking this supplier org to a customer
+        supplier_rel = await db.supplier_relationships.find_one(
+            {"supplier_org_id": current_user.get("organization_id"), "is_active": True},
+            {"_id": 0, "id": 1}
+        )
+        if supplier_rel:
+            record_dict["supplier_relationship_id"] = supplier_rel["id"]
+    
     created_at = datetime.now(timezone.utc).isoformat()
     record_dict["created_at"] = created_at
     record_dict["updated_at"] = None

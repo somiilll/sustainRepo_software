@@ -192,13 +192,12 @@ export default function SupplierGHGView() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Supplier</TableHead>
-                  <TableHead>Period</TableHead>
+                  <TableHead>Supplier Org</TableHead>
+                  <TableHead>Reporting Period</TableHead>
                   <TableHead>Scope</TableHead>
                   <TableHead>Category</TableHead>
-                  <TableHead>Sub-Category</TableHead>
-                  <TableHead className="text-right">Emissions (tCO2e)</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Subcategory</TableHead>
+                  <TableHead className="text-right">Emissions (tCO₂e)</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -207,19 +206,14 @@ export default function SupplierGHGView() {
                     <TableCell className="font-medium">{emission.supplier_name}</TableCell>
                     <TableCell>{emission.reporting_period}</TableCell>
                     <TableCell>
-                      <Badge variant={emission.scope === 'scope1' ? 'default' : 'secondary'}>
-                        {emission.scope === 'scope1' ? 'Scope 1' : 'Scope 2'}
+                      <Badge variant={emission.scope === 'scope1' ? 'default' : emission.scope === 'scope2' ? 'secondary' : 'outline'}>
+                        {emission.scope === 'scope1' ? 'Scope 1' : emission.scope === 'scope2' ? 'Scope 2' : emission.scope}
                       </Badge>
                     </TableCell>
-                    <TableCell>{emission.category}</TableCell>
-                    <TableCell>{emission.sub_category || '-'}</TableCell>
+                    <TableCell>{emission.category || '-'}</TableCell>
+                    <TableCell>{emission.fuel_type || emission.sub_category || '-'}</TableCell>
                     <TableCell className="text-right font-mono">
-                      {(emission.total_emissions || 0).toFixed(4)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={emission.status === 'submitted' ? 'default' : 'outline'}>
-                        {emission.status || 'draft'}
-                      </Badge>
+                      {(emission.co2e_emissions || emission.total_emissions || 0).toFixed(4)}
                     </TableCell>
                   </TableRow>
                 ))}

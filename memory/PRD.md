@@ -330,6 +330,16 @@ Complete implementation of a new top-level module for supplier ESG and GHG asses
   - Backend (`/app/backend/modules/facilities/contracts.py`): Made `address` field optional (was required)
 - **Status**: ✅ Implemented
 
+### Supplier Emissions Consolidation for Customer Admin
+- **Requirement**: Customer admin should see consolidated view of all supplier GHG emissions
+- **Changes**:
+  - Backend (`/app/backend/modules/emissions/router.py`): When supplier creates emission, automatically set `source: "supplier"` and link to `supplier_relationship_id`
+  - Frontend (`/app/frontend/src/modules/supplier-assessment/SupplierGHGView.jsx`): Updated table columns to show:
+    - Supplier Org | Reporting Period | Scope | Category | Subcategory (fuel_type) | Emissions (tCO₂e)
+  - Removed status column (not needed for supplier view)
+- **Data Flow**: Customer Org → supplier_relationships → Supplier Org IDs → emission_records (by org_id with source=supplier)
+- **Status**: ✅ Implemented
+
 ### Supplier GHG Architecture Simplification
 - **Decision**: Suppliers will use the main GHG Emissions flow (same as regular users) instead of a custom form
 - **Rationale**: 
