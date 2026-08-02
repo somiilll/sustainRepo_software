@@ -375,3 +375,7 @@ Complete implementation of a new top-level module for supplier ESG and GHG asses
 - SOC 2 Compliance Implementation
 - Dynamic ESG Disclosure Engine
 - Sentry Error Monitoring Integration
+
+## Technical Debt / Refactoring (P2)
+- **Emission Form Refactoring**: Refactor Edit and Add emission forms (`EmissionEntryForm.js`, `Emissions.js`, `editEmissionDispatch.js`) to be fully reusable components. Currently tightly coupled with page-level state. Goal: single form component usable across main GHG, supplier portal, and any future contexts.
+- **SuperAdmin Org View**: Add supplier org names visibility to Organizations management page
