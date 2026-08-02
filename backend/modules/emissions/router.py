@@ -936,8 +936,11 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
         
         return EmissionRecordResponse(**record_dict)
     
-    # No approval required - insert directly with approved status
-    record_dict["approval_status"] = "approved"
+    # No approval required - insert directly
+    # For suppliers, don't set approval_status (approval workflow doesn't apply to them)
+    # For regular users, set as "approved"
+    if current_user.get("user_type") != "supplier":
+        record_dict["approval_status"] = "approved"
     await db.emission_records.insert_one(record_dict)
     logger.info(f"[EMISSION_CREATE] Saved directly: record_id={record_dict.get('id')}, co2e={record_dict.get('total_emissions')}")
     
