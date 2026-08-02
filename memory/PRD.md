@@ -415,6 +415,20 @@ Complete implementation of a new top-level module for supplier ESG and GHG asses
   - `/app/frontend/src/components/MyTasks.js` - Removed unused handler functions and navigate import
 - **Status**: ✅ Implemented (Buttons hidden, ready for future re-implementation with proper redirects)
 
+### User Management - Removed Facility Assignment (Deprecated)
+- **Request**: Remove "Assigned Facilities" and "Assign Facility" functionality since it's now workflow-based
+- **Changes**:
+  - `/app/frontend/src/pages/UserManagement.js`:
+    - Removed facility state, fetch, and assignment functions
+    - Removed "Assign Facilities" section from create user dialog
+    - Removed "Assigned Facilities" count from user cards
+    - Removed "Assign Facilities" button from user cards
+    - Removed assign facilities dialog entirely
+    - Simplified user card layout
+    - Updated page subtitle to "Manage organization users"
+    - Added note about workflow assignments in create dialog
+- **Status**: ✅ Implemented (Users now managed via workflow assignments instead)
+
 ## Future Tasks (P2)
 - Materiality Assessment Phase 2+
 - Dashboard Scope 1 & 3 Emissions Deduplication
