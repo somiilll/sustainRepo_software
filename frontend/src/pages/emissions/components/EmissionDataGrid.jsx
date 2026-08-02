@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Button } from '../../../components/ui/button';
+import { Checkbox } from '../../../components/ui/checkbox';
 import { Activity, FileText, Edit, History, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { getStatusDisplay } from '../../../modules/ghg/utils/approvalSchema';
 import { format } from 'date-fns';
@@ -61,6 +62,7 @@ export default function EmissionDataGrid({
   handleEdit,
   fetchHistory,
   openDeleteConfirm,
+  onBulkDelete,
   showFilters,
   filterFacility,
   filterDateRange,
@@ -70,6 +72,9 @@ export default function EmissionDataGrid({
   // Sorting state
   const [sort, setSort] = useState({ key: null, direction: 'desc' });
   
+  // Selection state for bulk delete
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  
   // Handle sort toggle
   const handleSort = (key) => {
     setSort(prev => ({
@@ -77,6 +82,39 @@ export default function EmissionDataGrid({
       direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
     }));
   };
+  
+  // Handle row selection
+  const handleSelectRow = (id) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+  
+  // Handle select all
+  const handleSelectAll = () => {
+    if (selectedIds.size === filteredEmissions.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredEmissions.map(e => e.id)));
+    }
+  };
+  
+  // Handle bulk delete
+  const handleBulkDelete = () => {
+    if (selectedIds.size > 0 && onBulkDelete) {
+      onBulkDelete(Array.from(selectedIds));
+      setSelectedIds(new Set());
+    }
+  };
+  
+  const isAllSelected = filteredEmissions.length > 0 && selectedIds.size === filteredEmissions.length;
+  const isSomeSelected = selectedIds.size > 0 && selectedIds.size < filteredEmissions.length;
   
   // Get facility name for sorting
   const getFacilityName = (emission) => {
@@ -174,9 +212,38 @@ export default function EmissionDataGrid({
 
   return (
     <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
+      {/* Bulk Actions Bar */}
+      {selectedIds.size > 0 && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center justify-between">
+          <span className="text-sm text-amber-800">
+            {selectedIds.size} item{selectedIds.size > 1 ? 's' : ''} selected
+          </span>
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={handleBulkDelete}
+            className="bg-red-600 hover:bg-red-700"
+            data-testid="bulk-delete-btn"
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Delete Selected
+          </Button>
+        </div>
+      )}
+      
       {/* Fixed Header Row */}
       <div className="bg-stone-50 border-b border-stone-200 px-4 py-3 sticky top-0 z-10">
         <div className="flex items-center gap-3 text-xs font-semibold text-stone-600 uppercase tracking-wider">
+          {/* Select All Checkbox */}
+          <div className="w-8 flex-shrink-0 flex items-center justify-center">
+            <Checkbox
+              checked={isAllSelected}
+              onCheckedChange={handleSelectAll}
+              className={isSomeSelected ? 'data-[state=checked]:bg-amber-500' : ''}
+              data-testid="select-all-checkbox"
+            />
+          </div>
+          
           {/* Scope 3 Headers */}
           {activeScope === 'scope3' && (
             <>
@@ -311,9 +378,19 @@ export default function EmissionDataGrid({
           return (
             <div
               key={emission.id}
-              className="px-4 py-3 flex items-center gap-3 hover:bg-green-50/50 transition-colors cursor-pointer group"
+              className={`px-4 py-3 flex items-center gap-3 hover:bg-green-50/50 transition-colors cursor-pointer group ${selectedIds.has(emission.id) ? 'bg-amber-50' : ''}`}
               data-testid={`emission-row-${emission.id}`}
             >
+              {/* Row Checkbox */}
+              <div className="w-8 flex-shrink-0 flex items-center justify-center">
+                <Checkbox
+                  checked={selectedIds.has(emission.id)}
+                  onCheckedChange={() => handleSelectRow(emission.id)}
+                  onClick={(e) => e.stopPropagation()}
+                  data-testid={`select-emission-${emission.id}`}
+                />
+              </div>
+              
               {/* Scope 3 Row */}
               {activeScope === 'scope3' && (
                 <>

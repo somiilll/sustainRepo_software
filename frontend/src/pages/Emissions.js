@@ -2387,6 +2387,34 @@ export default function Emissions() {
     }
   };
 
+  // Bulk delete state and handler
+  const [bulkDeleteIds, setBulkDeleteIds] = useState([]);
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
+
+  const openBulkDeleteConfirm = (ids) => {
+    setBulkDeleteIds(ids);
+    setBulkDeleteConfirmOpen(true);
+  };
+
+  const handleBulkDelete = async () => {
+    if (bulkDeleteIds.length === 0) return;
+    
+    try {
+      // Delete each emission (could be optimized with a bulk delete API)
+      const deletePromises = bulkDeleteIds.map(id =>
+        axios.delete(`${API}/emissions/${id}`, { headers: getAuthHeader() })
+      );
+      
+      await Promise.all(deletePromises);
+      toast.success(`${bulkDeleteIds.length} emission record(s) deleted successfully`);
+      setBulkDeleteConfirmOpen(false);
+      setBulkDeleteIds([]);
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Bulk delete failed');
+    }
+  };
+
   const openDeleteConfirm = (emission) => {
     setEmissionToDelete(emission);
     setDeleteConfirmOpen(true);
@@ -3309,6 +3337,7 @@ export default function Emissions() {
             handleEdit={handleEdit}
             fetchHistory={fetchHistory}
             openDeleteConfirm={openDeleteConfirm}
+            onBulkDelete={openBulkDeleteConfirm}
             showFilters={showFilters}
             filterFacility={filterFacility}
             filterDateRange={filterDateRange}
@@ -3341,6 +3370,31 @@ export default function Emissions() {
                     className="bg-red-600 hover:bg-red-700"
                   >
                     Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            
+            {/* Bulk Delete Confirmation Dialog */}
+            <AlertDialog open={bulkDeleteConfirmOpen} onOpenChange={setBulkDeleteConfirmOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Multiple Emission Records</AlertDialogTitle>
+                  <AlertDialogDescription asChild>
+                    <div>
+                      <span>Are you sure you want to delete <strong>{bulkDeleteIds.length}</strong> emission record(s)? This action cannot be undone.</span>
+                    </div>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel onClick={() => setBulkDeleteConfirmOpen(false)}>
+                    Cancel
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleBulkDelete}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    Delete {bulkDeleteIds.length} Record(s)
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>

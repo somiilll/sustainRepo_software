@@ -224,7 +224,8 @@ export default function UserManagement() {
               <div className="bg-primary/10 p-3 rounded-lg">
                 <Users className="w-6 h-6 text-primary" />
               </div>
-              {user.id !== currentUser?.id && (
+              {/* Only show delete for non-admin users and not for self */}
+              {user.id !== currentUser?.id && user.role !== 'admin' && (
                 <Button
                   size="sm"
                   variant="ghost"
@@ -238,11 +239,14 @@ export default function UserManagement() {
             </div>
             <h3 className="text-xl font-heading font-bold text-text-primary mb-1">{user.full_name}</h3>
             <p className="text-sm text-text-muted mb-2">{user.email}</p>
-            <div className="inline-block px-3 py-1 bg-primary/10 text-primary text-xs font-medium rounded-full mb-4 capitalize">
+            <div className={`inline-block px-3 py-1 text-xs font-medium rounded-full mb-4 capitalize ${
+              user.role === 'admin' ? 'bg-amber-100 text-amber-700' : 'bg-primary/10 text-primary'
+            }`}>
               {user.role}
             </div>
             <div className="pt-4 border-t border-stone-200">
               <p className="text-xs text-text-muted mb-2">Assigned Facilities: {user.assigned_facilities?.length || 0}</p>
+              {/* Only allow facility assignment for regular users, not admins */}
               {user.role === 'user' && (
                 <Button
                   onClick={() => openAssignDialog(user)}
@@ -254,6 +258,9 @@ export default function UserManagement() {
                   <Building2 className="w-4 h-4 mr-2" />
                   Assign Facilities
                 </Button>
+              )}
+              {user.role === 'admin' && user.id !== currentUser?.id && (
+                <p className="text-xs text-amber-600 text-center">Admin user (view only)</p>
               )}
             </div>
           </Card>

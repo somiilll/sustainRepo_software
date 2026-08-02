@@ -96,7 +96,13 @@ async def get_all_users(current_user: dict = Depends(get_admin_user)):
     org_id = current_user.get("organization_id")
     if not org_id:
         return []  # Admin without organization has no users to manage.
-    query = {"organization_id": org_id, "role": "user", "is_deleted": {"$ne": True}}
+    # Include both regular users and admins (so admins can see other admins)
+    # Super admins are excluded as they are platform-level users
+    query = {
+        "organization_id": org_id, 
+        "role": {"$in": ["user", "admin"]},
+        "is_deleted": {"$ne": True}
+    }
     users = await db.users.find(query, {"_id": 0, "password_hash": 0}).to_list(1000)
     return [UserResponse(**u) for u in users]
 
@@ -127,6 +133,9 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_admin_user)
     if current_user["role"] == "admin":
         if user_to_delete.get("organization_id") != current_user.get("organization_id"):
             raise HTTPException(status_code=403, detail="Not authorized to delete users from other organizations")
+        # Admins cannot delete other admins - only super_admin can
+        if user_to_delete.get("role") == "admin":
+            raise HTTPException(status_code=403, detail="Admins cannot delete other admin users")
 
     # Hard delete — same as legacy.
     await db.users.delete_one({"id": user_id})
