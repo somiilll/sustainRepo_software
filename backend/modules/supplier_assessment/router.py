@@ -11,7 +11,7 @@ from modules.supplier_assessment.contracts import (
     SupplierUpdate,
     SupplierResponse,
     SupplierListResponse,
-    RevenuePercentageUpdate,
+    RevenueInfoUpdate,
     QuestionnaireCreate,
     QuestionnaireUpdate,
     QuestionnaireResponse,
@@ -459,10 +459,10 @@ async def get_my_assessment(
 
 @router.put("/my-assessment/revenue")
 async def update_my_revenue(
-    data: RevenuePercentageUpdate,
+    data: RevenueInfoUpdate,
     current_user: dict = Depends(get_supplier_user),
 ):
-    """Supplier updates their revenue percentage."""
+    """Supplier updates their revenue information (percentage and amount)."""
     relationship = await supplier_service.get_supplier_relationship_for_user(
         user_id=current_user["id"],
         user_org_id=current_user["organization_id"],
@@ -471,14 +471,16 @@ async def update_my_revenue(
     if not relationship:
         raise HTTPException(status_code=404, detail="No active supplier relationship found")
     
-    success = await supplier_service.update_revenue_percentage(
+    success = await supplier_service.update_revenue_info(
         relationship_id=relationship["id"],
         supplier_org_id=current_user["organization_id"],
         revenue_percentage=data.revenue_percentage,
+        revenue_amount=data.revenue_amount,
+        revenue_currency=data.revenue_currency,
     )
     
     if success:
-        return {"message": "Revenue percentage updated"}
+        return {"message": "Revenue information updated"}
     raise HTTPException(status_code=400, detail="Failed to update")
 
 

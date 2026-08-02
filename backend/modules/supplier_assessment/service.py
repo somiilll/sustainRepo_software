@@ -322,28 +322,52 @@ class SupplierAssessmentService:
             {"_id": 0}
         )
     
-    async def update_revenue_percentage(
+    async def update_revenue_info(
         self,
         relationship_id: str,
         supplier_org_id: str,
-        revenue_percentage: float,
+        revenue_percentage: Optional[float] = None,
+        revenue_amount: Optional[float] = None,
+        revenue_currency: Optional[str] = None,
     ) -> bool:
-        """Supplier updates their revenue percentage."""
+        """Supplier updates their revenue information (percentage and/or amount)."""
+        update_fields = {
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        
+        if revenue_percentage is not None:
+            update_fields["revenue_percentage"] = revenue_percentage
+        if revenue_amount is not None:
+            update_fields["revenue_amount"] = revenue_amount
+        if revenue_currency is not None:
+            update_fields["revenue_currency"] = revenue_currency
+        
         result = await db.supplier_relationships.update_one(
             {
                 "id": relationship_id,
                 "supplier_org_id": supplier_org_id,
             },
-            {"$set": {
-                "revenue_percentage": revenue_percentage,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            }}
+            {"$set": update_fields}
         )
         
         # Recalculate completion
         await self._update_completion_status(relationship_id)
         
         return result.modified_count > 0
+    
+    # Keep old method for backwards compatibility
+    async def update_revenue_percentage(
+        self,
+        relationship_id: str,
+        supplier_org_id: str,
+        revenue_percentage: float,
+    ) -> bool:
+        """Supplier updates their revenue percentage (deprecated, use update_revenue_info)."""
+        return await self.update_revenue_info(
+            relationship_id=relationship_id,
+            supplier_org_id=supplier_org_id,
+            revenue_percentage=revenue_percentage,
+        )
     
     # ========================================================================
     # Questionnaire Management (Customer Admin)

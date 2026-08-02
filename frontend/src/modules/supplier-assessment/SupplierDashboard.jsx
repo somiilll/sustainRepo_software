@@ -8,6 +8,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../..
 import { Badge } from '../../components/ui/badge';
 import { Progress } from '../../components/ui/progress';
 import { Label } from '../../components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../components/ui/select';
 import { 
   Building2, 
   ClipboardList, 
@@ -17,16 +24,32 @@ import {
   CheckCircle,
   Clock,
   ArrowRight,
+  DollarSign,
+  AlertCircle,
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+
+// Common currency options
+const CURRENCIES = [
+  { code: 'USD', symbol: '$', name: 'US Dollar' },
+  { code: 'EUR', symbol: '€', name: 'Euro' },
+  { code: 'GBP', symbol: '£', name: 'British Pound' },
+  { code: 'INR', symbol: '₹', name: 'Indian Rupee' },
+  { code: 'JPY', symbol: '¥', name: 'Japanese Yen' },
+  { code: 'CNY', symbol: '¥', name: 'Chinese Yuan' },
+  { code: 'AUD', symbol: 'A$', name: 'Australian Dollar' },
+  { code: 'CAD', symbol: 'C$', name: 'Canadian Dollar' },
+];
 
 export default function SupplierDashboard() {
   const { getAuthHeader, user } = useAuth();
   const [assessment, setAssessment] = useState(null);
   const [questionnaires, setQuestionnaires] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [revenueValue, setRevenueValue] = useState('');
+  const [revenuePercentage, setRevenuePercentage] = useState('');
+  const [revenueAmount, setRevenueAmount] = useState('');
+  const [revenueCurrency, setRevenueCurrency] = useState('USD');
   const [saving, setSaving] = useState(false);
 
   const fetchAssessment = useCallback(async () => {
@@ -35,8 +58,15 @@ export default function SupplierDashboard() {
         headers: getAuthHeader(),
       });
       setAssessment(res.data);
-      if (res.data.relationship?.revenue_percentage !== null) {
-        setRevenueValue(res.data.relationship.revenue_percentage.toString());
+      const rel = res.data.relationship;
+      if (rel?.revenue_percentage !== null && rel?.revenue_percentage !== undefined) {
+        setRevenuePercentage(rel.revenue_percentage.toString());
+      }
+      if (rel?.revenue_amount !== null && rel?.revenue_amount !== undefined) {
+        setRevenueAmount(rel.revenue_amount.toString());
+      }
+      if (rel?.revenue_currency) {
+        setRevenueCurrency(rel.revenue_currency);
       }
     } catch (err) {
       if (err.response?.status !== 404) {
@@ -64,9 +94,16 @@ export default function SupplierDashboard() {
   }, [fetchAssessment, fetchQuestionnaires]);
 
   const handleSaveRevenue = async () => {
-    const value = parseFloat(revenueValue);
-    if (isNaN(value) || value < 0 || value > 100) {
+    const percentage = revenuePercentage ? parseFloat(revenuePercentage) : null;
+    const amount = revenueAmount ? parseFloat(revenueAmount) : null;
+    
+    if (percentage !== null && (isNaN(percentage) || percentage < 0 || percentage > 100)) {
       toast.error('Please enter a valid percentage (0-100)');
+      return;
+    }
+    
+    if (amount !== null && (isNaN(amount) || amount < 0)) {
+      toast.error('Please enter a valid amount');
       return;
     }
 
@@ -74,13 +111,17 @@ export default function SupplierDashboard() {
     try {
       await axios.put(
         `${API}/supplier-assessment/my-assessment/revenue`,
-        { revenue_percentage: value },
+        { 
+          revenue_percentage: percentage,
+          revenue_amount: amount,
+          revenue_currency: revenueCurrency,
+        },
         { headers: getAuthHeader() }
       );
-      toast.success('Revenue percentage saved');
+      toast.success('Revenue information saved');
       fetchAssessment();
     } catch (err) {
-      toast.error('Failed to save revenue percentage');
+      toast.error('Failed to save revenue information');
     } finally {
       setSaving(false);
     }
@@ -145,10 +186,21 @@ export default function SupplierDashboard() {
             </div>
             
             <div className="grid grid-cols-3 gap-4 pt-4">
-              <div className="text-center p-4 bg-stone-50 rounded-lg">
-                <Percent className="h-6 w-6 mx-auto text-blue-500 mb-2" />
+              <div className={`text-center p-4 rounded-lg ${
+                relationship.revenue_percentage !== null && relationship.revenue_amount !== null 
+                  ? 'bg-green-50' 
+                  : 'bg-amber-50'
+              }`}>
+                <DollarSign className={`h-6 w-6 mx-auto mb-2 ${
+                  relationship.revenue_percentage !== null && relationship.revenue_amount !== null 
+                    ? 'text-green-500' 
+                    : 'text-amber-500'
+                }`} />
                 <div className="text-lg font-semibold">
-                  {relationship.revenue_percentage !== null ? `${relationship.revenue_percentage}%` : '-'}
+                  {relationship.revenue_percentage !== null && relationship.revenue_amount !== null 
+                    ? <CheckCircle className="h-5 w-5 mx-auto text-green-500" />
+                    : <AlertCircle className="h-5 w-5 mx-auto text-amber-500" />
+                  }
                 </div>
                 <div className="text-xs text-stone-500">Revenue Info</div>
               </div>
@@ -171,38 +223,100 @@ export default function SupplierDashboard() {
         </CardContent>
       </Card>
 
-      {/* Revenue Percentage */}
+      {/* Revenue Information */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Percent className="h-5 w-5 text-blue-500" />
+            <DollarSign className="h-5 w-5 text-blue-500" />
             Revenue Information
+            <Badge variant="outline" className="ml-2 text-xs">Required</Badge>
           </CardTitle>
           <CardDescription>
-            What percentage of your company&apos;s annual revenue comes from {customer_name}?
+            Provide your revenue relationship with {customer_name}. This information is required before submitting your assessment.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-end gap-4">
-            <div className="flex-1 max-w-xs">
-              <Label>Revenue Percentage</Label>
-              <div className="flex items-center gap-2 mt-1">
-                <Input
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.1"
-                  value={revenueValue}
-                  onChange={(e) => setRevenueValue(e.target.value)}
-                  placeholder="Enter percentage"
-                  data-testid="revenue-input"
-                />
-                <span className="text-stone-500">%</span>
+          <div className="space-y-6">
+            {/* Warning if not filled */}
+            {(relationship.revenue_percentage === null || relationship.revenue_amount === null) && (
+              <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-amber-800">Revenue information required</p>
+                  <p className="text-sm text-amber-700 mt-1">
+                    Please complete both the revenue percentage and amount to proceed with your assessment.
+                  </p>
+                </div>
+              </div>
+            )}
+            
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Revenue Percentage */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Percent className="h-4 w-4 text-stone-500" />
+                  Revenue Percentage from {customer_name} *
+                </Label>
+                <p className="text-xs text-stone-500 mb-2">
+                  What percentage of your total annual revenue comes from this customer?
+                </p>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={revenuePercentage}
+                    onChange={(e) => setRevenuePercentage(e.target.value)}
+                    placeholder="e.g., 15.5"
+                    className="max-w-[150px]"
+                    data-testid="revenue-percentage-input"
+                  />
+                  <span className="text-stone-500 font-medium">%</span>
+                </div>
+              </div>
+              
+              {/* Revenue Amount */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-stone-500" />
+                  Annual Revenue Amount from {customer_name} *
+                </Label>
+                <p className="text-xs text-stone-500 mb-2">
+                  What is the total annual revenue you receive from this customer?
+                </p>
+                <div className="flex items-center gap-2">
+                  <Select value={revenueCurrency} onValueChange={setRevenueCurrency}>
+                    <SelectTrigger className="w-[100px]" data-testid="revenue-currency-select">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CURRENCIES.map((c) => (
+                        <SelectItem key={c.code} value={c.code}>
+                          {c.symbol} {c.code}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={revenueAmount}
+                    onChange={(e) => setRevenueAmount(e.target.value)}
+                    placeholder="e.g., 500000"
+                    className="flex-1"
+                    data-testid="revenue-amount-input"
+                  />
+                </div>
               </div>
             </div>
-            <Button onClick={handleSaveRevenue} disabled={saving} data-testid="save-revenue-btn">
-              {saving ? 'Saving...' : 'Save'}
-            </Button>
+            
+            <div className="flex justify-end pt-2">
+              <Button onClick={handleSaveRevenue} disabled={saving} data-testid="save-revenue-btn">
+                {saving ? 'Saving...' : 'Save Revenue Information'}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

@@ -693,6 +693,14 @@ export default function SupplierList() {
                   </p>
                 </div>
                 <div>
+                  <Label className="text-stone-500">Revenue Amount</Label>
+                  <p className="font-medium">
+                    {selectedSupplier.revenue_amount !== null && selectedSupplier.revenue_amount !== undefined
+                      ? `${selectedSupplier.revenue_currency || 'USD'} ${selectedSupplier.revenue_amount.toLocaleString()}`
+                      : 'Not provided'}
+                  </p>
+                </div>
+                <div>
                   <Label className="text-stone-500">Due Date</Label>
                   <p className="font-medium">
                     {selectedSupplier.due_date 

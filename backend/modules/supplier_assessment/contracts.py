@@ -46,6 +46,8 @@ class SupplierResponse(BaseModel):
     contact_email: str
     contact_number: Optional[str] = None
     revenue_percentage: Optional[float] = None
+    revenue_amount: Optional[float] = None
+    revenue_currency: Optional[str] = "USD"
     invitation_status: str  # pending, accepted, completed
     due_date: Optional[str] = None
     last_reminder_sent: Optional[str] = None
@@ -81,9 +83,11 @@ class SupplierListResponse(BaseModel):
 # Supplier Self-Service Schemas
 # ============================================================================
 
-class RevenuePercentageUpdate(BaseModel):
-    """Supplier updates their revenue percentage."""
-    revenue_percentage: float = Field(..., ge=0, le=100)
+class RevenueInfoUpdate(BaseModel):
+    """Supplier updates their revenue information."""
+    revenue_percentage: Optional[float] = Field(None, ge=0, le=100)
+    revenue_amount: Optional[float] = Field(None, ge=0)  # Amount in currency
+    revenue_currency: Optional[str] = "USD"  # Currency code
 
 
 # ============================================================================
