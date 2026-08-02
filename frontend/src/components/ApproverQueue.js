@@ -1089,6 +1089,21 @@ function HistoryViewPanel({ item, onClose, formatDateTime }) {
                 <p className="font-medium bg-stone-50 p-3 rounded">{String(snapshot.value)}</p>
               </div>
             )}
+            
+            {/* BRSR Field-based questions (e.g., sustainable_pct, water_withdrawal, etc.) */}
+            {isBRSR && snapshot.value?.fields && Object.keys(snapshot.value.fields).length > 0 && (
+              <div className="py-2 border-t mt-2">
+                <span className="text-text-muted block mb-2">Response Fields</span>
+                <div className="space-y-2">
+                  {Object.entries(snapshot.value.fields).map(([fieldKey, fieldVal]) => (
+                    <div key={fieldKey} className="flex justify-between py-2 bg-stone-50 px-3 rounded">
+                      <span className="text-text-muted capitalize">{fieldKey.replace(/_/g, ' ')}</span>
+                      <span className="font-medium">{typeof fieldVal === 'object' ? JSON.stringify(fieldVal) : String(fieldVal)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="py-2">
