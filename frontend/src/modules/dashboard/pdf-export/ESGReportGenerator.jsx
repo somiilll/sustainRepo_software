@@ -742,28 +742,27 @@ export class ESGReportGenerator {
     this.doc.setTextColor(COLORS.textMuted);
     this.doc.text(kpi.label.toUpperCase(), x + 5, y + 10);
     
-    // Value
+    // Value + Unit on same line (unit below value to avoid overlap)
     this.doc.setFont('helvetica', 'bold');
-    this.doc.setFontSize(16);
+    this.doc.setFontSize(14);
     this.doc.setTextColor(kpi.color);
     const valueText = kpi.value != null ? this.formatNumber(kpi.value) : 'N/A';
-    this.doc.text(valueText, x + 5, y + 21);
+    this.doc.text(valueText, x + 5, y + 20);
     
-    // Unit
+    // Unit on separate line below value
     if (kpi.unit && kpi.value != null) {
       this.doc.setFont('helvetica', 'normal');
-      this.doc.setFontSize(9);
+      this.doc.setFontSize(7);
       this.doc.setTextColor(COLORS.textMuted);
-      const valueWidth = this.doc.getTextWidth(valueText);
-      this.doc.text(kpi.unit, x + 5 + valueWidth + 2, y + 21);
+      this.doc.text(kpi.unit, x + 5, y + 26);
     }
     
     // Subtitle
     if (kpi.subtitle) {
       this.doc.setFont('helvetica', 'normal');
-      this.doc.setFontSize(7);
+      this.doc.setFontSize(6);
       this.doc.setTextColor(COLORS.textMuted);
-      this.doc.text(kpi.subtitle, x + 5, y + 29);
+      this.doc.text(kpi.subtitle, x + 5, y + 32);
     }
   }
 
@@ -777,71 +776,45 @@ export class ESGReportGenerator {
     const centerX = PAGE.width / 2;
     const maturity = this.getMaturityLevel(this.scores.overall);
     
-    // Overall score section
-    const scoreY = this.currentY + 25;
-    const radius = 25;
+    // Overall score section - using stars instead of circles
+    const scoreY = this.currentY + 20;
     
-    // Background circle
+    // Score display with star rating
     this.doc.setFillColor(COLORS.backgroundAlt);
-    this.doc.setDrawColor(COLORS.border);
-    this.doc.setLineWidth(3);
-    this.doc.circle(centerX, scoreY, radius, 'FD');
-    
-    // Score arc (filled based on score)
-    this.doc.setFillColor(this.getScoreColor(this.scores.overall));
-    this.doc.circle(centerX, scoreY, radius - 5, 'F');
-    
-    // White inner circle
-    this.doc.setFillColor('#FFFFFF');
-    this.doc.circle(centerX, scoreY, radius - 10, 'F');
+    this.doc.roundedRect(centerX - 60, scoreY - 5, 120, 50, 5, 5, 'F');
     
     // Score text
     this.doc.setFont('helvetica', 'bold');
-    this.doc.setFontSize(24);
-    this.doc.setTextColor(COLORS.text);
-    this.doc.text(`${this.scores.overall}`, centerX, scoreY + 3, { align: 'center' });
+    this.doc.setFontSize(36);
+    this.doc.setTextColor(this.getScoreColor(this.scores.overall));
+    this.doc.text(`${this.scores.overall}`, centerX, scoreY + 15, { align: 'center' });
     
     this.doc.setFont('helvetica', 'normal');
-    this.doc.setFontSize(8);
+    this.doc.setFontSize(12);
     this.doc.setTextColor(COLORS.textMuted);
-    this.doc.text('/ 100', centerX, scoreY + 10, { align: 'center' });
+    this.doc.text('/ 100', centerX + 25, scoreY + 15);
+    
+    // Star rating for overall score
+    const starY = scoreY + 30;
+    this.drawStarRating(centerX, starY, maturity.stars, 5);
     
     // Label
     this.doc.setFont('helvetica', 'bold');
     this.doc.setFontSize(11);
     this.doc.setTextColor(COLORS.text);
-    this.doc.text('OVERALL ESG PERFORMANCE', centerX, scoreY + radius + 10, { align: 'center' });
+    this.doc.text('OVERALL ESG PERFORMANCE', centerX, scoreY + 55, { align: 'center' });
     
     // Maturity indicator
-    const maturityY = scoreY + radius + 20;
-    this.doc.setFillColor(COLORS.backgroundAlt);
-    this.doc.roundedRect(centerX - 50, maturityY, 100, 25, 3, 3, 'F');
+    const maturityY = scoreY + 65;
+    this.doc.setFillColor(this.getScoreColor(this.scores.overall));
+    this.doc.roundedRect(centerX - 40, maturityY, 80, 18, 3, 3, 'F');
     
     this.doc.setFont('helvetica', 'bold');
-    this.doc.setFontSize(10);
-    this.doc.setTextColor(COLORS.text);
-    this.doc.text('ESG Maturity', centerX, maturityY + 8, { align: 'center' });
+    this.doc.setFontSize(11);
+    this.doc.setTextColor('#FFFFFF');
+    this.doc.text(maturity.level, centerX, maturityY + 12, { align: 'center' });
     
-    this.doc.setFontSize(12);
-    this.doc.setTextColor(this.getScoreColor(this.scores.overall));
-    this.doc.text(maturity.level, centerX, maturityY + 17, { align: 'center' });
-    
-    // Stars
-    const starY = maturityY + 22;
-    const starSpacing = 8;
-    const startX = centerX - ((maturity.stars - 1) * starSpacing / 2);
-    
-    for (let i = 0; i < 5; i++) {
-      const starX = startX + (i - 2) * starSpacing;
-      if (i < maturity.stars) {
-        this.doc.setFillColor(COLORS.energy);
-      } else {
-        this.doc.setFillColor(COLORS.borderLight);
-      }
-      this.doc.circle(starX, starY, 2.5, 'F');
-    }
-    
-    this.currentY = maturityY + 35;
+    this.currentY = maturityY + 30;
     
     // Pillar scores
     const pillars = [
@@ -921,6 +894,61 @@ export class ESGReportGenerator {
     if (score >= 60) return 'Developing';
     if (score >= 40) return 'Emerging';
     return 'Beginning';
+  }
+
+  drawStarRating(centerX, y, filledStars, totalStars = 5) {
+    const starSpacing = 12;
+    const startX = centerX - ((totalStars - 1) * starSpacing / 2);
+    
+    for (let i = 0; i < totalStars; i++) {
+      const starX = startX + i * starSpacing;
+      const filled = i < filledStars;
+      this.drawStar(starX, y, 5, filled);
+    }
+  }
+
+  drawStar(cx, cy, size, filled) {
+    // Draw a 5-pointed star
+    const points = [];
+    for (let i = 0; i < 10; i++) {
+      const radius = i % 2 === 0 ? size : size * 0.4;
+      const angle = (i * Math.PI / 5) - Math.PI / 2;
+      points.push({
+        x: cx + radius * Math.cos(angle),
+        y: cy + radius * Math.sin(angle)
+      });
+    }
+    
+    if (filled) {
+      this.doc.setFillColor(COLORS.energy);
+    } else {
+      this.doc.setFillColor(COLORS.borderLight);
+    }
+    
+    // Draw star as polygon
+    this.doc.setDrawColor(filled ? COLORS.energy : COLORS.borderLight);
+    this.doc.setLineWidth(0.3);
+    
+    // Move to first point
+    let path = `M ${points[0].x} ${points[0].y}`;
+    for (let i = 1; i < points.length; i++) {
+      path += ` L ${points[i].x} ${points[i].y}`;
+    }
+    path += ' Z';
+    
+    // Use triangle approximation for jsPDF (simplified star)
+    this.doc.triangle(
+      cx, cy - size,
+      cx - size * 0.6, cy + size * 0.4,
+      cx + size * 0.6, cy + size * 0.4,
+      filled ? 'F' : 'S'
+    );
+    this.doc.triangle(
+      cx, cy + size * 0.6,
+      cx - size * 0.8, cy - size * 0.3,
+      cx + size * 0.8, cy - size * 0.3,
+      filled ? 'F' : 'S'
+    );
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1153,39 +1181,36 @@ export class ESGReportGenerator {
         title: 'ENVIRONMENTAL',
         subtitle: 'Emissions, Energy, Water & Waste Performance',
         color: COLORS.environmental,
-        icon: 'E',
         summary: this.generateEnvironmentalSummary(),
         kpis: [
           { label: 'Total Emissions', value: this.formatNumber(this.data.totalEmissions), unit: this.getCO2Unit() },
-          { label: 'Renewable Energy', value: `${this.data.renewablePct.toFixed(1)}%`, unit: '' },
+          { label: 'Renewable Energy', value: `${this.data.renewablePct.toFixed(1)}`, unit: '%' },
           { label: 'Water Recycled', value: this.formatNumber(this.data.waterRecycled), unit: 'KL' },
-          { label: 'Waste Recovery', value: this.data.wasteRecoveryRate ? `${this.data.wasteRecoveryRate.toFixed(0)}%` : 'N/A', unit: '' },
+          { label: 'Waste Recovery', value: this.data.wasteRecoveryRate ? `${this.data.wasteRecoveryRate.toFixed(0)}` : 'N/A', unit: this.data.wasteRecoveryRate ? '%' : '' },
         ],
       },
       social: {
         title: 'SOCIAL',
         subtitle: 'Workforce, Safety & Community Performance',
         color: COLORS.social,
-        icon: 'S',
         summary: this.generateSocialSummary(),
         kpis: [
           { label: 'Total Employees', value: this.formatNumber(this.data.employees), unit: '' },
           { label: 'LTIFR', value: this.data.ltifr != null ? this.data.ltifr.toFixed(2) : 'N/A', unit: '' },
-          { label: 'Turnover Rate', value: this.data.turnover != null ? `${this.data.turnover.toFixed(1)}%` : 'N/A', unit: '' },
-          { label: 'Female Workforce', value: this.data.diversityPct != null ? `${this.data.diversityPct.toFixed(0)}%` : 'N/A', unit: '' },
+          { label: 'Turnover Rate', value: this.data.turnover != null ? `${this.data.turnover.toFixed(1)}` : 'N/A', unit: this.data.turnover != null ? '%' : '' },
+          { label: 'Female Workforce', value: this.data.diversityPct != null ? `${this.data.diversityPct.toFixed(0)}` : 'N/A', unit: this.data.diversityPct != null ? '%' : '' },
         ],
       },
       governance: {
         title: 'GOVERNANCE',
         subtitle: 'Ethics, Compliance & Financial Performance',
         color: COLORS.governance,
-        icon: 'G',
         summary: this.generateGovernanceSummary(),
         kpis: [
-          { label: 'AP Days', value: this.data.apDays != null ? `${Math.round(this.data.apDays)}` : 'N/A', unit: 'days' },
+          { label: 'AP Days', value: this.data.apDays != null ? `${Math.round(this.data.apDays)}` : 'N/A', unit: this.data.apDays != null ? 'days' : '' },
           { label: 'Score', value: `${this.scores.governance}`, unit: '/100' },
           { label: 'Rating', value: this.getScoreRating(this.scores.governance), unit: '' },
-          { label: 'Completeness', value: `${this.completeness.governance}%`, unit: '' },
+          { label: 'Completeness', value: `${this.completeness.governance}`, unit: '%' },
         ],
       },
     };
@@ -1193,50 +1218,36 @@ export class ESGReportGenerator {
     const config = configs[section];
     const centerX = PAGE.width / 2;
     
-    // Background pattern
+    // Top banner with title
     this.doc.setFillColor(config.color);
-    this.doc.setGState(new this.doc.GState({ opacity: 0.05 }));
-    this.doc.rect(0, 0, PAGE.width, PAGE.height, 'F');
-    this.doc.setGState(new this.doc.GState({ opacity: 1 }));
-    
-    // Top banner
-    this.doc.setFillColor(config.color);
-    this.doc.rect(0, 40, PAGE.width, 60, 'F');
-    
-    // Icon circle
-    this.doc.setFillColor('#FFFFFF');
-    this.doc.circle(centerX, 70, 20, 'F');
-    this.doc.setFont('helvetica', 'bold');
-    this.doc.setFontSize(24);
-    this.doc.setTextColor(config.color);
-    this.doc.text(config.icon, centerX, 77, { align: 'center' });
+    this.doc.rect(0, 25, PAGE.width, 50, 'F');
     
     // Title
     this.doc.setFont('helvetica', 'bold');
-    this.doc.setFontSize(24);
+    this.doc.setFontSize(28);
     this.doc.setTextColor('#FFFFFF');
-    this.doc.text(config.title, centerX, 55, { align: 'center' });
+    this.doc.text(config.title, centerX, 50, { align: 'center' });
     
     // Subtitle
     this.doc.setFont('helvetica', 'normal');
-    this.doc.setFontSize(10);
-    this.doc.text(config.subtitle, centerX, 95, { align: 'center' });
+    this.doc.setFontSize(11);
+    this.doc.text(config.subtitle, centerX, 65, { align: 'center' });
     
-    // Summary
-    this.currentY = 115;
+    // Summary - FULL WIDTH
+    this.currentY = 90;
     this.doc.setFillColor(COLORS.backgroundAlt);
-    this.doc.roundedRect(PAGE.margin, this.currentY, PAGE.contentWidth, 35, 3, 3, 'F');
+    this.doc.roundedRect(PAGE.margin, this.currentY, PAGE.contentWidth, 40, 3, 3, 'F');
     
     this.doc.setFont('helvetica', 'normal');
     this.doc.setFontSize(9);
     this.doc.setTextColor(COLORS.text);
     const summaryLines = this.doc.splitTextToSize(config.summary, PAGE.contentWidth - 20);
-    this.doc.text(summaryLines, PAGE.margin + 10, this.currentY + 12);
+    this.doc.text(summaryLines, PAGE.margin + 10, this.currentY + 15);
     
-    // KPI Cards
-    this.currentY = 165;
+    // KPI Cards - 2x2 grid
+    this.currentY = 145;
     const cardWidth = (PAGE.contentWidth - 15) / 2;
-    const cardHeight = 35;
+    const cardHeight = 40;
     
     config.kpis.forEach((kpi, index) => {
       const row = Math.floor(index / 2);
@@ -1258,17 +1269,18 @@ export class ESGReportGenerator {
       this.doc.setTextColor(COLORS.textMuted);
       this.doc.text(kpi.label.toUpperCase(), x + 5, y + 12);
       
+      // Value
       this.doc.setFont('helvetica', 'bold');
-      this.doc.setFontSize(16);
+      this.doc.setFontSize(18);
       this.doc.setTextColor(config.color);
-      this.doc.text(kpi.value, x + 5, y + 25);
+      this.doc.text(kpi.value, x + 5, y + 26);
       
+      // Unit on separate line
       if (kpi.unit) {
         this.doc.setFont('helvetica', 'normal');
-        this.doc.setFontSize(9);
+        this.doc.setFontSize(8);
         this.doc.setTextColor(COLORS.textMuted);
-        const valueWidth = this.doc.getTextWidth(kpi.value);
-        this.doc.text(kpi.unit, x + 5 + valueWidth + 2, y + 25);
+        this.doc.text(kpi.unit, x + 5, y + 34);
       }
     });
   }
@@ -1328,8 +1340,8 @@ export class ESGReportGenerator {
   async addEmissionsSection() {
     this.addPageTitle('Emissions', COLORS.emissions);
     
-    // Chart (larger)
-    await this.addChartFromRef('ghg-emission-trend', 'GHG Emission Trend', 90);
+    // Chart with proper height to avoid cutoff
+    await this.addChartFromRef('ghg-emission-trend', 'GHG Emission Trend', 75);
     
     // Chart interpretation with benchmarks
     this.addChartInterpretation(this.generateEmissionsInterpretation());
@@ -2258,18 +2270,21 @@ export class ESGReportGenerator {
           btn.style.visibility = 'hidden';
         });
         
+        // Add padding to ensure chart edges are captured
         const capturePromise = html2canvas(chartElement, {
-          scale: 1.5,
+          scale: 2,
           backgroundColor: '#FFFFFF',
           logging: false,
           useCORS: true,
           allowTaint: true,
           foreignObjectRendering: false,
           removeContainer: true,
+          windowWidth: chartElement.scrollWidth + 20,
+          windowHeight: chartElement.scrollHeight + 20,
         });
         
         const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Timeout')), 8000)
+          setTimeout(() => reject(new Error('Timeout')), 10000)
         );
         
         const canvas = await Promise.race([capturePromise, timeoutPromise]);
@@ -2278,24 +2293,28 @@ export class ESGReportGenerator {
           btn.style.visibility = originalVisibility[i] || 'visible';
         });
         
-        const imgData = canvas.toDataURL('image/jpeg', 0.85);
+        const imgData = canvas.toDataURL('image/jpeg', 0.9);
         const aspectRatio = canvas.width / canvas.height;
-        let imgWidth = PAGE.contentWidth;
+        let imgWidth = PAGE.contentWidth - 4;
         let imgHeight = imgWidth / aspectRatio;
         
+        // Ensure chart fits within max height
         if (imgHeight > maxHeight) {
           imgHeight = maxHeight;
           imgWidth = imgHeight * aspectRatio;
         }
         
-        this.checkPageBreak(imgHeight + 5);
+        this.checkPageBreak(imgHeight + 10);
+        
+        // Center the chart if narrower than content width
+        const chartX = PAGE.margin + (PAGE.contentWidth - imgWidth) / 2;
         
         this.doc.setDrawColor(COLORS.borderLight);
         this.doc.setLineWidth(0.3);
-        this.doc.roundedRect(PAGE.margin, this.currentY, PAGE.contentWidth, imgHeight + 4, 2, 2, 'S');
+        this.doc.roundedRect(PAGE.margin, this.currentY, PAGE.contentWidth, imgHeight + 6, 2, 2, 'S');
         
-        this.doc.addImage(imgData, 'JPEG', PAGE.margin + 2, this.currentY + 2, imgWidth - 4, imgHeight);
-        this.currentY += imgHeight + 8;
+        this.doc.addImage(imgData, 'JPEG', chartX, this.currentY + 3, imgWidth, imgHeight);
+        this.currentY += imgHeight + 12;
         
         return true;
       } catch (error) {
