@@ -16,7 +16,7 @@ export function useESGReportExport() {
     setError(null);
 
     try {
-      setProgress(10);
+      setProgress(5);
       
       // Create generator instance
       const generator = new ESGReportGenerator({
@@ -31,10 +31,15 @@ export function useESGReportExport() {
         productionQty: options.productionQty,
       });
 
-      setProgress(30);
+      setProgress(10);
 
-      // Generate the PDF
-      await generator.generate();
+      // Generate the PDF with timeout protection
+      const generatePromise = generator.generate();
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('PDF generation timeout - took too long')), 60000)
+      );
+      
+      await Promise.race([generatePromise, timeoutPromise]);
 
       setProgress(90);
 

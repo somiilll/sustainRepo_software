@@ -95,27 +95,69 @@ export class ESGReportGenerator {
       
       // 4. Emissions Section
       this.addNewPage();
-      await this.addEmissionsSection();
+      try {
+        await this.addEmissionsSection();
+      } catch (e) {
+        console.warn('Emissions section error:', e);
+        this.addSectionTitle('4. Emissions');
+        this.doc.text('Unable to generate emissions section.', PAGE.margin, this.currentY);
+        this.currentY += 10;
+      }
       
       // 5. Energy Section
       this.addNewPage();
-      await this.addEnergySection();
+      try {
+        await this.addEnergySection();
+      } catch (e) {
+        console.warn('Energy section error:', e);
+        this.addSectionTitle('5. Energy');
+        this.doc.text('Unable to generate energy section.', PAGE.margin, this.currentY);
+        this.currentY += 10;
+      }
       
       // 6. Water Section
       this.addNewPage();
-      await this.addWaterSection();
+      try {
+        await this.addWaterSection();
+      } catch (e) {
+        console.warn('Water section error:', e);
+        this.addSectionTitle('6. Water');
+        this.doc.text('Unable to generate water section.', PAGE.margin, this.currentY);
+        this.currentY += 10;
+      }
       
       // 7. Waste Section
       this.addNewPage();
-      await this.addWasteSection();
+      try {
+        await this.addWasteSection();
+      } catch (e) {
+        console.warn('Waste section error:', e);
+        this.addSectionTitle('7. Waste');
+        this.doc.text('Unable to generate waste section.', PAGE.margin, this.currentY);
+        this.currentY += 10;
+      }
       
       // 8. Social Section
       this.addNewPage();
-      await this.addSocialSection();
+      try {
+        await this.addSocialSection();
+      } catch (e) {
+        console.warn('Social section error:', e);
+        this.addSectionTitle('8. Social');
+        this.doc.text('Unable to generate social section.', PAGE.margin, this.currentY);
+        this.currentY += 10;
+      }
       
       // 9. Governance Section
       this.addNewPage();
-      await this.addGovernanceSection();
+      try {
+        await this.addGovernanceSection();
+      } catch (e) {
+        console.warn('Governance section error:', e);
+        this.addSectionTitle('9. Governance');
+        this.doc.text('Unable to generate governance section.', PAGE.margin, this.currentY);
+        this.currentY += 10;
+      }
       
       // 10. Performance Summary
       this.addNewPage();
@@ -1134,12 +1176,22 @@ export class ESGReportGenerator {
         const buttons = chartElement.querySelectorAll('button');
         buttons.forEach(btn => btn.style.visibility = 'hidden');
         
-        const canvas = await html2canvas(chartElement, {
+        // Add timeout to prevent hanging
+        const capturePromise = html2canvas(chartElement, {
           scale: 2,
           backgroundColor: '#FFFFFF',
           logging: false,
           useCORS: true,
+          allowTaint: true,
+          foreignObjectRendering: false,
         });
+        
+        // Timeout after 5 seconds
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Chart capture timeout')), 5000)
+        );
+        
+        const canvas = await Promise.race([capturePromise, timeoutPromise]);
         
         // Restore buttons
         buttons.forEach(btn => btn.style.visibility = 'visible');
@@ -1162,6 +1214,13 @@ export class ESGReportGenerator {
         this.currentY += imgHeight + 3;
       } catch (error) {
         console.warn(`Could not capture chart: ${testId}`, error);
+        // Restore buttons on error
+        try {
+          const buttons = chartElement.querySelectorAll('button');
+          buttons.forEach(btn => btn.style.visibility = 'visible');
+        } catch (e) {
+          // Ignore button restoration errors
+        }
         this.addChartPlaceholder(title, maxHeight * 0.6);
       }
     } else {
