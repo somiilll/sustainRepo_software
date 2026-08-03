@@ -776,47 +776,39 @@ export class ESGReportGenerator {
     const centerX = PAGE.width / 2;
     const maturity = this.getMaturityLevel(this.scores.overall);
     
-    // Overall score section - using stars instead of circles
-    const scoreY = this.currentY + 20;
+    // Overall score section - clean centered display
+    const scoreY = this.currentY + 15;
     
-    // Score display with star rating
+    // Score card background
     this.doc.setFillColor(COLORS.backgroundAlt);
-    this.doc.roundedRect(centerX - 60, scoreY - 5, 120, 50, 5, 5, 'F');
+    this.doc.roundedRect(PAGE.margin, scoreY - 10, PAGE.contentWidth, 70, 5, 5, 'F');
     
-    // Score text
+    // Score number
     this.doc.setFont('helvetica', 'bold');
-    this.doc.setFontSize(36);
+    this.doc.setFontSize(48);
     this.doc.setTextColor(this.getScoreColor(this.scores.overall));
-    this.doc.text(`${this.scores.overall}`, centerX, scoreY + 15, { align: 'center' });
+    this.doc.text(`${this.scores.overall}`, centerX - 15, scoreY + 20, { align: 'center' });
     
     this.doc.setFont('helvetica', 'normal');
-    this.doc.setFontSize(12);
+    this.doc.setFontSize(14);
     this.doc.setTextColor(COLORS.textMuted);
-    this.doc.text('/ 100', centerX + 25, scoreY + 15);
+    this.doc.text('/ 100', centerX + 20, scoreY + 20);
     
-    // Star rating for overall score
-    const starY = scoreY + 30;
-    this.drawStarRating(centerX, starY, maturity.stars, 5);
+    // Star rating row - using filled/empty circles for cleaner look
+    const starY = scoreY + 35;
+    this.drawSimpleStarRating(centerX, starY, maturity.stars, 5);
     
-    // Label
-    this.doc.setFont('helvetica', 'bold');
-    this.doc.setFontSize(11);
-    this.doc.setTextColor(COLORS.text);
-    this.doc.text('OVERALL ESG PERFORMANCE', centerX, scoreY + 55, { align: 'center' });
-    
-    // Maturity indicator
-    const maturityY = scoreY + 65;
+    // Maturity label
     this.doc.setFillColor(this.getScoreColor(this.scores.overall));
-    this.doc.roundedRect(centerX - 40, maturityY, 80, 18, 3, 3, 'F');
-    
+    this.doc.roundedRect(centerX - 35, scoreY + 42, 70, 16, 3, 3, 'F');
     this.doc.setFont('helvetica', 'bold');
-    this.doc.setFontSize(11);
+    this.doc.setFontSize(10);
     this.doc.setTextColor('#FFFFFF');
-    this.doc.text(maturity.level, centerX, maturityY + 12, { align: 'center' });
+    this.doc.text(maturity.level, centerX, scoreY + 53, { align: 'center' });
     
-    this.currentY = maturityY + 30;
+    this.currentY = scoreY + 75;
     
-    // Pillar scores
+    // Pillar scores - 3 cards in a row
     const pillars = [
       { label: 'Environmental', score: this.scores.environmental, color: COLORS.environmental },
       { label: 'Social', score: this.scores.social, color: COLORS.social },
@@ -827,15 +819,15 @@ export class ESGReportGenerator {
     let pillarX = PAGE.margin;
     
     pillars.forEach((pillar) => {
-      this.drawPillarScore(pillarX, this.currentY, pillarWidth, pillar);
+      this.drawPillarScoreCard(pillarX, this.currentY, pillarWidth, pillar);
       pillarX += pillarWidth + 10;
     });
     
-    this.currentY += 70;
+    this.currentY += 75;
     
-    // Score interpretation
+    // Score interpretation - full width
     this.doc.setFillColor(COLORS.backgroundAlt);
-    this.doc.roundedRect(PAGE.margin, this.currentY, PAGE.contentWidth, 35, 2, 2, 'F');
+    this.doc.roundedRect(PAGE.margin, this.currentY, PAGE.contentWidth, 40, 2, 2, 'F');
     
     this.doc.setFont('helvetica', 'bold');
     this.doc.setFontSize(9);
@@ -847,38 +839,89 @@ export class ESGReportGenerator {
     this.doc.setTextColor(COLORS.textMuted);
     this.doc.text('90-100: Leading  |  75-89: Advanced  |  60-74: Developing  |  40-59: Emerging  |  Below 40: Beginning', PAGE.margin + 5, this.currentY + 20);
     this.doc.text('Scores are calculated based on industry benchmarks, regulatory frameworks, and sustainability best practices.', PAGE.margin + 5, this.currentY + 28);
+    this.doc.text('Environmental (40%), Social (35%), and Governance (25%) are weighted to determine the overall ESG score.', PAGE.margin + 5, this.currentY + 36);
   }
 
-  drawPillarScore(x, y, width, pillar) {
-    const height = 55;
+  drawSimpleStarRating(centerX, y, filledStars, totalStars = 5) {
+    const starSpacing = 14;
+    const startX = centerX - ((totalStars - 1) * starSpacing / 2);
     
-    // Card
+    for (let i = 0; i < totalStars; i++) {
+      const starX = startX + i * starSpacing;
+      const filled = i < filledStars;
+      
+      // Use filled/empty stars with proper shape
+      if (filled) {
+        this.doc.setFillColor(COLORS.energy);
+        this.doc.setDrawColor(COLORS.energy);
+      } else {
+        this.doc.setFillColor('#E5E7EB');
+        this.doc.setDrawColor('#D1D5DB');
+      }
+      
+      // Draw a simple 5-pointed star shape
+      this.drawFivePointStar(starX, y, 5, filled);
+    }
+  }
+
+  drawFivePointStar(cx, cy, outerRadius, filled) {
+    const innerRadius = outerRadius * 0.4;
+    const points = [];
+    
+    // Calculate star points
+    for (let i = 0; i < 10; i++) {
+      const radius = i % 2 === 0 ? outerRadius : innerRadius;
+      const angle = (i * Math.PI / 5) - Math.PI / 2;
+      points.push({
+        x: cx + radius * Math.cos(angle),
+        y: cy + radius * Math.sin(angle)
+      });
+    }
+    
+    // Draw star using lines
+    this.doc.setLineWidth(0.5);
+    
+    // Create path
+    this.doc.lines(
+      points.slice(1).map((p, i) => [p.x - points[i].x, p.y - points[i].y]),
+      points[0].x,
+      points[0].y,
+      [1, 1],
+      filled ? 'F' : 'S',
+      true
+    );
+  }
+
+  drawPillarScoreCard(x, y, width, pillar) {
+    const height = 60;
+    
+    // Card background
     this.doc.setFillColor('#FFFFFF');
     this.doc.setDrawColor(pillar.color);
     this.doc.setLineWidth(1);
     this.doc.roundedRect(x, y, width, height, 3, 3, 'FD');
     
-    // Top bar
+    // Top color bar
     this.doc.setFillColor(pillar.color);
-    this.doc.rect(x, y, width, 4, 'F');
+    this.doc.rect(x, y, width, 5, 'F');
     
     // Label
     this.doc.setFont('helvetica', 'bold');
     this.doc.setFontSize(9);
     this.doc.setTextColor(pillar.color);
-    this.doc.text(pillar.label, x + width/2, y + 15, { align: 'center' });
+    this.doc.text(pillar.label, x + width/2, y + 18, { align: 'center' });
     
     // Score
     this.doc.setFont('helvetica', 'bold');
-    this.doc.setFontSize(22);
+    this.doc.setFontSize(24);
     this.doc.setTextColor(COLORS.text);
-    this.doc.text(`${pillar.score}`, x + width/2, y + 38, { align: 'center' });
+    this.doc.text(`${pillar.score}`, x + width/2, y + 40, { align: 'center' });
     
-    // Rating
+    // Rating text
     this.doc.setFont('helvetica', 'normal');
     this.doc.setFontSize(8);
     this.doc.setTextColor(this.getScoreColor(pillar.score));
-    this.doc.text(this.getScoreRating(pillar.score), x + width/2, y + 48, { align: 'center' });
+    this.doc.text(this.getScoreRating(pillar.score), x + width/2, y + 52, { align: 'center' });
   }
 
   getScoreColor(score) {
@@ -894,61 +937,6 @@ export class ESGReportGenerator {
     if (score >= 60) return 'Developing';
     if (score >= 40) return 'Emerging';
     return 'Beginning';
-  }
-
-  drawStarRating(centerX, y, filledStars, totalStars = 5) {
-    const starSpacing = 12;
-    const startX = centerX - ((totalStars - 1) * starSpacing / 2);
-    
-    for (let i = 0; i < totalStars; i++) {
-      const starX = startX + i * starSpacing;
-      const filled = i < filledStars;
-      this.drawStar(starX, y, 5, filled);
-    }
-  }
-
-  drawStar(cx, cy, size, filled) {
-    // Draw a 5-pointed star
-    const points = [];
-    for (let i = 0; i < 10; i++) {
-      const radius = i % 2 === 0 ? size : size * 0.4;
-      const angle = (i * Math.PI / 5) - Math.PI / 2;
-      points.push({
-        x: cx + radius * Math.cos(angle),
-        y: cy + radius * Math.sin(angle)
-      });
-    }
-    
-    if (filled) {
-      this.doc.setFillColor(COLORS.energy);
-    } else {
-      this.doc.setFillColor(COLORS.borderLight);
-    }
-    
-    // Draw star as polygon
-    this.doc.setDrawColor(filled ? COLORS.energy : COLORS.borderLight);
-    this.doc.setLineWidth(0.3);
-    
-    // Move to first point
-    let path = `M ${points[0].x} ${points[0].y}`;
-    for (let i = 1; i < points.length; i++) {
-      path += ` L ${points[i].x} ${points[i].y}`;
-    }
-    path += ' Z';
-    
-    // Use triangle approximation for jsPDF (simplified star)
-    this.doc.triangle(
-      cx, cy - size,
-      cx - size * 0.6, cy + size * 0.4,
-      cx + size * 0.6, cy + size * 0.4,
-      filled ? 'F' : 'S'
-    );
-    this.doc.triangle(
-      cx, cy + size * 0.6,
-      cx - size * 0.8, cy - size * 0.3,
-      cx + size * 0.8, cy - size * 0.3,
-      filled ? 'F' : 'S'
-    );
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1340,15 +1328,13 @@ export class ESGReportGenerator {
   async addEmissionsSection() {
     this.addPageTitle('Emissions', COLORS.emissions);
     
-    // Chart with proper height to avoid cutoff
-    await this.addChartFromRef('ghg-emission-trend', 'GHG Emission Trend', 75);
+    // Analysis FIRST - full width at top
+    this.addAnalysisBox(this.generateEmissionsInterpretation());
     
-    // Chart interpretation with benchmarks
-    this.addChartInterpretation(this.generateEmissionsInterpretation());
+    // Chart - full width
+    await this.addChartFromRef('ghg-emission-trend', 'GHG Emission Trend', 70);
     
-    this.currentY += 8;
-    
-    // Summary table with percentages
+    // Summary table - full width
     this.addSubsectionTitle('Scope Breakdown');
     
     const tableData = [
@@ -1359,7 +1345,7 @@ export class ESGReportGenerator {
       ['Total', this.formatNumber(this.data.totalEmissions), '100%'],
     ];
     
-    this.addStyledTable(tableData, [70, 55, 55], COLORS.emissions);
+    this.addFullWidthTable(tableData, COLORS.emissions);
   }
 
   generateEmissionsInterpretation() {
@@ -1387,13 +1373,13 @@ export class ESGReportGenerator {
   async addEnergySection() {
     this.addPageTitle('Energy', COLORS.energy);
     
-    await this.addChartFromRef('energy-mix-chart', 'Energy Mix', 90);
+    // Analysis FIRST - full width at top
+    this.addAnalysisBox(this.generateEnergyInterpretation());
     
-    this.addChartInterpretation(this.generateEnergyInterpretation());
+    // Chart - full width
+    await this.addChartFromRef('energy-mix-chart', 'Energy Mix', 70);
     
-    this.currentY += 8;
-    
-    // Summary
+    // Summary table - full width
     this.addSubsectionTitle('Energy Summary');
     
     const energyIntensity = this.productionQty ? this.data.totalEnergy / this.productionQty : null;
@@ -1406,7 +1392,7 @@ export class ESGReportGenerator {
       ['Energy Intensity', energyIntensity ? `${energyIntensity.toFixed(2)} MWh/${this.productionUnit}` : 'N/A', '-'],
     ];
     
-    this.addStyledTable(tableData, [60, 50, 60], COLORS.energy);
+    this.addFullWidthTable(tableData, COLORS.energy);
   }
 
   generateEnergyInterpretation() {
@@ -1427,13 +1413,13 @@ export class ESGReportGenerator {
   async addWaterSection() {
     this.addPageTitle('Water', COLORS.water);
     
-    await this.addChartFromRef('water-flow-chart', 'Water Flow', 90);
+    // Analysis FIRST - full width at top
+    this.addAnalysisBox(this.generateWaterInterpretation());
     
-    this.addChartInterpretation(this.generateWaterInterpretation());
+    // Chart - full width
+    await this.addChartFromRef('water-flow-chart', 'Water Flow', 70);
     
-    this.currentY += 8;
-    
-    // Summary
+    // Summary table - full width
     this.addSubsectionTitle('Water Summary');
     
     const tableData = [
@@ -1445,7 +1431,7 @@ export class ESGReportGenerator {
       ['Recycle Rate', this.data.waterRecycleRate ? `${this.data.waterRecycleRate.toFixed(1)}%` : 'Insufficient data', this.data.waterRecycleRate >= BENCHMARKS.waterRecycle.excellent ? 'Strong' : ''],
     ];
     
-    this.addStyledTable(tableData, [55, 50, 65], COLORS.water);
+    this.addFullWidthTable(tableData, COLORS.water);
   }
 
   generateWaterInterpretation() {
@@ -1468,13 +1454,13 @@ export class ESGReportGenerator {
   async addWasteSection() {
     this.addPageTitle('Waste', COLORS.waste);
     
-    await this.addChartFromRef('waste-management-chart', 'Waste Management', 90);
+    // Analysis FIRST - full width at top
+    this.addAnalysisBox(this.generateWasteInterpretation());
     
-    this.addChartInterpretation(this.generateWasteInterpretation());
+    // Chart - full width
+    await this.addChartFromRef('waste-management-chart', 'Waste Management', 70);
     
-    this.currentY += 8;
-    
-    // Summary
+    // Summary table - full width
     this.addSubsectionTitle('Waste Summary');
     
     const tableData = [
@@ -1484,7 +1470,7 @@ export class ESGReportGenerator {
       ['Disposed', this.data.wasteDisposed > 0 ? this.formatNumber(this.data.wasteDisposed) : 'Not reported', this.data.wasteGenerated > 0 ? `${((this.data.wasteDisposed / this.data.wasteGenerated) * 100).toFixed(1)}%` : '-'],
     ];
     
-    this.addStyledTable(tableData, [55, 55, 60], COLORS.waste);
+    this.addFullWidthTable(tableData, COLORS.waste);
   }
 
   generateWasteInterpretation() {
@@ -1507,7 +1493,10 @@ export class ESGReportGenerator {
   async addSocialSection() {
     this.addPageTitle('Workforce & Safety', COLORS.social);
     
-    // Workforce KPIs
+    // Analysis FIRST - full width at top
+    this.addAnalysisBox(this.generateSocialInterpretation());
+    
+    // Workforce KPIs table - full width
     this.addSubsectionTitle('Workforce Overview');
     
     const workforceData = [
@@ -1518,17 +1507,12 @@ export class ESGReportGenerator {
       ['LTIFR', this.data.ltifr != null ? this.data.ltifr.toFixed(2) : 'Not reported', `Target: <${BENCHMARKS.ltifr.good}`],
     ];
     
-    this.addStyledTable(workforceData, [60, 50, 60], COLORS.social);
+    this.addFullWidthTable(workforceData, COLORS.social);
     
-    this.currentY += 8;
+    // LTIFR Trend chart - full width
+    await this.addChartFromRef('ltifr-trend-chart', 'LTIFR Trend', 65);
     
-    // LTIFR Trend
-    await this.addChartFromRef('ltifr-trend-chart', 'LTIFR Trend', 70);
-    
-    this.addChartInterpretation(this.generateSocialInterpretation());
-    
-    // Incidents
-    this.currentY += 5;
+    // Incidents table - full width
     this.addSubsectionTitle('Safety & Compliance');
     
     const incidents = this.analytics?.incidents || [];
@@ -1545,7 +1529,7 @@ export class ESGReportGenerator {
       ['Compliance Violations', this.formatNumber(totalIncidents.violations || 0), totalIncidents.violations > 0 ? 'Action needed' : 'Clear'],
     ];
     
-    this.addStyledTable(incidentsData, [60, 50, 60], COLORS.social);
+    this.addFullWidthTable(incidentsData, COLORS.social);
   }
 
   generateSocialInterpretation() {
@@ -1582,12 +1566,13 @@ export class ESGReportGenerator {
     this.addPageTitle('Financial Governance', COLORS.governance);
     
     if (this.data.apDays != null) {
-      await this.addChartFromRef('ap-days-chart', 'Accounts Payable Days Trend', 90);
+      // Analysis FIRST - full width at top
+      this.addAnalysisBox(this.generateGovernanceInterpretation());
       
-      this.addChartInterpretation(this.generateGovernanceInterpretation());
+      // Chart - full width
+      await this.addChartFromRef('ap-days-chart', 'Accounts Payable Days Trend', 70);
       
-      this.currentY += 8;
-      
+      // Metrics table - full width
       this.addSubsectionTitle('Governance Metrics');
       
       const status = this.data.apDays < 60 ? 'Excellent' : this.data.apDays < 90 ? 'Good' : this.data.apDays < 120 ? 'Fair' : 'Review needed';
@@ -1598,7 +1583,7 @@ export class ESGReportGenerator {
         ['Performance Rating', status, '-'],
       ];
       
-      this.addStyledTable(tableData, [70, 50, 50], COLORS.governance);
+      this.addFullWidthTable(tableData, COLORS.governance);
     } else {
       this.doc.setFillColor(COLORS.backgroundAlt);
       this.doc.roundedRect(PAGE.margin, this.currentY, PAGE.contentWidth, 30, 2, 2, 'F');
@@ -2175,6 +2160,92 @@ export class ESGReportGenerator {
     this.doc.setTextColor(COLORS.text);
     this.doc.text(title, PAGE.margin, this.currentY);
     this.currentY += 8;
+  }
+
+  // Full-width analysis box - placed at TOP of section
+  addAnalysisBox(text) {
+    if (!text) return;
+    
+    this.checkPageBreak(30);
+    
+    // Full-width analysis box
+    this.doc.setFillColor('#F0FDF4');
+    this.doc.setDrawColor(COLORS.accent);
+    this.doc.setLineWidth(0.5);
+    
+    const lines = this.doc.splitTextToSize(text, PAGE.contentWidth - 20);
+    const boxHeight = Math.max(lines.length * 5 + 16, 30);
+    
+    this.doc.roundedRect(PAGE.margin, this.currentY, PAGE.contentWidth, boxHeight, 3, 3, 'FD');
+    
+    // Left accent bar
+    this.doc.setFillColor(COLORS.accent);
+    this.doc.rect(PAGE.margin, this.currentY, 4, boxHeight, 'F');
+    
+    // Analysis label
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.setFontSize(8);
+    this.doc.setTextColor(COLORS.primary);
+    this.doc.text('ANALYSIS', PAGE.margin + 12, this.currentY + 10);
+    
+    // Analysis text
+    this.doc.setFont('helvetica', 'normal');
+    this.doc.setFontSize(9);
+    this.doc.setTextColor(COLORS.text);
+    this.doc.text(lines, PAGE.margin + 12, this.currentY + 18);
+    
+    this.currentY += boxHeight + 10;
+  }
+
+  // Full-width table that spans the entire content area
+  addFullWidthTable(data, headerColor) {
+    const rowHeight = 10;
+    const startX = PAGE.margin;
+    let y = this.currentY;
+    const numCols = data[0].length;
+    const colWidth = PAGE.contentWidth / numCols;
+    
+    data.forEach((row, rowIndex) => {
+      let x = startX;
+      const isHeader = rowIndex === 0;
+      const isTotal = row[0]?.toString().toLowerCase().includes('total');
+      
+      // Row background
+      if (isHeader) {
+        this.doc.setFillColor(headerColor || COLORS.primary);
+      } else if (isTotal) {
+        this.doc.setFillColor('#E7E5E4');
+      } else {
+        this.doc.setFillColor(rowIndex % 2 === 0 ? COLORS.backgroundAlt : '#FFFFFF');
+      }
+      
+      this.doc.rect(x, y, PAGE.contentWidth, rowHeight, 'F');
+      
+      row.forEach((cell, colIndex) => {
+        this.doc.setFont('helvetica', isHeader || isTotal ? 'bold' : 'normal');
+        this.doc.setFontSize(9);
+        this.doc.setTextColor(isHeader ? '#FFFFFF' : COLORS.text);
+        
+        const cellText = String(cell || '');
+        
+        // First column left-aligned, others center-aligned
+        if (colIndex === 0) {
+          this.doc.text(cellText, x + 5, y + 7);
+        } else {
+          this.doc.text(cellText, x + colWidth / 2, y + 7, { align: 'center' });
+        }
+        x += colWidth;
+      });
+      
+      y += rowHeight;
+    });
+    
+    // Table border
+    this.doc.setDrawColor(COLORS.border);
+    this.doc.setLineWidth(0.3);
+    this.doc.rect(startX, this.currentY, PAGE.contentWidth, data.length * rowHeight);
+    
+    this.currentY = y + 10;
   }
 
   addChartInterpretation(text) {
