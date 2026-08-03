@@ -137,11 +137,8 @@ export class WaterReportGenerator extends BasePDFGenerator {
     
     this.addAnalysisBox(analysis);
     
-    // Try individual dashboard chart first, then ESG dashboard chart
-    let chartCaptured = await this.addChartFromRef('water-flow', 'Water Flow Balance', 70);
-    if (!chartCaptured) {
-      await this.addChartFromRef('water-flow-chart', 'Water Flow Balance', 70);
-    }
+    // Match testId from DashboardWater.jsx SectionCard components
+    await this.addChartFromRef('section-water-flow', 'Water Flow Balance', 70);
     
     this.addSubsectionTitle('Water Flow Summary');
     
@@ -163,7 +160,8 @@ export class WaterReportGenerator extends BasePDFGenerator {
     
     this.addAnalysisBox(analysis);
     
-    await this.addChartFromRef('water-sources-chart', 'Water Sources Distribution', 70);
+    // Match testId from DashboardWater.jsx SectionCard components
+    await this.addChartFromRef('section-water-sources', 'Water Sources Distribution', 70);
     
     this.addSubsectionTitle('Source Breakdown');
     
@@ -189,7 +187,8 @@ export class WaterReportGenerator extends BasePDFGenerator {
     
     this.addAnalysisBox(analysis);
     
-    await this.addChartFromRef('recycling-gauge', 'Recycling Rate', 70);
+    // Match testId from DashboardWater.jsx SectionCard components
+    await this.addChartFromRef('section-recycling-gauge', 'Recycling Rate', 70);
     
     this.addSubsectionTitle('Efficiency Metrics');
     
@@ -208,7 +207,8 @@ export class WaterReportGenerator extends BasePDFGenerator {
     
     this.addAnalysisBox('Tracking water consumption trends helps identify seasonality, efficiency improvements, and the impact of conservation initiatives over time.');
     
-    await this.addChartFromRef('water-consumption-trend', 'Monthly Water Consumption', 70);
+    // Match testId from DashboardWater.jsx SectionCard components
+    await this.addChartFromRef('section-water-trend', 'Monthly Water Consumption', 70);
   }
 
   generateInsights() {
