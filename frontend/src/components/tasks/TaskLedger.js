@@ -167,21 +167,21 @@ export default function TaskLedger({
         {isQuestionsOnly ? (
           // Questions header (BRSR/GRI): Question, Due, Status, Approval
           <div className="grid grid-cols-12 gap-2 px-4 py-3 text-xs font-medium text-stone-600 uppercase tracking-wider">
-            <div className="col-span-6">Question</div>
+            <div className="col-span-7">Question</div>
             <div className="col-span-2">Due</div>
             <div className="col-span-2">Status</div>
-            <div className="col-span-2">Approval Status</div>
+            <div className="col-span-1">Approval</div>
           </div>
         ) : isMetricsOnly ? (
           // Metrics header (ESG): Category, Subcategory, Facility, Period, Due, Status, Approval
           <div className="grid grid-cols-12 gap-2 px-4 py-3 text-xs font-medium text-stone-600 uppercase tracking-wider">
             <div className="col-span-2">Category</div>
-            <div className="col-span-2">Subcategory</div>
+            <div className="col-span-3">Subcategory</div>
             <div className="col-span-1">Facility</div>
             <div className="col-span-1">Period</div>
             <div className="col-span-2">Due</div>
             <div className="col-span-2">Status</div>
-            <div className="col-span-2">Approval Status</div>
+            <div className="col-span-1">Approval</div>
           </div>
         ) : (
           // Mixed: Show flexible header
@@ -191,8 +191,8 @@ export default function TaskLedger({
             <div className="col-span-1">Facility</div>
             <div className="col-span-1">Period</div>
             <div className="col-span-2">Due</div>
-            <div className="col-span-1">Status</div>
-            <div className="col-span-2">Approval Status</div>
+            <div className="col-span-2">Status</div>
+            <div className="col-span-1">Approval</div>
           </div>
         )}
       </div>
@@ -233,11 +233,11 @@ function TaskLedgerRow({ task, isQuestionsOnly, isMetricsOnly }) {
         data-testid={`task-ledger-row-${task.id}`}
       >
         {/* Question Name */}
-        <div className="col-span-6">
+        <div className="col-span-7">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm text-text-primary" title={displayInfo.primary}>
-              {displayInfo.primary.length > 80 
-                ? displayInfo.primary.substring(0, 80) + '...' 
+              {displayInfo.primary.length > 100 
+                ? displayInfo.primary.substring(0, 100) + '...' 
                 : displayInfo.primary}
             </span>
             {/* Backfill/Future Tags */}
@@ -282,16 +282,9 @@ function TaskLedgerRow({ task, isQuestionsOnly, isMetricsOnly }) {
         </div>
 
         {/* Approval Status */}
-        <div className="col-span-2">
+        <div className="col-span-1">
           {hasApprovalStatus ? (
-            <div className="flex flex-col gap-1">
-              <ApprovalStatusBadge approvalStatus={task.approval_status} />
-              {task.approval_status === 'rejected' && task.rejection_reason && (
-                <span className="text-xs text-red-600 truncate max-w-[150px]" title={task.rejection_reason}>
-                  {task.rejection_reason}
-                </span>
-              )}
-            </div>
+            <ApprovalStatusBadge approvalStatus={task.approval_status} />
           ) : (
             <span className="text-sm text-stone-400">-</span>
           )}
@@ -329,7 +322,7 @@ function TaskLedgerRow({ task, isQuestionsOnly, isMetricsOnly }) {
       </div>
 
       {/* Subcategory */}
-      <div className="col-span-2">
+      <div className="col-span-3">
         <span className="text-sm text-text-primary">
           {displayInfo.secondary}
         </span>
@@ -375,16 +368,9 @@ function TaskLedgerRow({ task, isQuestionsOnly, isMetricsOnly }) {
       </div>
 
       {/* Approval Status */}
-      <div className="col-span-2">
+      <div className="col-span-1">
         {hasApprovalStatus ? (
-          <div className="flex flex-col gap-1">
-            <ApprovalStatusBadge approvalStatus={task.approval_status} />
-            {task.approval_status === 'rejected' && task.rejection_reason && (
-              <span className="text-xs text-red-600 truncate max-w-[150px]" title={task.rejection_reason}>
-                {task.rejection_reason}
-              </span>
-            )}
-          </div>
+          <ApprovalStatusBadge approvalStatus={task.approval_status} />
         ) : (
           <span className="text-sm text-stone-400">-</span>
         )}
