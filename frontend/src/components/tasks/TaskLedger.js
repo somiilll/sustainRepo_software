@@ -1,7 +1,8 @@
 /**
  * Task Ledger Component
- * Displays tasks in a table/ledger format with columns:
- * Category, Subcategory, Facility, Period, Due, Status, Approval, Action
+ * Displays tasks in a table/ledger format
+ * - For Questions (BRSR/GRI): Question, Due, Status, Approval
+ * - For Metrics (ESG): Category, Subcategory, Facility, Period, Due, Status, Approval
  */
 
 import React from 'react';
@@ -79,6 +80,15 @@ function getTaskDisplayInfo(task) {
   };
 }
 
+/**
+ * Determine if we have any questions vs metrics in the task list
+ */
+function getTaskListType(tasks) {
+  const hasQuestions = tasks.some(t => t.entity_type === 'question');
+  const hasMetrics = tasks.some(t => t.entity_type !== 'question');
+  return { hasQuestions, hasMetrics };
+}
+
 export default function TaskLedger({ 
   tasks, 
   filters,
@@ -145,20 +155,46 @@ export default function TaskLedger({
     );
   }
 
+  // Determine task list type for header rendering
+  const { hasQuestions, hasMetrics } = getTaskListType(sortedTasks);
+  const isQuestionsOnly = hasQuestions && !hasMetrics;
+  const isMetricsOnly = hasMetrics && !hasQuestions;
+
   return (
     <Card className="overflow-hidden" data-testid="task-ledger">
-      {/* Table Header */}
+      {/* Table Header - Different layouts for Questions vs Metrics */}
       <div className="bg-stone-50 border-b border-stone-200">
-        <div className="grid grid-cols-12 gap-2 px-4 py-3 text-xs font-medium text-stone-600 uppercase tracking-wider">
-          <div className="col-span-2">Category</div>
-          <div className="col-span-2">Subcategory</div>
-          <div className="col-span-1">Facility</div>
-          <div className="col-span-1">Period</div>
-          <div className="col-span-2">Due</div>
-          <div className="col-span-1">Status</div>
-          <div className="col-span-1">Approval Status</div>
-          <div className="col-span-2 text-right">Action</div>
-        </div>
+        {isQuestionsOnly ? (
+          // Questions header (BRSR/GRI): Question, Due, Status, Approval
+          <div className="grid grid-cols-12 gap-2 px-4 py-3 text-xs font-medium text-stone-600 uppercase tracking-wider">
+            <div className="col-span-6">Question</div>
+            <div className="col-span-2">Due</div>
+            <div className="col-span-2">Status</div>
+            <div className="col-span-2">Approval Status</div>
+          </div>
+        ) : isMetricsOnly ? (
+          // Metrics header (ESG): Category, Subcategory, Facility, Period, Due, Status, Approval
+          <div className="grid grid-cols-12 gap-2 px-4 py-3 text-xs font-medium text-stone-600 uppercase tracking-wider">
+            <div className="col-span-2">Category</div>
+            <div className="col-span-2">Subcategory</div>
+            <div className="col-span-1">Facility</div>
+            <div className="col-span-1">Period</div>
+            <div className="col-span-2">Due</div>
+            <div className="col-span-2">Status</div>
+            <div className="col-span-2">Approval Status</div>
+          </div>
+        ) : (
+          // Mixed: Show flexible header
+          <div className="grid grid-cols-12 gap-2 px-4 py-3 text-xs font-medium text-stone-600 uppercase tracking-wider">
+            <div className="col-span-3">Category / Question</div>
+            <div className="col-span-2">Subcategory</div>
+            <div className="col-span-1">Facility</div>
+            <div className="col-span-1">Period</div>
+            <div className="col-span-2">Due</div>
+            <div className="col-span-1">Status</div>
+            <div className="col-span-2">Approval Status</div>
+          </div>
+        )}
       </div>
 
       {/* Table Body */}
@@ -166,7 +202,9 @@ export default function TaskLedger({
         {sortedTasks.map(task => (
           <TaskLedgerRow 
             key={task.id} 
-            task={task} 
+            task={task}
+            isQuestionsOnly={isQuestionsOnly}
+            isMetricsOnly={isMetricsOnly}
           />
         ))}
       </div>
@@ -174,20 +212,95 @@ export default function TaskLedger({
   );
 }
 
-function TaskLedgerRow({ task }) {
+function TaskLedgerRow({ task, isQuestionsOnly, isMetricsOnly }) {
   const dueInfo = formatDueDate(task, { showTime: true, showRelative: false });
   const periodDisplay = formatPeriodDisplay(task);
   const taskType = categorizeTask(task);
   const displayInfo = getTaskDisplayInfo(task);
-  
-  // Determine if task is completed
-  const isCompleted = task.status === 'completed';
   
   // Check if approval status should be shown (has a meaningful value, not null/not_required)
   const hasApprovalStatus = task.approval_status && 
     task.approval_status !== 'not_required' && 
     task.approval_status !== 'none';
 
+  // Questions layout (BRSR/GRI): Question, Due, Status, Approval
+  if (isQuestionsOnly || displayInfo.isQuestion) {
+    return (
+      <div 
+        className={`grid grid-cols-12 gap-2 px-4 py-3 items-center hover:bg-stone-50 transition-colors ${
+          dueInfo.isOverdue ? 'bg-red-50/50' : ''
+        }`}
+        data-testid={`task-ledger-row-${task.id}`}
+      >
+        {/* Question Name */}
+        <div className="col-span-6">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm text-text-primary" title={displayInfo.primary}>
+              {displayInfo.primary.length > 80 
+                ? displayInfo.primary.substring(0, 80) + '...' 
+                : displayInfo.primary}
+            </span>
+            {/* Backfill/Future Tags */}
+            {taskType === TASK_TYPE.BACKFILL && (
+              <Badge className="bg-amber-100 text-amber-700 text-xs px-1.5 py-0">
+                Backfill
+              </Badge>
+            )}
+            {taskType === TASK_TYPE.FUTURE && (
+              <Badge className="bg-blue-100 text-blue-700 text-xs px-1.5 py-0">
+                Future
+              </Badge>
+            )}
+          </div>
+        </div>
+
+        {/* Due Date */}
+        <div className="col-span-2">
+          <span className={`text-sm ${
+            dueInfo.isOverdue ? 'text-red-600 font-medium' : 
+            dueInfo.isUrgent ? 'text-orange-600' : 'text-text-primary'
+          }`}>
+            {task.due_at 
+              ? new Date(task.due_at).toLocaleString('en-US', { 
+                  month: 'short', 
+                  day: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit'
+                }) 
+              : '-'}
+          </span>
+          {dueInfo.isOverdue && (
+            <Badge className="ml-1 bg-red-100 text-red-700 text-xs px-1.5 py-0">
+              Overdue
+            </Badge>
+          )}
+        </div>
+
+        {/* Status */}
+        <div className="col-span-2">
+          <OperationalStatusBadge status={task.status} />
+        </div>
+
+        {/* Approval Status */}
+        <div className="col-span-2">
+          {hasApprovalStatus ? (
+            <div className="flex flex-col gap-1">
+              <ApprovalStatusBadge approvalStatus={task.approval_status} />
+              {task.approval_status === 'rejected' && task.rejection_reason && (
+                <span className="text-xs text-red-600 truncate max-w-[150px]" title={task.rejection_reason}>
+                  {task.rejection_reason}
+                </span>
+              )}
+            </div>
+          ) : (
+            <span className="text-sm text-stone-400">-</span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Metrics layout (ESG): Category, Subcategory, Facility, Period, Due, Status, Approval
   return (
     <div 
       className={`grid grid-cols-12 gap-2 px-4 py-3 items-center hover:bg-stone-50 transition-colors ${
@@ -195,13 +308,11 @@ function TaskLedgerRow({ task }) {
       }`}
       data-testid={`task-ledger-row-${task.id}`}
     >
-      {/* Primary Column (Category for metrics, Question Name for disclosures) */}
-      <div className={displayInfo.isQuestion ? "col-span-4" : "col-span-2"}>
+      {/* Category */}
+      <div className="col-span-2">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className={`text-sm text-text-primary ${displayInfo.isQuestion ? '' : ''}`} title={displayInfo.primary}>
-            {displayInfo.isQuestion && displayInfo.primary.length > 60 
-              ? displayInfo.primary.substring(0, 60) + '...' 
-              : displayInfo.primary}
+          <span className="text-sm text-text-primary" title={displayInfo.primary}>
+            {displayInfo.primary}
           </span>
           {/* Backfill/Future Tags */}
           {taskType === TASK_TYPE.BACKFILL && (
@@ -217,18 +328,16 @@ function TaskLedgerRow({ task }) {
         </div>
       </div>
 
-      {/* Secondary Column (Subcategory for metrics only - hidden for questions) */}
-      {!displayInfo.isQuestion && (
-        <div className="col-span-2">
-          <span className="text-sm text-text-primary">
-            {displayInfo.secondary}
-          </span>
-        </div>
-      )}
+      {/* Subcategory */}
+      <div className="col-span-2">
+        <span className="text-sm text-text-primary">
+          {displayInfo.secondary}
+        </span>
+      </div>
 
       {/* Facility */}
       <div className="col-span-1">
-        <span className="text-sm text-text-primary">
+        <span className="text-sm text-text-primary truncate" title={task.facility_name || 'Org-level'}>
           {task.facility_name || 'Org-level'}
         </span>
       </div>
@@ -254,23 +363,22 @@ function TaskLedgerRow({ task }) {
             : '-'}
         </span>
         {dueInfo.isOverdue && (
-          <Badge className="ml-2 bg-red-100 text-red-700 text-xs px-1.5 py-0">
+          <Badge className="ml-1 bg-red-100 text-red-700 text-xs px-1.5 py-0">
             Overdue
           </Badge>
         )}
       </div>
 
       {/* Status */}
-      <div className="col-span-1">
+      <div className="col-span-2">
         <OperationalStatusBadge status={task.status} />
       </div>
 
       {/* Approval Status */}
-      <div className="col-span-1">
+      <div className="col-span-2">
         {hasApprovalStatus ? (
           <div className="flex flex-col gap-1">
             <ApprovalStatusBadge approvalStatus={task.approval_status} />
-            {/* Show rejection reason if rejected */}
             {task.approval_status === 'rejected' && task.rejection_reason && (
               <span className="text-xs text-red-600 truncate max-w-[150px]" title={task.rejection_reason}>
                 {task.rejection_reason}
@@ -280,11 +388,6 @@ function TaskLedgerRow({ task }) {
         ) : (
           <span className="text-sm text-stone-400">-</span>
         )}
-      </div>
-
-      {/* Action - temporarily hidden, will be re-enabled with module redirect functionality */}
-      <div className="col-span-2 text-right flex items-center justify-end gap-2">
-        {/* Buttons hidden until redirect logic is implemented */}
       </div>
     </div>
   );
