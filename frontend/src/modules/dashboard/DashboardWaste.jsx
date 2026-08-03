@@ -14,6 +14,7 @@ import {
 import StickyFilterBar from './components/filters/StickyFilterBar';
 import SectionCard from './components/layout/SectionCard';
 import PremiumKpiCard from './components/kpi/PremiumKpiCard';
+import { DashboardExportButton } from './pdf-export';
 import {
   Trash2, Recycle, FlameKindling, RefreshCw,
 } from 'lucide-react';
@@ -211,7 +212,25 @@ export default function DashboardWaste({ data }) {
           dateRange, setDateRange,
           showFacilityDropdown, setShowFacilityDropdown, facilityDropdownRef,
         }}
-        showExport={false}
+        showExport={true}
+        exportButton={
+          <DashboardExportButton
+            dashboardType="waste"
+            data={{
+              waste: {
+                generated: totals.generated,
+                recovered: totals.recovered,
+                disposed: totals.disposed,
+                hazardous: { generated: haz.generated, recovered: haz.recovered, disposed: haz.disposed },
+                nonHazardous: { generated: nhaz.generated, recovered: nhaz.recovered, disposed: nhaz.disposed },
+              },
+              analytics: esgAnalytics,
+            }}
+            organization={organization}
+            dateRange={dateRange}
+            facilities={facilities}
+          />
+        }
         dashboardType={data.dashboardType}
         setDashboardType={data.setDashboardType}
         esgSection={data.esgSection}

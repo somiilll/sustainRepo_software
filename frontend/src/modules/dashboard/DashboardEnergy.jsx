@@ -14,6 +14,7 @@ import {
 import StickyFilterBar from './components/filters/StickyFilterBar';
 import SectionCard from './components/layout/SectionCard';
 import PremiumKpiCard from './components/kpi/PremiumKpiCard';
+import { DashboardExportButton } from './pdf-export';
 import {
   Zap, TrendingUp, Factory, Leaf, RefreshCw,
 } from 'lucide-react';
@@ -187,7 +188,24 @@ export default function DashboardEnergy({ data }) {
           dateRange, setDateRange,
           showFacilityDropdown, setShowFacilityDropdown, facilityDropdownRef,
         }}
-        showExport={false}
+        showExport={true}
+        exportButton={
+          <DashboardExportButton
+            dashboardType="energy"
+            data={{
+              energy: {
+                total: kpi.total_energy,
+                renewable_pct: kpi.renewable_pct,
+              },
+              analytics: esgAnalytics,
+              productionQty,
+              productionUnit,
+            }}
+            organization={organization}
+            dateRange={dateRange}
+            facilities={facilities}
+          />
+        }
         dashboardType={data.dashboardType}
         setDashboardType={data.setDashboardType}
         esgSection={data.esgSection}
