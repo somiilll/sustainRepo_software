@@ -72,6 +72,14 @@ export class SocialReportGenerator extends BasePDFGenerator {
       this.addNewPage();
       await this.addTrainingSection();
       
+      // AI Insights
+      this.addNewPage();
+      this.addInsightsSection(this.generateInsights());
+      
+      // Improvement Opportunities
+      this.addNewPage();
+      this.addImprovementsSection(this.generateImprovements());
+      
       // Appendix
       this.addNewPage();
       this.addAppendix(this.getDefinitions());
@@ -220,6 +228,103 @@ export class SocialReportGenerator extends BasePDFGenerator {
       { term: 'New Hires', def: 'Number of new employees joining the organization during the reporting period.' },
       { term: 'Attrition', def: 'Number of employees leaving the organization during the reporting period.' },
     ];
+  }
+
+  generateInsights() {
+    const insights = [];
+    
+    if (this.data.turnover != null && this.data.turnover < BENCHMARKS.turnover.excellent) {
+      insights.push({
+        category: 'STRENGTH',
+        text: `Employee turnover at ${this.data.turnover.toFixed(1)}% is well below the ${BENCHMARKS.turnover.good}% benchmark, indicating excellent workforce retention.`,
+        color: COLORS.achievement,
+      });
+    } else if (this.data.turnover != null && this.data.turnover > BENCHMARKS.turnover.fair) {
+      insights.push({
+        category: 'ATTENTION',
+        text: `Employee turnover at ${this.data.turnover.toFixed(1)}% exceeds ${BENCHMARKS.turnover.fair}%. Review retention strategies and employee satisfaction.`,
+        color: COLORS.attention,
+      });
+    }
+    
+    if (this.data.ltifr != null && this.data.ltifr < BENCHMARKS.ltifr.excellent) {
+      insights.push({
+        category: 'STRENGTH',
+        text: `LTIFR of ${this.data.ltifr.toFixed(2)} demonstrates industry-leading safety performance.`,
+        color: COLORS.achievement,
+      });
+    } else if (this.data.ltifr != null && this.data.ltifr > BENCHMARKS.ltifr.fair) {
+      insights.push({
+        category: 'CRITICAL',
+        text: `LTIFR of ${this.data.ltifr.toFixed(2)} exceeds the ${BENCHMARKS.ltifr.fair} benchmark. Immediate focus on safety programs is required.`,
+        color: COLORS.declined,
+      });
+    }
+    
+    if (this.data.diversityPct != null && this.data.diversityPct >= BENCHMARKS.diversity.excellent) {
+      insights.push({
+        category: 'ACHIEVEMENT',
+        text: `Gender diversity at ${this.data.diversityPct.toFixed(0)}% exceeds the ${BENCHMARKS.diversity.excellent}% target.`,
+        color: COLORS.achievement,
+      });
+    }
+    
+    if (insights.length === 0) {
+      insights.push({
+        category: 'BASELINE',
+        text: 'Social metrics are being established. Continue monitoring to identify optimization opportunities.',
+        color: COLORS.primary,
+      });
+    }
+    
+    return insights;
+  }
+
+  generateImprovements() {
+    const improvements = [];
+    
+    if (this.data.ltifr != null && this.data.ltifr > BENCHMARKS.ltifr.good) {
+      improvements.push({
+        priority: 'High',
+        action: 'Implement comprehensive safety training program',
+        impact: 'High',
+        timeline: 'Immediate',
+      });
+    }
+    
+    if (this.data.turnover != null && this.data.turnover > BENCHMARKS.turnover.good) {
+      improvements.push({
+        priority: 'High',
+        action: 'Conduct employee engagement survey and address concerns',
+        impact: 'High',
+        timeline: '3 months',
+      });
+    }
+    
+    if (this.data.diversityPct != null && this.data.diversityPct < BENCHMARKS.diversity.good) {
+      improvements.push({
+        priority: 'Medium',
+        action: 'Enhance diversity recruitment and inclusion programs',
+        impact: 'Medium',
+        timeline: '12 months',
+      });
+    }
+    
+    improvements.push({
+      priority: 'Medium',
+      action: 'Expand employee training and development programs',
+      impact: 'Medium',
+      timeline: '6 months',
+    });
+    
+    improvements.push({
+      priority: 'Low',
+      action: 'Implement employee wellness and mental health initiatives',
+      impact: 'Medium',
+      timeline: '6 months',
+    });
+    
+    return improvements.slice(0, 6);
   }
 }
 

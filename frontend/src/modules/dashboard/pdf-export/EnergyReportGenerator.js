@@ -73,6 +73,14 @@ export class EnergyReportGenerator extends BasePDFGenerator {
       this.addNewPage();
       await this.addEfficiencySection();
       
+      // AI Insights
+      this.addNewPage();
+      this.addInsightsSection(this.generateInsights());
+      
+      // Improvement Opportunities
+      this.addNewPage();
+      this.addImprovementsSection(this.generateImprovements());
+      
       // Appendix
       this.addNewPage();
       this.addAppendix(this.getDefinitions());
@@ -130,7 +138,11 @@ export class EnergyReportGenerator extends BasePDFGenerator {
     
     this.addAnalysisBox(analysis);
     
-    await this.addChartFromRef('energy-mix-chart', 'Energy Mix Distribution', 70);
+    // Try individual dashboard chart first, then ESG dashboard chart
+    let chartCaptured = await this.addChartFromRef('section-energy-mix', 'Energy Mix Distribution', 70);
+    if (!chartCaptured) {
+      await this.addChartFromRef('energy-mix-chart', 'Energy Mix Distribution', 70);
+    }
     
     this.addSubsectionTitle('Energy Source Breakdown');
     
@@ -156,8 +168,7 @@ export class EnergyReportGenerator extends BasePDFGenerator {
     
     this.addAnalysisBox(analysis);
     
-    await this.addChartFromRef('renewable-breakdown-chart', 'Renewable Energy Breakdown', 70);
-    await this.addChartFromRef('renewable-trend-chart', 'Renewable Percentage Trend', 60);
+    await this.addChartFromRef('section-renewable-trend', 'Renewable Energy Trend', 70);
   }
 
   async addConsumptionTrends() {
@@ -165,8 +176,7 @@ export class EnergyReportGenerator extends BasePDFGenerator {
     
     this.addAnalysisBox('Monthly energy consumption trends help identify seasonality patterns and the impact of efficiency initiatives. Tracking consumption over time enables better forecasting and optimization.');
     
-    await this.addChartFromRef('energy-consumption-trend', 'Monthly Consumption Trend', 80);
-    await this.addChartFromRef('energy-by-source-trend', 'Consumption by Source Over Time', 60);
+    await this.addChartFromRef('section-consumption-trend', 'Monthly Consumption Trend', 70);
   }
 
   async addEfficiencySection() {
@@ -178,7 +188,7 @@ export class EnergyReportGenerator extends BasePDFGenerator {
     
     this.addAnalysisBox(analysis);
     
-    await this.addChartFromRef('energy-intensity-chart', 'Energy Intensity Trend', 70);
+    await this.addChartFromRef('section-intensity-trend', 'Energy Intensity Trend', 70);
     
     this.addSubsectionTitle('Efficiency Summary');
     
@@ -190,6 +200,83 @@ export class EnergyReportGenerator extends BasePDFGenerator {
     ];
     
     this.addFullWidthTable(tableData, COLORS.energy);
+  }
+
+  generateInsights() {
+    const insights = [];
+    
+    if (this.data.renewablePct >= BENCHMARKS.renewableEnergy.excellent) {
+      insights.push({
+        category: 'STRENGTH',
+        text: `Renewable energy at ${this.data.renewablePct.toFixed(1)}% exceeds the ${BENCHMARKS.renewableEnergy.excellent}% benchmark, demonstrating leadership in clean energy transition.`,
+        color: COLORS.achievement,
+      });
+    } else if (this.data.renewablePct < BENCHMARKS.renewableEnergy.good) {
+      insights.push({
+        category: 'OPPORTUNITY',
+        text: `Renewable energy at ${this.data.renewablePct.toFixed(1)}% is below the ${BENCHMARKS.renewableEnergy.good}% benchmark. Significant opportunity exists for clean energy adoption.`,
+        color: COLORS.attention,
+      });
+    }
+    
+    if (this.data.diesel > 0 || this.data.naturalGas > 0) {
+      const fossilPct = ((this.data.diesel + this.data.naturalGas) / this.data.totalEnergy) * 100;
+      if (fossilPct > 30) {
+        insights.push({
+          category: 'ATTENTION',
+          text: `Fossil fuels account for ${fossilPct.toFixed(0)}% of energy. Consider transitioning to electric alternatives to reduce Scope 1 emissions.`,
+          color: COLORS.attention,
+        });
+      }
+    }
+    
+    if (insights.length === 0) {
+      insights.push({
+        category: 'BASELINE',
+        text: 'Energy consumption data is being established. Continue monitoring to identify optimization opportunities.',
+        color: COLORS.primary,
+      });
+    }
+    
+    return insights;
+  }
+
+  generateImprovements() {
+    const improvements = [];
+    
+    if (this.data.renewablePct < BENCHMARKS.renewableEnergy.excellent) {
+      improvements.push({
+        priority: 'High',
+        action: 'Procure renewable energy certificates (RECs) or PPAs',
+        impact: 'High',
+        timeline: '6 months',
+      });
+    }
+    
+    if (this.data.diesel > 0) {
+      improvements.push({
+        priority: 'High',
+        action: 'Replace diesel generators with solar + battery systems',
+        impact: 'High',
+        timeline: '12 months',
+      });
+    }
+    
+    improvements.push({
+      priority: 'Medium',
+      action: 'Conduct energy audit to identify efficiency opportunities',
+      impact: 'Medium',
+      timeline: '3 months',
+    });
+    
+    improvements.push({
+      priority: 'Low',
+      action: 'Implement smart energy management system',
+      impact: 'Medium',
+      timeline: '6 months',
+    });
+    
+    return improvements.slice(0, 6);
   }
 
   getDefinitions() {

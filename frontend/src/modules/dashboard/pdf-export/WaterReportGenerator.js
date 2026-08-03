@@ -72,6 +72,14 @@ export class WaterReportGenerator extends BasePDFGenerator {
       this.addNewPage();
       await this.addTrendsSection();
       
+      // AI Insights
+      this.addNewPage();
+      this.addInsightsSection(this.generateInsights());
+      
+      // Improvement Opportunities
+      this.addNewPage();
+      this.addImprovementsSection(this.generateImprovements());
+      
       // Appendix
       this.addNewPage();
       this.addAppendix(this.getDefinitions());
@@ -129,7 +137,11 @@ export class WaterReportGenerator extends BasePDFGenerator {
     
     this.addAnalysisBox(analysis);
     
-    await this.addChartFromRef('water-flow-chart', 'Water Flow Balance', 70);
+    // Try individual dashboard chart first, then ESG dashboard chart
+    let chartCaptured = await this.addChartFromRef('water-flow', 'Water Flow Balance', 70);
+    if (!chartCaptured) {
+      await this.addChartFromRef('water-flow-chart', 'Water Flow Balance', 70);
+    }
     
     this.addSubsectionTitle('Water Flow Summary');
     
@@ -177,7 +189,7 @@ export class WaterReportGenerator extends BasePDFGenerator {
     
     this.addAnalysisBox(analysis);
     
-    await this.addChartFromRef('water-recycling-trend', 'Recycling Rate Trend', 70);
+    await this.addChartFromRef('recycling-gauge', 'Recycling Rate', 70);
     
     this.addSubsectionTitle('Efficiency Metrics');
     
@@ -197,7 +209,88 @@ export class WaterReportGenerator extends BasePDFGenerator {
     this.addAnalysisBox('Tracking water consumption trends helps identify seasonality, efficiency improvements, and the impact of conservation initiatives over time.');
     
     await this.addChartFromRef('water-consumption-trend', 'Monthly Water Consumption', 70);
-    await this.addChartFromRef('water-intensity-chart', 'Water Intensity Trend', 60);
+  }
+
+  generateInsights() {
+    const insights = [];
+    
+    if (this.data.recycleRate >= BENCHMARKS.waterRecycle.excellent) {
+      insights.push({
+        category: 'STRENGTH',
+        text: `Water recycling rate of ${this.data.recycleRate.toFixed(0)}% exceeds the ${BENCHMARKS.waterRecycle.excellent}% industry benchmark, demonstrating excellent water stewardship.`,
+        color: COLORS.achievement,
+      });
+    } else if (this.data.recycleRate < BENCHMARKS.waterRecycle.good) {
+      insights.push({
+        category: 'OPPORTUNITY',
+        text: `Water recycling at ${this.data.recycleRate.toFixed(0)}% is below the ${BENCHMARKS.waterRecycle.good}% benchmark. Investing in water treatment infrastructure could significantly improve this metric.`,
+        color: COLORS.attention,
+      });
+    }
+    
+    if (this.data.recycled > this.data.discharged) {
+      insights.push({
+        category: 'ACHIEVEMENT',
+        text: `Water recycled (${this.formatNumber(this.data.recycled)} KL) exceeds discharge (${this.formatNumber(this.data.discharged)} KL), reducing freshwater demand.`,
+        color: COLORS.achievement,
+      });
+    }
+    
+    if (this.data.groundwater > this.data.withdrawn * 0.5) {
+      insights.push({
+        category: 'ATTENTION',
+        text: 'High dependency on groundwater (>50%). Consider diversifying water sources through rainwater harvesting and recycling.',
+        color: COLORS.attention,
+      });
+    }
+    
+    if (insights.length === 0) {
+      insights.push({
+        category: 'BASELINE',
+        text: 'Water management data is being established. Continue monitoring to identify optimization opportunities.',
+        color: COLORS.primary,
+      });
+    }
+    
+    return insights;
+  }
+
+  generateImprovements() {
+    const improvements = [];
+    
+    if (this.data.recycleRate < BENCHMARKS.waterRecycle.good) {
+      improvements.push({
+        priority: 'High',
+        action: 'Implement water recycling infrastructure',
+        impact: 'High',
+        timeline: '6 months',
+      });
+    }
+    
+    if (this.data.groundwater > this.data.withdrawn * 0.3) {
+      improvements.push({
+        priority: 'Medium',
+        action: 'Install rainwater harvesting systems',
+        impact: 'Medium',
+        timeline: '12 months',
+      });
+    }
+    
+    improvements.push({
+      priority: 'Medium',
+      action: 'Conduct water audit to identify leakage and waste',
+      impact: 'Medium',
+      timeline: '3 months',
+    });
+    
+    improvements.push({
+      priority: 'Low',
+      action: 'Implement smart water metering for real-time monitoring',
+      impact: 'Medium',
+      timeline: '6 months',
+    });
+    
+    return improvements.slice(0, 6);
   }
 
   getDefinitions() {

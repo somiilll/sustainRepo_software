@@ -550,6 +550,108 @@ export class BasePDFGenerator {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // AI INSIGHTS SECTION
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  addInsightsSection(insights = []) {
+    this.addPageTitle('AI-Powered Insights');
+    
+    if (insights.length === 0) {
+      insights = [{ category: 'BASELINE', text: 'Data is being collected. Continue monitoring to identify optimization opportunities.', color: this.themeColor }];
+    }
+    
+    insights.forEach((insight, index) => {
+      this.checkPageBreak(25);
+      
+      const y = this.currentY;
+      const cardHeight = 22;
+      
+      this.doc.setFillColor(index % 2 === 0 ? '#F0FDF4' : '#FEF3C7');
+      this.doc.setDrawColor(insight.color || this.themeColor);
+      this.doc.setLineWidth(0.5);
+      this.doc.roundedRect(PAGE.margin, y, PAGE.contentWidth, cardHeight, 2, 2, 'FD');
+      
+      this.doc.setFillColor(insight.color || this.themeColor);
+      this.doc.rect(PAGE.margin, y, 4, cardHeight, 'F');
+      
+      this.doc.setFont('helvetica', 'bold');
+      this.doc.setFontSize(9);
+      this.doc.setTextColor(insight.color || this.themeColor);
+      this.doc.text(insight.category || 'INSIGHT', PAGE.margin + 10, y + 8);
+      
+      this.doc.setFont('helvetica', 'normal');
+      this.doc.setFontSize(8);
+      this.doc.setTextColor(COLORS.text);
+      const lines = this.doc.splitTextToSize(insight.text, PAGE.contentWidth - 20);
+      this.doc.text(lines[0], PAGE.margin + 10, y + 16);
+      
+      this.currentY += cardHeight + 5;
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // IMPROVEMENT OPPORTUNITIES SECTION
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  addImprovementsSection(improvements = []) {
+    this.addPageTitle('Improvement Opportunities');
+    
+    if (improvements.length === 0) {
+      improvements = [
+        { priority: 'Medium', action: 'Continue monitoring and data collection', impact: 'Medium', timeline: 'Ongoing' },
+      ];
+    }
+    
+    const colWidths = [25, 90, 30, 35];
+    const tableX = PAGE.margin;
+    let tableY = this.currentY;
+    
+    this.doc.setFillColor(this.themeColor);
+    this.doc.rect(tableX, tableY, PAGE.contentWidth, 10, 'F');
+    
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.setFontSize(8);
+    this.doc.setTextColor('#FFFFFF');
+    this.doc.text('Priority', tableX + 3, tableY + 7);
+    this.doc.text('Action', tableX + colWidths[0] + 3, tableY + 7);
+    this.doc.text('Impact', tableX + colWidths[0] + colWidths[1] + 3, tableY + 7);
+    this.doc.text('Timeline', tableX + colWidths[0] + colWidths[1] + colWidths[2] + 3, tableY + 7);
+    
+    tableY += 10;
+    
+    const priorityColors = { 'High': COLORS.declined, 'Medium': COLORS.attention, 'Low': COLORS.water };
+    
+    improvements.forEach((imp, index) => {
+      const rowHeight = 12;
+      
+      this.doc.setFillColor(index % 2 === 0 ? COLORS.backgroundAlt : '#FFFFFF');
+      this.doc.rect(tableX, tableY, PAGE.contentWidth, rowHeight, 'F');
+      
+      this.doc.setFillColor(priorityColors[imp.priority] || COLORS.textMuted);
+      this.doc.roundedRect(tableX + 3, tableY + 2, 18, 8, 2, 2, 'F');
+      this.doc.setFont('helvetica', 'bold');
+      this.doc.setFontSize(6);
+      this.doc.setTextColor('#FFFFFF');
+      this.doc.text(imp.priority, tableX + 12, tableY + 7, { align: 'center' });
+      
+      this.doc.setFont('helvetica', 'normal');
+      this.doc.setFontSize(8);
+      this.doc.setTextColor(COLORS.text);
+      this.doc.text(imp.action, tableX + colWidths[0] + 3, tableY + 8);
+      this.doc.text(imp.impact, tableX + colWidths[0] + colWidths[1] + 3, tableY + 8);
+      this.doc.text(imp.timeline, tableX + colWidths[0] + colWidths[1] + colWidths[2] + 3, tableY + 8);
+      
+      tableY += rowHeight;
+    });
+    
+    this.doc.setDrawColor(COLORS.border);
+    this.doc.setLineWidth(0.3);
+    this.doc.rect(tableX, this.currentY, PAGE.contentWidth, tableY - this.currentY);
+    
+    this.currentY = tableY + 10;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // APPENDIX
   // ═══════════════════════════════════════════════════════════════════════════
 

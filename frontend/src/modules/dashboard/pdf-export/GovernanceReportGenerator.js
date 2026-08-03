@@ -63,6 +63,14 @@ export class GovernanceReportGenerator extends BasePDFGenerator {
       this.addNewPage();
       await this.addTrendsSection();
       
+      // AI Insights
+      this.addNewPage();
+      this.addInsightsSection(this.generateInsights());
+      
+      // Improvement Opportunities
+      this.addNewPage();
+      this.addImprovementsSection(this.generateImprovements());
+      
       // Appendix
       this.addNewPage();
       this.addAppendix(this.getDefinitions());
@@ -217,6 +225,103 @@ export class GovernanceReportGenerator extends BasePDFGenerator {
       { term: 'Anti-Competitive', def: 'Actions or agreements that unfairly restrict competition in the market.' },
       { term: 'Board Independence', def: 'Percentage of board members who are independent (not part of management).' },
     ];
+  }
+
+  generateInsights() {
+    const insights = [];
+    
+    if (this.data.apDays != null && this.data.apDays < 60) {
+      insights.push({
+        category: 'STRENGTH',
+        text: `AP Days at ${Math.round(this.data.apDays)} days is within optimal range, indicating efficient payment processes and healthy supplier relationships.`,
+        color: COLORS.achievement,
+      });
+    } else if (this.data.apDays != null && this.data.apDays > 200) {
+      insights.push({
+        category: 'CRITICAL',
+        text: `AP Days at ${Math.round(this.data.apDays)} days significantly exceeds the ${BENCHMARKS.apDays.typical} day benchmark. This may strain supplier relationships.`,
+        color: COLORS.declined,
+      });
+    }
+    
+    if (this.data.violations === 0 && this.data.dataBreaches === 0) {
+      insights.push({
+        category: 'ACHIEVEMENT',
+        text: 'No compliance violations or data breaches reported. Strong compliance posture maintained.',
+        color: COLORS.achievement,
+      });
+    } else if (this.data.dataBreaches > 0) {
+      insights.push({
+        category: 'CRITICAL',
+        text: `${this.data.dataBreaches} data breach(es) detected. Review cybersecurity controls and incident response procedures.`,
+        color: COLORS.declined,
+      });
+    }
+    
+    if (this.data.corruptionCases > 0) {
+      insights.push({
+        category: 'CRITICAL',
+        text: `${this.data.corruptionCases} corruption case(s) identified. Strengthen anti-corruption controls and ethics training.`,
+        color: COLORS.declined,
+      });
+    }
+    
+    if (insights.length === 0) {
+      insights.push({
+        category: 'BASELINE',
+        text: 'Governance metrics are being established. Continue monitoring to identify optimization opportunities.',
+        color: COLORS.primary,
+      });
+    }
+    
+    return insights;
+  }
+
+  generateImprovements() {
+    const improvements = [];
+    
+    if (this.data.apDays != null && this.data.apDays > 120) {
+      improvements.push({
+        priority: 'High',
+        action: 'Review and optimize accounts payable processes',
+        impact: 'High',
+        timeline: '3 months',
+      });
+    }
+    
+    if (this.data.dataBreaches > 0) {
+      improvements.push({
+        priority: 'High',
+        action: 'Conduct comprehensive cybersecurity assessment',
+        impact: 'High',
+        timeline: 'Immediate',
+      });
+    }
+    
+    if (this.data.violations > 0) {
+      improvements.push({
+        priority: 'High',
+        action: 'Implement compliance remediation program',
+        impact: 'High',
+        timeline: '3 months',
+      });
+    }
+    
+    improvements.push({
+      priority: 'Medium',
+      action: 'Enhance ethics and compliance training program',
+      impact: 'Medium',
+      timeline: '6 months',
+    });
+    
+    improvements.push({
+      priority: 'Low',
+      action: 'Implement continuous compliance monitoring system',
+      impact: 'Medium',
+      timeline: '12 months',
+    });
+    
+    return improvements.slice(0, 6);
   }
 }
 
