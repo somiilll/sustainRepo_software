@@ -1285,9 +1285,9 @@ export class ESGReportGenerator {
           btn.style.visibility = 'hidden';
         });
         
-        // Create capture promise with timeout
+        // Create capture promise with timeout (reduced scale for smaller file size)
         const capturePromise = html2canvas(chartElement, {
-          scale: 2,
+          scale: 1.5, // Reduced from 2 for smaller file size
           backgroundColor: '#FFFFFF',
           logging: false,
           useCORS: true,
@@ -1307,7 +1307,8 @@ export class ESGReportGenerator {
           btn.style.visibility = originalVisibility[i] || 'visible';
         });
         
-        const imgData = canvas.toDataURL('image/png');
+        // Use JPEG with quality 0.85 for smaller file size
+        const imgData = canvas.toDataURL('image/jpeg', 0.85);
         const aspectRatio = canvas.width / canvas.height;
         let imgWidth = PAGE.contentWidth;
         let imgHeight = imgWidth / aspectRatio;
@@ -1324,7 +1325,7 @@ export class ESGReportGenerator {
         this.doc.setLineWidth(0.3);
         this.doc.roundedRect(PAGE.margin, this.currentY, PAGE.contentWidth, imgHeight + 4, 2, 2, 'S');
         
-        this.doc.addImage(imgData, 'PNG', PAGE.margin + 2, this.currentY + 2, imgWidth - 4, imgHeight);
+        this.doc.addImage(imgData, 'JPEG', PAGE.margin + 2, this.currentY + 2, imgWidth - 4, imgHeight);
         this.currentY += imgHeight + 8;
         
         return true;
