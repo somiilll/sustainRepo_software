@@ -166,6 +166,7 @@ export const AnalyticsChartCard = ({
   return (
     <>
       <section
+        data-testid={testId}
         className={`relative flex flex-col overflow-hidden rounded-lg border border-stone-200 bg-white p-5 shadow-sm hover:shadow-lg ${className}`}
       >
         <div

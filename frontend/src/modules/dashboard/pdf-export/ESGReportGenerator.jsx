@@ -1,50 +1,67 @@
 /**
  * ESG Report Generator - Executive Dashboard PDF Export
+ * Version 2.0 - Enhanced with narrative insights, better design, and chart support
  * 
- * Generates a professional PDF report from the Executive ESG Dashboard data.
  * Report Structure:
- * 1. Cover Page
- * 2. Executive Summary (KPIs + Observations)
- * 3. KPI Summary
- * 4. Emissions Section (GHG Trend + Scope Breakdown + Table)
- * 5. Energy Section (Energy Mix + Renewable/Intensity charts + Summary)
- * 6. Water Section (Water Flow + Summary table)
- * 7. Waste Section (Waste Management + Summary)
- * 8. Social Section (Employee KPIs + LTIFR + Incidents)
- * 9. Governance Section (AP Days + KPIs)
- * 10. Performance Summary (Comparison indicators)
- * 11. AI Insights (Rule-based observations)
- * 12. Appendix (Metric Definitions)
+ * 1. Cover Page (Premium design)
+ * 2. Executive Summary (Narrative highlights)
+ * 3. Emissions Section (Chart + Trend Analysis)
+ * 4. Energy Section (Chart + Commentary)
+ * 5. Water Section (Chart + Analysis)
+ * 6. Waste Section (Chart + Analysis)
+ * 7. Social Section (KPIs + Commentary)
+ * 8. Governance Section (Chart + Analysis)
+ * 9. Performance Summary (With proper messaging)
+ * 10. Key Insights (6 rule-based observations)
+ * 11. Appendix (Methodology + Definitions)
  */
 
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
-// Colors
+// Colors matching dashboard theme
 const COLORS = {
   primary: '#1A4D2E',
   secondary: '#15803D',
   accent: '#10B981',
   text: '#1C1917',
   textMuted: '#78716C',
+  textLight: '#A8A29E',
   border: '#E7E5E4',
+  borderLight: '#F5F5F4',
   background: '#FFFFFF',
-  scope1: '#10B981',
-  scope2: '#3B82F6',
-  scope3: '#8B5CF6',
+  // Section colors
+  emissions: '#15803D',
+  energy: '#F59E0B',
+  water: '#0284C7',
+  waste: '#57534E',
+  social: '#7C3AED',
+  governance: '#4F46E5',
+  // Status colors
   improved: '#10B981',
   declined: '#EF4444',
   stable: '#78716C',
+  attention: '#F59E0B',
 };
 
 // Page dimensions (A4 in mm)
 const PAGE = {
   width: 210,
   height: 297,
-  margin: 15,
-  contentWidth: 180,
-  headerHeight: 18,
-  footerHeight: 12,
+  margin: 18,
+  contentWidth: 174,
+  headerHeight: 16,
+  footerHeight: 14,
+};
+
+// Section icons (using Unicode symbols)
+const ICONS = {
+  emissions: '●', // Will use colored circle
+  energy: '⚡',
+  water: '◆',
+  waste: '■',
+  social: '●',
+  governance: '▲',
 };
 
 /**
@@ -67,6 +84,7 @@ export class ESGReportGenerator {
     this.granularity = options.granularity || 'monthly';
     this.productionUnit = options.productionUnit || 'unit';
     this.productionQty = options.productionQty || 0;
+    this.facilities = options.facilities || [];
     
     this.pageNumber = 0;
     this.currentY = PAGE.margin + PAGE.headerHeight;
@@ -75,6 +93,13 @@ export class ESGReportGenerator {
       month: 'long',
       day: 'numeric',
     });
+    this.generatedTimestamp = new Date().toISOString();
+    this.reportVersion = '1.0';
+  }
+
+  // Helper to format CO2 unit without Unicode issues
+  getCO2Unit() {
+    return 'tCO2e'; // Using simple text to avoid encoding issues
   }
 
   /**
@@ -85,89 +110,43 @@ export class ESGReportGenerator {
       // 1. Cover Page
       this.addCoverPage();
       
-      // 2. Executive Summary
+      // 2. Executive Summary (Narrative)
       this.addNewPage();
       this.addExecutiveSummary();
       
-      // 3. KPI Summary
+      // 3. Emissions Section
       this.addNewPage();
-      this.addKPISummary();
+      await this.addEmissionsSection();
       
-      // 4. Emissions Section
+      // 4. Energy Section
       this.addNewPage();
-      try {
-        await this.addEmissionsSection();
-      } catch (e) {
-        console.warn('Emissions section error:', e);
-        this.addSectionTitle('4. Emissions');
-        this.doc.text('Unable to generate emissions section.', PAGE.margin, this.currentY);
-        this.currentY += 10;
-      }
+      await this.addEnergySection();
       
-      // 5. Energy Section
+      // 5. Water Section
       this.addNewPage();
-      try {
-        await this.addEnergySection();
-      } catch (e) {
-        console.warn('Energy section error:', e);
-        this.addSectionTitle('5. Energy');
-        this.doc.text('Unable to generate energy section.', PAGE.margin, this.currentY);
-        this.currentY += 10;
-      }
+      await this.addWaterSection();
       
-      // 6. Water Section
+      // 6. Waste Section
       this.addNewPage();
-      try {
-        await this.addWaterSection();
-      } catch (e) {
-        console.warn('Water section error:', e);
-        this.addSectionTitle('6. Water');
-        this.doc.text('Unable to generate water section.', PAGE.margin, this.currentY);
-        this.currentY += 10;
-      }
+      await this.addWasteSection();
       
-      // 7. Waste Section
+      // 7. Social Section
       this.addNewPage();
-      try {
-        await this.addWasteSection();
-      } catch (e) {
-        console.warn('Waste section error:', e);
-        this.addSectionTitle('7. Waste');
-        this.doc.text('Unable to generate waste section.', PAGE.margin, this.currentY);
-        this.currentY += 10;
-      }
+      await this.addSocialSection();
       
-      // 8. Social Section
+      // 8. Governance Section
       this.addNewPage();
-      try {
-        await this.addSocialSection();
-      } catch (e) {
-        console.warn('Social section error:', e);
-        this.addSectionTitle('8. Social');
-        this.doc.text('Unable to generate social section.', PAGE.margin, this.currentY);
-        this.currentY += 10;
-      }
+      await this.addGovernanceSection();
       
-      // 9. Governance Section
-      this.addNewPage();
-      try {
-        await this.addGovernanceSection();
-      } catch (e) {
-        console.warn('Governance section error:', e);
-        this.addSectionTitle('9. Governance');
-        this.doc.text('Unable to generate governance section.', PAGE.margin, this.currentY);
-        this.currentY += 10;
-      }
-      
-      // 10. Performance Summary
+      // 9. Performance Summary
       this.addNewPage();
       this.addPerformanceSummary();
       
-      // 11. AI Insights (Rule Based)
+      // 10. Key Insights
       this.addNewPage();
-      this.addAIInsights();
+      this.addKeyInsights();
       
-      // 12. Appendix
+      // 11. Appendix
       this.addNewPage();
       this.addAppendix();
       
@@ -203,71 +182,57 @@ export class ESGReportGenerator {
   }
 
   addHeader() {
-    const y = PAGE.margin - 5;
-    
-    // Company logo placeholder (left)
-    if (this.organization.logo) {
-      // Logo would be added here
-    }
+    const y = 8;
     
     // Company name (left)
     this.doc.setFont('helvetica', 'bold');
     this.doc.setFontSize(8);
     this.doc.setTextColor(COLORS.primary);
-    this.doc.text(this.organization.name || 'Company Name', PAGE.margin, y + 5);
+    this.doc.text(this.organization.name || 'Organization', PAGE.margin, y);
     
     // Report title (center)
     this.doc.setFont('helvetica', 'normal');
     this.doc.setFontSize(8);
     this.doc.setTextColor(COLORS.textMuted);
     const title = 'ESG Dashboard Report';
-    const titleWidth = this.doc.getTextWidth(title);
-    this.doc.text(title, (PAGE.width - titleWidth) / 2, y + 5);
+    this.doc.text(title, PAGE.width / 2, y, { align: 'center' });
     
     // Reporting period (right)
     const period = this.getReportingPeriod();
-    const periodWidth = this.doc.getTextWidth(period);
-    this.doc.text(period, PAGE.width - PAGE.margin - periodWidth, y + 5);
+    this.doc.text(period, PAGE.width - PAGE.margin, y, { align: 'right' });
     
     // Header line
     this.doc.setDrawColor(COLORS.border);
     this.doc.setLineWidth(0.3);
-    this.doc.line(PAGE.margin, y + 8, PAGE.width - PAGE.margin, y + 8);
+    this.doc.line(PAGE.margin, y + 4, PAGE.width - PAGE.margin, y + 4);
   }
 
   addFooter() {
-    const y = PAGE.height - PAGE.footerHeight;
+    const y = PAGE.height - 10;
     
     // Footer line
     this.doc.setDrawColor(COLORS.border);
     this.doc.setLineWidth(0.3);
-    this.doc.line(PAGE.margin, y, PAGE.width - PAGE.margin, y);
+    this.doc.line(PAGE.margin, y - 3, PAGE.width - PAGE.margin, y - 3);
     
-    // Generated by (left)
     this.doc.setFont('helvetica', 'normal');
     this.doc.setFontSize(7);
     this.doc.setTextColor(COLORS.textMuted);
-    this.doc.text('Generated by SustainRepo', PAGE.margin, y + 5);
+    
+    // Generated by (left)
+    this.doc.text('Generated by SustainRepo', PAGE.margin, y);
     
     // Confidential (center)
     this.doc.setFont('helvetica', 'italic');
-    const confText = 'Confidential';
-    const confWidth = this.doc.getTextWidth(confText);
-    this.doc.text(confText, (PAGE.width - confWidth) / 2, y + 5);
+    this.doc.text('Confidential', PAGE.width / 2, y, { align: 'center' });
     
     // Page number (right)
     this.doc.setFont('helvetica', 'normal');
-    const pageText = `Page ${this.pageNumber}`;
-    const pageWidth = this.doc.getTextWidth(pageText);
-    this.doc.text(pageText, PAGE.width - PAGE.margin - pageWidth, y + 5);
-    
-    // Generated date
-    this.doc.setFontSize(6);
-    this.doc.text(`Generated: ${this.generatedDate}`, PAGE.margin, y + 9);
+    this.doc.text(`Page ${this.pageNumber}`, PAGE.width - PAGE.margin, y, { align: 'right' });
   }
 
   checkPageBreak(requiredHeight) {
-    const availableHeight = PAGE.height - PAGE.footerHeight - this.currentY - 5;
+    const availableHeight = PAGE.height - PAGE.footerHeight - this.currentY - 10;
     if (requiredHeight > availableHeight) {
       this.addNewPage();
       return true;
@@ -285,227 +250,312 @@ export class ESGReportGenerator {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 1. COVER PAGE
+  // 1. COVER PAGE (Premium Design)
   // ═══════════════════════════════════════════════════════════════════════════
 
   addCoverPage() {
     this.pageNumber = 1;
     const centerX = PAGE.width / 2;
     
-    // Primary color bar at top
+    // Top accent bar
     this.doc.setFillColor(COLORS.primary);
-    this.doc.rect(0, 0, PAGE.width, 10, 'F');
+    this.doc.rect(0, 0, PAGE.width, 12, 'F');
     
-    // Company Logo area
-    this.doc.setFillColor('#F5F5F4');
-    this.doc.rect(centerX - 30, 40, 60, 40, 'F');
+    // Accent stripe
+    this.doc.setFillColor(COLORS.accent);
+    this.doc.rect(0, 12, PAGE.width, 3, 'F');
+    
+    // Company Logo area with border
+    const logoY = 45;
+    this.doc.setDrawColor(COLORS.border);
+    this.doc.setLineWidth(0.5);
+    this.doc.roundedRect(centerX - 25, logoY, 50, 35, 3, 3, 'S');
+    
     this.doc.setFont('helvetica', 'normal');
-    this.doc.setFontSize(10);
-    this.doc.setTextColor(COLORS.textMuted);
-    this.doc.text('Company Logo', centerX, 65, { align: 'center' });
+    this.doc.setFontSize(9);
+    this.doc.setTextColor(COLORS.textLight);
+    this.doc.text('COMPANY LOGO', centerX, logoY + 20, { align: 'center' });
     
     // Company Name
     this.doc.setFont('helvetica', 'bold');
-    this.doc.setFontSize(24);
+    this.doc.setFontSize(22);
     this.doc.setTextColor(COLORS.primary);
     const companyName = this.organization.name || 'Organization Name';
-    this.doc.text(companyName, centerX, 105, { align: 'center' });
+    this.doc.text(companyName, centerX, 100, { align: 'center' });
+    
+    // Divider
+    this.doc.setDrawColor(COLORS.accent);
+    this.doc.setLineWidth(1.5);
+    this.doc.line(centerX - 35, 110, centerX + 35, 110);
     
     // Report Title
     this.doc.setFont('helvetica', 'bold');
-    this.doc.setFontSize(32);
+    this.doc.setFontSize(28);
     this.doc.setTextColor(COLORS.text);
-    this.doc.text('ESG Dashboard Report', centerX, 135, { align: 'center' });
+    this.doc.text('ESG Dashboard Report', centerX, 130, { align: 'center' });
     
-    // Divider line
-    this.doc.setDrawColor(COLORS.primary);
-    this.doc.setLineWidth(1);
-    this.doc.line(centerX - 40, 150, centerX + 40, 150);
-    
-    // Reporting Period
-    this.doc.setFont('helvetica', 'bold');
+    // Subtitle
+    this.doc.setFont('helvetica', 'normal');
     this.doc.setFontSize(11);
     this.doc.setTextColor(COLORS.textMuted);
-    this.doc.text('Reporting Period', centerX, 170, { align: 'center' });
+    this.doc.text('Environmental, Social & Governance Performance', centerX, 140, { align: 'center' });
     
+    // Metadata box
+    const boxY = 160;
+    const boxHeight = 70;
+    this.doc.setFillColor('#FAFAF9');
+    this.doc.setDrawColor(COLORS.border);
+    this.doc.setLineWidth(0.3);
+    this.doc.roundedRect(PAGE.margin + 20, boxY, PAGE.contentWidth - 40, boxHeight, 3, 3, 'FD');
+    
+    // Metadata content
     this.doc.setFont('helvetica', 'normal');
-    this.doc.setFontSize(14);
-    this.doc.setTextColor(COLORS.secondary);
-    this.doc.text(this.getReportingPeriod(), centerX, 182, { align: 'center' });
+    this.doc.setFontSize(9);
+    const metaX = PAGE.margin + 30;
+    const metaX2 = centerX + 10;
+    let metaY = boxY + 12;
     
-    // Generated On
-    this.doc.setFont('helvetica', 'bold');
-    this.doc.setFontSize(11);
+    // Left column
     this.doc.setTextColor(COLORS.textMuted);
-    this.doc.text('Generated On', centerX, 205, { align: 'center' });
-    
-    this.doc.setFont('helvetica', 'normal');
-    this.doc.setFontSize(12);
+    this.doc.text('Reporting Framework', metaX, metaY);
     this.doc.setTextColor(COLORS.text);
-    this.doc.text(this.generatedDate, centerX, 215, { align: 'center' });
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.text('Internal / BRSR', metaX, metaY + 5);
     
-    // Prepared by
-    this.doc.setFont('helvetica', 'italic');
-    this.doc.setFontSize(11);
+    metaY += 16;
+    this.doc.setFont('helvetica', 'normal');
     this.doc.setTextColor(COLORS.textMuted);
-    this.doc.text('Prepared by SustainRepo', centerX, 240, { align: 'center' });
+    this.doc.text('Reporting Period', metaX, metaY);
+    this.doc.setTextColor(COLORS.text);
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.text(this.getReportingPeriod(), metaX, metaY + 5);
+    
+    metaY += 16;
+    this.doc.setFont('helvetica', 'normal');
+    this.doc.setTextColor(COLORS.textMuted);
+    this.doc.text('Reporting Frequency', metaX, metaY);
+    this.doc.setTextColor(COLORS.text);
+    this.doc.setFont('helvetica', 'bold');
+    const freq = this.granularity.charAt(0).toUpperCase() + this.granularity.slice(1);
+    this.doc.text(freq, metaX, metaY + 5);
+    
+    // Right column
+    metaY = boxY + 12;
+    this.doc.setFont('helvetica', 'normal');
+    this.doc.setTextColor(COLORS.textMuted);
+    this.doc.text('Generated On', metaX2, metaY);
+    this.doc.setTextColor(COLORS.text);
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.text(this.generatedDate, metaX2, metaY + 5);
+    
+    metaY += 16;
+    this.doc.setFont('helvetica', 'normal');
+    this.doc.setTextColor(COLORS.textMuted);
+    this.doc.text('Prepared By', metaX2, metaY);
+    this.doc.setTextColor(COLORS.text);
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.text('SustainRepo', metaX2, metaY + 5);
+    
+    metaY += 16;
+    this.doc.setFont('helvetica', 'normal');
+    this.doc.setTextColor(COLORS.textMuted);
+    this.doc.text('Report Version', metaX2, metaY);
+    this.doc.setTextColor(COLORS.text);
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.text(this.reportVersion, metaX2, metaY + 5);
     
     // Footer bar
     this.doc.setFillColor(COLORS.primary);
-    this.doc.rect(0, PAGE.height - 15, PAGE.width, 15, 'F');
+    this.doc.rect(0, PAGE.height - 18, PAGE.width, 18, 'F');
     
-    this.doc.setFont('helvetica', 'normal');
-    this.doc.setFontSize(8);
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.setFontSize(9);
     this.doc.setTextColor('#FFFFFF');
-    this.doc.text('Confidential', centerX, PAGE.height - 6, { align: 'center' });
+    this.doc.text('CONFIDENTIAL', centerX, PAGE.height - 8, { align: 'center' });
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 2. EXECUTIVE SUMMARY
+  // 2. EXECUTIVE SUMMARY (Narrative Highlights)
   // ═══════════════════════════════════════════════════════════════════════════
 
   addExecutiveSummary() {
-    this.addSectionTitle('2. Executive Summary');
+    this.addSectionTitle('Executive Summary', null);
     
-    // KPI Cards Grid - 10 KPIs in 2 rows of 5
-    const kpis = this.getExecutiveKPIs();
-    this.addKPIGrid(kpis, 5);
+    // Get data for narrative
+    const emissionData = this.metrics?.emissions?.ghg_emissions || {};
+    const totals = this.filteredData?.totals || {};
+    const energy = this.metrics?.energy || {};
+    const water = this.metrics?.water || {};
+    const waste = this.metrics?.waste || {};
+    const kpis = this.summary?.kpis || {};
     
-    this.currentY += 8;
+    const scope1 = totals.scope1 || emissionData.total_scope1 || 0;
+    const scope2 = totals.scope2 || emissionData.total_scope2 || 0;
+    const scope3 = totals.scope3 || emissionData.total_scope3 || 0;
+    const totalEmissions = scope1 + scope2 + scope3;
+    const renewablePct = energy.renewable_pct || 0;
+    const recycled = water.recycled || 0;
+    const totalEmployees = kpis.total_employees?.value || 0;
+    const turnover = kpis.turnover_pct?.value;
+    const ltifr = kpis.ltifr?.value;
+    const apDays = kpis.ap_days?.value;
     
-    // Observations
-    this.addSubsectionTitle('Key Observations');
-    const observations = this.generateExecutiveObservations();
-    observations.forEach((obs) => {
-      this.checkPageBreak(8);
-      this.addBulletPoint(obs);
+    // Environmental Highlights
+    this.addHighlightSection('Environmental Highlights', COLORS.emissions, [
+      `Total emissions reached ${this.formatNumberWithCommas(totalEmissions)} ${this.getCO2Unit()}.`,
+      renewablePct > 0 
+        ? `Renewable energy contributed ${this.formatPercent(renewablePct)} of total energy consumption.`
+        : 'Renewable energy data is being collected.',
+      recycled > 0
+        ? `Water recycling remained strong at ${this.formatNumberWithCommas(recycled)} KL.`
+        : 'Water recycling metrics are being tracked.',
+    ]);
+    
+    this.currentY += 5;
+    
+    // Social Highlights
+    this.addHighlightSection('Social Highlights', COLORS.social, [
+      totalEmployees > 0
+        ? `Workforce remained stable with ${this.formatNumberWithCommas(totalEmployees)} employees.`
+        : 'Workforce data is being collected.',
+      turnover != null && turnover < 15
+        ? `Employee turnover remained low at ${this.formatPercent(turnover)}.`
+        : turnover != null
+          ? `Employee turnover at ${this.formatPercent(turnover)}.`
+          : 'Employee turnover data not available.',
+      ltifr != null
+        ? ltifr > 1
+          ? `LTIFR at ${ltifr.toFixed(2)} requires attention.`
+          : `LTIFR at ${ltifr.toFixed(2)} indicates strong safety performance.`
+        : 'LTIFR data not available.',
+    ]);
+    
+    this.currentY += 5;
+    
+    // Governance Highlights
+    this.addHighlightSection('Governance Highlights', COLORS.governance, [
+      apDays != null
+        ? apDays > 300
+          ? `Average Accounts Payable Days: ${Math.round(apDays)} (may warrant review).`
+          : `Average Accounts Payable Days: ${Math.round(apDays)}.`
+        : 'Accounts Payable data not available.',
+    ]);
+    
+    this.currentY += 10;
+    
+    // Key Metrics Summary Box
+    this.addMetricsSummaryBox();
+  }
+
+  addHighlightSection(title, color, highlights) {
+    this.checkPageBreak(35);
+    
+    // Section header with color bar
+    this.doc.setFillColor(color);
+    this.doc.rect(PAGE.margin, this.currentY, 3, 20, 'F');
+    
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.setFontSize(11);
+    this.doc.setTextColor(color);
+    this.doc.text(title, PAGE.margin + 6, this.currentY + 5);
+    
+    this.currentY += 10;
+    
+    // Bullet points
+    this.doc.setFont('helvetica', 'normal');
+    this.doc.setFontSize(9);
+    this.doc.setTextColor(COLORS.text);
+    
+    highlights.forEach((text) => {
+      if (text) {
+        this.doc.setFillColor(color);
+        this.doc.circle(PAGE.margin + 8, this.currentY - 1, 1, 'F');
+        
+        const lines = this.doc.splitTextToSize(text, PAGE.contentWidth - 15);
+        this.doc.text(lines, PAGE.margin + 12, this.currentY);
+        this.currentY += lines.length * 4.5 + 2;
+      }
     });
   }
 
-  getExecutiveKPIs() {
+  addMetricsSummaryBox() {
+    this.checkPageBreak(50);
+    
     const kpis = this.summary?.kpis || {};
     const emissionData = this.metrics?.emissions?.ghg_emissions || {};
     const totals = this.filteredData?.totals || {};
     const energy = this.metrics?.energy || {};
-    const water = this.metrics?.water || {};
-    const waste = this.metrics?.waste || {};
     
-    const totalEmissions = emissionData.total ?? totals.total ?? 0;
-    const scope12 = (totals.scope1 || emissionData.total_scope1 || 0) + (totals.scope2 || emissionData.total_scope2 || 0);
-    const ghgIntensity = this.productionQty ? scope12 / this.productionQty : null;
-    const totalEnergy = energy.total || 0;
-    const energyIntensity = this.productionQty ? totalEnergy / this.productionQty : null;
+    const totalEmissions = (totals.scope1 || 0) + (totals.scope2 || 0) + (totals.scope3 || 0) || emissionData.total || 0;
     
-    return [
-      { title: 'Total Emissions', value: totalEmissions, unit: 'tCO₂e', color: '#15803D' },
-      { title: 'GHG Intensity', value: ghgIntensity, unit: `tCO₂e/${this.productionUnit}`, color: '#0F766E' },
-      { title: 'Energy Intensity', value: energyIntensity, unit: `MWh/${this.productionUnit}`, color: '#F59E0B' },
-      { title: 'Renewable Energy %', value: energy.renewable_pct, unit: '%', color: '#84CC16' },
-      { title: 'Water Recycled', value: water.recycled, unit: 'KL', color: '#0284C7' },
-      { title: 'Waste Recovery', value: waste.recovered, unit: 'MT', color: '#57534E' },
-      { title: 'Employees', value: kpis.total_employees?.value, unit: '', color: '#7C3AED' },
-      { title: 'LTIFR', value: kpis.ltifr?.value, unit: '', color: '#DC2626' },
-      { title: 'Accounts Payable Days', value: kpis.ap_days?.value, unit: 'days', color: '#4F46E5' },
-      { title: 'Employee Turnover', value: kpis.turnover_pct?.value, unit: '%', color: '#F97316' },
+    // Box background
+    this.doc.setFillColor('#F5F5F4');
+    this.doc.setDrawColor(COLORS.border);
+    this.doc.roundedRect(PAGE.margin, this.currentY, PAGE.contentWidth, 42, 2, 2, 'FD');
+    
+    // Title
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.setFontSize(10);
+    this.doc.setTextColor(COLORS.text);
+    this.doc.text('Key Performance Metrics', PAGE.margin + 5, this.currentY + 8);
+    
+    // Metrics in a row
+    const metrics = [
+      { label: 'Total Emissions', value: totalEmissions, unit: this.getCO2Unit(), color: COLORS.emissions },
+      { label: 'Renewable %', value: energy.renewable_pct, unit: '%', color: COLORS.energy },
+      { label: 'Employees', value: kpis.total_employees?.value, unit: '', color: COLORS.social },
+      { label: 'LTIFR', value: kpis.ltifr?.value, unit: '', color: COLORS.declined },
+      { label: 'AP Days', value: kpis.ap_days?.value, unit: 'days', color: COLORS.governance },
     ];
-  }
-
-  generateExecutiveObservations() {
-    const observations = [];
-    const emissionData = this.metrics?.emissions?.ghg_emissions || {};
-    const totals = this.filteredData?.totals || {};
-    const energy = this.metrics?.energy || {};
-    const water = this.metrics?.water || {};
-    const waste = this.metrics?.waste || {};
-    const kpis = this.summary?.kpis || {};
     
-    const scope1 = totals.scope1 || emissionData.total_scope1 || 0;
-    const scope2 = totals.scope2 || emissionData.total_scope2 || 0;
-    const scope3 = totals.scope3 || emissionData.total_scope3 || 0;
-    const total = scope1 + scope2 + scope3;
+    const metricWidth = (PAGE.contentWidth - 10) / metrics.length;
+    let metricX = PAGE.margin + 5;
+    const metricY = this.currentY + 18;
     
-    // Scope contribution
-    if (total > 0) {
-      const maxScope = Math.max(scope1, scope2, scope3);
-      if (maxScope === scope1) {
-        observations.push('Scope 1 contributes the largest share of total emissions.');
-      } else if (maxScope === scope2) {
-        observations.push('Scope 2 contributes the largest share of total emissions.');
-      } else {
-        observations.push('Scope 3 contributes the largest share of total emissions.');
+    metrics.forEach((m) => {
+      // Value
+      this.doc.setFont('helvetica', 'bold');
+      this.doc.setFontSize(14);
+      this.doc.setTextColor(m.color);
+      const valueText = m.value != null ? this.formatNumberWithCommas(m.value) : 'N/A';
+      this.doc.text(valueText, metricX, metricY);
+      
+      // Unit
+      if (m.unit && m.value != null) {
+        this.doc.setFont('helvetica', 'normal');
+        this.doc.setFontSize(8);
+        this.doc.setTextColor(COLORS.textMuted);
+        this.doc.text(m.unit, metricX + this.doc.getTextWidth(valueText) + 1, metricY);
       }
-    }
+      
+      // Label
+      this.doc.setFont('helvetica', 'normal');
+      this.doc.setFontSize(7);
+      this.doc.setTextColor(COLORS.textMuted);
+      this.doc.text(m.label.toUpperCase(), metricX, metricY + 7);
+      
+      metricX += metricWidth;
+    });
     
-    // Renewable energy
-    const renewablePct = energy.renewable_pct || 0;
-    if (renewablePct >= 50) {
-      observations.push('Renewable energy represents a significant portion of energy consumption.');
-    }
-    
-    // Water recycling
-    const withdrawn = water.withdrawn || 0;
-    const recycled = water.recycled || 0;
-    if (withdrawn > 0 && (recycled / withdrawn) * 100 >= 30) {
-      observations.push('Water recycling performance remains strong.');
-    }
-    
-    // Employee turnover
-    const turnover = kpis.turnover_pct?.value;
-    if (turnover != null && turnover < 15) {
-      observations.push('Employee turnover remained low during the reporting period.');
-    }
-    
-    if (observations.length === 0) {
-      observations.push('ESG data collection is in progress across key metrics.');
-    }
-    
-    return observations.slice(0, 4);
+    this.currentY += 50;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 3. KPI SUMMARY
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  addKPISummary() {
-    this.addSectionTitle('3. KPI Summary');
-    
-    this.doc.setFont('helvetica', 'normal');
-    this.doc.setFontSize(9);
-    this.doc.setTextColor(COLORS.textMuted);
-    this.doc.text('All dashboard KPI cards displayed in printable layout. Colors maintained from dashboard.', PAGE.margin, this.currentY);
-    this.currentY += 8;
-    
-    const kpis = this.getExecutiveKPIs();
-    this.addKPIGrid(kpis, 3, true); // 3 columns, larger cards
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 4. EMISSIONS SECTION
+  // 3. EMISSIONS SECTION
   // ═══════════════════════════════════════════════════════════════════════════
 
   async addEmissionsSection() {
-    this.addSectionTitle('4. Emissions');
+    this.addSectionTitle('Emissions', COLORS.emissions);
     
-    // Reporting frequency
-    this.doc.setFont('helvetica', 'italic');
-    this.doc.setFontSize(9);
-    this.doc.setTextColor(COLORS.textMuted);
-    const freq = this.granularity.charAt(0).toUpperCase() + this.granularity.slice(1);
-    this.doc.text(`Reporting Frequency: ${freq}`, PAGE.margin, this.currentY);
-    this.currentY += 8;
+    // Reporting frequency note
+    this.addFrequencyNote();
     
-    // GHG Emission Trend Chart
-    this.addSubsectionTitle('GHG Emission Trend');
-    await this.addChartFromRef('ghg-emission-trend', 'GHG Emission Trend Chart', 120);
+    // Try to capture GHG chart
+    await this.addChartFromRef('ghg-emission-trend', 'GHG Emission Trend', 70);
     
-    // Scope Breakdown Donut (side reference)
     this.currentY += 3;
-    await this.addChartFromRef('scope-breakdown-card', 'Scope Breakdown', 60);
-    
-    this.currentY += 5;
     
     // Scope Breakdown Table
-    this.addSubsectionTitle('Scope Breakdown Summary');
     const emissionData = this.metrics?.emissions?.ghg_emissions || {};
     const totals = this.filteredData?.totals || {};
     
@@ -514,155 +564,234 @@ export class ESGReportGenerator {
     const scope3 = totals.scope3 || emissionData.total_scope3 || 0;
     const total = scope1 + scope2 + scope3;
     
+    this.addSubsectionTitle('Scope Breakdown');
+    
     const tableData = [
-      ['Scope', 'Emissions (tCO₂e)', '% Contribution'],
-      ['Scope 1', this.formatNumber(scope1), total ? `${((scope1/total)*100).toFixed(1)}%` : '0%'],
-      ['Scope 2', this.formatNumber(scope2), total ? `${((scope2/total)*100).toFixed(1)}%` : '0%'],
-      ['Scope 3', this.formatNumber(scope3), total ? `${((scope3/total)*100).toFixed(1)}%` : '0%'],
-      ['Total', this.formatNumber(total), '100%'],
+      ['Scope', `Emissions (${this.getCO2Unit()})`, '% Contribution'],
+      ['Scope 1 (Direct)', this.formatNumberWithCommas(scope1), total ? this.formatPercent((scope1/total)*100) : '0%'],
+      ['Scope 2 (Indirect - Energy)', this.formatNumberWithCommas(scope2), total ? this.formatPercent((scope2/total)*100) : '0%'],
+      ['Scope 3 (Value Chain)', this.formatNumberWithCommas(scope3), total ? this.formatPercent((scope3/total)*100) : '0%'],
+      ['Total', this.formatNumberWithCommas(total), '100%'],
     ];
     
-    this.addTable(tableData, [60, 60, 60]);
+    this.addStyledTable(tableData, [70, 50, 50], COLORS.emissions);
+    
+    // Trend Analysis
+    this.currentY += 5;
+    this.addTrendAnalysis(this.generateEmissionsTrendAnalysis(scope1, scope2, scope3, total));
+  }
+
+  generateEmissionsTrendAnalysis(scope1, scope2, scope3, total) {
+    const lines = [];
+    if (total > 0) {
+      const maxScope = Math.max(scope1, scope2, scope3);
+      const maxPct = ((maxScope / total) * 100).toFixed(1);
+      
+      if (maxScope === scope1) {
+        lines.push(`Scope 1 emissions represented ${maxPct}% of total emissions during the reporting period, indicating direct emissions are the primary contributor.`);
+      } else if (maxScope === scope2) {
+        lines.push(`Scope 2 emissions represented ${maxPct}% of total emissions, suggesting purchased energy is the main emission source.`);
+      } else {
+        lines.push(`Scope 3 emissions represented ${maxPct}% of total emissions, highlighting the significance of value chain emissions.`);
+      }
+      
+      if (scope2 > 0 && scope2 < scope1) {
+        lines.push('Scope 2 remained comparatively lower than Scope 1.');
+      }
+    } else {
+      lines.push('Emissions data is being collected for this reporting period.');
+    }
+    return lines;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 5. ENERGY SECTION
+  // 4. ENERGY SECTION
   // ═══════════════════════════════════════════════════════════════════════════
 
   async addEnergySection() {
-    this.addSectionTitle('5. Energy');
+    this.addSectionTitle('Energy', COLORS.energy);
     
-    // Energy Mix Chart
-    this.addSubsectionTitle('Energy Mix');
-    await this.addChartFromRef('energy-mix-chart', 'Energy Mix Chart', 80);
+    await this.addChartFromRef('energy-mix-chart', 'Energy Mix', 65);
     
     this.currentY += 3;
     
-    // Renewable % & Energy Intensity Chart
-    this.addSubsectionTitle('Renewable % & Energy Intensity');
-    await this.addChartFromRef('renewable-intensity-trend', 'Renewable % & Energy Intensity Trend', 80);
-    
-    this.currentY += 5;
-    
-    // Energy Summary Table
-    this.addSubsectionTitle('Energy Summary');
+    // Energy Summary
     const energy = this.metrics?.energy || {};
     const totalEnergy = energy.total || 0;
     const renewablePct = energy.renewable_pct || 0;
-    const energyIntensity = this.productionQty ? totalEnergy / this.productionQty : 0;
+    const nonRenewablePct = 100 - renewablePct;
+    const energyIntensity = this.productionQty ? totalEnergy / this.productionQty : null;
+    
+    this.addSubsectionTitle('Energy Summary');
     
     const tableData = [
       ['Metric', 'Value'],
-      ['Renewable Energy %', `${renewablePct.toFixed(1)}%`],
-      ['Non-Renewable Energy %', `${(100 - renewablePct).toFixed(1)}%`],
-      ['Energy Intensity', `${energyIntensity.toFixed(2)} MWh/${this.productionUnit}`],
-      ['Total Energy Consumption', `${this.formatNumber(totalEnergy)} MWh`],
+      ['Total Energy Consumption', `${this.formatNumberWithCommas(totalEnergy)} MWh`],
+      ['Renewable Energy', this.formatPercent(renewablePct)],
+      ['Non-Renewable Energy', this.formatPercent(nonRenewablePct)],
+      ['Energy Intensity', energyIntensity != null ? `${energyIntensity.toFixed(2)} MWh/${this.productionUnit}` : 'Not Available'],
     ];
     
-    this.addTable(tableData, [90, 90]);
+    this.addStyledTable(tableData, [90, 80], COLORS.energy);
+    
+    // Trend Analysis
+    this.currentY += 5;
+    this.addTrendAnalysis(this.generateEnergyTrendAnalysis(renewablePct, totalEnergy));
+  }
+
+  generateEnergyTrendAnalysis(renewablePct, totalEnergy) {
+    const lines = [];
+    if (renewablePct >= 80) {
+      lines.push(`Renewable energy accounts for ${this.formatPercent(renewablePct)} of total consumption, demonstrating strong commitment to clean energy transition.`);
+    } else if (renewablePct >= 50) {
+      lines.push(`Renewable energy represents ${this.formatPercent(renewablePct)} of energy mix, showing progress toward sustainability goals.`);
+    } else if (renewablePct > 0) {
+      lines.push(`Renewable energy is currently ${this.formatPercent(renewablePct)} of total consumption. Opportunity exists to increase clean energy adoption.`);
+    } else if (totalEnergy > 0) {
+      lines.push('Energy consumption is being tracked. Renewable energy adoption should be prioritized.');
+    } else {
+      lines.push('Energy data is being collected for this reporting period.');
+    }
+    return lines;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 6. WATER SECTION
+  // 5. WATER SECTION
   // ═══════════════════════════════════════════════════════════════════════════
 
   async addWaterSection() {
-    this.addSectionTitle('6. Water');
+    this.addSectionTitle('Water', COLORS.water);
     
-    // Water Flow Chart
-    this.addSubsectionTitle('Water Flow');
-    await this.addChartFromRef('water-flow-chart', 'Water Flow Chart', 80);
+    await this.addChartFromRef('water-flow-chart', 'Water Flow', 65);
     
-    this.currentY += 5;
+    this.currentY += 3;
     
-    // Water Summary Table
-    this.addSubsectionTitle('Summary');
     const water = this.metrics?.water || {};
     const withdrawn = water.withdrawn || 0;
     const consumed = water.consumed || 0;
     const discharged = water.discharged || 0;
     const recycled = water.recycled || 0;
-    const recycleRate = withdrawn ? ((recycled / withdrawn) * 100) : 0;
+    
+    // Calculate recycle rate only if we have meaningful data
+    let recycleRate = null;
+    if (withdrawn > 0) {
+      recycleRate = (recycled / withdrawn) * 100;
+    } else if (recycled > 0) {
+      // If we have recycled but no withdrawn, note data inconsistency
+      recycleRate = null;
+    }
+    
+    this.addSubsectionTitle('Water Summary');
     
     const tableData = [
       ['Metric', 'Value (KL)'],
-      ['Withdrawn', this.formatNumber(withdrawn)],
-      ['Consumed', this.formatNumber(consumed)],
-      ['Discharged', this.formatNumber(discharged)],
-      ['Recycled', this.formatNumber(recycled)],
-      ['Recycle Rate %', `${recycleRate.toFixed(1)}%`],
+      ['Withdrawn', withdrawn > 0 ? this.formatNumberWithCommas(withdrawn) : 'Not Reported'],
+      ['Consumed', consumed > 0 ? this.formatNumberWithCommas(consumed) : 'Not Reported'],
+      ['Discharged', discharged > 0 ? this.formatNumberWithCommas(discharged) : 'Not Reported'],
+      ['Recycled', recycled > 0 ? this.formatNumberWithCommas(recycled) : 'Not Reported'],
+      ['Recycle Rate', recycleRate != null ? this.formatPercent(recycleRate) : 'Insufficient Data'],
     ];
     
-    this.addTable(tableData, [90, 90]);
+    this.addStyledTable(tableData, [90, 80], COLORS.water);
+    
+    // Trend Analysis
+    this.currentY += 5;
+    this.addTrendAnalysis(this.generateWaterTrendAnalysis(withdrawn, recycled, recycleRate));
+  }
+
+  generateWaterTrendAnalysis(withdrawn, recycled, recycleRate) {
+    const lines = [];
+    if (recycleRate != null && recycleRate >= 50) {
+      lines.push(`Water recycling performance is strong at ${this.formatPercent(recycleRate)}, indicating effective water management practices.`);
+    } else if (recycleRate != null && recycleRate > 0) {
+      lines.push(`Water recycling rate is ${this.formatPercent(recycleRate)}. Consider initiatives to improve water reuse.`);
+    } else if (recycled > 0 && withdrawn === 0) {
+      lines.push(`Water recycling data (${this.formatNumberWithCommas(recycled)} KL) is available, but withdrawal data is incomplete. Recycle rate cannot be calculated.`);
+    } else {
+      lines.push('Complete water flow data is being collected to enable comprehensive analysis.');
+    }
+    return lines;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 7. WASTE SECTION
+  // 6. WASTE SECTION
   // ═══════════════════════════════════════════════════════════════════════════
 
   async addWasteSection() {
-    this.addSectionTitle('7. Waste');
+    this.addSectionTitle('Waste', COLORS.waste);
     
-    // Waste Management Chart
-    this.addSubsectionTitle('Waste Management');
-    await this.addChartFromRef('waste-management-chart', 'Waste Management Chart', 80);
+    await this.addChartFromRef('waste-management-chart', 'Waste Management', 65);
     
-    this.currentY += 5;
+    this.currentY += 3;
     
-    // Waste Summary Table
-    this.addSubsectionTitle('Summary');
     const waste = this.metrics?.waste || {};
     const generated = waste.generated || 0;
     const recovered = waste.recovered || 0;
     const disposed = waste.disposed || 0;
-    const recoveryRate = generated ? ((recovered / generated) * 100) : 0;
+    const recoveryRate = generated > 0 ? (recovered / generated) * 100 : null;
+    
+    this.addSubsectionTitle('Waste Summary');
     
     const tableData = [
       ['Metric', 'Value (MT)'],
-      ['Generated', this.formatNumber(generated)],
-      ['Recovered', this.formatNumber(recovered)],
-      ['Disposed', this.formatNumber(disposed)],
-      ['Recovery Rate', `${recoveryRate.toFixed(1)}%`],
+      ['Generated', generated > 0 ? this.formatNumberWithCommas(generated) : 'Not Reported'],
+      ['Recovered', recovered > 0 ? this.formatNumberWithCommas(recovered) : 'Not Reported'],
+      ['Disposed', disposed > 0 ? this.formatNumberWithCommas(disposed) : 'Not Reported'],
+      ['Recovery Rate', recoveryRate != null ? this.formatPercent(recoveryRate) : 'Not Applicable'],
     ];
     
-    this.addTable(tableData, [90, 90]);
+    this.addStyledTable(tableData, [90, 80], COLORS.waste);
+    
+    // Trend Analysis
+    this.currentY += 5;
+    this.addTrendAnalysis(this.generateWasteTrendAnalysis(generated, recovered, disposed, recoveryRate));
+  }
+
+  generateWasteTrendAnalysis(generated, recovered, disposed, recoveryRate) {
+    const lines = [];
+    if (recovered > disposed) {
+      lines.push('Waste recovery exceeded disposal, indicating effective waste management and circular economy practices.');
+    } else if (recoveryRate != null && recoveryRate >= 50) {
+      lines.push(`Waste recovery rate is ${this.formatPercent(recoveryRate)}, showing commitment to waste diversion.`);
+    } else if (recoveryRate != null) {
+      lines.push(`Waste recovery rate is ${this.formatPercent(recoveryRate)}. Opportunities exist to improve waste diversion.`);
+    } else {
+      lines.push('Waste management data is being collected for comprehensive analysis.');
+    }
+    return lines;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 8. SOCIAL SECTION
+  // 7. SOCIAL SECTION
   // ═══════════════════════════════════════════════════════════════════════════
 
   async addSocialSection() {
-    this.addSectionTitle('8. Social');
+    this.addSectionTitle('Social', COLORS.social);
     
     const kpis = this.summary?.kpis || {};
     
-    // Social KPIs
-    this.addSubsectionTitle('Workforce KPIs');
-    const socialKpis = [
-      { title: 'Employees', value: kpis.total_employees?.value, unit: '', color: '#7C3AED' },
-      { title: 'Female Workforce %', value: kpis.diversity_pct?.value, unit: '%', color: '#EC4899' },
-      { title: 'LTIFR', value: kpis.ltifr?.value, unit: '', color: '#DC2626' },
-      { title: 'Employee Turnover', value: kpis.turnover_pct?.value, unit: '%', color: '#F97316' },
+    // Workforce KPIs
+    this.addSubsectionTitle('Workforce Overview');
+    
+    const workforceData = [
+      ['Metric', 'Value'],
+      ['Total Employees', kpis.total_employees?.value != null ? this.formatNumberWithCommas(kpis.total_employees.value) : 'Not Reported'],
+      ['Female Workforce', kpis.diversity_pct?.value != null ? this.formatPercent(kpis.diversity_pct.value) : 'Not Reported'],
+      ['Employee Turnover', kpis.turnover_pct?.value != null ? this.formatPercent(kpis.turnover_pct.value) : 'Not Reported'],
+      ['LTIFR', kpis.ltifr?.value != null ? kpis.ltifr.value.toFixed(2) : 'Not Reported'],
     ];
-    this.addKPIGrid(socialKpis, 4);
+    
+    this.addStyledTable(workforceData, [90, 80], COLORS.social);
     
     this.currentY += 5;
     
-    // LTIFR Trend Chart
-    this.addSubsectionTitle('LTIFR Trend');
-    await this.addChartFromRef('ltifr-trend-chart', 'LTIFR Trend Chart', 70);
+    // LTIFR Trend
+    await this.addChartFromRef('ltifr-trend-chart', 'LTIFR Trend', 55);
     
+    // Incidents Summary
     this.currentY += 3;
+    this.addSubsectionTitle('Safety & Compliance');
     
-    // Incidents Trend Chart
-    this.addSubsectionTitle('Incidents Trend');
-    await this.addChartFromRef('incidents-trend-chart', 'Incidents Trend Chart', 70);
-    
-    this.currentY += 5;
-    
-    // Incidents Summary Table
-    this.addSubsectionTitle('Incidents Summary');
     const incidents = this.analytics?.incidents || [];
     const totalIncidents = incidents.reduce((sum, row) => ({
       healthSafety: (sum.healthSafety || 0) + (row.healthSafety || 0),
@@ -670,253 +799,190 @@ export class ESGReportGenerator {
       violations: (sum.violations || 0) + (row.violations || 0),
     }), {});
     
-    const tableData = [
-      ['Incident Type', 'Total Count'],
-      ['Health & Safety Incidents', this.formatNumber(totalIncidents.healthSafety || 0)],
-      ['Data Breaches', this.formatNumber(totalIncidents.dataBreaches || 0)],
-      ['Violations', this.formatNumber(totalIncidents.violations || 0)],
+    const incidentsData = [
+      ['Incident Type', 'Count'],
+      ['Health & Safety Incidents', this.formatNumberWithCommas(totalIncidents.healthSafety || 0)],
+      ['Data Breaches', this.formatNumberWithCommas(totalIncidents.dataBreaches || 0)],
+      ['Compliance Violations', this.formatNumberWithCommas(totalIncidents.violations || 0)],
     ];
     
-    this.addTable(tableData, [90, 90]);
+    this.addStyledTable(incidentsData, [90, 80], COLORS.social);
+    
+    // Trend Analysis
+    this.currentY += 5;
+    this.addTrendAnalysis(this.generateSocialTrendAnalysis(kpis, totalIncidents));
+  }
+
+  generateSocialTrendAnalysis(kpis, incidents) {
+    const lines = [];
+    const turnover = kpis.turnover_pct?.value;
+    const ltifr = kpis.ltifr?.value;
+    
+    if (turnover != null && turnover < 10) {
+      lines.push('Employee retention is strong with low turnover, indicating positive workplace culture.');
+    } else if (turnover != null && turnover < 20) {
+      lines.push(`Employee turnover at ${this.formatPercent(turnover)} is within acceptable industry range.`);
+    }
+    
+    if (ltifr != null && ltifr > 1) {
+      lines.push(`LTIFR of ${ltifr.toFixed(2)} indicates safety improvements may be needed.`);
+    } else if (ltifr != null) {
+      lines.push(`LTIFR of ${ltifr.toFixed(2)} reflects commitment to workplace safety.`);
+    }
+    
+    if (lines.length === 0) {
+      lines.push('Social metrics are being monitored across workforce and safety dimensions.');
+    }
+    return lines;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 9. GOVERNANCE SECTION
+  // 8. GOVERNANCE SECTION
   // ═══════════════════════════════════════════════════════════════════════════
 
   async addGovernanceSection() {
-    this.addSectionTitle('9. Governance');
+    this.addSectionTitle('Governance', COLORS.governance);
     
     const kpis = this.summary?.kpis || {};
     const apDays = kpis.ap_days?.value;
     
     if (apDays != null) {
-      // Accounts Payable Days Chart
-      this.addSubsectionTitle('Accounts Payable Days');
-      await this.addChartFromRef('ap-days-chart', 'Accounts Payable Days Chart', 80);
+      await this.addChartFromRef('ap-days-chart', 'Accounts Payable Days Trend', 65);
       
-      this.currentY += 5;
+      this.currentY += 3;
       
-      // Governance KPIs
-      this.addSubsectionTitle('Governance KPIs');
+      this.addSubsectionTitle('Governance Metrics');
+      
       const tableData = [
         ['Metric', 'Value'],
-        ['Accounts Payable Days', `${this.formatNumber(apDays)} days`],
+        ['Accounts Payable Days', `${Math.round(apDays)} days`],
       ];
       
-      this.addTable(tableData, [90, 90]);
+      this.addStyledTable(tableData, [90, 80], COLORS.governance);
+      
+      // Trend Analysis
+      this.currentY += 5;
+      const analysis = apDays > 300
+        ? [`Accounts Payable Days at ${Math.round(apDays)} exceeds typical benchmarks and may warrant review for supplier relationship management.`]
+        : apDays > 60
+          ? [`Accounts Payable Days at ${Math.round(apDays)} is within normal range for the industry.`]
+          : [`Accounts Payable Days at ${Math.round(apDays)} indicates efficient payment cycles.`];
+      this.addTrendAnalysis(analysis);
     } else {
       this.doc.setFont('helvetica', 'italic');
-      this.doc.setFontSize(11);
+      this.doc.setFontSize(10);
       this.doc.setTextColor(COLORS.textMuted);
-      this.doc.text('No governance data available.', PAGE.margin, this.currentY);
-      this.currentY += 10;
+      this.doc.text('Governance data is not available for this reporting period.', PAGE.margin, this.currentY);
+      this.currentY += 15;
     }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 10. PERFORMANCE SUMMARY
+  // 9. PERFORMANCE SUMMARY
   // ═══════════════════════════════════════════════════════════════════════════
 
   addPerformanceSummary() {
-    this.addSectionTitle('10. Performance Summary');
+    this.addSectionTitle('Performance Summary', null);
     
-    this.doc.setFont('helvetica', 'normal');
+    // Note about comparison
+    this.doc.setFont('helvetica', 'italic');
     this.doc.setFontSize(9);
     this.doc.setTextColor(COLORS.textMuted);
-    this.doc.text('Comparison indicators based on previous period dashboard data.', PAGE.margin, this.currentY);
-    this.currentY += 5;
-    this.doc.text('▲ Improved  |  ▼ Declined  |  ► Stable', PAGE.margin, this.currentY);
-    this.currentY += 10;
+    this.doc.text('Period-over-period comparison indicators based on available data.', PAGE.margin, this.currentY);
+    this.currentY += 8;
     
-    const performance = this.calculatePerformanceIndicators();
+    // Check if we have previous period data
+    const hasPreviousPeriod = false; // In real implementation, check for previous period data
     
-    // Performance table with status indicators
-    const tableData = [
-      ['KPI', 'Current Value', 'Status'],
-      ...performance.map(p => [p.kpi, p.currentValue, p.status])
-    ];
+    if (!hasPreviousPeriod) {
+      // Show message about no previous data
+      this.doc.setFillColor('#FEF3C7');
+      this.doc.setDrawColor('#F59E0B');
+      this.doc.roundedRect(PAGE.margin, this.currentY, PAGE.contentWidth, 18, 2, 2, 'FD');
+      
+      this.doc.setFont('helvetica', 'normal');
+      this.doc.setFontSize(9);
+      this.doc.setTextColor('#92400E');
+      this.doc.text('Note: Previous reporting period data is not available.', PAGE.margin + 5, this.currentY + 7);
+      this.doc.text('Trend analysis will be available once multiple reporting periods are completed.', PAGE.margin + 5, this.currentY + 13);
+      
+      this.currentY += 25;
+    }
     
-    this.addPerformanceTable(tableData, performance);
-  }
-
-  calculatePerformanceIndicators() {
+    // Current values summary
+    this.addSubsectionTitle('Current Period Values');
+    
     const kpis = this.summary?.kpis || {};
     const emissionData = this.metrics?.emissions?.ghg_emissions || {};
+    const totals = this.filteredData?.totals || {};
     const energy = this.metrics?.energy || {};
     const water = this.metrics?.water || {};
     const waste = this.metrics?.waste || {};
     
-    // Define KPIs with improvement direction
-    // For this version, we show stable since we don't have historical comparison
-    // In real implementation, compare with previous period data
-    const kpiConfigs = [
-      { 
-        key: 'emissions', 
-        label: 'Total Emissions', 
-        current: emissionData.total || 0, 
-        unit: 'tCO₂e',
-        lowerIsBetter: true 
-      },
-      { 
-        key: 'renewablePct', 
-        label: 'Renewable %', 
-        current: energy.renewable_pct || 0, 
-        unit: '%',
-        lowerIsBetter: false // higher is better
-      },
-      { 
-        key: 'waterRecycled', 
-        label: 'Water Recycled', 
-        current: water.recycled || 0, 
-        unit: 'KL',
-        lowerIsBetter: false // higher is better
-      },
-      { 
-        key: 'wasteRecovery', 
-        label: 'Waste Recovery', 
-        current: waste.recovered || 0, 
-        unit: 'MT',
-        lowerIsBetter: false // higher is better
-      },
-      { 
-        key: 'energyIntensity', 
-        label: 'Energy Intensity', 
-        current: this.productionQty ? (energy.total || 0) / this.productionQty : 0, 
-        unit: `MWh/${this.productionUnit}`,
-        lowerIsBetter: true 
-      },
-      { 
-        key: 'ltifr', 
-        label: 'LTIFR', 
-        current: kpis.ltifr?.value || 0, 
-        unit: '',
-        lowerIsBetter: true 
-      },
-      { 
-        key: 'turnover', 
-        label: 'Employee Turnover', 
-        current: kpis.turnover_pct?.value || 0, 
-        unit: '%',
-        lowerIsBetter: true 
-      },
-      { 
-        key: 'apDays', 
-        label: 'Accounts Payable Days', 
-        current: kpis.ap_days?.value || 0, 
-        unit: 'days',
-        lowerIsBetter: true 
-      },
+    const totalEmissions = (totals.scope1 || 0) + (totals.scope2 || 0) + (totals.scope3 || 0) || emissionData.total || 0;
+    
+    const tableData = [
+      ['KPI', 'Current Value', 'Target Direction'],
+      ['Total Emissions', `${this.formatNumberWithCommas(totalEmissions)} ${this.getCO2Unit()}`, 'Lower is better'],
+      ['Renewable Energy %', energy.renewable_pct != null ? this.formatPercent(energy.renewable_pct) : 'Not Available', 'Higher is better'],
+      ['Water Recycled', water.recycled != null ? `${this.formatNumberWithCommas(water.recycled)} KL` : 'Not Available', 'Higher is better'],
+      ['Waste Recovery', waste.recovered != null ? `${this.formatNumberWithCommas(waste.recovered)} MT` : 'Not Available', 'Higher is better'],
+      ['LTIFR', kpis.ltifr?.value != null ? kpis.ltifr.value.toFixed(2) : 'Not Available', 'Lower is better'],
+      ['Employee Turnover', kpis.turnover_pct?.value != null ? this.formatPercent(kpis.turnover_pct.value) : 'Not Available', 'Lower is better'],
+      ['AP Days', kpis.ap_days?.value != null ? `${Math.round(kpis.ap_days.value)} days` : 'Not Available', 'Lower is better'],
     ];
     
-    return kpiConfigs.map(kpi => {
-      // Default to stable since we don't have previous period comparison
-      // In real implementation: compare kpi.current with kpi.previous
-      const status = '► Stable';
-      const statusColor = COLORS.stable;
-      
-      return {
-        kpi: kpi.label,
-        currentValue: kpi.current != null ? `${this.formatNumber(kpi.current)} ${kpi.unit}` : 'N/A',
-        status,
-        statusColor,
-        lowerIsBetter: kpi.lowerIsBetter,
-      };
-    });
-  }
-
-  addPerformanceTable(data, performance) {
-    const rowHeight = 8;
-    const columnWidths = [70, 60, 50];
-    const startX = PAGE.margin;
-    let y = this.currentY;
-    
-    data.forEach((row, rowIndex) => {
-      let x = startX;
-      const isHeader = rowIndex === 0;
-      
-      // Row background
-      if (isHeader) {
-        this.doc.setFillColor(COLORS.primary);
-      } else {
-        this.doc.setFillColor(rowIndex % 2 === 0 ? '#FAFAF9' : '#FFFFFF');
-      }
-      
-      const totalWidth = columnWidths.reduce((a, b) => a + b, 0);
-      this.doc.rect(x, y, totalWidth, rowHeight, 'F');
-      
-      // Cell content
-      row.forEach((cell, colIndex) => {
-        this.doc.setFont('helvetica', isHeader ? 'bold' : 'normal');
-        this.doc.setFontSize(9);
-        
-        if (isHeader) {
-          this.doc.setTextColor('#FFFFFF');
-        } else if (colIndex === 2) {
-          // Status column with color
-          const perfItem = performance[rowIndex - 1];
-          if (cell.includes('▲')) {
-            this.doc.setTextColor(COLORS.improved);
-          } else if (cell.includes('▼')) {
-            this.doc.setTextColor(COLORS.declined);
-          } else {
-            this.doc.setTextColor(COLORS.stable);
-          }
-        } else {
-          this.doc.setTextColor(COLORS.text);
-        }
-        
-        this.doc.text(String(cell), x + 3, y + 5.5);
-        x += columnWidths[colIndex];
-      });
-      
-      y += rowHeight;
-    });
-    
-    // Border
-    this.doc.setDrawColor(COLORS.border);
-    this.doc.setLineWidth(0.3);
-    const totalWidth = columnWidths.reduce((a, b) => a + b, 0);
-    this.doc.rect(startX, this.currentY, totalWidth, data.length * rowHeight);
-    
-    this.currentY = y + 5;
+    this.addStyledTable(tableData, [60, 55, 55], COLORS.primary);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 11. AI INSIGHTS (RULE BASED)
+  // 10. KEY INSIGHTS (Rule-Based)
   // ═══════════════════════════════════════════════════════════════════════════
 
-  addAIInsights() {
-    this.addSectionTitle('11. Key Insights');
+  addKeyInsights() {
+    this.addSectionTitle('Key Insights', null);
     
     this.doc.setFont('helvetica', 'italic');
     this.doc.setFontSize(9);
     this.doc.setTextColor(COLORS.textMuted);
-    this.doc.text('Rule-based observations generated from dashboard data. No AI/LLM APIs used.', PAGE.margin, this.currentY);
+    this.doc.text('Rule-based observations generated from dashboard data.', PAGE.margin, this.currentY);
     this.currentY += 10;
     
-    const insights = this.generateRuleBasedInsights();
+    const insights = this.generateAllInsights();
     
     insights.forEach((insight, index) => {
-      this.checkPageBreak(12);
+      this.checkPageBreak(18);
       
-      // Insight number
+      // Insight box
+      this.doc.setFillColor(index % 2 === 0 ? '#F5F5F4' : '#FAFAF9');
+      this.doc.setDrawColor(COLORS.border);
+      
+      const lines = this.doc.splitTextToSize(insight.text, PAGE.contentWidth - 20);
+      const boxHeight = lines.length * 5 + 10;
+      
+      this.doc.roundedRect(PAGE.margin, this.currentY, PAGE.contentWidth, boxHeight, 2, 2, 'FD');
+      
+      // Category indicator
+      this.doc.setFillColor(insight.color);
+      this.doc.rect(PAGE.margin, this.currentY, 4, boxHeight, 'F');
+      
+      // Number
       this.doc.setFont('helvetica', 'bold');
-      this.doc.setFontSize(10);
-      this.doc.setTextColor(COLORS.primary);
-      this.doc.text(`${index + 1}.`, PAGE.margin, this.currentY);
+      this.doc.setFontSize(11);
+      this.doc.setTextColor(insight.color);
+      this.doc.text(`${index + 1}.`, PAGE.margin + 8, this.currentY + 7);
       
-      // Insight text
+      // Text
       this.doc.setFont('helvetica', 'normal');
-      this.doc.setFontSize(10);
+      this.doc.setFontSize(9);
       this.doc.setTextColor(COLORS.text);
-      const lines = this.doc.splitTextToSize(insight, PAGE.contentWidth - 10);
-      this.doc.text(lines, PAGE.margin + 8, this.currentY);
-      this.currentY += lines.length * 5 + 5;
+      this.doc.text(lines, PAGE.margin + 16, this.currentY + 7);
+      
+      this.currentY += boxHeight + 3;
     });
   }
 
-  generateRuleBasedInsights() {
+  generateAllInsights() {
     const insights = [];
     const emissionData = this.metrics?.emissions?.ghg_emissions || {};
     const totals = this.filteredData?.totals || {};
@@ -930,102 +996,158 @@ export class ESGReportGenerator {
     const scope3 = totals.scope3 || emissionData.total_scope3 || 0;
     const total = scope1 + scope2 + scope3;
     
-    // 1. Scope contribution insight
+    // 1. Emissions insight
     if (total > 0) {
       const maxScope = Math.max(scope1, scope2, scope3);
       const maxPct = ((maxScope / total) * 100).toFixed(1);
-      if (maxScope === scope1) {
-        insights.push(`Scope 1 remains the primary contributor to total emissions, accounting for ${maxPct}% of the total.`);
-      } else if (maxScope === scope2) {
-        insights.push(`Scope 2 remains the primary contributor to total emissions, accounting for ${maxPct}% of the total.`);
-      } else {
-        insights.push(`Scope 3 remains the primary contributor to total emissions, accounting for ${maxPct}% of the total.`);
-      }
+      const scopeName = maxScope === scope1 ? 'Scope 1' : maxScope === scope2 ? 'Scope 2' : 'Scope 3';
+      insights.push({
+        text: `${scopeName} contributes ${maxPct}% of total emissions, making it the primary focus area for emission reduction initiatives.`,
+        color: COLORS.emissions,
+      });
     }
     
     // 2. Renewable energy insight
     const renewablePct = energy.renewable_pct || 0;
     if (renewablePct >= 80) {
-      insights.push(`Renewable energy usage exceeds 80%, demonstrating strong commitment to clean energy.`);
+      insights.push({
+        text: `Renewable energy usage exceeds 80% (${this.formatPercent(renewablePct)}), demonstrating industry-leading clean energy adoption.`,
+        color: COLORS.energy,
+      });
     } else if (renewablePct >= 50) {
-      insights.push(`Renewable energy accounts for ${renewablePct.toFixed(1)}% of total consumption, showing progress toward sustainability goals.`);
-    } else if (renewablePct > 0) {
-      insights.push(`Renewable energy currently at ${renewablePct.toFixed(1)}% - opportunity exists to increase clean energy adoption.`);
+      insights.push({
+        text: `Renewable energy at ${this.formatPercent(renewablePct)} shows strong progress. Target 80%+ to align with best practices.`,
+        color: COLORS.energy,
+      });
     }
     
-    // 3. Waste recovery insight
+    // 3. Waste insight
     const generated = waste.generated || 0;
     const recovered = waste.recovered || 0;
     const disposed = waste.disposed || 0;
-    if (generated > 0 && recovered > disposed) {
-      insights.push('Waste recovery exceeds disposal, indicating effective waste management practices.');
+    if (recovered > disposed && generated > 0) {
+      insights.push({
+        text: 'Waste recovery outperformed disposal, indicating successful circular economy practices and waste diversion programs.',
+        color: COLORS.waste,
+      });
     } else if (generated > 0) {
       const recoveryRate = ((recovered / generated) * 100).toFixed(1);
-      insights.push(`Waste recovery rate is ${recoveryRate}% of total generated waste.`);
+      insights.push({
+        text: `Waste recovery rate is ${recoveryRate}%. Consider expanding recycling and recovery programs to improve this metric.`,
+        color: COLORS.waste,
+      });
     }
     
-    // 4. Water recycling insight
-    const withdrawn = water.withdrawn || 0;
+    // 4. Water insight
     const recycled = water.recycled || 0;
-    if (withdrawn > 0) {
+    const withdrawn = water.withdrawn || 0;
+    if (withdrawn > 0 && recycled > 0) {
       const recycleRate = ((recycled / withdrawn) * 100).toFixed(1);
-      if (recycleRate >= 50) {
-        insights.push(`Water recycling is consistently high at ${recycleRate}% of withdrawn water.`);
-      } else if (recycleRate > 0) {
-        insights.push(`Water recycling rate stands at ${recycleRate}% with potential for improvement.`);
-      }
+      insights.push({
+        text: `Water recycling consistently high at ${recycleRate}%, supporting sustainable water management objectives.`,
+        color: COLORS.water,
+      });
+    } else if (recycled > 0) {
+      insights.push({
+        text: `Water recycling of ${this.formatNumberWithCommas(recycled)} KL reported. Complete water withdrawal data needed for rate calculation.`,
+        color: COLORS.water,
+      });
     }
     
-    // 5. Employee turnover insight
+    // 5. Turnover insight
     const turnover = kpis.turnover_pct?.value;
-    if (turnover != null) {
-      if (turnover < 10) {
-        insights.push('Employee turnover remains stable and low, indicating strong workforce retention.');
-      } else if (turnover < 20) {
-        insights.push(`Employee turnover at ${turnover.toFixed(1)}% is within acceptable industry range.`);
-      }
+    if (turnover != null && turnover < 10) {
+      insights.push({
+        text: `Employee turnover remains stable at ${this.formatPercent(turnover)}, reflecting strong workforce retention and engagement.`,
+        color: COLORS.social,
+      });
     }
     
-    // Ensure we have at least 1 and max 5 insights
-    if (insights.length === 0) {
-      insights.push('ESG data collection is progressing. Continue monitoring key metrics for trend analysis.');
+    // 6. AP Days insight
+    const apDays = kpis.ap_days?.value;
+    if (apDays != null && apDays > 300) {
+      insights.push({
+        text: `Accounts Payable Days exceeds 300 days (${Math.round(apDays)}) and may warrant review to maintain healthy supplier relationships.`,
+        color: COLORS.governance,
+      });
+    } else if (apDays != null) {
+      insights.push({
+        text: `Accounts Payable Days at ${Math.round(apDays)} days indicates efficient payment cycle management.`,
+        color: COLORS.governance,
+      });
     }
     
-    return insights.slice(0, 5);
+    // Ensure we have at least 3 insights
+    if (insights.length < 3) {
+      insights.push({
+        text: 'ESG data collection is progressing across all key areas. Continue monitoring to enable comprehensive trend analysis.',
+        color: COLORS.primary,
+      });
+    }
+    
+    return insights.slice(0, 6); // Max 6 insights
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 12. APPENDIX
+  // 11. APPENDIX
   // ═══════════════════════════════════════════════════════════════════════════
 
   addAppendix() {
-    this.addSectionTitle('12. Appendix: Metric Definitions');
+    this.addSectionTitle('Appendix', null);
     
-    const definitions = [
-      { term: 'GHG Intensity', definition: 'Total greenhouse gas emissions (Scope 1 + Scope 2) divided by production output. Measured in tCO₂e per unit produced.' },
-      { term: 'Energy Intensity', definition: 'Total energy consumption divided by production output. Measured in MWh per unit produced.' },
-      { term: 'Renewable Energy %', definition: 'Percentage of total energy consumption from renewable sources (solar, wind, hydro, biomass).' },
-      { term: 'LTIFR', definition: 'Lost Time Injury Frequency Rate - Number of lost time injuries per million hours worked.' },
-      { term: 'Waste Recovery', definition: 'Amount of waste diverted from disposal through recycling, reuse, composting or other recovery methods.' },
-      { term: 'Accounts Payable Days', definition: 'Average number of days taken to pay suppliers. Also known as Days Payable Outstanding (DPO).' },
-      { term: 'Water Recycled', definition: 'Volume of water that has been treated and reused within operations. Measured in kiloliters (KL).' },
+    // Methodology
+    this.addSubsectionTitle('Methodology');
+    
+    this.doc.setFont('helvetica', 'normal');
+    this.doc.setFontSize(9);
+    this.doc.setTextColor(COLORS.text);
+    const methodology = 'KPIs are calculated using data available in SustainRepo based on the selected reporting period. Emissions calculations follow the GHG Protocol. Energy, water, and waste metrics are aggregated from facility-level data.';
+    const methLines = this.doc.splitTextToSize(methodology, PAGE.contentWidth);
+    this.doc.text(methLines, PAGE.margin, this.currentY);
+    this.currentY += methLines.length * 4 + 8;
+    
+    // Reporting Boundary
+    this.addSubsectionTitle('Reporting Boundary');
+    
+    const boundaryData = [
+      ['Parameter', 'Value'],
+      ['Organization', this.organization.name || 'Not Specified'],
+      ['Reporting Period', this.getReportingPeriod()],
+      ['Reporting Frequency', this.granularity.charAt(0).toUpperCase() + this.granularity.slice(1)],
+      ['Facilities Included', this.facilities.length > 0 ? `${this.facilities.length} facilities` : 'All facilities'],
+      ['Framework', 'Internal / BRSR'],
+      ['Report Version', this.reportVersion],
+      ['Generated On', this.generatedDate],
     ];
     
-    definitions.forEach((def) => {
-      this.checkPageBreak(18);
+    this.addStyledTable(boundaryData, [80, 90], COLORS.primary);
+    
+    this.currentY += 8;
+    
+    // Metric Definitions
+    this.addSubsectionTitle('Metric Definitions');
+    
+    const definitions = [
+      { term: 'GHG Intensity', def: `Total GHG emissions (Scope 1+2) divided by production output. Unit: ${this.getCO2Unit()} per ${this.productionUnit}.` },
+      { term: 'Renewable Energy %', def: 'Percentage of total energy from renewable sources (solar, wind, hydro, biomass).' },
+      { term: 'LTIFR', def: 'Lost Time Injury Frequency Rate - injuries per million hours worked.' },
+      { term: 'Waste Recovery', def: 'Waste diverted from disposal via recycling, reuse, or recovery methods.' },
+      { term: 'AP Days', def: 'Average days to pay suppliers (Days Payable Outstanding).' },
+    ];
+    
+    definitions.forEach((d) => {
+      this.checkPageBreak(12);
       
       this.doc.setFont('helvetica', 'bold');
-      this.doc.setFontSize(10);
+      this.doc.setFontSize(9);
       this.doc.setTextColor(COLORS.primary);
-      this.doc.text(def.term, PAGE.margin, this.currentY);
-      this.currentY += 5;
+      this.doc.text(d.term, PAGE.margin, this.currentY);
       
       this.doc.setFont('helvetica', 'normal');
-      this.doc.setFontSize(9);
       this.doc.setTextColor(COLORS.text);
-      const lines = this.doc.splitTextToSize(def.definition, PAGE.contentWidth);
-      this.doc.text(lines, PAGE.margin, this.currentY);
-      this.currentY += lines.length * 4 + 5;
+      const defLines = this.doc.splitTextToSize(d.def, PAGE.contentWidth - 5);
+      this.doc.text(defLines, PAGE.margin, this.currentY + 4);
+      this.currentY += 4 + defLines.length * 4 + 3;
     });
   }
 
@@ -1033,125 +1155,109 @@ export class ESGReportGenerator {
   // HELPER METHODS
   // ═══════════════════════════════════════════════════════════════════════════
 
-  addSectionTitle(title) {
+  addSectionTitle(title, color) {
+    // Section icon/color bar
+    if (color) {
+      this.doc.setFillColor(color);
+      this.doc.roundedRect(PAGE.margin, this.currentY - 3, 6, 6, 1, 1, 'F');
+    }
+    
     this.doc.setFont('helvetica', 'bold');
     this.doc.setFontSize(16);
-    this.doc.setTextColor(COLORS.primary);
-    this.doc.text(title, PAGE.margin, this.currentY);
+    this.doc.setTextColor(color || COLORS.primary);
+    this.doc.text(title, color ? PAGE.margin + 10 : PAGE.margin, this.currentY);
     
     // Underline
-    this.doc.setDrawColor(COLORS.primary);
-    this.doc.setLineWidth(0.5);
+    this.doc.setDrawColor(color || COLORS.primary);
+    this.doc.setLineWidth(0.7);
     const titleWidth = this.doc.getTextWidth(title);
-    this.doc.line(PAGE.margin, this.currentY + 2, PAGE.margin + titleWidth, this.currentY + 2);
+    this.doc.line(color ? PAGE.margin + 10 : PAGE.margin, this.currentY + 2, (color ? PAGE.margin + 10 : PAGE.margin) + titleWidth, this.currentY + 2);
     
     this.currentY += 12;
   }
 
   addSubsectionTitle(title) {
-    this.checkPageBreak(15);
+    this.checkPageBreak(12);
     this.doc.setFont('helvetica', 'bold');
-    this.doc.setFontSize(11);
-    this.doc.setTextColor(COLORS.text);
-    this.doc.text(title, PAGE.margin, this.currentY);
-    this.currentY += 7;
-  }
-
-  addBulletPoint(text) {
-    this.doc.setFont('helvetica', 'normal');
     this.doc.setFontSize(10);
     this.doc.setTextColor(COLORS.text);
-    
-    // Bullet
-    this.doc.setFillColor(COLORS.secondary);
-    this.doc.circle(PAGE.margin + 2, this.currentY - 1.5, 1, 'F');
-    
-    // Text
-    const lines = this.doc.splitTextToSize(text, PAGE.contentWidth - 10);
-    this.doc.text(lines, PAGE.margin + 6, this.currentY);
-    this.currentY += lines.length * 5 + 2;
+    this.doc.text(title, PAGE.margin, this.currentY);
+    this.currentY += 6;
   }
 
-  addKPIGrid(kpis, columns, large = false) {
-    const cardWidth = (PAGE.contentWidth - (columns - 1) * 3) / columns;
-    const cardHeight = large ? 30 : 22;
-    let x = PAGE.margin;
-    let y = this.currentY;
-    
-    kpis.forEach((kpi, index) => {
-      if (index > 0 && index % columns === 0) {
-        x = PAGE.margin;
-        y += cardHeight + 3;
-      }
-      
-      // Card background
-      this.doc.setFillColor('#FAFAF9');
-      this.doc.setDrawColor(COLORS.border);
-      this.doc.roundedRect(x, y, cardWidth, cardHeight, 2, 2, 'FD');
-      
-      // Top accent line with color
-      this.doc.setFillColor(kpi.color || COLORS.accent);
-      this.doc.rect(x, y, cardWidth, 1.5, 'F');
-      
-      // Title
-      this.doc.setFont('helvetica', 'normal');
-      this.doc.setFontSize(large ? 7 : 6);
-      this.doc.setTextColor(COLORS.textMuted);
-      const titleText = kpi.title.length > 20 ? kpi.title.substring(0, 18) + '...' : kpi.title;
-      this.doc.text(titleText.toUpperCase(), x + 2, y + (large ? 7 : 5));
-      
-      // Value
-      this.doc.setFont('helvetica', 'bold');
-      this.doc.setFontSize(large ? 14 : 11);
-      this.doc.setTextColor(COLORS.text);
-      const valueText = kpi.value != null ? this.formatNumber(kpi.value) : 'N/A';
-      this.doc.text(valueText, x + 2, y + (large ? 17 : 13));
-      
-      // Unit
-      if (kpi.unit) {
-        this.doc.setFont('helvetica', 'normal');
-        this.doc.setFontSize(large ? 8 : 6);
-        this.doc.setTextColor(COLORS.textMuted);
-        const unitText = kpi.unit.length > 15 ? kpi.unit.substring(0, 12) + '...' : kpi.unit;
-        this.doc.text(unitText, x + 2, y + (large ? 23 : 18));
-      }
-      
-      x += cardWidth + 3;
-    });
-    
-    const rows = Math.ceil(kpis.length / columns);
-    this.currentY = y + cardHeight + 5;
+  addFrequencyNote() {
+    this.doc.setFont('helvetica', 'italic');
+    this.doc.setFontSize(8);
+    this.doc.setTextColor(COLORS.textMuted);
+    const freq = this.granularity.charAt(0).toUpperCase() + this.granularity.slice(1);
+    this.doc.text(`Reporting Frequency: ${freq}`, PAGE.margin, this.currentY);
+    this.currentY += 6;
   }
 
-  addTable(data, columnWidths) {
+  addTrendAnalysis(lines) {
+    if (!lines || lines.length === 0) return;
+    
+    this.checkPageBreak(20);
+    
+    // Analysis box
+    this.doc.setFillColor('#F0FDF4');
+    this.doc.setDrawColor('#86EFAC');
+    
+    const allText = lines.join(' ');
+    const textLines = this.doc.splitTextToSize(allText, PAGE.contentWidth - 16);
+    const boxHeight = textLines.length * 4.5 + 10;
+    
+    this.doc.roundedRect(PAGE.margin, this.currentY, PAGE.contentWidth, boxHeight, 2, 2, 'FD');
+    
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.setFontSize(8);
+    this.doc.setTextColor(COLORS.emissions);
+    this.doc.text('ANALYSIS', PAGE.margin + 5, this.currentY + 6);
+    
+    this.doc.setFont('helvetica', 'normal');
+    this.doc.setFontSize(9);
+    this.doc.setTextColor(COLORS.text);
+    this.doc.text(textLines, PAGE.margin + 5, this.currentY + 12);
+    
+    this.currentY += boxHeight + 5;
+  }
+
+  addStyledTable(data, columnWidths, headerColor) {
     const rowHeight = 7;
     const startX = PAGE.margin;
     let y = this.currentY;
+    const totalWidth = columnWidths.reduce((a, b) => a + b, 0);
     
     data.forEach((row, rowIndex) => {
       let x = startX;
       const isHeader = rowIndex === 0;
-      const isTotal = row[0]?.toLowerCase?.() === 'total';
+      const isTotal = row[0]?.toString().toLowerCase().includes('total');
       
       // Row background
       if (isHeader) {
-        this.doc.setFillColor(COLORS.primary);
+        this.doc.setFillColor(headerColor || COLORS.primary);
       } else if (isTotal) {
         this.doc.setFillColor('#E7E5E4');
       } else {
         this.doc.setFillColor(rowIndex % 2 === 0 ? '#FAFAF9' : '#FFFFFF');
       }
       
-      const totalWidth = columnWidths.reduce((a, b) => a + b, 0);
       this.doc.rect(x, y, totalWidth, rowHeight, 'F');
       
       // Cell content
       row.forEach((cell, colIndex) => {
         this.doc.setFont('helvetica', isHeader || isTotal ? 'bold' : 'normal');
-        this.doc.setFontSize(9);
+        this.doc.setFontSize(8);
         this.doc.setTextColor(isHeader ? '#FFFFFF' : COLORS.text);
         
-        this.doc.text(String(cell), x + 2, y + 5);
+        // Right-align numeric columns (index > 0)
+        const cellText = String(cell);
+        if (colIndex > 0 && !isHeader) {
+          const textWidth = this.doc.getTextWidth(cellText);
+          this.doc.text(cellText, x + columnWidths[colIndex] - textWidth - 3, y + 5);
+        } else {
+          this.doc.text(cellText, x + 3, y + 5);
+        }
         x += columnWidths[colIndex];
       });
       
@@ -1161,22 +1267,25 @@ export class ESGReportGenerator {
     // Border
     this.doc.setDrawColor(COLORS.border);
     this.doc.setLineWidth(0.3);
-    const totalWidth = columnWidths.reduce((a, b) => a + b, 0);
     this.doc.rect(startX, this.currentY, totalWidth, data.length * rowHeight);
     
     this.currentY = y + 5;
   }
 
-  async addChartFromRef(testId, title, maxHeight = 80) {
+  async addChartFromRef(testId, title, maxHeight = 70) {
     const chartElement = document.querySelector(`[data-testid="${testId}"]`);
     
     if (chartElement) {
       try {
-        // Hide interactive elements before capture
+        // Hide buttons before capture
         const buttons = chartElement.querySelectorAll('button');
-        buttons.forEach(btn => btn.style.visibility = 'hidden');
+        const originalVisibility = [];
+        buttons.forEach((btn, i) => {
+          originalVisibility[i] = btn.style.visibility;
+          btn.style.visibility = 'hidden';
+        });
         
-        // Add timeout to prevent hanging
+        // Create capture promise with timeout
         const capturePromise = html2canvas(chartElement, {
           scale: 2,
           backgroundColor: '#FFFFFF',
@@ -1184,72 +1293,87 @@ export class ESGReportGenerator {
           useCORS: true,
           allowTaint: true,
           foreignObjectRendering: false,
+          removeContainer: true,
         });
         
-        // Timeout after 5 seconds
         const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Chart capture timeout')), 5000)
+          setTimeout(() => reject(new Error('Timeout')), 8000)
         );
         
         const canvas = await Promise.race([capturePromise, timeoutPromise]);
         
         // Restore buttons
-        buttons.forEach(btn => btn.style.visibility = 'visible');
+        buttons.forEach((btn, i) => {
+          btn.style.visibility = originalVisibility[i] || 'visible';
+        });
         
         const imgData = canvas.toDataURL('image/png');
         const aspectRatio = canvas.width / canvas.height;
         let imgWidth = PAGE.contentWidth;
         let imgHeight = imgWidth / aspectRatio;
         
-        // Limit height
         if (imgHeight > maxHeight) {
           imgHeight = maxHeight;
           imgWidth = imgHeight * aspectRatio;
         }
         
-        // Check page break
         this.checkPageBreak(imgHeight + 5);
         
-        this.doc.addImage(imgData, 'PNG', PAGE.margin, this.currentY, imgWidth, imgHeight);
-        this.currentY += imgHeight + 3;
+        // Add subtle border around chart
+        this.doc.setDrawColor(COLORS.border);
+        this.doc.setLineWidth(0.3);
+        this.doc.roundedRect(PAGE.margin, this.currentY, PAGE.contentWidth, imgHeight + 4, 2, 2, 'S');
+        
+        this.doc.addImage(imgData, 'PNG', PAGE.margin + 2, this.currentY + 2, imgWidth - 4, imgHeight);
+        this.currentY += imgHeight + 8;
+        
+        return true;
       } catch (error) {
-        console.warn(`Could not capture chart: ${testId}`, error);
+        console.warn(`Chart capture failed: ${testId}`, error);
         // Restore buttons on error
         try {
           const buttons = chartElement.querySelectorAll('button');
-          buttons.forEach(btn => btn.style.visibility = 'visible');
+          buttons.forEach(btn => { btn.style.visibility = 'visible'; });
         } catch (e) {
-          // Ignore button restoration errors
+          // Ignore
         }
-        this.addChartPlaceholder(title, maxHeight * 0.6);
+        this.addChartPlaceholder(title, maxHeight * 0.5);
+        return false;
       }
     } else {
-      this.addChartPlaceholder(title, maxHeight * 0.6);
+      this.addChartPlaceholder(title, maxHeight * 0.5);
+      return false;
     }
   }
 
-  addChartPlaceholder(title, height = 50) {
+  addChartPlaceholder(title, height = 40) {
+    this.checkPageBreak(height + 5);
+    
     this.doc.setFillColor('#F5F5F4');
     this.doc.setDrawColor(COLORS.border);
+    this.doc.setLineWidth(0.3);
     this.doc.roundedRect(PAGE.margin, this.currentY, PAGE.contentWidth, height, 2, 2, 'FD');
     
-    this.doc.setFont('helvetica', 'normal');
-    this.doc.setFontSize(10);
+    this.doc.setFont('helvetica', 'italic');
+    this.doc.setFontSize(9);
     this.doc.setTextColor(COLORS.textMuted);
-    this.doc.text(`[${title}]`, PAGE.width / 2, this.currentY + height / 2, { align: 'center' });
+    this.doc.text(`[${title}]`, PAGE.width / 2, this.currentY + height / 2 - 2, { align: 'center' });
+    this.doc.setFontSize(7);
+    this.doc.text('Chart data will appear when viewing dashboard', PAGE.width / 2, this.currentY + height / 2 + 4, { align: 'center' });
     
-    this.currentY += height + 3;
+    this.currentY += height + 5;
   }
 
-  formatNumber(value) {
+  formatNumberWithCommas(value) {
     if (value == null || isNaN(value)) return 'N/A';
-    if (Math.abs(value) >= 1000000) {
-      return (value / 1000000).toFixed(2) + 'M';
-    }
-    if (Math.abs(value) >= 1000) {
-      return (value / 1000).toFixed(1) + 'K';
-    }
-    return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+    // Round to 2 decimal places and format with commas
+    const rounded = Math.round(value * 100) / 100;
+    return rounded.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  }
+
+  formatPercent(value) {
+    if (value == null || isNaN(value)) return 'N/A';
+    return `${value.toFixed(1)}%`;
   }
 }
 
