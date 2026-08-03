@@ -14,6 +14,7 @@ import { WaterReportGenerator } from './WaterReportGenerator';
 import { WasteReportGenerator } from './WasteReportGenerator';
 import { SocialReportGenerator } from './SocialReportGenerator';
 import { GovernanceReportGenerator } from './GovernanceReportGenerator';
+import { EnvironmentReportGenerator } from './EnvironmentReportGenerator';
 import ESGReportGenerator from './ESGReportGenerator';
 
 // Dashboard type configurations
@@ -47,6 +48,11 @@ const DASHBOARD_CONFIGS = {
     label: 'Governance Report',
     Generator: GovernanceReportGenerator,
     filename: 'Governance_Report',
+  },
+  environment: {
+    label: 'Environment Report',
+    Generator: EnvironmentReportGenerator,
+    filename: 'Environment_Report',
   },
   esg: {
     label: 'ESG Report',

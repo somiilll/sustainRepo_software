@@ -144,7 +144,8 @@ export class GovernanceReportGenerator extends BasePDFGenerator {
     
     this.addAnalysisBox(analysis);
     
-    await this.addChartFromRef('ap-days-chart', 'Accounts Payable Days Trend', 70);
+    // Match testId from DashboardGovernance.jsx SectionCard components
+    await this.addChartFromRef('section-ap-trend', 'Accounts Payable Days Trend', 70);
     
     this.addSubsectionTitle('Financial Metrics');
     
@@ -171,7 +172,9 @@ export class GovernanceReportGenerator extends BasePDFGenerator {
     
     this.addAnalysisBox(analysis);
     
-    await this.addChartFromRef('violations-trend-chart', 'Compliance Violations Trend', 70);
+    // Match testId from DashboardGovernance.jsx SectionCard components
+    await this.addChartFromRef('section-violation-trend', 'Compliance Violations Trend', 70);
+    await this.addChartFromRef('section-breach-trend', 'Data Breach Trend', 60);
     
     this.addSubsectionTitle('Compliance Summary');
     
@@ -194,8 +197,9 @@ export class GovernanceReportGenerator extends BasePDFGenerator {
     
     this.addAnalysisBox(analysis);
     
-    await this.addChartFromRef('corruption-cases-chart', 'Corruption Cases', 70);
-    await this.addChartFromRef('ethics-training-chart', 'Ethics Training Completion', 60);
+    // Match testId from DashboardGovernance.jsx SectionCard components
+    await this.addChartFromRef('section-corruption', 'Corruption Cases', 70);
+    await this.addChartFromRef('section-anti-competitive', 'Anti-Competitive Cases', 60);
     
     this.addSubsectionTitle('Ethics Metrics');
     
@@ -213,8 +217,9 @@ export class GovernanceReportGenerator extends BasePDFGenerator {
     
     this.addAnalysisBox('Tracking governance metrics over time helps identify patterns and the effectiveness of control measures. Consistent monitoring supports continuous improvement in governance practices.');
     
-    await this.addChartFromRef('data-breach-trend', 'Data Breach Trend', 70);
-    await this.addChartFromRef('compliance-score-trend', 'Compliance Score Trend', 60);
+    // Match testId from DashboardGovernance.jsx SectionCard components
+    await this.addChartFromRef('section-breach-trend', 'Data Breach Trend', 70);
+    await this.addChartFromRef('section-ap-trend', 'AP Days Trend', 60);
   }
 
   getDefinitions() {

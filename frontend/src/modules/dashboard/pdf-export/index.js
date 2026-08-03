@@ -13,6 +13,7 @@ export { WaterReportGenerator } from './WaterReportGenerator';
 export { WasteReportGenerator } from './WasteReportGenerator';
 export { SocialReportGenerator } from './SocialReportGenerator';
 export { GovernanceReportGenerator } from './GovernanceReportGenerator';
+export { EnvironmentReportGenerator } from './EnvironmentReportGenerator';
 
 // ESG combined report (legacy)
 export { ESGReportGenerator } from './ESGReportGenerator';

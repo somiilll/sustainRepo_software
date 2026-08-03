@@ -147,7 +147,8 @@ export class SocialReportGenerator extends BasePDFGenerator {
     
     this.addAnalysisBox(analysis);
     
-    await this.addChartFromRef('workforce-composition-chart', 'Workforce Composition', 70);
+    // Match testId from DashboardSocial.jsx SectionCard components
+    await this.addChartFromRef('section-employee-diversity', 'Employee Diversity', 70);
     
     this.addSubsectionTitle('Workforce Summary');
     
@@ -177,8 +178,9 @@ export class SocialReportGenerator extends BasePDFGenerator {
     
     this.addAnalysisBox(analysis);
     
-    await this.addChartFromRef('employee-diversity-chart', 'Employee Diversity', 70);
-    await this.addChartFromRef('board-diversity-chart', 'Board Diversity', 60);
+    // Match testId from DashboardSocial.jsx SectionCard components
+    await this.addChartFromRef('section-employee-diversity', 'Employee Diversity', 70);
+    await this.addChartFromRef('section-board-diversity', 'Board Diversity', 60);
   }
 
   async addSafetySection() {
@@ -194,7 +196,9 @@ export class SocialReportGenerator extends BasePDFGenerator {
     
     this.addAnalysisBox(analysis);
     
-    await this.addChartFromRef('ltifr-trend-chart', 'LTIFR Trend', 70);
+    // Match testId from DashboardSocial.jsx SectionCard components
+    await this.addChartFromRef('section-hs-waffle', 'Health & Safety Incidents', 70);
+    await this.addChartFromRef('section-safety-trend', 'Safety Trend', 60);
     
     this.addSubsectionTitle('Safety Metrics');
     
@@ -216,8 +220,9 @@ export class SocialReportGenerator extends BasePDFGenerator {
     
     this.addAnalysisBox(analysis);
     
-    await this.addChartFromRef('training-trend-chart', 'Training Trend', 70);
-    await this.addChartFromRef('training-by-category', 'Training by Category', 60);
+    // Match testId from DashboardSocial.jsx SectionCard components
+    await this.addChartFromRef('section-training-attendee', 'Training by Attendee', 70);
+    await this.addChartFromRef('section-training-trend', 'Training Trend', 60);
   }
 
   getDefinitions() {

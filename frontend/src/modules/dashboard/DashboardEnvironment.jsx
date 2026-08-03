@@ -20,6 +20,7 @@ import {
 import StickyFilterBar from './components/filters/StickyFilterBar';
 import SectionCard from './components/layout/SectionCard';
 import PremiumKpiCard from './components/kpi/PremiumKpiCard';
+import { DashboardExportButton } from './pdf-export';
 import { useIntensityData, useIntensityCalculations, usePrevYearIntensity } from './hooks/useIntensityData';
 import {
   Leaf, Zap, Droplets, Trash2, FlameKindling, CloudSun,
@@ -836,7 +837,53 @@ export default function DashboardEnvironment({ data }) {
         showFilters={showFilters}
         setShowFilters={setShowFilters}
         filterProps={filterProps}
-        showExport={false}
+        showExport={true}
+        exportButton={
+          <DashboardExportButton
+            dashboardType="environment"
+            data={{
+              kpis: {
+                total_emissions: { value: kpiTotals.totalEmissions },
+                net_emissions: { value: kpiTotals.netEmissions },
+                total_energy: { value: kpiTotals.totalEnergy },
+                water_withdrawn: { value: kpiTotals.totalWaterWithdrawn },
+                water_recycled_pct: { value: kpiTotals.waterRecycledPct },
+                waste_generated: { value: kpiTotals.totalWasteGenerated },
+                waste_recovered_pct: { value: kpiTotals.wasteRecoveredPct },
+              },
+              emissions: {
+                total: kpiTotals.totalEmissions,
+                net: kpiTotals.netEmissions,
+                scope1: emissions.reduce((s, e) => s + (e.scope1 || 0), 0),
+                scope2: emissions.reduce((s, e) => s + (e.scope2 || 0), 0),
+                scope3: emissions.reduce((s, e) => s + (e.scope3 || 0), 0),
+              },
+              energy: {
+                total: kpiTotals.totalEnergy,
+                renewable: energy.reduce((s, e) => s + (e.renewable || 0), 0),
+                non_renewable: energy.reduce((s, e) => s + (e.nonRenewable || 0), 0),
+                renewable_pct: kpiTotals.renewablePct,
+              },
+              water: {
+                withdrawn: kpiTotals.totalWaterWithdrawn,
+                recycled: kpiTotals.totalWaterRecycled,
+                recycled_pct: kpiTotals.waterRecycledPct,
+                consumed: water.reduce((s, w) => s + (w.consumed || 0), 0),
+                discharged: water.reduce((s, w) => s + (w.discharged || 0), 0),
+              },
+              waste: {
+                generated: kpiTotals.totalWasteGenerated,
+                recovered: waste.reduce((s, w) => s + (w.recovered || 0), 0),
+                disposed: waste.reduce((s, w) => s + (w.disposed || 0), 0),
+                recovered_pct: kpiTotals.wasteRecoveredPct,
+              },
+              analytics: { envDetail, esgAnalytics },
+            }}
+            organization={organization}
+            dateRange={dateRange}
+            facilities={facilities}
+          />
+        }
         dashboardType={data.dashboardType}
         setDashboardType={data.setDashboardType}
         esgSection={data.esgSection}
