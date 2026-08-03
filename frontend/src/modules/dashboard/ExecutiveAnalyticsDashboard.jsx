@@ -11,6 +11,7 @@ import PremiumKpiCard from './components/kpi/PremiumKpiCard';
 import { AnalyticsChartCard } from './components/analytics/AnalyticsChartCard';
 import { ScopeBreakdownCard } from './components/analytics/ScopeBreakdownCard';
 import { useIntensityData } from './hooks/useIntensityData';
+import { ExportPDFButton } from './pdf-export';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const MONTH = 'monthly';
@@ -217,8 +218,20 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
         showFilters={showFilters}
         setShowFilters={setShowFilters}
         filterProps={filterProps}
-        onExport={() => window.print()}
         showExport
+        exportButton={
+          <ExportPDFButton
+            organization={organization}
+            dateRange={dateRange}
+            metrics={metrics}
+            analytics={analytics}
+            summary={summary}
+            filteredData={filteredData}
+            granularity={granularity}
+            productionUnit={productionUnit || 'unit'}
+            productionQty={productionQty}
+          />
+        }
         dashboardType={data.dashboardType}
         setDashboardType={data.setDashboardType}
         esgSection={data.esgSection}
