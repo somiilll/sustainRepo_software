@@ -436,6 +436,83 @@ export class BasePDFGenerator {
     
     if (chartElement) {
       try {
+        // ═══════════════════════════════════════════════════════════════════
+        // STEP 1: Store original styles and find all parents with overflow-hidden
+        // ═══════════════════════════════════════════════════════════════════
+        const originalElementStyles = {
+          width: chartElement.style.width,
+          minWidth: chartElement.style.minWidth,
+          maxWidth: chartElement.style.maxWidth,
+          overflow: chartElement.style.overflow,
+          position: chartElement.style.position,
+        };
+        
+        // Find and temporarily fix all parent elements with overflow-hidden
+        const parentsToRestore = [];
+        let parent = chartElement.parentElement;
+        while (parent && parent !== document.body) {
+          const computedStyle = window.getComputedStyle(parent);
+          if (computedStyle.overflow === 'hidden' || computedStyle.overflowX === 'hidden') {
+            parentsToRestore.push({
+              element: parent,
+              originalOverflow: parent.style.overflow,
+              originalOverflowX: parent.style.overflowX,
+              originalWidth: parent.style.width,
+              originalMinWidth: parent.style.minWidth,
+              originalMaxWidth: parent.style.maxWidth,
+            });
+          }
+          parent = parent.parentElement;
+        }
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // STEP 2: Apply export-friendly styles (full width, visible overflow)
+        // ═══════════════════════════════════════════════════════════════════
+        
+        // Set overflow visible on all parent containers
+        parentsToRestore.forEach(({ element }) => {
+          element.style.overflow = 'visible';
+          element.style.overflowX = 'visible';
+        });
+        
+        // Expand chart element to full width for better capture
+        // Use 900px as a standard export width that shows all data points
+        const exportWidth = 900;
+        chartElement.style.width = `${exportWidth}px`;
+        chartElement.style.minWidth = `${exportWidth}px`;
+        chartElement.style.maxWidth = 'none';
+        chartElement.style.overflow = 'visible';
+        
+        // Also expand immediate parent (SectionCard content area) if it exists
+        const immediateParent = chartElement.closest('[data-testid]') || chartElement.parentElement;
+        let immediateParentOriginalStyles = null;
+        if (immediateParent && immediateParent !== chartElement) {
+          immediateParentOriginalStyles = {
+            width: immediateParent.style.width,
+            minWidth: immediateParent.style.minWidth,
+            maxWidth: immediateParent.style.maxWidth,
+            overflow: immediateParent.style.overflow,
+          };
+          immediateParent.style.width = `${exportWidth}px`;
+          immediateParent.style.minWidth = `${exportWidth}px`;
+          immediateParent.style.maxWidth = 'none';
+          immediateParent.style.overflow = 'visible';
+        }
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // STEP 3: Wait for Recharts ResponsiveContainer to detect resize and re-render
+        // ═══════════════════════════════════════════════════════════════════
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // Trigger a resize event to ensure ResponsiveContainer updates
+        window.dispatchEvent(new Event('resize'));
+        
+        // Wait again for the chart to finish re-rendering
+        await new Promise(resolve => setTimeout(resolve, 400));
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // STEP 4: Hide UI elements and capture
+        // ═══════════════════════════════════════════════════════════════════
         const buttons = chartElement.querySelectorAll('button');
         const originalVisibility = [];
         buttons.forEach((btn, i) => {
@@ -443,10 +520,10 @@ export class BasePDFGenerator {
           btn.style.visibility = 'hidden';
         });
         
-        // Get the full dimensions including any overflow/scroll content
+        // Get actual rendered dimensions after resize
         const rect = chartElement.getBoundingClientRect();
-        const fullWidth = Math.max(chartElement.scrollWidth, chartElement.offsetWidth, rect.width);
-        const fullHeight = Math.max(chartElement.scrollHeight, chartElement.offsetHeight, rect.height);
+        const captureWidth = Math.max(rect.width, exportWidth);
+        const captureHeight = Math.max(rect.height, chartElement.scrollHeight);
         
         const capturePromise = html2canvas(chartElement, {
           scale: 2,
@@ -456,10 +533,10 @@ export class BasePDFGenerator {
           allowTaint: true,
           foreignObjectRendering: false,
           removeContainer: true,
-          width: fullWidth,
-          height: fullHeight,
-          windowWidth: fullWidth + 50,
-          windowHeight: fullHeight + 50,
+          width: captureWidth,
+          height: captureHeight,
+          windowWidth: captureWidth + 100,
+          windowHeight: captureHeight + 100,
           scrollX: 0,
           scrollY: 0,
           x: 0,
@@ -467,23 +544,56 @@ export class BasePDFGenerator {
         });
         
         const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Timeout')), 10000)
+          setTimeout(() => reject(new Error('Timeout')), 15000)
         );
         
         const canvas = await Promise.race([capturePromise, timeoutPromise]);
         
+        // ═══════════════════════════════════════════════════════════════════
+        // STEP 5: Restore all original styles
+        // ═══════════════════════════════════════════════════════════════════
         buttons.forEach((btn, i) => {
           btn.style.visibility = originalVisibility[i] || 'visible';
         });
         
-        const imgData = canvas.toDataURL('image/jpeg', 0.9);
+        // Restore chart element styles
+        chartElement.style.width = originalElementStyles.width;
+        chartElement.style.minWidth = originalElementStyles.minWidth;
+        chartElement.style.maxWidth = originalElementStyles.maxWidth;
+        chartElement.style.overflow = originalElementStyles.overflow;
+        chartElement.style.position = originalElementStyles.position;
+        
+        // Restore immediate parent styles
+        if (immediateParent && immediateParentOriginalStyles) {
+          immediateParent.style.width = immediateParentOriginalStyles.width;
+          immediateParent.style.minWidth = immediateParentOriginalStyles.minWidth;
+          immediateParent.style.maxWidth = immediateParentOriginalStyles.maxWidth;
+          immediateParent.style.overflow = immediateParentOriginalStyles.overflow;
+        }
+        
+        // Restore all parent containers
+        parentsToRestore.forEach(({ element, originalOverflow, originalOverflowX, originalWidth, originalMinWidth, originalMaxWidth }) => {
+          element.style.overflow = originalOverflow;
+          element.style.overflowX = originalOverflowX;
+          element.style.width = originalWidth;
+          element.style.minWidth = originalMinWidth;
+          element.style.maxWidth = originalMaxWidth;
+        });
+        
+        // Trigger resize to restore original chart rendering
+        window.dispatchEvent(new Event('resize'));
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // STEP 6: Add captured image to PDF
+        // ═══════════════════════════════════════════════════════════════════
+        const imgData = canvas.toDataURL('image/jpeg', 0.92);
         const aspectRatio = canvas.width / canvas.height;
         
         // Start with full content width
         let imgWidth = PAGE.contentWidth;
         let imgHeight = imgWidth / aspectRatio;
         
-        // If height exceeds max, scale down BOTH dimensions proportionally to preserve aspect ratio
+        // If height exceeds max, scale down BOTH dimensions proportionally
         if (imgHeight > maxHeight) {
           imgHeight = maxHeight;
           imgWidth = imgHeight * aspectRatio;
@@ -506,9 +616,11 @@ export class BasePDFGenerator {
         return true;
       } catch (error) {
         console.warn(`Chart capture failed: ${testId}`, error);
+        // Attempt to restore styles even on error
         try {
           const buttons = chartElement.querySelectorAll('button');
           buttons.forEach(btn => { btn.style.visibility = 'visible'; });
+          window.dispatchEvent(new Event('resize'));
         } catch (e) { /* ignore */ }
         this.addChartPlaceholder(title, maxHeight * 0.6);
         return false;
