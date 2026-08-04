@@ -39,9 +39,6 @@ import {
   Loader2 
 } from 'lucide-react';
 
-// Import unified yearly sections component
-import BRSRYearlySections from './BRSRYearlySections';
-
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
@@ -56,7 +53,8 @@ export default function BRSRDetailsSection({
   onDataChange = null,
   initialData = null,
   isCollapsible = true,
-  hideSections = []
+  hideSections = [],
+  reportingPeriod = ''
 }) {
   const { getAuthHeader } = useAuth();
   const [isOpen, setIsOpen] = useState(true);
@@ -85,6 +83,11 @@ export default function BRSRDetailsSection({
     export_contribution_percentage: 0,
     customer_types_brief: '',
     
+    // BRSR Contact Person (for queries on the report)
+    brsr_contact_name: '',
+    brsr_contact_telephone: '',
+    brsr_contact_email: '',
+    
     // Radio fields
     stock_exchange: 'BSE',
     reporting_boundary: 'Standalone',
@@ -94,11 +97,26 @@ export default function BRSRDetailsSection({
     products_services: [{ ...EMPTY_PRODUCT_SERVICE }],
     plants_offices: [{ ...EMPTY_PLANT_OFFICE }],
     markets_served: [{ ...EMPTY_MARKET_SERVED }],
+    
+    // Reporting period for year-specific data
+    reporting_period: '',
   });
 
   useEffect(() => {
-    fetchBRSRDetails();
-  }, []);
+    if (reportingPeriod) {
+      fetchBRSRDetails();
+    }
+  }, [reportingPeriod]);
+
+  // Update reporting_period in formData when prop changes
+  useEffect(() => {
+    if (reportingPeriod) {
+      setFormData(prev => ({
+        ...prev,
+        reporting_period: reportingPeriod
+      }));
+    }
+  }, [reportingPeriod]);
 
   useEffect(() => {
     if (initialData) {
@@ -122,9 +140,12 @@ export default function BRSRDetailsSection({
   }, [initialData]);
 
   const fetchBRSRDetails = async () => {
+    if (!reportingPeriod) return;
+    
     try {
       const res = await axios.get(`${API}/organizations/my/framework-details/brsr`, {
-        headers: getAuthHeader()
+        headers: getAuthHeader(),
+        params: { reporting_period: reportingPeriod }
       });
       
       if (res.data.details) {
@@ -132,6 +153,7 @@ export default function BRSRDetailsSection({
         setFormData(prev => ({
           ...prev,
           ...details,
+          reporting_period: reportingPeriod,
           business_activities: details.business_activities?.length > 0 
             ? details.business_activities 
             : [{ ...EMPTY_BUSINESS_ACTIVITY }],
@@ -492,6 +514,60 @@ export default function BRSRDetailsSection({
                   <p className="text-sm text-text-secondary py-2 whitespace-pre-wrap">
                     {formData.customer_types_brief || '-'}
                   </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* BRSR Contact Person Section */}
+          <div>
+            <h4 className="text-sm font-semibold text-text-primary mb-4 pb-2 border-b">
+              BRSR Report Contact Person
+            </h4>
+            <p className="text-xs text-text-muted mb-4">
+              Contact details of the person who may be contacted for queries on this BRSR report
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Contact Person Name *</Label>
+                {isEditing ? (
+                  <Input
+                    value={formData.brsr_contact_name}
+                    onChange={(e) => handleInputChange('brsr_contact_name', e.target.value)}
+                    placeholder="Enter full name"
+                    data-testid="brsr-contact-name"
+                  />
+                ) : (
+                  <p className="text-sm text-text-secondary py-2">{formData.brsr_contact_name || '-'}</p>
+                )}
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Contact Telephone *</Label>
+                {isEditing ? (
+                  <Input
+                    value={formData.brsr_contact_telephone}
+                    onChange={(e) => handleInputChange('brsr_contact_telephone', e.target.value)}
+                    placeholder="+91 XXXXXXXXXX"
+                    data-testid="brsr-contact-telephone"
+                  />
+                ) : (
+                  <p className="text-sm text-text-secondary py-2">{formData.brsr_contact_telephone || '-'}</p>
+                )}
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Contact Email Address *</Label>
+                {isEditing ? (
+                  <Input
+                    type="email"
+                    value={formData.brsr_contact_email}
+                    onChange={(e) => handleInputChange('brsr_contact_email', e.target.value)}
+                    placeholder="email@company.com"
+                    data-testid="brsr-contact-email"
+                  />
+                ) : (
+                  <p className="text-sm text-text-secondary py-2">{formData.brsr_contact_email || '-'}</p>
                 )}
               </div>
             </div>
@@ -958,17 +1034,6 @@ export default function BRSRDetailsSection({
               </Button>
             </div>
           )}
-
-          {/* Year-Specific BRSR Sections */}
-          <div className="pt-6 border-t border-stone-200">
-            <h4 className="text-sm font-semibold text-text-primary flex items-center gap-2 mb-4">
-              <FileText className="w-4 h-4 text-primary" />
-              Year-Specific Reporting Data
-            </h4>
-            
-            {/* Unified Yearly Sections Component */}
-            <BRSRYearlySections isEditing={isEditing} hideSections={hideSections} />
-          </div>
         </div>
   );
 

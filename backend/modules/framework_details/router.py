@@ -45,11 +45,13 @@ async def _verify_brsr_enabled(org_id: str):
 
 @router.get("/my/framework-details/brsr")
 async def get_my_brsr_details(
+    reporting_period: str = Query(default="", description="Reporting period (e.g., FY 2025-2026)"),
     current_user: dict = Depends(get_current_user)
 ):
     """
     Get BRSR static details for the current user's organization.
     Available to all authenticated users (admin and user roles).
+    Optionally filter by reporting_period for year-specific data.
     """
     org_id = current_user.get("organization_id")
     if not org_id:
@@ -57,13 +59,14 @@ async def get_my_brsr_details(
     
     await _verify_brsr_enabled(org_id)
     
-    details = await framework_details_service.get(org_id, "BRSR")
+    details = await framework_details_service.get(org_id, "BRSR", reporting_period)
     if not details:
         return {
             "org_id": org_id,
             "framework": "BRSR",
             "details": None,
-            "is_complete": False
+            "is_complete": False,
+            "reporting_period": reporting_period
         }
     
     is_complete, missing = await framework_details_service.validate_brsr_complete(org_id)
@@ -73,7 +76,8 @@ async def get_my_brsr_details(
         "framework": "BRSR",
         "details": details,
         "is_complete": is_complete,
-        "missing_fields": missing if not is_complete else []
+        "missing_fields": missing if not is_complete else [],
+        "reporting_period": reporting_period
     }
 
 

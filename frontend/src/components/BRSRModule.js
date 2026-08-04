@@ -114,6 +114,7 @@ export default function BRSRModule() {
           <BRSRDetailsSection 
             isEditing={isEditing}
             isCollapsible={false}
+            reportingPeriod={reportingPeriod}
           />
         </TabsContent>
 
