@@ -131,13 +131,13 @@ class BRSRHTMLTemplate:
             margin: 18px 0 10px 0;
         }
         
-        /* Principle headers - Green background as per Annexure II */
+        /* Principle headers - Bold text without background */
         .principle-header {
             font-size: 10pt;
             font-weight: bold;
-            background-color: #70AD47;
+            background-color: transparent;
             color: #000000;
-            padding: 8px 10px;
+            padding: 8px 0;
             margin: 20px 0 12px 0;
         }
         
@@ -274,10 +274,6 @@ class BRSRHTMLTemplate:
             }
             .page-break { 
                 page-break-after: always; 
-            }
-            .principle-header {
-                background-color: #70AD47 !important;
-                -webkit-print-color-adjust: exact;
             }
         }
         '''
@@ -2047,65 +2043,672 @@ class BRSRHTMLTemplate:
         <div class="indicator-header">Essential Indicators</div>
         
         <div class="question-item"><span class="q-num">1.</span> <span class="q-text">Details of total energy consumption (in Joules or multiples) and energy intensity, in the following format:</span></div>
-        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e1_energy_consumption', '')}</div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th rowspan="2">Parameter</th>
+                    <th colspan="2">{self.reporting_period}</th>
+                    <th colspan="2">{self.previous_fy}</th>
+                </tr>
+                <tr>
+                    <th>From renewable sources</th>
+                    <th>From non-renewable sources</th>
+                    <th>From renewable sources</th>
+                    <th>From non-renewable sources</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Total electricity consumption (A)</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e1_elec_renew_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e1_elec_nonrenew_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e1_elec_renew_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e1_elec_nonrenew_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Total fuel consumption (B)</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e1_fuel_renew_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e1_fuel_nonrenew_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e1_fuel_renew_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e1_fuel_nonrenew_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Energy consumption through other sources (C)</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e1_other_renew_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e1_other_nonrenew_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e1_other_renew_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e1_other_nonrenew_prev', '')}</td>
+                </tr>
+                <tr class="row-header">
+                    <td>Total energy consumed (A+B+C)</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e1_total_renew_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e1_total_nonrenew_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e1_total_renew_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e1_total_nonrenew_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Energy intensity per rupee of turnover (Total energy consumed / Revenue from operations)</td>
+                    <td colspan="2" class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e1_intensity_turnover_curr', '')}</td>
+                    <td colspan="2" class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e1_intensity_turnover_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Energy intensity per rupee of turnover adjusted for Purchasing Power Parity (PPP) (Total energy consumed / Revenue from operations adjusted for PPP)</td>
+                    <td colspan="2" class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e1_intensity_ppp_curr', '')}</td>
+                    <td colspan="2" class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e1_intensity_ppp_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Energy intensity in terms of physical output</td>
+                    <td colspan="2" class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e1_intensity_physical_curr', '')}</td>
+                    <td colspan="2" class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e1_intensity_physical_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Energy intensity (optional) – the relevant metric may be selected by the entity</td>
+                    <td colspan="2" class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e1_intensity_optional_curr', '')}</td>
+                    <td colspan="2" class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e1_intensity_optional_prev', '')}</td>
+                </tr>
+            </tbody>
+        </table>
         <div class="note-text">Note: Indicate if any independent assessment/ evaluation/assurance has been carried out by an external agency? (Y/N) If yes, name of the external agency.</div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e1_external_assessment', '')}</div>
         
         <div class="question-item"><span class="q-num">2.</span> <span class="q-text">Does the entity have any sites / facilities identified as designated consumers (DCs) under the Performance, Achieve and Trade (PAT) Scheme of the Government of India? (Y/N) If yes, disclose whether targets set under the PAT scheme have been achieved. In case targets have not been achieved, provide the remedial action taken, if any.</span></div>
         <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e2_pat_scheme', '')}</div>
         
         <div class="question-item"><span class="q-num">3.</span> <span class="q-text">Provide details of the following disclosures related to water, in the following format:</span></div>
-        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e3_water', '')}</div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th rowspan="2">Parameter</th>
+                    <th colspan="2">{self.reporting_period}</th>
+                    <th colspan="2">{self.previous_fy}</th>
+                </tr>
+                <tr>
+                    <th>Surface water</th>
+                    <th>Ground water</th>
+                    <th>Surface water</th>
+                    <th>Ground water</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="category-header"><td colspan="5">Water withdrawal by source (in kilolitres)</td></tr>
+                <tr>
+                    <td>(i) Surface water</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e3_surface_curr', '')}</td>
+                    <td class="text-center answer-cell">-</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e3_surface_prev', '')}</td>
+                    <td class="text-center answer-cell">-</td>
+                </tr>
+                <tr>
+                    <td>(ii) Groundwater</td>
+                    <td class="text-center answer-cell">-</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e3_ground_curr', '')}</td>
+                    <td class="text-center answer-cell">-</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e3_ground_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>(iii) Third party water</td>
+                    <td colspan="2" class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e3_third_party_curr', '')}</td>
+                    <td colspan="2" class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e3_third_party_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>(iv) Seawater / desalinated water</td>
+                    <td colspan="2" class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e3_seawater_curr', '')}</td>
+                    <td colspan="2" class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e3_seawater_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>(v) Others</td>
+                    <td colspan="2" class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e3_others_curr', '')}</td>
+                    <td colspan="2" class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e3_others_prev', '')}</td>
+                </tr>
+                <tr class="row-header">
+                    <td>Total volume of water withdrawal (in kilolitres) (i + ii + iii + iv + v)</td>
+                    <td colspan="2" class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e3_total_withdrawal_curr', '')}</td>
+                    <td colspan="2" class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e3_total_withdrawal_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Total volume of water consumption (in kilolitres)</td>
+                    <td colspan="2" class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e3_total_consumption_curr', '')}</td>
+                    <td colspan="2" class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e3_total_consumption_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Water intensity per rupee of turnover (Total water consumption / Revenue from operations)</td>
+                    <td colspan="2" class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e3_intensity_turnover_curr', '')}</td>
+                    <td colspan="2" class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e3_intensity_turnover_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Water intensity per rupee of turnover adjusted for Purchasing Power Parity (PPP)</td>
+                    <td colspan="2" class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e3_intensity_ppp_curr', '')}</td>
+                    <td colspan="2" class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e3_intensity_ppp_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Water intensity in terms of physical output</td>
+                    <td colspan="2" class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e3_intensity_physical_curr', '')}</td>
+                    <td colspan="2" class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e3_intensity_physical_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Water intensity (optional) – the relevant metric may be selected by the entity</td>
+                    <td colspan="2" class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e3_intensity_optional_curr', '')}</td>
+                    <td colspan="2" class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e3_intensity_optional_prev', '')}</td>
+                </tr>
+            </tbody>
+        </table>
         <div class="note-text">Note: Indicate if any independent assessment/evaluation/assurance has been carried out by an external agency? (Y/N) If yes, name of the external agency.</div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e3_external_assessment', '')}</div>
         
         <div class="question-item"><span class="q-num">4.</span> <span class="q-text">Provide the following details related to water discharged:</span></div>
-        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e4_water_discharge', '')}</div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Parameter</th>
+                    <th class="fy-header">{self.reporting_period}</th>
+                    <th class="fy-header">{self.previous_fy}</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="category-header"><td colspan="3">Water discharge by destination and level of treatment (in kilolitres)</td></tr>
+                <tr>
+                    <td>(i) To Surface water<br/>- No treatment<br/>- With treatment – please specify level of treatment</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_surface_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_surface_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>(ii) To Groundwater<br/>- No treatment<br/>- With treatment – please specify level of treatment</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_ground_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_ground_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>(iii) To Seawater<br/>- No treatment<br/>- With treatment – please specify level of treatment</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_sea_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_sea_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>(iv) Sent to third-parties<br/>- No treatment<br/>- With treatment – please specify level of treatment</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_third_party_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_third_party_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>(v) Others<br/>- No treatment<br/>- With treatment – please specify level of treatment</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_others_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_others_prev', '')}</td>
+                </tr>
+                <tr class="row-header">
+                    <td>Total water discharged (in kilolitres)</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_total_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_total_prev', '')}</td>
+                </tr>
+            </tbody>
+        </table>
         <div class="note-text">Note: Indicate if any independent assessment/evaluation/assurance has been carried out by an external agency? (Y/N) If yes, name of the external agency.</div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e4_external_assessment', '')}</div>
         
         <div class="question-item"><span class="q-num">5.</span> <span class="q-text">Has the entity implemented a mechanism for Zero Liquid Discharge? If yes, provide details of its coverage and implementation.</span></div>
         <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e5_zld', '')}</div>
         
         <div class="question-item"><span class="q-num">6.</span> <span class="q-text">Please provide details of air emissions (other than GHG emissions) by the entity, in the following format:</span></div>
-        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e6_air_emissions', '')}</div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Parameter</th>
+                    <th>Please specify unit</th>
+                    <th class="fy-header">{self.reporting_period}</th>
+                    <th class="fy-header">{self.previous_fy}</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>NOx</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e6_nox_unit', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e6_nox_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e6_nox_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>SOx</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e6_sox_unit', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e6_sox_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e6_sox_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Particulate matter (PM)</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e6_pm_unit', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e6_pm_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e6_pm_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Persistent organic pollutants (POP)</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e6_pop_unit', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e6_pop_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e6_pop_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Volatile organic compounds (VOC)</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e6_voc_unit', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e6_voc_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e6_voc_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Hazardous air pollutants (HAP)</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e6_hap_unit', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e6_hap_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e6_hap_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Others – please specify</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e6_others_unit', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e6_others_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e6_others_prev', '')}</td>
+                </tr>
+            </tbody>
+        </table>
         <div class="note-text">Note: Indicate if any independent assessment/ evaluation/assurance has been carried out by an external agency? (Y/N) If yes, name of the external agency.</div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e6_external_assessment', '')}</div>
         
         <div class="question-item"><span class="q-num">7.</span> <span class="q-text">Provide details of greenhouse gas emissions (Scope 1 and Scope 2 emissions) &amp; its intensity, in the following format:</span></div>
-        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e7_ghg_emissions', '')}</div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Parameter</th>
+                    <th>Unit</th>
+                    <th class="fy-header">{self.reporting_period}</th>
+                    <th class="fy-header">{self.previous_fy}</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Total Scope 1 emissions (Break-up of the GHG into CO2, CH4, N2O, HFCs, PFCs, SF6, NF3, if available)</td>
+                    <td class="text-center">Metric tonnes of CO2 equivalent</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e7_scope1_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e7_scope1_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Total Scope 2 emissions (Break-up of the GHG into CO2, CH4, N2O, HFCs, PFCs, SF6, NF3, if available)</td>
+                    <td class="text-center">Metric tonnes of CO2 equivalent</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e7_scope2_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e7_scope2_prev', '')}</td>
+                </tr>
+                <tr class="row-header">
+                    <td>Total Scope 1 and Scope 2 emissions per rupee of turnover</td>
+                    <td class="text-center"></td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e7_intensity_turnover_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e7_intensity_turnover_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Total Scope 1 and Scope 2 emission intensity per rupee of turnover adjusted for Purchasing Power Parity (PPP)</td>
+                    <td class="text-center"></td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e7_intensity_ppp_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e7_intensity_ppp_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Total Scope 1 and Scope 2 emission intensity in terms of physical output</td>
+                    <td class="text-center"></td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e7_intensity_physical_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e7_intensity_physical_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Total Scope 1 and Scope 2 emission intensity (optional) – the relevant metric may be selected by the entity</td>
+                    <td class="text-center"></td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e7_intensity_optional_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e7_intensity_optional_prev', '')}</td>
+                </tr>
+            </tbody>
+        </table>
         <div class="note-text">Note: Indicate if any independent assessment/ evaluation/assurance has been carried out by an external agency? (Y/N) If yes, name of the external agency.</div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e7_external_assessment', '')}</div>
         
         <div class="question-item"><span class="q-num">8.</span> <span class="q-text">Does the entity have any project related to reducing Green House Gas emission? If Yes, then provide details.</span></div>
         <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e8_ghg_projects', '')}</div>
         
         <div class="question-item"><span class="q-num">9.</span> <span class="q-text">Provide details related to waste management by the entity, in the following format:</span></div>
-        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e9_waste_management', '')}</div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Parameter</th>
+                    <th class="fy-header">{self.reporting_period}</th>
+                    <th class="fy-header">{self.previous_fy}</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="category-header"><td colspan="3">Total Waste generated (in metric tonnes)</td></tr>
+                <tr>
+                    <td>Plastic waste (A)</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_plastic_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_plastic_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>E-waste (B)</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_ewaste_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_ewaste_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Bio-medical waste (C)</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_biomedical_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_biomedical_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Construction and demolition waste (D)</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_construction_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_construction_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Battery waste (E)</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_battery_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_battery_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Radioactive waste (F)</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_radioactive_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_radioactive_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Other Hazardous waste. Please specify, if any. (G)</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_hazardous_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_hazardous_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Other Non-hazardous waste generated (H). Please specify, if any. (Break-up by composition i.e. by materials relevant to the sector)</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_nonhazardous_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_nonhazardous_prev', '')}</td>
+                </tr>
+                <tr class="row-header">
+                    <td>Total (A+B + C + D + E + F + G + H)</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_total_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_total_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Waste intensity per rupee of turnover (Total waste generated / Revenue from operations)</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_intensity_turnover_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_intensity_turnover_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Waste intensity per rupee of turnover adjusted for Purchasing Power Parity (PPP)</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_intensity_ppp_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_intensity_ppp_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Waste intensity in terms of physical output</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_intensity_physical_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_intensity_physical_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Waste intensity (optional) – the relevant metric may be selected by the entity</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_intensity_optional_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_intensity_optional_prev', '')}</td>
+                </tr>
+                <tr class="category-header"><td colspan="3">For each category of waste generated, total waste recovered through recycling, re-using or other recovery operations (in metric tonnes)</td></tr>
+                <tr>
+                    <td>Category of waste<br/>(i) Recycled<br/>(ii) Re-used<br/>(iii) Other recovery operations</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_recovered_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_recovered_prev', '')}</td>
+                </tr>
+                <tr class="row-header">
+                    <td>Total</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_recovered_total_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_recovered_total_prev', '')}</td>
+                </tr>
+                <tr class="category-header"><td colspan="3">For each category of waste generated, total waste disposed by nature of disposal method (in metric tonnes)</td></tr>
+                <tr>
+                    <td>Category of waste<br/>(i) Incineration<br/>(ii) Landfilling<br/>(iii) Other disposal operations</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_disposed_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_disposed_prev', '')}</td>
+                </tr>
+                <tr class="row-header">
+                    <td>Total</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_disposed_total_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_disposed_total_prev', '')}</td>
+                </tr>
+            </tbody>
+        </table>
         <div class="note-text">Note: Indicate if any independent assessment/evaluation/assurance has been carried out by an external agency? (Y/N) If yes, name of the external agency.</div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e9_external_assessment', '')}</div>
         
         <div class="question-item"><span class="q-num">10.</span> <span class="q-text">Briefly describe the waste management practices adopted in your establishments. Describe the strategy adopted by your company to reduce usage of hazardous and toxic chemicals in your products and processes and the practices adopted to manage such wastes.</span></div>
         <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e10_waste_practices', '')}</div>
         
         <div class="question-item"><span class="q-num">11.</span> <span class="q-text">If the entity has operations/offices in/around ecologically sensitive areas (such as national parks, wildlife sanctuaries, biosphere reserves, wetlands, biodiversity hotspots, forests, coastal regulation zones etc.) where environmental approvals / clearances are required, please specify details in the following format:</span></div>
-        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e11_eco_sensitive', '')}</div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th class="col-sno">S. No.</th>
+                    <th>Location of operations/offices</th>
+                    <th>Type of operations</th>
+                    <th>Whether the conditions of environmental approval / clearance are being complied with? (Y/N) If no, the reasons thereof and corrective action taken, if any.</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="text-center">1</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p6_e11_location_1', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p6_e11_type_1', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p6_e11_compliance_1', '')}</td>
+                </tr>
+            </tbody>
+        </table>
         
         <div class="question-item"><span class="q-num">12.</span> <span class="q-text">Details of environmental impact assessments of projects undertaken by the entity based on applicable laws, in the current financial year:</span></div>
-        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e12_eia', '')}</div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th class="col-sno">S. No.</th>
+                    <th>Name and brief details of project</th>
+                    <th>EIA Notification No.</th>
+                    <th>Date</th>
+                    <th>Whether conducted by independent external agency (Yes / No)</th>
+                    <th>Results communicated in public domain (Yes / No)</th>
+                    <th>Relevant Web link</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="text-center">1</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p6_e12_project_1', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p6_e12_notification_1', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p6_e12_date_1', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e12_external_1', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e12_public_1', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p6_e12_weblink_1', '')}</td>
+                </tr>
+            </tbody>
+        </table>
         
         <div class="question-item"><span class="q-num">13.</span> <span class="q-text">Is the entity compliant with the applicable environmental law/ regulations/ guidelines in India; such as the Water (Prevention and Control of Pollution) Act, Air (Prevention and Control of Pollution) Act, Environment protection act and rules thereunder (Y/N). If not, provide details of all such non-compliances, in the following format:</span></div>
-        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e13_env_compliance', '')}</div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th class="col-sno">S. No.</th>
+                    <th>Specify the law / regulation / guidelines which was not complied with</th>
+                    <th>Provide details of the non-compliance</th>
+                    <th>Any fines / penalties / action taken by regulatory agencies such as pollution control boards or by courts</th>
+                    <th>Corrective action taken, if any</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="text-center">1</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p6_e13_law_1', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p6_e13_details_1', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p6_e13_fines_1', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p6_e13_corrective_1', '')}</td>
+                </tr>
+            </tbody>
+        </table>
         
         <div class="indicator-header">Leadership Indicators</div>
         
         <div class="question-item"><span class="q-num">1.</span> <span class="q-text">Water withdrawal, consumption and discharge in areas of water stress (in kilolitres):</span></div>
-        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_l1_water_stress', '')}</div>
+        <div class="sub-label">For each facility / plant located in areas of water stress, provide the following information:</div>
+        <div class="sub-label">(i) Name of the area</div>
+        <div class="sub-label">(ii) Nature of operations</div>
+        <div class="sub-label">(iii) Water withdrawal, consumption and discharge in the following format:</div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Parameter</th>
+                    <th class="fy-header">{self.reporting_period}</th>
+                    <th class="fy-header">{self.previous_fy}</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="category-header"><td colspan="3">Water withdrawal by source (in kilolitres)</td></tr>
+                <tr>
+                    <td>(i) Surface water</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_surface_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_surface_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>(ii) Groundwater</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_ground_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_ground_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>(iii) Third party water</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_third_party_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_third_party_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>(iv) Seawater / desalinated water</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_seawater_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_seawater_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>(v) Others</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_others_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_others_prev', '')}</td>
+                </tr>
+                <tr class="row-header">
+                    <td>Total volume of water withdrawal (in kilolitres)</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_total_withdrawal_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_total_withdrawal_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Total volume of water consumption (in kilolitres)</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_total_consumption_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_total_consumption_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Water intensity per rupee of turnover (Water consumed / turnover)</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_intensity_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_intensity_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Water intensity (optional) – the relevant metric may be selected by the entity</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_intensity_optional_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_intensity_optional_prev', '')}</td>
+                </tr>
+                <tr class="category-header"><td colspan="3">Water discharge by destination and level of treatment (in kilolitres)</td></tr>
+                <tr>
+                    <td>(i) Into Surface water - No treatment / With treatment</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_surface_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_surface_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>(ii) Into Groundwater - No treatment / With treatment</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_ground_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_ground_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>(iii) Into Seawater - No treatment / With treatment</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_sea_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_sea_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>(iv) Sent to third-parties - No treatment / With treatment</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_third_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_third_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>(v) Others - No treatment / With treatment</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_others_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_others_prev', '')}</td>
+                </tr>
+                <tr class="row-header">
+                    <td>Total water discharged (in kilolitres)</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_total_discharge_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_total_discharge_prev', '')}</td>
+                </tr>
+            </tbody>
+        </table>
         <div class="note-text">Note: Indicate if any independent assessment/ evaluation/assurance has been carried out by an external agency? (Y/N) If yes, name of the external agency.</div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_l1_external_assessment', '')}</div>
         
         <div class="question-item"><span class="q-num">2.</span> <span class="q-text">Please provide details of total Scope 3 emissions &amp; its intensity, in the following format:</span></div>
-        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_l2_scope3', '')}</div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Parameter</th>
+                    <th>Unit</th>
+                    <th class="fy-header">{self.reporting_period}</th>
+                    <th class="fy-header">{self.previous_fy}</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Total Scope 3 emissions (Break-up of the GHG into CO2, CH4, N2O, HFCs, PFCs, SF6, NF3, if available)</td>
+                    <td class="text-center">Metric tonnes of CO2 equivalent</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l2_scope3_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l2_scope3_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Total Scope 3 emissions per rupee of turnover</td>
+                    <td class="text-center"></td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l2_intensity_turnover_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l2_intensity_turnover_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Total Scope 3 emission intensity per rupee of turnover adjusted for Purchasing Power Parity (PPP)</td>
+                    <td class="text-center"></td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l2_intensity_ppp_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l2_intensity_ppp_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Total Scope 3 emission intensity in terms of physical output</td>
+                    <td class="text-center"></td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l2_intensity_physical_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l2_intensity_physical_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Total Scope 3 emission intensity (optional) – the relevant metric may be selected by the entity</td>
+                    <td class="text-center"></td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l2_intensity_optional_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l2_intensity_optional_prev', '')}</td>
+                </tr>
+            </tbody>
+        </table>
         <div class="note-text">Note: Indicate if any independent assessment/ evaluation/assurance has been carried out by an external agency? (Y/N) If yes, name of the external agency.</div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_l2_external_assessment', '')}</div>
         
         <div class="question-item"><span class="q-num">3.</span> <span class="q-text">With respect to the ecologically sensitive areas reported at Question 11 of Essential Indicators above, provide details of significant direct &amp; indirect impact of the entity on biodiversity in such areas along-with prevention and remediation activities.</span></div>
         <div class="answer-value">{self._get_response(self.section_c_data, 'p6_l3_biodiversity', '')}</div>
         
         <div class="question-item"><span class="q-num">4.</span> <span class="q-text">If the entity has undertaken any specific initiatives or used innovative technology or solutions to improve resource efficiency, or reduce impact due to emissions / effluent discharge / waste generated, please provide details of the same as well as outcome of such initiatives, as per the following format:</span></div>
-        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_l4_initiatives', '')}</div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th class="col-sno">S. No.</th>
+                    <th>Initiative undertaken</th>
+                    <th>Details of the initiative (Web-link, if any, may be provided along-with summary)</th>
+                    <th>Outcome of the initiative</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="text-center">1</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p6_l4_initiative_1', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p6_l4_details_1', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p6_l4_outcome_1', '')}</td>
+                </tr>
+            </tbody>
+        </table>
         
         <div class="question-item"><span class="q-num">5.</span> <span class="q-text">Does the entity have a business continuity and disaster management plan? Give details in 100 words/ web link.</span></div>
         <div class="answer-value">{self._get_response(self.section_c_data, 'p6_l5_bcp', '')}</div>
