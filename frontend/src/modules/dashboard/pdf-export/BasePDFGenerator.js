@@ -302,7 +302,32 @@ export class BasePDFGenerator {
     this.doc.setFont('helvetica', 'bold');
     this.doc.setFontSize(18);
     this.doc.setTextColor(useColor);
+    
+    // ═══════════════════════════════════════════════════════════════════
+    // DEBUG: Capture PDF stream for heading comparison
+    // ═══════════════════════════════════════════════════════════════════
+    const pdfBeforeHeading = this.doc.output('datauristring');
+    const streamBeforeHeading = atob(pdfBeforeHeading.split(',')[1]);
+    
     this.doc.text(title, color ? PAGE.margin + 12 : PAGE.margin, this.currentY);
+    
+    const pdfAfterHeading = this.doc.output('datauristring');
+    const streamAfterHeading = atob(pdfAfterHeading.split(',')[1]);
+    const headingContent = streamAfterHeading.slice(streamBeforeHeading.length);
+    
+    console.log('=== PAGE TITLE PDF STREAM ===');
+    console.log('Title:', title);
+    console.log('PDF operators for heading (last 500 chars of new content):');
+    console.log(headingContent.slice(-500));
+    
+    // Search for text operators in heading
+    const tjMatchHeading = headingContent.match(/\(([^)]+)\)\s*Tj/g);
+    const tjArrayMatchHeading = headingContent.match(/\[([^\]]+)\]\s*TJ/g);
+    const tcMatchHeading = headingContent.match(/[\d.-]+\s+Tc/g);
+    console.log('Heading - Tj operators:', tjMatchHeading);
+    console.log('Heading - TJ (array) operators:', tjArrayMatchHeading);
+    console.log('Heading - Tc (charSpace) operators:', tcMatchHeading);
+    // ═══════════════════════════════════════════════════════════════════
     
     this.doc.setDrawColor(useColor);
     this.doc.setLineWidth(0.8);
@@ -331,44 +356,11 @@ export class BasePDFGenerator {
     const textWidth = PAGE.contentWidth - 30;
     const textStartX = PAGE.margin + 4 + 10; // After accent bar + left padding
     
-    // ═══════════════════════════════════════════════════════════════════
-    // DEBUG: Log text state before processing
-    // ═══════════════════════════════════════════════════════════════════
-    console.log('=== addAnalysisBox DEBUG ===');
-    console.log('Input text (first 100 chars):', text.substring(0, 100));
-    console.log('Input text length:', text.length);
-    console.log('textWidth:', textWidth);
-    
     // Use consistent font for text measurement and rendering
     this.doc.setFont('helvetica', 'normal');
     this.doc.setFontSize(9);
     
     const lines = this.doc.splitTextToSize(text, textWidth);
-    
-    // ═══════════════════════════════════════════════════════════════════
-    // DEBUG: Log splitTextToSize output
-    // ═══════════════════════════════════════════════════════════════════
-    console.log('splitTextToSize output:');
-    console.log('  Number of lines:', lines.length);
-    lines.forEach((line, i) => {
-      console.log(`  Line ${i}: "${line}" (length: ${line.length})`);
-    });
-    
-    // DEBUG: Test with plain ASCII to compare
-    const testText = 'Total GHG emissions for the reporting period are 1206 tCO2e test.';
-    const testLines = this.doc.splitTextToSize(testText, textWidth);
-    console.log('Plain ASCII test:');
-    console.log('  Input:', testText);
-    console.log('  Output lines:', testLines.length);
-    testLines.forEach((line, i) => {
-      console.log(`  Line ${i}: "${line}" (length: ${line.length})`);
-    });
-    
-    // DEBUG: Check current PDF text state
-    console.log('Current PDF state:');
-    console.log('  Font:', this.doc.getFont());
-    console.log('  FontSize:', this.doc.getFontSize());
-    // ═══════════════════════════════════════════════════════════════════
     
     // Font size 9pt needs ~5mm line height for proper spacing
     const lineHeight = 5;
@@ -393,17 +385,61 @@ export class BasePDFGenerator {
     this.doc.setTextColor(this.themeColor);
     this.doc.text('ANALYSIS', textStartX, this.currentY + 8);
     
+    // ═══════════════════════════════════════════════════════════════════
+    // DEBUG: Capture PDF stream BEFORE analysis text
+    // ═══════════════════════════════════════════════════════════════════
+    const pdfBeforeAnalysis = this.doc.output('datauristring');
+    const streamBefore = atob(pdfBeforeAnalysis.split(',')[1]);
+    const lastStreamBefore = streamBefore.slice(-2000);
+    console.log('=== PDF STREAM DEBUG ===');
+    console.log('PDF stream BEFORE analysis text (last 500 chars of stream):');
+    console.log(lastStreamBefore.slice(-500));
+    
     // Analysis text - render line by line for consistent spacing
-    // Explicitly reset all text state before rendering
     this.doc.setFont('helvetica', 'normal');
     this.doc.setFontSize(9);
     this.doc.setTextColor(COLORS.text);
     
     let textY = this.currentY + 16;
-    lines.forEach((line) => {
-      this.doc.text(line, textStartX, textY);
+    
+    // Render first line and capture PDF stream
+    if (lines.length > 0) {
+      this.doc.text(lines[0], textStartX, textY);
+      
+      // ═══════════════════════════════════════════════════════════════════
+      // DEBUG: Capture PDF stream AFTER first analysis line
+      // ═══════════════════════════════════════════════════════════════════
+      const pdfAfterFirstLine = this.doc.output('datauristring');
+      const streamAfter = atob(pdfAfterFirstLine.split(',')[1]);
+      
+      // Find the new content added (difference)
+      const newContent = streamAfter.slice(streamBefore.length);
+      console.log('PDF stream AFTER first analysis line (new content, last 1000 chars):');
+      console.log(newContent.slice(-1000));
+      
+      // Search for text operators
+      const tjMatch = newContent.match(/\(([^)]+)\)\s*Tj/g);
+      const tjArrayMatch = newContent.match(/\[([^\]]+)\]\s*TJ/g);
+      console.log('Tj operators found:', tjMatch);
+      console.log('TJ (array) operators found:', tjArrayMatch);
+      
+      // Check for Tc (character spacing) operator
+      const tcMatch = newContent.match(/[\d.-]+\s+Tc/g);
+      console.log('Tc (charSpace) operators found:', tcMatch);
+      
+      // Check for Tw (word spacing) operator  
+      const twMatch = newContent.match(/[\d.-]+\s+Tw/g);
+      console.log('Tw (wordSpace) operators found:', twMatch);
+      
       textY += lineHeight;
-    });
+    }
+    
+    // Render remaining lines
+    for (let i = 1; i < lines.length; i++) {
+      this.doc.text(lines[i], textStartX, textY);
+      textY += lineHeight;
+    }
+    // ═══════════════════════════════════════════════════════════════════
     
     this.currentY += boxHeight + 10;
   }
