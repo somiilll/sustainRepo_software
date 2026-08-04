@@ -1,13 +1,13 @@
 /**
  * useBRSRExport Hook
  * 
- * Handles fetching all BRSR data and generating the PDF report.
+ * Handles downloading BRSR reports from the backend.
+ * The backend generates pixel-perfect PDFs using Playwright/Chromium.
  */
 
 import { useState, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
-import { BRSRReportGenerator } from './BRSRReportGenerator';
 import { toast } from 'sonner';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -17,65 +17,6 @@ export function useBRSRExport({ reportingPeriod, organization }) {
   const [isExporting, setIsExporting] = useState(false);
   const [progress, setProgress] = useState('');
 
-  const fetchSectionAData = async (headers) => {
-    try {
-      const res = await axios.get(
-        `${API}/api/esg-questionnaire/responses/BRSR/section_a/${encodeURIComponent(reportingPeriod)}`,
-        { headers }
-      );
-      return res.data.responses || {};
-    } catch (error) {
-      console.warn('Failed to fetch Section A data:', error);
-      return {};
-    }
-  };
-
-  const fetchSectionBData = async (headers) => {
-    try {
-      const [configsRes, responsesRes] = await Promise.all([
-        axios.get(`${API}/api/esg-questionnaire/configs`, {
-          params: { framework: 'BRSR', section: 'section_b' },
-          headers
-        }).catch(() => ({ data: { configs: [] } })),
-        axios.get(
-          `${API}/api/esg-questionnaire/responses/BRSR/section_b/${encodeURIComponent(reportingPeriod)}`,
-          { headers }
-        ).catch(() => ({ data: { responses: {} } }))
-      ]);
-      
-      return {
-        configs: configsRes.data.configs || [],
-        responses: responsesRes.data.responses || {}
-      };
-    } catch (error) {
-      console.warn('Failed to fetch Section B data:', error);
-      return { configs: [], responses: {} };
-    }
-  };
-
-  const fetchSectionCData = async (headers) => {
-    try {
-      const [configsRes, responsesRes] = await Promise.all([
-        axios.get(`${API}/api/esg-questionnaire/configs`, {
-          params: { framework: 'BRSR', section: 'section_c' },
-          headers
-        }).catch(() => ({ data: { configs: [] } })),
-        axios.get(
-          `${API}/api/esg-questionnaire/responses/BRSR/section_c/${encodeURIComponent(reportingPeriod)}`,
-          { headers }
-        ).catch(() => ({ data: { responses: {} } }))
-      ]);
-      
-      return {
-        configs: configsRes.data.configs || [],
-        responses: responsesRes.data.responses || {}
-      };
-    } catch (error) {
-      console.warn('Failed to fetch Section C data:', error);
-      return { configs: [], responses: {} };
-    }
-  };
-
   const exportPDF = useCallback(async () => {
     if (!reportingPeriod) {
       toast.error('Please select a reporting period first');
@@ -83,56 +24,82 @@ export function useBRSRExport({ reportingPeriod, organization }) {
     }
 
     setIsExporting(true);
-    setProgress('Fetching data...');
+    setProgress('Generating BRSR Report...');
 
     try {
       const headers = getAuthHeader();
 
-      // Fetch all section data in parallel
-      setProgress('Loading Section A...');
-      const sectionAPromise = fetchSectionAData(headers);
+      // Call backend endpoint to generate PDF
+      const response = await axios.get(
+        `${API}/api/brsr-report/generate/${encodeURIComponent(reportingPeriod)}`,
+        {
+          headers,
+          responseType: 'blob', // Important: expect binary data
+          timeout: 120000, // 2 minute timeout for PDF generation
+        }
+      );
+
+      // Create download link
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
       
-      setProgress('Loading Section B...');
-      const sectionBPromise = fetchSectionBData(headers);
+      // Extract filename from Content-Disposition header or use default
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = `BRSR_Report_${reportingPeriod.replace(/\s+/g, '_')}.pdf`;
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?([^"]+)"?/);
+        if (match) {
+          filename = match[1];
+        }
+      }
       
-      setProgress('Loading Section C...');
-      const sectionCPromise = fetchSectionCData(headers);
-
-      const [sectionAData, sectionBResult, sectionCResult] = await Promise.all([
-        sectionAPromise,
-        sectionBPromise,
-        sectionCPromise
-      ]);
-
-      setProgress('Generating PDF...');
-
-      // Create the report generator
-      const generator = new BRSRReportGenerator({
-        organization: organization || {},
-        reportingPeriod,
-        sectionAData,
-        sectionBData: sectionBResult.responses,
-        sectionBConfigs: sectionBResult.configs,
-        sectionCData: sectionCResult.responses,
-        sectionCConfigs: sectionCResult.configs,
-      });
-
-      // Generate and save
-      await generator.generate();
-      generator.save();
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
 
       toast.success('BRSR Report downloaded successfully');
     } catch (error) {
       console.error('Export failed:', error);
-      toast.error('Failed to generate BRSR report');
+      const message = error.response?.data?.detail || 'Failed to generate BRSR report';
+      toast.error(message);
     } finally {
       setIsExporting(false);
       setProgress('');
     }
-  }, [reportingPeriod, organization, getAuthHeader]);
+  }, [reportingPeriod, getAuthHeader]);
+
+  // Preview HTML (for debugging)
+  const previewHTML = useCallback(async () => {
+    if (!reportingPeriod) {
+      toast.error('Please select a reporting period first');
+      return;
+    }
+
+    try {
+      const headers = getAuthHeader();
+      const url = `${API}/api/brsr-report/preview/${encodeURIComponent(reportingPeriod)}`;
+      
+      // Open in new tab
+      const response = await axios.get(url, { headers });
+      const htmlContent = response.data;
+      
+      // Open HTML in new window
+      const previewWindow = window.open('', '_blank');
+      previewWindow.document.write(htmlContent);
+      previewWindow.document.close();
+    } catch (error) {
+      console.error('Preview failed:', error);
+      toast.error('Failed to generate preview');
+    }
+  }, [reportingPeriod, getAuthHeader]);
 
   return {
     exportPDF,
+    previewHTML,
     isExporting,
     progress
   };

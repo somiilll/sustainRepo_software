@@ -501,3 +501,25 @@ Complete implementation of a new top-level module for supplier ESG and GHG asses
 - **Emission Form Refactoring**: Refactor Edit and Add emission forms (`EmissionEntryForm.js`, `Emissions.js`, `editEmissionDispatch.js`) to be fully reusable components. Currently tightly coupled with page-level state. Goal: single form component usable across main GHG, supplier portal, and any future contexts.
 - **SuperAdmin Org View**: Add supplier org names visibility to Organizations management page
 - **Hash-based Integrity Verification for Evidence Files**: Implement SHA-256 hash storage for all uploaded evidence files. Calculate hash on upload, store in DB alongside file URL, verify hash on download/access. Required for tamper detection and compliance (SOC 2, ISO 27001).
+
+## Completed Work (Current Session — Aug 4 2026)
+
+### BRSR Annexure II PDF Export (P0)
+- **Implementation**: Created pixel-perfect BRSR PDF export following exact SEBI Annexure II format
+- **Backend Module**: `/app/backend/modules/brsr_report/`
+  - `router.py`: API endpoints `/api/brsr-report/generate/{period}` and `/api/brsr-report/preview/{period}`
+  - `service.py`: PDF generation using Playwright/Chromium for exact HTML-to-PDF rendering
+  - `templates.py`: HTML/CSS template that replicates Annexure II format exactly
+- **Frontend Integration**: `/app/frontend/src/modules/brsr-export/`
+  - `useBRSRExport.js`: Hook for PDF download via backend API
+  - `BRSRExportButton.jsx`: Download dropdown button in BRSR module header
+- **Key Features**:
+  - Uses Playwright/Chromium (not jsPDF) for pixel-perfect rendering
+  - HTML/CSS template matches exact Annexure II styling (Arial font, #70AD47 green headers, tables with thin black borders)
+  - Section A: 26 questions in exact Annexure II table format
+  - Section B: Policy/management process disclosures with actual question text
+  - Section C: Principle 1-9 with Essential/Leadership indicators, correct question text from configs
+  - Proper page breaks, A4 sizing, margins (15mm top/bottom, 20mm left/right)
+  - "Annexure II" header on each page, page numbers in footer
+- **Status**: ✅ Complete and tested - PDF downloads successfully with correct format
+

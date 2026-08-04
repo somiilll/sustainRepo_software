@@ -211,6 +211,10 @@ api_router.include_router(materiality_router, tags=["Materiality Assessment"])
 from modules.supplier_assessment.router import router as supplier_assessment_router
 api_router.include_router(supplier_assessment_router, tags=["Supplier Assessment"])
 
+# BRSR Report Generation Module (Annexure II PDF)
+from modules.brsr_report.router import router as brsr_report_router
+api_router.include_router(brsr_report_router, tags=["BRSR Report"])
+
 # Run module contract verifier at import time. Phase B1: log-only, will be
 # escalated to fail-fast in dev once all modules expose their contracts.
 verify_module_contracts()
