@@ -331,11 +331,45 @@ export class BasePDFGenerator {
     const textWidth = PAGE.contentWidth - 30;
     const textStartX = PAGE.margin + 4 + 10; // After accent bar + left padding
     
+    // ═══════════════════════════════════════════════════════════════════
+    // DEBUG: Log text state before processing
+    // ═══════════════════════════════════════════════════════════════════
+    console.log('=== addAnalysisBox DEBUG ===');
+    console.log('Input text (first 100 chars):', text.substring(0, 100));
+    console.log('Input text length:', text.length);
+    console.log('textWidth:', textWidth);
+    
     // Use consistent font for text measurement and rendering
     this.doc.setFont('helvetica', 'normal');
     this.doc.setFontSize(9);
     
     const lines = this.doc.splitTextToSize(text, textWidth);
+    
+    // ═══════════════════════════════════════════════════════════════════
+    // DEBUG: Log splitTextToSize output
+    // ═══════════════════════════════════════════════════════════════════
+    console.log('splitTextToSize output:');
+    console.log('  Number of lines:', lines.length);
+    lines.forEach((line, i) => {
+      console.log(`  Line ${i}: "${line}" (length: ${line.length})`);
+    });
+    
+    // DEBUG: Test with plain ASCII to compare
+    const testText = 'Total GHG emissions for the reporting period are 1206 tCO2e test.';
+    const testLines = this.doc.splitTextToSize(testText, textWidth);
+    console.log('Plain ASCII test:');
+    console.log('  Input:', testText);
+    console.log('  Output lines:', testLines.length);
+    testLines.forEach((line, i) => {
+      console.log(`  Line ${i}: "${line}" (length: ${line.length})`);
+    });
+    
+    // DEBUG: Check current PDF text state
+    console.log('Current PDF state:');
+    console.log('  Font:', this.doc.getFont());
+    console.log('  FontSize:', this.doc.getFontSize());
+    // ═══════════════════════════════════════════════════════════════════
+    
     // Font size 9pt needs ~5mm line height for proper spacing
     const lineHeight = 5;
     // Box padding: 14mm top (for ANALYSIS label + gap) + 8mm bottom
@@ -360,6 +394,7 @@ export class BasePDFGenerator {
     this.doc.text('ANALYSIS', textStartX, this.currentY + 8);
     
     // Analysis text - render line by line for consistent spacing
+    // Explicitly reset all text state before rendering
     this.doc.setFont('helvetica', 'normal');
     this.doc.setFontSize(9);
     this.doc.setTextColor(COLORS.text);
