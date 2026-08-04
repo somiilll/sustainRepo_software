@@ -389,6 +389,33 @@ class DataChecker:
             last_updated, approval_status = DataChecker._get_best_approval_status(valid_records)
             return True, last_updated, approval_status
         
+        # Check Section A nested responses format (question keys like brsr_a_*)
+        # Section A stores data in: { section: "section_a", responses: { brsr_a_cin: "...", ... } }
+        if question_key.startswith("brsr_a_"):
+            section_a_query = {
+                "org_id": organization_id,
+                "section": "section_a",
+                "framework": {"$in": ["BRSR", "brsr"]},
+            }
+            if period_key:
+                section_a_query["reporting_year"] = period_key
+            
+            section_doc = await db.organization_esg_responses.find_one(
+                section_a_query,
+                {"_id": 0, "responses": 1, "response_statuses": 1, "updated_at": 1, "created_at": 1}
+            )
+            
+            if section_doc and "responses" in section_doc:
+                value = section_doc["responses"].get(question_key)
+                if DataChecker._has_value(value):
+                    # Get status from response_statuses if available
+                    status_info = section_doc.get("response_statuses", {}).get(question_key, {})
+                    approval_status = status_info.get("status", "saved")
+                    updated_at = DataChecker._parse_datetime(
+                        status_info.get("updated_at") or section_doc.get("updated_at") or section_doc.get("created_at")
+                    )
+                    return True, updated_at, approval_status
+        
         return False, None, None
     
     @staticmethod

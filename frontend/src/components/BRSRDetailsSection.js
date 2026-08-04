@@ -940,6 +940,7 @@ export default function BRSRDetailsSection({
       )}
 
           {/* BRSR Contact Person Section */}
+          {(isAdmin || canSeeQuestion('brsr_a_contact_person')) && (
           <div>
             <h4 className="text-sm font-semibold text-text-primary mb-4 pb-2 border-b">
               BRSR Report Contact Person
@@ -950,10 +951,10 @@ export default function BRSRDetailsSection({
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Contact Person Name *</Label>
-                {isEditing ? (
+                {isEditing && canEditQuestion('brsr_a_contact_person') ? (
                   <Input
                     value={formData.brsr_contact_name}
-                    onChange={(e) => handleInputChange('brsr_contact_name', e.target.value)}
+                    onChange={(e) => handleInputChange('brsr_contact_name', e.target.value, 'brsr_a_contact_person')}
                     placeholder="Enter full name"
                     data-testid="brsr-contact-name"
                   />
@@ -964,10 +965,10 @@ export default function BRSRDetailsSection({
               
               <div className="space-y-2">
                 <Label>Contact Telephone *</Label>
-                {isEditing ? (
+                {isEditing && canEditQuestion('brsr_a_contact_person') ? (
                   <Input
                     value={formData.brsr_contact_telephone}
-                    onChange={(e) => handleInputChange('brsr_contact_telephone', e.target.value)}
+                    onChange={(e) => handleInputChange('brsr_contact_telephone', e.target.value, 'brsr_a_contact_person')}
                     placeholder="+91 XXXXXXXXXX"
                     data-testid="brsr-contact-telephone"
                   />
@@ -978,11 +979,11 @@ export default function BRSRDetailsSection({
               
               <div className="space-y-2">
                 <Label>Contact Email Address *</Label>
-                {isEditing ? (
+                {isEditing && canEditQuestion('brsr_a_contact_person') ? (
                   <Input
                     type="email"
                     value={formData.brsr_contact_email}
-                    onChange={(e) => handleInputChange('brsr_contact_email', e.target.value)}
+                    onChange={(e) => handleInputChange('brsr_contact_email', e.target.value, 'brsr_a_contact_person')}
                     placeholder="email@company.com"
                     data-testid="brsr-contact-email"
                   />
@@ -992,19 +993,22 @@ export default function BRSRDetailsSection({
               </div>
             </div>
           </div>
+          )}
 
-          {/* Radio Button Sections */}
+          {/* Radio Button Sections - Stock Exchange & Reporting Boundary */}
+          {(isAdmin || canSeeQuestion('brsr_a_stock_exchange') || canSeeQuestion('brsr_a_reporting_boundary')) && (
           <div>
             <h4 className="text-sm font-semibold text-text-primary mb-4 pb-2 border-b">
               Listing & Reporting Information
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {(isAdmin || canSeeQuestion('brsr_a_stock_exchange')) && (
               <div className="space-y-3">
                 <Label>Stock Exchange(s) where shares are listed *</Label>
-                {isEditing ? (
+                {isEditing && canEditQuestion('brsr_a_stock_exchange') ? (
                   <RadioGroup
                     value={formData.stock_exchange}
-                    onValueChange={(value) => handleInputChange('stock_exchange', value)}
+                    onValueChange={(value) => handleInputChange('stock_exchange', value, 'brsr_a_stock_exchange')}
                     className="space-y-2"
                   >
                     <div className="flex items-center space-x-2">
@@ -1024,13 +1028,15 @@ export default function BRSRDetailsSection({
                   <p className="text-sm text-text-secondary py-2">{formData.stock_exchange || '-'}</p>
                 )}
               </div>
+              )}
               
+              {(isAdmin || canSeeQuestion('brsr_a_reporting_boundary')) && (
               <div className="space-y-3">
                 <Label>Reporting Boundary *</Label>
-                {isEditing ? (
+                {isEditing && canEditQuestion('brsr_a_reporting_boundary') ? (
                   <RadioGroup
                     value={formData.reporting_boundary}
-                    onValueChange={(value) => handleInputChange('reporting_boundary', value)}
+                    onValueChange={(value) => handleInputChange('reporting_boundary', value, 'brsr_a_reporting_boundary')}
                     className="space-y-2"
                   >
                     <div className="flex items-center space-x-2">
@@ -1046,23 +1052,26 @@ export default function BRSRDetailsSection({
                   <p className="text-sm text-text-secondary py-2">{formData.reporting_boundary || '-'}</p>
                 )}
               </div>
+              )}
             </div>
           </div>
+          )}
 
           {/* Dynamic Tables Section */}
           <div className="space-y-6">
             {/* Business Activities Table */}
+            {(isAdmin || canSeeQuestion('brsr_a_business_activities')) && (
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h4 className="text-sm font-semibold text-text-primary">
                   Business Activities Accounting for 90% of Turnover *
                 </h4>
-                {isEditing && (
+                {isEditing && canEditQuestion('brsr_a_business_activities') && (
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => addTableRow('business_activities', EMPTY_BUSINESS_ACTIVITY)}
+                    onClick={() => addTableRow('business_activities', EMPTY_BUSINESS_ACTIVITY, 'brsr_a_business_activities')}
                   >
                     <Plus className="w-4 h-4 mr-1" />
                     Add Row
@@ -1076,17 +1085,17 @@ export default function BRSRDetailsSection({
                       <TableHead className="w-[30%]">Description of Activity</TableHead>
                       <TableHead className="w-[40%]">Main Description of Business Activity</TableHead>
                       <TableHead className="w-[20%]">% of Turnover</TableHead>
-                      {isEditing && <TableHead className="w-[10%]">Action</TableHead>}
+                      {isEditing && canEditQuestion('brsr_a_business_activities') && <TableHead className="w-[10%]">Action</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {formData.business_activities.map((row, index) => (
                       <TableRow key={index}>
                         <TableCell>
-                          {isEditing ? (
+                          {isEditing && canEditQuestion('brsr_a_business_activities') ? (
                             <Input
                               value={row.description}
-                              onChange={(e) => handleTableRowChange('business_activities', index, 'description', e.target.value)}
+                              onChange={(e) => handleTableRowChange('business_activities', index, 'description', e.target.value, 'brsr_a_business_activities')}
                               placeholder="Description"
                               className="h-8"
                             />
@@ -1095,10 +1104,10 @@ export default function BRSRDetailsSection({
                           )}
                         </TableCell>
                         <TableCell>
-                          {isEditing ? (
+                          {isEditing && canEditQuestion('brsr_a_business_activities') ? (
                             <Input
                               value={row.main_activity}
-                              onChange={(e) => handleTableRowChange('business_activities', index, 'main_activity', e.target.value)}
+                              onChange={(e) => handleTableRowChange('business_activities', index, 'main_activity', e.target.value, 'brsr_a_business_activities')}
                               placeholder="Main activity"
                               className="h-8"
                             />
@@ -1107,11 +1116,11 @@ export default function BRSRDetailsSection({
                           )}
                         </TableCell>
                         <TableCell>
-                          {isEditing ? (
+                          {isEditing && canEditQuestion('brsr_a_business_activities') ? (
                             <Input
                               type="number"
                               value={row.turnover_percentage}
-                              onChange={(e) => handleTableRowChange('business_activities', index, 'turnover_percentage', parseFloat(e.target.value) || 0)}
+                              onChange={(e) => handleTableRowChange('business_activities', index, 'turnover_percentage', parseFloat(e.target.value) || 0, 'brsr_a_business_activities')}
                               placeholder="%"
                               min="0"
                               max="100"
@@ -1121,13 +1130,13 @@ export default function BRSRDetailsSection({
                             <span className="text-sm">{row.turnover_percentage}%</span>
                           )}
                         </TableCell>
-                        {isEditing && (
+                        {isEditing && canEditQuestion('brsr_a_business_activities') && (
                           <TableCell>
                             <Button
                               type="button"
                               variant="ghost"
                               size="sm"
-                              onClick={() => removeTableRow('business_activities', index)}
+                              onClick={() => removeTableRow('business_activities', index, 'brsr_a_business_activities')}
                               className="text-red-500 hover:text-red-700 hover:bg-red-50"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -1140,19 +1149,21 @@ export default function BRSRDetailsSection({
                 </Table>
               </div>
             </div>
+            )}
 
             {/* Products/Services Table */}
+            {(isAdmin || canSeeQuestion('brsr_a_products_services')) && (
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h4 className="text-sm font-semibold text-text-primary">
                   Products/Services Accounting for 90% of Turnover *
                 </h4>
-                {isEditing && (
+                {isEditing && canEditQuestion('brsr_a_products_services') && (
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => addTableRow('products_services', EMPTY_PRODUCT_SERVICE)}
+                    onClick={() => addTableRow('products_services', EMPTY_PRODUCT_SERVICE, 'brsr_a_products_services')}
                   >
                     <Plus className="w-4 h-4 mr-1" />
                     Add Row
@@ -1176,7 +1187,7 @@ export default function BRSRDetailsSection({
                           {isEditing ? (
                             <Input
                               value={row.product_service}
-                              onChange={(e) => handleTableRowChange('products_services', index, 'product_service', e.target.value)}
+                              onChange={(e) => handleTableRowChange('products_services', index, 'product_service', e.target.value, 'brsr_a_products_services')}
                               placeholder="Product/Service"
                               className="h-8"
                             />
@@ -1185,10 +1196,10 @@ export default function BRSRDetailsSection({
                           )}
                         </TableCell>
                         <TableCell>
-                          {isEditing ? (
+                          {isEditing && canEditQuestion('brsr_a_products_services') ? (
                             <Input
                               value={row.nic_code}
-                              onChange={(e) => handleTableRowChange('products_services', index, 'nic_code', e.target.value)}
+                              onChange={(e) => handleTableRowChange('products_services', index, 'nic_code', e.target.value, 'brsr_a_products_services')}
                               placeholder="NIC Code"
                               className="h-8"
                             />
@@ -1197,11 +1208,11 @@ export default function BRSRDetailsSection({
                           )}
                         </TableCell>
                         <TableCell>
-                          {isEditing ? (
+                          {isEditing && canEditQuestion('brsr_a_products_services') ? (
                             <Input
                               type="number"
                               value={row.turnover_percentage}
-                              onChange={(e) => handleTableRowChange('products_services', index, 'turnover_percentage', parseFloat(e.target.value) || 0)}
+                              onChange={(e) => handleTableRowChange('products_services', index, 'turnover_percentage', parseFloat(e.target.value) || 0, 'brsr_a_products_services')}
                               placeholder="%"
                               min="0"
                               max="100"
@@ -1211,13 +1222,13 @@ export default function BRSRDetailsSection({
                             <span className="text-sm">{row.turnover_percentage}%</span>
                           )}
                         </TableCell>
-                        {isEditing && (
+                        {isEditing && canEditQuestion('brsr_a_products_services') && (
                           <TableCell>
                             <Button
                               type="button"
                               variant="ghost"
                               size="sm"
-                              onClick={() => removeTableRow('products_services', index)}
+                              onClick={() => removeTableRow('products_services', index, 'brsr_a_products_services')}
                               className="text-red-500 hover:text-red-700 hover:bg-red-50"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -1230,19 +1241,21 @@ export default function BRSRDetailsSection({
                 </Table>
               </div>
             </div>
+            )}
 
             {/* Plants and Offices Table */}
+            {(isAdmin || canSeeQuestion('brsr_a_plants_offices')) && (
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h4 className="text-sm font-semibold text-text-primary">
                   Plants and Offices Operated *
                 </h4>
-                {isEditing && (
+                {isEditing && canEditQuestion('brsr_a_plants_offices') && (
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => addTableRow('plants_offices', EMPTY_PLANT_OFFICE)}
+                    onClick={() => addTableRow('plants_offices', EMPTY_PLANT_OFFICE, 'brsr_a_plants_offices')}
                   >
                     <Plus className="w-4 h-4 mr-1" />
                     Add Row
@@ -1256,17 +1269,17 @@ export default function BRSRDetailsSection({
                       <TableHead className="w-[40%]">Location</TableHead>
                       <TableHead className="w-[25%]">Number of Plants</TableHead>
                       <TableHead className="w-[25%]">Number of Offices</TableHead>
-                      {isEditing && <TableHead className="w-[10%]">Action</TableHead>}
+                      {isEditing && canEditQuestion('brsr_a_plants_offices') && <TableHead className="w-[10%]">Action</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {formData.plants_offices.map((row, index) => (
                       <TableRow key={index}>
                         <TableCell>
-                          {isEditing ? (
+                          {isEditing && canEditQuestion('brsr_a_plants_offices') ? (
                             <Select
                               value={row.location_type}
-                              onValueChange={(value) => handleTableRowChange('plants_offices', index, 'location_type', value)}
+                              onValueChange={(value) => handleTableRowChange('plants_offices', index, 'location_type', value, 'brsr_a_plants_offices')}
                             >
                               <SelectTrigger className="h-8">
                                 <SelectValue />
@@ -1295,11 +1308,11 @@ export default function BRSRDetailsSection({
                           )}
                         </TableCell>
                         <TableCell>
-                          {isEditing ? (
+                          {isEditing && canEditQuestion('brsr_a_plants_offices') ? (
                             <Input
                               type="number"
                               value={row.num_offices}
-                              onChange={(e) => handleTableRowChange('plants_offices', index, 'num_offices', parseInt(e.target.value) || 0)}
+                              onChange={(e) => handleTableRowChange('plants_offices', index, 'num_offices', parseInt(e.target.value) || 0, 'brsr_a_plants_offices')}
                               placeholder="0"
                               min="0"
                               className="h-8"
@@ -1308,13 +1321,13 @@ export default function BRSRDetailsSection({
                             <span className="text-sm">{row.num_offices}</span>
                           )}
                         </TableCell>
-                        {isEditing && (
+                        {isEditing && canEditQuestion('brsr_a_plants_offices') && (
                           <TableCell>
                             <Button
                               type="button"
                               variant="ghost"
                               size="sm"
-                              onClick={() => removeTableRow('plants_offices', index)}
+                              onClick={() => removeTableRow('plants_offices', index, 'brsr_a_plants_offices')}
                               className="text-red-500 hover:text-red-700 hover:bg-red-50"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -1327,19 +1340,21 @@ export default function BRSRDetailsSection({
                 </Table>
               </div>
             </div>
+            )}
 
             {/* Markets Served Table */}
+            {(isAdmin || canSeeQuestion('brsr_a_markets_served')) && (
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h4 className="text-sm font-semibold text-text-primary">
                   Markets Served by Entity *
                 </h4>
-                {isEditing && (
+                {isEditing && canEditQuestion('brsr_a_markets_served') && (
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => addTableRow('markets_served', EMPTY_MARKET_SERVED)}
+                    onClick={() => addTableRow('markets_served', EMPTY_MARKET_SERVED, 'brsr_a_markets_served')}
                   >
                     <Plus className="w-4 h-4 mr-1" />
                     Add Row
@@ -1352,17 +1367,17 @@ export default function BRSRDetailsSection({
                     <TableRow className="bg-stone-50">
                       <TableHead className="w-[60%]">Location</TableHead>
                       <TableHead className="w-[30%]">Number (States/Countries)</TableHead>
-                      {isEditing && <TableHead className="w-[10%]">Action</TableHead>}
+                      {isEditing && canEditQuestion('brsr_a_markets_served') && <TableHead className="w-[10%]">Action</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {formData.markets_served.map((row, index) => (
                       <TableRow key={index}>
                         <TableCell>
-                          {isEditing ? (
+                          {isEditing && canEditQuestion('brsr_a_markets_served') ? (
                             <Select
                               value={row.location_type}
-                              onValueChange={(value) => handleTableRowChange('markets_served', index, 'location_type', value)}
+                              onValueChange={(value) => handleTableRowChange('markets_served', index, 'location_type', value, 'brsr_a_markets_served')}
                             >
                               <SelectTrigger className="h-8">
                                 <SelectValue />
@@ -1379,11 +1394,11 @@ export default function BRSRDetailsSection({
                           )}
                         </TableCell>
                         <TableCell>
-                          {isEditing ? (
+                          {isEditing && canEditQuestion('brsr_a_markets_served') ? (
                             <Input
                               type="number"
                               value={row.number}
-                              onChange={(e) => handleTableRowChange('markets_served', index, 'number', parseInt(e.target.value) || 0)}
+                              onChange={(e) => handleTableRowChange('markets_served', index, 'number', parseInt(e.target.value) || 0, 'brsr_a_markets_served')}
                               placeholder="0"
                               min="0"
                               className="h-8"
@@ -1392,13 +1407,13 @@ export default function BRSRDetailsSection({
                             <span className="text-sm">{row.number}</span>
                           )}
                         </TableCell>
-                        {isEditing && (
+                        {isEditing && canEditQuestion('brsr_a_markets_served') && (
                           <TableCell>
                             <Button
                               type="button"
                               variant="ghost"
                               size="sm"
-                              onClick={() => removeTableRow('markets_served', index)}
+                              onClick={() => removeTableRow('markets_served', index, 'brsr_a_markets_served')}
                               className="text-red-500 hover:text-red-700 hover:bg-red-50"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -1411,6 +1426,7 @@ export default function BRSRDetailsSection({
                 </Table>
               </div>
             </div>
+            )}
           </div>
 
           {/* Validation Messages */}
@@ -1461,6 +1477,8 @@ export default function BRSRDetailsSection({
               isEditing={isEditing} 
               hideSections={hideSections}
               reportingYear={reportingPeriod}
+              assignedQuestionKeys={assignedQuestionKeys}
+              isAdmin={isAdmin}
             />
           </div>
         </div>
