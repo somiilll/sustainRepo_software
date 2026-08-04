@@ -504,22 +504,23 @@ Complete implementation of a new top-level module for supplier ESG and GHG asses
 
 ## Completed Work (Current Session — Aug 4 2026)
 
-### BRSR Annexure II PDF Export (P0)
-- **Implementation**: Created pixel-perfect BRSR PDF export following exact SEBI Annexure II format
+### BRSR Annexure II PDF Export (P0) - EXACT REPLICA
+- **Implementation**: Created pixel-perfect BRSR PDF export that is an EXACT REPLICA of the official SEBI Annexure II format
 - **Backend Module**: `/app/backend/modules/brsr_report/`
   - `router.py`: API endpoints `/api/brsr-report/generate/{period}` and `/api/brsr-report/preview/{period}`
   - `service.py`: PDF generation using Playwright/Chromium for exact HTML-to-PDF rendering
-  - `templates.py`: HTML/CSS template that replicates Annexure II format exactly
+  - `templates.py`: HTML/CSS template that replicates Annexure II format EXACTLY
 - **Frontend Integration**: `/app/frontend/src/modules/brsr-export/`
   - `useBRSRExport.js`: Hook for PDF download via backend API
   - `BRSRExportButton.jsx`: Download dropdown button in BRSR module header
-- **Key Features**:
-  - Uses Playwright/Chromium (not jsPDF) for pixel-perfect rendering
-  - HTML/CSS template matches exact Annexure II styling (Arial font, #70AD47 green headers, tables with thin black borders)
-  - Section A: 26 questions in exact Annexure II table format
-  - Section B: Policy/management process disclosures with actual question text
-  - Section C: Principle 1-9 with Essential/Leadership indicators, correct question text from configs
-  - Proper page breaks, A4 sizing, margins (15mm top/bottom, 20mm left/right)
-  - "Annexure II" header on each page, page numbers in footer
-- **Status**: ✅ Complete and tested - PDF downloads successfully with correct format
+- **Key Features - EXACT ANNEXURE II REPLICATION**:
+  - Section A: Questions 1-26 (General Disclosures) - exact table layouts, numbering
+  - Section B: Questions 1-12 (Management & Process) - P1-P9 policy matrix table
+  - Section C: Principles 1-9 with Essential/Leadership indicators
+  - NO custom design elements - only official Annexure format
+  - Section headers: Bold text only (no green background)
+  - Principle headers (Section C): Green background (#70AD47) as per Annexure II
+  - Tables: 1px black borders, exact column structure
+  - Arial font, A4 page, 20mm margins
+- **Status**: ✅ Complete - All three sections implemented
 
