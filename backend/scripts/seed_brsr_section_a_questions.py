@@ -35,6 +35,7 @@ SECTION_A_QUESTIONS = [
         "order": 1,
         "required": True,
         "group": "I. Details of the Listed Entity",
+        "response_mode": "atomic",
     },
     {
         "question_key": "brsr_a_entity_name",
@@ -46,6 +47,7 @@ SECTION_A_QUESTIONS = [
         "order": 2,
         "required": True,
         "group": "I. Details of the Listed Entity",
+        "response_mode": "atomic",
     },
     {
         "question_key": "brsr_a_year_of_incorporation",
@@ -57,6 +59,7 @@ SECTION_A_QUESTIONS = [
         "order": 3,
         "required": True,
         "group": "I. Details of the Listed Entity",
+        "response_mode": "atomic",
     },
     {
         "question_key": "brsr_a_registered_address",
@@ -68,6 +71,7 @@ SECTION_A_QUESTIONS = [
         "order": 4,
         "required": True,
         "group": "I. Details of the Listed Entity",
+        "response_mode": "atomic",
         "config": {
             "fields": ["address", "city", "state", "country", "pincode"]
         }
@@ -82,6 +86,7 @@ SECTION_A_QUESTIONS = [
         "order": 5,
         "required": False,
         "group": "I. Details of the Listed Entity",
+        "response_mode": "atomic",
         "config": {
             "fields": ["address", "city", "state", "country", "pincode"]
         }
@@ -96,6 +101,7 @@ SECTION_A_QUESTIONS = [
         "order": 6,
         "required": True,
         "group": "I. Details of the Listed Entity",
+        "response_mode": "atomic",
     },
     {
         "question_key": "brsr_a_telephone",
@@ -107,6 +113,7 @@ SECTION_A_QUESTIONS = [
         "order": 7,
         "required": True,
         "group": "I. Details of the Listed Entity",
+        "response_mode": "atomic",
     },
     {
         "question_key": "brsr_a_website",
@@ -118,6 +125,7 @@ SECTION_A_QUESTIONS = [
         "order": 8,
         "required": True,
         "group": "I. Details of the Listed Entity",
+        "response_mode": "atomic",
     },
     {
         "question_key": "brsr_a_financial_year",
@@ -129,6 +137,7 @@ SECTION_A_QUESTIONS = [
         "order": 9,
         "required": True,
         "group": "I. Details of the Listed Entity",
+        "response_mode": "atomic",
         "config": {
             "auto_filled": True,
             "source": "reporting_period"
@@ -144,6 +153,7 @@ SECTION_A_QUESTIONS = [
         "order": 10,
         "required": True,
         "group": "I. Details of the Listed Entity",
+        "response_mode": "atomic",
         "config": {
             "options": ["BSE", "NSE", "Both NSE & BSE"]
         }
@@ -158,6 +168,7 @@ SECTION_A_QUESTIONS = [
         "order": 11,
         "required": True,
         "group": "I. Details of the Listed Entity",
+        "response_mode": "atomic",
         "config": {
             "currency": "INR"
         }
@@ -172,6 +183,7 @@ SECTION_A_QUESTIONS = [
         "order": 12,
         "required": True,
         "group": "I. Details of the Listed Entity",
+        "response_mode": "atomic",
         "config": {
             "fields": ["name", "telephone", "email"]
         }
@@ -186,6 +198,7 @@ SECTION_A_QUESTIONS = [
         "order": 13,
         "required": True,
         "group": "I. Details of the Listed Entity",
+        "response_mode": "atomic",
         "config": {
             "options": ["Standalone", "Consolidated"]
         }
@@ -200,6 +213,7 @@ SECTION_A_QUESTIONS = [
         "order": 14,
         "required": False,
         "group": "I. Details of the Listed Entity",
+        "response_mode": "atomic",
     },
     {
         "question_key": "brsr_a_assurance_type",
@@ -211,6 +225,7 @@ SECTION_A_QUESTIONS = [
         "order": 15,
         "required": False,
         "group": "I. Details of the Listed Entity",
+        "response_mode": "atomic",
     },
     
     # ════════════════════════════════════════════════════════════════════
@@ -226,6 +241,7 @@ SECTION_A_QUESTIONS = [
         "order": 16,
         "required": True,
         "group": "II. Products/Services",
+        "response_mode": "atomic",
         "config": {
             "columns": [
                 {"key": "description", "label": "Description of Main Activity", "type": "text"},
@@ -246,6 +262,7 @@ SECTION_A_QUESTIONS = [
         "order": 17,
         "required": True,
         "group": "II. Products/Services",
+        "response_mode": "atomic",
         "config": {
             "columns": [
                 {"key": "product_service", "label": "Product/Service", "type": "text"},
@@ -270,6 +287,7 @@ SECTION_A_QUESTIONS = [
         "order": 18,
         "required": True,
         "group": "III. Operations",
+        "response_mode": "atomic",
         "config": {
             "columns": [
                 {"key": "location_type", "label": "Location", "type": "select", "options": ["National", "International"]},
@@ -292,6 +310,7 @@ SECTION_A_QUESTIONS = [
         "order": 19,
         "required": True,
         "group": "III. Operations",
+        "response_mode": "atomic",
         "config": {
             "sub_fields": [
                 {
@@ -331,6 +350,7 @@ SECTION_A_QUESTIONS = [
         "order": 20,
         "required": True,
         "group": "IV. Employees and Workers",
+        "response_mode": "atomic",
         "config": {
             "categories": [
                 {"key": "employees", "label": "Employees", "sub_categories": [
@@ -355,6 +375,7 @@ SECTION_A_QUESTIONS = [
         "order": 21,
         "required": True,
         "group": "IV. Employees and Workers",
+        "response_mode": "atomic",
         "config": {
             "categories": [
                 {"key": "employees", "label": "Differently Abled Employees", "sub_categories": [
@@ -379,6 +400,7 @@ SECTION_A_QUESTIONS = [
         "order": 22,
         "required": True,
         "group": "IV. Employees and Workers",
+        "response_mode": "atomic",
         "config": {
             "columns": [
                 {"key": "category", "label": "Category", "type": "select", "options": ["Board of Directors", "Key Management Personnel"]},
@@ -402,6 +424,7 @@ SECTION_A_QUESTIONS = [
         "order": 23,
         "required": True,
         "group": "IV. Employees and Workers",
+        "response_mode": "atomic",
         "config": {
             "rows": [
                 {"key": "permanent_employees", "label": "Permanent Employees"},
@@ -425,6 +448,7 @@ SECTION_A_QUESTIONS = [
         "order": 24,
         "required": False,
         "group": "V. Holding, Subsidiary and Associate Companies",
+        "response_mode": "atomic",
         "config": {
             "columns": [
                 {"key": "name_of_entity", "label": "Name of Entity", "type": "text"},
@@ -450,6 +474,7 @@ SECTION_A_QUESTIONS = [
         "order": 25,
         "required": True,
         "group": "VI. CSR Details",
+        "response_mode": "atomic",
         "config": {
             "fields": [
                 {"key": "is_applicable", "label": "Whether CSR is applicable as per section 135 of Companies Act, 2013", "type": "boolean"},
@@ -472,6 +497,7 @@ SECTION_A_QUESTIONS = [
         "order": 26,
         "required": True,
         "group": "VII. Transparency and Disclosures Compliances",
+        "response_mode": "atomic",
         "config": {
             "stakeholder_categories": [
                 "Communities",
@@ -505,6 +531,7 @@ SECTION_A_QUESTIONS = [
         "order": 27,
         "required": True,
         "group": "VIII. Material Responsible Business Conduct Issues",
+        "response_mode": "atomic",
         "config": {
             "columns": [
                 {"key": "issue_identified", "label": "Material Issue Identified", "type": "textarea"},
