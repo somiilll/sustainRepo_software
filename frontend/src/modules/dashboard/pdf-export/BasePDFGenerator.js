@@ -326,9 +326,10 @@ export class BasePDFGenerator {
     
     const useColor = color || COLORS.accent;
     
-    // Calculate text width: full content width minus left accent bar (4mm) and padding (8mm each side)
-    const textWidth = PAGE.contentWidth - 4 - 16; // 160mm text area
-    const textStartX = PAGE.margin + 4 + 8; // After accent bar + padding
+    // Calculate text width with safety margin for font rendering variance
+    // Full width (180) - accent bar (4) - left padding (10) - right padding (10) - safety margin (6) = 150mm
+    const textWidth = PAGE.contentWidth - 30;
+    const textStartX = PAGE.margin + 4 + 10; // After accent bar + left padding
     
     // Use consistent font for text measurement and rendering
     this.doc.setFont('helvetica', 'normal');
@@ -337,8 +338,8 @@ export class BasePDFGenerator {
     const lines = this.doc.splitTextToSize(text, textWidth);
     // Font size 9pt needs ~5mm line height for proper spacing
     const lineHeight = 5;
-    // Box padding: 14mm top (for ANALYSIS label + gap) + 6mm bottom
-    const boxHeight = Math.max(lines.length * lineHeight + 20, 32);
+    // Box padding: 14mm top (for ANALYSIS label + gap) + 8mm bottom
+    const boxHeight = Math.max(lines.length * lineHeight + 22, 34);
     
     this.checkPageBreak(boxHeight + 5);
     
@@ -363,7 +364,7 @@ export class BasePDFGenerator {
     this.doc.setFontSize(9);
     this.doc.setTextColor(COLORS.text);
     
-    let textY = this.currentY + 15;
+    let textY = this.currentY + 16;
     lines.forEach((line) => {
       this.doc.text(line, textStartX, textY);
       textY += lineHeight;
@@ -376,9 +377,14 @@ export class BasePDFGenerator {
     const useColor = headerColor || this.themeColor;
     const rowHeight = 10;
     const startX = PAGE.margin;
-    let y = this.currentY;
     const numCols = data[0].length;
     const colWidth = PAGE.contentWidth / numCols;
+    
+    // Calculate total table height and check if it fits on current page
+    const totalTableHeight = data.length * rowHeight;
+    this.checkPageBreak(totalTableHeight + 15);
+    
+    let y = this.currentY;
     
     data.forEach((row, rowIndex) => {
       let x = startX;
@@ -601,9 +607,10 @@ export class BasePDFGenerator {
       insights = [{ category: 'BASELINE', text: 'Data is being collected. Continue monitoring to identify optimization opportunities.', color: this.themeColor }];
     }
     
-    // Calculate text width: full content width minus left accent bar (4mm) and padding (6mm each side)
-    const textWidth = PAGE.contentWidth - 4 - 12;
-    const textStartX = PAGE.margin + 4 + 6;
+    // Calculate text width with safety margin for font rendering variance
+    // Full width (180) - accent bar (4) - left padding (8) - right padding (8) - safety margin (6) = 154mm
+    const textWidth = PAGE.contentWidth - 26;
+    const textStartX = PAGE.margin + 4 + 8;
     
     insights.forEach((insight, index) => {
       // Pre-calculate text lines for dynamic height
@@ -612,7 +619,7 @@ export class BasePDFGenerator {
       const lines = this.doc.splitTextToSize(insight.text, textWidth);
       // Font size 8pt needs ~4.5mm line height for proper spacing
       const lineHeight = 4.5;
-      const cardHeight = Math.max(lines.length * lineHeight + 18, 26);
+      const cardHeight = Math.max(lines.length * lineHeight + 20, 28);
       
       this.checkPageBreak(cardHeight + 5);
       
@@ -637,7 +644,7 @@ export class BasePDFGenerator {
       this.doc.setFontSize(8);
       this.doc.setTextColor(COLORS.text);
       
-      let textY = y + 14;
+      let textY = y + 15;
       lines.forEach((line) => {
         this.doc.text(line, textStartX, textY);
         textY += lineHeight;
