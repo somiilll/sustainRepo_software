@@ -257,8 +257,10 @@ class AccessControlService:
         for assignment in assignments:
             level = assignment.get("assignment_level")
             entity_id = assignment.get("entity_id")
+            entity_type = assignment.get("entity_type")
             
-            if level == AssignmentLevel.QUESTION.value:
+            # Handle question-level assignments (level can be "question" or "organization" for direct question assignments)
+            if level == AssignmentLevel.QUESTION.value or (entity_type == EntityType.QUESTION.value and entity_id):
                 accessible.add(entity_id)
             elif level == AssignmentLevel.SECTION.value:
                 # Get all questions in section
