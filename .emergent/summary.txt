@@ -1,54 +1,57 @@
 <analysis>**original_problem_statement**: 
-1) Implement a professional, enterprise-grade Executive ESG Dashboard PDF Export with high-resolution charts, narratives, ESG scores, and premium formatting.
-2) Fix Bulk Delete to respect approval workflows.
-3) Hide View, Fill, and Edit buttons in My Tasks until module-specific redirect logic is built.
-4) Create modular export PDFs for specific dashboards (GHG, Energy, Water, Waste, Social, Governance, Environment) with AI insights and improvement suggestions.
+1) Implement a professional, enterprise-grade Executive ESG Dashboard PDF Export with high-resolution charts, narratives, ESG scores, and premium formatting. 
+2) Fix Bulk Delete to respect approval workflows. 
+3) Hide View, Fill, and Edit buttons in My Tasks until module-specific redirect logic is built. 
+4) Move BRSR questions in Org details to Reporting -> BRSR Section A, aligning exactly with Annexure II PDF schemas, making all data year-specific.
 
-**PRODUCT REQUIREMENTS**: The PDF Export must prioritize visual storytelling with full-width analysis sections, narrative executive summaries, rule-based analytical AI insights, section dividers, metric percentages, trend interpretations, key achievements, and improvement opportunities prioritized by impact.
+**PRODUCT REQUIREMENTS**: The PDF Export must prioritize visual storytelling with full-width analysis sections, narrative executive summaries, rule-based analytical AI insights, section dividers, metric percentages, trend interpretations, key achievements, and improvement opportunities prioritized by impact. BRSR Section A needs to exactly reflect the Annexure II format natively inside the reporting module.
 
 **User's preferred language**: English
 INSTRUCT next agent to respond in English only.
 
 **what currently exists?** 
-A fully functional, modular client-side PDF Export engine exists in . It uses a  class that is extended by specific dashboard generators (, , etc.). Layouts have been fixed to feature full-width analysis sections followed by large charts.  logic is integrated into the  for most dashboards.
+A fully functional, modular client-side PDF Export engine exists in  (using ). The engine now properly extracts charts by temporarily bypassing  bounds. BRSR Section A has been successfully migrated to the  view, supported by updated backend contracts that track records by . The BRSR frontend accurately reflects Questions 1-25 from the Annexure II PDF format.
 
 **Last working item**:
-    - Last item agent was working: Creating the export PDF functionality for the **Environment Dashboard**.
-    - Status: NOT STARTED
-    - Agent Testing Done: N
-    - Which testing method agent to use? testing_agent_v3_fork
+    - Last item agent was working: Removing the redundant Reporting Year: FY 2026-2027 and View All History headers from the  component, as the reporting period is now fully managed by the parent .
+    - Status: USER VERIFICATION PENDING
+    - Agent Testing Done: N (Code was updated, UI needs screenshot verification).
+    - Which testing method agent to use? Screenshot tool.
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-  Issue 1: Social and Governance PDF Missing Charts (P0)
-     - Attempted fixes: Added standard  targeting in  and . 
-     - Next debug checklist: The testing agent reported that Social and Governance PDFs generated successfully, but the images/charts were missing due to  mismatches. Check  and  for exact  props passed to  and align the generator classes to target those exact IDs.
-     - Why fix this issue and what will be achieved with the fix? Ensures charts actually render in the exported PDF reports.
-     - Status: IN PROGRESS
-     - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Frontend (Testing agent MUST be used)
-     - Blocked on other issue: None
+  Issue 1: Environment Report PDF Text Character Spacing Bug (P0)
+     - Attempted fixes: Investigated  (which returned normal strings), evaluated  rendering, removed Unicode  characters, reset . All standard jsPDF state checks reported normal metrics, but the final output renders strings with excessive character spacing (e.g., T o t a l G H G).
+     - Next debug checklist: 
+       - Evaluate if downgrading/upgrading  package is needed.
+       - Check if a specific jsPDF plugin or  operator implementation is corrupting the PDF stream when generating the Environment report.
+       - Test with a completely different font embedded into jsPDF.
+     - Why fix this issue and what will be achieved with the fix? Fixes critical readability flaw in professional export reports.
+     - Status: BLOCKED (User explicitly commanded: we can fix this issue later remember it as P0).
+     - Is recurring issue? Y
+     - Should Test frontend/backend/both after fix? Frontend (Testing agent/Screenshot tool).
+     - Blocked on other issue: None.
 
   Issue 2: Safari-specific frontend bugs (P2)
      - Next debug checklist: Safari fails to show existing data entry for Scope 1 / Facility E and fuel type dropdown is missing.
      - Why fix this issue and what will be achieved with the fix? Cross-browser compatibility.
      - Status: NOT STARTED
      - Is recurring issue? Y
-     - Should Test frontend/backend/both after fix? Frontend
+     - Should Test frontend/backend/both after fix? Frontend.
 
 **In progress Task List**:
-  Task 1: Environment Dashboard PDF Export (P0)
-     - Where to resume: Create  extending . Add the export button to  via .
-     - What will be achieved with this? Completes the user's request to have PDF exports for all specific dashboards.
+  Task 1: Add Material Responsible Business Conduct Issues to BRSR (P0)
+     - Where to resume:  and .
+     - What will be achieved with this? Question 26 from the Annexure II PDF (Material responsible business conduct issues) was identified as missing from Section A. Adding this table completes the BRSR Section A schema.
      - Status: NOT STARTED
-     - Should Test frontend/backend/both after fix? Frontend
-     - Blocked on something: None
+     - Should Test frontend/backend/both after fix? Both
+     - Blocked on something: None.
 
   Task 2: Task View/Edit Redirects to specific modules (P1)
      - Where to resume: Custom mapping logic for view/edit buttons on tasks. Buttons were hidden previously as a temporary measure.
      - What will be achieved with this? Clicking view/edit on a task will redirect the user directly to the relevant module tab.
-     - Status: BLOCKED (User previously requested to hide buttons for now and implement this later)
-     - Should Test frontend/backend/both after fix? Frontend
+     - Status: BLOCKED (User previously requested to hide buttons for now and implement this later).
+     - Should Test frontend/backend/both after fix? Frontend.
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
@@ -64,98 +67,99 @@ A fully functional, modular client-side PDF Export engine exists in . It uses a 
     - P2: Materiality Assessment Phase 2+.
 
 **Completed work in this session**
-- V4 Executive ESG Dashboard PDF Export layout fixes (ESG Score Star fix, full-width analysis layouts, overlapping units fixed) (DONE).
-- Modular PDF Export architecture created () (DONE).
-- PDF generators created for GHG, Energy, Water, Waste, Social, and Governance dashboards (DONE).
-- Unified  added to specific dashboard  components (DONE).
+- Social, Governance, and Water PDF chart generations fixed by correcting  mismatches (DONE).
+- Environment Dashboard PDF Export () added and integrated (DONE).
+- BasePDFGenerator updated to handle  html2canvas clipping, fixing truncated charts (DONE).
+- BRSR Section A successfully migrated from Organization Details to  (DONE).
+- BRSR framework backend APIs (, , ) modified to strictly use  (DONE).
+- BRSR Section A UI schemas completely restructured to align sequentially with official BRSR Annexure II PDF (Questions 1-25) (DONE).
 
 **Earlier issues found/mentioned but not fixed**
-   Issue 1: Missing charts in Social and Governance PDFs due to  mismatches (Identified by testing subagent just before user interrupted).
-   - Debug checklist: Match test IDs in / with /.
-   - Why to solve this issue and what will be achieved with this? Accurate chart captures in PDF.
-   - Should Test frontend/backend/both after fix: Frontend
-   - Is recurring issue? N
+None.
 
 **Known issue recurrence from previous fork**
   - Issue recurrence in previous fork: Skipping  after major frontend changes.
-  - Recurrence count: ~17+ (User explicitly commanded dont test multiple times in the last session, overriding agent behavior. However, per system prompt, bugs MUST be tested).
-  - Status: IN PROGRESS
+  - Recurrence count: ~18+ (User explicitly commanded dont test multiple times in this session as well. System prompt mandates testing bugs, but user continuously interrupts the subagent calls).
+  - Status: IN PROGRESS.
 
 **Code Architecture**
 /app/
 ├── frontend/
 │   ├── src/
-│   │   ├── modules/dashboard/
-│   │   │   ├── DashboardEnvironment.jsx
-│   │   │   ├── DashboardSocial.jsx
-│   │   │   ├── DashboardGovernance.jsx
-│   │   │   ├── components/filters/StickyFilterBar.jsx
-│   │   │   ├── pdf-export/
-│   │   │   │   ├── BasePDFGenerator.js
-│   │   │   │   ├── ESGReportGenerator.jsx
-│   │   │   │   ├── EnergyReportGenerator.js
-│   │   │   │   ├── WaterReportGenerator.js
-│   │   │   │   ├── SocialReportGenerator.js
-│   │   │   │   ├── GovernanceReportGenerator.js
-│   │   │   │   ├── DashboardExportButton.jsx
+│   │   ├── components/
+│   │   │   ├── BRSRModule.js
+│   │   │   ├── BRSRDetailsSection.js
+│   │   │   ├── BRSRYearlySections.js
+│   │   ├── modules/dashboard/pdf-export/
+│   │   │   ├── BasePDFGenerator.js
+│   │   │   ├── EnvironmentReportGenerator.js
+│   │   │   ├── (Other PDF Generators)
+├── backend/
+│   ├── modules/framework_details/
+│   │   ├── contracts.py
+│   │   ├── service.py
+│   │   ├── router.py
 
 **Key Technical Concepts**
-- **Modular Client-side PDF Generation**: Uses  and . A  handles common page setups, full-width analysis boxes, charts, and tables, while subclass generators map specific data and s.
+- **Modular Client-side PDF Generation**: Uses  and .
+- **Hybrid Framework Details API**: FastAPI backend managing BRSR inputs by  and .
 
 **key DB schema**
-  - No changes
+  - 
+  -  (Both mutated to handle  accurately).
 
 **changes in tech stack**
   - None
 
 **All files of reference** 
-  -  (Core PDF logic)
-  -  (To be created)
-  -  (Needs export button added)
-  -  &  (Check for correct s)
-  -  &  (Fix test IDs)
+  -  (Core BRSR UI forms)
+  -  (Year-specific tables for BRSR)
+  -  (BRSR Tabs controller)
+  -  (Core PDF logic - containing the P0 text rendering bug)
+  -  (Backend data models for BRSR)
 
 **Areas that need refactoring**:
-  -  still exists alongside the new modular  structure. Eventually, it should be refactored to extend  to remove redundant logic.
+  -  still exists alongside the new modular  structure. Refactor to extend  when prioritizing tech debt.
 
 **key api endpoints**
-  - N/A
-
-**Critical Info for New Agent**
-- **CONFLICT WARNING**: The user repeatedly commanded dont test in the last session. However, the system prompt strictly mandates that bug fixes MUST be verified using . You must complete the Environment Dashboard PDF Export, fix the missing charts in Social/Governance, and **call the testing agent** to ensure the PDF generation flow actually captures the charts. You may need to politely explain to the user that testing is a mandatory system requirement for ensuring report quality.
-- The  logic heavily relies on . Ensure you inspect  implementations in the dashboards to grab the exact correct string for chart capture.
-
-**documents and test reports created in this job**
-  -  
+  - 
   - 
 
+**Critical Info for New Agent**
+- **CONFLICT WARNING**: The user frequently commands dont test. You must balance satisfying the user's velocity with the mandatory system requirement to verify bug fixes using . 
+- **P0 Text Rendering Bug**: The jsPDF text rendering bug in  causes characters to space out weirdly (T o t a l). Extensive debugging revealed it is NOT , NOT  being dirty, and NOT Unicode characters. The user has explicitly deferred this issue (we can fix this issue later remember it as P0). Do not aggressively debug it until the user asks, but keep it tracked in PRD.
+- **BRSR Missing Q26**: While Q1-25 match the Annexure II PDF precisely, the final question (Material Responsible Business Conduct Issues) is missing. Add this when you resume work on BRSR.
+
+**documents and test reports created in this job**
+  -  (Updated with P0 bugs and completed requirements).
+
 **Last 10 User Messages and any pending HUMAN messages** 
- 1. User: Complained Key Achievements page was empty, title pages needed icons/backgrounds, AI analysis needed benchmarks, missing maturity stars, layout issues.
- 2. Agent: Implemented massive V4 layout changes in .
- 3. User: i told you to not test - reported full width text boxes failing, units overlapping, circles instead of stars for ESG score.
- 4. Agent: Fixed unit overlaps and star shape.
- 5. User: Reported ESG Score star is unbalanced, and Analysis sections only use half the page (requested Option 1 layout: full width analysis -> chart -> table).
- 6. Agent: Fixed star calculation and restructured all layouts in the generator to use full width.
- 7. User: Requested modular PDF exports for GHG, Energy, Water, Waste, Social, and Governance dashboards.
- 8. Agent: Built  and specific dashboard generators.
- 9. User: charts are not showing in waste pdf, check for others also and fix it and add ai insights.
- 10. Agent: Fixed Waste PDF. Testing agent found Social/Governance PDFs also missing charts.
- 11. User: dont test create export pdf for environment dashboard also. (PENDING: Build Environment PDF, fix Social/Governance chart IDs).
+ 1. User: Demanded a fix for the jsPDF text rendering bug (character spacing).
+ 2. Agent: Debugged jsPDF streams and charSpace methods.
+ 3. User: Paused the debugging - we can fix this issue later remember it as P0.
+ 4. User: Requested to migrate BRSR questions in org details to Reporting - with section A.
+ 5. Agent: Rewrote frontend and backend to support this migration and track via .
+ 6. User: Requested new questions: BRSR Contact Person, Customer types, Export %. Remove Year-Specific tag line.
+ 7. Agent: Implemented these fields into  and updated backend contracts.
+ 8. User: Uploaded BRSR Annexure II PDF. Demanded exact sequential ordering matching the PDF, removing Q1, Q2 prefixes, and restoring accidentally deleted yearly sections.
+ 9. Agent: Restructured UI to map exactly to the PDF (restoring ). Identified that Q26 is missing.
+ 10. User: Complained that Reporting Year: FY 2026-2027 View All History is still showing in UI. (PENDING: Agent removed this code, user needs to verify UI).
 
 **Project Health Check:**
-  - Broken: Social and Governance PDF generators fail to capture charts due to mismatched s.
+  - Broken:  Environment Report text rendering issues (P0).
+  - Broken: Missing Question 26 in BRSR Section A.
 
 **3rd Party Integrations**
   - Cloudflare R2 (Storage)
 
 **Testing status**
-  - Testing agent used after significant changes: YES (But user interrupted the follow-up).
+  - Testing agent used after significant changes: NO (User strictly prohibited it during execution).
   - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: None new saved to memory this immediate turn.
-  - Known regressions: Missing charts in Social/Governance PDFs.
+  - Test files created: None
+  - Known regressions: jsPDF font character spacing bug.
 
 **Credentials to test flow:**
   - Check .
 
 **What agent forgot to execute**
-- The agent didn't finish fixing the  mismatches for  and  before the user interrupted with the Environment Dashboard request. Ensure these are fixed alongside building the Environment generator.</analysis>
+- Question 26 (Material responsible business conduct issues) was identified as missing during the Annexure II PDF schema mapping but wasn't implemented before the final UI fix request. Ensure this is added to complete the BRSR Section A schema.</analysis>

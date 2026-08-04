@@ -315,28 +315,6 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
 
   return (
     <div className="space-y-4">
-      {/* Header with Year Selector */}
-      <div className="flex items-center justify-between p-4 bg-stone-50 rounded-lg border">
-        <div className="flex items-center gap-3">
-          <Label className="text-sm font-medium">Reporting Year:</Label>
-          {isEditing ? (
-            <Select value={reportingYear} onValueChange={setReportingYear}>
-              <SelectTrigger className="w-36 h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {generateReportingYears().map(year => (
-                  <SelectItem key={year} value={year}>{year}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <Badge variant="outline" className="text-sm">{reportingYear}</Badge>
-          )}
-        </div>
-        <Button variant="outline" size="sm" onClick={() => { fetchHistoricalData(); setShowHistoryModal(true); }}>
-          <History className="w-4 h-4 mr-1" /> View All History
-        </Button>
-      </div>
-
       {/* 1. Employee & Worker Details */}
       {!hideSections.includes('employees_workers') && (
       <Collapsible open={openSections.employees} onOpenChange={() => toggleSection('employees')} className="border rounded-lg bg-white">
