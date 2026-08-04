@@ -16,42 +16,40 @@ import jsPDF from 'jspdf';
 const PAGE = {
   width: 210,
   height: 297,
-  margin: 15,
-  marginSmall: 10,
-  contentWidth: 180,
-  headerHeight: 12,
-  footerHeight: 10,
+  margin: 12,
+  marginSmall: 8,
+  contentWidth: 186,
+  headerHeight: 10,
+  footerHeight: 8,
 };
 
-// Color palette
+// Color palette - professional BRSR colors
 const COLORS = {
-  primary: '#1A4D2E',
-  primaryLight: '#22633A',
-  secondary: '#15803D',
-  accent: '#10B981',
+  primary: '#1E3A5F',      // Dark blue
+  secondary: '#2E5090',    // Medium blue
+  accent: '#4A90D9',       // Light blue
   text: '#1C1917',
-  textMuted: '#78716C',
-  textLight: '#A8A29E',
+  textMuted: '#57534E',
+  textLight: '#78716C',
   border: '#D6D3D1',
   borderLight: '#E7E5E4',
   background: '#FFFFFF',
-  backgroundAlt: '#FAFAF9',
-  sectionA: '#1E40AF', // Blue for Section A
-  sectionB: '#7C3AED', // Purple for Section B
-  sectionC: '#059669', // Green for Section C
+  backgroundAlt: '#F5F5F4',
+  tableHeader: '#1E3A5F',
+  tableAlt: '#F8FAFC',
 };
 
-// Principle metadata
+// Principle metadata matching Annexure II
 const PRINCIPLE_META = {
-  P1: { name: 'Principle 1', title: 'Ethics, Transparency & Accountability', color: '#3b82f6' },
-  P2: { name: 'Principle 2', title: 'Sustainable Products & Services', color: '#059669' },
-  P3: { name: 'Principle 3', title: 'Employee Wellbeing', color: '#8b5cf6' },
-  P4: { name: 'Principle 4', title: 'Stakeholder Responsiveness', color: '#f59e0b' },
-  P5: { name: 'Principle 5', title: 'Human Rights', color: '#ef4444' },
-  P6: { name: 'Principle 6', title: 'Environment Protection', color: '#14b8a6' },
-  P7: { name: 'Principle 7', title: 'Policy Advocacy', color: '#6366f1' },
-  P8: { name: 'Principle 8', title: 'Inclusive Growth', color: '#f97316' },
-  P9: { name: 'Principle 9', title: 'Consumer Value', color: '#ec4899' },
+  P1: { name: 'PRINCIPLE 1', title: 'Businesses should conduct and govern themselves with integrity, and in a manner that is Ethical, Transparent and Accountable.' },
+  P2: { name: 'PRINCIPLE 2', title: 'Businesses should provide goods and services in a manner that is sustainable and safe.' },
+  P3: { name: 'PRINCIPLE 3', title: 'Businesses should respect and promote the well-being of all employees, including those in their value chains.' },
+  P4: { name: 'PRINCIPLE 4', title: 'Businesses should respect the interests of and be responsive to all its stakeholders.' },
+  P5: { name: 'PRINCIPLE 5', title: 'Businesses should respect and promote human rights.' },
+  P6: { name: 'PRINCIPLE 6', title: 'Businesses should respect and make efforts to protect and restore the environment.' },
+  P7: { name: 'PRINCIPLE 7', title: 'Businesses, when engaging in influencing public and regulatory policy, should do so in a manner that is responsible and transparent.' },
+  P8: { name: 'PRINCIPLE 8', title: 'Businesses should promote inclusive growth and equitable development.' },
+  P9: { name: 'PRINCIPLE 9', title: 'Businesses should engage with and provide value to their consumers in a responsible manner.' },
 };
 
 export class BRSRReportGenerator {
@@ -72,13 +70,8 @@ export class BRSRReportGenerator {
     this.user = options.user || {};
     
     this.pageNumber = 0;
-    this.currentY = PAGE.margin + PAGE.headerHeight;
-    this.generatedDate = new Date().toLocaleDateString('en-IN', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-    this.reportVersion = '1.0';
+    this.currentY = PAGE.margin;
+    this.questionCounter = 0;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -91,53 +84,19 @@ export class BRSRReportGenerator {
       this.doc.addPage();
     }
     this.pageNumber++;
-    this.currentY = PAGE.margin + PAGE.headerHeight;
-    if (this.pageNumber > 1) {
-      this.addHeader();
-    }
-  }
-
-  addHeader() {
-    const y = 8;
-    
-    this.doc.setFont('helvetica', 'bold');
-    this.doc.setFontSize(8);
-    this.doc.setTextColor(COLORS.primary);
-    this.doc.text(this.organization.name || 'Organization', PAGE.margin, y);
-    
-    this.doc.setFont('helvetica', 'normal');
-    this.doc.setFontSize(8);
-    this.doc.setTextColor(COLORS.textMuted);
-    this.doc.text('Business Responsibility & Sustainability Report', PAGE.width / 2, y, { align: 'center' });
-    
-    this.doc.text(this.reportingPeriod, PAGE.width - PAGE.margin, y, { align: 'right' });
-    
-    this.doc.setDrawColor(COLORS.borderLight);
-    this.doc.setLineWidth(0.3);
-    this.doc.line(PAGE.margin, y + 4, PAGE.width - PAGE.margin, y + 4);
+    this.currentY = PAGE.margin;
   }
 
   addFooter() {
-    const y = PAGE.height - 8;
-    
-    this.doc.setDrawColor(COLORS.borderLight);
-    this.doc.setLineWidth(0.3);
-    this.doc.line(PAGE.margin, y - 6, PAGE.width - PAGE.margin, y - 6);
-    
+    const y = PAGE.height - 6;
     this.doc.setFont('helvetica', 'normal');
-    this.doc.setFontSize(6);
+    this.doc.setFontSize(8);
     this.doc.setTextColor(COLORS.textMuted);
-    
-    this.doc.text('BRSR Report', PAGE.margin, y - 2);
-    this.doc.setFont('helvetica', 'italic');
-    this.doc.text('Confidential', PAGE.width / 2, y - 2, { align: 'center' });
-    this.doc.setFont('helvetica', 'normal');
-    this.doc.text(`Page ${this.pageNumber}`, PAGE.width - PAGE.margin, y - 2, { align: 'right' });
+    this.doc.text(`Page ${this.pageNumber}`, PAGE.width / 2, y, { align: 'center' });
   }
 
   checkPageBreak(requiredHeight) {
-    const footerBuffer = 20;
-    const availableHeight = PAGE.height - PAGE.footerHeight - footerBuffer - this.currentY;
+    const availableHeight = PAGE.height - PAGE.footerHeight - 10 - this.currentY;
     if (requiredHeight > availableHeight) {
       this.addNewPage();
       return true;
@@ -146,102 +105,76 @@ export class BRSRReportGenerator {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // COVER PAGE
+  // COVER PAGE - Matching Annexure II style
   // ═══════════════════════════════════════════════════════════════════════════
 
   addCoverPage() {
     this.pageNumber = 1;
     const centerX = PAGE.width / 2;
     
-    // Background
-    this.doc.setFillColor('#EFF6FF');
-    this.doc.rect(0, 0, PAGE.width, PAGE.height, 'F');
-    
-    // Top banner
-    this.doc.setFillColor(COLORS.primary);
-    this.doc.rect(0, 0, PAGE.width, 60, 'F');
-    
-    // Accent line
-    this.doc.setFillColor(COLORS.accent);
-    this.doc.rect(0, 60, PAGE.width, 4, 'F');
-    
-    // Company name in banner
+    // Title at top
     this.doc.setFont('helvetica', 'bold');
-    this.doc.setFontSize(18);
-    this.doc.setTextColor('#FFFFFF');
-    this.doc.text(this.organization.name || 'Organization Name', centerX, 35, { align: 'center' });
-    
-    // CIN if available
-    if (this.sectionAData.cin) {
-      this.doc.setFont('helvetica', 'normal');
-      this.doc.setFontSize(10);
-      this.doc.text(`CIN: ${this.sectionAData.cin}`, centerX, 48, { align: 'center' });
-    }
-    
-    // Main title
-    this.doc.setFont('helvetica', 'bold');
-    this.doc.setFontSize(28);
+    this.doc.setFontSize(16);
     this.doc.setTextColor(COLORS.primary);
-    this.doc.text('Business Responsibility &', centerX, 100, { align: 'center' });
-    this.doc.text('Sustainability Report', centerX, 115, { align: 'center' });
+    this.doc.text('ANNEXURE II', centerX, 30, { align: 'center' });
     
-    // Subtitle - Framework reference
-    this.doc.setFont('helvetica', 'normal');
-    this.doc.setFontSize(12);
-    this.doc.setTextColor(COLORS.textMuted);
-    this.doc.text('(As per SEBI Listing Regulations - Annexure II)', centerX, 130, { align: 'center' });
+    this.doc.setFontSize(14);
+    this.doc.text('FORMAT FOR', centerX, 45, { align: 'center' });
     
-    // Reporting period box
-    this.doc.setFillColor('#FFFFFF');
+    this.doc.setFontSize(18);
+    this.doc.text('BUSINESS RESPONSIBILITY &', centerX, 65, { align: 'center' });
+    this.doc.text('SUSTAINABILITY REPORT', centerX, 78, { align: 'center' });
+    
+    // Company name box
     this.doc.setDrawColor(COLORS.primary);
     this.doc.setLineWidth(1);
-    this.doc.roundedRect(centerX - 50, 150, 100, 30, 3, 3, 'FD');
-    
-    this.doc.setFont('helvetica', 'normal');
-    this.doc.setFontSize(9);
-    this.doc.setTextColor(COLORS.textMuted);
-    this.doc.text('REPORTING PERIOD', centerX, 160, { align: 'center' });
+    this.doc.rect(30, 100, 150, 25);
     
     this.doc.setFont('helvetica', 'bold');
     this.doc.setFontSize(14);
-    this.doc.setTextColor(COLORS.primary);
-    this.doc.text(this.reportingPeriod || 'FY 2024-2025', centerX, 173, { align: 'center' });
-    
-    // Sections overview
-    const sectionsY = 200;
-    this.doc.setFont('helvetica', 'bold');
-    this.doc.setFontSize(10);
     this.doc.setTextColor(COLORS.text);
-    this.doc.text('Report Contents:', PAGE.margin + 20, sectionsY);
+    this.doc.text(this.organization.name || 'Company Name', centerX, 115, { align: 'center' });
     
+    // CIN
+    if (this.sectionAData.cin) {
+      this.doc.setFont('helvetica', 'normal');
+      this.doc.setFontSize(10);
+      this.doc.text(`CIN: ${this.sectionAData.cin}`, centerX, 140, { align: 'center' });
+    }
+    
+    // Reporting Period
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.setFontSize(12);
+    this.doc.text('Financial Year:', centerX, 160, { align: 'center' });
+    this.doc.setFontSize(14);
+    this.doc.text(this.reportingPeriod || 'FY 2024-2025', centerX, 175, { align: 'center' });
+    
+    // Sections list
+    let y = 200;
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.setFontSize(11);
+    this.doc.text('This report contains:', PAGE.margin + 20, y);
+    
+    y += 12;
     const sections = [
-      { label: 'Section A', desc: 'General Disclosures', color: COLORS.sectionA },
-      { label: 'Section B', desc: 'Management & Process Disclosures', color: COLORS.sectionB },
-      { label: 'Section C', desc: 'Principle-wise Performance Disclosures', color: COLORS.sectionC },
+      'SECTION A: GENERAL DISCLOSURES',
+      'SECTION B: MANAGEMENT AND PROCESS DISCLOSURES',
+      'SECTION C: PRINCIPLE WISE PERFORMANCE DISCLOSURE',
     ];
     
-    sections.forEach((section, idx) => {
-      const y = sectionsY + 12 + (idx * 12);
-      this.doc.setFillColor(section.color);
-      this.doc.circle(PAGE.margin + 25, y - 1, 2, 'F');
-      this.doc.setFont('helvetica', 'bold');
-      this.doc.setFontSize(9);
-      this.doc.setTextColor(section.color);
-      this.doc.text(section.label, PAGE.margin + 30, y);
-      this.doc.setFont('helvetica', 'normal');
-      this.doc.setTextColor(COLORS.text);
-      this.doc.text(`: ${section.desc}`, PAGE.margin + 52, y);
+    this.doc.setFont('helvetica', 'normal');
+    this.doc.setFontSize(10);
+    sections.forEach((section) => {
+      this.doc.text(`• ${section}`, PAGE.margin + 25, y);
+      y += 8;
     });
     
-    // Footer bar
-    this.doc.setFillColor(COLORS.primary);
-    this.doc.rect(0, PAGE.height - 25, PAGE.width, 25, 'F');
-    
-    this.doc.setFont('helvetica', 'normal');
-    this.doc.setFontSize(8);
-    this.doc.setTextColor('#FFFFFF');
-    this.doc.text(`Generated on: ${this.generatedDate}`, PAGE.margin, PAGE.height - 12);
-    this.doc.text('Prepared using SustainRepo', PAGE.width - PAGE.margin, PAGE.height - 12, { align: 'right' });
+    // Footer note
+    this.doc.setFont('helvetica', 'italic');
+    this.doc.setFontSize(9);
+    this.doc.setTextColor(COLORS.textMuted);
+    this.doc.text('(Pursuant to Regulation 34(2)(f) of the SEBI (Listing Obligations and', centerX, 260, { align: 'center' });
+    this.doc.text('Disclosure Requirements) Regulations, 2015)', centerX, 268, { align: 'center' });
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -250,161 +183,186 @@ export class BRSRReportGenerator {
 
   addSectionA() {
     this.addNewPage();
+    this.questionCounter = 0;
     
-    // Section title banner
-    this.doc.setFillColor(COLORS.sectionA);
-    this.doc.rect(PAGE.margin, this.currentY - 5, PAGE.contentWidth, 12, 'F');
+    // Section header
     this.doc.setFont('helvetica', 'bold');
     this.doc.setFontSize(14);
-    this.doc.setTextColor('#FFFFFF');
-    this.doc.text('SECTION A: GENERAL DISCLOSURES', PAGE.margin + 5, this.currentY + 3);
-    this.currentY += 18;
+    this.doc.setTextColor(COLORS.primary);
+    this.doc.text('SECTION A: GENERAL DISCLOSURES', PAGE.margin, this.currentY + 5);
+    this.currentY += 15;
     
     const data = this.sectionAData;
     
     // I. Details of the Listed Entity
-    this.addSectionASubheading('I. Details of the Listed Entity');
+    this.addSubsectionHeader('I. Details of the listed entity');
     
-    const entityDetails = [
-      ['1.', 'Corporate Identity Number (CIN)', data.cin || '-'],
-      ['2.', 'Name of the Listed Entity', data.listed_entity_name || '-'],
-      ['3.', 'Year of Incorporation', data.year_of_incorporation || '-'],
-      ['4.', 'Registered Office Address', this.formatAddress(data, 'registered') || '-'],
-      ['5.', 'Corporate Address', this.formatAddress(data, 'corporate') || '-'],
-      ['6.', 'E-mail', data.email || '-'],
-      ['7.', 'Telephone', data.telephone || '-'],
-      ['8.', 'Website', data.website || '-'],
-      ['9.', 'Financial Year', this.reportingPeriod || '-'],
-      ['10.', 'Stock Exchange(s)', data.stock_exchange || '-'],
-      ['11.', 'Paid-up Capital (INR)', data.paid_up_capital ? `Rs. ${Number(data.paid_up_capital).toLocaleString('en-IN')}` : '-'],
-      ['12.', 'BRSR Contact Person', this.formatContact(data) || '-'],
-      ['13.', 'Reporting Boundary', data.reporting_boundary || '-'],
-      ['14.', 'Name of Assurance Provider', data.assurance_provider || '-'],
-      ['15.', 'Type of Assurance Obtained', data.assurance_type || '-'],
+    // Questions 1-15 in table format
+    const entityQuestions = [
+      ['1', 'Corporate Identity Number (CIN) of the Listed Entity', data.cin || '-'],
+      ['2', 'Name of the Listed Entity', data.listed_entity_name || '-'],
+      ['3', 'Year of incorporation', data.year_of_incorporation ? String(data.year_of_incorporation) : '-'],
+      ['4', 'Registered office address', this.formatAddress(data, 'registered') || '-'],
+      ['5', 'Corporate address', this.formatAddress(data, 'corporate') || '-'],
+      ['6', 'E-mail', data.email || '-'],
+      ['7', 'Telephone', data.telephone || '-'],
+      ['8', 'Website', data.website || '-'],
+      ['9', 'Financial year for which reporting is being done', this.reportingPeriod || '-'],
+      ['10', 'Name of the Stock Exchange(s) where shares are listed', data.stock_exchange || '-'],
+      ['11', 'Paid-up Capital', data.paid_up_capital ? `Rs. ${Number(data.paid_up_capital).toLocaleString('en-IN')}` : '-'],
+      ['12', 'Name and contact details of the person who may be contacted in case of any queries on the BRSR report', this.formatContact(data) || '-'],
+      ['13', 'Reporting boundary - Are the disclosures under this report made on a standalone basis or on a consolidated basis', data.reporting_boundary || '-'],
+      ['14', 'Name of assurance provider', data.assurance_provider || '-'],
+      ['15', 'Type of assurance obtained', data.assurance_type || '-'],
     ];
     
-    this.addNumberedTable(entityDetails);
+    this.addQuestionTable(entityQuestions);
     
     // II. Products/Services
-    this.addSectionASubheading('II. Products/Services');
+    this.addSubsectionHeader('II. Products/services');
     
-    // Q16: Business Activities
-    this.addQuestionLabel('16. Details of business activities (accounting for 90% of the turnover):');
+    // Q16
+    this.addQuestionNumber('16');
+    this.addQuestionText('Details of business activities (accounting for 90% of the turnover):');
+    
     if (data.business_activities && data.business_activities.length > 0) {
-      const businessHeaders = ['S.No.', 'Description of Main Activity', 'Description of Business Activity', '% of Turnover'];
-      const businessRows = data.business_activities.map((item, idx) => [
-        (idx + 1).toString(),
+      const headers = ['S. No.', 'Description of Main Activity', 'Description of Business Activity', '% of Turnover of the entity'];
+      const rows = data.business_activities.map((item, idx) => [
+        String(idx + 1),
         item.description || '-',
         item.main_activity || '-',
         item.turnover_percentage !== undefined ? `${item.turnover_percentage}%` : '-'
       ]);
-      this.addDataTable(businessHeaders, businessRows);
+      this.addDataTable(headers, rows);
     } else {
-      this.addNoDataMessage();
+      this.addEmptyTablePlaceholder();
     }
     
-    // Q17: Products/Services
-    this.addQuestionLabel('17. Products/Services sold by the entity (accounting for 90% of turnover):');
+    // Q17
+    this.addQuestionNumber('17');
+    this.addQuestionText('Products/Services sold by the entity (accounting for 90% of the entity\'s Turnover):');
+    
     if (data.products_services && data.products_services.length > 0) {
-      const productHeaders = ['S.No.', 'Product/Service', 'NIC Code', '% of Total Turnover'];
-      const productRows = data.products_services.map((item, idx) => [
-        (idx + 1).toString(),
+      const headers = ['S. No.', 'Product/Service', 'NIC Code', '% of total Turnover contributed'];
+      const rows = data.products_services.map((item, idx) => [
+        String(idx + 1),
         item.product_service || '-',
         item.nic_code || '-',
         item.turnover_percentage !== undefined ? `${item.turnover_percentage}%` : '-'
       ]);
-      this.addDataTable(productHeaders, productRows);
+      this.addDataTable(headers, rows);
     } else {
-      this.addNoDataMessage();
+      this.addEmptyTablePlaceholder();
     }
     
     // III. Operations
-    this.addSectionASubheading('III. Operations');
+    this.addSubsectionHeader('III. Operations');
     
-    // Q18: Plants and Offices
-    this.addQuestionLabel('18. Number of locations where plants and/or operations/offices are situated:');
+    // Q18
+    this.addQuestionNumber('18');
+    this.addQuestionText('Number of locations where plants and/or operations/offices of the entity are situated:');
+    
     if (data.plants_offices && data.plants_offices.length > 0) {
-      const plantHeaders = ['Location', 'Number of Plants', 'Number of Offices', 'Total'];
-      const plantRows = data.plants_offices.map(item => [
+      const headers = ['Location', 'Number of plants', 'Number of offices', 'Total'];
+      const rows = data.plants_offices.map(item => [
         item.location_type || '-',
-        item.num_plants !== undefined ? item.num_plants.toString() : '-',
-        item.num_offices !== undefined ? item.num_offices.toString() : '-',
-        ((item.num_plants || 0) + (item.num_offices || 0)).toString()
+        item.num_plants !== undefined ? String(item.num_plants) : '-',
+        item.num_offices !== undefined ? String(item.num_offices) : '-',
+        String((item.num_plants || 0) + (item.num_offices || 0))
       ]);
-      this.addDataTable(plantHeaders, plantRows);
+      this.addDataTable(headers, rows);
     } else {
-      this.addNoDataMessage();
+      this.addEmptyTablePlaceholder();
     }
     
-    // Q19: Markets Served
-    this.addQuestionLabel('19. Markets served by the entity:');
+    // Q19
+    this.addQuestionNumber('19');
+    this.addQuestionText('Markets served by the entity:');
     
-    // Q19a: Number of locations
+    // Q19a
     this.doc.setFont('helvetica', 'normal');
     this.doc.setFontSize(9);
     this.doc.setTextColor(COLORS.text);
-    this.doc.text('a. Number of locations:', PAGE.margin + 5, this.currentY);
+    this.doc.text('a. Number of locations', PAGE.margin + 5, this.currentY);
     this.currentY += 5;
     
     if (data.markets_served && data.markets_served.length > 0) {
-      const marketHeaders = ['Locations', 'Number'];
-      const marketRows = data.markets_served.map(item => [
+      const headers = ['Locations', 'Number'];
+      const rows = data.markets_served.map(item => [
         item.location_type === 'National' ? 'National (No. of States)' : 'International (No. of Countries)',
-        item.number !== undefined ? item.number.toString() : '-'
+        item.number !== undefined ? String(item.number) : '-'
       ]);
-      this.addDataTable(marketHeaders, marketRows);
+      this.addDataTable(headers, rows);
     } else {
-      this.addNoDataMessage();
+      this.addEmptyTablePlaceholder();
     }
     
-    // Q19b: Export contribution
+    // Q19b
     this.doc.setFont('helvetica', 'normal');
     this.doc.setFontSize(9);
-    this.doc.setTextColor(COLORS.text);
-    this.doc.text(`b. Export contribution (% of total turnover): ${data.export_contribution_percentage !== undefined ? data.export_contribution_percentage + '%' : '-'}`, PAGE.margin + 5, this.currentY);
+    this.doc.text(`b. What is the contribution of exports as a percentage of the total turnover of the entity?`, PAGE.margin + 5, this.currentY);
+    this.currentY += 5;
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.text(`Answer: ${data.export_contribution_percentage !== undefined ? data.export_contribution_percentage + '%' : 'Not provided'}`, PAGE.margin + 8, this.currentY);
     this.currentY += 8;
     
-    // Q19c: Types of customers
-    this.doc.text('c. Brief on types of customers:', PAGE.margin + 5, this.currentY);
+    // Q19c
+    this.doc.setFont('helvetica', 'normal');
+    this.doc.text('c. A brief on types of customers', PAGE.margin + 5, this.currentY);
     this.currentY += 5;
     if (data.customer_types_brief) {
-      const customerLines = this.doc.splitTextToSize(data.customer_types_brief, PAGE.contentWidth - 10);
-      this.doc.text(customerLines, PAGE.margin + 5, this.currentY);
-      this.currentY += customerLines.length * 4 + 5;
+      const lines = this.doc.splitTextToSize(data.customer_types_brief, PAGE.contentWidth - 10);
+      this.doc.text(lines, PAGE.margin + 8, this.currentY);
+      this.currentY += lines.length * 4 + 5;
     } else {
-      this.addNoDataMessage();
+      this.doc.setFont('helvetica', 'italic');
+      this.doc.setTextColor(COLORS.textMuted);
+      this.doc.text('Not provided', PAGE.margin + 8, this.currentY);
+      this.currentY += 8;
     }
     
-    // IV. Employees - From yearly sections if available
-    this.addSectionASubheading('IV. Employees');
+    // IV. Employees
+    this.addSubsectionHeader('IV. Employees');
+    this.addQuestionNumber('20');
+    this.addQuestionText('Details as at the end of Financial Year:');
     this.doc.setFont('helvetica', 'italic');
-    this.doc.setFontSize(9);
+    this.doc.setFontSize(8);
     this.doc.setTextColor(COLORS.textMuted);
-    this.doc.text('Employee data as per the reporting period - refer to workforce section for detailed breakdown.', PAGE.margin, this.currentY);
+    this.doc.text('(Employee data tables - refer to workforce section for detailed breakdown)', PAGE.margin + 5, this.currentY);
     this.currentY += 10;
     
-    // V. Holding, Subsidiary and Associate Companies
-    this.addSectionASubheading('V. Holding, Subsidiary and Associate Companies (including joint ventures)');
+    // V. Holding, Subsidiary
+    this.addSubsectionHeader('V. Holding, Subsidiary and Associate Companies (including joint ventures)');
+    this.addQuestionNumber('23');
+    this.addQuestionText('(a) Names of holding / subsidiary / associate companies / joint ventures');
     this.doc.setFont('helvetica', 'italic');
-    this.doc.setFontSize(9);
+    this.doc.setFontSize(8);
     this.doc.setTextColor(COLORS.textMuted);
-    this.doc.text('Details as per annual report and statutory filings.', PAGE.margin, this.currentY);
+    this.doc.text('(Details as per annual report and statutory filings)', PAGE.margin + 5, this.currentY);
     this.currentY += 10;
     
     // VI. CSR Details
-    this.addSectionASubheading('VI. CSR Details');
-    this.doc.setFont('helvetica', 'italic');
-    this.doc.setFontSize(9);
-    this.doc.setTextColor(COLORS.textMuted);
-    this.doc.text('CSR applicability and details as per Section 135 of Companies Act, 2013.', PAGE.margin, this.currentY);
-    this.currentY += 10;
+    this.addSubsectionHeader('VI. CSR Details');
+    this.addQuestionNumber('24');
+    this.addQuestionText('(i) Whether CSR is applicable as per section 135 of Companies Act, 2013: (Yes/No)');
+    this.currentY += 5;
     
-    // VII. Transparency and Disclosures Compliances
-    this.addSectionASubheading('VII. Transparency and Disclosures Compliances');
+    // VII. Transparency and Disclosures
+    this.addSubsectionHeader('VII. Transparency and Disclosures Compliances');
+    this.addQuestionNumber('25');
+    this.addQuestionText('Complaints/Grievances on any of the principles (Principles 1 to 9) under the National Guidelines on Responsible Business Conduct:');
     this.doc.setFont('helvetica', 'italic');
-    this.doc.setFontSize(9);
+    this.doc.setFontSize(8);
     this.doc.setTextColor(COLORS.textMuted);
-    this.doc.text('Complaints/Grievances and material business conduct issues - refer to Section B & C for details.', PAGE.margin, this.currentY);
+    this.doc.text('(Refer to Section C for detailed principle-wise disclosures)', PAGE.margin + 5, this.currentY);
+    this.currentY += 8;
+    
+    this.addQuestionNumber('26');
+    this.addQuestionText('Overview of the entity\'s material responsible business conduct issues:');
+    this.doc.setFont('helvetica', 'italic');
+    this.doc.setFontSize(8);
+    this.doc.setTextColor(COLORS.textMuted);
+    this.doc.text('(Material issues identified with risk/opportunity assessment)', PAGE.margin + 5, this.currentY);
     this.currentY += 10;
   }
 
@@ -415,132 +373,158 @@ export class BRSRReportGenerator {
   addSectionB() {
     this.addNewPage();
     
-    // Section title banner
-    this.doc.setFillColor(COLORS.sectionB);
-    this.doc.rect(PAGE.margin, this.currentY - 5, PAGE.contentWidth, 12, 'F');
+    // Section header
     this.doc.setFont('helvetica', 'bold');
     this.doc.setFontSize(14);
-    this.doc.setTextColor('#FFFFFF');
-    this.doc.text('SECTION B: MANAGEMENT AND PROCESS DISCLOSURES', PAGE.margin + 5, this.currentY + 3);
-    this.currentY += 18;
+    this.doc.setTextColor(COLORS.primary);
+    this.doc.text('SECTION B: MANAGEMENT AND PROCESS DISCLOSURES', PAGE.margin, this.currentY + 5);
+    this.currentY += 15;
     
-    // Introduction text
+    // Intro text
     this.doc.setFont('helvetica', 'normal');
     this.doc.setFontSize(9);
     this.doc.setTextColor(COLORS.text);
-    const introText = 'This section captures information on policies, procedures, governance structures, and management processes related to business responsibility and sustainability aligned with NGRBC Principles.';
+    const introText = 'This section is aimed at helping businesses demonstrate the structures, policies, and processes put in place towards adopting the NGRBC Principles and Core Elements.';
     const introLines = this.doc.splitTextToSize(introText, PAGE.contentWidth);
     this.doc.text(introLines, PAGE.margin, this.currentY);
     this.currentY += introLines.length * 4 + 8;
     
-    // Group Section B configs by disclosure category
-    const groupedConfigs = this.groupConfigsByCategory(this.sectionBConfigs);
+    // Disclosure Questions
+    this.addSubsectionHeader('Policy and management processes');
     
-    if (Object.keys(groupedConfigs).length === 0) {
+    let questionNum = 1;
+    
+    // Render each Section B config
+    this.sectionBConfigs.forEach((config) => {
+      this.checkPageBreak(30);
+      
+      // Get the question text from the correct field
+      const questionText = config.question || config.question_text || config.title || config.description || 'Question not available';
+      
+      this.addQuestionNumber(String(questionNum));
+      this.addQuestionText(questionText);
+      
+      // Get response value
+      const response = this.sectionBData[config.question_key];
+      this.renderResponse(response, config.type);
+      
+      questionNum++;
+    });
+    
+    // If no configs, show placeholder
+    if (this.sectionBConfigs.length === 0) {
       this.doc.setFont('helvetica', 'italic');
       this.doc.setFontSize(9);
       this.doc.setTextColor(COLORS.textMuted);
-      this.doc.text('No Section B disclosures have been configured yet.', PAGE.margin, this.currentY);
+      this.doc.text('No Section B disclosures have been configured.', PAGE.margin + 5, this.currentY);
       this.currentY += 10;
-      return;
     }
-    
-    // Render each category
-    Object.entries(groupedConfigs).forEach(([category, configs]) => {
-      this.checkPageBreak(30);
-      
-      // Category heading
-      this.doc.setFont('helvetica', 'bold');
-      this.doc.setFontSize(10);
-      this.doc.setTextColor(COLORS.sectionB);
-      this.doc.text(category, PAGE.margin, this.currentY);
-      this.currentY += 6;
-      
-      // Render each question in category
-      configs.forEach((config, idx) => {
-        this.renderQuestionResponse(config, this.sectionBData[config.question_key], idx + 1);
-      });
-      
-      this.currentY += 5;
-    });
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // SECTION C: PRINCIPLE-WISE PERFORMANCE DISCLOSURES
+  // SECTION C: PRINCIPLE WISE PERFORMANCE DISCLOSURE
   // ═══════════════════════════════════════════════════════════════════════════
 
   addSectionC() {
     this.addNewPage();
     
-    // Section title banner
-    this.doc.setFillColor(COLORS.sectionC);
-    this.doc.rect(PAGE.margin, this.currentY - 5, PAGE.contentWidth, 12, 'F');
+    // Section header
     this.doc.setFont('helvetica', 'bold');
     this.doc.setFontSize(14);
-    this.doc.setTextColor('#FFFFFF');
-    this.doc.text('SECTION C: PRINCIPLE WISE PERFORMANCE DISCLOSURE', PAGE.margin + 5, this.currentY + 3);
-    this.currentY += 18;
+    this.doc.setTextColor(COLORS.primary);
+    this.doc.text('SECTION C: PRINCIPLE WISE PERFORMANCE DISCLOSURE', PAGE.margin, this.currentY + 5);
+    this.currentY += 15;
     
-    // Introduction text
+    // Intro text
     this.doc.setFont('helvetica', 'normal');
     this.doc.setFontSize(9);
     this.doc.setTextColor(COLORS.text);
-    const introText = 'This section provides performance disclosures against each of the nine principles of the National Guidelines on Responsible Business Conduct (NGRBC).';
+    const introText = 'This section is aimed at helping entities demonstrate their performance in integrating the Principles and Core Elements with key processes and decisions. The information sought is categorized as "Essential" and "Leadership". While the essential indicators are expected to be disclosed by every entity that is required to file this report, the leadership indicators may be voluntarily disclosed by entities which aspire to progress to a higher level in their quest to be socially, environmentally and ethically responsible.';
     const introLines = this.doc.splitTextToSize(introText, PAGE.contentWidth);
     this.doc.text(introLines, PAGE.margin, this.currentY);
-    this.currentY += introLines.length * 4 + 8;
+    this.currentY += introLines.length * 4 + 10;
     
-    // Group Section C configs by principle
-    const groupedByPrinciple = this.groupConfigsByPrinciple(this.sectionCConfigs);
+    // Group configs by principle
+    const groupedByPrinciple = {};
+    this.sectionCConfigs.forEach(config => {
+      const principle = config.brsr_principle || 'OTHER';
+      if (!groupedByPrinciple[principle]) groupedByPrinciple[principle] = [];
+      groupedByPrinciple[principle].push(config);
+    });
     
     // Render each principle
     Object.entries(PRINCIPLE_META).forEach(([principleKey, meta]) => {
       const configs = groupedByPrinciple[principleKey] || [];
       
-      this.checkPageBreak(40);
+      this.checkPageBreak(50);
       
-      // Principle header
-      this.doc.setFillColor(meta.color);
-      this.doc.rect(PAGE.margin, this.currentY - 2, PAGE.contentWidth, 10, 'F');
+      // Principle header box
+      this.doc.setFillColor(COLORS.tableHeader);
+      this.doc.rect(PAGE.margin, this.currentY, PAGE.contentWidth, 12, 'F');
+      
       this.doc.setFont('helvetica', 'bold');
-      this.doc.setFontSize(11);
+      this.doc.setFontSize(10);
       this.doc.setTextColor('#FFFFFF');
-      this.doc.text(`${meta.name}: ${meta.title}`, PAGE.margin + 3, this.currentY + 5);
-      this.currentY += 15;
+      this.doc.text(meta.name, PAGE.margin + 3, this.currentY + 8);
+      this.currentY += 14;
+      
+      // Principle description
+      this.doc.setFont('helvetica', 'italic');
+      this.doc.setFontSize(9);
+      this.doc.setTextColor(COLORS.text);
+      const titleLines = this.doc.splitTextToSize(meta.title, PAGE.contentWidth - 5);
+      this.doc.text(titleLines, PAGE.margin + 2, this.currentY);
+      this.currentY += titleLines.length * 4 + 8;
       
       if (configs.length === 0) {
         this.doc.setFont('helvetica', 'italic');
         this.doc.setFontSize(9);
         this.doc.setTextColor(COLORS.textMuted);
-        this.doc.text('No disclosures configured for this principle.', PAGE.margin + 5, this.currentY);
+        this.doc.text('No indicators configured for this principle.', PAGE.margin + 5, this.currentY);
         this.currentY += 10;
       } else {
-        // Group by indicator type (Essential vs Leadership)
-        const essential = configs.filter(c => c.brsr_indicator_type === 'essential' || !c.brsr_indicator_type);
+        // Group by indicator type
+        const essential = configs.filter(c => !c.brsr_indicator_type || c.brsr_indicator_type === 'essential');
         const leadership = configs.filter(c => c.brsr_indicator_type === 'leadership');
         
         if (essential.length > 0) {
           this.doc.setFont('helvetica', 'bold');
-          this.doc.setFontSize(9);
-          this.doc.setTextColor(COLORS.text);
+          this.doc.setFontSize(10);
+          this.doc.setTextColor(COLORS.primary);
           this.doc.text('Essential Indicators', PAGE.margin + 3, this.currentY);
-          this.currentY += 6;
+          this.currentY += 7;
           
           essential.forEach((config, idx) => {
-            this.renderQuestionResponse(config, this.sectionCData[config.question_key], idx + 1);
+            this.checkPageBreak(25);
+            
+            const questionText = config.question || config.question_text || config.title || config.description || 'Indicator not specified';
+            
+            this.addQuestionNumber(String(idx + 1));
+            this.addQuestionText(questionText);
+            
+            const response = this.sectionCData[config.question_key];
+            this.renderResponse(response, config.type);
           });
         }
         
         if (leadership.length > 0) {
-          this.checkPageBreak(20);
+          this.checkPageBreak(25);
           this.doc.setFont('helvetica', 'bold');
-          this.doc.setFontSize(9);
-          this.doc.setTextColor(COLORS.text);
+          this.doc.setFontSize(10);
+          this.doc.setTextColor(COLORS.primary);
           this.doc.text('Leadership Indicators', PAGE.margin + 3, this.currentY);
-          this.currentY += 6;
+          this.currentY += 7;
           
           leadership.forEach((config, idx) => {
-            this.renderQuestionResponse(config, this.sectionCData[config.question_key], idx + 1);
+            this.checkPageBreak(25);
+            
+            const questionText = config.question || config.question_text || config.title || config.description || 'Indicator not specified';
+            
+            this.addQuestionNumber(String(idx + 1));
+            this.addQuestionText(questionText);
+            
+            const response = this.sectionCData[config.question_key];
+            this.renderResponse(response, config.type);
           });
         }
       }
@@ -567,76 +551,85 @@ export class BRSRReportGenerator {
 
   formatContact(data) {
     const parts = [];
-    if (data.brsr_contact_name) parts.push(data.brsr_contact_name);
+    if (data.brsr_contact_name) parts.push(`Name: ${data.brsr_contact_name}`);
     if (data.brsr_contact_telephone) parts.push(`Tel: ${data.brsr_contact_telephone}`);
     if (data.brsr_contact_email) parts.push(`Email: ${data.brsr_contact_email}`);
     return parts.length > 0 ? parts.join(', ') : null;
   }
 
-  addSectionASubheading(text) {
-    this.checkPageBreak(20);
+  addSubsectionHeader(text) {
+    this.checkPageBreak(15);
     
-    this.doc.setFillColor('#EFF6FF');
-    this.doc.rect(PAGE.margin, this.currentY - 3, PAGE.contentWidth, 10, 'F');
+    this.doc.setFillColor(COLORS.backgroundAlt);
+    this.doc.rect(PAGE.margin, this.currentY - 2, PAGE.contentWidth, 8, 'F');
+    
     this.doc.setFont('helvetica', 'bold');
     this.doc.setFontSize(10);
-    this.doc.setTextColor(COLORS.sectionA);
-    this.doc.text(text, PAGE.margin + 3, this.currentY + 3);
+    this.doc.setTextColor(COLORS.primary);
+    this.doc.text(text, PAGE.margin + 2, this.currentY + 3);
     this.currentY += 12;
   }
 
-  addQuestionLabel(text) {
-    this.checkPageBreak(15);
+  addQuestionNumber(num) {
     this.doc.setFont('helvetica', 'bold');
     this.doc.setFontSize(9);
     this.doc.setTextColor(COLORS.text);
-    const lines = this.doc.splitTextToSize(text, PAGE.contentWidth);
-    this.doc.text(lines, PAGE.margin, this.currentY);
+    this.doc.text(`${num}.`, PAGE.margin, this.currentY);
+  }
+
+  addQuestionText(text) {
+    this.doc.setFont('helvetica', 'normal');
+    this.doc.setFontSize(9);
+    this.doc.setTextColor(COLORS.text);
+    const lines = this.doc.splitTextToSize(text, PAGE.contentWidth - 8);
+    this.doc.text(lines, PAGE.margin + 6, this.currentY);
     this.currentY += lines.length * 4 + 3;
   }
 
-  addNumberedTable(rows) {
-    const colWidths = [10, 60, 110]; // S.No., Label, Value
-    let y = this.currentY;
+  addQuestionTable(questions) {
+    const col1Width = 8;
+    const col2Width = 90;
+    const col3Width = PAGE.contentWidth - col1Width - col2Width;
     
-    rows.forEach((row, idx) => {
-      this.checkPageBreak(8);
+    questions.forEach((q, idx) => {
+      this.checkPageBreak(12);
       
       // Alternate row background
       if (idx % 2 === 0) {
-        this.doc.setFillColor(COLORS.backgroundAlt);
-        this.doc.rect(PAGE.margin, y - 2, PAGE.contentWidth, 7, 'F');
+        this.doc.setFillColor(COLORS.tableAlt);
+        this.doc.rect(PAGE.margin, this.currentY - 2, PAGE.contentWidth, 8, 'F');
       }
       
       this.doc.setFont('helvetica', 'bold');
       this.doc.setFontSize(8);
       this.doc.setTextColor(COLORS.text);
-      this.doc.text(row[0], PAGE.margin + 2, y + 2);
+      this.doc.text(q[0], PAGE.margin + 2, this.currentY + 2);
       
       this.doc.setFont('helvetica', 'normal');
-      this.doc.text(row[1], PAGE.margin + colWidths[0] + 2, y + 2);
+      // Wrap question text if needed
+      const questionLines = this.doc.splitTextToSize(q[1], col2Width - 4);
+      this.doc.text(questionLines, PAGE.margin + col1Width + 2, this.currentY + 2);
       
-      // Handle long values
-      const valueWidth = colWidths[2] - 5;
-      const valueLines = this.doc.splitTextToSize(row[2], valueWidth);
-      this.doc.text(valueLines, PAGE.margin + colWidths[0] + colWidths[1] + 2, y + 2);
+      // Wrap answer text if needed
+      const answerLines = this.doc.splitTextToSize(q[2], col3Width - 4);
+      this.doc.text(answerLines, PAGE.margin + col1Width + col2Width + 2, this.currentY + 2);
       
-      y += Math.max(7, valueLines.length * 4 + 2);
+      const rowHeight = Math.max(questionLines.length, answerLines.length) * 4 + 4;
+      this.currentY += rowHeight;
     });
     
-    this.currentY = y + 5;
+    this.currentY += 5;
   }
 
-  addDataTable(headers, rows, headerColor = COLORS.sectionA) {
+  addDataTable(headers, rows) {
     this.checkPageBreak(20 + rows.length * 8);
     
     const numCols = headers.length;
     const colWidth = PAGE.contentWidth / numCols;
-    let y = this.currentY;
     
     // Header row
-    this.doc.setFillColor(headerColor);
-    this.doc.rect(PAGE.margin, y, PAGE.contentWidth, 8, 'F');
+    this.doc.setFillColor(COLORS.tableHeader);
+    this.doc.rect(PAGE.margin, this.currentY, PAGE.contentWidth, 7, 'F');
     
     this.doc.setFont('helvetica', 'bold');
     this.doc.setFontSize(8);
@@ -644,10 +637,10 @@ export class BRSRReportGenerator {
     
     headers.forEach((header, idx) => {
       const x = PAGE.margin + (idx * colWidth);
-      this.doc.text(header, x + 2, y + 5);
+      this.doc.text(header, x + 2, this.currentY + 5);
     });
     
-    y += 8;
+    this.currentY += 7;
     
     // Data rows
     this.doc.setFont('helvetica', 'normal');
@@ -655,92 +648,81 @@ export class BRSRReportGenerator {
     
     rows.forEach((row, rowIdx) => {
       if (rowIdx % 2 === 0) {
-        this.doc.setFillColor(COLORS.backgroundAlt);
-        this.doc.rect(PAGE.margin, y, PAGE.contentWidth, 7, 'F');
+        this.doc.setFillColor(COLORS.tableAlt);
+        this.doc.rect(PAGE.margin, this.currentY, PAGE.contentWidth, 6, 'F');
       }
       
       row.forEach((cell, colIdx) => {
         const x = PAGE.margin + (colIdx * colWidth);
-        const cellText = String(cell || '-').substring(0, 30); // Truncate long text
-        this.doc.text(cellText, x + 2, y + 5);
+        const cellText = String(cell || '-').substring(0, 35);
+        this.doc.text(cellText, x + 2, this.currentY + 4);
       });
       
-      y += 7;
+      this.currentY += 6;
     });
     
     // Border
     this.doc.setDrawColor(COLORS.border);
     this.doc.setLineWidth(0.3);
-    this.doc.rect(PAGE.margin, this.currentY, PAGE.contentWidth, y - this.currentY);
+    const tableHeight = 7 + (rows.length * 6);
+    this.doc.rect(PAGE.margin, this.currentY - tableHeight, PAGE.contentWidth, tableHeight);
     
-    this.currentY = y + 8;
+    this.currentY += 8;
   }
 
-  addNoDataMessage() {
+  addEmptyTablePlaceholder() {
     this.doc.setFont('helvetica', 'italic');
     this.doc.setFontSize(8);
     this.doc.setTextColor(COLORS.textMuted);
-    this.doc.text('No data available', PAGE.margin + 5, this.currentY);
+    this.doc.text('[No data provided]', PAGE.margin + 5, this.currentY);
     this.currentY += 8;
   }
 
-  groupConfigsByCategory(configs) {
-    const grouped = {};
-    configs.forEach(config => {
-      const category = config.disclosure_category || config.subsection || 'General';
-      if (!grouped[category]) grouped[category] = [];
-      grouped[category].push(config);
-    });
-    return grouped;
-  }
-
-  groupConfigsByPrinciple(configs) {
-    const grouped = {};
-    configs.forEach(config => {
-      const principle = config.brsr_principle || 'OTHER';
-      if (!grouped[principle]) grouped[principle] = [];
-      grouped[principle].push(config);
-    });
-    return grouped;
-  }
-
-  renderQuestionResponse(config, value, questionNum) {
-    this.checkPageBreak(25);
-    
-    // Question text
-    this.doc.setFont('helvetica', 'bold');
-    this.doc.setFontSize(8);
-    this.doc.setTextColor(COLORS.text);
-    
-    const questionText = `${questionNum}. ${config.question_text || config.title || 'Question'}`;
-    const questionLines = this.doc.splitTextToSize(questionText, PAGE.contentWidth - 10);
-    this.doc.text(questionLines, PAGE.margin + 3, this.currentY);
-    this.currentY += questionLines.length * 4 + 2;
-    
-    // Response
+  renderResponse(response, type) {
     this.doc.setFont('helvetica', 'normal');
     this.doc.setFontSize(8);
     
-    if (value === undefined || value === null || value === '') {
+    if (response === undefined || response === null || response === '') {
       this.doc.setTextColor(COLORS.textMuted);
-      this.doc.text('Response: Not provided', PAGE.margin + 5, this.currentY);
-    } else if (typeof value === 'object') {
-      this.doc.setTextColor(COLORS.text);
-      // Handle complex types (tables, matrices, etc.)
-      if (Array.isArray(value)) {
-        this.doc.text(`Response: ${value.length} items recorded`, PAGE.margin + 5, this.currentY);
-      } else {
-        this.doc.text('Response: Data recorded (see detailed section)', PAGE.margin + 5, this.currentY);
-      }
-    } else {
-      this.doc.setTextColor(COLORS.text);
-      const responseText = `Response: ${String(value)}`;
-      const responseLines = this.doc.splitTextToSize(responseText, PAGE.contentWidth - 15);
-      this.doc.text(responseLines, PAGE.margin + 5, this.currentY);
-      this.currentY += Math.max(0, (responseLines.length - 1) * 4);
+      this.doc.setFont('helvetica', 'italic');
+      this.doc.text('Response: Not provided', PAGE.margin + 6, this.currentY);
+      this.currentY += 6;
+      return;
     }
     
-    this.currentY += 8;
+    this.doc.setTextColor(COLORS.text);
+    
+    if (typeof response === 'boolean') {
+      this.doc.text(`Response: ${response ? 'Yes' : 'No'}`, PAGE.margin + 6, this.currentY);
+      this.currentY += 6;
+    } else if (typeof response === 'object') {
+      if (Array.isArray(response)) {
+        if (response.length === 0) {
+          this.doc.setFont('helvetica', 'italic');
+          this.doc.setTextColor(COLORS.textMuted);
+          this.doc.text('Response: No data entries', PAGE.margin + 6, this.currentY);
+        } else {
+          this.doc.text(`Response: ${response.length} data entries recorded`, PAGE.margin + 6, this.currentY);
+        }
+      } else {
+        // Complex object - show summary
+        const keys = Object.keys(response).filter(k => response[k] !== null && response[k] !== undefined && response[k] !== '');
+        if (keys.length === 0) {
+          this.doc.setFont('helvetica', 'italic');
+          this.doc.setTextColor(COLORS.textMuted);
+          this.doc.text('Response: No data provided', PAGE.margin + 6, this.currentY);
+        } else {
+          this.doc.text(`Response: Data recorded (${keys.length} fields)`, PAGE.margin + 6, this.currentY);
+        }
+      }
+      this.currentY += 6;
+    } else {
+      // String or number
+      const responseText = `Response: ${String(response)}`;
+      const lines = this.doc.splitTextToSize(responseText, PAGE.contentWidth - 12);
+      this.doc.text(lines, PAGE.margin + 6, this.currentY);
+      this.currentY += lines.length * 4 + 2;
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
