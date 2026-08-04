@@ -59,12 +59,20 @@ export default function BRSRDetailsSection({
   hideSections = [],
   reportingPeriod = ''
 }) {
-  const { getAuthHeader } = useAuth();
+  const { getAuthHeader, user } = useAuth();
   const [isOpen, setIsOpen] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [missingFields, setMissingFields] = useState([]);
+  
+  // Track dirty (changed) question keys for save optimization
+  const [dirtyFields, setDirtyFields] = useState(new Set());
+  // Store original data to detect changes
+  const [originalData, setOriginalData] = useState({});
+  // User's assigned question keys (empty = admin can edit all)
+  const [assignedQuestionKeys, setAssignedQuestionKeys] = useState(null); // null = loading, [] = none assigned
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   
   // BRSR Form Data - Section A: General Disclosures
   const [formData, setFormData] = useState({
@@ -113,8 +121,62 @@ export default function BRSRDetailsSection({
   useEffect(() => {
     if (reportingPeriod) {
       fetchBRSRDetails();
+      fetchUserAssignments();
     }
   }, [reportingPeriod]);
+
+  // Fetch user's assigned Section A question keys
+  const fetchUserAssignments = async () => {
+    if (isAdmin) {
+      // Admins can edit all questions
+      setAssignedQuestionKeys([]);
+      return;
+    }
+    
+    try {
+      const res = await axios.get(
+        `${API}/esg-assignments/my-accessible-questions`,
+        { 
+          headers: getAuthHeader(),
+          params: { 
+            reporting_period: reportingPeriod,
+            section: 'section_a'
+          }
+        }
+      );
+      
+      // If admin or has full access, allow all
+      if (res.data.is_admin || res.data.has_full_access) {
+        setAssignedQuestionKeys([]);
+        return;
+      }
+      
+      // Filter to only Section A questions (brsr_a_*)
+      const sectionAKeys = (res.data.accessible_questions || [])
+        .filter(k => k.startsWith('brsr_a_'));
+      
+      setAssignedQuestionKeys(sectionAKeys);
+    } catch (error) {
+      console.error('Failed to fetch accessible questions:', error);
+      // On error, assume no assignments (will show nothing for non-admins)
+      setAssignedQuestionKeys([]);
+    }
+  };
+
+  // Check if user can edit a specific question
+  const canEditQuestion = (questionKey) => {
+    if (isAdmin) return true;
+    if (assignedQuestionKeys === null) return false; // Still loading
+    return assignedQuestionKeys.includes(questionKey);
+  };
+
+  // Check if user can see a specific question (same as canEdit for now)
+  const canSeeQuestion = (questionKey) => {
+    if (isAdmin) return true;
+    if (assignedQuestionKeys === null) return false;
+    if (assignedQuestionKeys.length === 0) return false; // No assignments
+    return assignedQuestionKeys.includes(questionKey);
+  };
 
   // Update reporting_period in formData when prop changes
   useEffect(() => {
@@ -333,26 +395,40 @@ export default function BRSRDetailsSection({
     }
   };
 
-  const handleInputChange = (field, value) => {
+  const handleInputChange = (field, value, questionKey = null) => {
     const updated = { ...formData, [field]: value };
     setFormData(updated);
+    
+    // Track which question key was modified
+    if (questionKey) {
+      setDirtyFields(prev => new Set([...prev, questionKey]));
+    }
   };
 
   // Dynamic table handlers
-  const handleTableRowChange = (tableName, index, field, value) => {
+  const handleTableRowChange = (tableName, index, field, value, questionKey = null) => {
     const updated = { ...formData };
     updated[tableName] = [...formData[tableName]];
     updated[tableName][index] = { ...updated[tableName][index], [field]: value };
     setFormData(updated);
+    
+    // Track which question key was modified
+    if (questionKey) {
+      setDirtyFields(prev => new Set([...prev, questionKey]));
+    }
   };
 
-  const addTableRow = (tableName, emptyTemplate) => {
+  const addTableRow = (tableName, emptyTemplate, questionKey = null) => {
     const updated = { ...formData };
     updated[tableName] = [...formData[tableName], { ...emptyTemplate }];
     setFormData(updated);
+    
+    if (questionKey) {
+      setDirtyFields(prev => new Set([...prev, questionKey]));
+    }
   };
 
-  const removeTableRow = (tableName, index) => {
+  const removeTableRow = (tableName, index, questionKey = null) => {
     if (formData[tableName].length <= 1) {
       toast.error('At least one row is required');
       return;
@@ -360,6 +436,10 @@ export default function BRSRDetailsSection({
     const updated = { ...formData };
     updated[tableName] = formData[tableName].filter((_, i) => i !== index);
     setFormData(updated);
+    
+    if (questionKey) {
+      setDirtyFields(prev => new Set([...prev, questionKey]));
+    }
   };
 
   // Notify parent of data changes via useEffect (avoids setState-in-render)
@@ -369,18 +449,91 @@ export default function BRSRDetailsSection({
     }
   }, [formData, loading]);
 
+  // Convert form data to API responses format - ONLY for dirty fields
+  const mapDirtyFieldsToResponses = () => {
+    const allResponses = {
+      brsr_a_cin: formData.cin,
+      brsr_a_entity_name: formData.listed_entity_name,
+      brsr_a_year_of_incorporation: formData.year_of_incorporation,
+      brsr_a_registered_address: {
+        address: formData.registered_address,
+        city: formData.registered_city,
+        state: formData.registered_state,
+        country: formData.registered_country,
+        pincode: formData.registered_pincode,
+      },
+      brsr_a_corporate_address: {
+        address: formData.corporate_address,
+        city: formData.corporate_city,
+        state: formData.corporate_state,
+        country: formData.corporate_country,
+        pincode: formData.corporate_pincode,
+      },
+      brsr_a_email: formData.email,
+      brsr_a_telephone: formData.telephone,
+      brsr_a_website: formData.website,
+      brsr_a_stock_exchange: formData.stock_exchange,
+      brsr_a_paid_up_capital: formData.paid_up_capital,
+      brsr_a_contact_person: {
+        name: formData.brsr_contact_name,
+        telephone: formData.brsr_contact_telephone,
+        email: formData.brsr_contact_email,
+      },
+      brsr_a_reporting_boundary: formData.reporting_boundary,
+      brsr_a_assurance_provider: formData.assurance_provider,
+      brsr_a_assurance_type: formData.assurance_type,
+      brsr_a_business_activities: formData.business_activities,
+      brsr_a_products_services: formData.products_services,
+      brsr_a_plants_offices: formData.plants_offices,
+      brsr_a_markets_served: {
+        locations: formData.markets_served,
+        export_contribution_percentage: formData.export_contribution_percentage,
+        customer_types_brief: formData.customer_types_brief,
+      },
+    };
+    
+    // If admin, send all (admins can edit all)
+    if (isAdmin) {
+      return allResponses;
+    }
+    
+    // If no dirty fields, return empty (nothing to save)
+    if (dirtyFields.size === 0) {
+      return {};
+    }
+    
+    // Filter to only include dirty fields
+    const filteredResponses = {};
+    for (const key of dirtyFields) {
+      if (allResponses[key] !== undefined) {
+        filteredResponses[key] = allResponses[key];
+      }
+    }
+    
+    return filteredResponses;
+  };
+
   const saveBRSRDetails = async () => {
+    // Get only the changed responses
+    const responses = mapDirtyFieldsToResponses();
+    
+    // Check if there's anything to save
+    if (Object.keys(responses).length === 0) {
+      toast.info('No changes to save');
+      return;
+    }
+    
     setSaving(true);
     try {
-      // Convert form data to ESG Questionnaire responses format
-      const responses = mapFormDataToResponses();
-      
       // Save via ESG Questionnaire API (unified storage with task/approval workflow)
       await axios.put(
         `${API}/esg-questionnaire/responses/BRSR/section_a/${encodeURIComponent(reportingPeriod)}`,
         { responses },
         { headers: getAuthHeader() }
       );
+      
+      // Clear dirty fields after successful save
+      setDirtyFields(new Set());
       
       // Check completeness based on required fields
       const missing = [];
@@ -413,18 +566,35 @@ export default function BRSRDetailsSection({
 
   const content = (
     <div className={`p-6 space-y-8 ${isCollapsible ? 'border-t' : ''}`}>
+      {/* Show message if no questions assigned and not admin */}
+      {!isAdmin && assignedQuestionKeys !== null && assignedQuestionKeys.length === 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-amber-800">
+          <p className="text-sm font-medium">No Section A questions assigned to you.</p>
+          <p className="text-xs mt-1">Contact your administrator to get questions assigned.</p>
+        </div>
+      )}
+      
       {/* Basic Information Section */}
+      {(isAdmin || (assignedQuestionKeys && assignedQuestionKeys.some(k => 
+        ['brsr_a_cin', 'brsr_a_entity_name', 'brsr_a_year_of_incorporation', 
+         'brsr_a_registered_address', 'brsr_a_corporate_address', 'brsr_a_email',
+         'brsr_a_telephone', 'brsr_a_website', 'brsr_a_stock_exchange', 
+         'brsr_a_paid_up_capital', 'brsr_a_contact_person', 'brsr_a_reporting_boundary',
+         'brsr_a_assurance_provider', 'brsr_a_assurance_type'].includes(k)
+      ))) && (
       <div>
         <h4 className="text-sm font-semibold text-text-primary mb-4 pb-2 border-b">
               I. Details of the Listed Entity
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* CIN */}
+              {(isAdmin || canSeeQuestion('brsr_a_cin')) && (
               <div className="space-y-2">
                 <Label>Corporate Identity Number (CIN) *</Label>
-                {isEditing ? (
+                {isEditing && canEditQuestion('brsr_a_cin') ? (
                   <Input
                     value={formData.cin}
-                    onChange={(e) => handleInputChange('cin', e.target.value)}
+                    onChange={(e) => handleInputChange('cin', e.target.value, 'brsr_a_cin')}
                     placeholder="Enter CIN"
                     data-testid="brsr-cin"
                   />
@@ -432,13 +602,16 @@ export default function BRSRDetailsSection({
                   <p className="text-sm text-text-secondary py-2">{formData.cin || '-'}</p>
                 )}
               </div>
+              )}
               
+              {/* Entity Name */}
+              {(isAdmin || canSeeQuestion('brsr_a_entity_name')) && (
               <div className="space-y-2">
                 <Label>Name of the Listed Entity *</Label>
-                {isEditing ? (
+                {isEditing && canEditQuestion('brsr_a_entity_name') ? (
                   <Input
                     value={formData.listed_entity_name}
-                    onChange={(e) => handleInputChange('listed_entity_name', e.target.value)}
+                    onChange={(e) => handleInputChange('listed_entity_name', e.target.value, 'brsr_a_entity_name')}
                     placeholder="Enter entity name"
                     data-testid="brsr-listed-entity-name"
                   />
@@ -446,14 +619,17 @@ export default function BRSRDetailsSection({
                   <p className="text-sm text-text-secondary py-2">{formData.listed_entity_name || '-'}</p>
                 )}
               </div>
+              )}
               
+              {/* Year of Incorporation */}
+              {(isAdmin || canSeeQuestion('brsr_a_year_of_incorporation')) && (
               <div className="space-y-2">
                 <Label>Year of Incorporation *</Label>
-                {isEditing ? (
+                {isEditing && canEditQuestion('brsr_a_year_of_incorporation') ? (
                   <Input
                     type="number"
                     value={formData.year_of_incorporation}
-                    onChange={(e) => handleInputChange('year_of_incorporation', parseInt(e.target.value) || 0)}
+                    onChange={(e) => handleInputChange('year_of_incorporation', parseInt(e.target.value) || 0, 'brsr_a_year_of_incorporation')}
                     placeholder="YYYY"
                     min="1800"
                     max="2100"
@@ -463,17 +639,19 @@ export default function BRSRDetailsSection({
                   <p className="text-sm text-text-secondary py-2">{formData.year_of_incorporation || '-'}</p>
                 )}
               </div>
+              )}
               
               {/* Q4: Registered Office Address - Grouped Box */}
+              {(isAdmin || canSeeQuestion('brsr_a_registered_address')) && (
               <div className="md:col-span-2 lg:col-span-3 border rounded-lg p-4 bg-stone-50">
                 <h5 className="text-sm font-medium text-text-primary mb-3">Registered Office Address</h5>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="space-y-2 lg:col-span-2">
                     <Label>Address *</Label>
-                    {isEditing ? (
+                    {isEditing && canEditQuestion('brsr_a_registered_address') ? (
                       <Input
                         value={formData.registered_address}
-                        onChange={(e) => handleInputChange('registered_address', e.target.value)}
+                        onChange={(e) => handleInputChange('registered_address', e.target.value, 'brsr_a_registered_address')}
                         placeholder="Enter street address, building, area"
                         data-testid="brsr-registered-address"
                       />
@@ -484,10 +662,10 @@ export default function BRSRDetailsSection({
                   
                   <div className="space-y-2">
                     <Label>City *</Label>
-                    {isEditing ? (
+                    {isEditing && canEditQuestion('brsr_a_registered_address') ? (
                       <Input
                         value={formData.registered_city}
-                        onChange={(e) => handleInputChange('registered_city', e.target.value)}
+                        onChange={(e) => handleInputChange('registered_city', e.target.value, 'brsr_a_registered_address')}
                         placeholder="Enter city"
                         data-testid="brsr-registered-city"
                       />
@@ -498,10 +676,10 @@ export default function BRSRDetailsSection({
                   
                   <div className="space-y-2">
                     <Label>State *</Label>
-                    {isEditing ? (
+                    {isEditing && canEditQuestion('brsr_a_registered_address') ? (
                       <Input
                         value={formData.registered_state}
-                        onChange={(e) => handleInputChange('registered_state', e.target.value)}
+                        onChange={(e) => handleInputChange('registered_state', e.target.value, 'brsr_a_registered_address')}
                         placeholder="Enter state"
                         data-testid="brsr-registered-state"
                       />
@@ -512,8 +690,8 @@ export default function BRSRDetailsSection({
                   
                   <div className="space-y-2">
                     <Label>Country *</Label>
-                    {isEditing ? (
-                      <Select value={formData.registered_country} onValueChange={(v) => handleInputChange('registered_country', v)}>
+                    {isEditing && canEditQuestion('brsr_a_registered_address') ? (
+                      <Select value={formData.registered_country} onValueChange={(v) => handleInputChange('registered_country', v, 'brsr_a_registered_address')}>
                         <SelectTrigger data-testid="brsr-registered-country">
                           <SelectValue placeholder="Select country" />
                         </SelectTrigger>
@@ -533,10 +711,10 @@ export default function BRSRDetailsSection({
                   
                   <div className="space-y-2">
                     <Label>PIN Code *</Label>
-                    {isEditing ? (
+                    {isEditing && canEditQuestion('brsr_a_registered_address') ? (
                       <Input
                         value={formData.registered_pincode}
-                        onChange={(e) => handleInputChange('registered_pincode', e.target.value)}
+                        onChange={(e) => handleInputChange('registered_pincode', e.target.value, 'brsr_a_registered_address')}
                         placeholder="6-digit PIN"
                         maxLength={6}
                         data-testid="brsr-registered-pincode"
@@ -547,6 +725,7 @@ export default function BRSRDetailsSection({
                   </div>
                 </div>
               </div>
+              )}
               
               {/* Q5: Corporate Address - Grouped Box */}
               <div className="md:col-span-2 lg:col-span-3 border rounded-lg p-4 bg-stone-50">
@@ -758,6 +937,7 @@ export default function BRSRDetailsSection({
               </div>
             </div>
           </div>
+      )}
 
           {/* BRSR Contact Person Section */}
           <div>
