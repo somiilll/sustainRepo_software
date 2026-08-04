@@ -96,7 +96,9 @@ export class BasePDFGenerator {
   // ═══════════════════════════════════════════════════════════════════════════
 
   addNewPage() {
+    // Add footer to current page before creating new page (except for first page)
     if (this.pageNumber > 0) {
+      this.addFooter();
       this.doc.addPage();
     }
     this.pageNumber++;
@@ -104,7 +106,6 @@ export class BasePDFGenerator {
     if (this.pageNumber > 1) {
       this.addHeader();
     }
-    this.addFooter();
   }
 
   addHeader() {
@@ -322,23 +323,26 @@ export class BasePDFGenerator {
     if (!text) return;
     
     const useColor = color || COLORS.accent;
-    this.checkPageBreak(30);
     
     // Calculate text width: full content width minus left accent bar (4mm) and padding (8mm each side)
     const textWidth = PAGE.contentWidth - 4 - 16; // 160mm text area
     const textStartX = PAGE.margin + 4 + 8; // After accent bar + padding
-    
-    this.doc.setFillColor('#F0FDF4');
-    this.doc.setDrawColor(useColor);
-    this.doc.setLineWidth(0.5);
     
     // Use consistent font for text measurement and rendering
     this.doc.setFont('helvetica', 'normal');
     this.doc.setFontSize(9);
     
     const lines = this.doc.splitTextToSize(text, textWidth);
-    const lineHeight = 4.5;
-    const boxHeight = Math.max(lines.length * lineHeight + 20, 30);
+    // Font size 9pt needs ~5mm line height for proper spacing
+    const lineHeight = 5;
+    // Box padding: 12mm top (for ANALYSIS label) + 8mm bottom
+    const boxHeight = Math.max(lines.length * lineHeight + 20, 32);
+    
+    this.checkPageBreak(boxHeight + 5);
+    
+    this.doc.setFillColor('#F0FDF4');
+    this.doc.setDrawColor(useColor);
+    this.doc.setLineWidth(0.5);
     
     this.doc.roundedRect(PAGE.margin, this.currentY, PAGE.contentWidth, boxHeight, 3, 3, 'FD');
     
@@ -350,13 +354,13 @@ export class BasePDFGenerator {
     this.doc.setFont('helvetica', 'bold');
     this.doc.setFontSize(8);
     this.doc.setTextColor(this.themeColor);
-    this.doc.text('ANALYSIS', textStartX, this.currentY + 10);
+    this.doc.text('ANALYSIS', textStartX, this.currentY + 8);
     
-    // Analysis text - consistent font
+    // Analysis text - consistent font, starts after label with proper spacing
     this.doc.setFont('helvetica', 'normal');
     this.doc.setFontSize(9);
     this.doc.setTextColor(COLORS.text);
-    this.doc.text(lines, textStartX, this.currentY + 18);
+    this.doc.text(lines, textStartX, this.currentY + 15);
     
     this.currentY += boxHeight + 10;
   }
@@ -450,24 +454,27 @@ export class BasePDFGenerator {
         const imgData = canvas.toDataURL('image/jpeg', 0.9);
         const aspectRatio = canvas.width / canvas.height;
         
-        // Always use full content width for charts
-        const imgWidth = PAGE.contentWidth;
+        // Start with full content width
+        let imgWidth = PAGE.contentWidth;
         let imgHeight = imgWidth / aspectRatio;
         
-        // Cap height but maintain full width (may crop/clip if needed)
+        // If height exceeds max, scale down BOTH dimensions proportionally to preserve aspect ratio
         if (imgHeight > maxHeight) {
           imgHeight = maxHeight;
+          imgWidth = imgHeight * aspectRatio;
         }
         
-        this.checkPageBreak(imgHeight + 10);
+        this.checkPageBreak(imgHeight + 15);
         
-        // Center the image (should be full width now)
-        const chartX = PAGE.margin;
+        // Center the image horizontally
+        const chartX = PAGE.margin + (PAGE.contentWidth - imgWidth) / 2;
         
+        // Draw border around full content width area
         this.doc.setDrawColor(COLORS.borderLight);
         this.doc.setLineWidth(0.3);
         this.doc.roundedRect(PAGE.margin, this.currentY, PAGE.contentWidth, imgHeight + 6, 2, 2, 'S');
         
+        // Add image centered within the border
         this.doc.addImage(imgData, 'JPEG', chartX, this.currentY + 3, imgWidth, imgHeight);
         this.currentY += imgHeight + 12;
         
@@ -580,15 +587,17 @@ export class BasePDFGenerator {
     const textStartX = PAGE.margin + 4 + 6;
     
     insights.forEach((insight, index) => {
-      this.checkPageBreak(28);
-      
-      const y = this.currentY;
-      
       // Pre-calculate text lines for dynamic height
       this.doc.setFont('helvetica', 'normal');
       this.doc.setFontSize(8);
       const lines = this.doc.splitTextToSize(insight.text, textWidth);
-      const cardHeight = Math.max(lines.length * 4 + 14, 22);
+      // Font size 8pt needs ~4.5mm line height for proper spacing
+      const lineHeight = 4.5;
+      const cardHeight = Math.max(lines.length * lineHeight + 16, 24);
+      
+      this.checkPageBreak(cardHeight + 5);
+      
+      const y = this.currentY;
       
       this.doc.setFillColor(index % 2 === 0 ? '#F0FDF4' : '#FEF3C7');
       this.doc.setDrawColor(insight.color || this.themeColor);
@@ -608,7 +617,7 @@ export class BasePDFGenerator {
       this.doc.setFont('helvetica', 'normal');
       this.doc.setFontSize(8);
       this.doc.setTextColor(COLORS.text);
-      this.doc.text(lines, textStartX, y + 15);
+      this.doc.text(lines, textStartX, y + 14);
       
       this.currentY += cardHeight + 5;
     });
@@ -741,11 +750,19 @@ export class BasePDFGenerator {
     return rounded.toLocaleString('en-US', { maximumFractionDigits: 2 });
   }
 
+  // Finalize document - add footer to last page
+  finalize() {
+    this.addFooter();
+    this.totalPages = this.pageNumber;
+  }
+
   save(filename) {
+    this.finalize();
     this.doc.save(filename || `${this.reportTitle.replace(/\s+/g, '_')}_Report.pdf`);
   }
 
   getBlob() {
+    this.finalize();
     return this.doc.output('blob');
   }
 }
