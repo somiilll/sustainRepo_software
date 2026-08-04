@@ -2210,29 +2210,79 @@ class BRSRHTMLTemplate:
             <tbody>
                 <tr class="category-header"><td colspan="3">Water discharge by destination and level of treatment (in kilolitres)</td></tr>
                 <tr>
-                    <td>(i) To Surface water<br/>- No treatment<br/>- With treatment – please specify level of treatment</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_surface_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_surface_prev', '')}</td>
+                    <td>(i) To Surface water</td>
+                    <td class="text-center answer-cell"></td>
+                    <td class="text-center answer-cell"></td>
                 </tr>
                 <tr>
-                    <td>(ii) To Groundwater<br/>- No treatment<br/>- With treatment – please specify level of treatment</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_ground_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_ground_prev', '')}</td>
+                    <td class="sub-label">- No treatment</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_surface_no_treatment_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_surface_no_treatment_prev', '')}</td>
                 </tr>
                 <tr>
-                    <td>(iii) To Seawater<br/>- No treatment<br/>- With treatment – please specify level of treatment</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_sea_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_sea_prev', '')}</td>
+                    <td class="sub-label">- With treatment – please specify level of treatment</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_surface_with_treatment_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_surface_with_treatment_prev', '')}</td>
                 </tr>
                 <tr>
-                    <td>(iv) Sent to third-parties<br/>- No treatment<br/>- With treatment – please specify level of treatment</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_third_party_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_third_party_prev', '')}</td>
+                    <td>(ii) To Groundwater</td>
+                    <td class="text-center answer-cell"></td>
+                    <td class="text-center answer-cell"></td>
                 </tr>
                 <tr>
-                    <td>(v) Others<br/>- No treatment<br/>- With treatment – please specify level of treatment</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_others_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_others_prev', '')}</td>
+                    <td class="sub-label">- No treatment</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_ground_no_treatment_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_ground_no_treatment_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td class="sub-label">- With treatment – please specify level of treatment</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_ground_with_treatment_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_ground_with_treatment_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>(iii) To Seawater</td>
+                    <td class="text-center answer-cell"></td>
+                    <td class="text-center answer-cell"></td>
+                </tr>
+                <tr>
+                    <td class="sub-label">- No treatment</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_sea_no_treatment_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_sea_no_treatment_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td class="sub-label">- With treatment – please specify level of treatment</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_sea_with_treatment_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_sea_with_treatment_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>(iv) Sent to third-parties</td>
+                    <td class="text-center answer-cell"></td>
+                    <td class="text-center answer-cell"></td>
+                </tr>
+                <tr>
+                    <td class="sub-label">- No treatment</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_third_no_treatment_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_third_no_treatment_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td class="sub-label">- With treatment – please specify level of treatment</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_third_with_treatment_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_third_with_treatment_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>(v) Others</td>
+                    <td class="text-center answer-cell"></td>
+                    <td class="text-center answer-cell"></td>
+                </tr>
+                <tr>
+                    <td class="sub-label">- No treatment</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_others_no_treatment_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_others_no_treatment_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td class="sub-label">- With treatment – please specify level of treatment</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_others_with_treatment_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e4_others_with_treatment_prev', '')}</td>
                 </tr>
                 <tr class="row-header">
                     <td>Total water discharged (in kilolitres)</td>
@@ -2441,9 +2491,19 @@ class BRSRHTMLTemplate:
                 </tr>
                 <tr class="category-header"><td colspan="3">For each category of waste generated, total waste recovered through recycling, re-using or other recovery operations (in metric tonnes)</td></tr>
                 <tr>
-                    <td>Category of waste<br/>(i) Recycled<br/>(ii) Re-used<br/>(iii) Other recovery operations</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_recovered_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_recovered_prev', '')}</td>
+                    <td>(i) Recycled</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_recycled_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_recycled_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>(ii) Re-used</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_reused_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_reused_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>(iii) Other recovery operations</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_other_recovery_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_other_recovery_prev', '')}</td>
                 </tr>
                 <tr class="row-header">
                     <td>Total</td>
@@ -2452,9 +2512,19 @@ class BRSRHTMLTemplate:
                 </tr>
                 <tr class="category-header"><td colspan="3">For each category of waste generated, total waste disposed by nature of disposal method (in metric tonnes)</td></tr>
                 <tr>
-                    <td>Category of waste<br/>(i) Incineration<br/>(ii) Landfilling<br/>(iii) Other disposal operations</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_disposed_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_disposed_prev', '')}</td>
+                    <td>(i) Incineration</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_incineration_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_incineration_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>(ii) Landfilling</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_landfilling_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_landfilling_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>(iii) Other disposal operations</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_other_disposal_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_e9_other_disposal_prev', '')}</td>
                 </tr>
                 <tr class="row-header">
                     <td>Total</td>
@@ -2605,29 +2675,79 @@ class BRSRHTMLTemplate:
                 </tr>
                 <tr class="category-header"><td colspan="3">Water discharge by destination and level of treatment (in kilolitres)</td></tr>
                 <tr>
-                    <td>(i) Into Surface water - No treatment / With treatment</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_surface_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_surface_prev', '')}</td>
+                    <td>(i) Into Surface water</td>
+                    <td class="text-center answer-cell"></td>
+                    <td class="text-center answer-cell"></td>
                 </tr>
                 <tr>
-                    <td>(ii) Into Groundwater - No treatment / With treatment</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_ground_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_ground_prev', '')}</td>
+                    <td class="sub-label">- No treatment</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_surface_no_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_surface_no_prev', '')}</td>
                 </tr>
                 <tr>
-                    <td>(iii) Into Seawater - No treatment / With treatment</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_sea_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_sea_prev', '')}</td>
+                    <td class="sub-label">- With treatment – please specify level of treatment</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_surface_with_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_surface_with_prev', '')}</td>
                 </tr>
                 <tr>
-                    <td>(iv) Sent to third-parties - No treatment / With treatment</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_third_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_third_prev', '')}</td>
+                    <td>(ii) Into Groundwater</td>
+                    <td class="text-center answer-cell"></td>
+                    <td class="text-center answer-cell"></td>
                 </tr>
                 <tr>
-                    <td>(v) Others - No treatment / With treatment</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_others_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_others_prev', '')}</td>
+                    <td class="sub-label">- No treatment</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_ground_no_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_ground_no_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td class="sub-label">- With treatment – please specify level of treatment</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_ground_with_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_ground_with_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>(iii) Into Seawater</td>
+                    <td class="text-center answer-cell"></td>
+                    <td class="text-center answer-cell"></td>
+                </tr>
+                <tr>
+                    <td class="sub-label">- No treatment</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_sea_no_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_sea_no_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td class="sub-label">- With treatment – please specify level of treatment</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_sea_with_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_sea_with_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>(iv) Sent to third-parties</td>
+                    <td class="text-center answer-cell"></td>
+                    <td class="text-center answer-cell"></td>
+                </tr>
+                <tr>
+                    <td class="sub-label">- No treatment</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_third_no_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_third_no_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td class="sub-label">- With treatment – please specify level of treatment</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_third_with_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_third_with_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>(v) Others</td>
+                    <td class="text-center answer-cell"></td>
+                    <td class="text-center answer-cell"></td>
+                </tr>
+                <tr>
+                    <td class="sub-label">- No treatment</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_others_no_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_others_no_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td class="sub-label">- With treatment – please specify level of treatment</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_others_with_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p6_l1_discharge_others_with_prev', '')}</td>
                 </tr>
                 <tr class="row-header">
                     <td>Total water discharged (in kilolitres)</td>
