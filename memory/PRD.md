@@ -473,6 +473,30 @@ Complete implementation of a new top-level module for supplier ESG and GHG asses
 - Dynamic ESG Disclosure Engine
 - Sentry Error Monitoring Integration
 
+## Known Issues (P0 - Deferred)
+
+### Environment Report PDF - Character Spacing & Text Overflow Issue
+- **Description**: Analysis boxes in pages 2-3 of Environment Report PDF show excessive character spacing ("T o t a l  G H G..." instead of "Total GHG...") and text overflows the box boundaries
+- **Debugging Done**:
+  - `splitTextToSize()` returns correct wrapped strings (not corrupted)
+  - `getCharSpace()` returns 0 (no charSpace corruption)
+  - Font state is correct (Helvetica, normal, size 9)
+  - Text string is normal ASCII with proper charCodeAt values
+  - Issue persists across all PDF viewers
+- **Root Cause**: Unknown - jsPDF internal rendering issue. All API state looks correct but PDF output has spacing issues. May be related to:
+  - jsPDF 4.x internal TJ operator generation
+  - Unicode subscript `₂` in `tCO₂e` affecting document-wide rendering
+  - Internal font metrics calculation
+- **Attempted Fixes**:
+  - Added `{ charSpace: 0 }` option to text() calls
+  - Reduced textWidth with safety margin
+- **Next Steps to Try**:
+  - Replace Unicode `₂` with regular `2` in EnvironmentReportGenerator
+  - Downgrade jsPDF version to test if it's a 4.x regression
+  - Generate PDF without compression to inspect raw operators
+  - Try different font (Times instead of Helvetica)
+- **Affected Files**: `/app/frontend/src/modules/dashboard/pdf-export/BasePDFGenerator.js`, `/app/frontend/src/modules/dashboard/pdf-export/EnvironmentReportGenerator.js`
+
 ## Technical Debt / Refactoring (P2)
 - **Emission Form Refactoring**: Refactor Edit and Add emission forms (`EmissionEntryForm.js`, `Emissions.js`, `editEmissionDispatch.js`) to be fully reusable components. Currently tightly coupled with page-level state. Goal: single form component usable across main GHG, supplier portal, and any future contexts.
 - **SuperAdmin Org View**: Add supplier org names visibility to Organizations management page

@@ -327,19 +327,14 @@ export class BasePDFGenerator {
     const useColor = color || COLORS.accent;
     
     // Calculate text width with safety margin for font rendering variance
-    // Full width (180) - accent bar (4) - left padding (10) - right padding (10) - safety margin (6) = 150mm
     const textWidth = PAGE.contentWidth - 30;
-    const textStartX = PAGE.margin + 4 + 10; // After accent bar + left padding
+    const textStartX = PAGE.margin + 4 + 10;
     
-    // Use consistent font for text measurement and rendering
     this.doc.setFont('helvetica', 'normal');
     this.doc.setFontSize(9);
     
     const lines = this.doc.splitTextToSize(text, textWidth);
-    
-    // Font size 9pt needs ~5mm line height for proper spacing
     const lineHeight = 5;
-    // Box padding: 14mm top (for ANALYSIS label + gap) + 8mm bottom
     const boxHeight = Math.max(lines.length * lineHeight + 22, 34);
     
     this.checkPageBreak(boxHeight + 5);
@@ -354,74 +349,20 @@ export class BasePDFGenerator {
     this.doc.setFillColor(useColor);
     this.doc.rect(PAGE.margin, this.currentY, 4, boxHeight, 'F');
     
-    // "ANALYSIS" label - consistent font
+    // "ANALYSIS" label
     this.doc.setFont('helvetica', 'bold');
     this.doc.setFontSize(8);
     this.doc.setTextColor(this.themeColor);
-    this.doc.text('ANALYSIS', textStartX, this.currentY + 8);
+    this.doc.text('ANALYSIS', textStartX, this.currentY + 8, { charSpace: 0 });
     
-    // ═══════════════════════════════════════════════════════════════════
-    // DEBUG: Check jsPDF internal state BEFORE analysis text
-    // ═══════════════════════════════════════════════════════════════════
-    console.log('=== jsPDF INTERNAL STATE DEBUG ===');
-    console.log('BEFORE setting font for analysis text:');
-    
-    // Check if getCharSpace exists and what it returns
-    if (typeof this.doc.getCharSpace === 'function') {
-      console.log('  getCharSpace():', this.doc.getCharSpace());
-    } else {
-      console.log('  getCharSpace: method not available');
-    }
-    
-    // Check internal context/state
-    if (this.doc.internal) {
-      console.log('  internal.scaleFactor:', this.doc.internal.scaleFactor);
-      if (this.doc.internal.getCurrentPageInfo) {
-        const pageInfo = this.doc.internal.getCurrentPageInfo();
-        console.log('  pageInfo:', pageInfo);
-      }
-    }
-    
-    // Check all available methods on doc that might reveal state
-    const docMethods = Object.getOwnPropertyNames(Object.getPrototypeOf(this.doc))
-      .filter(m => m.startsWith('get') || m.startsWith('set'));
-    console.log('  Available get/set methods:', docMethods.slice(0, 20));
-    
-    // Try to access internal write state
-    if (this.doc.internal && this.doc.internal.write) {
-      console.log('  internal.write exists');
-    }
-    
-    // ═══════════════════════════════════════════════════════════════════
-    
-    // Analysis text - render line by line for consistent spacing
+    // Analysis text
     this.doc.setFont('helvetica', 'normal');
     this.doc.setFontSize(9);
     this.doc.setTextColor(COLORS.text);
     
-    // ═══════════════════════════════════════════════════════════════════
-    // DEBUG: Check state AFTER setting font, BEFORE text()
-    // ═══════════════════════════════════════════════════════════════════
-    console.log('AFTER setting font, BEFORE text():');
-    console.log('  Font:', this.doc.getFont());
-    console.log('  FontSize:', this.doc.getFontSize());
-    if (typeof this.doc.getCharSpace === 'function') {
-      console.log('  getCharSpace():', this.doc.getCharSpace());
-    }
-    if (typeof this.doc.getTextColor === 'function') {
-      console.log('  getTextColor():', this.doc.getTextColor());
-    }
-    
-    // Check what text() does - test with simple string first
-    console.log('Testing text rendering:');
-    console.log('  First line to render:', lines[0]);
-    console.log('  Line type:', typeof lines[0]);
-    console.log('  Line charCodeAt(0-5):', [...lines[0].slice(0, 5)].map(c => c.charCodeAt(0)));
-    // ═══════════════════════════════════════════════════════════════════
-    
     let textY = this.currentY + 16;
     lines.forEach((line) => {
-      this.doc.text(line, textStartX, textY);
+      this.doc.text(line, textStartX, textY, { charSpace: 0 });
       textY += lineHeight;
     });
     
