@@ -1020,7 +1020,7 @@ async def save_responses(
         "framework": framework,
         "section": section,
         "reporting_year": reporting_year,
-        "responses": result.get("responses", {}),
+        "responses": result.get("responses", {}) if result else data.responses,
     }
 
 

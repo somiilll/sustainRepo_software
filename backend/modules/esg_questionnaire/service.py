@@ -2477,21 +2477,21 @@ class ESGQuestionnaireService:
             responses = {}
             for doc in docs:
                 q_key = doc.get("question_key")
-                if not q_key:
-                    continue
                 
-                # Handle direct value
-                if doc.get("value") is not None:
-                    responses[q_key] = doc.get("value")
+                # Handle question-level documents (with question_key)
+                if q_key:
+                    # Handle direct value
+                    if doc.get("value") is not None:
+                        responses[q_key] = doc.get("value")
+                    
+                    # Handle nested sub_responses (Option B structure)
+                    if "sub_responses" in doc and doc["sub_responses"]:
+                        for sub_key, sub_data in doc["sub_responses"].items():
+                            full_key = f"{q_key}_{sub_key}"
+                            if sub_data.get("value") is not None:
+                                responses[full_key] = sub_data.get("value")
                 
-                # Handle nested sub_responses (Option B structure)
-                if "sub_responses" in doc and doc["sub_responses"]:
-                    for sub_key, sub_data in doc["sub_responses"].items():
-                        full_key = f"{q_key}_{sub_key}"
-                        if sub_data.get("value") is not None:
-                            responses[full_key] = sub_data.get("value")
-                
-                # Also include legacy responses format
+                # Handle section-level documents (with responses dict) - Section A format
                 if "responses" in doc:
                     for rkey, rval in doc.get("responses", {}).items():
                         if rkey not in responses:

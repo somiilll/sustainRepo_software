@@ -132,14 +132,22 @@ const DEFAULT_MATERIAL_ISSUE_ROW = {
 
 const formatINR = (num) => num ? '₹' + num.toLocaleString('en-IN') : '₹0';
 
-export default function BRSRYearlySections({ isEditing = false, hideSections = [] }) {
+export default function BRSRYearlySections({ isEditing = false, hideSections = [], reportingYear: propReportingYear = '' }) {
   const { getAuthHeader } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [reportingYear, setReportingYear] = useState(generateReportingYears()[0]);
+  // Use prop if provided, otherwise use default
+  const [reportingYear, setReportingYear] = useState(propReportingYear || generateReportingYears()[0]);
   const [availableYears, setAvailableYears] = useState([]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historicalData, setHistoricalData] = useState([]);
+  
+  // Update reportingYear when prop changes
+  useEffect(() => {
+    if (propReportingYear && propReportingYear !== reportingYear) {
+      setReportingYear(propReportingYear);
+    }
+  }, [propReportingYear]);
   
   // Section open states
   const [openSections, setOpenSections] = useState({
@@ -171,45 +179,201 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
     fetchYearlyData();
   }, [reportingYear]);
 
+  // Map ESG responses to yearly section form data
+  const mapResponsesToFormData = (responses) => {
+    // Employee/worker details
+    if (responses.brsr_a_employees_workers) {
+      const ew = responses.brsr_a_employees_workers;
+      setEmployeeDetails({
+        permanent_male_employees: ew.employees?.permanent?.male || 0,
+        permanent_female_employees: ew.employees?.permanent?.female || 0,
+        other_than_permanent_male_employees: ew.employees?.other_than_permanent?.male || 0,
+        other_than_permanent_female_employees: ew.employees?.other_than_permanent?.female || 0,
+        permanent_male_workers: ew.workers?.permanent?.male || 0,
+        permanent_female_workers: ew.workers?.permanent?.female || 0,
+        other_than_permanent_male_workers: ew.workers?.other_than_permanent?.male || 0,
+        other_than_permanent_female_workers: ew.workers?.other_than_permanent?.female || 0,
+        diff_abled_permanent_male_employees: 0,
+        diff_abled_permanent_female_employees: 0,
+        diff_abled_other_permanent_male_employees: 0,
+        diff_abled_other_permanent_female_employees: 0,
+        diff_abled_permanent_male_workers: 0,
+        diff_abled_permanent_female_workers: 0,
+        diff_abled_other_permanent_male_workers: 0,
+        diff_abled_other_permanent_female_workers: 0,
+      });
+    }
+    
+    // Differently abled
+    if (responses.brsr_a_differently_abled) {
+      const da = responses.brsr_a_differently_abled;
+      setEmployeeDetails(prev => ({
+        ...prev,
+        diff_abled_permanent_male_employees: da.employees?.permanent?.male || 0,
+        diff_abled_permanent_female_employees: da.employees?.permanent?.female || 0,
+        diff_abled_other_permanent_male_employees: da.employees?.other_than_permanent?.male || 0,
+        diff_abled_other_permanent_female_employees: da.employees?.other_than_permanent?.female || 0,
+        diff_abled_permanent_male_workers: da.workers?.permanent?.male || 0,
+        diff_abled_permanent_female_workers: da.workers?.permanent?.female || 0,
+        diff_abled_other_permanent_male_workers: da.workers?.other_than_permanent?.male || 0,
+        diff_abled_other_permanent_female_workers: da.workers?.other_than_permanent?.female || 0,
+      }));
+    }
+    
+    // Women representation
+    if (responses.brsr_a_women_representation?.length > 0) {
+      setWomenRepresentation(responses.brsr_a_women_representation);
+    } else {
+      setWomenRepresentation([{ category: "Board of Directors", total: 0, number_of_females: 0 }]);
+    }
+    
+    // CSR
+    if (responses.brsr_a_csr_applicability) {
+      setCSRApplicability(responses.brsr_a_csr_applicability);
+    } else {
+      setCSRApplicability({ ...DEFAULT_CSR });
+    }
+    
+    // Holding entities
+    if (responses.brsr_a_holding_subsidiary?.length > 0) {
+      setHoldingEntities(responses.brsr_a_holding_subsidiary);
+    } else {
+      setHoldingEntities([{ name_of_entity: "", type_of_entity: "Subsidiary", shares_held_percentage: 0, participates_in_br_initiatives: false }]);
+    }
+    
+    // Turnover rate
+    if (responses.brsr_a_turnover_rate) {
+      const tr = responses.brsr_a_turnover_rate;
+      setTurnoverRate({
+        permanent_employees_male: tr.current_fy?.permanent_employees?.male || 0,
+        permanent_employees_female: tr.current_fy?.permanent_employees?.female || 0,
+        permanent_workers_male: tr.current_fy?.permanent_workers?.male || 0,
+        permanent_workers_female: tr.current_fy?.permanent_workers?.female || 0,
+      });
+    } else {
+      setTurnoverRate({ ...DEFAULT_TURNOVER_RATE });
+    }
+    
+    // Complaints/Grievances
+    if (responses.brsr_a_complaints_grievances?.length > 0) {
+      const merged = GRIEVANCE_CATEGORIES.map(cat => {
+        const existing = responses.brsr_a_complaints_grievances.find(c => c.category === cat);
+        return existing || { ...DEFAULT_GRIEVANCE_ROW, category: cat };
+      });
+      setComplaintsGrievances(merged);
+    } else {
+      setComplaintsGrievances(GRIEVANCE_CATEGORIES.map(cat => ({ ...DEFAULT_GRIEVANCE_ROW, category: cat })));
+    }
+    
+    // Material Issues
+    if (responses.brsr_a_material_issues?.length > 0) {
+      setMaterialIssues(responses.brsr_a_material_issues);
+    } else {
+      setMaterialIssues([{ ...DEFAULT_MATERIAL_ISSUE_ROW }]);
+    }
+  };
+
+  // Map form data to ESG responses format
+  const mapFormDataToResponses = () => {
+    return {
+      brsr_a_employees_workers: {
+        employees: {
+          permanent: {
+            male: employeeDetails.permanent_male_employees,
+            female: employeeDetails.permanent_female_employees,
+            total: employeeDetails.permanent_male_employees + employeeDetails.permanent_female_employees,
+          },
+          other_than_permanent: {
+            male: employeeDetails.other_than_permanent_male_employees,
+            female: employeeDetails.other_than_permanent_female_employees,
+            total: employeeDetails.other_than_permanent_male_employees + employeeDetails.other_than_permanent_female_employees,
+          },
+        },
+        workers: {
+          permanent: {
+            male: employeeDetails.permanent_male_workers,
+            female: employeeDetails.permanent_female_workers,
+            total: employeeDetails.permanent_male_workers + employeeDetails.permanent_female_workers,
+          },
+          other_than_permanent: {
+            male: employeeDetails.other_than_permanent_male_workers,
+            female: employeeDetails.other_than_permanent_female_workers,
+            total: employeeDetails.other_than_permanent_male_workers + employeeDetails.other_than_permanent_female_workers,
+          },
+        },
+      },
+      brsr_a_differently_abled: {
+        employees: {
+          permanent: {
+            male: employeeDetails.diff_abled_permanent_male_employees,
+            female: employeeDetails.diff_abled_permanent_female_employees,
+            total: employeeDetails.diff_abled_permanent_male_employees + employeeDetails.diff_abled_permanent_female_employees,
+          },
+          other_than_permanent: {
+            male: employeeDetails.diff_abled_other_permanent_male_employees,
+            female: employeeDetails.diff_abled_other_permanent_female_employees,
+            total: employeeDetails.diff_abled_other_permanent_male_employees + employeeDetails.diff_abled_other_permanent_female_employees,
+          },
+        },
+        workers: {
+          permanent: {
+            male: employeeDetails.diff_abled_permanent_male_workers,
+            female: employeeDetails.diff_abled_permanent_female_workers,
+            total: employeeDetails.diff_abled_permanent_male_workers + employeeDetails.diff_abled_permanent_female_workers,
+          },
+          other_than_permanent: {
+            male: employeeDetails.diff_abled_other_permanent_male_workers,
+            female: employeeDetails.diff_abled_other_permanent_female_workers,
+            total: employeeDetails.diff_abled_other_permanent_male_workers + employeeDetails.diff_abled_other_permanent_female_workers,
+          },
+        },
+      },
+      brsr_a_women_representation: womenRepresentation,
+      brsr_a_csr_applicability: csrApplicability,
+      brsr_a_holding_subsidiary: holdingEntities,
+      brsr_a_turnover_rate: {
+        current_fy: {
+          permanent_employees: {
+            male: turnoverRate.permanent_employees_male,
+            female: turnoverRate.permanent_employees_female,
+            total: turnoverRate.permanent_employees_male + turnoverRate.permanent_employees_female,
+          },
+          permanent_workers: {
+            male: turnoverRate.permanent_workers_male,
+            female: turnoverRate.permanent_workers_female,
+            total: turnoverRate.permanent_workers_male + turnoverRate.permanent_workers_female,
+          },
+        },
+      },
+      brsr_a_complaints_grievances: complaintsGrievances,
+      brsr_a_material_issues: materialIssues,
+    };
+  };
+
   const fetchYearlyData = async () => {
     setLoading(true);
     try {
-      // Fetch current year data
+      // Fetch from ESG Questionnaire API (unified storage)
       const res = await axios.get(
-        `${API}/organizations/my/framework-details/brsr/yearly/${reportingYear}`,
+        `${API}/esg-questionnaire/responses/BRSR/section_a/${encodeURIComponent(reportingYear)}`,
         { headers: getAuthHeader() }
       );
-      const data = res.data.data;
-      if (data) {
-        setEmployeeDetails({ ...DEFAULT_EMPLOYEE_DETAILS, ...data.employee_worker_details });
-        setWomenRepresentation(data.women_representation?.length > 0 ? data.women_representation : 
-          [{ category: "Board of Directors", total: 0, number_of_females: 0 }]);
-        setCSRApplicability({ ...DEFAULT_CSR, ...data.csr_applicability });
-        setHoldingEntities(data.holding_subsidiary_entities?.length > 0 ? data.holding_subsidiary_entities :
-          [{ name_of_entity: "", type_of_entity: "Subsidiary", shares_held_percentage: 0, participates_in_br_initiatives: false }]);
-        // Turnover rate is flat - just this year's data
-        setTurnoverRate({ ...DEFAULT_TURNOVER_RATE, ...data.turnover_rate });
-        // Complaints/Grievances - merge with defaults to ensure all categories present
-        if (data.complaints_grievances?.length > 0) {
-          const merged = GRIEVANCE_CATEGORIES.map(cat => {
-            const existing = data.complaints_grievances.find(c => c.category === cat);
-            return existing || { ...DEFAULT_GRIEVANCE_ROW, category: cat };
-          });
-          setComplaintsGrievances(merged);
-        } else {
-          setComplaintsGrievances(GRIEVANCE_CATEGORIES.map(cat => ({ ...DEFAULT_GRIEVANCE_ROW, category: cat })));
-        }
-        // Material Issues
-        setMaterialIssues(data.material_issues?.length > 0 ? data.material_issues : [{ ...DEFAULT_MATERIAL_ISSUE_ROW }]);
+      
+      if (res.data.responses && Object.keys(res.data.responses).length > 0) {
+        mapResponsesToFormData(res.data.responses);
       } else {
         resetToDefaults();
       }
       
-      // Fetch available years
-      const yearsRes = await axios.get(`${API}/organizations/my/framework-details/brsr/yearly`, { headers: getAuthHeader() });
-      setAvailableYears(yearsRes.data.available_years || []);
+      // Fetch available years (keep using old endpoint for now, will refactor later)
+      try {
+        const yearsRes = await axios.get(`${API}/organizations/my/framework-details/brsr/yearly`, { headers: getAuthHeader() });
+        setAvailableYears(yearsRes.data.available_years || []);
+      } catch (e) {
+        setAvailableYears(generateReportingYears());
+      }
       
-      // Fetch previous years' turnover data for display (read-only)
+      // Fetch previous years' turnover data for display
       await fetchPreviousYearsTurnover();
     } catch (error) {
       if (error.response?.status !== 404) console.error('Fetch error:', error);
@@ -238,12 +402,26 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
     
     try {
       const [prevRes, priorRes] = await Promise.all([
-        axios.get(`${API}/organizations/my/framework-details/brsr/yearly/${prevFY}`, { headers: getAuthHeader() }).catch(() => null),
-        axios.get(`${API}/organizations/my/framework-details/brsr/yearly/${priorFY}`, { headers: getAuthHeader() }).catch(() => null)
+        axios.get(`${API}/esg-questionnaire/responses/BRSR/section_a/${encodeURIComponent(prevFY)}`, { headers: getAuthHeader() }).catch(() => null),
+        axios.get(`${API}/esg-questionnaire/responses/BRSR/section_a/${encodeURIComponent(priorFY)}`, { headers: getAuthHeader() }).catch(() => null)
       ]);
 
-      setPrevYearTurnover(prevRes?.data?.data?.turnover_rate || { ...DEFAULT_TURNOVER_RATE });
-      setPriorYearTurnover(priorRes?.data?.data?.turnover_rate || { ...DEFAULT_TURNOVER_RATE });
+      const prevTurnover = prevRes?.data?.responses?.brsr_a_turnover_rate?.current_fy;
+      const priorTurnover = priorRes?.data?.responses?.brsr_a_turnover_rate?.current_fy;
+      
+      setPrevYearTurnover(prevTurnover ? {
+        permanent_employees_male: prevTurnover.permanent_employees?.male || 0,
+        permanent_employees_female: prevTurnover.permanent_employees?.female || 0,
+        permanent_workers_male: prevTurnover.permanent_workers?.male || 0,
+        permanent_workers_female: prevTurnover.permanent_workers?.female || 0,
+      } : { ...DEFAULT_TURNOVER_RATE });
+      
+      setPriorYearTurnover(priorTurnover ? {
+        permanent_employees_male: priorTurnover.permanent_employees?.male || 0,
+        permanent_employees_female: priorTurnover.permanent_employees?.female || 0,
+        permanent_workers_male: priorTurnover.permanent_workers?.male || 0,
+        permanent_workers_female: priorTurnover.permanent_workers?.female || 0,
+      } : { ...DEFAULT_TURNOVER_RATE });
     } catch (e) {
       // Silent fail
     }
@@ -255,37 +433,65 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
     const priorFY = getPreviousFY(prevFY);
     
     try {
-      // Save current year data (includes all sections)
-      const currentPayload = {
-        employee_worker_details: employeeDetails,
-        women_representation: womenRepresentation,
-        csr_applicability: csrApplicability,
-        holding_subsidiary_entities: holdingEntities,
-        turnover_rate: turnoverRate,
-        complaints_grievances: complaintsGrievances,
-        material_issues: materialIssues
-      };
+      // Convert form data to ESG responses format
+      const currentResponses = mapFormDataToResponses();
 
-      // Save all 3 years' turnover data simultaneously
+      // Save current year data via ESG Questionnaire API
+      await axios.put(
+        `${API}/esg-questionnaire/responses/BRSR/section_a/${encodeURIComponent(reportingYear)}`,
+        { responses: currentResponses },
+        { headers: getAuthHeader() }
+      );
+      
+      // Save previous years' turnover data (only if changed)
+      const prevYearResponses = {
+        brsr_a_turnover_rate: {
+          current_fy: {
+            permanent_employees: {
+              male: prevYearTurnover.permanent_employees_male,
+              female: prevYearTurnover.permanent_employees_female,
+              total: prevYearTurnover.permanent_employees_male + prevYearTurnover.permanent_employees_female,
+            },
+            permanent_workers: {
+              male: prevYearTurnover.permanent_workers_male,
+              female: prevYearTurnover.permanent_workers_female,
+              total: prevYearTurnover.permanent_workers_male + prevYearTurnover.permanent_workers_female,
+            },
+          },
+        },
+      };
+      
+      const priorYearResponses = {
+        brsr_a_turnover_rate: {
+          current_fy: {
+            permanent_employees: {
+              male: priorYearTurnover.permanent_employees_male,
+              female: priorYearTurnover.permanent_employees_female,
+              total: priorYearTurnover.permanent_employees_male + priorYearTurnover.permanent_employees_female,
+            },
+            permanent_workers: {
+              male: priorYearTurnover.permanent_workers_male,
+              female: priorYearTurnover.permanent_workers_female,
+              total: priorYearTurnover.permanent_workers_male + priorYearTurnover.permanent_workers_female,
+            },
+          },
+        },
+      };
+      
       await Promise.all([
         axios.put(
-          `${API}/organizations/my/framework-details/brsr/yearly/${reportingYear}`,
-          currentPayload,
+          `${API}/esg-questionnaire/responses/BRSR/section_a/${encodeURIComponent(prevFY)}`,
+          { responses: prevYearResponses },
           { headers: getAuthHeader() }
         ),
         axios.put(
-          `${API}/organizations/my/framework-details/brsr/yearly/${prevFY}`,
-          { turnover_rate: prevYearTurnover },
-          { headers: getAuthHeader() }
-        ),
-        axios.put(
-          `${API}/organizations/my/framework-details/brsr/yearly/${priorFY}`,
-          { turnover_rate: priorYearTurnover },
+          `${API}/esg-questionnaire/responses/BRSR/section_a/${encodeURIComponent(priorFY)}`,
+          { responses: priorYearResponses },
           { headers: getAuthHeader() }
         )
       ]);
 
-      toast.success(`Data saved for ${reportingYear}, ${prevFY}, and ${priorFY}`);
+      toast.success(`Section A data saved for ${reportingYear}, ${prevFY}, and ${priorFY}`);
       fetchYearlyData();
     } catch (error) {
       console.error('Save error:', error);
@@ -325,6 +531,12 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
               <Users className="w-4 h-4 text-primary" />
               <span className="font-medium text-sm">Details of Employees and Workers (including differently abled)</span>
             </div>
+            <Badge variant="outline" className="text-xs">
+              {(employeeDetails.permanent_male_employees || 0) + (employeeDetails.permanent_female_employees || 0) + 
+               (employeeDetails.other_than_permanent_male_employees || 0) + (employeeDetails.other_than_permanent_female_employees || 0) +
+               (employeeDetails.permanent_male_workers || 0) + (employeeDetails.permanent_female_workers || 0) +
+               (employeeDetails.other_than_permanent_male_workers || 0) + (employeeDetails.other_than_permanent_female_workers || 0)} Total
+            </Badge>
           </div>
         </CollapsibleTrigger>
         <CollapsibleContent className="p-4 pt-0 border-t">
@@ -422,6 +634,9 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
               <UserCheck className="w-4 h-4 text-primary" />
               <span className="font-medium text-sm">Women Representation on Board & KMP</span>
             </div>
+            <Badge variant="outline" className="text-xs">
+              {womenRepresentation.reduce((sum, row) => sum + (row.number_of_females || 0), 0)} Women
+            </Badge>
           </div>
         </CollapsibleTrigger>
         <CollapsibleContent className="p-4 pt-0 border-t">
@@ -525,6 +740,9 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
               <Building className="w-4 h-4 text-primary" />
               <span className="font-medium text-sm">Holding, Subsidiary & Associate Companies</span>
             </div>
+            <Badge variant="outline" className="text-xs">
+              {holdingEntities.filter(e => e.name_of_entity).length} Entities
+            </Badge>
           </div>
         </CollapsibleTrigger>
         <CollapsibleContent className="p-4 pt-0 border-t">
@@ -603,6 +821,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
               <TrendingDown className="w-4 h-4 text-primary" />
               <span className="font-medium text-sm">Turnover Rate (%) - Last 3 Financial Years</span>
             </div>
+            <Badge variant="outline" className="text-xs">3 Years</Badge>
           </div>
         </CollapsibleTrigger>
         <CollapsibleContent className="p-4 pt-0 border-t">

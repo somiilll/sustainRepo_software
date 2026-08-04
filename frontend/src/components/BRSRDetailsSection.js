@@ -147,41 +147,187 @@ export default function BRSRDetailsSection({
     }
   }, [initialData]);
 
+  // Map question keys to form field names
+  const QUESTION_KEY_MAP = {
+    'brsr_a_cin': 'cin',
+    'brsr_a_entity_name': 'listed_entity_name',
+    'brsr_a_year_of_incorporation': 'year_of_incorporation',
+    'brsr_a_registered_address': 'registered_address_obj',
+    'brsr_a_corporate_address': 'corporate_address_obj',
+    'brsr_a_email': 'email',
+    'brsr_a_telephone': 'telephone',
+    'brsr_a_website': 'website',
+    'brsr_a_stock_exchange': 'stock_exchange',
+    'brsr_a_paid_up_capital': 'paid_up_capital',
+    'brsr_a_contact_person': 'brsr_contact',
+    'brsr_a_reporting_boundary': 'reporting_boundary',
+    'brsr_a_assurance_provider': 'assurance_provider',
+    'brsr_a_assurance_type': 'assurance_type',
+    'brsr_a_business_activities': 'business_activities',
+    'brsr_a_products_services': 'products_services',
+    'brsr_a_plants_offices': 'plants_offices',
+    'brsr_a_markets_served': 'markets_served_obj',
+  };
+  
+  // Convert API responses to form data
+  const mapResponsesToFormData = (responses) => {
+    const mapped = { ...formData };
+    
+    // Simple field mappings
+    if (responses.brsr_a_cin) mapped.cin = responses.brsr_a_cin;
+    if (responses.brsr_a_entity_name) mapped.listed_entity_name = responses.brsr_a_entity_name;
+    if (responses.brsr_a_year_of_incorporation) mapped.year_of_incorporation = responses.brsr_a_year_of_incorporation;
+    if (responses.brsr_a_email) mapped.email = responses.brsr_a_email;
+    if (responses.brsr_a_telephone) mapped.telephone = responses.brsr_a_telephone;
+    if (responses.brsr_a_website) mapped.website = responses.brsr_a_website;
+    if (responses.brsr_a_stock_exchange) mapped.stock_exchange = responses.brsr_a_stock_exchange;
+    if (responses.brsr_a_paid_up_capital) mapped.paid_up_capital = responses.brsr_a_paid_up_capital;
+    if (responses.brsr_a_reporting_boundary) mapped.reporting_boundary = responses.brsr_a_reporting_boundary;
+    if (responses.brsr_a_assurance_provider) mapped.assurance_provider = responses.brsr_a_assurance_provider;
+    if (responses.brsr_a_assurance_type) mapped.assurance_type = responses.brsr_a_assurance_type;
+    
+    // Address objects
+    if (responses.brsr_a_registered_address) {
+      const addr = responses.brsr_a_registered_address;
+      mapped.registered_address = addr.address || '';
+      mapped.registered_city = addr.city || '';
+      mapped.registered_state = addr.state || '';
+      mapped.registered_country = addr.country || 'India';
+      mapped.registered_pincode = addr.pincode || '';
+    }
+    if (responses.brsr_a_corporate_address) {
+      const addr = responses.brsr_a_corporate_address;
+      mapped.corporate_address = addr.address || '';
+      mapped.corporate_city = addr.city || '';
+      mapped.corporate_state = addr.state || '';
+      mapped.corporate_country = addr.country || 'India';
+      mapped.corporate_pincode = addr.pincode || '';
+    }
+    
+    // Contact person
+    if (responses.brsr_a_contact_person) {
+      const contact = responses.brsr_a_contact_person;
+      mapped.brsr_contact_name = contact.name || '';
+      mapped.brsr_contact_telephone = contact.telephone || '';
+      mapped.brsr_contact_email = contact.email || '';
+    }
+    
+    // Markets served composite
+    if (responses.brsr_a_markets_served) {
+      const markets = responses.brsr_a_markets_served;
+      if (markets.locations) mapped.markets_served = markets.locations;
+      if (markets.export_contribution_percentage !== undefined) mapped.export_contribution_percentage = markets.export_contribution_percentage;
+      if (markets.customer_types_brief) mapped.customer_types_brief = markets.customer_types_brief;
+    }
+    
+    // Dynamic tables
+    if (responses.brsr_a_business_activities?.length > 0) {
+      mapped.business_activities = responses.brsr_a_business_activities;
+    }
+    if (responses.brsr_a_products_services?.length > 0) {
+      mapped.products_services = responses.brsr_a_products_services;
+    }
+    if (responses.brsr_a_plants_offices?.length > 0) {
+      mapped.plants_offices = responses.brsr_a_plants_offices;
+    }
+    
+    return mapped;
+  };
+  
+  // Convert form data to API responses format
+  const mapFormDataToResponses = () => {
+    return {
+      brsr_a_cin: formData.cin,
+      brsr_a_entity_name: formData.listed_entity_name,
+      brsr_a_year_of_incorporation: formData.year_of_incorporation,
+      brsr_a_registered_address: {
+        address: formData.registered_address,
+        city: formData.registered_city,
+        state: formData.registered_state,
+        country: formData.registered_country,
+        pincode: formData.registered_pincode,
+      },
+      brsr_a_corporate_address: {
+        address: formData.corporate_address,
+        city: formData.corporate_city,
+        state: formData.corporate_state,
+        country: formData.corporate_country,
+        pincode: formData.corporate_pincode,
+      },
+      brsr_a_email: formData.email,
+      brsr_a_telephone: formData.telephone,
+      brsr_a_website: formData.website,
+      brsr_a_stock_exchange: formData.stock_exchange,
+      brsr_a_paid_up_capital: formData.paid_up_capital,
+      brsr_a_contact_person: {
+        name: formData.brsr_contact_name,
+        telephone: formData.brsr_contact_telephone,
+        email: formData.brsr_contact_email,
+      },
+      brsr_a_reporting_boundary: formData.reporting_boundary,
+      brsr_a_assurance_provider: formData.assurance_provider,
+      brsr_a_assurance_type: formData.assurance_type,
+      brsr_a_business_activities: formData.business_activities,
+      brsr_a_products_services: formData.products_services,
+      brsr_a_plants_offices: formData.plants_offices,
+      brsr_a_markets_served: {
+        locations: formData.markets_served,
+        export_contribution_percentage: formData.export_contribution_percentage,
+        customer_types_brief: formData.customer_types_brief,
+      },
+    };
+  };
+
   const fetchBRSRDetails = async () => {
     if (!reportingPeriod) return;
     
     try {
-      const res = await axios.get(`${API}/organizations/my/framework-details/brsr`, {
-        headers: getAuthHeader(),
-        params: { reporting_period: reportingPeriod }
-      });
+      // Fetch from ESG Questionnaire API (unified storage)
+      const res = await axios.get(
+        `${API}/esg-questionnaire/responses/BRSR/section_a/${encodeURIComponent(reportingPeriod)}`,
+        { headers: getAuthHeader() }
+      );
       
-      if (res.data.details) {
-        const details = res.data.details;
+      if (res.data.responses && Object.keys(res.data.responses).length > 0) {
+        const mappedData = mapResponsesToFormData(res.data.responses);
         setFormData(prev => ({
           ...prev,
-          ...details,
+          ...mappedData,
           reporting_period: reportingPeriod,
-          business_activities: details.business_activities?.length > 0 
-            ? details.business_activities 
-            : [{ ...EMPTY_BUSINESS_ACTIVITY }],
-          products_services: details.products_services?.length > 0 
-            ? details.products_services 
-            : [{ ...EMPTY_PRODUCT_SERVICE }],
-          plants_offices: details.plants_offices?.length > 0 
-            ? details.plants_offices 
-            : [{ ...EMPTY_PLANT_OFFICE }],
-          markets_served: details.markets_served?.length > 0 
-            ? details.markets_served 
-            : [{ ...EMPTY_MARKET_SERVED }],
         }));
+        // Check completeness based on required fields
+        const missing = [];
+        if (!mappedData.cin) missing.push('cin');
+        if (!mappedData.listed_entity_name) missing.push('listed_entity_name');
+        if (!mappedData.email) missing.push('email');
+        setMissingFields(missing);
+        setIsComplete(missing.length === 0);
+      } else {
+        // Reset to defaults
+        setFormData(prev => ({
+          ...prev,
+          reporting_period: reportingPeriod,
+          business_activities: [{ ...EMPTY_BUSINESS_ACTIVITY }],
+          products_services: [{ ...EMPTY_PRODUCT_SERVICE }],
+          plants_offices: [{ ...EMPTY_PLANT_OFFICE }],
+          markets_served: [{ ...EMPTY_MARKET_SERVED }],
+        }));
+        setIsComplete(false);
+        setMissingFields(['cin', 'listed_entity_name', 'email']);
       }
-      setIsComplete(res.data.is_complete);
-      setMissingFields(res.data.missing_fields || []);
     } catch (error) {
-      if (error.response?.status !== 400) {
+      if (error.response?.status !== 404) {
         console.error('Failed to fetch BRSR details:', error);
       }
+      // Initialize with empty data
+      setFormData(prev => ({
+        ...prev,
+        reporting_period: reportingPeriod,
+        business_activities: [{ ...EMPTY_BUSINESS_ACTIVITY }],
+        products_services: [{ ...EMPTY_PRODUCT_SERVICE }],
+        plants_offices: [{ ...EMPTY_PLANT_OFFICE }],
+        markets_served: [{ ...EMPTY_MARKET_SERVED }],
+      }));
     } finally {
       setLoading(false);
     }
@@ -226,14 +372,25 @@ export default function BRSRDetailsSection({
   const saveBRSRDetails = async () => {
     setSaving(true);
     try {
-      const res = await axios.put(
-        `${API}/organizations/my/framework-details/brsr`,
-        formData,
+      // Convert form data to ESG Questionnaire responses format
+      const responses = mapFormDataToResponses();
+      
+      // Save via ESG Questionnaire API (unified storage with task/approval workflow)
+      await axios.put(
+        `${API}/esg-questionnaire/responses/BRSR/section_a/${encodeURIComponent(reportingPeriod)}`,
+        { responses },
         { headers: getAuthHeader() }
       );
-      setIsComplete(res.data.is_complete);
-      setMissingFields(res.data.missing_fields || []);
-      toast.success('BRSR details saved successfully');
+      
+      // Check completeness based on required fields
+      const missing = [];
+      if (!formData.cin) missing.push('cin');
+      if (!formData.listed_entity_name) missing.push('listed_entity_name');
+      if (!formData.email) missing.push('email');
+      setMissingFields(missing);
+      setIsComplete(missing.length === 0);
+      
+      toast.success('BRSR Section A details saved successfully');
     } catch (error) {
       console.error('Failed to save BRSR details:', error);
       toast.error(error.response?.data?.detail || 'Failed to save BRSR details');
