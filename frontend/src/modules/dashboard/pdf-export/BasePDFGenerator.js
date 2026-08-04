@@ -302,32 +302,7 @@ export class BasePDFGenerator {
     this.doc.setFont('helvetica', 'bold');
     this.doc.setFontSize(18);
     this.doc.setTextColor(useColor);
-    
-    // ═══════════════════════════════════════════════════════════════════
-    // DEBUG: Capture PDF stream for heading comparison
-    // ═══════════════════════════════════════════════════════════════════
-    const pdfBeforeHeading = this.doc.output('datauristring');
-    const streamBeforeHeading = atob(pdfBeforeHeading.split(',')[1]);
-    
     this.doc.text(title, color ? PAGE.margin + 12 : PAGE.margin, this.currentY);
-    
-    const pdfAfterHeading = this.doc.output('datauristring');
-    const streamAfterHeading = atob(pdfAfterHeading.split(',')[1]);
-    const headingContent = streamAfterHeading.slice(streamBeforeHeading.length);
-    
-    console.log('=== PAGE TITLE PDF STREAM ===');
-    console.log('Title:', title);
-    console.log('PDF operators for heading (last 500 chars of new content):');
-    console.log(headingContent.slice(-500));
-    
-    // Search for text operators in heading
-    const tjMatchHeading = headingContent.match(/\(([^)]+)\)\s*Tj/g);
-    const tjArrayMatchHeading = headingContent.match(/\[([^\]]+)\]\s*TJ/g);
-    const tcMatchHeading = headingContent.match(/[\d.-]+\s+Tc/g);
-    console.log('Heading - Tj operators:', tjMatchHeading);
-    console.log('Heading - TJ (array) operators:', tjArrayMatchHeading);
-    console.log('Heading - Tc (charSpace) operators:', tcMatchHeading);
-    // ═══════════════════════════════════════════════════════════════════
     
     this.doc.setDrawColor(useColor);
     this.doc.setLineWidth(0.8);
@@ -386,60 +361,69 @@ export class BasePDFGenerator {
     this.doc.text('ANALYSIS', textStartX, this.currentY + 8);
     
     // ═══════════════════════════════════════════════════════════════════
-    // DEBUG: Capture PDF stream BEFORE analysis text
+    // DEBUG: Check jsPDF internal state BEFORE analysis text
     // ═══════════════════════════════════════════════════════════════════
-    const pdfBeforeAnalysis = this.doc.output('datauristring');
-    const streamBefore = atob(pdfBeforeAnalysis.split(',')[1]);
-    const lastStreamBefore = streamBefore.slice(-2000);
-    console.log('=== PDF STREAM DEBUG ===');
-    console.log('PDF stream BEFORE analysis text (last 500 chars of stream):');
-    console.log(lastStreamBefore.slice(-500));
+    console.log('=== jsPDF INTERNAL STATE DEBUG ===');
+    console.log('BEFORE setting font for analysis text:');
+    
+    // Check if getCharSpace exists and what it returns
+    if (typeof this.doc.getCharSpace === 'function') {
+      console.log('  getCharSpace():', this.doc.getCharSpace());
+    } else {
+      console.log('  getCharSpace: method not available');
+    }
+    
+    // Check internal context/state
+    if (this.doc.internal) {
+      console.log('  internal.scaleFactor:', this.doc.internal.scaleFactor);
+      if (this.doc.internal.getCurrentPageInfo) {
+        const pageInfo = this.doc.internal.getCurrentPageInfo();
+        console.log('  pageInfo:', pageInfo);
+      }
+    }
+    
+    // Check all available methods on doc that might reveal state
+    const docMethods = Object.getOwnPropertyNames(Object.getPrototypeOf(this.doc))
+      .filter(m => m.startsWith('get') || m.startsWith('set'));
+    console.log('  Available get/set methods:', docMethods.slice(0, 20));
+    
+    // Try to access internal write state
+    if (this.doc.internal && this.doc.internal.write) {
+      console.log('  internal.write exists');
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════
     
     // Analysis text - render line by line for consistent spacing
     this.doc.setFont('helvetica', 'normal');
     this.doc.setFontSize(9);
     this.doc.setTextColor(COLORS.text);
     
-    let textY = this.currentY + 16;
-    
-    // Render first line and capture PDF stream
-    if (lines.length > 0) {
-      this.doc.text(lines[0], textStartX, textY);
-      
-      // ═══════════════════════════════════════════════════════════════════
-      // DEBUG: Capture PDF stream AFTER first analysis line
-      // ═══════════════════════════════════════════════════════════════════
-      const pdfAfterFirstLine = this.doc.output('datauristring');
-      const streamAfter = atob(pdfAfterFirstLine.split(',')[1]);
-      
-      // Find the new content added (difference)
-      const newContent = streamAfter.slice(streamBefore.length);
-      console.log('PDF stream AFTER first analysis line (new content, last 1000 chars):');
-      console.log(newContent.slice(-1000));
-      
-      // Search for text operators
-      const tjMatch = newContent.match(/\(([^)]+)\)\s*Tj/g);
-      const tjArrayMatch = newContent.match(/\[([^\]]+)\]\s*TJ/g);
-      console.log('Tj operators found:', tjMatch);
-      console.log('TJ (array) operators found:', tjArrayMatch);
-      
-      // Check for Tc (character spacing) operator
-      const tcMatch = newContent.match(/[\d.-]+\s+Tc/g);
-      console.log('Tc (charSpace) operators found:', tcMatch);
-      
-      // Check for Tw (word spacing) operator  
-      const twMatch = newContent.match(/[\d.-]+\s+Tw/g);
-      console.log('Tw (wordSpace) operators found:', twMatch);
-      
-      textY += lineHeight;
-    }
-    
-    // Render remaining lines
-    for (let i = 1; i < lines.length; i++) {
-      this.doc.text(lines[i], textStartX, textY);
-      textY += lineHeight;
-    }
     // ═══════════════════════════════════════════════════════════════════
+    // DEBUG: Check state AFTER setting font, BEFORE text()
+    // ═══════════════════════════════════════════════════════════════════
+    console.log('AFTER setting font, BEFORE text():');
+    console.log('  Font:', this.doc.getFont());
+    console.log('  FontSize:', this.doc.getFontSize());
+    if (typeof this.doc.getCharSpace === 'function') {
+      console.log('  getCharSpace():', this.doc.getCharSpace());
+    }
+    if (typeof this.doc.getTextColor === 'function') {
+      console.log('  getTextColor():', this.doc.getTextColor());
+    }
+    
+    // Check what text() does - test with simple string first
+    console.log('Testing text rendering:');
+    console.log('  First line to render:', lines[0]);
+    console.log('  Line type:', typeof lines[0]);
+    console.log('  Line charCodeAt(0-5):', [...lines[0].slice(0, 5)].map(c => c.charCodeAt(0)));
+    // ═══════════════════════════════════════════════════════════════════
+    
+    let textY = this.currentY + 16;
+    lines.forEach((line) => {
+      this.doc.text(line, textStartX, textY);
+      textY += lineHeight;
+    });
     
     this.currentY += boxHeight + 10;
   }
