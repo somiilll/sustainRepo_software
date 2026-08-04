@@ -39,6 +39,9 @@ import {
   Loader2 
 } from 'lucide-react';
 
+// Import yearly sections component for year-specific data (Employees, CSR, etc.)
+import BRSRYearlySections from './BRSRYearlySections';
+
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
@@ -63,40 +66,45 @@ export default function BRSRDetailsSection({
   const [isComplete, setIsComplete] = useState(false);
   const [missingFields, setMissingFields] = useState([]);
   
-  // BRSR Form Data
+  // BRSR Form Data - Section A: General Disclosures
   const [formData, setFormData] = useState({
-    // Basic Information
-    cin: '',
-    listed_entity_name: '',
-    year_of_incorporation: new Date().getFullYear(),
-    registered_address: '',
-    city: '',
-    state: '',
-    country: 'India',
-    pincode: '',
-    email: '',
-    telephone: '',
-    website: '',
-    paid_up_capital: 0,
-    assurance_provider: '',
-    assurance_type: '',
-    export_contribution_percentage: 0,
-    customer_types_brief: '',
-    
-    // BRSR Contact Person (for queries on the report)
+    // I. Details of the Listed Entity (Q1-15)
+    cin: '',                              // Q1: Corporate Identity Number
+    listed_entity_name: '',               // Q2: Name of the Listed Entity
+    year_of_incorporation: new Date().getFullYear(), // Q3: Year of incorporation
+    registered_address: '',               // Q4: Registered office address
+    registered_city: '',
+    registered_state: '',
+    registered_country: 'India',
+    registered_pincode: '',
+    corporate_address: '',                // Q5: Corporate address (NEW)
+    corporate_city: '',
+    corporate_state: '',
+    corporate_country: 'India',
+    corporate_pincode: '',
+    email: '',                            // Q6: E-mail
+    telephone: '',                        // Q7: Telephone
+    website: '',                          // Q8: Website
+    // Q9: Financial year - handled by reporting_period
+    stock_exchange: 'BSE',                // Q10: Name of Stock Exchange(s)
+    paid_up_capital: 0,                   // Q11: Paid-up Capital
+    // Q12: BRSR Contact Person
     brsr_contact_name: '',
     brsr_contact_telephone: '',
     brsr_contact_email: '',
+    reporting_boundary: 'Standalone',     // Q13: Reporting boundary
+    assurance_provider: '',               // Q14: Name of assurance provider
+    assurance_type: '',                   // Q15: Type of assurance obtained
     
-    // Radio fields
-    stock_exchange: 'BSE',
-    reporting_boundary: 'Standalone',
+    // II. Products/Services (Q16-17)
+    business_activities: [{ ...EMPTY_BUSINESS_ACTIVITY }],  // Q16
+    products_services: [{ ...EMPTY_PRODUCT_SERVICE }],      // Q17
     
-    // Dynamic tables
-    business_activities: [{ ...EMPTY_BUSINESS_ACTIVITY }],
-    products_services: [{ ...EMPTY_PRODUCT_SERVICE }],
-    plants_offices: [{ ...EMPTY_PLANT_OFFICE }],
-    markets_served: [{ ...EMPTY_MARKET_SERVED }],
+    // III. Operations (Q18-19)
+    plants_offices: [{ ...EMPTY_PLANT_OFFICE }],            // Q18
+    markets_served: [{ ...EMPTY_MARKET_SERVED }],           // Q19a
+    export_contribution_percentage: 0,                       // Q19b
+    customer_types_brief: '',                                // Q19c
     
     // Reporting period for year-specific data
     reporting_period: '',
@@ -251,7 +259,7 @@ export default function BRSRDetailsSection({
       {/* Basic Information Section */}
       <div>
         <h4 className="text-sm font-semibold text-text-primary mb-4 pb-2 border-b">
-              Basic Information
+              I. Details of the Listed Entity
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="space-y-2">
@@ -299,11 +307,12 @@ export default function BRSRDetailsSection({
                 )}
               </div>
               
-              {/* Address Section - Grouped Box */}
+              {/* Q4: Registered Office Address - Grouped Box */}
               <div className="md:col-span-2 lg:col-span-3 border rounded-lg p-4 bg-stone-50">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div className="space-y-2 md:col-span-2 lg:col-span-3">
-                    <Label>Registered Address *</Label>
+                <h5 className="text-sm font-medium text-text-primary mb-3">Registered Office Address</h5>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="space-y-2 lg:col-span-2">
+                    <Label>Address *</Label>
                     {isEditing ? (
                       <Input
                         value={formData.registered_address}
@@ -320,13 +329,13 @@ export default function BRSRDetailsSection({
                     <Label>City *</Label>
                     {isEditing ? (
                       <Input
-                        value={formData.city}
-                        onChange={(e) => handleInputChange('city', e.target.value)}
+                        value={formData.registered_city}
+                        onChange={(e) => handleInputChange('registered_city', e.target.value)}
                         placeholder="Enter city"
-                        data-testid="brsr-city"
+                        data-testid="brsr-registered-city"
                       />
                     ) : (
-                      <p className="text-sm text-text-secondary py-2">{formData.city || '-'}</p>
+                      <p className="text-sm text-text-secondary py-2">{formData.registered_city || '-'}</p>
                     )}
                   </div>
                   
@@ -334,21 +343,21 @@ export default function BRSRDetailsSection({
                     <Label>State *</Label>
                     {isEditing ? (
                       <Input
-                        value={formData.state}
-                        onChange={(e) => handleInputChange('state', e.target.value)}
+                        value={formData.registered_state}
+                        onChange={(e) => handleInputChange('registered_state', e.target.value)}
                         placeholder="Enter state"
-                        data-testid="brsr-state"
+                        data-testid="brsr-registered-state"
                       />
                     ) : (
-                      <p className="text-sm text-text-secondary py-2">{formData.state || '-'}</p>
+                      <p className="text-sm text-text-secondary py-2">{formData.registered_state || '-'}</p>
                     )}
                   </div>
                   
                   <div className="space-y-2">
                     <Label>Country *</Label>
                     {isEditing ? (
-                      <Select value={formData.country} onValueChange={(v) => handleInputChange('country', v)}>
-                        <SelectTrigger data-testid="brsr-country">
+                      <Select value={formData.registered_country} onValueChange={(v) => handleInputChange('registered_country', v)}>
+                        <SelectTrigger data-testid="brsr-registered-country">
                           <SelectValue placeholder="Select country" />
                         </SelectTrigger>
                         <SelectContent>
@@ -357,21 +366,11 @@ export default function BRSRDetailsSection({
                           <SelectItem value="United Kingdom">United Kingdom</SelectItem>
                           <SelectItem value="Singapore">Singapore</SelectItem>
                           <SelectItem value="UAE">UAE</SelectItem>
-                          <SelectItem value="Germany">Germany</SelectItem>
-                          <SelectItem value="Japan">Japan</SelectItem>
-                          <SelectItem value="Australia">Australia</SelectItem>
-                          <SelectItem value="Canada">Canada</SelectItem>
-                          <SelectItem value="France">France</SelectItem>
-                          <SelectItem value="Netherlands">Netherlands</SelectItem>
-                          <SelectItem value="Switzerland">Switzerland</SelectItem>
-                          <SelectItem value="China">China</SelectItem>
-                          <SelectItem value="South Korea">South Korea</SelectItem>
-                          <SelectItem value="Brazil">Brazil</SelectItem>
                           <SelectItem value="Other">Other</SelectItem>
                         </SelectContent>
                       </Select>
                     ) : (
-                      <p className="text-sm text-text-secondary py-2">{formData.country || '-'}</p>
+                      <p className="text-sm text-text-secondary py-2">{formData.registered_country || '-'}</p>
                     )}
                   </div>
                   
@@ -379,14 +378,98 @@ export default function BRSRDetailsSection({
                     <Label>PIN Code *</Label>
                     {isEditing ? (
                       <Input
-                        value={formData.pincode}
-                        onChange={(e) => handleInputChange('pincode', e.target.value)}
+                        value={formData.registered_pincode}
+                        onChange={(e) => handleInputChange('registered_pincode', e.target.value)}
                         placeholder="6-digit PIN"
                         maxLength={6}
-                        data-testid="brsr-pincode"
+                        data-testid="brsr-registered-pincode"
                       />
                     ) : (
-                      <p className="text-sm text-text-secondary py-2">{formData.pincode || '-'}</p>
+                      <p className="text-sm text-text-secondary py-2">{formData.registered_pincode || '-'}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Q5: Corporate Address - Grouped Box */}
+              <div className="md:col-span-2 lg:col-span-3 border rounded-lg p-4 bg-stone-50">
+                <h5 className="text-sm font-medium text-text-primary mb-3">Corporate Address</h5>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="space-y-2 lg:col-span-2">
+                    <Label>Address</Label>
+                    {isEditing ? (
+                      <Input
+                        value={formData.corporate_address}
+                        onChange={(e) => handleInputChange('corporate_address', e.target.value)}
+                        placeholder="Enter corporate address (if different from registered)"
+                        data-testid="brsr-corporate-address"
+                      />
+                    ) : (
+                      <p className="text-sm text-text-secondary py-2">{formData.corporate_address || '-'}</p>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>City</Label>
+                    {isEditing ? (
+                      <Input
+                        value={formData.corporate_city}
+                        onChange={(e) => handleInputChange('corporate_city', e.target.value)}
+                        placeholder="Enter city"
+                        data-testid="brsr-corporate-city"
+                      />
+                    ) : (
+                      <p className="text-sm text-text-secondary py-2">{formData.corporate_city || '-'}</p>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>State</Label>
+                    {isEditing ? (
+                      <Input
+                        value={formData.corporate_state}
+                        onChange={(e) => handleInputChange('corporate_state', e.target.value)}
+                        placeholder="Enter state"
+                        data-testid="brsr-corporate-state"
+                      />
+                    ) : (
+                      <p className="text-sm text-text-secondary py-2">{formData.corporate_state || '-'}</p>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Country</Label>
+                    {isEditing ? (
+                      <Select value={formData.corporate_country} onValueChange={(v) => handleInputChange('corporate_country', v)}>
+                        <SelectTrigger data-testid="brsr-corporate-country">
+                          <SelectValue placeholder="Select country" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="India">India</SelectItem>
+                          <SelectItem value="United States">United States</SelectItem>
+                          <SelectItem value="United Kingdom">United Kingdom</SelectItem>
+                          <SelectItem value="Singapore">Singapore</SelectItem>
+                          <SelectItem value="UAE">UAE</SelectItem>
+                          <SelectItem value="Other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <p className="text-sm text-text-secondary py-2">{formData.corporate_country || '-'}</p>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>PIN Code</Label>
+                    {isEditing ? (
+                      <Input
+                        value={formData.corporate_pincode}
+                        onChange={(e) => handleInputChange('corporate_pincode', e.target.value)}
+                        placeholder="6-digit PIN"
+                        maxLength={6}
+                        data-testid="brsr-corporate-pincode"
+                      />
+                    ) : (
+                      <p className="text-sm text-text-secondary py-2">{formData.corporate_pincode || '-'}</p>
                     )}
                   </div>
                 </div>
@@ -525,7 +608,7 @@ export default function BRSRDetailsSection({
               BRSR Report Contact Person
             </h4>
             <p className="text-xs text-text-muted mb-4">
-              Contact details of the person who may be contacted for queries on this BRSR report
+              Name and contact details (telephone, email address) of the person who may be contacted in case of any queries on the BRSR report
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="space-y-2">
@@ -1034,6 +1117,15 @@ export default function BRSRDetailsSection({
               </Button>
             </div>
           )}
+
+          {/* IV-VII. Year-Specific BRSR Sections (Employees, CSR, Holdings, Complaints) */}
+          <div className="pt-6 border-t border-stone-200">
+            <BRSRYearlySections 
+              isEditing={isEditing} 
+              hideSections={hideSections}
+              reportingYear={reportingPeriod}
+            />
+          </div>
         </div>
   );
 
