@@ -293,17 +293,37 @@ class BRSRHTMLTemplate:
         if isinstance(val, bool):
             return 'Yes' if val else 'No'
         if isinstance(val, (list, dict)):
-            return str(val)
+            # For complex objects, try to extract meaningful string representation
+            return str(val) if val else default
         return str(val)
     
-    def _format_address(self, prefix: str) -> str:
-        """Format address from section_a fields."""
-        parts = []
-        for field in ['address', 'city', 'state', 'country', 'pincode']:
-            val = self.section_a.get(f'{prefix}{field}')
-            if val:
-                parts.append(str(val))
-        return ', '.join(parts) if parts else ''
+    def _get_nested(self, data: Dict, *keys, default: str = '') -> str:
+        """Get nested value from data dictionary using multiple keys."""
+        current = data
+        for key in keys:
+            if isinstance(current, dict):
+                current = current.get(key)
+            else:
+                return default
+            if current is None:
+                return default
+        if isinstance(current, bool):
+            return 'Yes' if current else 'No'
+        if current is None or current == '':
+            return default
+        return str(current)
+    
+    def _format_address(self, key: str) -> str:
+        """Format address from section_a field (stored as object with address, city, state, country, pincode)."""
+        addr_data = self.section_a.get(key, {})
+        if isinstance(addr_data, dict):
+            parts = []
+            for field in ['address', 'city', 'state', 'country', 'pincode']:
+                val = addr_data.get(field)
+                if val and str(val).strip():
+                    parts.append(str(val))
+            return ', '.join(parts) if parts else ''
+        return str(addr_data) if addr_data else ''
     
     def render(self) -> str:
         """Render the complete BRSR Annexure II HTML document."""
@@ -329,10 +349,12 @@ class BRSRHTMLTemplate:
         """
         SECTION A: GENERAL DISCLOSURES
         Exact replica of Annexure II Section A with all questions and tables.
+        Uses brsr_a_* keys from the portal responses.
         """
-        contact_name = self._val('brsr_contact_name')
-        contact_tel = self._val('brsr_contact_telephone')
-        contact_email = self._val('brsr_contact_email')
+        # Contact details - these might be in a separate field or part of organization
+        contact_name = self._val('brsr_a_contact_name', self.organization.get('contact_name', ''))
+        contact_tel = self._val('brsr_a_contact_telephone', self.organization.get('contact_telephone', ''))
+        contact_email = self._val('brsr_a_contact_email', self.organization.get('contact_email', ''))
         contact_str = f"{contact_name}, Tel: {contact_tel}, Email: {contact_email}" if contact_name else ''
         
         html = f'''
@@ -345,49 +367,49 @@ class BRSRHTMLTemplate:
         <div class="subsection-header">I. Details of the listed entity</div>
         
         <div class="question-item"><span class="q-num">1.</span> <span class="q-text">Corporate Identity Number (CIN) of the Listed Entity</span></div>
-        <div class="answer-value">{self._val('cin')}</div>
+        <div class="answer-value">{self._val('brsr_a_cin')}</div>
         
         <div class="question-item"><span class="q-num">2.</span> <span class="q-text">Name of the Listed Entity</span></div>
-        <div class="answer-value">{self._val('listed_entity_name', self.organization.get('name', ''))}</div>
+        <div class="answer-value">{self._val('brsr_a_entity_name', self.organization.get('name', ''))}</div>
         
         <div class="question-item"><span class="q-num">3.</span> <span class="q-text">Year of incorporation</span></div>
-        <div class="answer-value">{self._val('year_of_incorporation')}</div>
+        <div class="answer-value">{self._val('brsr_a_year_of_incorporation')}</div>
         
         <div class="question-item"><span class="q-num">4.</span> <span class="q-text">Registered office address</span></div>
-        <div class="answer-value">{self._format_address('registered_')}</div>
+        <div class="answer-value">{self._format_address('brsr_a_registered_address')}</div>
         
         <div class="question-item"><span class="q-num">5.</span> <span class="q-text">Corporate address</span></div>
-        <div class="answer-value">{self._format_address('corporate_')}</div>
+        <div class="answer-value">{self._format_address('brsr_a_corporate_address')}</div>
         
         <div class="question-item"><span class="q-num">6.</span> <span class="q-text">E-mail</span></div>
-        <div class="answer-value">{self._val('email')}</div>
+        <div class="answer-value">{self._val('brsr_a_email')}</div>
         
         <div class="question-item"><span class="q-num">7.</span> <span class="q-text">Telephone</span></div>
-        <div class="answer-value">{self._val('telephone')}</div>
+        <div class="answer-value">{self._val('brsr_a_telephone')}</div>
         
         <div class="question-item"><span class="q-num">8.</span> <span class="q-text">Website</span></div>
-        <div class="answer-value">{self._val('website')}</div>
+        <div class="answer-value">{self._val('brsr_a_website')}</div>
         
         <div class="question-item"><span class="q-num">9.</span> <span class="q-text">Financial year for which reporting is being done</span></div>
         <div class="answer-value">{self.reporting_period}</div>
         
         <div class="question-item"><span class="q-num">10.</span> <span class="q-text">Name of the Stock Exchange(s) where shares are listed</span></div>
-        <div class="answer-value">{self._val('stock_exchange')}</div>
+        <div class="answer-value">{self._val('brsr_a_stock_exchange')}</div>
         
         <div class="question-item"><span class="q-num">11.</span> <span class="q-text">Paid-up Capital</span></div>
-        <div class="answer-value">{self._val('paid_up_capital')}</div>
+        <div class="answer-value">{self._val('brsr_a_paid_up_capital')}</div>
         
         <div class="question-item"><span class="q-num">12.</span> <span class="q-text">Name and contact details (telephone, email address) of the person who may be contacted in case of any queries on the BRSR report</span></div>
         <div class="answer-value">{contact_str}</div>
         
         <div class="question-item"><span class="q-num">13.</span> <span class="q-text">Reporting boundary - Are the disclosures under this report made on a standalone basis (i.e. only for the entity) or on a consolidated basis (i.e. for the entity and all the entities which form a part of its consolidated financial statements, taken together).</span></div>
-        <div class="answer-value">{self._val('reporting_boundary')}</div>
+        <div class="answer-value">{self._val('brsr_a_reporting_boundary')}</div>
         
         <div class="question-item"><span class="q-num">14.</span> <span class="q-text">Name of assurance provider</span></div>
-        <div class="answer-value">{self._val('assurance_provider')}</div>
+        <div class="answer-value">{self._val('brsr_a_assurance_provider')}</div>
         
         <div class="question-item"><span class="q-num">15.</span> <span class="q-text">Type of assurance obtained</span></div>
-        <div class="answer-value">{self._val('assurance_type')}</div>
+        <div class="answer-value">{self._val('brsr_a_assurance_type')}</div>
         
         <!-- II. Products/services -->
         <div class="subsection-header">II. Products/services</div>
@@ -499,39 +521,115 @@ class BRSRHTMLTemplate:
         return html
     
     def _render_business_activities(self) -> str:
-        """Render business activities table rows."""
-        activities = self.section_a.get('business_activities', [])
-        if not activities:
+        """Render business activities table rows using brsr_a_business_activities key."""
+        activities = self.section_a.get('brsr_a_business_activities', [])
+        if not activities or not isinstance(activities, list):
             return '<tr><td class="text-center">1</td><td class="answer-cell"></td><td class="answer-cell"></td><td class="text-center answer-cell"></td></tr>'
         
         rows = []
         for i, activity in enumerate(activities, 1):
-            rows.append(f'''<tr>
+            if isinstance(activity, dict):
+                rows.append(f'''<tr>
                 <td class="text-center">{i}</td>
                 <td class="answer-cell">{activity.get('main_activity', '')}</td>
-                <td class="answer-cell">{activity.get('business_activity', '')}</td>
-                <td class="text-center answer-cell">{activity.get('turnover_percent', '')}</td>
+                <td class="answer-cell">{activity.get('description', '')}</td>
+                <td class="text-center answer-cell">{activity.get('turnover_percentage', '')}</td>
             </tr>''')
-        return '\n'.join(rows)
+        return '\n'.join(rows) if rows else '<tr><td class="text-center">1</td><td class="answer-cell"></td><td class="answer-cell"></td><td class="text-center answer-cell"></td></tr>'
     
     def _render_products_services(self) -> str:
-        """Render products/services table rows."""
-        products = self.section_a.get('products_services', [])
-        if not products:
+        """Render products/services table rows using brsr_a_products_services key."""
+        products = self.section_a.get('brsr_a_products_services', [])
+        if not products or not isinstance(products, list):
             return '<tr><td class="text-center">1</td><td class="answer-cell"></td><td class="answer-cell"></td><td class="text-center answer-cell"></td></tr>'
         
         rows = []
         for i, product in enumerate(products, 1):
-            rows.append(f'''<tr>
+            if isinstance(product, dict):
+                rows.append(f'''<tr>
                 <td class="text-center">{i}</td>
                 <td class="answer-cell">{product.get('product_service', '')}</td>
                 <td class="answer-cell">{product.get('nic_code', '')}</td>
-                <td class="text-center answer-cell">{product.get('turnover_percent', '')}</td>
+                <td class="text-center answer-cell">{product.get('turnover_percentage', '')}</td>
             </tr>''')
-        return '\n'.join(rows)
+        return '\n'.join(rows) if rows else '<tr><td class="text-center">1</td><td class="answer-cell"></td><td class="answer-cell"></td><td class="text-center answer-cell"></td></tr>'
+    
+    def _get_employee_data(self, category: str, employee_type: str, field: str) -> str:
+        """
+        Extract employee/worker data from nested brsr_a_employees_workers structure.
+        
+        Args:
+            category: 'employees' or 'workers'
+            employee_type: 'permanent' or 'other_than_permanent'
+            field: 'male', 'female', or 'total'
+        """
+        emp_data = self.section_a.get('brsr_a_employees_workers', {})
+        if isinstance(emp_data, dict):
+            cat_data = emp_data.get(category, {})
+            if isinstance(cat_data, dict):
+                type_data = cat_data.get(employee_type, {})
+                if isinstance(type_data, dict):
+                    val = type_data.get(field)
+                    return str(val) if val is not None else ''
+        return ''
+    
+    def _get_differently_abled_data(self, category: str, employee_type: str, field: str) -> str:
+        """
+        Extract differently abled employee/worker data from nested brsr_a_differently_abled structure.
+        """
+        da_data = self.section_a.get('brsr_a_differently_abled', {})
+        if isinstance(da_data, dict):
+            cat_data = da_data.get(category, {})
+            if isinstance(cat_data, dict):
+                type_data = cat_data.get(employee_type, {})
+                if isinstance(type_data, dict):
+                    val = type_data.get(field)
+                    return str(val) if val is not None else ''
+        return ''
+    
+    def _calc_percentage(self, part: str, total: str) -> str:
+        """Calculate percentage, handling empty or zero values."""
+        try:
+            p = float(part) if part else 0
+            t = float(total) if total else 0
+            if t > 0:
+                return f"{(p / t * 100):.1f}%"
+        except (ValueError, TypeError):
+            pass
+        return ''
     
     def _render_section_a_employees(self) -> str:
-        """Section A - IV. Employees - Exact Annexure II format."""
+        """Section A - IV. Employees - Exact Annexure II format with brsr_a_employees_workers data."""
+        # Extract employee data
+        emp_perm_male = self._get_employee_data('employees', 'permanent', 'male')
+        emp_perm_female = self._get_employee_data('employees', 'permanent', 'female')
+        emp_perm_total = self._get_employee_data('employees', 'permanent', 'total')
+        
+        emp_other_male = self._get_employee_data('employees', 'other_than_permanent', 'male')
+        emp_other_female = self._get_employee_data('employees', 'other_than_permanent', 'female')
+        emp_other_total = self._get_employee_data('employees', 'other_than_permanent', 'total')
+        
+        wrk_perm_male = self._get_employee_data('workers', 'permanent', 'male')
+        wrk_perm_female = self._get_employee_data('workers', 'permanent', 'female')
+        wrk_perm_total = self._get_employee_data('workers', 'permanent', 'total')
+        
+        wrk_other_male = self._get_employee_data('workers', 'other_than_permanent', 'male')
+        wrk_other_female = self._get_employee_data('workers', 'other_than_permanent', 'female')
+        wrk_other_total = self._get_employee_data('workers', 'other_than_permanent', 'total')
+        
+        # Calculate totals
+        try:
+            emp_total_male = str(int(float(emp_perm_male or 0)) + int(float(emp_other_male or 0))) if emp_perm_male or emp_other_male else ''
+            emp_total_female = str(int(float(emp_perm_female or 0)) + int(float(emp_other_female or 0))) if emp_perm_female or emp_other_female else ''
+            emp_total_total = str(int(float(emp_perm_total or 0)) + int(float(emp_other_total or 0))) if emp_perm_total or emp_other_total else ''
+            
+            wrk_total_male = str(int(float(wrk_perm_male or 0)) + int(float(wrk_other_male or 0))) if wrk_perm_male or wrk_other_male else ''
+            wrk_total_female = str(int(float(wrk_perm_female or 0)) + int(float(wrk_other_female or 0))) if wrk_perm_female or wrk_other_female else ''
+            wrk_total_total = str(int(float(wrk_perm_total or 0)) + int(float(wrk_other_total or 0))) if wrk_perm_total or wrk_other_total else ''
+        except (ValueError, TypeError):
+            emp_total_male = emp_total_female = emp_total_total = ''
+            wrk_total_male = wrk_total_female = wrk_total_total = ''
+        
         return f'''
         <!-- IV. Employees -->
         <div class="subsection-header">IV. Employees</div>
@@ -564,57 +662,57 @@ class BRSRHTMLTemplate:
                 <tr>
                     <td class="text-center">1</td>
                     <td>Permanent (D)</td>
-                    <td class="text-center answer-cell">{self._val('emp_perm_total', '')}</td>
-                    <td class="text-center answer-cell">{self._val('emp_perm_male', '')}</td>
-                    <td class="text-center answer-cell">{self._val('emp_perm_male_pct', '')}</td>
-                    <td class="text-center answer-cell">{self._val('emp_perm_female', '')}</td>
-                    <td class="text-center answer-cell">{self._val('emp_perm_female_pct', '')}</td>
+                    <td class="text-center answer-cell">{emp_perm_total}</td>
+                    <td class="text-center answer-cell">{emp_perm_male}</td>
+                    <td class="text-center answer-cell">{self._calc_percentage(emp_perm_male, emp_perm_total)}</td>
+                    <td class="text-center answer-cell">{emp_perm_female}</td>
+                    <td class="text-center answer-cell">{self._calc_percentage(emp_perm_female, emp_perm_total)}</td>
                 </tr>
                 <tr>
                     <td class="text-center">2</td>
                     <td>Other than Permanent (E)</td>
-                    <td class="text-center answer-cell">{self._val('emp_other_total', '')}</td>
-                    <td class="text-center answer-cell">{self._val('emp_other_male', '')}</td>
-                    <td class="text-center answer-cell">{self._val('emp_other_male_pct', '')}</td>
-                    <td class="text-center answer-cell">{self._val('emp_other_female', '')}</td>
-                    <td class="text-center answer-cell">{self._val('emp_other_female_pct', '')}</td>
+                    <td class="text-center answer-cell">{emp_other_total}</td>
+                    <td class="text-center answer-cell">{emp_other_male}</td>
+                    <td class="text-center answer-cell">{self._calc_percentage(emp_other_male, emp_other_total)}</td>
+                    <td class="text-center answer-cell">{emp_other_female}</td>
+                    <td class="text-center answer-cell">{self._calc_percentage(emp_other_female, emp_other_total)}</td>
                 </tr>
                 <tr>
                     <td class="text-center">3</td>
                     <td>Total employees (D + E)</td>
-                    <td class="text-center answer-cell">{self._val('emp_total_total', '')}</td>
-                    <td class="text-center answer-cell">{self._val('emp_total_male', '')}</td>
-                    <td class="text-center answer-cell">{self._val('emp_total_male_pct', '')}</td>
-                    <td class="text-center answer-cell">{self._val('emp_total_female', '')}</td>
-                    <td class="text-center answer-cell">{self._val('emp_total_female_pct', '')}</td>
+                    <td class="text-center answer-cell">{emp_total_total}</td>
+                    <td class="text-center answer-cell">{emp_total_male}</td>
+                    <td class="text-center answer-cell">{self._calc_percentage(emp_total_male, emp_total_total)}</td>
+                    <td class="text-center answer-cell">{emp_total_female}</td>
+                    <td class="text-center answer-cell">{self._calc_percentage(emp_total_female, emp_total_total)}</td>
                 </tr>
                 <tr class="category-header"><td colspan="7">WORKERS</td></tr>
                 <tr>
                     <td class="text-center">4</td>
                     <td>Permanent (F)</td>
-                    <td class="text-center answer-cell">{self._val('wrk_perm_total', '')}</td>
-                    <td class="text-center answer-cell">{self._val('wrk_perm_male', '')}</td>
-                    <td class="text-center answer-cell">{self._val('wrk_perm_male_pct', '')}</td>
-                    <td class="text-center answer-cell">{self._val('wrk_perm_female', '')}</td>
-                    <td class="text-center answer-cell">{self._val('wrk_perm_female_pct', '')}</td>
+                    <td class="text-center answer-cell">{wrk_perm_total}</td>
+                    <td class="text-center answer-cell">{wrk_perm_male}</td>
+                    <td class="text-center answer-cell">{self._calc_percentage(wrk_perm_male, wrk_perm_total)}</td>
+                    <td class="text-center answer-cell">{wrk_perm_female}</td>
+                    <td class="text-center answer-cell">{self._calc_percentage(wrk_perm_female, wrk_perm_total)}</td>
                 </tr>
                 <tr>
                     <td class="text-center">5</td>
                     <td>Other than Permanent (G)</td>
-                    <td class="text-center answer-cell">{self._val('wrk_other_total', '')}</td>
-                    <td class="text-center answer-cell">{self._val('wrk_other_male', '')}</td>
-                    <td class="text-center answer-cell">{self._val('wrk_other_male_pct', '')}</td>
-                    <td class="text-center answer-cell">{self._val('wrk_other_female', '')}</td>
-                    <td class="text-center answer-cell">{self._val('wrk_other_female_pct', '')}</td>
+                    <td class="text-center answer-cell">{wrk_other_total}</td>
+                    <td class="text-center answer-cell">{wrk_other_male}</td>
+                    <td class="text-center answer-cell">{self._calc_percentage(wrk_other_male, wrk_other_total)}</td>
+                    <td class="text-center answer-cell">{wrk_other_female}</td>
+                    <td class="text-center answer-cell">{self._calc_percentage(wrk_other_female, wrk_other_total)}</td>
                 </tr>
                 <tr>
                     <td class="text-center">6</td>
                     <td>Total workers (F + G)</td>
-                    <td class="text-center answer-cell">{self._val('wrk_total_total', '')}</td>
-                    <td class="text-center answer-cell">{self._val('wrk_total_male', '')}</td>
-                    <td class="text-center answer-cell">{self._val('wrk_total_male_pct', '')}</td>
-                    <td class="text-center answer-cell">{self._val('wrk_total_female', '')}</td>
-                    <td class="text-center answer-cell">{self._val('wrk_total_female_pct', '')}</td>
+                    <td class="text-center answer-cell">{wrk_total_total}</td>
+                    <td class="text-center answer-cell">{wrk_total_male}</td>
+                    <td class="text-center answer-cell">{self._calc_percentage(wrk_total_male, wrk_total_total)}</td>
+                    <td class="text-center answer-cell">{wrk_total_female}</td>
+                    <td class="text-center answer-cell">{self._calc_percentage(wrk_total_female, wrk_total_total)}</td>
                 </tr>
             </tbody>
         </table>
