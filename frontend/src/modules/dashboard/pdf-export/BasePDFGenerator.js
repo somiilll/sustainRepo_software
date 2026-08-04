@@ -152,7 +152,9 @@ export class BasePDFGenerator {
   }
 
   checkPageBreak(requiredHeight) {
-    const availableHeight = PAGE.height - PAGE.footerHeight - this.currentY - 10;
+    // Ensure minimum 20mm gap before footer area
+    const footerBuffer = 20;
+    const availableHeight = PAGE.height - PAGE.footerHeight - footerBuffer - this.currentY;
     if (requiredHeight > availableHeight) {
       this.addNewPage();
       return true;
@@ -335,7 +337,7 @@ export class BasePDFGenerator {
     const lines = this.doc.splitTextToSize(text, textWidth);
     // Font size 9pt needs ~5mm line height for proper spacing
     const lineHeight = 5;
-    // Box padding: 12mm top (for ANALYSIS label) + 8mm bottom
+    // Box padding: 14mm top (for ANALYSIS label + gap) + 6mm bottom
     const boxHeight = Math.max(lines.length * lineHeight + 20, 32);
     
     this.checkPageBreak(boxHeight + 5);
@@ -356,11 +358,16 @@ export class BasePDFGenerator {
     this.doc.setTextColor(this.themeColor);
     this.doc.text('ANALYSIS', textStartX, this.currentY + 8);
     
-    // Analysis text - consistent font, starts after label with proper spacing
+    // Analysis text - render line by line for consistent spacing
     this.doc.setFont('helvetica', 'normal');
     this.doc.setFontSize(9);
     this.doc.setTextColor(COLORS.text);
-    this.doc.text(lines, textStartX, this.currentY + 15);
+    
+    let textY = this.currentY + 15;
+    lines.forEach((line) => {
+      this.doc.text(line, textStartX, textY);
+      textY += lineHeight;
+    });
     
     this.currentY += boxHeight + 10;
   }
@@ -410,7 +417,8 @@ export class BasePDFGenerator {
     this.doc.setLineWidth(0.3);
     this.doc.rect(startX, this.currentY, PAGE.contentWidth, data.length * rowHeight);
     
-    this.currentY = y + 10;
+    // Add adequate spacing after table to prevent footer collision
+    this.currentY = y + 15;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -429,6 +437,11 @@ export class BasePDFGenerator {
           btn.style.visibility = 'hidden';
         });
         
+        // Get the full dimensions including any overflow/scroll content
+        const rect = chartElement.getBoundingClientRect();
+        const fullWidth = Math.max(chartElement.scrollWidth, chartElement.offsetWidth, rect.width);
+        const fullHeight = Math.max(chartElement.scrollHeight, chartElement.offsetHeight, rect.height);
+        
         const capturePromise = html2canvas(chartElement, {
           scale: 2,
           backgroundColor: '#FFFFFF',
@@ -437,8 +450,14 @@ export class BasePDFGenerator {
           allowTaint: true,
           foreignObjectRendering: false,
           removeContainer: true,
-          windowWidth: chartElement.scrollWidth + 20,
-          windowHeight: chartElement.scrollHeight + 20,
+          width: fullWidth,
+          height: fullHeight,
+          windowWidth: fullWidth + 50,
+          windowHeight: fullHeight + 50,
+          scrollX: 0,
+          scrollY: 0,
+          x: 0,
+          y: 0,
         });
         
         const timeoutPromise = new Promise((_, reject) => 
@@ -593,7 +612,7 @@ export class BasePDFGenerator {
       const lines = this.doc.splitTextToSize(insight.text, textWidth);
       // Font size 8pt needs ~4.5mm line height for proper spacing
       const lineHeight = 4.5;
-      const cardHeight = Math.max(lines.length * lineHeight + 16, 24);
+      const cardHeight = Math.max(lines.length * lineHeight + 18, 26);
       
       this.checkPageBreak(cardHeight + 5);
       
@@ -613,11 +632,16 @@ export class BasePDFGenerator {
       this.doc.setTextColor(insight.color || this.themeColor);
       this.doc.text(insight.category || 'INSIGHT', textStartX, y + 8);
       
-      // Insight text - consistent font, full width
+      // Insight text - render line by line for consistent spacing
       this.doc.setFont('helvetica', 'normal');
       this.doc.setFontSize(8);
       this.doc.setTextColor(COLORS.text);
-      this.doc.text(lines, textStartX, y + 14);
+      
+      let textY = y + 14;
+      lines.forEach((line) => {
+        this.doc.text(line, textStartX, textY);
+        textY += lineHeight;
+      });
       
       this.currentY += cardHeight + 5;
     });
