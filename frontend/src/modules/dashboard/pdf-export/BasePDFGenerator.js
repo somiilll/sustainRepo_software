@@ -324,27 +324,39 @@ export class BasePDFGenerator {
     const useColor = color || COLORS.accent;
     this.checkPageBreak(30);
     
+    // Calculate text width: full content width minus left accent bar (4mm) and padding (8mm each side)
+    const textWidth = PAGE.contentWidth - 4 - 16; // 160mm text area
+    const textStartX = PAGE.margin + 4 + 8; // After accent bar + padding
+    
     this.doc.setFillColor('#F0FDF4');
     this.doc.setDrawColor(useColor);
     this.doc.setLineWidth(0.5);
     
-    const lines = this.doc.splitTextToSize(text, PAGE.contentWidth - 20);
-    const boxHeight = Math.max(lines.length * 5 + 16, 30);
+    // Use consistent font for text measurement and rendering
+    this.doc.setFont('helvetica', 'normal');
+    this.doc.setFontSize(9);
+    
+    const lines = this.doc.splitTextToSize(text, textWidth);
+    const lineHeight = 4.5;
+    const boxHeight = Math.max(lines.length * lineHeight + 20, 30);
     
     this.doc.roundedRect(PAGE.margin, this.currentY, PAGE.contentWidth, boxHeight, 3, 3, 'FD');
     
+    // Left accent bar
     this.doc.setFillColor(useColor);
     this.doc.rect(PAGE.margin, this.currentY, 4, boxHeight, 'F');
     
+    // "ANALYSIS" label - consistent font
     this.doc.setFont('helvetica', 'bold');
     this.doc.setFontSize(8);
     this.doc.setTextColor(this.themeColor);
-    this.doc.text('ANALYSIS', PAGE.margin + 12, this.currentY + 10);
+    this.doc.text('ANALYSIS', textStartX, this.currentY + 10);
     
+    // Analysis text - consistent font
     this.doc.setFont('helvetica', 'normal');
     this.doc.setFontSize(9);
     this.doc.setTextColor(COLORS.text);
-    this.doc.text(lines, PAGE.margin + 12, this.currentY + 18);
+    this.doc.text(lines, textStartX, this.currentY + 18);
     
     this.currentY += boxHeight + 10;
   }
@@ -437,17 +449,20 @@ export class BasePDFGenerator {
         
         const imgData = canvas.toDataURL('image/jpeg', 0.9);
         const aspectRatio = canvas.width / canvas.height;
-        let imgWidth = PAGE.contentWidth - 4;
+        
+        // Always use full content width for charts
+        const imgWidth = PAGE.contentWidth;
         let imgHeight = imgWidth / aspectRatio;
         
+        // Cap height but maintain full width (may crop/clip if needed)
         if (imgHeight > maxHeight) {
           imgHeight = maxHeight;
-          imgWidth = imgHeight * aspectRatio;
         }
         
         this.checkPageBreak(imgHeight + 10);
         
-        const chartX = PAGE.margin + (PAGE.contentWidth - imgWidth) / 2;
+        // Center the image (should be full width now)
+        const chartX = PAGE.margin;
         
         this.doc.setDrawColor(COLORS.borderLight);
         this.doc.setLineWidth(0.3);
@@ -560,11 +575,20 @@ export class BasePDFGenerator {
       insights = [{ category: 'BASELINE', text: 'Data is being collected. Continue monitoring to identify optimization opportunities.', color: this.themeColor }];
     }
     
+    // Calculate text width: full content width minus left accent bar (4mm) and padding (6mm each side)
+    const textWidth = PAGE.contentWidth - 4 - 12;
+    const textStartX = PAGE.margin + 4 + 6;
+    
     insights.forEach((insight, index) => {
-      this.checkPageBreak(25);
+      this.checkPageBreak(28);
       
       const y = this.currentY;
-      const cardHeight = 22;
+      
+      // Pre-calculate text lines for dynamic height
+      this.doc.setFont('helvetica', 'normal');
+      this.doc.setFontSize(8);
+      const lines = this.doc.splitTextToSize(insight.text, textWidth);
+      const cardHeight = Math.max(lines.length * 4 + 14, 22);
       
       this.doc.setFillColor(index % 2 === 0 ? '#F0FDF4' : '#FEF3C7');
       this.doc.setDrawColor(insight.color || this.themeColor);
@@ -574,16 +598,17 @@ export class BasePDFGenerator {
       this.doc.setFillColor(insight.color || this.themeColor);
       this.doc.rect(PAGE.margin, y, 4, cardHeight, 'F');
       
+      // Category label - consistent font
       this.doc.setFont('helvetica', 'bold');
       this.doc.setFontSize(9);
       this.doc.setTextColor(insight.color || this.themeColor);
-      this.doc.text(insight.category || 'INSIGHT', PAGE.margin + 10, y + 8);
+      this.doc.text(insight.category || 'INSIGHT', textStartX, y + 8);
       
+      // Insight text - consistent font, full width
       this.doc.setFont('helvetica', 'normal');
       this.doc.setFontSize(8);
       this.doc.setTextColor(COLORS.text);
-      const lines = this.doc.splitTextToSize(insight.text, PAGE.contentWidth - 20);
-      this.doc.text(lines[0], PAGE.margin + 10, y + 16);
+      this.doc.text(lines, textStartX, y + 15);
       
       this.currentY += cardHeight + 5;
     });
