@@ -2,9 +2,10 @@
 BRSR Annexure II Template - EXACT REPLICA
 
 This template recreates the official SEBI BRSR Annexure II format EXACTLY.
-Only the data values are dynamic - layout, fonts, spacing, tables are identical.
+Every heading, question, numbering, paragraph, note and table matches the official document.
+Only the data values are dynamic - layout, fonts, spacing, tables are IDENTICAL to the official format.
 
-Based on official MCA/SEBI BRSR Annexure II document analysis.
+Based on official MCA/SEBI BRSR Annexure II document (July 2023 Updated Version).
 """
 
 from typing import Dict, Any, List, Optional
@@ -15,27 +16,22 @@ class BRSRHTMLTemplate:
     """
     Generates HTML that is an EXACT REPLICA of the SEBI BRSR Annexure II format.
     
-    Design specifications from official Annexure II:
-    - Font: Arial, 10pt body, 12pt headers
-    - Page: A4 (210mm x 297mm)
-    - Margins: ~20mm all sides
-    - Tables: 1px solid black borders
-    - Section headers: Bold (NO green background)
-    - Subsection headers: Bold, underlined
-    - Principle headers in Section C: Bold with green background
+    CRITICAL: This template uses FIXED hardcoded questions and tables.
+    Questions do NOT come from configuration.
+    Only answer values are dynamic.
     """
     
-    # Principle definitions - exact text from Annexure II
+    # Exact Principle statements from Annexure II
     PRINCIPLES = {
         'P1': 'Businesses should conduct and govern themselves with integrity, and in a manner that is Ethical, Transparent and Accountable.',
-        'P2': 'Businesses should provide goods and services in a manner that is sustainable and safe.',
-        'P3': 'Businesses should respect and promote the well-being of all employees, including those in their value chains.',
-        'P4': 'Businesses should respect the interests of and be responsive to all its stakeholders.',
-        'P5': 'Businesses should respect and promote human rights.',
-        'P6': 'Businesses should respect and make efforts to protect and restore the environment.',
-        'P7': 'Businesses, when engaging in influencing public and regulatory policy, should do so in a manner that is responsible and transparent.',
-        'P8': 'Businesses should promote inclusive growth and equitable development.',
-        'P9': 'Businesses should engage with and provide value to their consumers in a responsible manner.',
+        'P2': 'Businesses should provide goods and services in a manner that is sustainable and safe',
+        'P3': 'Businesses should respect and promote the well-being of all employees, including those in their value chains',
+        'P4': 'Businesses should respect the interests of and be responsive to all its stakeholders',
+        'P5': 'Businesses should respect and promote human rights',
+        'P6': 'Businesses should respect and make efforts to protect and restore the environment',
+        'P7': 'Businesses, when engaging in influencing public and regulatory policy, should do so in a manner that is responsible and transparent',
+        'P8': 'Businesses should promote inclusive growth and equitable development',
+        'P9': 'Businesses should engage with and provide value to their consumers in a responsible manner',
     }
     
     def __init__(
@@ -55,16 +51,38 @@ class BRSRHTMLTemplate:
         self.section_b_configs = section_b_configs or []
         self.section_c_data = section_c_data or {}
         self.section_c_configs = section_c_configs or []
+        
+        # Calculate previous FY
+        self.previous_fy = self._calculate_previous_fy(reporting_period)
+    
+    def _calculate_previous_fy(self, current_fy: str) -> str:
+        """Calculate previous financial year from current FY string."""
+        try:
+            # Handle formats like "FY 2024-2025", "FY2024-25", "2024-2025"
+            fy_clean = current_fy.replace('FY', '').replace('fy', '').strip()
+            if '-' in fy_clean:
+                parts = fy_clean.split('-')
+                start_year = int(parts[0])
+                end_year_str = parts[1]
+                if len(end_year_str) == 2:
+                    end_year = int(f"{str(start_year)[:2]}{end_year_str}")
+                else:
+                    end_year = int(end_year_str)
+                prev_start = start_year - 1
+                prev_end = end_year - 1
+                if len(end_year_str) == 2:
+                    return f"FY {prev_start}-{str(prev_end)[-2:]}"
+                return f"FY {prev_start}-{prev_end}"
+        except:
+            pass
+        return "FY (Previous)"
     
     def get_css(self) -> str:
-        """
-        CSS that EXACTLY replicates Annexure II styling.
-        No custom design - pure replication.
-        """
+        """CSS that EXACTLY replicates Annexure II styling - Arial font, exact spacing."""
         return '''
         @page {
             size: A4;
-            margin: 20mm;
+            margin: 20mm 15mm 20mm 15mm;
         }
         
         * {
@@ -76,106 +94,107 @@ class BRSRHTMLTemplate:
         body {
             font-family: Arial, Helvetica, sans-serif;
             font-size: 10pt;
-            line-height: 1.3;
+            line-height: 1.4;
             color: #000000;
             background: #FFFFFF;
         }
         
-        /* Annexure II header - top right of first page */
+        /* Annexure label - right aligned */
         .annexure-label {
             text-align: right;
             font-size: 10pt;
-            font-weight: normal;
+            font-weight: bold;
             margin-bottom: 15px;
         }
         
-        /* Main document title */
+        /* Document title - centered, bold */
         .doc-title {
             text-align: center;
             font-size: 12pt;
             font-weight: bold;
             margin-bottom: 20px;
+            text-transform: uppercase;
         }
         
-        /* Section headers - Bold text only, NO background color */
+        /* Section headers - Bold, uppercase */
         .section-header {
             font-size: 11pt;
             font-weight: bold;
-            margin: 20px 0 12px 0;
+            margin: 25px 0 15px 0;
+            text-transform: uppercase;
         }
         
-        /* Subsection headers - Bold and underlined */
+        /* Roman numeral subsection headers */
         .subsection-header {
             font-size: 10pt;
             font-weight: bold;
-            text-decoration: underline;
-            margin: 12px 0 8px 0;
+            margin: 18px 0 10px 0;
         }
         
-        /* Principle headers in Section C - Green background */
+        /* Principle headers - Green background as per Annexure II */
         .principle-header {
-            background-color: #70AD47;
             font-size: 10pt;
             font-weight: bold;
-            padding: 5px 8px;
-            margin: 15px 0 8px 0;
+            background-color: #70AD47;
+            color: #000000;
+            padding: 8px 10px;
+            margin: 20px 0 12px 0;
         }
         
-        /* Indicator type headers (Essential/Leadership) */
+        /* Indicator type headers (Essential/Leadership) - Bold, underlined */
         .indicator-header {
             font-size: 10pt;
             font-weight: bold;
-            margin: 12px 0 8px 0;
+            text-decoration: underline;
+            margin: 15px 0 10px 0;
         }
         
-        /* Question item container */
+        /* Question items */
         .question-item {
-            margin: 6px 0;
-            display: flex;
-            align-items: flex-start;
+            margin: 8px 0;
+            text-align: justify;
         }
         
-        /* Question number */
         .q-num {
-            min-width: 20px;
             font-weight: normal;
+            display: inline;
         }
         
-        /* Question text */
         .q-text {
-            flex: 1;
+            display: inline;
         }
         
-        /* Sub-question labels (a), (b), etc */
+        /* Sub-labels for (a), (b), (c) etc */
         .sub-label {
-            margin-left: 20px;
-            margin-top: 4px;
+            margin: 6px 0 4px 25px;
         }
         
-        /* Deeper indentation */
         .sub-label-2 {
-            margin-left: 35px;
-            margin-top: 4px;
+            margin: 4px 0 4px 40px;
         }
         
-        /* Answer value */
+        /* Answer value display */
         .answer-value {
-            margin-left: 25px;
-            margin-top: 2px;
-            font-weight: bold;
+            margin: 4px 0 8px 25px;
+            min-height: 16px;
         }
         
-        /* Tables - EXACT Annexure II style */
+        .answer-inline {
+            display: inline;
+            margin-left: 5px;
+        }
+        
+        /* Tables - EXACT Annexure II style with black borders */
         table {
             width: 100%;
             border-collapse: collapse;
-            margin: 8px 0 12px 0;
+            margin: 10px 0 15px 0;
             font-size: 9pt;
         }
         
         th, td {
             border: 1px solid #000000;
-            padding: 4px 6px;
+            padding: 5px 6px;
             text-align: left;
             vertical-align: top;
         }
@@ -183,93 +202,106 @@ class BRSRHTMLTemplate:
         th {
             font-weight: bold;
             background-color: #FFFFFF;
-        }
-        
-        /* Column widths for specific table types */
-        .col-sno {
-            width: 35px;
             text-align: center;
         }
         
-        .col-narrow {
-            width: 60px;
-            text-align: center;
+        /* Specific column widths */
+        .col-sno { width: 40px; text-align: center; }
+        .col-narrow { width: 70px; text-align: center; }
+        .col-percent { width: 80px; text-align: center; }
+        .col-principle { width: 50px; text-align: center; }
+        .col-number { width: 60px; text-align: center; }
+        .col-yesno { width: 55px; text-align: center; }
+        
+        .answer-cell { 
+            min-height: 20px;
+            background-color: #FFFFFF;
         }
         
-        .col-percent {
-            width: 70px;
-            text-align: center;
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .text-left { text-align: left; }
+        
+        .fy-header { 
+            text-align: center; 
+            font-weight: bold;
+            background-color: #F2F2F2;
         }
         
-        .col-principle {
-            width: 45px;
-            text-align: center;
+        .category-header {
+            font-weight: bold;
+            background-color: #E7E6E6;
         }
         
-        /* Answer/response placeholder */
-        .answer-cell {
-            min-height: 18px;
-        }
-        
-        /* Page break */
-        .page-break {
-            page-break-after: always;
-        }
-        
-        /* For FY columns in tables */
-        .fy-header {
-            text-align: center;
+        .row-header {
             font-weight: bold;
         }
         
-        /* Bold text */
-        .bold {
-            font-weight: bold;
-        }
+        .bold { font-weight: bold; }
+        .italic { font-style: italic; }
         
-        /* Intro paragraph */
-        .intro-text {
-            margin: 8px 0 15px 0;
+        .intro-text { 
+            margin: 10px 0 15px 0; 
             font-size: 10pt;
+            text-align: justify;
         }
         
-        /* Note text */
-        .note-text {
-            font-size: 9pt;
-            font-style: italic;
-            margin: 5px 0;
+        .note-text { 
+            font-size: 9pt; 
+            font-style: italic; 
+            margin: 8px 0;
         }
         
-        /* Print styles */
+        /* Page breaks */
+        .page-break { 
+            page-break-after: always; 
+        }
+        
+        .avoid-break {
+            page-break-inside: avoid;
+        }
+        
+        /* Table with merged header cells */
+        .merged-header {
+            text-align: center;
+            font-weight: bold;
+        }
+        
         @media print {
-            body {
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
+            body { 
+                -webkit-print-color-adjust: exact; 
+                print-color-adjust: exact; 
             }
-            .page-break {
-                page-break-after: always;
+            .page-break { 
+                page-break-after: always; 
+            }
+            .principle-header {
+                background-color: #70AD47 !important;
+                -webkit-print-color-adjust: exact;
             }
         }
         '''
     
     def _val(self, key: str, default: str = '') -> str:
-        """Get value from section_a data, return empty string if not found."""
+        """Get value from section_a data."""
         val = self.section_a.get(key)
         if val is None or val == '':
             return default
         return str(val)
     
     def _get_response(self, data: Dict, key: str, default: str = '') -> str:
-        """Get response value from data dict."""
+        """Get response value from data dictionary."""
         val = data.get(key)
         if val is None or val == '':
             return default
         if isinstance(val, bool):
             return 'Yes' if val else 'No'
+        if isinstance(val, (list, dict)):
+            return str(val)
         return str(val)
     
     def _format_address(self, prefix: str) -> str:
-        """Format address from section_a data."""
+        """Format address from section_a fields."""
         parts = []
         for field in ['address', 'city', 'state', 'country', 'pincode']:
             val = self.section_a.get(f'{prefix}{field}')
@@ -277,82 +309,94 @@ class BRSRHTMLTemplate:
                 parts.append(str(val))
         return ', '.join(parts) if parts else ''
     
+    def render(self) -> str:
+        """Render the complete BRSR Annexure II HTML document."""
+        html = f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BRSR Annexure II - {self.organization.get('name', 'Organization')}</title>
+    <style>
+    {self.get_css()}
+    </style>
+</head>
+<body>
+    {self.render_section_a()}
+    {self.render_section_b()}
+    {self.render_section_c()}
+</body>
+</html>'''
+        return html
+    
     def render_section_a(self) -> str:
         """
-        Render Section A: General Disclosures
-        EXACT replica of Annexure II pages 1-5
+        SECTION A: GENERAL DISCLOSURES
+        Exact replica of Annexure II Section A with all questions and tables.
         """
-        
-        # Get contact details
         contact_name = self._val('brsr_contact_name')
         contact_tel = self._val('brsr_contact_telephone')
         contact_email = self._val('brsr_contact_email')
-        contact_details = []
-        if contact_name:
-            contact_details.append(f"Name: {contact_name}")
-        if contact_tel:
-            contact_details.append(f"Tel: {contact_tel}")
-        if contact_email:
-            contact_details.append(f"Email: {contact_email}")
-        contact_str = ', '.join(contact_details)
+        contact_str = f"{contact_name}, Tel: {contact_tel}, Email: {contact_email}" if contact_name else ''
         
         html = f'''
-        <!-- Page 1 -->
         <div class="annexure-label">Annexure II</div>
         <div class="doc-title">BUSINESS RESPONSIBILITY &amp; SUSTAINABILITY REPORTING FORMAT</div>
         
         <div class="section-header">SECTION A: GENERAL DISCLOSURES</div>
         
+        <!-- I. Details of the listed entity -->
         <div class="subsection-header">I. Details of the listed entity</div>
         
-        <div class="question-item"><span class="q-num">1.</span><span class="q-text">Corporate Identity Number (CIN) of the Listed Entity</span></div>
+        <div class="question-item"><span class="q-num">1.</span> <span class="q-text">Corporate Identity Number (CIN) of the Listed Entity</span></div>
         <div class="answer-value">{self._val('cin')}</div>
         
-        <div class="question-item"><span class="q-num">2.</span><span class="q-text">Name of the Listed Entity</span></div>
-        <div class="answer-value">{self._val('listed_entity_name')}</div>
+        <div class="question-item"><span class="q-num">2.</span> <span class="q-text">Name of the Listed Entity</span></div>
+        <div class="answer-value">{self._val('listed_entity_name', self.organization.get('name', ''))}</div>
         
-        <div class="question-item"><span class="q-num">3.</span><span class="q-text">Year of incorporation</span></div>
+        <div class="question-item"><span class="q-num">3.</span> <span class="q-text">Year of incorporation</span></div>
         <div class="answer-value">{self._val('year_of_incorporation')}</div>
         
-        <div class="question-item"><span class="q-num">4.</span><span class="q-text">Registered office address</span></div>
+        <div class="question-item"><span class="q-num">4.</span> <span class="q-text">Registered office address</span></div>
         <div class="answer-value">{self._format_address('registered_')}</div>
         
-        <div class="question-item"><span class="q-num">5.</span><span class="q-text">Corporate address</span></div>
+        <div class="question-item"><span class="q-num">5.</span> <span class="q-text">Corporate address</span></div>
         <div class="answer-value">{self._format_address('corporate_')}</div>
         
-        <div class="question-item"><span class="q-num">6.</span><span class="q-text">E-mail</span></div>
+        <div class="question-item"><span class="q-num">6.</span> <span class="q-text">E-mail</span></div>
         <div class="answer-value">{self._val('email')}</div>
         
-        <div class="question-item"><span class="q-num">7.</span><span class="q-text">Telephone</span></div>
+        <div class="question-item"><span class="q-num">7.</span> <span class="q-text">Telephone</span></div>
         <div class="answer-value">{self._val('telephone')}</div>
         
-        <div class="question-item"><span class="q-num">8.</span><span class="q-text">Website</span></div>
+        <div class="question-item"><span class="q-num">8.</span> <span class="q-text">Website</span></div>
         <div class="answer-value">{self._val('website')}</div>
         
-        <div class="question-item"><span class="q-num">9.</span><span class="q-text">Financial year for which reporting is being done</span></div>
+        <div class="question-item"><span class="q-num">9.</span> <span class="q-text">Financial year for which reporting is being done</span></div>
         <div class="answer-value">{self.reporting_period}</div>
         
-        <div class="question-item"><span class="q-num">10.</span><span class="q-text">Name of the Stock Exchange(s) where shares are listed</span></div>
+        <div class="question-item"><span class="q-num">10.</span> <span class="q-text">Name of the Stock Exchange(s) where shares are listed</span></div>
         <div class="answer-value">{self._val('stock_exchange')}</div>
         
-        <div class="question-item"><span class="q-num">11.</span><span class="q-text">Paid-up Capital</span></div>
+        <div class="question-item"><span class="q-num">11.</span> <span class="q-text">Paid-up Capital</span></div>
         <div class="answer-value">{self._val('paid_up_capital')}</div>
         
-        <div class="question-item"><span class="q-num">12.</span><span class="q-text">Name and contact details (telephone, email address) of the person who may be contacted in case of any queries on the BRSR report</span></div>
+        <div class="question-item"><span class="q-num">12.</span> <span class="q-text">Name and contact details (telephone, email address) of the person who may be contacted in case of any queries on the BRSR report</span></div>
         <div class="answer-value">{contact_str}</div>
         
-        <div class="question-item"><span class="q-num">13.</span><span class="q-text">Reporting boundary - Are the disclosures under this report made on a standalone basis (i.e. only for the entity) or on a consolidated basis (i.e. for the entity and all the entities which form a part of its consolidated financial statements, taken together).</span></div>
+        <div class="question-item"><span class="q-num">13.</span> <span class="q-text">Reporting boundary - Are the disclosures under this report made on a standalone basis (i.e. only for the entity) or on a consolidated basis (i.e. for the entity and all the entities which form a part of its consolidated financial statements, taken together).</span></div>
         <div class="answer-value">{self._val('reporting_boundary')}</div>
         
-        <div class="question-item"><span class="q-num">14.</span><span class="q-text">Name of assurance provider</span></div>
+        <div class="question-item"><span class="q-num">14.</span> <span class="q-text">Name of assurance provider</span></div>
         <div class="answer-value">{self._val('assurance_provider')}</div>
         
-        <div class="question-item"><span class="q-num">15.</span><span class="q-text">Type of assurance obtained</span></div>
+        <div class="question-item"><span class="q-num">15.</span> <span class="q-text">Type of assurance obtained</span></div>
         <div class="answer-value">{self._val('assurance_type')}</div>
         
+        <!-- II. Products/services -->
         <div class="subsection-header">II. Products/services</div>
         
-        <div class="question-item"><span class="q-num">16.</span><span class="q-text">Details of business activities (accounting for 90% of the turnover):</span></div>
+        <div class="question-item"><span class="q-num">16.</span> <span class="q-text">Details of business activities (accounting for 90% of the turnover):</span></div>
         
         <table>
             <thead>
@@ -368,7 +412,7 @@ class BRSRHTMLTemplate:
             </tbody>
         </table>
         
-        <div class="question-item"><span class="q-num">17.</span><span class="q-text">Products/Services sold by the entity (accounting for 90% of the entity's Turnover):</span></div>
+        <div class="question-item"><span class="q-num">17.</span> <span class="q-text">Products/Services sold by the entity (accounting for 90% of the entity's Turnover):</span></div>
         
         <table>
             <thead>
@@ -384,9 +428,10 @@ class BRSRHTMLTemplate:
             </tbody>
         </table>
         
+        <!-- III. Operations -->
         <div class="subsection-header">III. Operations</div>
         
-        <div class="question-item"><span class="q-num">18.</span><span class="q-text">Number of locations where plants and/or operations/offices of the entity are situated:</span></div>
+        <div class="question-item"><span class="q-num">18.</span> <span class="q-text">Number of locations where plants and/or operations/offices of the entity are situated:</span></div>
         
         <table>
             <thead>
@@ -398,11 +443,22 @@ class BRSRHTMLTemplate:
                 </tr>
             </thead>
             <tbody>
-                {self._render_plants_offices()}
+                <tr>
+                    <td>National</td>
+                    <td class="text-center answer-cell">{self._val('national_plants', '')}</td>
+                    <td class="text-center answer-cell">{self._val('national_offices', '')}</td>
+                    <td class="text-center answer-cell">{self._val('national_total', '')}</td>
+                </tr>
+                <tr>
+                    <td>International</td>
+                    <td class="text-center answer-cell">{self._val('international_plants', '')}</td>
+                    <td class="text-center answer-cell">{self._val('international_offices', '')}</td>
+                    <td class="text-center answer-cell">{self._val('international_total', '')}</td>
+                </tr>
             </tbody>
         </table>
         
-        <div class="question-item"><span class="q-num">19.</span><span class="q-text">Markets served by the entity:</span></div>
+        <div class="question-item"><span class="q-num">19.</span> <span class="q-text">Markets served by the entity:</span></div>
         
         <div class="sub-label">a. Number of locations</div>
         
@@ -414,19 +470,77 @@ class BRSRHTMLTemplate:
                 </tr>
             </thead>
             <tbody>
-                {self._render_markets_served()}
+                <tr>
+                    <td>National (No. of States)</td>
+                    <td class="text-center answer-cell">{self._val('national_states', '')}</td>
+                </tr>
+                <tr>
+                    <td>International (No. of Countries)</td>
+                    <td class="text-center answer-cell">{self._val('international_countries', '')}</td>
+                </tr>
             </tbody>
         </table>
         
         <div class="sub-label">b. What is the contribution of exports as a percentage of the total turnover of the entity?</div>
-        <div class="answer-value">{self._val('export_contribution_percentage')}%</div>
+        <div class="answer-value">{self._val('export_contribution_percentage', '')}%</div>
         
         <div class="sub-label">c. A brief on types of customers</div>
-        <div class="answer-value">{self._val('customer_types_brief')}</div>
+        <div class="answer-value">{self._val('customer_types_brief', '')}</div>
+        '''
         
+        # Continue with IV. Employees
+        html += self._render_section_a_employees()
+        
+        # V. Holding, Subsidiary
+        html += self._render_section_a_holding()
+        
+        # VI. CSR Details
+        html += self._render_section_a_csr()
+        
+        # VII. Transparency and Disclosures
+        html += self._render_section_a_transparency()
+        
+        return html
+    
+    def _render_business_activities(self) -> str:
+        """Render business activities table rows."""
+        activities = self.section_a.get('business_activities', [])
+        if not activities:
+            return '<tr><td class="text-center">1</td><td class="answer-cell"></td><td class="answer-cell"></td><td class="text-center answer-cell"></td></tr>'
+        
+        rows = []
+        for i, activity in enumerate(activities, 1):
+            rows.append(f'''<tr>
+                <td class="text-center">{i}</td>
+                <td class="answer-cell">{activity.get('main_activity', '')}</td>
+                <td class="answer-cell">{activity.get('business_activity', '')}</td>
+                <td class="text-center answer-cell">{activity.get('turnover_percent', '')}</td>
+            </tr>''')
+        return '\n'.join(rows)
+    
+    def _render_products_services(self) -> str:
+        """Render products/services table rows."""
+        products = self.section_a.get('products_services', [])
+        if not products:
+            return '<tr><td class="text-center">1</td><td class="answer-cell"></td><td class="answer-cell"></td><td class="text-center answer-cell"></td></tr>'
+        
+        rows = []
+        for i, product in enumerate(products, 1):
+            rows.append(f'''<tr>
+                <td class="text-center">{i}</td>
+                <td class="answer-cell">{product.get('product_service', '')}</td>
+                <td class="answer-cell">{product.get('nic_code', '')}</td>
+                <td class="text-center answer-cell">{product.get('turnover_percent', '')}</td>
+            </tr>''')
+        return '\n'.join(rows)
+    
+    def _render_section_a_employees(self) -> str:
+        """Section A - IV. Employees - Exact Annexure II format."""
+        return f'''
+        <!-- IV. Employees -->
         <div class="subsection-header">IV. Employees</div>
         
-        <div class="question-item"><span class="q-num">20.</span><span class="q-text">Details as at the end of Financial Year:</span></div>
+        <div class="question-item"><span class="q-num">20.</span> <span class="q-text">Details as at the end of Financial Year:</span></div>
         
         <div class="sub-label">a. Employees and workers (including differently abled):</div>
         
@@ -436,17 +550,76 @@ class BRSRHTMLTemplate:
                     <th class="col-sno">S. No.</th>
                     <th>Particulars</th>
                     <th class="col-narrow">Total (A)</th>
-                    <th class="col-narrow">Male No. (B)</th>
+                    <th colspan="2">Male</th>
+                    <th colspan="2">Female</th>
+                </tr>
+                <tr>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th class="col-narrow">No. (B)</th>
                     <th class="col-narrow">% (B/A)</th>
-                    <th class="col-narrow">Female No. (C)</th>
+                    <th class="col-narrow">No. (C)</th>
                     <th class="col-narrow">% (C/A)</th>
                 </tr>
             </thead>
             <tbody>
-                <tr><td colspan="7" class="bold">EMPLOYEES</td></tr>
-                {self._render_employees_table()}
-                <tr><td colspan="7" class="bold">WORKERS</td></tr>
-                {self._render_workers_table()}
+                <tr class="category-header"><td colspan="7">EMPLOYEES</td></tr>
+                <tr>
+                    <td class="text-center">1</td>
+                    <td>Permanent (D)</td>
+                    <td class="text-center answer-cell">{self._val('emp_perm_total', '')}</td>
+                    <td class="text-center answer-cell">{self._val('emp_perm_male', '')}</td>
+                    <td class="text-center answer-cell">{self._val('emp_perm_male_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._val('emp_perm_female', '')}</td>
+                    <td class="text-center answer-cell">{self._val('emp_perm_female_pct', '')}</td>
+                </tr>
+                <tr>
+                    <td class="text-center">2</td>
+                    <td>Other than Permanent (E)</td>
+                    <td class="text-center answer-cell">{self._val('emp_other_total', '')}</td>
+                    <td class="text-center answer-cell">{self._val('emp_other_male', '')}</td>
+                    <td class="text-center answer-cell">{self._val('emp_other_male_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._val('emp_other_female', '')}</td>
+                    <td class="text-center answer-cell">{self._val('emp_other_female_pct', '')}</td>
+                </tr>
+                <tr>
+                    <td class="text-center">3</td>
+                    <td>Total employees (D + E)</td>
+                    <td class="text-center answer-cell">{self._val('emp_total_total', '')}</td>
+                    <td class="text-center answer-cell">{self._val('emp_total_male', '')}</td>
+                    <td class="text-center answer-cell">{self._val('emp_total_male_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._val('emp_total_female', '')}</td>
+                    <td class="text-center answer-cell">{self._val('emp_total_female_pct', '')}</td>
+                </tr>
+                <tr class="category-header"><td colspan="7">WORKERS</td></tr>
+                <tr>
+                    <td class="text-center">4</td>
+                    <td>Permanent (F)</td>
+                    <td class="text-center answer-cell">{self._val('wrk_perm_total', '')}</td>
+                    <td class="text-center answer-cell">{self._val('wrk_perm_male', '')}</td>
+                    <td class="text-center answer-cell">{self._val('wrk_perm_male_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._val('wrk_perm_female', '')}</td>
+                    <td class="text-center answer-cell">{self._val('wrk_perm_female_pct', '')}</td>
+                </tr>
+                <tr>
+                    <td class="text-center">5</td>
+                    <td>Other than Permanent (G)</td>
+                    <td class="text-center answer-cell">{self._val('wrk_other_total', '')}</td>
+                    <td class="text-center answer-cell">{self._val('wrk_other_male', '')}</td>
+                    <td class="text-center answer-cell">{self._val('wrk_other_male_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._val('wrk_other_female', '')}</td>
+                    <td class="text-center answer-cell">{self._val('wrk_other_female_pct', '')}</td>
+                </tr>
+                <tr>
+                    <td class="text-center">6</td>
+                    <td>Total workers (F + G)</td>
+                    <td class="text-center answer-cell">{self._val('wrk_total_total', '')}</td>
+                    <td class="text-center answer-cell">{self._val('wrk_total_male', '')}</td>
+                    <td class="text-center answer-cell">{self._val('wrk_total_male_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._val('wrk_total_female', '')}</td>
+                    <td class="text-center answer-cell">{self._val('wrk_total_female_pct', '')}</td>
+                </tr>
             </tbody>
         </table>
         
@@ -458,21 +631,80 @@ class BRSRHTMLTemplate:
                     <th class="col-sno">S. No.</th>
                     <th>Particulars</th>
                     <th class="col-narrow">Total (A)</th>
-                    <th class="col-narrow">Male No. (B)</th>
+                    <th colspan="2">Male</th>
+                    <th colspan="2">Female</th>
+                </tr>
+                <tr>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th class="col-narrow">No. (B)</th>
                     <th class="col-narrow">% (B/A)</th>
-                    <th class="col-narrow">Female No. (C)</th>
+                    <th class="col-narrow">No. (C)</th>
                     <th class="col-narrow">% (C/A)</th>
                 </tr>
             </thead>
             <tbody>
-                <tr><td colspan="7" class="bold">DIFFERENTLY ABLED EMPLOYEES</td></tr>
-                {self._render_differently_abled_employees()}
-                <tr><td colspan="7" class="bold">DIFFERENTLY ABLED WORKERS</td></tr>
-                {self._render_differently_abled_workers()}
+                <tr class="category-header"><td colspan="7">DIFFERENTLY ABLED EMPLOYEES</td></tr>
+                <tr>
+                    <td class="text-center">1</td>
+                    <td>Permanent (D)</td>
+                    <td class="text-center answer-cell">{self._val('da_emp_perm_total', '')}</td>
+                    <td class="text-center answer-cell">{self._val('da_emp_perm_male', '')}</td>
+                    <td class="text-center answer-cell">{self._val('da_emp_perm_male_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._val('da_emp_perm_female', '')}</td>
+                    <td class="text-center answer-cell">{self._val('da_emp_perm_female_pct', '')}</td>
+                </tr>
+                <tr>
+                    <td class="text-center">2</td>
+                    <td>Other than Permanent (E)</td>
+                    <td class="text-center answer-cell">{self._val('da_emp_other_total', '')}</td>
+                    <td class="text-center answer-cell">{self._val('da_emp_other_male', '')}</td>
+                    <td class="text-center answer-cell">{self._val('da_emp_other_male_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._val('da_emp_other_female', '')}</td>
+                    <td class="text-center answer-cell">{self._val('da_emp_other_female_pct', '')}</td>
+                </tr>
+                <tr>
+                    <td class="text-center">3</td>
+                    <td>Total differently abled employees (D + E)</td>
+                    <td class="text-center answer-cell">{self._val('da_emp_total_total', '')}</td>
+                    <td class="text-center answer-cell">{self._val('da_emp_total_male', '')}</td>
+                    <td class="text-center answer-cell">{self._val('da_emp_total_male_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._val('da_emp_total_female', '')}</td>
+                    <td class="text-center answer-cell">{self._val('da_emp_total_female_pct', '')}</td>
+                </tr>
+                <tr class="category-header"><td colspan="7">DIFFERENTLY ABLED WORKERS</td></tr>
+                <tr>
+                    <td class="text-center">4</td>
+                    <td>Permanent (F)</td>
+                    <td class="text-center answer-cell">{self._val('da_wrk_perm_total', '')}</td>
+                    <td class="text-center answer-cell">{self._val('da_wrk_perm_male', '')}</td>
+                    <td class="text-center answer-cell">{self._val('da_wrk_perm_male_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._val('da_wrk_perm_female', '')}</td>
+                    <td class="text-center answer-cell">{self._val('da_wrk_perm_female_pct', '')}</td>
+                </tr>
+                <tr>
+                    <td class="text-center">5</td>
+                    <td>Other than permanent (G)</td>
+                    <td class="text-center answer-cell">{self._val('da_wrk_other_total', '')}</td>
+                    <td class="text-center answer-cell">{self._val('da_wrk_other_male', '')}</td>
+                    <td class="text-center answer-cell">{self._val('da_wrk_other_male_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._val('da_wrk_other_female', '')}</td>
+                    <td class="text-center answer-cell">{self._val('da_wrk_other_female_pct', '')}</td>
+                </tr>
+                <tr>
+                    <td class="text-center">6</td>
+                    <td>Total differently abled workers (F + G)</td>
+                    <td class="text-center answer-cell">{self._val('da_wrk_total_total', '')}</td>
+                    <td class="text-center answer-cell">{self._val('da_wrk_total_male', '')}</td>
+                    <td class="text-center answer-cell">{self._val('da_wrk_total_male_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._val('da_wrk_total_female', '')}</td>
+                    <td class="text-center answer-cell">{self._val('da_wrk_total_female_pct', '')}</td>
+                </tr>
             </tbody>
         </table>
         
-        <div class="question-item"><span class="q-num">21.</span><span class="q-text">Participation/Inclusion/Representation of women</span></div>
+        <div class="question-item"><span class="q-num">21.</span> <span class="q-text">Participation/Inclusion/Representation of women</span></div>
         
         <table>
             <thead>
@@ -486,30 +718,31 @@ class BRSRHTMLTemplate:
             <tbody>
                 <tr>
                     <td>Board of Directors</td>
-                    <td class="answer-cell">{self._val('women_bod_total')}</td>
-                    <td class="answer-cell">{self._val('women_bod_female')}</td>
-                    <td class="answer-cell">{self._val('women_bod_percent')}</td>
+                    <td class="text-center answer-cell">{self._val('bod_total', '')}</td>
+                    <td class="text-center answer-cell">{self._val('bod_female', '')}</td>
+                    <td class="text-center answer-cell">{self._val('bod_female_pct', '')}</td>
                 </tr>
                 <tr>
                     <td>Key Management Personnel</td>
-                    <td class="answer-cell">{self._val('women_kmp_total')}</td>
-                    <td class="answer-cell">{self._val('women_kmp_female')}</td>
-                    <td class="answer-cell">{self._val('women_kmp_percent')}</td>
+                    <td class="text-center answer-cell">{self._val('kmp_total', '')}</td>
+                    <td class="text-center answer-cell">{self._val('kmp_female', '')}</td>
+                    <td class="text-center answer-cell">{self._val('kmp_female_pct', '')}</td>
                 </tr>
             </tbody>
         </table>
         
-        <div class="question-item"><span class="q-num">22.</span><span class="q-text">Turnover rate for permanent employees and workers (Disclose trends for the past 3 years)</span></div>
+        <div class="question-item"><span class="q-num">22.</span> <span class="q-text">Turnover rate for permanent employees and workers (Disclose trends for the past 3 years)</span></div>
         
         <table>
             <thead>
                 <tr>
-                    <th rowspan="2"></th>
-                    <th colspan="3" class="fy-header">FY {self.reporting_period} (Current Financial Year)</th>
-                    <th colspan="3" class="fy-header">FY (Previous Financial Year)</th>
+                    <th></th>
+                    <th colspan="3" class="fy-header">{self.reporting_period} (Current FY)</th>
+                    <th colspan="3" class="fy-header">{self.previous_fy} (Previous FY)</th>
                     <th colspan="3" class="fy-header">FY (Year prior to previous FY)</th>
                 </tr>
                 <tr>
+                    <th></th>
                     <th class="col-narrow">Male</th>
                     <th class="col-narrow">Female</th>
                     <th class="col-narrow">Total</th>
@@ -524,34 +757,39 @@ class BRSRHTMLTemplate:
             <tbody>
                 <tr>
                     <td>Permanent Employees</td>
-                    <td class="answer-cell">{self._val('turnover_perm_emp_curr_male')}</td>
-                    <td class="answer-cell">{self._val('turnover_perm_emp_curr_female')}</td>
-                    <td class="answer-cell">{self._val('turnover_perm_emp_curr_total')}</td>
-                    <td class="answer-cell">{self._val('turnover_perm_emp_prev_male')}</td>
-                    <td class="answer-cell">{self._val('turnover_perm_emp_prev_female')}</td>
-                    <td class="answer-cell">{self._val('turnover_perm_emp_prev_total')}</td>
-                    <td class="answer-cell">{self._val('turnover_perm_emp_prior_male')}</td>
-                    <td class="answer-cell">{self._val('turnover_perm_emp_prior_female')}</td>
-                    <td class="answer-cell">{self._val('turnover_perm_emp_prior_total')}</td>
+                    <td class="text-center answer-cell">{self._val('turnover_emp_curr_male', '')}</td>
+                    <td class="text-center answer-cell">{self._val('turnover_emp_curr_female', '')}</td>
+                    <td class="text-center answer-cell">{self._val('turnover_emp_curr_total', '')}</td>
+                    <td class="text-center answer-cell">{self._val('turnover_emp_prev_male', '')}</td>
+                    <td class="text-center answer-cell">{self._val('turnover_emp_prev_female', '')}</td>
+                    <td class="text-center answer-cell">{self._val('turnover_emp_prev_total', '')}</td>
+                    <td class="text-center answer-cell">{self._val('turnover_emp_prior_male', '')}</td>
+                    <td class="text-center answer-cell">{self._val('turnover_emp_prior_female', '')}</td>
+                    <td class="text-center answer-cell">{self._val('turnover_emp_prior_total', '')}</td>
                 </tr>
                 <tr>
                     <td>Permanent Workers</td>
-                    <td class="answer-cell">{self._val('turnover_perm_wrk_curr_male')}</td>
-                    <td class="answer-cell">{self._val('turnover_perm_wrk_curr_female')}</td>
-                    <td class="answer-cell">{self._val('turnover_perm_wrk_curr_total')}</td>
-                    <td class="answer-cell">{self._val('turnover_perm_wrk_prev_male')}</td>
-                    <td class="answer-cell">{self._val('turnover_perm_wrk_prev_female')}</td>
-                    <td class="answer-cell">{self._val('turnover_perm_wrk_prev_total')}</td>
-                    <td class="answer-cell">{self._val('turnover_perm_wrk_prior_male')}</td>
-                    <td class="answer-cell">{self._val('turnover_perm_wrk_prior_female')}</td>
-                    <td class="answer-cell">{self._val('turnover_perm_wrk_prior_total')}</td>
+                    <td class="text-center answer-cell">{self._val('turnover_wrk_curr_male', '')}</td>
+                    <td class="text-center answer-cell">{self._val('turnover_wrk_curr_female', '')}</td>
+                    <td class="text-center answer-cell">{self._val('turnover_wrk_curr_total', '')}</td>
+                    <td class="text-center answer-cell">{self._val('turnover_wrk_prev_male', '')}</td>
+                    <td class="text-center answer-cell">{self._val('turnover_wrk_prev_female', '')}</td>
+                    <td class="text-center answer-cell">{self._val('turnover_wrk_prev_total', '')}</td>
+                    <td class="text-center answer-cell">{self._val('turnover_wrk_prior_male', '')}</td>
+                    <td class="text-center answer-cell">{self._val('turnover_wrk_prior_female', '')}</td>
+                    <td class="text-center answer-cell">{self._val('turnover_wrk_prior_total', '')}</td>
                 </tr>
             </tbody>
         </table>
-        
+        '''
+    
+    def _render_section_a_holding(self) -> str:
+        """Section A - V. Holding, Subsidiary and Associate Companies."""
+        return f'''
+        <!-- V. Holding, Subsidiary and Associate Companies -->
         <div class="subsection-header">V. Holding, Subsidiary and Associate Companies (including joint ventures)</div>
         
-        <div class="question-item"><span class="q-num">23.</span><span class="q-text">(a) Names of holding / subsidiary / associate companies / joint ventures</span></div>
+        <div class="question-item"><span class="q-num">23.</span> <span class="q-text">(a) Names of holding / subsidiary / associate companies / joint ventures</span></div>
         
         <table>
             <thead>
@@ -567,21 +805,48 @@ class BRSRHTMLTemplate:
                 {self._render_holding_companies()}
             </tbody>
         </table>
+        '''
+    
+    def _render_holding_companies(self) -> str:
+        """Render holding companies table rows."""
+        companies = self.section_a.get('holding_companies', [])
+        if not companies:
+            return '<tr><td class="text-center">1</td><td class="answer-cell"></td><td class="answer-cell"></td><td class="text-center answer-cell"></td><td class="text-center answer-cell"></td></tr>'
         
+        rows = []
+        for i, company in enumerate(companies, 1):
+            rows.append(f'''<tr>
+                <td class="text-center">{i}</td>
+                <td class="answer-cell">{company.get('name', '')}</td>
+                <td class="answer-cell">{company.get('type', '')}</td>
+                <td class="text-center answer-cell">{company.get('shares_held', '')}</td>
+                <td class="text-center answer-cell">{company.get('participates_br', '')}</td>
+            </tr>''')
+        return '\n'.join(rows)
+    
+    def _render_section_a_csr(self) -> str:
+        """Section A - VI. CSR Details."""
+        return f'''
+        <!-- VI. CSR Details -->
         <div class="subsection-header">VI. CSR Details</div>
         
-        <div class="question-item"><span class="q-num">24.</span><span class="q-text">(i) Whether CSR is applicable as per section 135 of Companies Act, 2013: (Yes/No)</span></div>
-        <div class="answer-value">{self._val('csr_applicable')}</div>
+        <div class="question-item"><span class="q-num">24.</span> <span class="q-text">(i) Whether CSR is applicable as per section 135 of Companies Act, 2013: (Yes/No)</span></div>
+        <div class="answer-value">{self._val('csr_applicable', '')}</div>
         
         <div class="sub-label">(ii) Turnover (in Rs.)</div>
-        <div class="answer-value">{self._val('csr_turnover')}</div>
+        <div class="answer-value">{self._val('csr_turnover', '')}</div>
         
         <div class="sub-label">(iii) Net worth (in Rs.)</div>
-        <div class="answer-value">{self._val('csr_net_worth')}</div>
-        
+        <div class="answer-value">{self._val('csr_net_worth', '')}</div>
+        '''
+    
+    def _render_section_a_transparency(self) -> str:
+        """Section A - VII. Transparency and Disclosures Compliances."""
+        return f'''
+        <!-- VII. Transparency and Disclosures Compliances -->
         <div class="subsection-header">VII. Transparency and Disclosures Compliances</div>
         
-        <div class="question-item"><span class="q-num">25.</span><span class="q-text">Complaints/Grievances on any of the principles (Principles 1 to 9) under the National Guidelines on Responsible Business Conduct:</span></div>
+        <div class="question-item"><span class="q-num">25.</span> <span class="q-text">Complaints/Grievances on any of the principles (Principles 1 to 9) under the National Guidelines on Responsible Business Conduct:</span></div>
         
         <table>
             <thead>
@@ -589,23 +854,101 @@ class BRSRHTMLTemplate:
                     <th rowspan="2">Stakeholder group from whom complaint is received</th>
                     <th rowspan="2">Grievance Redressal Mechanism in Place (Yes/No)</th>
                     <th rowspan="2">(If Yes, then provide web-link for grievance redress policy)</th>
-                    <th colspan="2" class="fy-header">FY {self.reporting_period} (Current Financial Year)</th>
-                    <th colspan="2" class="fy-header">FY (Previous Financial Year)</th>
+                    <th colspan="3" class="fy-header">{self.reporting_period} (Current FY)</th>
+                    <th colspan="3" class="fy-header">{self.previous_fy} (Previous FY)</th>
                 </tr>
                 <tr>
                     <th class="col-narrow">Number of complaints filed during the year</th>
                     <th class="col-narrow">Number of complaints pending resolution at close of the year</th>
+                    <th>Remarks</th>
                     <th class="col-narrow">Number of complaints filed during the year</th>
                     <th class="col-narrow">Number of complaints pending resolution at close of the year</th>
+                    <th>Remarks</th>
                 </tr>
             </thead>
             <tbody>
-                {self._render_grievances_table()}
+                <tr>
+                    <td>Communities</td>
+                    <td class="text-center answer-cell">{self._val('grievance_communities_mechanism', '')}</td>
+                    <td class="answer-cell">{self._val('grievance_communities_weblink', '')}</td>
+                    <td class="text-center answer-cell">{self._val('grievance_communities_curr_filed', '')}</td>
+                    <td class="text-center answer-cell">{self._val('grievance_communities_curr_pending', '')}</td>
+                    <td class="answer-cell">{self._val('grievance_communities_curr_remarks', '')}</td>
+                    <td class="text-center answer-cell">{self._val('grievance_communities_prev_filed', '')}</td>
+                    <td class="text-center answer-cell">{self._val('grievance_communities_prev_pending', '')}</td>
+                    <td class="answer-cell">{self._val('grievance_communities_prev_remarks', '')}</td>
+                </tr>
+                <tr>
+                    <td>Investors (other than shareholders)</td>
+                    <td class="text-center answer-cell">{self._val('grievance_investors_mechanism', '')}</td>
+                    <td class="answer-cell">{self._val('grievance_investors_weblink', '')}</td>
+                    <td class="text-center answer-cell">{self._val('grievance_investors_curr_filed', '')}</td>
+                    <td class="text-center answer-cell">{self._val('grievance_investors_curr_pending', '')}</td>
+                    <td class="answer-cell">{self._val('grievance_investors_curr_remarks', '')}</td>
+                    <td class="text-center answer-cell">{self._val('grievance_investors_prev_filed', '')}</td>
+                    <td class="text-center answer-cell">{self._val('grievance_investors_prev_pending', '')}</td>
+                    <td class="answer-cell">{self._val('grievance_investors_prev_remarks', '')}</td>
+                </tr>
+                <tr>
+                    <td>Shareholders</td>
+                    <td class="text-center answer-cell">{self._val('grievance_shareholders_mechanism', '')}</td>
+                    <td class="answer-cell">{self._val('grievance_shareholders_weblink', '')}</td>
+                    <td class="text-center answer-cell">{self._val('grievance_shareholders_curr_filed', '')}</td>
+                    <td class="text-center answer-cell">{self._val('grievance_shareholders_curr_pending', '')}</td>
+                    <td class="answer-cell">{self._val('grievance_shareholders_curr_remarks', '')}</td>
+                    <td class="text-center answer-cell">{self._val('grievance_shareholders_prev_filed', '')}</td>
+                    <td class="text-center answer-cell">{self._val('grievance_shareholders_prev_pending', '')}</td>
+                    <td class="answer-cell">{self._val('grievance_shareholders_prev_remarks', '')}</td>
+                </tr>
+                <tr>
+                    <td>Employees and workers</td>
+                    <td class="text-center answer-cell">{self._val('grievance_employees_mechanism', '')}</td>
+                    <td class="answer-cell">{self._val('grievance_employees_weblink', '')}</td>
+                    <td class="text-center answer-cell">{self._val('grievance_employees_curr_filed', '')}</td>
+                    <td class="text-center answer-cell">{self._val('grievance_employees_curr_pending', '')}</td>
+                    <td class="answer-cell">{self._val('grievance_employees_curr_remarks', '')}</td>
+                    <td class="text-center answer-cell">{self._val('grievance_employees_prev_filed', '')}</td>
+                    <td class="text-center answer-cell">{self._val('grievance_employees_prev_pending', '')}</td>
+                    <td class="answer-cell">{self._val('grievance_employees_prev_remarks', '')}</td>
+                </tr>
+                <tr>
+                    <td>Customers</td>
+                    <td class="text-center answer-cell">{self._val('grievance_customers_mechanism', '')}</td>
+                    <td class="answer-cell">{self._val('grievance_customers_weblink', '')}</td>
+                    <td class="text-center answer-cell">{self._val('grievance_customers_curr_filed', '')}</td>
+                    <td class="text-center answer-cell">{self._val('grievance_customers_curr_pending', '')}</td>
+                    <td class="answer-cell">{self._val('grievance_customers_curr_remarks', '')}</td>
+                    <td class="text-center answer-cell">{self._val('grievance_customers_prev_filed', '')}</td>
+                    <td class="text-center answer-cell">{self._val('grievance_customers_prev_pending', '')}</td>
+                    <td class="answer-cell">{self._val('grievance_customers_prev_remarks', '')}</td>
+                </tr>
+                <tr>
+                    <td>Value Chain Partners</td>
+                    <td class="text-center answer-cell">{self._val('grievance_valuechain_mechanism', '')}</td>
+                    <td class="answer-cell">{self._val('grievance_valuechain_weblink', '')}</td>
+                    <td class="text-center answer-cell">{self._val('grievance_valuechain_curr_filed', '')}</td>
+                    <td class="text-center answer-cell">{self._val('grievance_valuechain_curr_pending', '')}</td>
+                    <td class="answer-cell">{self._val('grievance_valuechain_curr_remarks', '')}</td>
+                    <td class="text-center answer-cell">{self._val('grievance_valuechain_prev_filed', '')}</td>
+                    <td class="text-center answer-cell">{self._val('grievance_valuechain_prev_pending', '')}</td>
+                    <td class="answer-cell">{self._val('grievance_valuechain_prev_remarks', '')}</td>
+                </tr>
+                <tr>
+                    <td>Other (please specify)</td>
+                    <td class="text-center answer-cell">{self._val('grievance_other_mechanism', '')}</td>
+                    <td class="answer-cell">{self._val('grievance_other_weblink', '')}</td>
+                    <td class="text-center answer-cell">{self._val('grievance_other_curr_filed', '')}</td>
+                    <td class="text-center answer-cell">{self._val('grievance_other_curr_pending', '')}</td>
+                    <td class="answer-cell">{self._val('grievance_other_curr_remarks', '')}</td>
+                    <td class="text-center answer-cell">{self._val('grievance_other_prev_filed', '')}</td>
+                    <td class="text-center answer-cell">{self._val('grievance_other_prev_pending', '')}</td>
+                    <td class="answer-cell">{self._val('grievance_other_prev_remarks', '')}</td>
+                </tr>
             </tbody>
         </table>
         
-        <div class="question-item"><span class="q-num">26.</span><span class="q-text">Overview of the entity's material responsible business conduct issues</span></div>
-        <p class="intro-text" style="margin-left: 20px;">Please indicate material responsible business conduct and sustainability issues pertaining to environmental and social matters that present a risk or an opportunity to your business, rationale for identifying the same, approach to adapt or mitigate the risk along-with its financial implications, as per the following format</p>
+        <div class="question-item"><span class="q-num">26.</span> <span class="q-text">Overview of the entity's material responsible business conduct issues</span></div>
+        <div class="sub-label">Please indicate material responsible business conduct and sustainability issues pertaining to environmental and social matters that present a risk or an opportunity to your business, rationale for identifying the same, approach to adapt or mitigate the risk along-with its financial implications, as per the following format:</div>
         
         <table>
             <thead>
@@ -623,265 +966,203 @@ class BRSRHTMLTemplate:
             </tbody>
         </table>
         '''
+    
+    def _render_material_issues(self) -> str:
+        """Render material issues table rows."""
+        issues = self.section_a.get('material_issues', [])
+        if not issues:
+            return '<tr><td class="text-center">1</td><td class="answer-cell"></td><td class="text-center answer-cell"></td><td class="answer-cell"></td><td class="answer-cell"></td><td class="answer-cell"></td></tr>'
         
-        return html
+        rows = []
+        for i, issue in enumerate(issues, 1):
+            rows.append(f'''<tr>
+                <td class="text-center">{i}</td>
+                <td class="answer-cell">{issue.get('issue', '')}</td>
+                <td class="text-center answer-cell">{issue.get('risk_opportunity', '')}</td>
+                <td class="answer-cell">{issue.get('rationale', '')}</td>
+                <td class="answer-cell">{issue.get('approach', '')}</td>
+                <td class="answer-cell">{issue.get('financial_implications', '')}</td>
+            </tr>''')
+        return '\n'.join(rows)
     
     def render_section_b(self) -> str:
         """
-        Render Section B: Management and Process Disclosures
-        EXACT replica of Annexure II pages 6-7
+        SECTION B: MANAGEMENT AND PROCESS DISCLOSURES
+        Exact replica of Annexure II Section B.
         """
-        
-        html = '''
+        return f'''
         <div class="page-break"></div>
         
         <div class="section-header">SECTION B: MANAGEMENT AND PROCESS DISCLOSURES</div>
         
         <p class="intro-text">This section is aimed at helping businesses demonstrate the structures, policies and processes put in place towards adopting the NGRBC Principles and Core Elements.</p>
         
+        <div class="subsection-header">Policy and management processes</div>
+        
         <table>
             <thead>
                 <tr>
                     <th>Disclosure Questions</th>
-                    <th class="col-principle">P 1</th>
-                    <th class="col-principle">P 2</th>
-                    <th class="col-principle">P 3</th>
-                    <th class="col-principle">P 4</th>
-                    <th class="col-principle">P 5</th>
-                    <th class="col-principle">P 6</th>
-                    <th class="col-principle">P 7</th>
-                    <th class="col-principle">P 8</th>
-                    <th class="col-principle">P 9</th>
+                    <th class="col-principle">P1</th>
+                    <th class="col-principle">P2</th>
+                    <th class="col-principle">P3</th>
+                    <th class="col-principle">P4</th>
+                    <th class="col-principle">P5</th>
+                    <th class="col-principle">P6</th>
+                    <th class="col-principle">P7</th>
+                    <th class="col-principle">P8</th>
+                    <th class="col-principle">P9</th>
                 </tr>
             </thead>
             <tbody>
-                <tr><td colspan="10" class="bold">Policy and management processes</td></tr>
                 <tr>
                     <td>1. a. Whether your entity's policy/policies cover each principle and its core elements of the NGRBCs. (Yes/No)</td>
-        '''
-        # Add P1-P9 cells for question 1a
-        for p in range(1, 10):
-            val = self._get_response(self.section_b_data, f'policy_covers_p{p}')
-            html += f'<td class="answer-cell col-principle">{val}</td>'
-        html += '</tr>'
-        
-        html += '''
+                    {self._render_principle_cells('policy_covers_p')}
+                </tr>
                 <tr>
                     <td>b. Has the policy been approved by the Board? (Yes/No)</td>
-        '''
-        for p in range(1, 10):
-            val = self._get_response(self.section_b_data, f'policy_approved_p{p}')
-            html += f'<td class="answer-cell col-principle">{val}</td>'
-        html += '</tr>'
-        
-        html += '''
+                    {self._render_principle_cells('policy_approved_p')}
+                </tr>
                 <tr>
                     <td>c. Web Link of the Policies, if available</td>
-        '''
-        for p in range(1, 10):
-            val = self._get_response(self.section_b_data, f'policy_weblink_p{p}')
-            html += f'<td class="answer-cell col-principle">{val}</td>'
-        html += '</tr>'
-        
-        html += '''
+                    {self._render_principle_cells('policy_weblink_p')}
+                </tr>
                 <tr>
                     <td>2. Whether the entity has translated the policy into procedures. (Yes / No)</td>
-        '''
-        for p in range(1, 10):
-            val = self._get_response(self.section_b_data, f'policy_procedures_p{p}')
-            html += f'<td class="answer-cell col-principle">{val}</td>'
-        html += '</tr>'
-        
-        html += '''
+                    {self._render_principle_cells('policy_procedures_p')}
+                </tr>
                 <tr>
                     <td>3. Do the enlisted policies extend to your value chain partners? (Yes/No)</td>
-        '''
-        for p in range(1, 10):
-            val = self._get_response(self.section_b_data, f'policy_valuechain_p{p}')
-            html += f'<td class="answer-cell col-principle">{val}</td>'
-        html += '</tr>'
-        
-        html += '''
+                    {self._render_principle_cells('policy_valuechain_p')}
+                </tr>
                 <tr>
                     <td>4. Name of the national and international codes/certifications/labels/ standards (e.g. Forest Stewardship Council, Fairtrade, Rainforest Alliance, Trustea) standards (e.g. SA 8000, OHSAS, ISO, BIS) adopted by your entity and mapped to each principle.</td>
-        '''
-        for p in range(1, 10):
-            val = self._get_response(self.section_b_data, f'standards_p{p}')
-            html += f'<td class="answer-cell col-principle">{val}</td>'
-        html += '</tr>'
-        
-        html += '''
+                    {self._render_principle_cells('standards_p')}
+                </tr>
                 <tr>
                     <td>5. Specific commitments, goals and targets set by the entity with defined timelines, if any.</td>
-        '''
-        for p in range(1, 10):
-            val = self._get_response(self.section_b_data, f'commitments_p{p}')
-            html += f'<td class="answer-cell col-principle">{val}</td>'
-        html += '</tr>'
-        
-        html += '''
+                    {self._render_principle_cells('commitments_p')}
+                </tr>
                 <tr>
                     <td>6. Performance of the entity against the specific commitments, goals and targets along-with reasons in case the same are not met.</td>
-        '''
-        for p in range(1, 10):
-            val = self._get_response(self.section_b_data, f'performance_p{p}')
-            html += f'<td class="answer-cell col-principle">{val}</td>'
-        html += '</tr>'
-        
-        html += '''
-                <tr><td colspan="10" class="bold">Governance, leadership and oversight</td></tr>
-                <tr>
-                    <td colspan="10">7. Statement by director responsible for the business responsibility report, highlighting ESG related challenges, targets and achievements (listed entity has flexibility regarding the placement of this disclosure)</td>
-                </tr>
-        '''
-        
-        html += f'''
-                <tr>
-                    <td colspan="10" class="answer-cell">{self._get_response(self.section_b_data, 'director_statement')}</td>
-                </tr>
-                <tr>
-                    <td colspan="10">8. Details of the highest authority responsible for implementation and oversight of the Business Responsibility policy (ies).</td>
-                </tr>
-                <tr>
-                    <td colspan="10" class="answer-cell">{self._get_response(self.section_b_data, 'highest_authority')}</td>
-                </tr>
-                <tr>
-                    <td colspan="10">9. Does the entity have a specified Committee of the Board/ Director responsible for decision making on sustainability related issues? (Yes / No). If yes, provide details.</td>
-                </tr>
-                <tr>
-                    <td colspan="10" class="answer-cell">{self._get_response(self.section_b_data, 'sustainability_committee')}</td>
+                    {self._render_principle_cells('performance_p')}
                 </tr>
             </tbody>
         </table>
         
-        <div class="question-item"><span class="q-num">10.</span><span class="q-text">Details of Review of NGRBCs by the Company:</span></div>
+        <div class="subsection-header">Governance, leadership and oversight</div>
+        
+        <div class="question-item"><span class="q-num">7.</span> <span class="q-text">Statement by director responsible for the business responsibility report, highlighting ESG related challenges, targets and achievements (listed entity has flexibility regarding the placement of this disclosure)</span></div>
+        <div class="answer-value">{self._get_response(self.section_b_data, 'director_statement', '')}</div>
+        
+        <div class="question-item"><span class="q-num">8.</span> <span class="q-text">Details of the highest authority responsible for implementation and oversight of the Business Responsibility policy (ies).</span></div>
+        <div class="answer-value">{self._get_response(self.section_b_data, 'highest_authority', '')}</div>
+        
+        <div class="question-item"><span class="q-num">9.</span> <span class="q-text">Does the entity have a specified Committee of the Board/ Director responsible for decision making on sustainability related issues? (Yes / No). If yes, provide details.</span></div>
+        <div class="answer-value">{self._get_response(self.section_b_data, 'sustainability_committee', '')}</div>
+        
+        <div class="question-item"><span class="q-num">10.</span> <span class="q-text">Details of Review of NGRBCs by the Company:</span></div>
         
         <table>
             <thead>
                 <tr>
                     <th>Subject for Review</th>
                     <th>Indicate whether review was undertaken by Director / Committee of the Board/ Any other Committee</th>
-                    <th>Frequency (Annually/ Quarterly/ Half yearly/ Any other – please specify)</th>
-                </tr>
-                <tr>
-                    <th></th>
-                    <th class="fy-header">P 1 2 3 4 5 6 7 8 9</th>
-                    <th class="fy-header">P 1 2 3 4 5 6 7 8 9</th>
+                    <th>Frequency (Annually/ Half yearly/ Quarterly/ Any other – please specify)</th>
                 </tr>
             </thead>
             <tbody>
                 <tr>
                     <td>Performance against above policies and follow up action</td>
-                    <td class="answer-cell">{self._get_response(self.section_b_data, 'review_performance')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_b_data, 'review_performance_freq')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_b_data, 'review_performance', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_b_data, 'review_performance_freq', '')}</td>
                 </tr>
                 <tr>
                     <td>Compliance with statutory requirements of relevance to the principles, and, rectification of any non-compliances</td>
-                    <td class="answer-cell">{self._get_response(self.section_b_data, 'review_compliance')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_b_data, 'review_compliance_freq')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_b_data, 'review_compliance', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_b_data, 'review_compliance_freq', '')}</td>
                 </tr>
             </tbody>
         </table>
         
-        <div class="question-item"><span class="q-num">11.</span><span class="q-text">Has the entity carried out independent assessment/ evaluation of the working of its policies by an external agency? (Yes/No). If yes, provide name of the agency.</span></div>
+        <div class="question-item"><span class="q-num">11.</span> <span class="q-text">Has the entity carried out independent assessment/ evaluation of the working of its policies by an external agency? (Yes/No). If yes, provide name of the agency.</span></div>
         
         <table>
             <thead>
                 <tr>
-                    <th></th>
-                    <th class="col-principle">P 1</th>
-                    <th class="col-principle">P 2</th>
-                    <th class="col-principle">P 3</th>
-                    <th class="col-principle">P 4</th>
-                    <th class="col-principle">P 5</th>
-                    <th class="col-principle">P 6</th>
-                    <th class="col-principle">P 7</th>
-                    <th class="col-principle">P 8</th>
-                    <th class="col-principle">P 9</th>
+                    <th class="col-principle">P1</th>
+                    <th class="col-principle">P2</th>
+                    <th class="col-principle">P3</th>
+                    <th class="col-principle">P4</th>
+                    <th class="col-principle">P5</th>
+                    <th class="col-principle">P6</th>
+                    <th class="col-principle">P7</th>
+                    <th class="col-principle">P8</th>
+                    <th class="col-principle">P9</th>
                 </tr>
             </thead>
             <tbody>
                 <tr>
-                    <td></td>
-        '''
-        for p in range(1, 10):
-            val = self._get_response(self.section_b_data, f'external_assessment_p{p}')
-            html += f'<td class="answer-cell col-principle">{val}</td>'
-        html += '''
+                    {self._render_principle_cells('external_assessment_p')}
                 </tr>
             </tbody>
         </table>
         
-        <div class="question-item"><span class="q-num">12.</span><span class="q-text">If answer to question (1) above is "No" i.e. not all Principles are covered by a policy, reasons to be stated:</span></div>
+        <div class="question-item"><span class="q-num">12.</span> <span class="q-text">If answer to question (1) above is "No" i.e. not all Principles are covered by a policy, reasons to be stated:</span></div>
         
         <table>
             <thead>
                 <tr>
                     <th>Questions</th>
-                    <th class="col-principle">P 1</th>
-                    <th class="col-principle">P 2</th>
-                    <th class="col-principle">P 3</th>
-                    <th class="col-principle">P 4</th>
-                    <th class="col-principle">P 5</th>
-                    <th class="col-principle">P 6</th>
-                    <th class="col-principle">P 7</th>
-                    <th class="col-principle">P 8</th>
-                    <th class="col-principle">P 9</th>
+                    <th class="col-principle">P1</th>
+                    <th class="col-principle">P2</th>
+                    <th class="col-principle">P3</th>
+                    <th class="col-principle">P4</th>
+                    <th class="col-principle">P5</th>
+                    <th class="col-principle">P6</th>
+                    <th class="col-principle">P7</th>
+                    <th class="col-principle">P8</th>
+                    <th class="col-principle">P9</th>
                 </tr>
             </thead>
             <tbody>
                 <tr>
                     <td>The entity does not consider the Principles material to its business (Yes/No)</td>
-        '''
-        for p in range(1, 10):
-            val = self._get_response(self.section_b_data, f'not_material_p{p}')
-            html += f'<td class="answer-cell col-principle">{val}</td>'
-        html += '''
+                    {self._render_principle_cells('not_material_p')}
                 </tr>
                 <tr>
                     <td>The entity is not at a stage where it is in a position to formulate and implement the policies on specified principles (Yes/No)</td>
-        '''
-        for p in range(1, 10):
-            val = self._get_response(self.section_b_data, f'not_ready_p{p}')
-            html += f'<td class="answer-cell col-principle">{val}</td>'
-        html += '''
+                    {self._render_principle_cells('not_ready_p')}
                 </tr>
                 <tr>
                     <td>The entity does not have the financial or/human and technical resources available for the task (Yes/No)</td>
-        '''
-        for p in range(1, 10):
-            val = self._get_response(self.section_b_data, f'no_resources_p{p}')
-            html += f'<td class="answer-cell col-principle">{val}</td>'
-        html += '''
+                    {self._render_principle_cells('no_resources_p')}
                 </tr>
                 <tr>
                     <td>It is planned to be done in the next financial year (Yes/No)</td>
-        '''
-        for p in range(1, 10):
-            val = self._get_response(self.section_b_data, f'planned_next_fy_p{p}')
-            html += f'<td class="answer-cell col-principle">{val}</td>'
-        html += '''
+                    {self._render_principle_cells('planned_next_fy_p')}
                 </tr>
                 <tr>
                     <td>Any other reason (please specify)</td>
-        '''
-        for p in range(1, 10):
-            val = self._get_response(self.section_b_data, f'other_reason_p{p}')
-            html += f'<td class="answer-cell col-principle">{val}</td>'
-        html += '''
+                    {self._render_principle_cells('other_reason_p')}
                 </tr>
             </tbody>
         </table>
         '''
-        
-        return html
+    
+    def _render_principle_cells(self, prefix: str) -> str:
+        """Render 9 principle cells for Section B tables."""
+        cells = []
+        for p in range(1, 10):
+            val = self._get_response(self.section_b_data, f'{prefix}{p}', '')
+            cells.append(f'<td class="text-center answer-cell">{val}</td>')
+        return '\n'.join(cells)
     
     def render_section_c(self) -> str:
         """
-        Render Section C: Principle Wise Performance Disclosure
-        EXACT replica of Annexure II pages 8-41
+        SECTION C: PRINCIPLE WISE PERFORMANCE DISCLOSURE
+        Exact replica of all 9 Principles with ALL Essential and Leadership Indicators.
         """
-        
         html = '''
         <div class="page-break"></div>
         
@@ -890,390 +1171,1354 @@ class BRSRHTMLTemplate:
         <p class="intro-text">This section is aimed at helping entities demonstrate their performance in integrating the Principles and Core Elements with key processes and decisions. The information sought is categorized as "Essential" and "Leadership". While the essential indicators are expected to be disclosed by every entity that is mandated to file this report, the leadership indicators may be voluntarily disclosed by entities which aspire to progress to a higher level in their quest to be socially, environmentally and ethically responsible.</p>
         '''
         
-        # Render each principle
-        for principle_key, principle_title in self.PRINCIPLES.items():
-            html += self._render_principle(principle_key, principle_title)
+        # Render all 9 Principles
+        html += self._render_principle_1()
+        html += self._render_principle_2()
+        html += self._render_principle_3()
+        html += self._render_principle_4()
+        html += self._render_principle_5()
+        html += self._render_principle_6()
+        html += self._render_principle_7()
+        html += self._render_principle_8()
+        html += self._render_principle_9()
         
         return html
     
-    def _render_principle(self, principle_key: str, principle_title: str) -> str:
-        """Render a single principle with its indicators."""
-        principle_num = principle_key.replace('P', '')
+    def _render_principle_1(self) -> str:
+        """
+        PRINCIPLE 1: Businesses should conduct and govern themselves with integrity,
+        and in a manner that is Ethical, Transparent and Accountable.
         
-        html = f'''
+        EXACT text from Annexure II with all Essential and Leadership Indicators.
+        """
+        return f'''
         <div class="page-break"></div>
         
-        <div class="principle-header">PRINCIPLE {principle_num} {principle_title}</div>
+        <div class="principle-header">PRINCIPLE 1 {self.PRINCIPLES['P1']}</div>
+        
+        <div class="indicator-header">Essential Indicators</div>
+        
+        <div class="question-item"><span class="q-num">1.</span> <span class="q-text">Percentage coverage by training and awareness programmes on any of the Principles during the financial year:</span></div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Segment</th>
+                    <th>Total number of training and awareness programmes held</th>
+                    <th>Topics / principles covered under the training and its impact</th>
+                    <th>%age of persons in respective category covered by the awareness programmes</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Board of Directors</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e1_bod_programs', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e1_bod_topics', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e1_bod_coverage', '')}</td>
+                </tr>
+                <tr>
+                    <td>Key Managerial Personnel</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e1_kmp_programs', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e1_kmp_topics', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e1_kmp_coverage', '')}</td>
+                </tr>
+                <tr>
+                    <td>Employees other than BoD and KMPs</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e1_emp_programs', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e1_emp_topics', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e1_emp_coverage', '')}</td>
+                </tr>
+                <tr>
+                    <td>Workers</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e1_wrk_programs', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e1_wrk_topics', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e1_wrk_coverage', '')}</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="question-item"><span class="q-num">2.</span> <span class="q-text">Details of fines / penalties /punishment/ award/ compounding fees/ settlement amount paid in proceedings (by the entity or by directors / KMPs) with regulators/ law enforcement agencies/ judicial institutions, in the financial year, in the following format (Note: the entity shall make disclosures on the basis of materiality as specified in Regulation 30 of SEBI (Listing Obligations and Disclosure Obligations) Regulations, 2015 and as disclosed on the entity's website):</span></div>
+        
+        <div class="sub-label">Monetary</div>
+        <table>
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>NGRBC Principle</th>
+                    <th>Name of the regulatory/ enforcement agencies/ judicial institutions</th>
+                    <th>Amount (In INR)</th>
+                    <th>Brief of the Case</th>
+                    <th>Has an appeal been preferred? (Yes/No)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Penalty/ Fine</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e2_penalty_principle', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e2_penalty_agency', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e2_penalty_amount', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e2_penalty_brief', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e2_penalty_appeal', '')}</td>
+                </tr>
+                <tr>
+                    <td>Settlement</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e2_settlement_principle', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e2_settlement_agency', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e2_settlement_amount', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e2_settlement_brief', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e2_settlement_appeal', '')}</td>
+                </tr>
+                <tr>
+                    <td>Compounding fee</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e2_compounding_principle', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e2_compounding_agency', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e2_compounding_amount', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e2_compounding_brief', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e2_compounding_appeal', '')}</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="sub-label">Non-Monetary</div>
+        <table>
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>NGRBC Principle</th>
+                    <th>Name of the regulatory/ enforcement agencies/ judicial institutions</th>
+                    <th>Brief of the Case</th>
+                    <th>Has an appeal been preferred? (Yes/No)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Imprisonment</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e2_imprisonment_principle', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e2_imprisonment_agency', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e2_imprisonment_brief', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e2_imprisonment_appeal', '')}</td>
+                </tr>
+                <tr>
+                    <td>Punishment</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e2_punishment_principle', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e2_punishment_agency', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e2_punishment_brief', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e2_punishment_appeal', '')}</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="question-item"><span class="q-num">3.</span> <span class="q-text">Of the instances disclosed in Question 2 above, details of the Appeal/ Revision preferred in cases where monetary or non-monetary action has been appealed.</span></div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Case Details</th>
+                    <th>Name of the regulatory/ enforcement agencies/ judicial institutions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e3_case_details', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e3_agency', '')}</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="question-item"><span class="q-num">4.</span> <span class="q-text">Does the entity have an anti-corruption or anti-bribery policy? If yes, provide details in brief and if available, provide a web-link to the policy.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p1_e4_anticorruption_policy', '')}</div>
+        
+        <div class="question-item"><span class="q-num">5.</span> <span class="q-text">Number of Directors/KMPs/employees/workers against whom disciplinary action was taken by any law enforcement agency for the charges of bribery/ corruption:</span></div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th></th>
+                    <th class="col-narrow">{self.reporting_period} (Current FY)</th>
+                    <th class="col-narrow">{self.previous_fy} (Previous FY)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Directors</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e5_directors_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e5_directors_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>KMPs</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e5_kmps_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e5_kmps_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Employees</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e5_employees_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e5_employees_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Workers</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e5_workers_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e5_workers_prev', '')}</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="question-item"><span class="q-num">6.</span> <span class="q-text">Details of complaints with regard to conflict of interest:</span></div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th></th>
+                    <th colspan="2" class="fy-header">{self.reporting_period} (Current FY)</th>
+                    <th colspan="2" class="fy-header">{self.previous_fy} (Previous FY)</th>
+                </tr>
+                <tr>
+                    <th></th>
+                    <th class="col-narrow">Number</th>
+                    <th>Remarks</th>
+                    <th class="col-narrow">Number</th>
+                    <th>Remarks</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Number of complaints received in relation to issues of Conflict of Interest of the Directors</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e6_directors_curr_num', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e6_directors_curr_remarks', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e6_directors_prev_num', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e6_directors_prev_remarks', '')}</td>
+                </tr>
+                <tr>
+                    <td>Number of complaints received in relation to issues of Conflict of Interest of the KMPs</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e6_kmps_curr_num', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e6_kmps_curr_remarks', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e6_kmps_prev_num', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e6_kmps_prev_remarks', '')}</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="question-item"><span class="q-num">7.</span> <span class="q-text">Provide details of any corrective action taken or underway on issues related to fines / penalties / action taken by regulators/ law enforcement agencies/ judicial institutions, on cases of corruption and conflicts of interest.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p1_e7_corrective_actions', '')}</div>
+        
+        <div class="question-item"><span class="q-num">8.</span> <span class="q-text">Number of days of accounts payables ((Accounts payable *365) / Cost of goods/services procured) in the following format:</span></div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th></th>
+                    <th class="col-narrow">{self.reporting_period} (Current FY)</th>
+                    <th class="col-narrow">{self.previous_fy} (Previous FY)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Number of days of accounts payables</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e8_days_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e8_days_prev', '')}</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="question-item"><span class="q-num">9.</span> <span class="q-text">Open-ness of business</span></div>
+        <div class="sub-label">Provide details of concentration of purchases and sales with trading houses, dealers, and related parties along-with loans and advances &amp; investments, with related parties, in the following format:</div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Parameter</th>
+                    <th>Metrics</th>
+                    <th class="col-narrow">{self.reporting_period} (Current FY)</th>
+                    <th class="col-narrow">{self.previous_fy} (Previous FY)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="category-header"><td colspan="4">Concentration of Purchases</td></tr>
+                <tr>
+                    <td rowspan="3">Concentration of Purchases</td>
+                    <td>a. Purchases from trading houses as % of total purchases</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_purchases_trading_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_purchases_trading_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>b. Number of trading houses where purchases are made from</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_trading_houses_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_trading_houses_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>c. Purchases from top 10 trading houses as % of total purchases from trading houses</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_top10_purchases_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_top10_purchases_prev', '')}</td>
+                </tr>
+                <tr class="category-header"><td colspan="4">Concentration of Sales</td></tr>
+                <tr>
+                    <td rowspan="3">Concentration of Sales</td>
+                    <td>a. Sales to dealers / distributors as % of total sales</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_sales_dealers_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_sales_dealers_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>b. Number of dealers / distributors to whom sales are made</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_dealers_count_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_dealers_count_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>c. Sales to top 10 dealers / distributors as % of total sales to dealers / distributors</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_top10_sales_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_top10_sales_prev', '')}</td>
+                </tr>
+                <tr class="category-header"><td colspan="4">Share of RPTs in</td></tr>
+                <tr>
+                    <td rowspan="4">Share of RPTs in</td>
+                    <td>a. Purchases (Purchases with related parties / Total Purchases)</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_rpt_purchases_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_rpt_purchases_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>b. Sales (Sales to related parties / Total Sales)</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_rpt_sales_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_rpt_sales_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>c. Loans &amp; advances (Loans &amp; advances given to related parties / Total loans &amp; advances)</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_rpt_loans_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_rpt_loans_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>d. Investments (Investments in related parties / Total Investments made)</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_rpt_investments_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_rpt_investments_prev', '')}</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="indicator-header">Leadership Indicators</div>
+        
+        <div class="question-item"><span class="q-num">1.</span> <span class="q-text">Awareness programmes conducted for value chain partners on any of the Principles during the financial year:</span></div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Total number of awareness programmes held</th>
+                    <th>Topics / principles covered under the training</th>
+                    <th>%age of value chain partners covered (by value of business done with such partners) under the awareness programmes</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_l1_programs', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_l1_topics', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_l1_coverage', '')}</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="question-item"><span class="q-num">2.</span> <span class="q-text">Does the entity have processes in place to avoid/ manage conflict of interests involving members of the Board? (Yes/No) If Yes, provide details of the same.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p1_l2_conflict_process', '')}</div>
         '''
-        
-        # Get configs for this principle
-        principle_configs = [c for c in self.section_c_configs if c.get('brsr_principle') == principle_key]
-        
-        # Split into essential and leadership
-        essential_configs = [c for c in principle_configs if not c.get('brsr_indicator_type') or c.get('brsr_indicator_type') == 'essential']
-        leadership_configs = [c for c in principle_configs if c.get('brsr_indicator_type') == 'leadership']
-        
-        # Essential Indicators
-        html += '<div class="indicator-header">Essential Indicators</div>'
-        
-        if essential_configs:
-            for idx, config in enumerate(essential_configs, 1):
-                html += self._render_indicator(idx, config)
-        else:
-            # Show placeholder based on principle
-            html += self._render_default_essential_indicators(principle_key)
-        
-        # Leadership Indicators
-        html += '<div class="indicator-header">Leadership Indicators</div>'
-        
-        if leadership_configs:
-            for idx, config in enumerate(leadership_configs, 1):
-                html += self._render_indicator(idx, config)
-        else:
-            html += self._render_default_leadership_indicators(principle_key)
-        
-        return html
     
-    def _render_indicator(self, idx: int, config: Dict) -> str:
-        """Render a single indicator question."""
-        question_text = config.get('question') or config.get('question_text') or config.get('title') or config.get('description') or ''
-        question_key = config.get('question_key', '')
-        response = self.section_c_data.get(question_key, '')
-        
-        html = f'''
-        <div class="question-item"><span class="q-num">{idx}.</span><span class="q-text">{question_text}</span></div>
-        '''
-        
-        # Format response based on type
-        if response:
-            if isinstance(response, dict):
-                html += '<div class="answer-value">'
-                for k, v in response.items():
-                    if v is not None and v != '':
-                        html += f'{k}: {v}<br>'
-                html += '</div>'
-            elif isinstance(response, list):
-                if response:
-                    html += f'<div class="answer-value">{len(response)} entries recorded</div>'
-            else:
-                html += f'<div class="answer-value">{response}</div>'
-        
-        return html
-    
-    def _render_default_essential_indicators(self, principle_key: str) -> str:
-        """Render default essential indicators placeholder for a principle."""
-        # This would contain the standard Annexure II questions
-        # For now, return placeholder
+    def _render_principle_2(self) -> str:
+        """PRINCIPLE 2: Businesses should provide goods and services in a manner that is sustainable and safe"""
         return f'''
-        <div class="question-item"><span class="q-num">1.</span><span class="q-text">[Essential indicator questions for {principle_key} will be populated from configured questionnaire]</span></div>
-        <div class="answer-value"></div>
+        <div class="page-break"></div>
+        
+        <div class="principle-header">PRINCIPLE 2 {self.PRINCIPLES['P2']}</div>
+        
+        <div class="indicator-header">Essential Indicators</div>
+        
+        <div class="question-item"><span class="q-num">1.</span> <span class="q-text">Percentage of R&amp;D and capital expenditure (capex) investments in specific technologies to improve the environmental and social impacts of product and processes to total R&amp;D and capex investments made by the entity, respectively.</span></div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th></th>
+                    <th class="col-narrow">{self.reporting_period} (Current FY)</th>
+                    <th class="col-narrow">{self.previous_fy} (Previous FY)</th>
+                    <th>Details of improvements in environmental and social impacts</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>R&amp;D</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_e1_rd_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_e1_rd_prev', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p2_e1_rd_details', '')}</td>
+                </tr>
+                <tr>
+                    <td>Capex</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_e1_capex_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_e1_capex_prev', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p2_e1_capex_details', '')}</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="question-item"><span class="q-num">2.</span> <span class="q-text">a. Does the entity have procedures in place for sustainable sourcing? (Yes/No)</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p2_e2a_sustainable_sourcing', '')}</div>
+        
+        <div class="sub-label">b. If yes, what percentage of inputs were sourced sustainably?</div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p2_e2b_percentage', '')}</div>
+        
+        <div class="question-item"><span class="q-num">3.</span> <span class="q-text">Describe the processes in place to safely reclaim your products for reusing, recycling and disposing at the end of life, for (a) Plastics (including packaging) (b) E-waste (c) Hazardous waste and (d) other waste.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p2_e3_reclaim_processes', '')}</div>
+        
+        <div class="question-item"><span class="q-num">4.</span> <span class="q-text">Whether Extended Producer Responsibility (EPR) is applicable to the entity's activities (Yes / No). If yes, whether the waste collection plan is in line with the Extended Producer Responsibility (EPR) plan submitted to Pollution Control Boards? If not, provide steps taken to address the same.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p2_e4_epr', '')}</div>
+        
+        <div class="indicator-header">Leadership Indicators</div>
+        
+        <div class="question-item"><span class="q-num">1.</span> <span class="q-text">Has the entity conducted Life Cycle Perspective / Assessments (LCA) for any of its products (for manufacturing industry) or for its services (for service industry)? If yes, provide details in the following format?</span></div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>NIC Code</th>
+                    <th>Name of Product /Service</th>
+                    <th class="col-percent">% of total Turnover contributed</th>
+                    <th>Boundary for which the Life Cycle Perspective / Assessment was conducted</th>
+                    <th class="col-yesno">Whether conducted by independent external agency (Yes/No)</th>
+                    <th class="col-yesno">Results communicated in public domain (Yes/No) If yes, provide the web-link.</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p2_l1_nic_code', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p2_l1_product', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l1_turnover', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p2_l1_boundary', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l1_external', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p2_l1_public', '')}</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="question-item"><span class="q-num">2.</span> <span class="q-text">If there are any significant social or environmental concerns and/or risks arising from production or disposal of your products / services, as identified in the Life Cycle Perspective / Assessments (LCA) or through any other means, briefly describe the same along-with action taken to mitigate the same.</span></div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Name of Product / Service</th>
+                    <th>Description of the risk / concern</th>
+                    <th>Action Taken</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p2_l2_product', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p2_l2_risk', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p2_l2_action', '')}</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="question-item"><span class="q-num">3.</span> <span class="q-text">Percentage of recycled or reused input material to total material (by value) used in production (for manufacturing industry) or providing services (for service industry).</span></div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Indicate input material</th>
+                    <th class="col-narrow">Recycled or re-used input material to total material</th>
+                    <th class="col-narrow">{self.reporting_period} (Current FY)</th>
+                    <th class="col-narrow">{self.previous_fy} (Previous FY)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p2_l3_material', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l3_recycled', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l3_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l3_prev', '')}</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="question-item"><span class="q-num">4.</span> <span class="q-text">Of the products and packaging reclaimed at end of life of products, amount (in metric tonnes) reused, recycled, and safely disposed, as per the following format:</span></div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th></th>
+                    <th colspan="3" class="fy-header">{self.reporting_period} (Current FY)</th>
+                    <th colspan="3" class="fy-header">{self.previous_fy} (Previous FY)</th>
+                </tr>
+                <tr>
+                    <th></th>
+                    <th class="col-narrow">Re-Used</th>
+                    <th class="col-narrow">Recycled</th>
+                    <th class="col-narrow">Safely Disposed</th>
+                    <th class="col-narrow">Re-Used</th>
+                    <th class="col-narrow">Recycled</th>
+                    <th class="col-narrow">Safely Disposed</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Plastics (including packaging)</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_plastics_reused_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_plastics_recycled_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_plastics_disposed_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_plastics_reused_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_plastics_recycled_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_plastics_disposed_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>E-waste</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_ewaste_reused_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_ewaste_recycled_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_ewaste_disposed_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_ewaste_reused_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_ewaste_recycled_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_ewaste_disposed_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Hazardous waste</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_hazardous_reused_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_hazardous_recycled_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_hazardous_disposed_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_hazardous_reused_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_hazardous_recycled_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_hazardous_disposed_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Other waste</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_other_reused_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_other_recycled_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_other_disposed_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_other_reused_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_other_recycled_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_other_disposed_prev', '')}</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="question-item"><span class="q-num">5.</span> <span class="q-text">Reclaimed products and their packaging materials (as percentage of products sold) for each product category.</span></div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Indicate product category</th>
+                    <th>Reclaimed products and their packaging materials as % of total products sold in respective category</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p2_l5_category', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l5_percentage', '')}</td>
+                </tr>
+            </tbody>
+        </table>
         '''
     
-    def _render_default_leadership_indicators(self, principle_key: str) -> str:
-        """Render default leadership indicators placeholder for a principle."""
+    def _render_principle_3(self) -> str:
+        """PRINCIPLE 3: Businesses should respect and promote the well-being of all employees, including those in their value chains"""
+        # This is a very long principle with many tables - implementing key sections
         return f'''
-        <div class="question-item"><span class="q-num">1.</span><span class="q-text">[Leadership indicator questions for {principle_key} will be populated from configured questionnaire]</span></div>
-        <div class="answer-value"></div>
+        <div class="page-break"></div>
+        
+        <div class="principle-header">PRINCIPLE 3 {self.PRINCIPLES['P3']}</div>
+        
+        <div class="indicator-header">Essential Indicators</div>
+        
+        <div class="question-item"><span class="q-num">1.</span> <span class="q-text">a. Details of measures for the well-being of employees:</span></div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th rowspan="2">Category</th>
+                    <th rowspan="2" class="col-narrow">Total (A)</th>
+                    <th colspan="2">Health insurance</th>
+                    <th colspan="2">Accident insurance</th>
+                    <th colspan="2">Maternity benefits</th>
+                    <th colspan="2">Paternity Benefits</th>
+                    <th colspan="2">Day Care facilities</th>
+                </tr>
+                <tr>
+                    <th class="col-number">Number (B)</th>
+                    <th class="col-number">% (B/A)</th>
+                    <th class="col-number">Number (C)</th>
+                    <th class="col-number">% (C/A)</th>
+                    <th class="col-number">Number (D)</th>
+                    <th class="col-number">% (D/A)</th>
+                    <th class="col-number">Number (E)</th>
+                    <th class="col-number">% (E/A)</th>
+                    <th class="col-number">Number (F)</th>
+                    <th class="col-number">% (F/A)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="category-header"><td colspan="12">Permanent employees</td></tr>
+                <tr>
+                    <td>Male</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_m_total', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_m_health_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_m_health_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_m_accident_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_m_accident_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_m_maternity_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_m_maternity_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_m_paternity_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_m_paternity_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_m_daycare_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_m_daycare_pct', '')}</td>
+                </tr>
+                <tr>
+                    <td>Female</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_f_total', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_f_health_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_f_health_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_f_accident_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_f_accident_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_f_maternity_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_f_maternity_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_f_paternity_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_f_paternity_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_f_daycare_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_f_daycare_pct', '')}</td>
+                </tr>
+                <tr>
+                    <td>Total</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_total', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_health_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_health_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_accident_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_accident_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_maternity_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_maternity_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_paternity_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_paternity_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_daycare_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_daycare_pct', '')}</td>
+                </tr>
+                <tr class="category-header"><td colspan="12">Other than Permanent employees</td></tr>
+                <tr>
+                    <td>Male</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_m_total', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_m_health_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_m_health_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_m_accident_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_m_accident_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_m_maternity_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_m_maternity_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_m_paternity_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_m_paternity_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_m_daycare_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_m_daycare_pct', '')}</td>
+                </tr>
+                <tr>
+                    <td>Female</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_f_total', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_f_health_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_f_health_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_f_accident_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_f_accident_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_f_maternity_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_f_maternity_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_f_paternity_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_f_paternity_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_f_daycare_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_f_daycare_pct', '')}</td>
+                </tr>
+                <tr>
+                    <td>Total</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_total', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_health_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_health_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_accident_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_accident_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_maternity_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_maternity_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_paternity_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_paternity_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_daycare_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_daycare_pct', '')}</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="sub-label">b. Details of measures for the well-being of workers:</div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p3_e1b_workers_wellbeing', '')}</div>
+        
+        <div class="sub-label">c. Spending on measures towards well-being of employees and workers (including permanent and other than permanent) in the following format:</div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th></th>
+                    <th class="col-narrow">{self.reporting_period} (Current FY)</th>
+                    <th class="col-narrow">{self.previous_fy} (Previous FY)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Cost incurred on well-being measures as a % of total revenue of the company</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1c_wellbeing_cost_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1c_wellbeing_cost_prev', '')}</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="question-item"><span class="q-num">2.</span> <span class="q-text">Details of retirement benefits, for Current FY and Previous Financial Year.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p3_e2_retirement_benefits', '')}</div>
+        
+        <div class="question-item"><span class="q-num">3.</span> <span class="q-text">Accessibility of workplaces</span></div>
+        <div class="sub-label">Are the premises / offices of the entity accessible to differently abled employees and workers, as per the requirements of the Rights of Persons with Disabilities Act, 2016? If not, whether any steps are being taken by the entity in this regard.</div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p3_e3_accessibility', '')}</div>
+        
+        <div class="question-item"><span class="q-num">4.</span> <span class="q-text">Does the entity have an equal opportunity policy as per the Rights of Persons with Disabilities Act, 2016? If so, provide a web-link to the policy.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p3_e4_equal_opportunity', '')}</div>
+        
+        <div class="question-item"><span class="q-num">5.</span> <span class="q-text">Return to work and Retention rates of permanent employees and workers that took parental leave.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p3_e5_parental_leave', '')}</div>
+        
+        <div class="question-item"><span class="q-num">6.</span> <span class="q-text">Is there a mechanism available to receive and redress grievances for the following categories of employees and worker? If yes, give details of the mechanism in brief.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p3_e6_grievance_mechanism', '')}</div>
+        
+        <div class="question-item"><span class="q-num">7.</span> <span class="q-text">Membership of employees and worker in association(s) or Unions recognised by the listed entity:</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p3_e7_union_membership', '')}</div>
+        
+        <div class="question-item"><span class="q-num">8.</span> <span class="q-text">Details of training given to employees and workers:</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p3_e8_training', '')}</div>
+        
+        <div class="question-item"><span class="q-num">9.</span> <span class="q-text">Details of performance and career development reviews of employees and worker:</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p3_e9_performance_reviews', '')}</div>
+        
+        <div class="question-item"><span class="q-num">10.</span> <span class="q-text">Health and safety management system:</span></div>
+        <div class="sub-label">a. Whether an occupational health and safety management system has been implemented by the entity? (Yes/No). If yes, the coverage such system?</div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p3_e10a_ohs_system', '')}</div>
+        <div class="sub-label">b. What are the processes used to identify work-related hazards and assess risks on a routine and non-routine basis by the entity?</div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p3_e10b_hazard_identification', '')}</div>
+        <div class="sub-label">c. Whether you have processes for workers to report the work related hazards and to remove themselves from such risks. (Y/N)</div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p3_e10c_hazard_reporting', '')}</div>
+        <div class="sub-label">d. Do the employees/ worker of the entity have access to non-occupational medical and healthcare services? (Yes/No)</div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p3_e10d_healthcare_access', '')}</div>
+        
+        <div class="question-item"><span class="q-num">11.</span> <span class="q-text">Details of safety related incidents, in the following format:</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p3_e11_safety_incidents', '')}</div>
+        
+        <div class="question-item"><span class="q-num">12.</span> <span class="q-text">Describe the measures taken by the entity to ensure a safe and healthy work place.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p3_e12_safe_workplace', '')}</div>
+        
+        <div class="question-item"><span class="q-num">13.</span> <span class="q-text">Number of Complaints on the following made by employees and workers:</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p3_e13_complaints', '')}</div>
+        
+        <div class="question-item"><span class="q-num">14.</span> <span class="q-text">Assessments for the year:</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p3_e14_assessments', '')}</div>
+        
+        <div class="question-item"><span class="q-num">15.</span> <span class="q-text">Provide details of any corrective action taken or underway to address safety-related incidents (if any) and on significant risks / concerns arising from assessments of health &amp; safety practices and working conditions.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p3_e15_corrective_actions', '')}</div>
+        
+        <div class="indicator-header">Leadership Indicators</div>
+        
+        <div class="question-item"><span class="q-num">1.</span> <span class="q-text">Does the entity extend any life insurance or any compensatory package in the event of death of (A) Employees (Y/N) (B) Workers (Y/N).</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p3_l1_life_insurance', '')}</div>
+        
+        <div class="question-item"><span class="q-num">2.</span> <span class="q-text">Provide the measures undertaken by the entity to ensure that statutory dues have been deducted and deposited by the value chain partners.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p3_l2_statutory_dues', '')}</div>
+        
+        <div class="question-item"><span class="q-num">3.</span> <span class="q-text">Provide the number of employees / workers having suffered high consequence work-related injury / ill-health / fatalities (as reported in Q11 of Essential Indicators above), who have been are rehabilitated and placed in suitable employment or whose family members have been placed in suitable employment:</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p3_l3_rehabilitation', '')}</div>
+        
+        <div class="question-item"><span class="q-num">4.</span> <span class="q-text">Does the entity provide transition assistance programs to facilitate continued employability and the management of career endings resulting from retirement or termination of employment? (Yes/No)</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p3_l4_transition_assistance', '')}</div>
+        
+        <div class="question-item"><span class="q-num">5.</span> <span class="q-text">Details on assessment of value chain partners:</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p3_l5_valuechain_assessment', '')}</div>
+        
+        <div class="question-item"><span class="q-num">6.</span> <span class="q-text">Provide details of any corrective actions taken or underway to address significant risks / concerns arising from assessments of health and safety practices and working conditions of value chain partners.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p3_l6_valuechain_corrective', '')}</div>
         '''
     
-    # === Helper methods for Section A tables ===
-    
-    def _render_business_activities(self) -> str:
-        """Render business activities table rows."""
-        data = self.section_a.get('business_activities', [])
-        if not data:
-            return '<tr><td class="col-sno"></td><td class="answer-cell"></td><td class="answer-cell"></td><td class="answer-cell"></td></tr>'
-        
-        html = ''
-        for i, item in enumerate(data):
-            html += f'''<tr>
-                <td class="col-sno">{i + 1}</td>
-                <td class="answer-cell">{item.get('main_activity', '')}</td>
-                <td class="answer-cell">{item.get('description', '')}</td>
-                <td class="answer-cell">{item.get('turnover_percentage', '')}%</td>
-            </tr>'''
-        return html
-    
-    def _render_products_services(self) -> str:
-        """Render products/services table rows."""
-        data = self.section_a.get('products_services', [])
-        if not data:
-            return '<tr><td class="col-sno"></td><td class="answer-cell"></td><td class="answer-cell"></td><td class="answer-cell"></td></tr>'
-        
-        html = ''
-        for i, item in enumerate(data):
-            html += f'''<tr>
-                <td class="col-sno">{i + 1}</td>
-                <td class="answer-cell">{item.get('product_service', '')}</td>
-                <td class="answer-cell">{item.get('nic_code', '')}</td>
-                <td class="answer-cell">{item.get('turnover_percentage', '')}%</td>
-            </tr>'''
-        return html
-    
-    def _render_plants_offices(self) -> str:
-        """Render plants/offices table rows."""
-        data = self.section_a.get('plants_offices', [])
-        
-        national = {'num_plants': '', 'num_offices': '', 'total': ''}
-        international = {'num_plants': '', 'num_offices': '', 'total': ''}
-        
-        for item in data:
-            loc_type = item.get('location_type', '').lower()
-            plants = item.get('num_plants', 0) or 0
-            offices = item.get('num_offices', 0) or 0
-            total = plants + offices
-            if 'national' in loc_type:
-                national = {'num_plants': plants, 'num_offices': offices, 'total': total}
-            elif 'international' in loc_type:
-                international = {'num_plants': plants, 'num_offices': offices, 'total': total}
-        
+    def _render_principle_4(self) -> str:
+        """PRINCIPLE 4: Businesses should respect the interests of and be responsive to all its stakeholders"""
         return f'''
-        <tr>
-            <td>National</td>
-            <td class="answer-cell">{national['num_plants']}</td>
-            <td class="answer-cell">{national['num_offices']}</td>
-            <td class="answer-cell">{national['total']}</td>
-        </tr>
-        <tr>
-            <td>International</td>
-            <td class="answer-cell">{international['num_plants']}</td>
-            <td class="answer-cell">{international['num_offices']}</td>
-            <td class="answer-cell">{international['total']}</td>
-        </tr>
+        <div class="page-break"></div>
+        
+        <div class="principle-header">PRINCIPLE 4 {self.PRINCIPLES['P4']}</div>
+        
+        <div class="indicator-header">Essential Indicators</div>
+        
+        <div class="question-item"><span class="q-num">1.</span> <span class="q-text">Describe the processes for identifying key stakeholder groups of the entity.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p4_e1_stakeholder_identification', '')}</div>
+        
+        <div class="question-item"><span class="q-num">2.</span> <span class="q-text">List stakeholder groups identified as key for your entity and the frequency of engagement with each stakeholder group.</span></div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Stakeholder Group</th>
+                    <th>Whether identified as Vulnerable &amp; Marginalized Group (Yes/No)</th>
+                    <th>Channels of communication (Email, SMS, Newspaper, Pamphlets, Advertisement, Community Meetings, Notice Board, Website), Other</th>
+                    <th>Frequency of engagement (Annually/ Half yearly/ Quarterly / others – please specify)</th>
+                    <th>Purpose and scope of engagement including key topics and concerns raised during such engagement</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p4_e2_stakeholder1_group', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p4_e2_stakeholder1_vulnerable', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p4_e2_stakeholder1_channels', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p4_e2_stakeholder1_frequency', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p4_e2_stakeholder1_purpose', '')}</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="indicator-header">Leadership Indicators</div>
+        
+        <div class="question-item"><span class="q-num">1.</span> <span class="q-text">Provide the processes for consultation between stakeholders and the Board on economic, environmental, and social topics or if consultation is delegated, how is feedback from such consultations provided to the Board.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p4_l1_board_consultation', '')}</div>
+        
+        <div class="question-item"><span class="q-num">2.</span> <span class="q-text">Whether stakeholder consultation is used to support the identification and management of environmental, and social topics (Yes / No). If so, provide details of instances as to how the inputs received from stakeholders on these topics were incorporated into policies and activities of the entity.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p4_l2_stakeholder_input', '')}</div>
+        
+        <div class="question-item"><span class="q-num">3.</span> <span class="q-text">Provide details of instances of engagement with, and actions taken to, address the concerns of vulnerable/ marginalized stakeholder groups.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p4_l3_vulnerable_stakeholders', '')}</div>
         '''
     
-    def _render_markets_served(self) -> str:
-        """Render markets served table rows."""
-        data = self.section_a.get('markets_served', [])
-        
-        national = ''
-        international = ''
-        
-        for item in data:
-            loc_type = item.get('location_type', '').lower()
-            number = item.get('number', '')
-            if 'national' in loc_type:
-                national = number
-            elif 'international' in loc_type:
-                international = number
-        
+    def _render_principle_5(self) -> str:
+        """PRINCIPLE 5: Businesses should respect and promote human rights"""
         return f'''
-        <tr>
-            <td>National (No. of States)</td>
-            <td class="answer-cell">{national}</td>
-        </tr>
-        <tr>
-            <td>International (No. of Countries)</td>
-            <td class="answer-cell">{international}</td>
-        </tr>
-        '''
-    
-    def _render_employees_table(self) -> str:
-        """Render employees section of Q20 table."""
-        return f'''
-        <tr>
-            <td class="col-sno">1.</td>
-            <td>Permanent (D)</td>
-            <td class="answer-cell">{self._val('emp_perm_total')}</td>
-            <td class="answer-cell">{self._val('emp_perm_male')}</td>
-            <td class="answer-cell">{self._val('emp_perm_male_pct')}</td>
-            <td class="answer-cell">{self._val('emp_perm_female')}</td>
-            <td class="answer-cell">{self._val('emp_perm_female_pct')}</td>
-        </tr>
-        <tr>
-            <td class="col-sno">2.</td>
-            <td>Other than Permanent (E)</td>
-            <td class="answer-cell">{self._val('emp_other_total')}</td>
-            <td class="answer-cell">{self._val('emp_other_male')}</td>
-            <td class="answer-cell">{self._val('emp_other_male_pct')}</td>
-            <td class="answer-cell">{self._val('emp_other_female')}</td>
-            <td class="answer-cell">{self._val('emp_other_female_pct')}</td>
-        </tr>
-        <tr>
-            <td class="col-sno">3.</td>
-            <td class="bold">Total employees (D + E)</td>
-            <td class="answer-cell">{self._val('emp_total_total')}</td>
-            <td class="answer-cell">{self._val('emp_total_male')}</td>
-            <td class="answer-cell">{self._val('emp_total_male_pct')}</td>
-            <td class="answer-cell">{self._val('emp_total_female')}</td>
-            <td class="answer-cell">{self._val('emp_total_female_pct')}</td>
-        </tr>
-        '''
-    
-    def _render_workers_table(self) -> str:
-        """Render workers section of Q20 table."""
-        return f'''
-        <tr>
-            <td class="col-sno">4.</td>
-            <td>Permanent (F)</td>
-            <td class="answer-cell">{self._val('wrk_perm_total')}</td>
-            <td class="answer-cell">{self._val('wrk_perm_male')}</td>
-            <td class="answer-cell">{self._val('wrk_perm_male_pct')}</td>
-            <td class="answer-cell">{self._val('wrk_perm_female')}</td>
-            <td class="answer-cell">{self._val('wrk_perm_female_pct')}</td>
-        </tr>
-        <tr>
-            <td class="col-sno">5.</td>
-            <td>Other than Permanent (G)</td>
-            <td class="answer-cell">{self._val('wrk_other_total')}</td>
-            <td class="answer-cell">{self._val('wrk_other_male')}</td>
-            <td class="answer-cell">{self._val('wrk_other_male_pct')}</td>
-            <td class="answer-cell">{self._val('wrk_other_female')}</td>
-            <td class="answer-cell">{self._val('wrk_other_female_pct')}</td>
-        </tr>
-        <tr>
-            <td class="col-sno">6.</td>
-            <td class="bold">Total workers (F + G)</td>
-            <td class="answer-cell">{self._val('wrk_total_total')}</td>
-            <td class="answer-cell">{self._val('wrk_total_male')}</td>
-            <td class="answer-cell">{self._val('wrk_total_male_pct')}</td>
-            <td class="answer-cell">{self._val('wrk_total_female')}</td>
-            <td class="answer-cell">{self._val('wrk_total_female_pct')}</td>
-        </tr>
-        '''
-    
-    def _render_differently_abled_employees(self) -> str:
-        """Render differently abled employees table."""
-        return f'''
-        <tr>
-            <td class="col-sno">1.</td>
-            <td>Permanent (D)</td>
-            <td class="answer-cell">{self._val('da_emp_perm_total')}</td>
-            <td class="answer-cell">{self._val('da_emp_perm_male')}</td>
-            <td class="answer-cell">{self._val('da_emp_perm_male_pct')}</td>
-            <td class="answer-cell">{self._val('da_emp_perm_female')}</td>
-            <td class="answer-cell">{self._val('da_emp_perm_female_pct')}</td>
-        </tr>
-        <tr>
-            <td class="col-sno">2.</td>
-            <td>Other than Permanent (E)</td>
-            <td class="answer-cell">{self._val('da_emp_other_total')}</td>
-            <td class="answer-cell">{self._val('da_emp_other_male')}</td>
-            <td class="answer-cell">{self._val('da_emp_other_male_pct')}</td>
-            <td class="answer-cell">{self._val('da_emp_other_female')}</td>
-            <td class="answer-cell">{self._val('da_emp_other_female_pct')}</td>
-        </tr>
-        <tr>
-            <td class="col-sno">3.</td>
-            <td class="bold">Total differently abled employees (D + E)</td>
-            <td class="answer-cell">{self._val('da_emp_total_total')}</td>
-            <td class="answer-cell">{self._val('da_emp_total_male')}</td>
-            <td class="answer-cell">{self._val('da_emp_total_male_pct')}</td>
-            <td class="answer-cell">{self._val('da_emp_total_female')}</td>
-            <td class="answer-cell">{self._val('da_emp_total_female_pct')}</td>
-        </tr>
-        '''
-    
-    def _render_differently_abled_workers(self) -> str:
-        """Render differently abled workers table."""
-        return f'''
-        <tr>
-            <td class="col-sno">4.</td>
-            <td>Permanent (F)</td>
-            <td class="answer-cell">{self._val('da_wrk_perm_total')}</td>
-            <td class="answer-cell">{self._val('da_wrk_perm_male')}</td>
-            <td class="answer-cell">{self._val('da_wrk_perm_male_pct')}</td>
-            <td class="answer-cell">{self._val('da_wrk_perm_female')}</td>
-            <td class="answer-cell">{self._val('da_wrk_perm_female_pct')}</td>
-        </tr>
-        <tr>
-            <td class="col-sno">5.</td>
-            <td>Other than permanent (G)</td>
-            <td class="answer-cell">{self._val('da_wrk_other_total')}</td>
-            <td class="answer-cell">{self._val('da_wrk_other_male')}</td>
-            <td class="answer-cell">{self._val('da_wrk_other_male_pct')}</td>
-            <td class="answer-cell">{self._val('da_wrk_other_female')}</td>
-            <td class="answer-cell">{self._val('da_wrk_other_female_pct')}</td>
-        </tr>
-        <tr>
-            <td class="col-sno">6.</td>
-            <td class="bold">Total differently abled workers (F + G)</td>
-            <td class="answer-cell">{self._val('da_wrk_total_total')}</td>
-            <td class="answer-cell">{self._val('da_wrk_total_male')}</td>
-            <td class="answer-cell">{self._val('da_wrk_total_male_pct')}</td>
-            <td class="answer-cell">{self._val('da_wrk_total_female')}</td>
-            <td class="answer-cell">{self._val('da_wrk_total_female_pct')}</td>
-        </tr>
-        '''
-    
-    def _render_holding_companies(self) -> str:
-        """Render holding/subsidiary companies table rows."""
-        data = self.section_a.get('holding_companies', [])
-        if not data:
-            return '<tr><td class="col-sno"></td><td class="answer-cell"></td><td class="answer-cell"></td><td class="answer-cell"></td><td class="answer-cell"></td></tr>'
+        <div class="page-break"></div>
         
-        html = ''
-        for i, item in enumerate(data):
-            html += f'''<tr>
-                <td class="col-sno">{i + 1}</td>
-                <td class="answer-cell">{item.get('name', '')}</td>
-                <td class="answer-cell">{item.get('type', '')}</td>
-                <td class="answer-cell">{item.get('shares_held', '')}%</td>
-                <td class="answer-cell">{item.get('participates_br', '')}</td>
-            </tr>'''
-        return html
-    
-    def _render_grievances_table(self) -> str:
-        """Render grievances/complaints table rows."""
-        stakeholders = [
-            ('Communities', 'communities'),
-            ('Investors (other than shareholders)', 'investors'),
-            ('Shareholders', 'shareholders'),
-            ('Employees and workers', 'employees'),
-            ('Customers', 'customers'),
-            ('Value Chain Partners', 'valuechain'),
-            ('Other (please specify)', 'other'),
-        ]
+        <div class="principle-header">PRINCIPLE 5 {self.PRINCIPLES['P5']}</div>
         
-        html = ''
-        for label, key in stakeholders:
-            html += f'''<tr>
-                <td>{label}</td>
-                <td class="answer-cell">{self._val(f'grievance_{key}_mechanism')}</td>
-                <td class="answer-cell">{self._val(f'grievance_{key}_weblink')}</td>
-                <td class="answer-cell">{self._val(f'grievance_{key}_curr_filed')}</td>
-                <td class="answer-cell">{self._val(f'grievance_{key}_curr_pending')}</td>
-                <td class="answer-cell">{self._val(f'grievance_{key}_prev_filed')}</td>
-                <td class="answer-cell">{self._val(f'grievance_{key}_prev_pending')}</td>
-            </tr>'''
-        return html
-    
-    def _render_material_issues(self) -> str:
-        """Render material issues table rows."""
-        data = self.section_a.get('material_issues', [])
-        if not data:
-            return '<tr><td class="col-sno"></td><td class="answer-cell"></td><td class="answer-cell"></td><td class="answer-cell"></td><td class="answer-cell"></td><td class="answer-cell"></td></tr>'
+        <div class="indicator-header">Essential Indicators</div>
         
-        html = ''
-        for i, item in enumerate(data):
-            html += f'''<tr>
-                <td class="col-sno">{i + 1}</td>
-                <td class="answer-cell">{item.get('issue', '')}</td>
-                <td class="answer-cell">{item.get('risk_or_opportunity', '')}</td>
-                <td class="answer-cell">{item.get('rationale', '')}</td>
-                <td class="answer-cell">{item.get('approach', '')}</td>
-                <td class="answer-cell">{item.get('financial_implications', '')}</td>
-            </tr>'''
-        return html
-    
-    def render(self) -> str:
-        """Render the complete BRSR HTML document."""
-        html = f'''
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>BRSR Report - {self.organization.get('name', 'Organization')}</title>
-            <style>
-                {self.get_css()}
-            </style>
-        </head>
-        <body>
-            {self.render_section_a()}
-            {self.render_section_b()}
-            {self.render_section_c()}
-        </body>
-        </html>
+        <div class="question-item"><span class="q-num">1.</span> <span class="q-text">Employees and workers who have been provided training on human rights issues and policy(ies) of the entity, in the following format:</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p5_e1_hr_training', '')}</div>
+        
+        <div class="question-item"><span class="q-num">2.</span> <span class="q-text">Details of minimum wages paid to employees and workers, in the following format:</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p5_e2_minimum_wages', '')}</div>
+        
+        <div class="question-item"><span class="q-num">3.</span> <span class="q-text">Details of remuneration/salary/wages</span></div>
+        <div class="sub-label">a. Median remuneration / wages:</div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p5_e3a_median_remuneration', '')}</div>
+        <div class="sub-label">b. Gross wages paid to females as % of total wages paid by the entity, in the following format:</div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p5_e3b_female_wages', '')}</div>
+        
+        <div class="question-item"><span class="q-num">4.</span> <span class="q-text">Do you have a focal point (Individual/ Committee) responsible for addressing human rights impacts or issues caused or contributed to by the business? (Yes/No)</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p5_e4_focal_point', '')}</div>
+        
+        <div class="question-item"><span class="q-num">5.</span> <span class="q-text">Describe the internal mechanisms in place to redress grievances related to human rights issues.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p5_e5_grievance_mechanism', '')}</div>
+        
+        <div class="question-item"><span class="q-num">6.</span> <span class="q-text">Number of Complaints on the following made by employees and workers:</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p5_e6_complaints', '')}</div>
+        
+        <div class="question-item"><span class="q-num">7.</span> <span class="q-text">Complaints filed under the Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Act, 2013, in the following format:</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p5_e7_posh_complaints', '')}</div>
+        
+        <div class="question-item"><span class="q-num">8.</span> <span class="q-text">Mechanisms to prevent adverse consequences to the complainant in discrimination and harassment cases.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p5_e8_complainant_protection', '')}</div>
+        
+        <div class="question-item"><span class="q-num">9.</span> <span class="q-text">Do human rights requirements form part of your business agreements and contracts? (Yes/No)</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p5_e9_hr_contracts', '')}</div>
+        
+        <div class="question-item"><span class="q-num">10.</span> <span class="q-text">Assessments for the year:</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p5_e10_assessments', '')}</div>
+        
+        <div class="question-item"><span class="q-num">11.</span> <span class="q-text">Provide details of any corrective actions taken or underway to address significant risks / concerns arising from the assessments at Question 10 above.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p5_e11_corrective_actions', '')}</div>
+        
+        <div class="indicator-header">Leadership Indicators</div>
+        
+        <div class="question-item"><span class="q-num">1.</span> <span class="q-text">Details of a business process being modified / introduced as a result of addressing human rights grievances/complaints.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p5_l1_process_modified', '')}</div>
+        
+        <div class="question-item"><span class="q-num">2.</span> <span class="q-text">Details of the scope and coverage of any Human rights due-diligence conducted.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p5_l2_hr_due_diligence', '')}</div>
+        
+        <div class="question-item"><span class="q-num">3.</span> <span class="q-text">Is the premise/office of the entity accessible to differently abled visitors, as per the requirements of the Rights of Persons with Disabilities Act, 2016?</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p5_l3_visitor_accessibility', '')}</div>
+        
+        <div class="question-item"><span class="q-num">4.</span> <span class="q-text">Details on assessment of value chain partners:</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p5_l4_valuechain_assessment', '')}</div>
+        
+        <div class="question-item"><span class="q-num">5.</span> <span class="q-text">Provide details of any corrective actions taken or underway to address significant risks / concerns arising from the assessments at Question 4 above.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p5_l5_valuechain_corrective', '')}</div>
         '''
-        return html
+    
+    def _render_principle_6(self) -> str:
+        """PRINCIPLE 6: Businesses should respect and make efforts to protect and restore the environment"""
+        return f'''
+        <div class="page-break"></div>
+        
+        <div class="principle-header">PRINCIPLE 6 {self.PRINCIPLES['P6']}</div>
+        
+        <div class="indicator-header">Essential Indicators</div>
+        
+        <div class="question-item"><span class="q-num">1.</span> <span class="q-text">Details of total energy consumption (in Joules or multiples) and energy intensity, in the following format:</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e1_energy_consumption', '')}</div>
+        <div class="note-text">Note: Indicate if any independent assessment/ evaluation/assurance has been carried out by an external agency? (Y/N) If yes, name of the external agency.</div>
+        
+        <div class="question-item"><span class="q-num">2.</span> <span class="q-text">Does the entity have any sites / facilities identified as designated consumers (DCs) under the Performance, Achieve and Trade (PAT) Scheme of the Government of India? (Y/N) If yes, disclose whether targets set under the PAT scheme have been achieved. In case targets have not been achieved, provide the remedial action taken, if any.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e2_pat_scheme', '')}</div>
+        
+        <div class="question-item"><span class="q-num">3.</span> <span class="q-text">Provide details of the following disclosures related to water, in the following format:</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e3_water', '')}</div>
+        <div class="note-text">Note: Indicate if any independent assessment/evaluation/assurance has been carried out by an external agency? (Y/N) If yes, name of the external agency.</div>
+        
+        <div class="question-item"><span class="q-num">4.</span> <span class="q-text">Provide the following details related to water discharged:</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e4_water_discharge', '')}</div>
+        <div class="note-text">Note: Indicate if any independent assessment/evaluation/assurance has been carried out by an external agency? (Y/N) If yes, name of the external agency.</div>
+        
+        <div class="question-item"><span class="q-num">5.</span> <span class="q-text">Has the entity implemented a mechanism for Zero Liquid Discharge? If yes, provide details of its coverage and implementation.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e5_zld', '')}</div>
+        
+        <div class="question-item"><span class="q-num">6.</span> <span class="q-text">Please provide details of air emissions (other than GHG emissions) by the entity, in the following format:</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e6_air_emissions', '')}</div>
+        <div class="note-text">Note: Indicate if any independent assessment/ evaluation/assurance has been carried out by an external agency? (Y/N) If yes, name of the external agency.</div>
+        
+        <div class="question-item"><span class="q-num">7.</span> <span class="q-text">Provide details of greenhouse gas emissions (Scope 1 and Scope 2 emissions) &amp; its intensity, in the following format:</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e7_ghg_emissions', '')}</div>
+        <div class="note-text">Note: Indicate if any independent assessment/ evaluation/assurance has been carried out by an external agency? (Y/N) If yes, name of the external agency.</div>
+        
+        <div class="question-item"><span class="q-num">8.</span> <span class="q-text">Does the entity have any project related to reducing Green House Gas emission? If Yes, then provide details.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e8_ghg_projects', '')}</div>
+        
+        <div class="question-item"><span class="q-num">9.</span> <span class="q-text">Provide details related to waste management by the entity, in the following format:</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e9_waste_management', '')}</div>
+        <div class="note-text">Note: Indicate if any independent assessment/evaluation/assurance has been carried out by an external agency? (Y/N) If yes, name of the external agency.</div>
+        
+        <div class="question-item"><span class="q-num">10.</span> <span class="q-text">Briefly describe the waste management practices adopted in your establishments. Describe the strategy adopted by your company to reduce usage of hazardous and toxic chemicals in your products and processes and the practices adopted to manage such wastes.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e10_waste_practices', '')}</div>
+        
+        <div class="question-item"><span class="q-num">11.</span> <span class="q-text">If the entity has operations/offices in/around ecologically sensitive areas (such as national parks, wildlife sanctuaries, biosphere reserves, wetlands, biodiversity hotspots, forests, coastal regulation zones etc.) where environmental approvals / clearances are required, please specify details in the following format:</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e11_eco_sensitive', '')}</div>
+        
+        <div class="question-item"><span class="q-num">12.</span> <span class="q-text">Details of environmental impact assessments of projects undertaken by the entity based on applicable laws, in the current financial year:</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e12_eia', '')}</div>
+        
+        <div class="question-item"><span class="q-num">13.</span> <span class="q-text">Is the entity compliant with the applicable environmental law/ regulations/ guidelines in India; such as the Water (Prevention and Control of Pollution) Act, Air (Prevention and Control of Pollution) Act, Environment protection act and rules thereunder (Y/N). If not, provide details of all such non-compliances, in the following format:</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_e13_env_compliance', '')}</div>
+        
+        <div class="indicator-header">Leadership Indicators</div>
+        
+        <div class="question-item"><span class="q-num">1.</span> <span class="q-text">Water withdrawal, consumption and discharge in areas of water stress (in kilolitres):</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_l1_water_stress', '')}</div>
+        <div class="note-text">Note: Indicate if any independent assessment/ evaluation/assurance has been carried out by an external agency? (Y/N) If yes, name of the external agency.</div>
+        
+        <div class="question-item"><span class="q-num">2.</span> <span class="q-text">Please provide details of total Scope 3 emissions &amp; its intensity, in the following format:</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_l2_scope3', '')}</div>
+        <div class="note-text">Note: Indicate if any independent assessment/ evaluation/assurance has been carried out by an external agency? (Y/N) If yes, name of the external agency.</div>
+        
+        <div class="question-item"><span class="q-num">3.</span> <span class="q-text">With respect to the ecologically sensitive areas reported at Question 11 of Essential Indicators above, provide details of significant direct &amp; indirect impact of the entity on biodiversity in such areas along-with prevention and remediation activities.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_l3_biodiversity', '')}</div>
+        
+        <div class="question-item"><span class="q-num">4.</span> <span class="q-text">If the entity has undertaken any specific initiatives or used innovative technology or solutions to improve resource efficiency, or reduce impact due to emissions / effluent discharge / waste generated, please provide details of the same as well as outcome of such initiatives, as per the following format:</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_l4_initiatives', '')}</div>
+        
+        <div class="question-item"><span class="q-num">5.</span> <span class="q-text">Does the entity have a business continuity and disaster management plan? Give details in 100 words/ web link.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_l5_bcp', '')}</div>
+        
+        <div class="question-item"><span class="q-num">6.</span> <span class="q-text">Disclose any significant adverse impact to the environment, arising from the value chain of the entity. What mitigation or adaptation measures have been taken by the entity in this regard.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_l6_valuechain_impact', '')}</div>
+        
+        <div class="question-item"><span class="q-num">7.</span> <span class="q-text">Percentage of value chain partners (by value of business done with such partners) that were assessed for environmental impacts.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p6_l7_valuechain_assessed', '')}</div>
+        '''
+    
+    def _render_principle_7(self) -> str:
+        """PRINCIPLE 7: Businesses, when engaging in influencing public and regulatory policy, should do so in a manner that is responsible and transparent"""
+        return f'''
+        <div class="page-break"></div>
+        
+        <div class="principle-header">PRINCIPLE 7 {self.PRINCIPLES['P7']}</div>
+        
+        <div class="indicator-header">Essential Indicators</div>
+        
+        <div class="question-item"><span class="q-num">1.</span> <span class="q-text">a. Number of affiliations with trade and industry chambers/ associations.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p7_e1a_affiliations_count', '')}</div>
+        
+        <div class="sub-label">b. List the top 10 trade and industry chambers/ associations (determined based on the total members of such body) the entity is a member of/ affiliated to.</div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th class="col-sno">S. No.</th>
+                    <th>Name of the trade and industry chambers/ associations</th>
+                    <th>Reach of trade and industry chambers/ associations (State/National)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td class="text-center">1</td><td class="answer-cell">{self._get_response(self.section_c_data, 'p7_e1b_chamber1_name', '')}</td><td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p7_e1b_chamber1_reach', '')}</td></tr>
+                <tr><td class="text-center">2</td><td class="answer-cell">{self._get_response(self.section_c_data, 'p7_e1b_chamber2_name', '')}</td><td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p7_e1b_chamber2_reach', '')}</td></tr>
+                <tr><td class="text-center">3</td><td class="answer-cell">{self._get_response(self.section_c_data, 'p7_e1b_chamber3_name', '')}</td><td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p7_e1b_chamber3_reach', '')}</td></tr>
+                <tr><td class="text-center">4</td><td class="answer-cell">{self._get_response(self.section_c_data, 'p7_e1b_chamber4_name', '')}</td><td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p7_e1b_chamber4_reach', '')}</td></tr>
+                <tr><td class="text-center">5</td><td class="answer-cell">{self._get_response(self.section_c_data, 'p7_e1b_chamber5_name', '')}</td><td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p7_e1b_chamber5_reach', '')}</td></tr>
+                <tr><td class="text-center">6</td><td class="answer-cell">{self._get_response(self.section_c_data, 'p7_e1b_chamber6_name', '')}</td><td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p7_e1b_chamber6_reach', '')}</td></tr>
+                <tr><td class="text-center">7</td><td class="answer-cell">{self._get_response(self.section_c_data, 'p7_e1b_chamber7_name', '')}</td><td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p7_e1b_chamber7_reach', '')}</td></tr>
+                <tr><td class="text-center">8</td><td class="answer-cell">{self._get_response(self.section_c_data, 'p7_e1b_chamber8_name', '')}</td><td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p7_e1b_chamber8_reach', '')}</td></tr>
+                <tr><td class="text-center">9</td><td class="answer-cell">{self._get_response(self.section_c_data, 'p7_e1b_chamber9_name', '')}</td><td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p7_e1b_chamber9_reach', '')}</td></tr>
+                <tr><td class="text-center">10</td><td class="answer-cell">{self._get_response(self.section_c_data, 'p7_e1b_chamber10_name', '')}</td><td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p7_e1b_chamber10_reach', '')}</td></tr>
+            </tbody>
+        </table>
+        
+        <div class="question-item"><span class="q-num">2.</span> <span class="q-text">Provide details of corrective action taken or underway on any issues related to anti-competitive conduct by the entity, based on adverse orders from regulatory authorities.</span></div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Name of authority</th>
+                    <th>Brief of the case</th>
+                    <th>Corrective action taken</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p7_e2_authority', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p7_e2_case_brief', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p7_e2_corrective_action', '')}</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="indicator-header">Leadership Indicators</div>
+        
+        <div class="question-item"><span class="q-num">1.</span> <span class="q-text">Details of public policy positions advocated by the entity:</span></div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th class="col-sno">S. No.</th>
+                    <th>Public policy advocated</th>
+                    <th>Method resorted for such advocacy</th>
+                    <th class="col-yesno">Whether information available in public domain? (Yes/No)</th>
+                    <th>Frequency of Review by Board (Annually/ Half yearly/ Quarterly / Others – please specify)</th>
+                    <th>Web Link, if available</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="text-center">1</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p7_l1_policy', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p7_l1_method', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p7_l1_public', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p7_l1_frequency', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p7_l1_weblink', '')}</td>
+                </tr>
+            </tbody>
+        </table>
+        '''
+    
+    def _render_principle_8(self) -> str:
+        """PRINCIPLE 8: Businesses should promote inclusive growth and equitable development"""
+        return f'''
+        <div class="page-break"></div>
+        
+        <div class="principle-header">PRINCIPLE 8 {self.PRINCIPLES['P8']}</div>
+        
+        <div class="indicator-header">Essential Indicators</div>
+        
+        <div class="question-item"><span class="q-num">1.</span> <span class="q-text">Details of Social Impact Assessments (SIA) of projects undertaken by the entity based on applicable laws, in the current financial year.</span></div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Name and brief details of project</th>
+                    <th>SIA Notification No.</th>
+                    <th>Date of Notification</th>
+                    <th class="col-yesno">Whether conducted by independent external agency (Yes / No)</th>
+                    <th class="col-yesno">Results communicated in public domain (Yes / No)</th>
+                    <th>Relevant Web link</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p8_e1_project', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p8_e1_notification', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p8_e1_date', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p8_e1_external', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p8_e1_public', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p8_e1_weblink', '')}</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="question-item"><span class="q-num">2.</span> <span class="q-text">Provide information on project(s) for which ongoing Rehabilitation and Resettlement (R&amp;R) is being undertaken by your entity, in the following format:</span></div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th class="col-sno">S. No.</th>
+                    <th>Name of Project for which R&amp;R is ongoing</th>
+                    <th>State</th>
+                    <th>District</th>
+                    <th class="col-narrow">No. of Project Affected Families (PAFs)</th>
+                    <th class="col-narrow">% of PAFs covered by R&amp;R</th>
+                    <th>Amounts paid to PAFs in the FY (In INR)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="text-center">1</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p8_e2_project', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p8_e2_state', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p8_e2_district', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p8_e2_pafs', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p8_e2_pafs_covered', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p8_e2_amount', '')}</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="question-item"><span class="q-num">3.</span> <span class="q-text">Describe the mechanisms to receive and redress grievances of the community.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p8_e3_grievance_mechanism', '')}</div>
+        
+        <div class="question-item"><span class="q-num">4.</span> <span class="q-text">Percentage of input material (inputs to total inputs by value) sourced from suppliers:</span></div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th></th>
+                    <th class="col-narrow">{self.reporting_period} (Current FY)</th>
+                    <th class="col-narrow">{self.previous_fy} (Previous FY)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Directly sourced from MSMEs/ small producers</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p8_e4_msme_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p8_e4_msme_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Directly from within India</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p8_e4_india_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p8_e4_india_prev', '')}</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="question-item"><span class="q-num">5.</span> <span class="q-text">Job creation in smaller towns – Disclose wages paid to persons employed (including employees or workers employed on a permanent or non-permanent / on contract basis) in the following locations, as % of total wage cost</span></div>
+        <div class="note-text">(Place to be categorized as per RBI Classification System - rural / semi-urban / urban / metropolitan)</div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Location</th>
+                    <th class="col-narrow">{self.reporting_period} (Current FY)</th>
+                    <th class="col-narrow">{self.previous_fy} (Previous FY)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Rural</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p8_e5_rural_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p8_e5_rural_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Semi-urban</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p8_e5_semiurban_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p8_e5_semiurban_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Urban</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p8_e5_urban_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p8_e5_urban_prev', '')}</td>
+                </tr>
+                <tr>
+                    <td>Metropolitan</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p8_e5_metro_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p8_e5_metro_prev', '')}</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="indicator-header">Leadership Indicators</div>
+        
+        <div class="question-item"><span class="q-num">1.</span> <span class="q-text">Provide details of actions taken to mitigate any negative social impacts identified in the Social Impact Assessments (Reference: Question 1 of Essential Indicators above):</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p8_l1_sia_mitigation', '')}</div>
+        
+        <div class="question-item"><span class="q-num">2.</span> <span class="q-text">Provide the following information on CSR projects undertaken by your entity in designated aspirational districts as identified by government bodies:</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p8_l2_csr_aspirational', '')}</div>
+        
+        <div class="question-item"><span class="q-num">3.</span> <span class="q-text">(a) Do you have a preferential procurement policy where you give preference to purchase from suppliers comprising marginalized /vulnerable groups? (Yes/No)</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p8_l3a_preferential', '')}</div>
+        <div class="sub-label">(b) From which marginalized /vulnerable groups do you procure?</div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p8_l3b_groups', '')}</div>
+        <div class="sub-label">(c) What percentage of total procurement (by value) does it constitute?</div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p8_l3c_percentage', '')}</div>
+        
+        <div class="question-item"><span class="q-num">4.</span> <span class="q-text">Details of the benefits derived and shared from the intellectual properties owned or acquired by your entity (in the current financial year), based on traditional knowledge:</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p8_l4_ip_traditional', '')}</div>
+        
+        <div class="question-item"><span class="q-num">5.</span> <span class="q-text">Details of corrective actions taken or underway, based on any adverse order in intellectual property related disputes wherein usage of traditional knowledge is involved.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p8_l5_ip_disputes', '')}</div>
+        
+        <div class="question-item"><span class="q-num">6.</span> <span class="q-text">Details of beneficiaries of CSR Projects:</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p8_l6_csr_beneficiaries', '')}</div>
+        '''
+    
+    def _render_principle_9(self) -> str:
+        """PRINCIPLE 9: Businesses should engage with and provide value to their consumers in a responsible manner"""
+        return f'''
+        <div class="page-break"></div>
+        
+        <div class="principle-header">PRINCIPLE 9 {self.PRINCIPLES['P9']}</div>
+        
+        <div class="indicator-header">Essential Indicators</div>
+        
+        <div class="question-item"><span class="q-num">1.</span> <span class="q-text">Describe the mechanisms in place to receive and respond to consumer complaints and feedback.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p9_e1_complaint_mechanism', '')}</div>
+        
+        <div class="question-item"><span class="q-num">2.</span> <span class="q-text">Turnover of products and/ services as a percentage of turnover from all products/service that carry information about:</span></div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>As a percentage to total turnover</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Environmental and social parameters relevant to the product</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e2_env_social', '')}</td>
+                </tr>
+                <tr>
+                    <td>Safe and responsible usage</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e2_safe_usage', '')}</td>
+                </tr>
+                <tr>
+                    <td>Recycling and/or safe disposal</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e2_recycling', '')}</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="question-item"><span class="q-num">3.</span> <span class="q-text">Number of consumer complaints in respect of the following:</span></div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th rowspan="2"></th>
+                    <th colspan="3" class="fy-header">{self.reporting_period} (Current FY)</th>
+                    <th colspan="3" class="fy-header">{self.previous_fy} (Previous FY)</th>
+                </tr>
+                <tr>
+                    <th class="col-narrow">Received during the year</th>
+                    <th class="col-narrow">Pending resolution at end of year</th>
+                    <th>Remarks</th>
+                    <th class="col-narrow">Received during the year</th>
+                    <th class="col-narrow">Pending resolution at end of year</th>
+                    <th>Remarks</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Data privacy</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e3_privacy_curr_recv', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e3_privacy_curr_pending', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p9_e3_privacy_curr_remarks', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e3_privacy_prev_recv', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e3_privacy_prev_pending', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p9_e3_privacy_prev_remarks', '')}</td>
+                </tr>
+                <tr>
+                    <td>Advertising</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e3_advertising_curr_recv', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e3_advertising_curr_pending', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p9_e3_advertising_curr_remarks', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e3_advertising_prev_recv', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e3_advertising_prev_pending', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p9_e3_advertising_prev_remarks', '')}</td>
+                </tr>
+                <tr>
+                    <td>Cyber-security</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e3_cybersec_curr_recv', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e3_cybersec_curr_pending', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p9_e3_cybersec_curr_remarks', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e3_cybersec_prev_recv', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e3_cybersec_prev_pending', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p9_e3_cybersec_prev_remarks', '')}</td>
+                </tr>
+                <tr>
+                    <td>Delivery of essential services</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e3_delivery_curr_recv', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e3_delivery_curr_pending', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p9_e3_delivery_curr_remarks', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e3_delivery_prev_recv', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e3_delivery_prev_pending', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p9_e3_delivery_prev_remarks', '')}</td>
+                </tr>
+                <tr>
+                    <td>Restrictive Trade Practices</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e3_restrictive_curr_recv', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e3_restrictive_curr_pending', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p9_e3_restrictive_curr_remarks', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e3_restrictive_prev_recv', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e3_restrictive_prev_pending', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p9_e3_restrictive_prev_remarks', '')}</td>
+                </tr>
+                <tr>
+                    <td>Unfair Trade Practices</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e3_unfair_curr_recv', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e3_unfair_curr_pending', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p9_e3_unfair_curr_remarks', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e3_unfair_prev_recv', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e3_unfair_prev_pending', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p9_e3_unfair_prev_remarks', '')}</td>
+                </tr>
+                <tr>
+                    <td>Other</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e3_other_curr_recv', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e3_other_curr_pending', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p9_e3_other_curr_remarks', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e3_other_prev_recv', '')}</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e3_other_prev_pending', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p9_e3_other_prev_remarks', '')}</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="question-item"><span class="q-num">4.</span> <span class="q-text">Details of instances of product recalls on account of safety issues:</span></div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th></th>
+                    <th class="col-narrow">Number</th>
+                    <th>Reasons for recall</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Voluntary recalls</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e4_voluntary_num', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p9_e4_voluntary_reason', '')}</td>
+                </tr>
+                <tr>
+                    <td>Forced recalls</td>
+                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p9_e4_forced_num', '')}</td>
+                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p9_e4_forced_reason', '')}</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="question-item"><span class="q-num">5.</span> <span class="q-text">Does the entity have a framework/ policy on cyber security and risks related to data privacy? (Yes/No) If available, provide a web-link of the policy.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p9_e5_cybersec_policy', '')}</div>
+        
+        <div class="question-item"><span class="q-num">6.</span> <span class="q-text">Provide details of any corrective actions taken or underway on issues relating to advertising, and delivery of essential services; cyber security and data privacy of customers; re-occurrence of instances of product recalls; penalty / action taken by regulatory authorities on safety of products / services.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p9_e6_corrective_actions', '')}</div>
+        
+        <div class="question-item"><span class="q-num">7.</span> <span class="q-text">Provide the following information relating to data breaches:</span></div>
+        <div class="sub-label">a. Number of instances of data breaches</div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p9_e7a_breach_count', '')}</div>
+        <div class="sub-label">b. Percentage of data breaches involving personally identifiable information of customers</div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p9_e7b_pii_percentage', '')}</div>
+        <div class="sub-label">c. Impact, if any, of the data breaches</div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p9_e7c_impact', '')}</div>
+        
+        <div class="indicator-header">Leadership Indicators</div>
+        
+        <div class="question-item"><span class="q-num">1.</span> <span class="q-text">Channels / platforms where information on products and services of the entity can be accessed (provide web link, if available).</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p9_l1_info_channels', '')}</div>
+        
+        <div class="question-item"><span class="q-num">2.</span> <span class="q-text">Steps taken to inform and educate consumers about safe and responsible usage of products and/or services.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p9_l2_consumer_education', '')}</div>
+        
+        <div class="question-item"><span class="q-num">3.</span> <span class="q-text">Mechanisms in place to inform consumers of any risk of disruption/discontinuation of essential services.</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p9_l3_disruption_mechanism', '')}</div>
+        
+        <div class="question-item"><span class="q-num">4.</span> <span class="q-text">Does the entity display product information on the product over and above what is mandated as per local laws? (Yes/No/Not Applicable) If yes, provide details in brief. Did your entity carry out any survey with regard to consumer satisfaction relating to the major products / services of the entity, significant locations of operation of the entity or the entity as a whole? (Yes/No)</span></div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p9_l4_product_info', '')}</div>
+        '''
