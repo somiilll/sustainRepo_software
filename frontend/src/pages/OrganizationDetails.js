@@ -13,7 +13,6 @@ import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
-import BRSRDetailsSection from '../components/BRSRDetailsSection';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -58,8 +57,6 @@ export default function OrganizationDetails() {
   const [logoError, setLogoError] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [pincodeError, setPincodeError] = useState('');
-  const [isBRSREnabled, setIsBRSREnabled] = useState(false);
-  const [brsrData, setBRSRData] = useState(null);
   const [activeTab, setActiveTab] = useState('organization');
   
   // Yearly Data State (Turnover & Production Quantity)
@@ -325,14 +322,6 @@ export default function OrganizationDetails() {
       setYearlyDataSaving(false);
     }
   };
-
-  // Fetch BRSR enabled status when organization is loaded
-  useEffect(() => {
-    if (organization) {
-      const enabled = organization.esg_frameworks_enabled?.includes('BRSR') || false;
-      setIsBRSREnabled(enabled);
-    }
-  }, [organization]);
 
   const fetchOrganization = async () => {
     try {
@@ -799,14 +788,6 @@ export default function OrganizationDetails() {
           >
             Organization Details
           </TabsTrigger>
-          {isBRSREnabled && (
-            <TabsTrigger 
-              value="brsr" 
-              className="data-[state=active]:bg-white data-[state=active]:text-primary px-6"
-            >
-              BRSR
-            </TabsTrigger>
-          )}
           <TabsTrigger 
             value="gri" 
             className="data-[state=active]:bg-white data-[state=active]:text-primary px-6"
@@ -2030,18 +2011,6 @@ export default function OrganizationDetails() {
           )}
         </Card>
         </TabsContent>
-
-        {/* BRSR Tab */}
-        {isBRSREnabled && (
-          <TabsContent value="brsr" className="mt-6">
-            <BRSRDetailsSection 
-              isEditing={editing}
-              onDataChange={setBRSRData}
-              isCollapsible={false}
-              hideSections={['employees_workers', 'women_representation', 'turnover_rate', 'complaints_grievances']}
-            />
-          </TabsContent>
-        )}
 
         {/* GRI Tab */}
         <TabsContent value="gri" className="mt-6">
