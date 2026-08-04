@@ -1147,13 +1147,13 @@ class BRSRHTMLTemplate:
         <div class="subsection-header">Governance, leadership and oversight</div>
         
         <div class="question-item"><span class="q-num">7.</span> <span class="q-text">Statement by director responsible for the business responsibility report, highlighting ESG related challenges, targets and achievements (listed entity has flexibility regarding the placement of this disclosure)</span></div>
-        <div class="answer-value">{self._get_response(self.section_b_data, 'director_statement', '')}</div>
+        <div class="answer-value">{self._get_section_b_text('director_statement')}</div>
         
         <div class="question-item"><span class="q-num">8.</span> <span class="q-text">Details of the highest authority responsible for implementation and oversight of the Business Responsibility policy (ies).</span></div>
-        <div class="answer-value">{self._get_response(self.section_b_data, 'highest_authority', '')}</div>
+        <div class="answer-value">{self._get_section_b_text('highest_authority_details')}</div>
         
         <div class="question-item"><span class="q-num">9.</span> <span class="q-text">Does the entity have a specified Committee of the Board/ Director responsible for decision making on sustainability related issues? (Yes / No). If yes, provide details.</span></div>
-        <div class="answer-value">{self._get_response(self.section_b_data, 'sustainability_committee', '')}</div>
+        <div class="answer-value">{self._get_section_b_text('sustainability_committee_details')}</div>
         
         <div class="question-item"><span class="q-num">10.</span> <span class="q-text">Details of Review of NGRBCs by the Company:</span></div>
         
@@ -1168,13 +1168,13 @@ class BRSRHTMLTemplate:
             <tbody>
                 <tr>
                     <td>Performance against above policies and follow up action</td>
-                    <td class="answer-cell">{self._get_response(self.section_b_data, 'review_performance', '')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_b_data, 'review_performance_freq', '')}</td>
+                    <td class="answer-cell">{self._get_section_b_text('performance_against_policies', 'undertaken_by_current_fy')}</td>
+                    <td class="answer-cell">{self._get_section_b_text('performance_against_policies', 'frequency_current_fy')}</td>
                 </tr>
                 <tr>
                     <td>Compliance with statutory requirements of relevance to the principles, and, rectification of any non-compliances</td>
-                    <td class="answer-cell">{self._get_response(self.section_b_data, 'review_compliance', '')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_b_data, 'review_compliance_freq', '')}</td>
+                    <td class="answer-cell">{self._get_section_b_text('compliance_review', 'undertaken_by_current_fy')}</td>
+                    <td class="answer-cell">{self._get_section_b_text('compliance_review', 'frequency_current_fy')}</td>
                 </tr>
             </tbody>
         </table>
@@ -1248,9 +1248,147 @@ class BRSRHTMLTemplate:
         """Render 9 principle cells for Section B tables."""
         cells = []
         for p in range(1, 10):
-            val = self._get_response(self.section_b_data, f'{prefix}{p}', '')
+            val = self._get_section_b_principle_value(prefix, p)
             cells.append(f'<td class="text-center answer-cell">{val}</td>')
         return '\n'.join(cells)
+    
+    def _get_section_b_principle_value(self, prefix: str, principle_num: int) -> str:
+        """
+        Extract Section B value for a specific principle.
+        Maps template prefixes to actual data keys in ngrbc_policy_matrix.
+        """
+        matrix = self.section_b_data.get('ngrbc_policy_matrix', {})
+        
+        # Check if mode is 'all_together' or 'principle_wise'
+        mode = matrix.get('mode_current_fy', 'together')
+        
+        # Map prefixes to actual data keys
+        prefix_mapping = {
+            'policy_covers_p': 'covered',
+            'policy_approved_p': 'board_approved',
+            'policy_weblink_p': 'web_link',
+            'policy_procedures_p': None,  # From policy_translated_to_procedures
+            'policy_valuechain_p': None,  # From policy_extend_to_value_chain
+            'standards_p': 'codes_standards',
+            'commitments_p': 'commitments',
+            'performance_p': 'performance',
+            'external_assessment_p': 'independent_assessment',
+            'not_material_p': 'not_material',
+            'not_ready_p': 'not_ready',
+            'no_resources_p': 'no_resources',
+            'planned_next_fy_p': 'planned_next_fy',
+            'other_reason_p': 'other_reason',
+        }
+        
+        mapped_key = prefix_mapping.get(prefix, '')
+        
+        if mode == 'together' or mode == 'all_together':
+            all_data = matrix.get('all_together', {})
+            if mapped_key:
+                val = all_data.get(f'{mapped_key}_current_fy', '')
+                if isinstance(val, bool):
+                    return 'Y' if val else 'N'
+                return str(val) if val else ''
+            # Check reasons sub-object
+            reasons = all_data.get('reasons_current_fy', {})
+            if reasons and mapped_key:
+                val = reasons.get(mapped_key, '')
+                if isinstance(val, bool):
+                    return 'Y' if val else 'N'
+                return str(val) if val else ''
+        else:
+            # Principle-wise mode
+            principle_data = matrix.get('principle_wise', {})
+            p_key = f'P{principle_num}_current_fy'
+            p_data = principle_data.get(p_key, {})
+            if mapped_key and p_data:
+                val = p_data.get(mapped_key, '')
+                if isinstance(val, bool):
+                    return 'Y' if val else 'N'
+                return str(val) if val else ''
+        
+        # Special handling for policy_procedures and policy_valuechain
+        if prefix == 'policy_procedures_p':
+            proc = self.section_b_data.get('policy_translated_to_procedures', {})
+            if proc.get('mode_current_fy') == 'all_together':
+                return 'Y' if proc.get('all_enabled_current_fy') else 'N'
+        
+        if prefix == 'policy_valuechain_p':
+            vc = self.section_b_data.get('policy_extend_to_value_chain', {})
+            if vc.get('mode_current_fy') == 'all_together':
+                return 'Y' if vc.get('all_enabled_current_fy') else 'N'
+        
+        return ''
+    
+    def _get_section_b_text(self, key: str, subkey: str = None) -> str:
+        """Get text value from Section B data."""
+        data = self.section_b_data.get(key, {})
+        if isinstance(data, dict):
+            if subkey:
+                val = data.get(subkey)
+                if val is not None:
+                    return str(val) if val else ''
+            # Try common keys
+            for k in ['all_description_current_fy', 'description_current_fy', 'value_current_fy', 'all_description', 'description', 'value']:
+                val = data.get(k)
+                if val:
+                    return str(val)
+        elif isinstance(data, str):
+            return data
+        return ''
+    
+    def _get_section_c_nested(self, key: str, subkey: str, default: str = '') -> str:
+        """
+        Get nested value from Section C data.
+        Handles complex nested structures like:
+        - p1_disciplinary_action_bribery: {workers: {current_fy: '10'}, directors: {...}}
+        - env_sustainable_rd_capex: {capex: {current_fy: '45'}, rd: {...}}
+        """
+        data = self.section_c_data.get(key, {})
+        if not isinstance(data, dict):
+            # If data is a simple string, return it
+            if isinstance(data, str):
+                return data if data else default
+            return str(data) if data else default
+        
+        # Try direct subkey
+        val = data.get(subkey)
+        if val is not None:
+            if isinstance(val, dict):
+                # Try current_fy first
+                fy_val = val.get('current_fy', val.get('previous_fy', ''))
+                return str(fy_val) if fy_val else default
+            return str(val) if val else default
+        
+        # Try with _current_fy suffix
+        val = data.get(f'{subkey}_current_fy')
+        if val is not None:
+            return str(val) if val else default
+        
+        # Try nested fields structure (for complex objects like env_sustainable_rd_capex)
+        if 'fields' in data:
+            fields = data.get('fields', {})
+            val = fields.get(subkey)
+            if val is not None:
+                return str(val) if val else default
+        
+        return default
+    
+    def _get_section_c_fy_value(self, key: str, category: str, fy_type: str = 'current_fy') -> str:
+        """
+        Get FY-specific value from Section C data.
+        Args:
+            key: Main question key (e.g., 'p1_disciplinary_action_bribery')
+            category: Category within the data (e.g., 'workers', 'directors', 'kmps')
+            fy_type: 'current_fy' or 'previous_fy'
+        """
+        data = self.section_c_data.get(key, {})
+        if isinstance(data, dict):
+            cat_data = data.get(category, {})
+            if isinstance(cat_data, dict):
+                val = cat_data.get(fy_type, '')
+                return str(val) if val else ''
+        return ''
     
     def render_section_c(self) -> str:
         """
@@ -1306,27 +1444,27 @@ class BRSRHTMLTemplate:
             <tbody>
                 <tr>
                     <td>Board of Directors</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e1_bod_programs', '')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e1_bod_topics', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e1_bod_coverage', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_training_awareness_coverage', 'bod_programs', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('p1_training_awareness_coverage', 'bod_topics', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_training_awareness_coverage', 'bod_coverage', '')}</td>
                 </tr>
                 <tr>
                     <td>Key Managerial Personnel</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e1_kmp_programs', '')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e1_kmp_topics', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e1_kmp_coverage', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_training_awareness_coverage', 'kmp_programs', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('p1_training_awareness_coverage', 'kmp_topics', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_training_awareness_coverage', 'kmp_coverage', '')}</td>
                 </tr>
                 <tr>
                     <td>Employees other than BoD and KMPs</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e1_emp_programs', '')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e1_emp_topics', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e1_emp_coverage', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_training_awareness_coverage', 'employees_programs', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('p1_training_awareness_coverage', 'employees_topics', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_training_awareness_coverage', 'employees_coverage', '')}</td>
                 </tr>
                 <tr>
                     <td>Workers</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e1_wrk_programs', '')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e1_wrk_topics', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e1_wrk_coverage', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_training_awareness_coverage', 'workers_programs', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('p1_training_awareness_coverage', 'workers_topics', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_training_awareness_coverage', 'workers_coverage', '')}</td>
                 </tr>
             </tbody>
         </table>
@@ -1348,27 +1486,27 @@ class BRSRHTMLTemplate:
             <tbody>
                 <tr>
                     <td>Penalty/ Fine</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e2_penalty_principle', '')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e2_penalty_agency', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e2_penalty_amount', '')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e2_penalty_brief', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e2_penalty_appeal', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('p1_fines_penalties', 'penalty_principle', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('p1_fines_penalties', 'penalty_agency', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_fines_penalties', 'penalty_amount', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('p1_fines_penalties', 'penalty_brief', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_fines_penalties', 'penalty_appeal', '')}</td>
                 </tr>
                 <tr>
                     <td>Settlement</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e2_settlement_principle', '')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e2_settlement_agency', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e2_settlement_amount', '')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e2_settlement_brief', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e2_settlement_appeal', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('p1_fines_penalties', 'settlement_principle', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('p1_fines_penalties', 'settlement_agency', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_fines_penalties', 'settlement_amount', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('p1_fines_penalties', 'settlement_brief', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_fines_penalties', 'settlement_appeal', '')}</td>
                 </tr>
                 <tr>
                     <td>Compounding fee</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e2_compounding_principle', '')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e2_compounding_agency', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e2_compounding_amount', '')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e2_compounding_brief', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e2_compounding_appeal', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('p1_fines_penalties', 'compounding_principle', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('p1_fines_penalties', 'compounding_agency', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_fines_penalties', 'compounding_amount', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('p1_fines_penalties', 'compounding_brief', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_fines_penalties', 'compounding_appeal', '')}</td>
                 </tr>
             </tbody>
         </table>
@@ -1387,17 +1525,17 @@ class BRSRHTMLTemplate:
             <tbody>
                 <tr>
                     <td>Imprisonment</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e2_imprisonment_principle', '')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e2_imprisonment_agency', '')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e2_imprisonment_brief', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e2_imprisonment_appeal', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('p1_fines_penalties', 'imprisonment_principle', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('p1_fines_penalties', 'imprisonment_agency', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('p1_fines_penalties', 'imprisonment_brief', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_fines_penalties', 'imprisonment_appeal', '')}</td>
                 </tr>
                 <tr>
                     <td>Punishment</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e2_punishment_principle', '')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e2_punishment_agency', '')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e2_punishment_brief', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e2_punishment_appeal', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('p1_fines_penalties', 'punishment_principle', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('p1_fines_penalties', 'punishment_agency', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('p1_fines_penalties', 'punishment_brief', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_fines_penalties', 'punishment_appeal', '')}</td>
                 </tr>
             </tbody>
         </table>
@@ -1413,14 +1551,14 @@ class BRSRHTMLTemplate:
             </thead>
             <tbody>
                 <tr>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e3_case_details', '')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e3_agency', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('p1_appeals_revisions', 'case_details', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('p1_appeals_revisions', 'agency', '')}</td>
                 </tr>
             </tbody>
         </table>
         
         <div class="question-item"><span class="q-num">4.</span> <span class="q-text">Does the entity have an anti-corruption or anti-bribery policy? If yes, provide details in brief and if available, provide a web-link to the policy.</span></div>
-        <div class="answer-value">{self._get_response(self.section_c_data, 'p1_e4_anticorruption_policy', '')}</div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p1_anticorruption_policy', '')}</div>
         
         <div class="question-item"><span class="q-num">5.</span> <span class="q-text">Number of Directors/KMPs/employees/workers against whom disciplinary action was taken by any law enforcement agency for the charges of bribery/ corruption:</span></div>
         
@@ -1435,23 +1573,23 @@ class BRSRHTMLTemplate:
             <tbody>
                 <tr>
                     <td>Directors</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e5_directors_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e5_directors_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_fy_value('p1_disciplinary_action_bribery', 'directors', 'current_fy')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_fy_value('p1_disciplinary_action_bribery', 'directors', 'previous_fy')}</td>
                 </tr>
                 <tr>
                     <td>KMPs</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e5_kmps_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e5_kmps_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_fy_value('p1_disciplinary_action_bribery', 'kmps', 'current_fy')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_fy_value('p1_disciplinary_action_bribery', 'kmps', 'previous_fy')}</td>
                 </tr>
                 <tr>
                     <td>Employees</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e5_employees_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e5_employees_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_fy_value('p1_disciplinary_action_bribery', 'employees', 'current_fy')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_fy_value('p1_disciplinary_action_bribery', 'employees', 'previous_fy')}</td>
                 </tr>
                 <tr>
                     <td>Workers</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e5_workers_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e5_workers_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_fy_value('p1_disciplinary_action_bribery', 'workers', 'current_fy')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_fy_value('p1_disciplinary_action_bribery', 'workers', 'previous_fy')}</td>
                 </tr>
             </tbody>
         </table>
@@ -1476,23 +1614,23 @@ class BRSRHTMLTemplate:
             <tbody>
                 <tr>
                     <td>Number of complaints received in relation to issues of Conflict of Interest of the Directors</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e6_directors_curr_num', '')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e6_directors_curr_remarks', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e6_directors_prev_num', '')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e6_directors_prev_remarks', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_fy_value('p1_conflict_of_interest_complaints', 'directors_coi', 'current_fy')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('p1_conflict_of_interest_complaints', 'directors_remarks_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_fy_value('p1_conflict_of_interest_complaints', 'directors_coi', 'previous_fy')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('p1_conflict_of_interest_complaints', 'directors_remarks_prev', '')}</td>
                 </tr>
                 <tr>
                     <td>Number of complaints received in relation to issues of Conflict of Interest of the KMPs</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e6_kmps_curr_num', '')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e6_kmps_curr_remarks', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e6_kmps_prev_num', '')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_e6_kmps_prev_remarks', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_fy_value('p1_conflict_of_interest_complaints', 'kmps_coi', 'current_fy')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('p1_conflict_of_interest_complaints', 'kmps_remarks_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_fy_value('p1_conflict_of_interest_complaints', 'kmps_coi', 'previous_fy')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('p1_conflict_of_interest_complaints', 'kmps_remarks_prev', '')}</td>
                 </tr>
             </tbody>
         </table>
         
         <div class="question-item"><span class="q-num">7.</span> <span class="q-text">Provide details of any corrective action taken or underway on issues related to fines / penalties / action taken by regulators/ law enforcement agencies/ judicial institutions, on cases of corruption and conflicts of interest.</span></div>
-        <div class="answer-value">{self._get_response(self.section_c_data, 'p1_e7_corrective_actions', '')}</div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p1_corrective_actions', '')}</div>
         
         <div class="question-item"><span class="q-num">8.</span> <span class="q-text">Number of days of accounts payables ((Accounts payable *365) / Cost of goods/services procured) in the following format:</span></div>
         
@@ -2015,10 +2153,29 @@ class BRSRHTMLTemplate:
         <div class="answer-value">{self._get_response(self.section_c_data, 'p3_l4_transition_assistance', '')}</div>
         
         <div class="question-item"><span class="q-num">5.</span> <span class="q-text">Details on assessment of value chain partners:</span></div>
-        <div class="answer-value">{self._get_response(self.section_c_data, 'p3_l5_valuechain_assessment', '')}</div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th rowspan="2"></th>
+                    <th colspan="2">% of value chain partners (by value of business done with such partners) that were assessed</th>
+                </tr>
+                <tr>
+                    <th>Health and safety practices</th>
+                    <th>Working Conditions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>1</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_value_chain_assessment', 'health_safety_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_value_chain_assessment', 'working_conditions_pct', '')}</td>
+                </tr>
+            </tbody>
+        </table>
         
         <div class="question-item"><span class="q-num">6.</span> <span class="q-text">Provide details of any corrective actions taken or underway to address significant risks / concerns arising from assessments of health and safety practices and working conditions of value chain partners.</span></div>
-        <div class="answer-value">{self._get_response(self.section_c_data, 'p3_l6_valuechain_corrective', '')}</div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p3_value_chain_corrective', '')}</div>
         '''
     
     def _render_principle_4(self) -> str:
@@ -2125,7 +2282,34 @@ class BRSRHTMLTemplate:
         <div class="answer-value">{self._get_response(self.section_c_data, 'p5_l3_visitor_accessibility', '')}</div>
         
         <div class="question-item"><span class="q-num">4.</span> <span class="q-text">Details on assessment of value chain partners:</span></div>
-        <div class="answer-value">{self._get_response(self.section_c_data, 'p5_l4_valuechain_assessment', '')}</div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th rowspan="2"></th>
+                    <th colspan="2">% of value chain partners (by value of business done with such partners) that were assessed</th>
+                </tr>
+                <tr>
+                    <th>Sexual Harassment</th>
+                    <th>Discrimination at workplace</th>
+                    <th>Child Labour</th>
+                    <th>Forced Labour/Involuntary Labour</th>
+                    <th>Wages</th>
+                    <th>Others – please specify</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>1</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p5_value_chain_hr_assessment', 'sexual_harassment_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p5_value_chain_hr_assessment', 'discrimination_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p5_value_chain_hr_assessment', 'child_labour_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p5_value_chain_hr_assessment', 'forced_labour_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p5_value_chain_hr_assessment', 'wages_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p5_value_chain_hr_assessment', 'others_pct', '')}</td>
+                </tr>
+            </tbody>
+        </table>
         
         <div class="question-item"><span class="q-num">5.</span> <span class="q-text">Provide details of any corrective actions taken or underway to address significant risks / concerns arising from the assessments at Question 4 above.</span></div>
         <div class="answer-value">{self._get_response(self.section_c_data, 'p5_l5_valuechain_corrective', '')}</div>
