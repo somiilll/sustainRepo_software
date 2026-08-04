@@ -26,6 +26,7 @@ import { generateReportingYears, getCurrentReportingYear } from '../utils/report
 import ESGQuestionnaire from './ESGQuestionnaire';
 import BRSRSectionC from './BRSRSectionC';
 import BRSRDetailsSection from './BRSRDetailsSection';
+import { BRSRExportButton } from '../modules/brsr-export';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -36,6 +37,7 @@ export default function BRSRModule() {
   const [reportingPeriod, setReportingPeriod] = useState('');
   const [reportingYears, setReportingYears] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
+  const [organization, setOrganization] = useState(null);
 
   // Initialize reporting years
   useEffect(() => {
@@ -48,6 +50,7 @@ export default function BRSRModule() {
         const years = generateReportingYears(yearType, 5);
         setReportingYears(years);
         setReportingPeriod(getCurrentReportingYear(yearType));
+        setOrganization(res.data);
       } catch (error) {
         const years = generateReportingYears('financial_year', 5);
         setReportingYears(years);
@@ -81,6 +84,10 @@ export default function BRSRModule() {
               ))}
             </SelectContent>
           </Select>
+          <BRSRExportButton 
+            reportingPeriod={reportingPeriod} 
+            organization={organization}
+          />
           <Button
             variant={isEditing ? 'outline' : 'default'}
             size="sm"
