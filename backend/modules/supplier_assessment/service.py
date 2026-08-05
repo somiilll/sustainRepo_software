@@ -152,7 +152,7 @@ class SupplierAssessmentService:
         customer_name = customer_org.get("name", "Your Customer") if customer_org else "Your Customer"
         
         # Send invitation email
-        frontend_url = os.environ.get('FRONTEND_URL', 'https://esg-annexure-replica.preview.emergentagent.com')
+        frontend_url = os.environ.get('FRONTEND_URL', 'https://scoring-rules-lab.preview.emergentagent.com')
         login_link = f"{frontend_url}/login"
         
         email_body = supplier_invitation_email(
@@ -266,7 +266,7 @@ class SupplierAssessmentService:
         )
         customer_name = customer_org.get("name", "Your Customer") if customer_org else "Your Customer"
         
-        frontend_url = os.environ.get('FRONTEND_URL', 'https://esg-annexure-replica.preview.emergentagent.com')
+        frontend_url = os.environ.get('FRONTEND_URL', 'https://scoring-rules-lab.preview.emergentagent.com')
         login_link = f"{frontend_url}/login"
         
         # Determine pending modules
@@ -500,6 +500,7 @@ class SupplierAssessmentService:
         weight: float,
         category: str,
         order: int,
+        scoring: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Add a question to a questionnaire."""
         question_id = str(uuid.uuid4())
@@ -514,6 +515,7 @@ class SupplierAssessmentService:
             "weight": weight,
             "category": category,
             "order": order,
+            "scoring": scoring,  # New: Scoring configuration
             "is_active": True,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
@@ -710,7 +712,7 @@ class SupplierAssessmentService:
         calculated_score = None
         if not is_draft:
             calculated_score = await self._calculate_questionnaire_score(
-                questionnaire_id, answers_dict
+                questionnaire_id, answers_dict, supplier_relationship_id
             )
         
         if response_doc:
@@ -758,8 +760,23 @@ class SupplierAssessmentService:
         self,
         questionnaire_id: str,
         answers: Dict[str, Any],
+        supplier_relationship_id: Optional[str] = None,
     ) -> float:
-        """Calculate questionnaire score based on scoring method."""
+        """
+        Calculate questionnaire score using the new unified scoring engine.
+        
+        The new engine supports per-question scoring rules:
+        - higher_is_better: Linear scale (e.g., renewable energy %)
+        - lower_is_better: Inverted scale (e.g., emissions)
+        - boolean: Yes/No mapping
+        - choice_mapping: Map choices to scores
+        - target_based: % of target achieved
+        - manual: Requires human review
+        
+        Falls back to legacy scoring for backward compatibility.
+        """
+        from modules.supplier_assessment.scoring import ScoringEngine
+        
         questionnaire = await db.supplier_questionnaires.find_one(
             {"id": questionnaire_id},
             {"_id": 0}
@@ -772,6 +789,49 @@ class SupplierAssessmentService:
             {"_id": 0}
         ).to_list(500)
         
+        # Check if any question has the new scoring config
+        has_new_scoring = any(q.get("scoring") for q in questions)
+        
+        if has_new_scoring:
+            # Use new scoring engine
+            engine = ScoringEngine(db)
+            
+            # Get supplier info for full calculation
+            revenue_percentage = None
+            supplier_name = None
+            if supplier_relationship_id:
+                relationship = await db.supplier_relationships.find_one(
+                    {"id": supplier_relationship_id},
+                    {"_id": 0, "revenue_percentage": 1, "company_name": 1}
+                )
+                if relationship:
+                    revenue_percentage = relationship.get("revenue_percentage")
+                    supplier_name = relationship.get("company_name")
+            
+            try:
+                breakdown = await engine.calculate_supplier_assessment(
+                    supplier_relationship_id=supplier_relationship_id or "unknown",
+                    questionnaire_id=questionnaire_id,
+                    save_to_db=False,  # Don't save here, save in submit_supplier_answers
+                )
+                return breakdown.esg_score.overall_score
+            except Exception as e:
+                # Log error and fall back to legacy
+                print(f"New scoring engine error: {e}, falling back to legacy")
+        
+        # Legacy scoring for backward compatibility
+        return await self._calculate_legacy_score(questionnaire, questions, answers)
+    
+    async def _calculate_legacy_score(
+        self,
+        questionnaire: Dict[str, Any],
+        questions: List[Dict[str, Any]],
+        answers: Dict[str, Any],
+    ) -> float:
+        """
+        Legacy scoring method for backward compatibility.
+        Used when questions don't have the new scoring config.
+        """
         scoring_method = questionnaire.get("scoring_method", "question")
         section_weights = questionnaire.get("section_weights", {})
         
@@ -784,7 +844,7 @@ class SupplierAssessmentService:
                 if answer is None:
                     continue
                 
-                score = self._get_answer_score(q, answer)
+                score = self._get_legacy_answer_score(q, answer)
                 category = q.get("category", "environment")
                 if category in section_scores:
                     section_scores[category].append(score)
@@ -813,14 +873,17 @@ class SupplierAssessmentService:
                     continue
                 
                 weight = q.get("weight", 1.0)
-                score = self._get_answer_score(q, answer)
+                score = self._get_legacy_answer_score(q, answer)
                 total_score += score * weight
                 total_weight += weight
             
             return round(total_score / total_weight, 2) if total_weight > 0 else 0.0
     
-    def _get_answer_score(self, question: Dict[str, Any], answer: Any) -> float:
-        """Get score for an answer based on question type."""
+    def _get_legacy_answer_score(self, question: Dict[str, Any], answer: Any) -> float:
+        """
+        Legacy scoring for backward compatibility.
+        Get score for an answer based on question type.
+        """
         response_type = question.get("response_type", "text")
         
         if response_type == "yes_no":

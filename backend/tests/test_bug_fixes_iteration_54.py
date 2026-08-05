@@ -18,7 +18,7 @@ import os
 import uuid
 from datetime import datetime
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://esg-annexure-replica.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://scoring-rules-lab.preview.emergentagent.com')
 
 
 class TestScope2CustomEFJustification:

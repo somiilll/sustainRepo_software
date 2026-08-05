@@ -524,3 +524,101 @@ Complete implementation of a new top-level module for supplier ESG and GHG asses
   - Arial font, A4 page, 20mm margins
 - **Status**: ✅ Complete - All three sections implemented
 
+## Completed Work (Current Session — Aug 5 2026)
+
+### Supplier Assessment Scoring Engine Redesign (P0) - STRATEGY PATTERN
+- **Architecture Pivot**: Complete redesign of the Supplier Assessment Scoring Engine to be simple, transparent, configurable, and enterprise-grade.
+- **Key Changes**:
+  - Removed legacy `scoring_method` toggle (section vs question) - now ONE unified calculation flow
+  - Each question defines its own scoring behavior via Scoring Rules
+  - Admin configures weights at questionnaire level, not calculation engine
+
+#### Scoring Rules (Strategy Pattern)
+Each rule implements `calculate(raw_value, config) -> {score, calculation_details}`:
+
+| Rule | Use Case | Formula |
+|------|----------|---------|
+| `higher_is_better` | Renewable energy %, employee satisfaction | `((value - min) / (target - min)) * max_score` |
+| `lower_is_better` | Carbon emissions, injuries | `((max_acceptable - value) / (max_acceptable - min)) * max_score` |
+| `boolean` | ISO certifications, policy existence | `true_score` if Yes, `false_score` if No |
+| `choice_mapping` | Carbon target type, maturity level | Map discrete choices to specific scores |
+| `target_based` | KPI achievement rates | `(actual / target) * max_score` (capped) |
+| `manual` | Qualitative assessments | Requires human review |
+
+#### Calculation Flow
+```
+Raw Response → Question Score (0-100)
+                    ↓
+            Question Weight Applied
+                    ↓
+         Weighted Question Score
+                    ↓
+    Section Score = Σ(weighted_scores) / Σ(weights)
+                    ↓
+        ESG Section Weightage Applied
+                    ↓
+            Overall ESG Score
+                    ↓
+    Overall Supplier Score = (ESG × 40%) + (GHG × 40%) + (Revenue × 20%)
+```
+
+#### Backend Implementation
+- **Module**: `/app/backend/modules/supplier_assessment/scoring/`
+  - `models.py`: Pydantic models for ScoringConfig, QuestionScore, SectionScore, ESGScore, SupplierScore, ScoreBreakdown
+  - `rules.py`: Strategy pattern classes (HigherIsBetterRule, LowerIsBetterRule, BooleanRule, etc.)
+  - `calculator.py`: Pure calculation engine (no DB access)
+  - `engine.py`: Orchestration layer with database interaction
+  - `__init__.py`: Public API exports
+
+- **Key Models**:
+  ```python
+  ScoringConfig(
+      rule: ScoringRuleType,  # higher_is_better, lower_is_better, boolean, etc.
+      target: Optional[float],
+      min: Optional[float],
+      max: Optional[float],
+      max_score: float = 100,
+      max_acceptable: Optional[float],  # For lower_is_better
+      true_score: float = 100,  # For boolean
+      false_score: float = 0,
+      choices: Optional[Dict[str, float]],  # For choice_mapping
+  )
+  
+  ESGSectionWeights(
+      environment: float = 33.33,
+      social: float = 33.33,
+      governance: float = 33.34,
+  )
+  
+  OverallSupplierWeights(
+      esg: float = 40,
+      ghg: float = 40,
+      revenue: float = 20,
+  )
+  ```
+
+- **Service Integration**: Updated `service.py` to use new ScoringEngine with legacy fallback
+
+#### Frontend Implementation
+- **Updated**: `/app/frontend/src/modules/supplier-assessment/QuestionnaireBuilder.jsx`
+  - Removed scoring_method toggle (section vs question)
+  - Added ESG Section Weights accordion in Create/Edit Questionnaire dialogs
+  - Added Overall Supplier Score Weights accordion
+  - Added Scoring Configuration section in Question dialog with:
+    - Visual scoring rule selector (6 rule types with icons and descriptions)
+    - Dynamic configuration fields based on selected rule
+  - Questions now display scoring rule badge
+
+#### Database Schema Updates
+- **supplier_questionnaires**: Added `esg_section_weights`, `overall_supplier_weights` fields
+- **supplier_questions**: Added `scoring` sub-document with rule config
+
+- **Status**: ✅ Complete - Backend scoring engine tested, frontend UI implemented
+
+### Upcoming Tasks (P0-P1)
+1. Database Migration Script - migrate existing questionnaires to new schema
+2. Hash-based Integrity Verification for Evidence Files (SHA-256)
+3. SuperAdmin Config UI for Modules
+4. Supplier and Customer Org Onboarding Wizards
+5. Word document download option for BRSR
+

@@ -313,6 +313,7 @@ async def add_question(
         weight=data.weight,
         category=data.category,
         order=data.order,
+        scoring=data.scoring.model_dump() if data.scoring else None,
     )
     return result
 
@@ -336,6 +337,8 @@ async def update_question(
     updates = data.model_dump(exclude_unset=True)
     if "options" in updates and updates["options"]:
         updates["options"] = [o if isinstance(o, dict) else o.model_dump() for o in updates["options"]]
+    if "scoring" in updates and updates["scoring"]:
+        updates["scoring"] = updates["scoring"] if isinstance(updates["scoring"], dict) else updates["scoring"].model_dump()
     
     result = await supplier_service.update_question(question_id, updates)
     return result

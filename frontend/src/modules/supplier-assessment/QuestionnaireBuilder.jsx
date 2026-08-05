@@ -7,7 +7,7 @@ import { Input } from '../../components/ui/input';
 import { Textarea } from '../../components/ui/textarea';
 import { Badge } from '../../components/ui/badge';
 import { Label } from '../../components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
 import {
   Select,
   SelectContent,
@@ -21,24 +21,29 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from '../../components/ui/dialog';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '../../components/ui/table';
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '../../components/ui/accordion';
 import { 
   Plus, 
   Edit2, 
   Trash2, 
   Copy,
   GripVertical,
-  ChevronDown,
-  ChevronUp,
   FileText,
+  Settings2,
+  ArrowUpRight,
+  ArrowDownRight,
+  ToggleLeft,
+  List,
+  Target,
+  Pencil,
+  Info,
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -46,6 +51,7 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const responseTypes = [
   { value: 'yes_no', label: 'Yes / No' },
   { value: 'numeric', label: 'Numeric' },
+  { value: 'percentage', label: 'Percentage' },
   { value: 'text', label: 'Text' },
   { value: 'dropdown', label: 'Dropdown' },
 ];
@@ -55,6 +61,74 @@ const categories = [
   { value: 'social', label: 'Social' },
   { value: 'governance', label: 'Governance' },
 ];
+
+// Scoring rules with descriptions
+const scoringRules = [
+  { 
+    value: 'higher_is_better', 
+    label: 'Higher is Better',
+    description: 'Score increases as value increases (e.g., renewable energy %)',
+    icon: ArrowUpRight,
+    color: 'text-emerald-600',
+    fields: ['target', 'min', 'max'],
+  },
+  { 
+    value: 'lower_is_better', 
+    label: 'Lower is Better',
+    description: 'Score decreases as value increases (e.g., emissions)',
+    icon: ArrowDownRight,
+    color: 'text-blue-600',
+    fields: ['max_acceptable', 'min'],
+  },
+  { 
+    value: 'boolean', 
+    label: 'Boolean (Yes/No)',
+    description: 'Binary scoring for certifications or policies',
+    icon: ToggleLeft,
+    color: 'text-purple-600',
+    fields: ['true_score', 'false_score'],
+  },
+  { 
+    value: 'choice_mapping', 
+    label: 'Choice Mapping',
+    description: 'Map each dropdown option to a specific score',
+    icon: List,
+    color: 'text-amber-600',
+    fields: ['choices'],
+  },
+  { 
+    value: 'target_based', 
+    label: 'Target Based',
+    description: 'Score based on percentage of target achieved',
+    icon: Target,
+    color: 'text-rose-600',
+    fields: ['target'],
+  },
+  { 
+    value: 'manual', 
+    label: 'Manual Review',
+    description: 'Requires human review to assign score',
+    icon: Pencil,
+    color: 'text-stone-600',
+    fields: [],
+  },
+];
+
+// Helper to get default scoring config based on response type
+const getDefaultScoringConfig = (responseType) => {
+  switch (responseType) {
+    case 'yes_no':
+      return { rule: 'boolean', true_score: 100, false_score: 0 };
+    case 'numeric':
+    case 'percentage':
+      return { rule: 'higher_is_better', target: 100, min: 0, max: 100, max_score: 100 };
+    case 'dropdown':
+      return { rule: 'choice_mapping', choices: {} };
+    case 'text':
+    default:
+      return { rule: 'manual', requires_manual_review: true };
+  }
+};
 
 export default function QuestionnaireBuilder() {
   const { getAuthHeader } = useAuth();
@@ -74,8 +148,8 @@ export default function QuestionnaireBuilder() {
     name: '',
     description: '',
     due_date: '',
-    scoring_method: 'question',
-    section_weights: { environment: 33.33, social: 33.33, governance: 33.34 },
+    esg_section_weights: { environment: 33.33, social: 33.33, governance: 33.34 },
+    overall_supplier_weights: { esg: 40, ghg: 40, revenue: 20 },
   });
   
   const [questionForm, setQuestionForm] = useState({
@@ -87,6 +161,7 @@ export default function QuestionnaireBuilder() {
     weight: 1,
     category: 'environment',
     order: 0,
+    scoring: { rule: 'boolean', true_score: 100, false_score: 0 },
   });
   
   const [submitting, setSubmitting] = useState(false);
@@ -142,8 +217,8 @@ export default function QuestionnaireBuilder() {
         name: '',
         description: '',
         due_date: '',
-        scoring_method: 'question',
-        section_weights: { environment: 33.33, social: 33.33, governance: 33.34 },
+        esg_section_weights: { environment: 33.33, social: 33.33, governance: 33.34 },
+        overall_supplier_weights: { esg: 40, ghg: 40, revenue: 20 },
       });
       fetchQuestionnaires();
       setSelectedQuestionnaire(res.data);
@@ -281,6 +356,7 @@ export default function QuestionnaireBuilder() {
       weight: 1,
       category: 'environment',
       order: 0,
+      scoring: { rule: 'boolean', true_score: 100, false_score: 0 },
     });
   };
 
@@ -295,6 +371,7 @@ export default function QuestionnaireBuilder() {
       weight: question.weight,
       category: question.category,
       order: question.order,
+      scoring: question.scoring || getDefaultScoringConfig(question.response_type),
     });
     setShowQuestionDialog(true);
   };
@@ -304,10 +381,31 @@ export default function QuestionnaireBuilder() {
       name: q.name,
       description: q.description || '',
       due_date: q.due_date || '',
-      scoring_method: q.scoring_method || 'question',
-      section_weights: q.section_weights || { environment: 33.33, social: 33.33, governance: 33.34 },
+      esg_section_weights: q.esg_section_weights || q.section_weights || { environment: 33.33, social: 33.33, governance: 33.34 },
+      overall_supplier_weights: q.overall_supplier_weights || { esg: 40, ghg: 40, revenue: 20 },
     });
     setShowEditDialog(true);
+  };
+
+  // Update scoring when response type changes
+  const handleResponseTypeChange = (newType) => {
+    setQuestionForm({ 
+      ...questionForm, 
+      response_type: newType,
+      scoring: getDefaultScoringConfig(newType),
+      options: newType === 'dropdown' ? [] : questionForm.options,
+    });
+  };
+
+  // Update scoring config
+  const updateScoringConfig = (field, value) => {
+    setQuestionForm({
+      ...questionForm,
+      scoring: {
+        ...questionForm.scoring,
+        [field]: value,
+      },
+    });
   };
 
   const addOption = () => {
@@ -450,65 +548,74 @@ export default function QuestionnaireBuilder() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {questions.map((q, index) => (
-                      <div
-                        key={q.id}
-                        className="border rounded-lg p-4 hover:shadow-sm transition-shadow"
-                        data-testid={`question-${q.id}`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="text-stone-400 cursor-grab">
-                            <GripVertical className="h-5 w-5" />
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-start justify-between">
-                              <div>
-                                <span className="text-sm text-stone-400 mr-2">Q{index + 1}.</span>
-                                <span className="font-medium">{q.question_text}</span>
-                                {q.required && <span className="text-red-500 ml-1">*</span>}
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Badge variant="outline" className="text-xs">
-                                  {categories.find(c => c.value === q.category)?.label || q.category}
-                                </Badge>
-                                <Badge variant="outline" className="text-xs">
-                                  {responseTypes.find(r => r.value === q.response_type)?.label || q.response_type}
-                                </Badge>
-                              </div>
+                    {questions.map((q, index) => {
+                      const scoringRule = scoringRules.find(r => r.value === q.scoring?.rule);
+                      return (
+                        <div
+                          key={q.id}
+                          className="border rounded-lg p-4 hover:shadow-sm transition-shadow"
+                          data-testid={`question-${q.id}`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="text-stone-400 cursor-grab">
+                              <GripVertical className="h-5 w-5" />
                             </div>
-                            {q.description && (
-                              <p className="text-sm text-stone-500 mt-1">{q.description}</p>
-                            )}
-                            {q.options && q.options.length > 0 && (
-                              <div className="mt-2 flex flex-wrap gap-1">
-                                {q.options.map((opt, i) => (
-                                  <Badge key={i} variant="secondary" className="text-xs">
-                                    {opt.label || opt.value}
+                            <div className="flex-1">
+                              <div className="flex items-start justify-between">
+                                <div>
+                                  <span className="text-sm text-stone-400 mr-2">Q{index + 1}.</span>
+                                  <span className="font-medium">{q.question_text}</span>
+                                  {q.required && <span className="text-red-500 ml-1">*</span>}
+                                </div>
+                                <div className="flex items-center gap-1 flex-wrap justify-end">
+                                  <Badge variant="outline" className="text-xs">
+                                    {categories.find(c => c.value === q.category)?.label || q.category}
                                   </Badge>
-                                ))}
+                                  <Badge variant="outline" className="text-xs">
+                                    {responseTypes.find(r => r.value === q.response_type)?.label || q.response_type}
+                                  </Badge>
+                                  {scoringRule && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      {scoringRule.label}
+                                    </Badge>
+                                  )}
+                                </div>
                               </div>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openEditQuestion(q)}
-                            >
-                              <Edit2 className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-red-600"
-                              onClick={() => handleDeleteQuestion(q.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                              {q.description && (
+                                <p className="text-sm text-stone-500 mt-1">{q.description}</p>
+                              )}
+                              {q.options && q.options.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-1">
+                                  {q.options.map((opt, i) => (
+                                    <Badge key={i} variant="secondary" className="text-xs">
+                                      {opt.label || opt.value}
+                                      {opt.score != null && <span className="ml-1 text-stone-400">({opt.score})</span>}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openEditQuestion(q)}
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-red-600"
+                                onClick={() => handleDeleteQuestion(q.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </CardContent>
@@ -526,11 +633,14 @@ export default function QuestionnaireBuilder() {
 
       {/* Create Questionnaire Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Create Questionnaire</DialogTitle>
+            <DialogDescription>
+              Configure questionnaire settings and scoring weights
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
             <div className="space-y-2">
               <Label>Name *</Label>
               <Input
@@ -546,7 +656,7 @@ export default function QuestionnaireBuilder() {
                 value={questionnaireForm.description}
                 onChange={(e) => setQuestionnaireForm({ ...questionnaireForm, description: e.target.value })}
                 placeholder="Enter description"
-                rows={3}
+                rows={2}
               />
             </div>
             <div className="space-y-2">
@@ -557,70 +667,131 @@ export default function QuestionnaireBuilder() {
                 onChange={(e) => setQuestionnaireForm({ ...questionnaireForm, due_date: e.target.value })}
               />
             </div>
-            <div className="space-y-2">
-              <Label>Scoring Method</Label>
-              <Select
-                value={questionnaireForm.scoring_method}
-                onValueChange={(v) => setQuestionnaireForm({ ...questionnaireForm, scoring_method: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="question">Question-level scoring</SelectItem>
-                  <SelectItem value="section">Section-based scoring</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {questionnaireForm.scoring_method === 'section' && (
-              <div className="space-y-2">
-                <Label>Section Weights (%)</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <Label className="text-xs">Environment</Label>
-                    <Input
-                      type="number"
-                      value={questionnaireForm.section_weights.environment}
-                      onChange={(e) => setQuestionnaireForm({
-                        ...questionnaireForm,
-                        section_weights: {
-                          ...questionnaireForm.section_weights,
-                          environment: parseFloat(e.target.value) || 0,
-                        },
-                      })}
-                    />
+            
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="esg-weights">
+                <AccordionTrigger className="text-sm font-medium">
+                  <div className="flex items-center gap-2">
+                    <Settings2 className="h-4 w-4" />
+                    ESG Section Weights
                   </div>
-                  <div>
-                    <Label className="text-xs">Social</Label>
-                    <Input
-                      type="number"
-                      value={questionnaireForm.section_weights.social}
-                      onChange={(e) => setQuestionnaireForm({
-                        ...questionnaireForm,
-                        section_weights: {
-                          ...questionnaireForm.section_weights,
-                          social: parseFloat(e.target.value) || 0,
-                        },
-                      })}
-                    />
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="pt-2 space-y-3">
+                    <p className="text-xs text-stone-500">
+                      Configure how much each ESG section contributes to the overall ESG score (must total 100%)
+                    </p>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <Label className="text-xs">Environment</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={questionnaireForm.esg_section_weights?.environment || 33.33}
+                          onChange={(e) => setQuestionnaireForm({
+                            ...questionnaireForm,
+                            esg_section_weights: {
+                              ...questionnaireForm.esg_section_weights,
+                              environment: parseFloat(e.target.value) || 0,
+                            },
+                          })}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Social</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={questionnaireForm.esg_section_weights?.social || 33.33}
+                          onChange={(e) => setQuestionnaireForm({
+                            ...questionnaireForm,
+                            esg_section_weights: {
+                              ...questionnaireForm.esg_section_weights,
+                              social: parseFloat(e.target.value) || 0,
+                            },
+                          })}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Governance</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={questionnaireForm.esg_section_weights?.governance || 33.34}
+                          onChange={(e) => setQuestionnaireForm({
+                            ...questionnaireForm,
+                            esg_section_weights: {
+                              ...questionnaireForm.esg_section_weights,
+                              governance: parseFloat(e.target.value) || 0,
+                            },
+                          })}
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <Label className="text-xs">Governance</Label>
-                    <Input
-                      type="number"
-                      value={questionnaireForm.section_weights.governance}
-                      onChange={(e) => setQuestionnaireForm({
-                        ...questionnaireForm,
-                        section_weights: {
-                          ...questionnaireForm.section_weights,
-                          governance: parseFloat(e.target.value) || 0,
-                        },
-                      })}
-                    />
+                </AccordionContent>
+              </AccordionItem>
+              
+              <AccordionItem value="overall-weights">
+                <AccordionTrigger className="text-sm font-medium">
+                  <div className="flex items-center gap-2">
+                    <Target className="h-4 w-4" />
+                    Overall Supplier Score Weights
                   </div>
-                </div>
-              </div>
-            )}
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="pt-2 space-y-3">
+                    <p className="text-xs text-stone-500">
+                      Configure how ESG, GHG emissions, and revenue contribution impact the final supplier score (must total 100%)
+                    </p>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <Label className="text-xs">ESG Score</Label>
+                        <Input
+                          type="number"
+                          value={questionnaireForm.overall_supplier_weights?.esg || 40}
+                          onChange={(e) => setQuestionnaireForm({
+                            ...questionnaireForm,
+                            overall_supplier_weights: {
+                              ...questionnaireForm.overall_supplier_weights,
+                              esg: parseFloat(e.target.value) || 0,
+                            },
+                          })}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">GHG Score</Label>
+                        <Input
+                          type="number"
+                          value={questionnaireForm.overall_supplier_weights?.ghg || 40}
+                          onChange={(e) => setQuestionnaireForm({
+                            ...questionnaireForm,
+                            overall_supplier_weights: {
+                              ...questionnaireForm.overall_supplier_weights,
+                              ghg: parseFloat(e.target.value) || 0,
+                            },
+                          })}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Revenue</Label>
+                        <Input
+                          type="number"
+                          value={questionnaireForm.overall_supplier_weights?.revenue || 20}
+                          onChange={(e) => setQuestionnaireForm({
+                            ...questionnaireForm,
+                            overall_supplier_weights: {
+                              ...questionnaireForm.overall_supplier_weights,
+                              revenue: parseFloat(e.target.value) || 0,
+                            },
+                          })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
@@ -635,11 +806,11 @@ export default function QuestionnaireBuilder() {
 
       {/* Edit Questionnaire Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Edit Questionnaire</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
             <div className="space-y-2">
               <Label>Name</Label>
               <Input
@@ -652,7 +823,7 @@ export default function QuestionnaireBuilder() {
               <Textarea
                 value={questionnaireForm.description}
                 onChange={(e) => setQuestionnaireForm({ ...questionnaireForm, description: e.target.value })}
-                rows={3}
+                rows={2}
               />
             </div>
             <div className="space-y-2">
@@ -663,6 +834,115 @@ export default function QuestionnaireBuilder() {
                 onChange={(e) => setQuestionnaireForm({ ...questionnaireForm, due_date: e.target.value })}
               />
             </div>
+            
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="esg-weights">
+                <AccordionTrigger className="text-sm font-medium">
+                  ESG Section Weights
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="grid grid-cols-3 gap-2 pt-2">
+                    <div>
+                      <Label className="text-xs">Environment</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={questionnaireForm.esg_section_weights?.environment || 33.33}
+                        onChange={(e) => setQuestionnaireForm({
+                          ...questionnaireForm,
+                          esg_section_weights: {
+                            ...questionnaireForm.esg_section_weights,
+                            environment: parseFloat(e.target.value) || 0,
+                          },
+                        })}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Social</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={questionnaireForm.esg_section_weights?.social || 33.33}
+                        onChange={(e) => setQuestionnaireForm({
+                          ...questionnaireForm,
+                          esg_section_weights: {
+                            ...questionnaireForm.esg_section_weights,
+                            social: parseFloat(e.target.value) || 0,
+                          },
+                        })}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Governance</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={questionnaireForm.esg_section_weights?.governance || 33.34}
+                        onChange={(e) => setQuestionnaireForm({
+                          ...questionnaireForm,
+                          esg_section_weights: {
+                            ...questionnaireForm.esg_section_weights,
+                            governance: parseFloat(e.target.value) || 0,
+                          },
+                        })}
+                      />
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+              
+              <AccordionItem value="overall-weights">
+                <AccordionTrigger className="text-sm font-medium">
+                  Overall Supplier Score Weights
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="grid grid-cols-3 gap-2 pt-2">
+                    <div>
+                      <Label className="text-xs">ESG Score</Label>
+                      <Input
+                        type="number"
+                        value={questionnaireForm.overall_supplier_weights?.esg || 40}
+                        onChange={(e) => setQuestionnaireForm({
+                          ...questionnaireForm,
+                          overall_supplier_weights: {
+                            ...questionnaireForm.overall_supplier_weights,
+                            esg: parseFloat(e.target.value) || 0,
+                          },
+                        })}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">GHG Score</Label>
+                      <Input
+                        type="number"
+                        value={questionnaireForm.overall_supplier_weights?.ghg || 40}
+                        onChange={(e) => setQuestionnaireForm({
+                          ...questionnaireForm,
+                          overall_supplier_weights: {
+                            ...questionnaireForm.overall_supplier_weights,
+                            ghg: parseFloat(e.target.value) || 0,
+                          },
+                        })}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Revenue</Label>
+                      <Input
+                        type="number"
+                        value={questionnaireForm.overall_supplier_weights?.revenue || 20}
+                        onChange={(e) => setQuestionnaireForm({
+                          ...questionnaireForm,
+                          overall_supplier_weights: {
+                            ...questionnaireForm.overall_supplier_weights,
+                            revenue: parseFloat(e.target.value) || 0,
+                          },
+                        })}
+                      />
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEditDialog(false)}>
@@ -677,11 +957,15 @@ export default function QuestionnaireBuilder() {
 
       {/* Question Dialog */}
       <Dialog open={showQuestionDialog} onOpenChange={setShowQuestionDialog}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editingQuestion ? 'Edit Question' : 'Add Question'}</DialogTitle>
+            <DialogDescription>
+              Configure the question, response type, and scoring behavior
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+          <div className="space-y-4 py-4 max-h-[65vh] overflow-y-auto">
+            {/* Basic Question Info */}
             <div className="space-y-2">
               <Label>Question Text *</Label>
               <Textarea
@@ -701,12 +985,13 @@ export default function QuestionnaireBuilder() {
                 rows={2}
               />
             </div>
+            
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Response Type</Label>
                 <Select
                   value={questionForm.response_type}
-                  onValueChange={(v) => setQuestionForm({ ...questionForm, response_type: v })}
+                  onValueChange={handleResponseTypeChange}
                 >
                   <SelectTrigger data-testid="response-type">
                     <SelectValue />
@@ -735,6 +1020,7 @@ export default function QuestionnaireBuilder() {
                 </Select>
               </div>
             </div>
+            
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Weight</Label>
@@ -763,6 +1049,7 @@ export default function QuestionnaireBuilder() {
               </div>
             </div>
             
+            {/* Dropdown Options */}
             {questionForm.response_type === 'dropdown' && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -807,6 +1094,221 @@ export default function QuestionnaireBuilder() {
                 </div>
               </div>
             )}
+            
+            {/* Scoring Configuration */}
+            <div className="border rounded-lg p-4 bg-stone-50/50 space-y-4">
+              <div className="flex items-center gap-2">
+                <Settings2 className="h-4 w-4 text-stone-600" />
+                <Label className="text-base font-medium">Scoring Configuration</Label>
+              </div>
+              
+              <div className="space-y-2">
+                <Label className="text-sm">Scoring Rule</Label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {scoringRules.map((rule) => {
+                    const Icon = rule.icon;
+                    const isSelected = questionForm.scoring?.rule === rule.value;
+                    return (
+                      <button
+                        key={rule.value}
+                        type="button"
+                        onClick={() => {
+                          const newScoring = { ...questionForm.scoring, rule: rule.value };
+                          // Reset rule-specific fields
+                          if (rule.value === 'boolean') {
+                            newScoring.true_score = 100;
+                            newScoring.false_score = 0;
+                          } else if (rule.value === 'higher_is_better') {
+                            newScoring.target = 100;
+                            newScoring.min = 0;
+                            newScoring.max = 100;
+                          } else if (rule.value === 'lower_is_better') {
+                            newScoring.max_acceptable = 100;
+                            newScoring.min = 0;
+                          } else if (rule.value === 'target_based') {
+                            newScoring.target = 100;
+                          } else if (rule.value === 'choice_mapping') {
+                            // Build choices from options if available
+                            const choices = {};
+                            questionForm.options?.forEach(opt => {
+                              if (opt.value) {
+                                choices[opt.value] = opt.score || 0;
+                              }
+                            });
+                            newScoring.choices = choices;
+                          }
+                          setQuestionForm({ ...questionForm, scoring: newScoring });
+                        }}
+                        className={`flex flex-col items-start p-3 rounded-lg border transition-all text-left ${
+                          isSelected 
+                            ? 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500' 
+                            : 'border-stone-200 hover:border-stone-300 hover:bg-white'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Icon className={`h-4 w-4 ${isSelected ? 'text-emerald-600' : rule.color}`} />
+                          <span className={`text-sm font-medium ${isSelected ? 'text-emerald-900' : 'text-stone-700'}`}>
+                            {rule.label}
+                          </span>
+                        </div>
+                        <span className="text-xs text-stone-500 mt-1">{rule.description}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              
+              {/* Rule-specific configuration fields */}
+              {questionForm.scoring?.rule === 'higher_is_better' && (
+                <div className="grid grid-cols-3 gap-3 pt-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Min Value</Label>
+                    <Input
+                      type="number"
+                      value={questionForm.scoring.min ?? 0}
+                      onChange={(e) => updateScoringConfig('min', parseFloat(e.target.value) || 0)}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Target (100% score)</Label>
+                    <Input
+                      type="number"
+                      value={questionForm.scoring.target ?? 100}
+                      onChange={(e) => updateScoringConfig('target', parseFloat(e.target.value) || 100)}
+                      placeholder="100"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Max Score</Label>
+                    <Input
+                      type="number"
+                      value={questionForm.scoring.max_score ?? 100}
+                      onChange={(e) => updateScoringConfig('max_score', parseFloat(e.target.value) || 100)}
+                      placeholder="100"
+                    />
+                  </div>
+                </div>
+              )}
+              
+              {questionForm.scoring?.rule === 'lower_is_better' && (
+                <div className="grid grid-cols-3 gap-3 pt-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Best Value (100% score)</Label>
+                    <Input
+                      type="number"
+                      value={questionForm.scoring.min ?? 0}
+                      onChange={(e) => updateScoringConfig('min', parseFloat(e.target.value) || 0)}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Max Acceptable (0% score)</Label>
+                    <Input
+                      type="number"
+                      value={questionForm.scoring.max_acceptable ?? 100}
+                      onChange={(e) => updateScoringConfig('max_acceptable', parseFloat(e.target.value) || 100)}
+                      placeholder="100"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Max Score</Label>
+                    <Input
+                      type="number"
+                      value={questionForm.scoring.max_score ?? 100}
+                      onChange={(e) => updateScoringConfig('max_score', parseFloat(e.target.value) || 100)}
+                      placeholder="100"
+                    />
+                  </div>
+                </div>
+              )}
+              
+              {questionForm.scoring?.rule === 'boolean' && (
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Yes/True Score</Label>
+                    <Input
+                      type="number"
+                      value={questionForm.scoring.true_score ?? 100}
+                      onChange={(e) => updateScoringConfig('true_score', parseFloat(e.target.value) || 100)}
+                      placeholder="100"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">No/False Score</Label>
+                    <Input
+                      type="number"
+                      value={questionForm.scoring.false_score ?? 0}
+                      onChange={(e) => updateScoringConfig('false_score', parseFloat(e.target.value) || 0)}
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+              )}
+              
+              {questionForm.scoring?.rule === 'target_based' && (
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Target Value</Label>
+                    <Input
+                      type="number"
+                      value={questionForm.scoring.target ?? 100}
+                      onChange={(e) => updateScoringConfig('target', parseFloat(e.target.value) || 100)}
+                      placeholder="100"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Max Score</Label>
+                    <Input
+                      type="number"
+                      value={questionForm.scoring.max_score ?? 100}
+                      onChange={(e) => updateScoringConfig('max_score', parseFloat(e.target.value) || 100)}
+                      placeholder="100"
+                    />
+                  </div>
+                </div>
+              )}
+              
+              {questionForm.scoring?.rule === 'choice_mapping' && (
+                <div className="space-y-2 pt-2">
+                  <div className="flex items-center gap-2">
+                    <Info className="h-3 w-3 text-stone-400" />
+                    <span className="text-xs text-stone-500">
+                      Set scores in the Options section above, or configure them below
+                    </span>
+                  </div>
+                  {questionForm.options?.length > 0 && (
+                    <div className="space-y-2">
+                      {questionForm.options.map((opt, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                          <span className="text-sm text-stone-600 w-1/2 truncate">
+                            {opt.label || opt.value || `Option ${index + 1}`}
+                          </span>
+                          <Input
+                            type="number"
+                            placeholder="Score"
+                            value={questionForm.scoring.choices?.[opt.value] ?? opt.score ?? ''}
+                            onChange={(e) => {
+                              const newChoices = { ...questionForm.scoring.choices };
+                              newChoices[opt.value] = parseFloat(e.target.value) || 0;
+                              updateScoringConfig('choices', newChoices);
+                            }}
+                            className="w-1/2"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {questionForm.scoring?.rule === 'manual' && (
+                <div className="flex items-center gap-2 pt-2 text-sm text-stone-500">
+                  <Info className="h-4 w-4" />
+                  <span>This question requires manual review to assign a score</span>
+                </div>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => {

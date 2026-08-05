@@ -101,16 +101,59 @@ class QuestionOption(BaseModel):
     score: Optional[float] = None  # Score for this option (question-level scoring)
 
 
+class QuestionScoringConfig(BaseModel):
+    """
+    Scoring configuration for a question.
+    
+    Supported rules:
+    - higher_is_better: Linear scale where higher values = higher scores
+    - lower_is_better: Inverted scale where lower values = higher scores
+    - boolean: Yes/No mapping with configurable scores
+    - choice_mapping: Map discrete choices to specific scores
+    - target_based: Score based on % of target achieved
+    - manual: Requires human review/scoring
+    """
+    rule: Literal[
+        "higher_is_better",
+        "lower_is_better", 
+        "boolean",
+        "choice_mapping",
+        "target_based",
+        "manual"
+    ]
+    
+    # For higher_is_better, lower_is_better, target_based
+    target: Optional[float] = None  # Target value to achieve
+    min: Optional[float] = 0  # Minimum value
+    max: Optional[float] = 100  # Maximum value (for higher_is_better)
+    max_score: float = 100  # Maximum score possible
+    
+    # For lower_is_better
+    max_acceptable: Optional[float] = None  # Maximum acceptable value (above = 0 score)
+    
+    # For boolean
+    true_score: float = 100  # Score when answer is Yes/True
+    false_score: float = 0  # Score when answer is No/False
+    
+    # For choice_mapping
+    choices: Optional[Dict[str, float]] = None  # Map of choice value to score
+    
+    # For manual
+    requires_manual_review: bool = False
+
+
 class QuestionCreate(BaseModel):
     """Create a questionnaire question."""
     question_text: str
     description: Optional[str] = None
-    response_type: str  # yes_no, numeric, text, dropdown
+    response_type: str  # yes_no, numeric, text, dropdown, percentage, currency
     options: Optional[List[QuestionOption]] = None  # For dropdown
     required: bool = True
     weight: float = 1.0  # Question weight for scoring
     category: str  # environment, social, governance
     order: int = 0
+    # New: Scoring configuration
+    scoring: Optional[QuestionScoringConfig] = None
 
 
 class QuestionUpdate(BaseModel):
@@ -124,6 +167,8 @@ class QuestionUpdate(BaseModel):
     category: Optional[str] = None
     order: Optional[int] = None
     is_active: Optional[bool] = None
+    # New: Scoring configuration
+    scoring: Optional[QuestionScoringConfig] = None
 
 
 class QuestionResponse(BaseModel):
@@ -142,6 +187,22 @@ class QuestionResponse(BaseModel):
     order: int = 0
     is_active: bool = True
     created_at: str
+    # New: Scoring configuration
+    scoring: Optional[Dict[str, Any]] = None
+
+
+class ESGSectionWeightsConfig(BaseModel):
+    """ESG section weight configuration for questionnaire."""
+    environment: float = 33.33
+    social: float = 33.33
+    governance: float = 33.34
+
+
+class OverallSupplierWeightsConfig(BaseModel):
+    """Overall supplier score component weights."""
+    esg: float = 40  # ESG questionnaire score weight
+    ghg: float = 40  # GHG emissions score weight
+    revenue: float = 20  # Revenue contribution weight
 
 
 class QuestionnaireCreate(BaseModel):
@@ -149,8 +210,12 @@ class QuestionnaireCreate(BaseModel):
     name: str
     description: Optional[str] = None
     due_date: Optional[str] = None
-    scoring_method: str = "question"  # question or section
-    section_weights: Optional[Dict[str, float]] = None  # e.g., {"environment": 50, "social": 30, "governance": 20}
+    # Legacy field (kept for backward compatibility)
+    scoring_method: Optional[str] = None  # Deprecated - use per-question scoring
+    section_weights: Optional[Dict[str, float]] = None  # Deprecated - use esg_section_weights
+    # New: Explicit weight configurations
+    esg_section_weights: Optional[ESGSectionWeightsConfig] = None
+    overall_supplier_weights: Optional[OverallSupplierWeightsConfig] = None
 
 
 class QuestionnaireUpdate(BaseModel):
@@ -158,9 +223,12 @@ class QuestionnaireUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     due_date: Optional[str] = None
-    scoring_method: Optional[str] = None
-    section_weights: Optional[Dict[str, float]] = None
+    scoring_method: Optional[str] = None  # Deprecated
+    section_weights: Optional[Dict[str, float]] = None  # Deprecated
     is_active: Optional[bool] = None
+    # New: Explicit weight configurations
+    esg_section_weights: Optional[ESGSectionWeightsConfig] = None
+    overall_supplier_weights: Optional[OverallSupplierWeightsConfig] = None
 
 
 class QuestionnaireResponse(BaseModel):
