@@ -386,13 +386,92 @@ export default function EmissionEntryForm({
   }, [editingEmission?.id, fuelDatabase]);
 
   // ============================================================================
+  // OCR PREFILL HELPERS
+  // Isolated helper functions for OCR quantity prefill logic.
+  // Structured for easy replacement with a generic mapping engine in the future.
+  // ============================================================================
+  
+  /**
+   * Find the primary activity/quantity field from formConfig fields.
+   * This is typically the main numeric input field (e.g., energy_consumed, quantity, consumption).
+   * @param {Array} fields - Array of field configurations from dynamicInputFields
+   * @returns {Object|null} - The primary field config or null if not found
+   */
+  const findPrimaryActivityField = useCallback((fields) => {
+    if (!fields || fields.length === 0) return null;
+    
+    // Priority order for identifying the primary quantity field
+    const primaryFieldPatterns = [
+      'energy_consumed',
+      'quantity',
+      'consumption',
+      'amount',
+      'volume',
+      'mass',
+      'fuel_consumed',
+      'electricity_consumed',
+      'gas_consumed'
+    ];
+    
+    // First, try to find by field_key matching known patterns
+    for (const pattern of primaryFieldPatterns) {
+      const match = fields.find(f => 
+        f.field_key?.toLowerCase() === pattern ||
+        f.field_key?.toLowerCase().includes(pattern)
+      );
+      if (match) return match;
+    }
+    
+    // Fallback: find the first numeric field that has an associated unit field
+    const numericField = fields.find(f => 
+      f.field_type === 'number' && 
+      fields.some(uf => uf.field_key === `${f.field_key}_unit`)
+    );
+    if (numericField) return numericField;
+    
+    // Last resort: first numeric field
+    return fields.find(f => f.field_type === 'number') || null;
+  }, []);
+
+  /**
+   * Apply OCR quantity to the primary activity field in monthlyData.
+   * @param {string} monthKey - The month key (e.g., '01', '06', '12')
+   * @param {number} quantity - The OCR extracted quantity
+   * @param {string} unit - The OCR extracted unit
+   * @param {Object} primaryField - The primary field config from findPrimaryActivityField
+   * @param {Function} setMonthlyData - State setter for monthlyData
+   */
+  const applyOcrQuantityToField = useCallback((monthKey, quantity, unit, primaryField, setMonthlyDataFn) => {
+    if (!primaryField?.field_key || !monthKey) return;
+    
+    const fieldKey = primaryField.field_key;
+    const unitFieldKey = `${fieldKey}_unit`;
+    
+    console.log(`[OCR Prefill] Applying quantity ${quantity} ${unit} to field: ${fieldKey}`);
+    
+    setMonthlyDataFn(prev => ({
+      ...prev,
+      [monthKey]: {
+        ...prev[monthKey],
+        [fieldKey]: quantity,
+        [unitFieldKey]: unit || ''
+      }
+    }));
+  }, []);
+
+  // ============================================================================
   // OCR PREFILL HYDRATION
   // Auto-populate form fields from OCR Invoice Extractor workflow
   // ============================================================================
+  
+  // Store OCR month/quantity info for deferred application after formConfig loads
+  const [ocrPendingQuantity, setOcrPendingQuantity] = useState(null);
+  
+  // Phase 1: Set scope, category, fuel, and other metadata (runs immediately)
   useEffect(() => {
     if (!ocrPrefillData) return;
     
-    console.log('[OCR Prefill] Applying prefill data:', ocrPrefillData);
+    console.log('[OCR Prefill] Phase 1 - Applying metadata:', ocrPrefillData);
     
     // Set scope (scope1, scope2, scope3)
     if (ocrPrefillData.scope) {
@@ -439,37 +518,29 @@ export default function EmissionEntryForm({
       setRecordSource(ocrPrefillData.source_of_information);
     }
     
-    // Set quantity in monthlyData based on billing period
-    if (ocrPrefillData.quantity && ocrPrefillData.billing_period) {
-      const billingPeriod = ocrPrefillData.billing_period;
+    // Store quantity info for Phase 2 (after formConfig loads)
+    if (ocrPrefillData.quantity && ocrPrefillData.billing_period?.start_date) {
+      const startDate = new Date(ocrPrefillData.billing_period.start_date);
+      const monthKey = String(startDate.getMonth() + 1).padStart(2, '0');
+      const year = startDate.getFullYear();
       
-      // Try to determine month from billing period
-      if (billingPeriod.start_date) {
-        const startDate = new Date(billingPeriod.start_date);
-        const monthKey = String(startDate.getMonth() + 1).padStart(2, '0');
-        const year = startDate.getFullYear();
-        
-        // Set reporting year
-        setReportingYear(String(year));
-        
-        // Set monthly data with quantity
-        setMonthlyData(prev => ({
-          ...prev,
-          [monthKey]: {
-            ...prev[monthKey],
-            quantity: ocrPrefillData.quantity,
-            quantity_unit: ocrPrefillData.unit || ''
-          }
-        }));
-        
-        // Expand this month (expandedMonths is an array of month keys)
-        setExpandedMonths(prev => {
-          if (Array.isArray(prev) && !prev.includes(monthKey)) {
-            return [...prev, monthKey];
-          }
-          return prev;
-        });
-      }
+      // Set reporting year immediately
+      setReportingYear(String(year));
+      
+      // Expand the month immediately
+      setExpandedMonths(prev => {
+        if (Array.isArray(prev) && !prev.includes(monthKey)) {
+          return [...prev, monthKey];
+        }
+        return prev;
+      });
+      
+      // Store for Phase 2
+      setOcrPendingQuantity({
+        monthKey,
+        quantity: ocrPrefillData.quantity,
+        unit: ocrPrefillData.unit || ''
+      });
     }
     
     // Note: Facility is NOT auto-selected per spec
@@ -1242,6 +1313,30 @@ export default function EmissionEntryForm({
       setMatchedFormulaId(currentFormulaId);
     }
   }, [currentFormulaId, matchedFormulaId]);
+
+  // ============================================================================
+  // OCR PREFILL PHASE 2
+  // Apply quantity to the correct field after formConfig/dynamicInputFields are available
+  // ============================================================================
+  useEffect(() => {
+    if (!ocrPendingQuantity) return;
+    if (!dynamicInputFields || dynamicInputFields.length === 0) return;
+    
+    const primaryField = findPrimaryActivityField(dynamicInputFields);
+    
+    if (primaryField) {
+      console.log('[OCR Prefill] Phase 2 - Found primary field:', primaryField.field_key);
+      applyOcrQuantityToField(
+        ocrPendingQuantity.monthKey,
+        ocrPendingQuantity.quantity,
+        ocrPendingQuantity.unit,
+        primaryField,
+        setMonthlyData
+      );
+      // Clear pending after applying
+      setOcrPendingQuantity(null);
+    }
+  }, [ocrPendingQuantity, dynamicInputFields, findPrimaryActivityField, applyOcrQuantityToField]);
 
   // Initialize unit values in monthlyData when dynamicInputFields or selectedFuel changes
   // This ensures that units are always explicitly set, not relying on dropdown display fallbacks
