@@ -21,7 +21,7 @@ Available intents:
 - formula_calculation: How something was calculated, methodology, formula details
 - approval_history: Who approved/rejected, approval status, workflow
 - assignment_history: Who is assigned, task assignments, due dates
-- version_history: What changed, edit history, version diffs
+- version_history: What changed, edit history, version diffs across any module
 - audit_trail: Activity logs, who did what, when
 - evidence_retrieval: Show evidence, attachments, uploaded files, invoices, bills
 - analytics: Top/bottom rankings, comparisons, trends, aggregations
@@ -31,6 +31,10 @@ Available intents:
 - summary: General overview, dashboard-style summary
 - list_query: List of records, facilities, categories, users
 - count_query: How many records, count of items
+- brsr_lookup: BRSR framework responses, section progress, submission status, BRSR data
+- gri_lookup: GRI framework disclosures, section progress, submission status, GRI data
+- supplier_assessment: Supplier assessment questionnaires, scores, rankings, supplier ESG data
+- data_status: Record-level approval/submission status across all modules, data completeness
 
 Return JSON only:
 {

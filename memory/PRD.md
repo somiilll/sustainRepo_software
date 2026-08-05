@@ -637,3 +637,18 @@ Raw Response → Question Score (0-100)
 4. Supplier and Customer Org Onboarding Wizards
 5. Word document download option for BRSR
 
+### Internal Data AI — Expanded Data Sources (Feb 2026)
+- **New Service Files Created**:
+  - `services/brsr.py` — BRSR framework responses, section progress, submission status
+  - `services/gri.py` — GRI disclosure responses, section progress, submission status
+  - `services/supplier_assessment.py` — Supplier questionnaires, scores, rankings, supplier ESG data
+  - `services/data_status.py` — Cross-module record status aggregation (emissions, environment, social, governance, BRSR, GRI)
+- **Extended Existing Services**:
+  - `services/history.py` — Added social/governance record versions + BRSR/GRI response version history
+- **Updated Orchestration**:
+  - `intent_detector.py` — 4 new intents: `brsr_lookup`, `gri_lookup`, `supplier_assessment`, `data_status`
+  - `planner.py` — Routing for new intents + framework version history on `version_history`
+  - `executor.py` — Registered all new services in SERVICE_MAP
+- **Status**: ✅ Complete — All intents tested via API
+
+

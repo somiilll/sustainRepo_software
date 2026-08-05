@@ -7,6 +7,7 @@ from typing import Dict, Any, List
 from modules.internal_data_ai.services import (
     organization, emissions, emission_factors, targets,
     evidence, analytics, history, esg_records, formulas,
+    brsr, gri, supplier_assessment, data_status,
 )
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,7 @@ SERVICE_MAP = {
     },
     "history": {
         "get_changes": history.get_changes,
+        "get_framework_versions": history.get_framework_version_history,
     },
     "audit": {
         "get_logs": history.get_logs,
@@ -51,6 +53,20 @@ SERVICE_MAP = {
     },
     "formulas": {
         "explain": formulas.explain,
+    },
+    "brsr": {
+        "get_responses": brsr.get_responses,
+        "get_version_history": brsr.get_version_history,
+    },
+    "gri": {
+        "get_responses": gri.get_responses,
+        "get_version_history": gri.get_version_history,
+    },
+    "supplier_assessment": {
+        "get_data": supplier_assessment.get_data,
+    },
+    "data_status": {
+        "get_status": data_status.get_status,
     },
 }
 

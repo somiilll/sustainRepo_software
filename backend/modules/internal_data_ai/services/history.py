@@ -34,6 +34,32 @@ async def get_changes(org_id: str, **kwargs) -> dict:
                 "changed_fields": d.get("changed_fields"),
             })
 
+    # Social record versions
+    if not record_type or "social" in record_type.lower():
+        docs = await db.social_record_versions.find({}, {"_id": 0}).sort("created_at", -1).to_list(10)
+        for d in docs:
+            results.append({
+                "module": "Social",
+                "record_id": d.get("record_id"),
+                "version": d.get("version"),
+                "changed_by": d.get("created_by"),
+                "changed_at": d.get("created_at"),
+                "changed_fields": d.get("changed_fields"),
+            })
+
+    # Governance record versions
+    if not record_type or "governance" in record_type.lower():
+        docs = await db.governance_record_versions.find({}, {"_id": 0}).sort("created_at", -1).to_list(10)
+        for d in docs:
+            results.append({
+                "module": "Governance",
+                "record_id": d.get("record_id"),
+                "version": d.get("version"),
+                "changed_by": d.get("created_by"),
+                "changed_at": d.get("created_at"),
+                "changed_fields": d.get("changed_fields"),
+            })
+
     # ESG target versions
     if not record_type or "target" in record_type.lower():
         docs = await db.esg_target_versions.find({}, {"_id": 0}).sort("created_at", -1).to_list(10)
@@ -48,6 +74,33 @@ async def get_changes(org_id: str, **kwargs) -> dict:
             })
 
     return {"total": len(results), "history": results[:30]}
+
+
+# ── BRSR/GRI response version history ──
+async def get_framework_version_history(org_id: str, **kwargs) -> dict:
+    """Version history for BRSR/GRI responses."""
+    framework = kwargs.get("entity_name") or ""
+    query = {}
+    if framework:
+        query["framework"] = {"$regex": framework, "$options": "i"}
+
+    versions = await db.esg_responses_versions.find(query, {"_id": 0}).sort("created_at", -1).to_list(30)
+    return {
+        "total": len(versions),
+        "history": [
+            {
+                "module": (v.get("framework") or "ESG").upper(),
+                "question_key": v.get("question_key"),
+                "version": v.get("version"),
+                "change_type": v.get("change_type"),
+                "changed_fields": v.get("changed_fields"),
+                "change_reason": v.get("change_reason"),
+                "changed_by": v.get("created_by"),
+                "changed_at": v.get("created_at"),
+            }
+            for v in versions
+        ],
+    }
 
 
 # ── Audit logs ──
