@@ -664,6 +664,150 @@ async def accept_line_item(
     }
 
 
+class FinalizeImportRequest(BaseModel):
+    """Request model for finalizing OCR import."""
+    line_item_id: str
+    emission_record_ids: List[str] = []  # Optional - will find by invoice number if empty
+
+
+@router.post("/finalize-import")
+async def finalize_import(
+    request: FinalizeImportRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Finalize OCR import after emission record(s) are saved.
+    - Copies invoice from temp bucket to evidence bucket
+    - Updates emission records with evidence URL (finds by invoice number if IDs not provided)
+    - Marks OCR line item as imported
+    - Cleans up temp file
+    """
+    org_id = _get_org(current_user)
+    
+    # Find the line item
+    item = await db[OCR_LINE_ITEMS_COLLECTION].find_one(
+        {"id": request.line_item_id, "organization_id": org_id}
+    )
+    
+    if not item:
+        raise HTTPException(status_code=404, detail="Line item not found")
+    
+    if item.get("status") == "imported":
+        return {"message": "Already imported", "evidence_url": item.get("evidence_url")}
+    
+    temp_file_key = item.get("temp_file_key")
+    filename = item.get("filename", "invoice.pdf")
+    evidence_url = None
+    
+    # Get invoice number for finding emission records
+    current_values = item.get("current_values", {})
+    invoice_number = current_values.get("invoice_number")
+    vendor_name = current_values.get("vendor_name")
+    
+    # Find emission records by invoice number if no IDs provided
+    emission_record_ids = request.emission_record_ids
+    if not emission_record_ids and invoice_number:
+        # Search for recently created emissions with this invoice in source_of_information
+        recent_emissions = await db.emission_records.find(
+            {
+                "organization_id": org_id,
+                "source_of_information": {"$regex": invoice_number, "$options": "i"}
+            },
+            {"id": 1, "_id": 0}
+        ).sort("created_at", -1).limit(10).to_list(10)
+        
+        emission_record_ids = [e["id"] for e in recent_emissions if e.get("id")]
+        logger.info(f"Found {len(emission_record_ids)} emission records by invoice number: {invoice_number}")
+    
+    # Copy file from temp bucket to evidence bucket
+    if temp_file_key:
+        try:
+            # Download from temp bucket
+            temp_file_content, _ = await r2_storage.get_file('ocr_temp', temp_file_key)
+            
+            if temp_file_content:
+                # Determine content type
+                ext = filename.lower().split('.')[-1] if '.' in filename else 'pdf'
+                content_types = {
+                    'pdf': 'application/pdf',
+                    'png': 'image/png',
+                    'jpg': 'image/jpeg',
+                    'jpeg': 'image/jpeg'
+                }
+                content_type = content_types.get(ext, 'application/octet-stream')
+                
+                # Upload to evidence bucket
+                evidence_result = await r2_storage.upload_file(
+                    file_content=temp_file_content,
+                    filename=filename,
+                    bucket_type='emission_evidence',
+                    content_type=content_type,
+                    folder=f"ocr-imports/{org_id}",
+                    org_name=org_id
+                )
+                
+                if evidence_result and "url" in evidence_result:
+                    evidence_url = evidence_result["url"]
+                elif evidence_result and "key" in evidence_result:
+                    evidence_url = evidence_result["key"]
+                
+                logger.info(f"Copied invoice to evidence bucket: {evidence_url}")
+                
+                # Delete from temp bucket
+                try:
+                    await r2_storage.delete_file('ocr_temp', temp_file_key)
+                except Exception as e:
+                    logger.warning(f"Failed to delete temp file: {e}")
+            else:
+                logger.warning(f"Could not download temp file: {temp_file_key}")
+                
+        except Exception as e:
+            logger.error(f"Error copying invoice to evidence bucket: {e}")
+    
+    # Update emission records with evidence URL
+    if evidence_url and emission_record_ids:
+        for emission_id in emission_record_ids:
+            try:
+                # Get current evidence list
+                emission = await db.emission_records.find_one({"id": emission_id})
+                if emission:
+                    current_evidence = emission.get("evidence_urls", [])
+                    if isinstance(current_evidence, str):
+                        current_evidence = [current_evidence] if current_evidence else []
+                    
+                    # Add new evidence if not already present
+                    if evidence_url not in current_evidence:
+                        current_evidence.append(evidence_url)
+                    
+                    # Update emission record
+                    await db.emission_records.update_one(
+                        {"id": emission_id},
+                        {"$set": {"evidence_urls": current_evidence}}
+                    )
+                    logger.info(f"Updated emission record {emission_id} with evidence")
+            except Exception as e:
+                logger.error(f"Error updating emission record {emission_id}: {e}")
+    
+    # Mark OCR line item as imported
+    await db[OCR_LINE_ITEMS_COLLECTION].update_one(
+        {"id": request.line_item_id},
+        {
+            "$set": {
+                "status": "imported",
+                "imported_at": datetime.now(timezone.utc).isoformat(),
+                "emission_record_ids": emission_record_ids,
+                "evidence_url": evidence_url
+            }
+        }
+    )
+    
+    return {
+        "message": "Import finalized successfully",
+        "evidence_url": evidence_url,
+        "emission_record_ids": emission_record_ids
+    }
+
+
 @router.post("/line-items/{item_id}/import")
 async def mark_as_imported(
     item_id: str,

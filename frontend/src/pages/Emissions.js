@@ -3174,7 +3174,25 @@ export default function Emissions() {
                   filterFacilitiesByScope={filterFacilitiesByScope}
                   hasFullKPIAccess={hasFullKPIAccess}
                   ocrPrefillData={ocrPrefillData}
-                  onSuccess={(savedEmissionIds) => {
+                  onSuccess={async () => {
+                    // Finalize OCR import if this was an OCR-assisted entry
+                    if (ocrPrefillData?.line_item_id) {
+                      try {
+                        await axios.post(
+                          `${process.env.REACT_APP_BACKEND_URL}/api/ocr-invoice/finalize-import`,
+                          {
+                            line_item_id: ocrPrefillData.line_item_id,
+                            emission_record_ids: [] // Backend will find emissions by invoice number
+                          },
+                          { headers: getAuthHeader() }
+                        );
+                        toast.success('Invoice attached as evidence');
+                      } catch (err) {
+                        console.error('Failed to finalize OCR import:', err);
+                        // Don't show error toast - the emission was still saved successfully
+                      }
+                    }
+                    
                     setDialogOpen(false);
                     setIsFormDirty(false);
                     setOcrPrefillData(null);
