@@ -13,5 +13,10 @@
         "category": "Non-Renewable",
         "scope": "Scope 2",
         "mapped_fuel": "Electricity"
+    },
+    "Bengaluru Electricity Supply Company Limited (BESCOM)::electricity": {
+        "category": "Non-Renewable",
+        "scope": "Scope 2",
+        "mapped_fuel": "Electricity"
     }
 }

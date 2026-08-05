@@ -258,9 +258,10 @@ export default function OCRInvoice() {
 
       toast.success('Line item accepted. Opening emission form...');
 
-      // Navigate to emissions page to add new emission
+      // Navigate to GHG emissions page with correct scope route
+      const scopeRoute = prefillData.scope || 'scope1';
       setTimeout(() => {
-        navigate('/emissions', { state: { openAddForm: true, ocrPrefill: prefillData } });
+        navigate(`/ghg/${scopeRoute}`, { state: { openAddForm: true, ocrPrefill: prefillData } });
       }, 500);
 
     } catch (err) {
