@@ -6,7 +6,7 @@ import requests
 
 sys.path.insert(0, "/app/backend")
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://compliance-data-ai.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://org-data-visibility.preview.emergentagent.com").rstrip("/")
 LOGIN_EMAIL = "goyalsomil2001@gmail.com"
 LOGIN_PASSWORD = "TestUser123!"
 

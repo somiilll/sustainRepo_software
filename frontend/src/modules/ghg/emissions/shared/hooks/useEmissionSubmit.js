@@ -48,7 +48,31 @@ export function useEmissionSubmit(ctx) {
       buildDecisionInputs, editingEmission,
       // Optional supplier context
       supplierContext = null,
+      // OCR context for finalize-import
+      ocrPrefillData = null,
     } = ctx;
+    
+    // Helper to finalize OCR import after successful emission save
+    const finalizeOcrImport = async (emissionRecordIds) => {
+      if (!ocrPrefillData?.line_item_id) return;
+      
+      try {
+        console.log('[OCR Finalize] Calling finalize-import with:', {
+          line_item_id: ocrPrefillData.line_item_id,
+          emission_record_ids: emissionRecordIds
+        });
+        
+        await axios.post(`${API}/ocr-invoice/finalize-import`, {
+          line_item_id: ocrPrefillData.line_item_id,
+          emission_record_ids: emissionRecordIds
+        }, { headers: getAuthHeader() });
+        
+        console.log('[OCR Finalize] Successfully finalized OCR import');
+      } catch (err) {
+        console.error('[OCR Finalize] Failed to finalize import:', err);
+        // Don't show error to user - emission was saved successfully
+      }
+    };
     
     // Use supplier API endpoint if in supplier context
     const apiBase = supplierContext 
@@ -569,6 +593,7 @@ export function useEmissionSubmit(ctx) {
 
         let successCount = 0;
         const errors = [];
+        const savedEmissionIds = []; // Track saved emission IDs for OCR finalize
         for (const [monthKey, data] of monthsWithData) {
           const actualYear = getActualYearForMonth(monthKey);
           const reportingPeriod = `${actualYear}-${monthKey}`;
@@ -645,11 +670,20 @@ export function useEmissionSubmit(ctx) {
           });
 
           try {
-            await axios.post(apiBase, payload, { headers: getAuthHeader() });
+            const response = await axios.post(apiBase, payload, { headers: getAuthHeader() });
             successCount++;
+            // Collect emission record ID for OCR finalize
+            if (response.data?.id) {
+              savedEmissionIds.push(response.data.id);
+            }
           } catch (err) {
             errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: Save failed`);
           }
+        }
+
+        // Finalize OCR import if we have saved emission IDs
+        if (savedEmissionIds.length > 0 && ocrPrefillData?.line_item_id) {
+          await finalizeOcrImport(savedEmissionIds);
         }
 
         if (successCount > 0) toast.success(`Created ${successCount} emission record(s) successfully`);

@@ -262,7 +262,13 @@ export const DynamicFieldRenderer = ({
           {/* Unit dropdown selector */}
           {showUnitSelector && (
             <select
-              value={data[`${field.variable}_unit`] || data.unit || fieldUnits[0]}
+              value={(() => {
+                // Get the stored unit value
+                const storedUnit = data[`${field.variable}_unit`] || data.unit || '';
+                // Find case-insensitive match in fieldUnits, or fall back to first option
+                const matchedUnit = fieldUnits.find(u => u.toLowerCase() === storedUnit.toLowerCase());
+                return matchedUnit || fieldUnits[0];
+              })()}
               onChange={(e) => {
                 updateMonthData(monthKey, `${field.variable}_unit`, e.target.value);
                 if (isQtyField) {

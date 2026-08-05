@@ -3,16 +3,69 @@ import { Outlet, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import Sidebar from './Sidebar';
 import { useAuth } from '../contexts/AuthContext';
-import { AlertTriangle, X } from 'lucide-react';
+import { AlertTriangle, X, Lock } from 'lucide-react';
 
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+// Routes that suppliers are allowed to access
+const SUPPLIER_ALLOWED_ROUTES = [
+  '/dashboard',
+  '/profile',
+  '/facilities',
+  '/supplier-assessment/supplier',
+  '/supplier-assessment/questionnaire',
+  '/ghg/scope1',
+  '/ghg/scope2',
+  '/ghg/scope3',
+  '/ghg/biogenic',
+  '/ghg',
+];
+
+// Locked overlay for supplier users - Full screen coverage
+const SupplierLockedOverlay = ({ children }) => (
+  <div className="fixed inset-0 z-50 lg:left-64 left-0"> {/* Account for sidebar width on large screens */}
+    {/* Blurred background for sneak peek */}
+    <div className="absolute inset-0 overflow-hidden">
+      <div className="filter blur-sm opacity-30 pointer-events-none select-none h-full overflow-auto p-4">
+        {children}
+      </div>
+    </div>
+    
+    {/* Lock overlay - full screen */}
+    <div className="absolute inset-0 bg-gradient-to-b from-white/90 via-white/80 to-white/90 backdrop-blur-[3px] flex items-center justify-center">
+      <div className="text-center p-8 max-w-md mx-4">
+        <div className="w-20 h-20 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-5">
+          <Lock className="w-10 h-10 text-emerald-600" />
+        </div>
+        <h3 className="text-xl font-semibold text-stone-800 mb-3">
+          Premium Module
+        </h3>
+        <p className="text-stone-500 text-sm mb-6 leading-relaxed">
+          Subscribe to unlock this module and access advanced ESG management features for your organization.
+        </p>
+        <button className="px-6 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors shadow-sm">
+          Contact Sales
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
 export default function Layout() {
   const { user, getAuthHeader } = useAuth();
   const [subscriptionWarning, setSubscriptionWarning] = useState(null);
   const [warningDismissed, setWarningDismissed] = useState(false);
+  const location = useLocation();
+  
+  // Check if user is a supplier
+  const isSupplier = user?.user_type === 'supplier' || user?.org_type === 'supplier';
+  
+  // Check if current route is allowed for suppliers
+  const isAllowedRoute = SUPPLIER_ALLOWED_ROUTES.some(route => 
+    location.pathname === route || location.pathname.startsWith(route + '/')
+  );
 
   useEffect(() => {
     // Only check subscription for admin and user roles (not super_admin)
@@ -60,7 +113,6 @@ export default function Layout() {
     }
   };
 
-  const location = useLocation();
   const isDashboardPage =
     location.pathname.includes('/dashboard') ||
     location.pathname.endsWith('/analysis');
@@ -105,7 +157,14 @@ export default function Layout() {
                   : 'w-full px-4 py-4 lg:px-5'
               }
             >
-            <Outlet />
+            {/* Show locked overlay for suppliers on restricted routes */}
+            {isSupplier && !isAllowedRoute ? (
+              <SupplierLockedOverlay>
+                <Outlet />
+              </SupplierLockedOverlay>
+            ) : (
+              <Outlet />
+            )}
           </div>
         </div>
 

@@ -596,6 +596,11 @@ async def accept_line_item(
     
     current_values = item.get("current_values", {})
     
+    # Load mappings and normalize unit before accepting
+    mappings = _load_mappings()
+    if current_values.get("unit"):
+        current_values["unit"] = _normalize_unit(current_values["unit"], mappings)
+    
     # Build accepted values (snapshot at time of acceptance)
     accepted_values = {
         **current_values,
@@ -747,20 +752,40 @@ async def finalize_import(
                 }
                 content_type = content_types.get(ext, 'application/octet-stream')
                 
-                # Upload to evidence bucket
+                # Get org name for path (use org name instead of org_id)
+                org_doc = await db.organizations.find_one({"id": org_id}, {"name": 1, "_id": 0})
+                org_name = org_doc.get("name", org_id) if org_doc else org_id
+                
+                # Upload to evidence bucket with path: {org_name}/{date}/{file}
                 evidence_result = await r2_storage.upload_file(
                     file_content=temp_file_content,
                     filename=filename,
                     bucket_type='emission_evidence',
                     content_type=content_type,
-                    folder=f"ocr-imports/{org_id}",
-                    org_name=org_id
+                    org_name=org_name  # No folder param - uses org_name/date/file structure
                 )
                 
-                if evidence_result and "url" in evidence_result:
-                    evidence_url = evidence_result["url"]
-                elif evidence_result and "key" in evidence_result:
-                    evidence_url = evidence_result["key"]
+                if evidence_result and evidence_result.get("key"):
+                    # Create uploaded_files record for proper file tracking
+                    file_record_id = str(uuid.uuid4())
+                    file_record = {
+                        "id": file_record_id,
+                        "original_filename": filename,
+                        "stored_filename": evidence_result['key'],
+                        "bucket_name": evidence_result.get('bucket', 'ghg-emissions-evidence'),
+                        "bucket_type": 'emission_evidence',
+                        "r2_key": evidence_result['key'],
+                        "file_size": len(temp_file_content),
+                        "content_type": content_type,
+                        "uploaded_by": current_user.get("id"),
+                        "uploaded_at": datetime.now(timezone.utc).isoformat(),
+                        "source": "ocr_invoice"
+                    }
+                    await db.uploaded_files.insert_one(file_record)
+                    
+                    # Use /api/files/{id} format for permanent URL (not presigned)
+                    evidence_url = f"/api/files/{file_record_id}"
+                    logger.info(f"[OCR Finalize] Created uploaded_files record: {file_record_id}, evidence_url: {evidence_url}")
                 
                 logger.info(f"[OCR Finalize] Copied invoice to evidence bucket: {evidence_url}")
                 
@@ -783,24 +808,27 @@ async def finalize_import(
     if evidence_url and emission_record_ids:
         for emission_id in emission_record_ids:
             try:
-                # Get current evidence list
+                # Get current evidence - use evidence_url field (comma-separated string)
                 emission = await db.emission_records.find_one({"id": emission_id})
-                logger.info(f"[OCR Finalize] Found emission record: {emission_id}, current evidence field: {emission.get('evidence_urls') if emission else 'NOT FOUND'}")
+                logger.info(f"[OCR Finalize] Found emission record: {emission_id}, current evidence_url: {emission.get('evidence_url') if emission else 'NOT FOUND'}")
                 if emission:
-                    current_evidence = emission.get("evidence_urls", [])
-                    if isinstance(current_evidence, str):
-                        current_evidence = [current_evidence] if current_evidence else []
+                    # Parse existing evidence_url (comma-separated string) into list
+                    current_evidence_str = emission.get("evidence_url", "") or ""
+                    current_evidence = [u.strip() for u in current_evidence_str.split(',') if u.strip()]
                     
                     # Add new evidence if not already present
                     if evidence_url not in current_evidence:
                         current_evidence.append(evidence_url)
                     
+                    # Convert back to comma-separated string
+                    new_evidence_str = ','.join(current_evidence)
+                    
                     # Update emission record
                     await db.emission_records.update_one(
                         {"id": emission_id},
-                        {"$set": {"evidence_urls": current_evidence}}
+                        {"$set": {"evidence_url": new_evidence_str}}
                     )
-                    logger.info(f"[OCR Finalize] Updated emission record {emission_id} with evidence: {current_evidence}")
+                    logger.info(f"[OCR Finalize] Updated emission record {emission_id} with evidence_url: {new_evidence_str}")
             except Exception as e:
                 logger.error(f"[OCR Finalize] Error updating emission record {emission_id}: {e}")
     else:
