@@ -414,7 +414,7 @@ export default function EmissionEntryForm({
       setRecordSource(ocrPrefillData.source_of_information);
     }
     
-    // Set quantity in monthlyData or yearlyData based on billing period
+    // Set quantity in monthlyData based on billing period
     if (ocrPrefillData.quantity && ocrPrefillData.billing_period) {
       const billingPeriod = ocrPrefillData.billing_period;
       
@@ -437,8 +437,13 @@ export default function EmissionEntryForm({
           }
         }));
         
-        // Expand this month
-        setExpandedMonths(prev => ({ ...prev, [monthKey]: true }));
+        // Expand this month (expandedMonths is an array of month keys)
+        setExpandedMonths(prev => {
+          if (Array.isArray(prev) && !prev.includes(monthKey)) {
+            return [...prev, monthKey];
+          }
+          return prev;
+        });
       }
     }
     
