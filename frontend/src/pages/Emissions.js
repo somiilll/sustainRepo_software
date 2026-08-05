@@ -3176,9 +3176,12 @@ export default function Emissions() {
                   ocrPrefillData={ocrPrefillData}
                   onSuccess={async () => {
                     // Finalize OCR import if this was an OCR-assisted entry
+                    console.log('[OCR Debug] onSuccess called, ocrPrefillData:', ocrPrefillData);
+                    
                     if (ocrPrefillData?.line_item_id) {
+                      console.log('[OCR Debug] Calling finalize-import for line_item_id:', ocrPrefillData.line_item_id);
                       try {
-                        await axios.post(
+                        const response = await axios.post(
                           `${process.env.REACT_APP_BACKEND_URL}/api/ocr-invoice/finalize-import`,
                           {
                             line_item_id: ocrPrefillData.line_item_id,
@@ -3186,11 +3189,15 @@ export default function Emissions() {
                           },
                           { headers: getAuthHeader() }
                         );
+                        console.log('[OCR Debug] finalize-import response:', response.data);
                         toast.success('Invoice attached as evidence');
                       } catch (err) {
-                        console.error('Failed to finalize OCR import:', err);
+                        console.error('[OCR Debug] Failed to finalize OCR import:', err);
+                        console.error('[OCR Debug] Error response:', err.response?.data);
                         // Don't show error toast - the emission was still saved successfully
                       }
+                    } else {
+                      console.log('[OCR Debug] No line_item_id in ocrPrefillData, skipping finalize');
                     }
                     
                     setDialogOpen(false);

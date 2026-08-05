@@ -683,6 +683,7 @@ async def finalize_import(
     - Cleans up temp file
     """
     org_id = _get_org(current_user)
+    logger.info(f"[OCR Finalize] Starting finalize-import for line_item_id: {request.line_item_id}")
     
     # Find the line item
     item = await db[OCR_LINE_ITEMS_COLLECTION].find_one(
@@ -690,24 +691,33 @@ async def finalize_import(
     )
     
     if not item:
+        logger.error(f"[OCR Finalize] Line item not found: {request.line_item_id}")
         raise HTTPException(status_code=404, detail="Line item not found")
     
+    logger.info(f"[OCR Finalize] Found line item, status: {item.get('status')}")
+    
     if item.get("status") == "imported":
+        logger.info(f"[OCR Finalize] Already imported, returning existing evidence_url")
         return {"message": "Already imported", "evidence_url": item.get("evidence_url")}
     
     temp_file_key = item.get("temp_file_key")
     filename = item.get("filename", "invoice.pdf")
     evidence_url = None
     
+    logger.info(f"[OCR Finalize] temp_file_key: {temp_file_key}, filename: {filename}")
+    
     # Get invoice number for finding emission records
     current_values = item.get("current_values", {})
     invoice_number = current_values.get("invoice_number")
     vendor_name = current_values.get("vendor_name")
     
+    logger.info(f"[OCR Finalize] invoice_number: {invoice_number}, vendor_name: {vendor_name}")
+    
     # Find emission records by invoice number if no IDs provided
     emission_record_ids = request.emission_record_ids
     if not emission_record_ids and invoice_number:
         # Search for recently created emissions with this invoice in source_of_information
+        logger.info(f"[OCR Finalize] Searching for emissions with invoice number: {invoice_number}")
         recent_emissions = await db.emission_records.find(
             {
                 "organization_id": org_id,
@@ -717,11 +727,12 @@ async def finalize_import(
         ).sort("created_at", -1).limit(10).to_list(10)
         
         emission_record_ids = [e["id"] for e in recent_emissions if e.get("id")]
-        logger.info(f"Found {len(emission_record_ids)} emission records by invoice number: {invoice_number}")
+        logger.info(f"[OCR Finalize] Found {len(emission_record_ids)} emission records: {emission_record_ids}")
     
     # Copy file from temp bucket to evidence bucket
     if temp_file_key:
         try:
+            logger.info(f"[OCR Finalize] Downloading from temp bucket: {temp_file_key}")
             # Download from temp bucket
             temp_file_content, _ = await r2_storage.get_file('ocr_temp', temp_file_key)
             
@@ -751,25 +762,30 @@ async def finalize_import(
                 elif evidence_result and "key" in evidence_result:
                     evidence_url = evidence_result["key"]
                 
-                logger.info(f"Copied invoice to evidence bucket: {evidence_url}")
+                logger.info(f"[OCR Finalize] Copied invoice to evidence bucket: {evidence_url}")
                 
                 # Delete from temp bucket
                 try:
                     await r2_storage.delete_file('ocr_temp', temp_file_key)
+                    logger.info(f"[OCR Finalize] Deleted temp file: {temp_file_key}")
                 except Exception as e:
-                    logger.warning(f"Failed to delete temp file: {e}")
+                    logger.warning(f"[OCR Finalize] Failed to delete temp file: {e}")
             else:
-                logger.warning(f"Could not download temp file: {temp_file_key}")
+                logger.warning(f"[OCR Finalize] Could not download temp file (content is None): {temp_file_key}")
                 
         except Exception as e:
-            logger.error(f"Error copying invoice to evidence bucket: {e}")
+            logger.error(f"[OCR Finalize] Error copying invoice to evidence bucket: {e}")
+    else:
+        logger.warning(f"[OCR Finalize] No temp_file_key found in line item")
     
     # Update emission records with evidence URL
+    logger.info(f"[OCR Finalize] Updating emissions. evidence_url: {evidence_url}, emission_record_ids: {emission_record_ids}")
     if evidence_url and emission_record_ids:
         for emission_id in emission_record_ids:
             try:
                 # Get current evidence list
                 emission = await db.emission_records.find_one({"id": emission_id})
+                logger.info(f"[OCR Finalize] Found emission record: {emission_id}, current evidence field: {emission.get('evidence_urls') if emission else 'NOT FOUND'}")
                 if emission:
                     current_evidence = emission.get("evidence_urls", [])
                     if isinstance(current_evidence, str):
@@ -784,9 +800,11 @@ async def finalize_import(
                         {"id": emission_id},
                         {"$set": {"evidence_urls": current_evidence}}
                     )
-                    logger.info(f"Updated emission record {emission_id} with evidence")
+                    logger.info(f"[OCR Finalize] Updated emission record {emission_id} with evidence: {current_evidence}")
             except Exception as e:
-                logger.error(f"Error updating emission record {emission_id}: {e}")
+                logger.error(f"[OCR Finalize] Error updating emission record {emission_id}: {e}")
+    else:
+        logger.warning(f"[OCR Finalize] Skipping emission update - evidence_url: {evidence_url}, emission_record_ids count: {len(emission_record_ids) if emission_record_ids else 0}")
     
     # Mark OCR line item as imported
     await db[OCR_LINE_ITEMS_COLLECTION].update_one(
