@@ -5,7 +5,6 @@ import json
 import difflib
 from io import BytesIO
 
-import pandas as pd
 from PIL import Image
 import fitz  # PyMuPDF
 from anthropic import Anthropic
@@ -16,24 +15,19 @@ MODELS = {
     "haiku4.5": "claude-haiku-4-5"
 }
 
-def load_fuel_categories(excel_path):
-    df = pd.read_excel(excel_path)
-    df.columns = df.columns.str.strip()
+def load_fuel_categories(json_path):
+    """Load fuel taxonomy from JSON file."""
+    with open(json_path, 'r') as f:
+        raw_records = json.load(f)
     
     fuel_records = []
-    for _, row in df.iterrows():
-        aliases_str = str(row.get('5 Common Aliases', '')).strip()
-        if aliases_str and aliases_str != 'nan':
-            aliases = [a.strip().lower() for a in aliases_str.split(',')]
-        else:
-            aliases = []
-            
+    for record in raw_records:
         fuel_records.append({
-            'search_name': str(row['Fuel name']).strip().lower(),
-            'original_name': str(row['Fuel name']).strip(),
-            'category': str(row['category']).strip(),
-            'scope': str(row['scope']).strip(),
-            'aliases': aliases
+            'search_name': record['fuel_name'].lower(),
+            'original_name': record['fuel_name'],
+            'category': record['category'],
+            'scope': record['scope'],
+            'aliases': [a.lower() for a in record.get('aliases', [])]
         })
     return fuel_records
 

@@ -20,7 +20,7 @@ router = APIRouter()
 
 # Module directory for data files
 MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
-EXCEL_PATH = os.path.join(MODULE_DIR, "Fuel_categorization_with_aliases.xlsx")
+JSON_PATH = os.path.join(MODULE_DIR, "fuel_taxonomy.json")
 VENDOR_CACHE_PATH = os.path.join(MODULE_DIR, "vendor_cache.json")
 
 # Model configuration from environment
@@ -101,14 +101,14 @@ async def upload_invoice(
         client = Anthropic(api_key=api_key)
         
         # Check taxonomy file exists
-        if not os.path.exists(EXCEL_PATH):
+        if not os.path.exists(JSON_PATH):
             return JSONResponse(
                 status_code=500,
                 content={"error": f"Taxonomy file not found on server."}
             )
         
         # Load fuel records
-        fuel_records = invoice_processor.load_fuel_categories(EXCEL_PATH)
+        fuel_records = invoice_processor.load_fuel_categories(JSON_PATH)
         
         # Load vendor cache
         vendor_cache = _load_vendor_cache()
@@ -174,10 +174,10 @@ async def get_ocr_history(current_user: dict = Depends(get_current_user)):
 @router.get("/taxonomy/stats")
 async def get_taxonomy_stats(current_user: dict = Depends(get_current_user)):
     """Get fuel taxonomy statistics."""
-    if not os.path.exists(EXCEL_PATH):
+    if not os.path.exists(JSON_PATH):
         raise HTTPException(status_code=500, detail="Taxonomy file not found")
     
-    fuel_records = invoice_processor.load_fuel_categories(EXCEL_PATH)
+    fuel_records = invoice_processor.load_fuel_categories(JSON_PATH)
     
     # Group by category and scope
     categories = {}
