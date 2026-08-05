@@ -408,6 +408,7 @@ export default function EmissionEntryForm({
     // Priority order for identifying the primary quantity field
     const primaryFieldPatterns = [
       'energy_consumed',
+      'qty_energy',
       'quantity',
       'consumption',
       'amount',
@@ -418,35 +419,35 @@ export default function EmissionEntryForm({
       'gas_consumed'
     ];
     
-    // Log all field keys for debugging
-    console.log('[OCR Debug] Available field keys:', fields.map(f => f.field_key));
+    // Log all field keys for debugging (using fieldKey - camelCase)
+    console.log('[OCR Debug] Available field keys:', fields.map(f => f.fieldKey));
     
-    // First, try to find by field_key matching known patterns
+    // First, try to find by fieldKey matching known patterns
     for (const pattern of primaryFieldPatterns) {
       const match = fields.find(f => 
-        f.field_key?.toLowerCase() === pattern ||
-        f.field_key?.toLowerCase().includes(pattern)
+        f.fieldKey?.toLowerCase() === pattern ||
+        f.fieldKey?.toLowerCase().includes(pattern)
       );
       if (match) {
-        console.log('[OCR Debug] Found primary field by pattern:', pattern, '→', match.field_key);
+        console.log('[OCR Debug] Found primary field by pattern:', pattern, '→', match.fieldKey);
         return match;
       }
     }
     
     // Fallback: find the first numeric field that has an associated unit field
     const numericField = fields.find(f => 
-      f.field_type === 'number' && 
-      fields.some(uf => uf.field_key === `${f.field_key}_unit`)
+      f.fieldType === 'number' && 
+      fields.some(uf => uf.fieldKey === `${f.fieldKey}_unit`)
     );
     if (numericField) {
-      console.log('[OCR Debug] Found primary field by numeric+unit fallback:', numericField.field_key);
+      console.log('[OCR Debug] Found primary field by numeric+unit fallback:', numericField.fieldKey);
       return numericField;
     }
     
     // Last resort: first numeric field
-    const firstNumeric = fields.find(f => f.field_type === 'number');
+    const firstNumeric = fields.find(f => f.fieldType === 'number');
     if (firstNumeric) {
-      console.log('[OCR Debug] Found primary field by first numeric fallback:', firstNumeric.field_key);
+      console.log('[OCR Debug] Found primary field by first numeric fallback:', firstNumeric.fieldKey);
       return firstNumeric;
     }
     
@@ -465,12 +466,12 @@ export default function EmissionEntryForm({
   const applyOcrQuantityToField = useCallback((monthKey, quantity, unit, primaryField, setMonthlyDataFn) => {
     console.log('[OCR Debug] applyOcrQuantityToField called:', { monthKey, quantity, unit, primaryField });
     
-    if (!primaryField?.field_key || !monthKey) {
-      console.log('[OCR Debug] Missing primaryField or monthKey, aborting');
+    if (!primaryField?.fieldKey || !monthKey) {
+      console.log('[OCR Debug] Missing primaryField.fieldKey or monthKey, aborting');
       return;
     }
     
-    const fieldKey = primaryField.field_key;
+    const fieldKey = primaryField.fieldKey;
     const unitFieldKey = `${fieldKey}_unit`;
     
     console.log(`[OCR Prefill] Applying quantity ${quantity} ${unit} to field: ${fieldKey}, unit field: ${unitFieldKey}`);
@@ -1387,7 +1388,7 @@ export default function EmissionEntryForm({
     console.log('[OCR Debug] Phase 2 effect triggered:', { 
       ocrPendingQuantity, 
       dynamicInputFieldsLength: dynamicInputFields?.length,
-      dynamicInputFields: dynamicInputFields?.map(f => f.field_key)
+      dynamicInputFields: dynamicInputFields?.map(f => f.fieldKey)
     });
     
     if (!ocrPendingQuantity) {
@@ -1403,7 +1404,7 @@ export default function EmissionEntryForm({
     const primaryField = findPrimaryActivityField(dynamicInputFields);
     
     if (primaryField) {
-      console.log('[OCR Prefill] Phase 2 - Found primary field:', primaryField.field_key);
+      console.log('[OCR Prefill] Phase 2 - Found primary field:', primaryField.fieldKey);
       applyOcrQuantityToField(
         ocrPendingQuantity.monthKey,
         ocrPendingQuantity.quantity,
