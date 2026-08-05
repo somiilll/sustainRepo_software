@@ -341,13 +341,44 @@ class SupplierEmissionResponse(BaseModel):
 
 class SupplierRankingEntry(BaseModel):
     """Single supplier ranking entry."""
-    rank: int
+    rank: Optional[int] = None
     supplier_id: str
     company_name: str
     esg_score: Optional[float] = None
+    environment_score: Optional[float] = None
+    social_score: Optional[float] = None
+    governance_score: Optional[float] = None
     ghg_score: Optional[float] = None
+    scope1_emissions: float = 0
+    scope2_emissions: float = 0
+    total_emissions: float = 0
     overall_score: Optional[float] = None
     completion_status: str  # not_started, in_progress, completed
+    revenue_percentage: Optional[float] = None
+
+
+class ScoreDistribution(BaseModel):
+    """Score distribution buckets."""
+    excellent: int = 0
+    good: int = 0
+    average: int = 0
+    poor: int = 0
+
+
+class AverageScores(BaseModel):
+    """Average scores across suppliers."""
+    esg: float = 0
+    environment: float = 0
+    social: float = 0
+    governance: float = 0
+    ghg: float = 0
+
+
+class EmissionsByScope(BaseModel):
+    """Total emissions by scope."""
+    scope1: float = 0
+    scope2: float = 0
+    total: float = 0
 
 
 class SupplierRankingResponse(BaseModel):
@@ -355,6 +386,9 @@ class SupplierRankingResponse(BaseModel):
     rankings: List[SupplierRankingEntry]
     total_suppliers: int
     ranked_suppliers: int
+    score_distribution: Optional[ScoreDistribution] = None
+    averages: Optional[AverageScores] = None
+    emissions_by_scope: Optional[EmissionsByScope] = None
 
 
 # ============================================================================

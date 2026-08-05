@@ -1011,15 +1011,16 @@ class SupplierAssessmentService:
             
             responses = await db.supplier_questionnaire_responses.find(
                 {"supplier_relationship_id": s["id"], "status": "submitted"},
-                {"_id": 0, "calculated_score": 1, "score_breakdown": 1, "esg_score": 1}
+                {"_id": 0, "calculated_score": 1, "score_breakdown": 1, "esg_score": 1, "questionnaire_id": 1, "answers": 1}
             ).to_list(100)
             
             for r in responses:
                 if r.get("calculated_score") is not None:
                     esg_scores.append(r["calculated_score"])
                 
-                # Extract section scores from breakdown
+                # Try to extract section scores from breakdown first
                 breakdown = r.get("score_breakdown", {})
+                has_breakdown = False
                 if breakdown:
                     esg_data = breakdown.get("esg_score", {})
                     if esg_data:
@@ -1028,15 +1029,49 @@ class SupplierAssessmentService:
                         gov = esg_data.get("governance", {})
                         if env and env.get("score"):
                             env_scores.append(env["score"])
+                            has_breakdown = True
                         if social and social.get("score"):
                             social_scores.append(social["score"])
+                            has_breakdown = True
                         if gov and gov.get("score"):
                             gov_scores.append(gov["score"])
+                            has_breakdown = True
+                
+                # Fallback: Calculate E/S/G from question answers if no breakdown
+                if not has_breakdown and r.get("questionnaire_id") and r.get("answers"):
+                    questions = await db.supplier_questions.find(
+                        {"questionnaire_id": r["questionnaire_id"], "is_active": True},
+                        {"_id": 0, "id": 1, "category": 1, "response_type": 1, "weight": 1}
+                    ).to_list(200)
+                    
+                    cat_scores = {"environment": [], "social": [], "governance": []}
+                    for q in questions:
+                        ans = r["answers"].get(q["id"])
+                        if ans is not None:
+                            # Simple scoring: yes_no -> 100/0, else use answer if numeric
+                            score = 0
+                            if q.get("response_type") == "yes_no":
+                                score = 100 if str(ans).lower() in ["yes", "true", "1"] else 0
+                            elif isinstance(ans, (int, float)):
+                                score = min(100, max(0, float(ans)))
+                            else:
+                                score = 100  # Text answers = full score if answered
+                            
+                            cat = q.get("category", "environment")
+                            if cat in cat_scores:
+                                cat_scores[cat].append(score * q.get("weight", 1))
+                    
+                    if cat_scores["environment"]:
+                        env_scores.append(sum(cat_scores["environment"]) / len(cat_scores["environment"]))
+                    if cat_scores["social"]:
+                        social_scores.append(sum(cat_scores["social"]) / len(cat_scores["social"]))
+                    if cat_scores["governance"]:
+                        gov_scores.append(sum(cat_scores["governance"]) / len(cat_scores["governance"]))
             
             esg_score = sum(esg_scores) / len(esg_scores) if esg_scores else None
-            env_score = sum(env_scores) / len(env_scores) if env_scores else None
-            social_score = sum(social_scores) / len(social_scores) if social_scores else None
-            gov_score = sum(gov_scores) / len(gov_scores) if gov_scores else None
+            env_score = min(100, sum(env_scores) / len(env_scores)) if env_scores else None
+            social_score = min(100, sum(social_scores) / len(social_scores)) if social_scores else None
+            gov_score = min(100, sum(gov_scores) / len(gov_scores)) if gov_scores else None
             
             # Get GHG emissions by scope (Scope 1 & 2 only for suppliers)
             ghg_emissions = await db.emission_records.find(
