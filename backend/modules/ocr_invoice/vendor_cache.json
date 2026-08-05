@@ -38,5 +38,10 @@
         "category": "Mobile Combustion",
         "scope": "Scope 1",
         "mapped_fuel": "Motor Gasoline"
+    },
+    "IndianOil - SHYAMALA & COMPANY::petrol": {
+        "category": "Mobile Combustion",
+        "scope": "Scope 1",
+        "mapped_fuel": "Motor Gasoline"
     }
 }
