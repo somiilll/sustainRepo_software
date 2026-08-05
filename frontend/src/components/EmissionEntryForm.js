@@ -405,11 +405,27 @@ export default function EmissionEntryForm({
       return null;
     }
     
+    // Patterns to EXCLUDE (emission factors, override fields)
+    const excludePatterns = [
+      'ef_', 'emission_factor', 'ef_quantity', 'co2_ef', 'ch4_ef', 'n2o_ef',
+      'gwp', 'density', 'cv', 'calorific'
+    ];
+    
+    // Filter out emission factor and override fields
+    const quantityFields = fields.filter(f => {
+      const key = f.fieldKey?.toLowerCase() || '';
+      return !excludePatterns.some(pattern => key.includes(pattern));
+    });
+    
+    console.log('[OCR Debug] Filtered quantity fields:', quantityFields.map(f => f.fieldKey));
+    
     // Priority order for identifying the primary quantity field
     const primaryFieldPatterns = [
+      'qty',              // Main quantity field for Scope 1 (Stationary/Mobile Combustion)
+      'qty_energy',       // Energy consumed for Scope 2
       'energy_consumed',
-      'qty_energy',
       'quantity',
+      'activity_value',   // Scope 3 activity quantity
       'consumption',
       'amount',
       'volume',
@@ -422,9 +438,9 @@ export default function EmissionEntryForm({
     // Log all field keys for debugging (using fieldKey - camelCase)
     console.log('[OCR Debug] Available field keys:', fields.map(f => f.fieldKey));
     
-    // First, try to find by fieldKey matching known patterns
+    // First, try to find by fieldKey matching known patterns (in filtered fields)
     for (const pattern of primaryFieldPatterns) {
-      const match = fields.find(f => 
+      const match = quantityFields.find(f => 
         f.fieldKey?.toLowerCase() === pattern ||
         f.fieldKey?.toLowerCase().includes(pattern)
       );
@@ -434,8 +450,8 @@ export default function EmissionEntryForm({
       }
     }
     
-    // Fallback: find the first numeric field that has an associated unit field
-    const numericField = fields.find(f => 
+    // Fallback: find the first numeric field that has an associated unit field (from filtered)
+    const numericField = quantityFields.find(f => 
       f.fieldType === 'number' && 
       fields.some(uf => uf.fieldKey === `${f.fieldKey}_unit`)
     );
@@ -444,8 +460,8 @@ export default function EmissionEntryForm({
       return numericField;
     }
     
-    // Last resort: first numeric field
-    const firstNumeric = fields.find(f => f.fieldType === 'number');
+    // Last resort: first numeric field from filtered list
+    const firstNumeric = quantityFields.find(f => f.fieldType === 'number');
     if (firstNumeric) {
       console.log('[OCR Debug] Found primary field by first numeric fallback:', firstNumeric.fieldKey);
       return firstNumeric;
@@ -3046,6 +3062,8 @@ export default function EmissionEntryForm({
     editingEmission,
     // Supplier context (optional)
     supplierContext,
+    // OCR context (for finalize-import after save)
+    ocrPrefillData,
   });
 
   // Step indicators
