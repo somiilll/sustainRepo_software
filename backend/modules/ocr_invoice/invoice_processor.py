@@ -3,6 +3,8 @@ import argparse
 import base64
 import json
 import difflib
+import calendar
+from datetime import datetime
 from io import BytesIO
 
 from PIL import Image
@@ -213,6 +215,26 @@ CRITICAL EXTRACTION RULES:
     period_end = billing_period.get("end_date")
     period_text = billing_period.get("period_text")
     
+    # Infer billing period from invoice date if not explicitly provided
+    if not period_start and date:
+        try:
+            # Parse the invoice date
+            invoice_date = datetime.strptime(date, "%Y-%m-%d")
+            
+            # Set start_date to first day of month
+            period_start = invoice_date.replace(day=1).strftime("%Y-%m-%d")
+            
+            # Set end_date to last day of month
+            last_day = calendar.monthrange(invoice_date.year, invoice_date.month)[1]
+            period_end = invoice_date.replace(day=last_day).strftime("%Y-%m-%d")
+            
+            # Set period_text to "Mon YYYY" format (e.g., "Sep 2025")
+            period_text = invoice_date.strftime("%b %Y")
+            
+            print(f"[OCR] Inferred billing period from date {date}: {period_start} to {period_end} ({period_text})")
+        except Exception as e:
+            print(f"[OCR] Failed to infer billing period from date {date}: {e}")
+    
     line_items = data.get("line_items", [])
     if not isinstance(line_items, list):
         line_items = []
@@ -396,6 +418,7 @@ def main():
         json.dump(vendor_cache, f, indent=4)
         
     if results:
+        import pandas as pd
         df = pd.DataFrame(results)
         # Reorder columns with the new extraction fields
         cols = ['file', 'invoice_number', 'date', 'vendor_name', 'location', 

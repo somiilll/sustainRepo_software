@@ -765,10 +765,27 @@ async def finalize_import(
                     org_name=org_name  # No folder param - uses org_name/date/file structure
                 )
                 
-                if evidence_result and "url" in evidence_result:
-                    evidence_url = evidence_result["url"]
-                elif evidence_result and "key" in evidence_result:
-                    evidence_url = evidence_result["key"]
+                if evidence_result and evidence_result.get("key"):
+                    # Create uploaded_files record for proper file tracking
+                    file_record_id = str(uuid.uuid4())
+                    file_record = {
+                        "id": file_record_id,
+                        "original_filename": filename,
+                        "stored_filename": evidence_result['key'],
+                        "bucket_name": evidence_result.get('bucket', 'ghg-emissions-evidence'),
+                        "bucket_type": 'emission_evidence',
+                        "r2_key": evidence_result['key'],
+                        "file_size": len(temp_file_content),
+                        "content_type": content_type,
+                        "uploaded_by": current_user.get("id"),
+                        "uploaded_at": datetime.now(timezone.utc).isoformat(),
+                        "source": "ocr_invoice"
+                    }
+                    await db.uploaded_files.insert_one(file_record)
+                    
+                    # Use /api/files/{id} format for permanent URL (not presigned)
+                    evidence_url = f"/api/files/{file_record_id}"
+                    logger.info(f"[OCR Finalize] Created uploaded_files record: {file_record_id}, evidence_url: {evidence_url}")
                 
                 logger.info(f"[OCR Finalize] Copied invoice to evidence bucket: {evidence_url}")
                 
