@@ -463,8 +463,8 @@ export default function EmissionEntryForm({
    * @param {Object} primaryField - The primary field config from findPrimaryActivityField
    * @param {Function} setMonthlyData - State setter for monthlyData
    */
-  const applyOcrQuantityToField = useCallback((monthKey, quantity, unit, primaryField, setMonthlyDataFn) => {
-    console.log('[OCR Debug] applyOcrQuantityToField called:', { monthKey, quantity, unit, primaryField });
+  const applyOcrQuantityToField = useCallback((monthKey, quantity, unit, primaryField, setMonthlyDataFn, availableUnits = []) => {
+    console.log('[OCR Debug] applyOcrQuantityToField called:', { monthKey, quantity, unit, primaryField, availableUnits });
     
     if (!primaryField?.fieldKey || !monthKey) {
       console.log('[OCR Debug] Missing primaryField.fieldKey or monthKey, aborting');
@@ -474,7 +474,17 @@ export default function EmissionEntryForm({
     const fieldKey = primaryField.fieldKey;
     const unitFieldKey = `${fieldKey}_unit`;
     
-    console.log(`[OCR Prefill] Applying quantity ${quantity} ${unit} to field: ${fieldKey}, unit field: ${unitFieldKey}`);
+    // Normalize unit: find case-insensitive match in available units
+    let normalizedUnit = unit || '';
+    if (unit && availableUnits.length > 0) {
+      const matchedUnit = availableUnits.find(u => u.toLowerCase() === unit.toLowerCase());
+      if (matchedUnit) {
+        normalizedUnit = matchedUnit;
+        console.log(`[OCR Prefill] Normalized unit from "${unit}" to "${normalizedUnit}"`);
+      }
+    }
+    
+    console.log(`[OCR Prefill] Applying quantity ${quantity} ${normalizedUnit} to field: ${fieldKey}, unit field: ${unitFieldKey}`);
     
     setMonthlyDataFn(prev => {
       const updated = {
@@ -482,7 +492,7 @@ export default function EmissionEntryForm({
         [monthKey]: {
           ...prev[monthKey],
           [fieldKey]: quantity,
-          [unitFieldKey]: unit || ''
+          [unitFieldKey]: normalizedUnit
         }
       };
       console.log('[OCR Debug] Updated monthlyData:', updated);
@@ -1444,19 +1454,46 @@ export default function EmissionEntryForm({
     
     if (primaryField) {
       console.log('[OCR Prefill] Phase 2 - Found primary field:', primaryField.fieldKey);
+      
+      // Get available units for the primary field (for unit normalization)
+      let availableUnits = [];
+      const isScope3Like = scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3');
+      if (primaryField.unitSource === 'fuel') {
+        if (isScope3Like && requiresSubcategory && !selectedFuel && scope3ActivityId) {
+          const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+          availableUnits = matchedActivity?.allowed_units || [];
+        } else {
+          availableUnits = selectedFuel?.allowed_units || [];
+        }
+      } else if (primaryField.unitSource === 'all_units') {
+        availableUnits = centralizedUnits.map(u => u.symbol);
+      } else if (primaryField.unitSource === 'scope3_ef') {
+        const matchedEF = scope3ActivityId ? filteredScope3Activities.find(a => a.id === scope3ActivityId) : null;
+        if (matchedEF?.allowed_units?.length > 0) {
+          availableUnits = matchedEF.allowed_units;
+        } else if (primaryField.allowedUnits?.length > 0) {
+          availableUnits = primaryField.allowedUnits;
+        } else if (primaryField.expectedUnit) {
+          availableUnits = [primaryField.expectedUnit];
+        }
+      } else {
+        availableUnits = primaryField.allowedUnits?.length > 0 ? primaryField.allowedUnits : [primaryField.expectedUnit].filter(Boolean);
+      }
+      
       applyOcrQuantityToField(
         ocrPendingQuantity.monthKey,
         ocrPendingQuantity.quantity,
         ocrPendingQuantity.unit,
         primaryField,
-        setMonthlyData
+        setMonthlyData,
+        availableUnits
       );
       // Clear pending after applying
       setOcrPendingQuantity(null);
     } else {
       console.log('[OCR Debug] Phase 2 - No primary field found!');
     }
-  }, [ocrPendingQuantity, dynamicInputFields, findPrimaryActivityField, applyOcrQuantityToField]);
+  }, [ocrPendingQuantity, dynamicInputFields, findPrimaryActivityField, applyOcrQuantityToField, scope, biogenicScopeSelection, requiresSubcategory, selectedFuel, scope3ActivityId, filteredScope3Activities, centralizedUnits]);
 
   // Initialize unit values in monthlyData when dynamicInputFields or selectedFuel changes
   // This ensures that units are always explicitly set, not relying on dropdown display fallbacks

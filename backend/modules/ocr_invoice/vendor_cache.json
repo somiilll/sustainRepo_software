@@ -28,5 +28,10 @@
         "category": "Non-Renewable",
         "scope": "Scope 2",
         "mapped_fuel": "Electricity"
+    },
+    "Indian Oil - Shyamala & Company::petrol": {
+        "category": "Mobile Combustion",
+        "scope": "Scope 1",
+        "mapped_fuel": "Motor Gasoline"
     }
 }

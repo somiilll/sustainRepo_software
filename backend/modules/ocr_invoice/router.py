@@ -596,6 +596,11 @@ async def accept_line_item(
     
     current_values = item.get("current_values", {})
     
+    # Load mappings and normalize unit before accepting
+    mappings = _load_mappings()
+    if current_values.get("unit"):
+        current_values["unit"] = _normalize_unit(current_values["unit"], mappings)
+    
     # Build accepted values (snapshot at time of acceptance)
     accepted_values = {
         **current_values,
@@ -747,14 +752,17 @@ async def finalize_import(
                 }
                 content_type = content_types.get(ext, 'application/octet-stream')
                 
-                # Upload to evidence bucket
+                # Get org name for path (use org name instead of org_id)
+                org_doc = await db.organizations.find_one({"id": org_id}, {"name": 1, "_id": 0})
+                org_name = org_doc.get("name", org_id) if org_doc else org_id
+                
+                # Upload to evidence bucket with path: {org_name}/{date}/{file}
                 evidence_result = await r2_storage.upload_file(
                     file_content=temp_file_content,
                     filename=filename,
                     bucket_type='emission_evidence',
                     content_type=content_type,
-                    folder=f"ocr-imports/{org_id}",
-                    org_name=org_id
+                    org_name=org_name  # No folder param - uses org_name/date/file structure
                 )
                 
                 if evidence_result and "url" in evidence_result:
