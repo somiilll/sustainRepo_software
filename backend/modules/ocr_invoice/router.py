@@ -783,24 +783,27 @@ async def finalize_import(
     if evidence_url and emission_record_ids:
         for emission_id in emission_record_ids:
             try:
-                # Get current evidence list
+                # Get current evidence - use evidence_url field (comma-separated string)
                 emission = await db.emission_records.find_one({"id": emission_id})
-                logger.info(f"[OCR Finalize] Found emission record: {emission_id}, current evidence field: {emission.get('evidence_urls') if emission else 'NOT FOUND'}")
+                logger.info(f"[OCR Finalize] Found emission record: {emission_id}, current evidence_url: {emission.get('evidence_url') if emission else 'NOT FOUND'}")
                 if emission:
-                    current_evidence = emission.get("evidence_urls", [])
-                    if isinstance(current_evidence, str):
-                        current_evidence = [current_evidence] if current_evidence else []
+                    # Parse existing evidence_url (comma-separated string) into list
+                    current_evidence_str = emission.get("evidence_url", "") or ""
+                    current_evidence = [u.strip() for u in current_evidence_str.split(',') if u.strip()]
                     
                     # Add new evidence if not already present
                     if evidence_url not in current_evidence:
                         current_evidence.append(evidence_url)
                     
+                    # Convert back to comma-separated string
+                    new_evidence_str = ','.join(current_evidence)
+                    
                     # Update emission record
                     await db.emission_records.update_one(
                         {"id": emission_id},
-                        {"$set": {"evidence_urls": current_evidence}}
+                        {"$set": {"evidence_url": new_evidence_str}}
                     )
-                    logger.info(f"[OCR Finalize] Updated emission record {emission_id} with evidence: {current_evidence}")
+                    logger.info(f"[OCR Finalize] Updated emission record {emission_id} with evidence_url: {new_evidence_str}")
             except Exception as e:
                 logger.error(f"[OCR Finalize] Error updating emission record {emission_id}: {e}")
     else:
