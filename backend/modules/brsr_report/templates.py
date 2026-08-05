@@ -73,7 +73,7 @@ class BRSRHTMLTemplate:
                 if len(end_year_str) == 2:
                     return f"FY {prev_start}-{str(prev_end)[-2:]}"
                 return f"FY {prev_start}-{prev_end}"
-        except:
+        except (ValueError, TypeError, IndexError):
             pass
         return "FY (Previous)"
     
@@ -286,16 +286,154 @@ class BRSRHTMLTemplate:
         return str(val)
     
     def _get_response(self, data: Dict, key: str, default: str = '') -> str:
-        """Get response value from data dictionary."""
+        """Get response value from data dictionary with fallback key patterns."""
+        # Try exact key first
         val = data.get(key)
-        if val is None or val == '':
-            return default
-        if isinstance(val, bool):
-            return 'Yes' if val else 'No'
-        if isinstance(val, (list, dict)):
-            # For complex objects, try to extract meaningful string representation
-            return str(val) if val else default
-        return str(val)
+        if val is not None and val != '':
+            if isinstance(val, bool):
+                return 'Yes' if val else 'No'
+            if isinstance(val, (list, dict)):
+                return str(val) if val else default
+            return str(val)
+        
+        # Try alternative key patterns for Section C data
+        # Pattern: p1_e1_xxx -> p1_xxx or just xxx
+        alt_keys = self._get_alternative_keys(key)
+        for alt_key in alt_keys:
+            val = data.get(alt_key)
+            if val is not None and val != '':
+                if isinstance(val, bool):
+                    return 'Yes' if val else 'No'
+                if isinstance(val, dict):
+                    # Try to get nested value
+                    for k in ['value', 'description', 'current_fy', 'text']:
+                        if k in val:
+                            return str(val[k]) if val[k] else default
+                if isinstance(val, list):
+                    return str(val) if val else default
+                return str(val)
+        
+        return default
+    
+    def _get_alternative_keys(self, key: str) -> list:
+        """Generate alternative key patterns for data lookup."""
+        alt_keys = []
+        
+        # Remove _eX_, _lX_ patterns (e.g., p1_e1_xxx -> p1_xxx)
+        import re
+        simplified = re.sub(r'_[el]\d+_', '_', key)
+        if simplified != key:
+            alt_keys.append(simplified)
+        
+        # Common key mappings between template and database
+        key_mappings = {
+            # P3 mappings
+            'p3_e1': 'p3_wellbeing_employees',
+            'p3_e2': 'p3_wellbeing_workers', 
+            'p3_e3': 'p3_wellbeing_spending',
+            'p3_e4': 'p3_retirement_benefits',
+            'p3_e5': 'p3_accessibility_differently_abled',
+            'p3_e6': 'p3_equal_opportunity_policy',
+            'p3_e7': 'p3_parental_leave_return',
+            'p3_e8': 'grievance_mechanism_employees_workers',
+            'p3_e9': 'p3_union_membership',
+            'p3_e10': 'p3_training_details',
+            'p3_e11': 'performance_career_reviews',
+            'p3_e12': 'p3_ohs_management_system',
+            'p3_e13': 'p3_safety_incidents',
+            'p3_e14': 'ltifr_employees_workers',
+            'p3_e15': 'p3_safety_corrective_actions',
+            'p3_e16': 'p3_complaints_employees_workers',
+            'p3_l1': 'p3_life_insurance_package',
+            'p3_l2': 'p3_value_chain_statutory_dues',
+            'p3_l3': 'p3_rehabilitation_injured',
+            'p3_l4': 'transition_assistance_programs',
+            'p3_l5': 'p3_value_chain_assessment',
+            'p3_l6': 'p3_value_chain_corrective',
+            # P4 mappings
+            'p4_e1': 'p4_se_1',
+            'p4_e2': 'p4_se_2',
+            # P5 mappings  
+            'p5_e1': 'p5_hr_training',
+            'p5_e2': 'p5_minimum_wages',
+            'p5_e3': 'p5_remuneration_details',
+            'p5_e4': 'p5_gross_wages_females',
+            'p5_e5': 'p5_hr_focal_point',
+            'p5_e6': 'p5_hr_grievance_mechanism',
+            'p5_e7': 'p5_hr_complaints',
+            'p5_e8': 'p5_sexual_harassment_complaints',
+            'p5_e9': 'p5_prevent_adverse_consequences',
+            'p5_e10': 'p5_hr_business_agreements',
+            'p5_l1': 'p5_business_process_changes',
+            'p5_l2': 'p5_hr_due_diligence',
+            'p5_l3': 'p5_accessibility_differently_abled',
+            'p5_l4': 'p5_value_chain_hr_assessment',
+            'p5_l5': 'p5_value_chain_corrective',
+            # P6 mappings
+            'p6_e1': 'p6_energy_consumption',
+            'p6_e2': 'env_pat_scheme_compliance',
+            'p6_e3': 'p6_water_disclosures',
+            'p6_e4': 'p6_water_discharged',
+            'p6_e5': 'env_zero_liquid_discharge',
+            'p6_e6': 'p6_air_emissions',
+            'p6_e7': 'p6_ghg_scope12',
+            'p6_e8': 'env_ghg_reduction_initiatives',
+            'p6_e9': 'p6_waste_management_details',
+            'p6_e10': 'env_waste_management_practices_desc',
+            'p6_e11': 'env_ecologically_sensitive_areas',
+            'p6_e12': 'env_eia_details',
+            'p6_e13': 'env_environmental_compliance',
+            'p6_l1': 'p6_water_stress_areas',
+            'p6_l2': 'p6_scope3_emissions',
+            'p6_l3': 'env_biodiversity_impact',
+            'p6_l4': 'env_resource_efficiency_initiatives',
+            'p6_l5': 'env_business_continuity_disaster',
+            'p6_l6': 'env_value_chain_impacts',
+            'p6_l7': 'env_value_chain_assessment',
+            # P7 mappings
+            'p7_e1': 'trade_association_affiliations_count',
+            'p7_e2': 'top_trade_associations',
+            'p7_e3': 'anticompetitive_corrective_actions',
+            'p7_l1': 'public_policy_positions',
+            # P8 mappings
+            'p8_e1': 'p8_social_impact_assessments',
+            'p8_e2': 'p8_rehabilitation_resettlement',
+            'p8_e3': 'p8_community_grievance',
+            'p8_e4': 'p8_msme_domestic_sourcing',
+            'p8_l1': 'p8_wage_distribution_location',
+            'p8_l2': 'p8_sia_corrective_actions',
+            'p8_l3': 'p8_csr_aspirational_districts',
+            'p8_l4': 'p8_preferential_procurement',
+            'p8_l5': 'p8_intellectual_property_traditional',
+            'p8_l6': 'p8_ip_corrective_actions',
+            'p8_l7': 'p8_csr_beneficiaries',
+            # P9 mappings
+            'p9_e1': 'p9_consumer_complaints_mechanism',
+            'p9_e2': 'p9_product_info_disclosure',
+            'p9_e3': 'p9_consumer_complaints',
+            'p9_e4': 'p9_product_recall',
+            'p9_e5': 'cyber_security_policy',
+            'p9_e6': 'corrective_actions_advertising_cyber',
+            'p9_l1': 'p9_data_breaches_count',
+            'p9_l2': 'p9_product_info_channels',
+            'p9_l3': 'p9_consumer_education',
+            'p9_l4': 'p9_service_disruption_mechanism',
+            'p9_l5': 'p9_product_info_beyond_legal',
+            'p9_l6': 'p9_consumer_satisfaction_survey',
+        }
+        
+        # Check if key starts with any mapped prefix
+        for prefix, mapped_key in key_mappings.items():
+            if key.startswith(prefix):
+                alt_keys.append(mapped_key)
+                # Also try with the suffix after the prefix
+                suffix = key[len(prefix):]
+                if suffix.startswith('_'):
+                    suffix = suffix[1:]
+                if suffix:
+                    alt_keys.append(f"{mapped_key}_{suffix}")
+        
+        return alt_keys
     
     def _get_nested(self, data: Dict, *keys, default: str = '') -> str:
         """Get nested value from data dictionary using multiple keys."""
@@ -1342,7 +1480,8 @@ class BRSRHTMLTemplate:
         Get nested value from Section C data.
         Handles complex nested structures like:
         - p1_disciplinary_action_bribery: {workers: {current_fy: '10'}, directors: {...}}
-        - env_sustainable_rd_capex: {capex: {current_fy: '45'}, rd: {...}}
+        - env_sustainable_rd_capex: {rd: {current_fy: '45'}, capex: {...}}
+        - env_sustainable_sourcing: {has_value: true, fields: {sustainable_pct: '31'}}
         """
         data = self.section_c_data.get(key, {})
         if not isinstance(data, dict):
@@ -1351,26 +1490,60 @@ class BRSRHTMLTemplate:
                 return data if data else default
             return str(data) if data else default
         
-        # Try direct subkey
+        # Parse subkey to determine lookup strategy
+        # subkey format can be: "rd_current_fy", "capex_details", "has_procedures"
+        parts = subkey.split('_')
+        
+        # Try direct subkey first
         val = data.get(subkey)
         if val is not None:
             if isinstance(val, dict):
                 # Try current_fy first
-                fy_val = val.get('current_fy', val.get('previous_fy', ''))
+                fy_val = val.get('current_fy', val.get('previous_fy', val.get('value', '')))
                 return str(fy_val) if fy_val else default
+            if isinstance(val, bool):
+                return 'Yes' if val else 'No'
             return str(val) if val else default
+        
+        # Try nested structure: rd_current_fy -> data['rd']['current_fy']
+        if len(parts) >= 2:
+            parent_key = parts[0]  # e.g., 'rd', 'capex', 'directors'
+            child_key = '_'.join(parts[1:])  # e.g., 'current_fy', 'details'
+            
+            parent_data = data.get(parent_key, {})
+            if isinstance(parent_data, dict):
+                val = parent_data.get(child_key)
+                if val is not None:
+                    if isinstance(val, bool):
+                        return 'Yes' if val else 'No'
+                    return str(val) if val else default
         
         # Try with _current_fy suffix
         val = data.get(f'{subkey}_current_fy')
         if val is not None:
             return str(val) if val else default
         
-        # Try nested fields structure (for complex objects like env_sustainable_rd_capex)
+        # Try nested 'fields' structure (for complex objects like env_sustainable_sourcing)
         if 'fields' in data:
             fields = data.get('fields', {})
             val = fields.get(subkey)
             if val is not None:
                 return str(val) if val else default
+        
+        # Try direct boolean fields
+        if subkey in ['has_procedures', 'has_policy', 'applicable', 'enabled']:
+            val = data.get('has_value', data.get(subkey))
+            if val is not None:
+                if isinstance(val, bool):
+                    return 'Yes' if val else 'No'
+                return str(val) if val else default
+        
+        # Try 'percentage' field for percentage questions
+        if subkey == 'percentage':
+            for pct_key in ['sustainable_pct', 'percentage', 'pct']:
+                val = data.get('fields', {}).get(pct_key, data.get(pct_key))
+                if val:
+                    return str(val)
         
         return default
     
@@ -1645,8 +1818,8 @@ class BRSRHTMLTemplate:
             <tbody>
                 <tr>
                     <td>Number of days of accounts payables</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e8_days_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e8_days_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_fy_value('p1_accounts_payables', 'days', 'current_fy')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_fy_value('p1_accounts_payables', 'days', 'previous_fy')}</td>
                 </tr>
             </tbody>
         </table>
@@ -1668,57 +1841,57 @@ class BRSRHTMLTemplate:
                 <tr>
                     <td rowspan="3">Concentration of Purchases</td>
                     <td>a. Purchases from trading houses as % of total purchases</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_purchases_trading_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_purchases_trading_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_openness_of_business', 'purchases_trading_pct_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_openness_of_business', 'purchases_trading_pct_prev', '')}</td>
                 </tr>
                 <tr>
                     <td>b. Number of trading houses where purchases are made from</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_trading_houses_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_trading_houses_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_openness_of_business', 'trading_houses_count_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_openness_of_business', 'trading_houses_count_prev', '')}</td>
                 </tr>
                 <tr>
                     <td>c. Purchases from top 10 trading houses as % of total purchases from trading houses</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_top10_purchases_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_top10_purchases_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_openness_of_business', 'top10_purchases_pct_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_openness_of_business', 'top10_purchases_pct_prev', '')}</td>
                 </tr>
                 <tr class="category-header"><td colspan="4">Concentration of Sales</td></tr>
                 <tr>
                     <td rowspan="3">Concentration of Sales</td>
                     <td>a. Sales to dealers / distributors as % of total sales</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_sales_dealers_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_sales_dealers_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_openness_of_business', 'sales_dealers_pct_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_openness_of_business', 'sales_dealers_pct_prev', '')}</td>
                 </tr>
                 <tr>
                     <td>b. Number of dealers / distributors to whom sales are made</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_dealers_count_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_dealers_count_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_openness_of_business', 'dealers_count_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_openness_of_business', 'dealers_count_prev', '')}</td>
                 </tr>
                 <tr>
                     <td>c. Sales to top 10 dealers / distributors as % of total sales to dealers / distributors</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_top10_sales_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_top10_sales_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_openness_of_business', 'top10_sales_pct_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_openness_of_business', 'top10_sales_pct_prev', '')}</td>
                 </tr>
                 <tr class="category-header"><td colspan="4">Share of RPTs in</td></tr>
                 <tr>
                     <td rowspan="4">Share of RPTs in</td>
                     <td>a. Purchases (Purchases with related parties / Total Purchases)</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_rpt_purchases_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_rpt_purchases_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_openness_of_business', 'rpt_purchases_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_openness_of_business', 'rpt_purchases_prev', '')}</td>
                 </tr>
                 <tr>
                     <td>b. Sales (Sales to related parties / Total Sales)</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_rpt_sales_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_rpt_sales_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_openness_of_business', 'rpt_sales_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_openness_of_business', 'rpt_sales_prev', '')}</td>
                 </tr>
                 <tr>
                     <td>c. Loans &amp; advances (Loans &amp; advances given to related parties / Total loans &amp; advances)</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_rpt_loans_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_rpt_loans_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_openness_of_business', 'rpt_loans_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_openness_of_business', 'rpt_loans_prev', '')}</td>
                 </tr>
                 <tr>
                     <td>d. Investments (Investments in related parties / Total Investments made)</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_rpt_investments_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_e9_rpt_investments_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_openness_of_business', 'rpt_investments_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_openness_of_business', 'rpt_investments_prev', '')}</td>
                 </tr>
             </tbody>
         </table>
@@ -1737,15 +1910,15 @@ class BRSRHTMLTemplate:
             </thead>
             <tbody>
                 <tr>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_l1_programs', '')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p1_l1_topics', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p1_l1_coverage', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_value_chain_awareness', 'programs_count', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('p1_value_chain_awareness', 'topics', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p1_value_chain_awareness', 'coverage_pct', '')}</td>
                 </tr>
             </tbody>
         </table>
         
         <div class="question-item"><span class="q-num">2.</span> <span class="q-text">Does the entity have processes in place to avoid/ manage conflict of interests involving members of the Board? (Yes/No) If Yes, provide details of the same.</span></div>
-        <div class="answer-value">{self._get_response(self.section_c_data, 'p1_l2_conflict_process', '')}</div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p1_conflict_management_process', '')}</div>
         '''
     
     def _render_principle_2(self) -> str:
@@ -1771,30 +1944,30 @@ class BRSRHTMLTemplate:
             <tbody>
                 <tr>
                     <td>R&amp;D</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_e1_rd_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_e1_rd_prev', '')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p2_e1_rd_details', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_sustainable_rd_capex', 'rd_current_fy', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_sustainable_rd_capex', 'rd_previous_fy', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('env_sustainable_rd_capex', 'rd_details', '')}</td>
                 </tr>
                 <tr>
                     <td>Capex</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_e1_capex_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_e1_capex_prev', '')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p2_e1_capex_details', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_sustainable_rd_capex', 'capex_current_fy', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_sustainable_rd_capex', 'capex_previous_fy', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('env_sustainable_rd_capex', 'capex_details', '')}</td>
                 </tr>
             </tbody>
         </table>
         
         <div class="question-item"><span class="q-num">2.</span> <span class="q-text">a. Does the entity have procedures in place for sustainable sourcing? (Yes/No)</span></div>
-        <div class="answer-value">{self._get_response(self.section_c_data, 'p2_e2a_sustainable_sourcing', '')}</div>
+        <div class="answer-value">{self._get_section_c_nested('env_sustainable_sourcing', 'has_procedures', '')}</div>
         
         <div class="sub-label">b. If yes, what percentage of inputs were sourced sustainably?</div>
-        <div class="answer-value">{self._get_response(self.section_c_data, 'p2_e2b_percentage', '')}</div>
+        <div class="answer-value">{self._get_section_c_nested('env_sustainable_sourcing', 'percentage', '')}</div>
         
         <div class="question-item"><span class="q-num">3.</span> <span class="q-text">Describe the processes in place to safely reclaim your products for reusing, recycling and disposing at the end of life, for (a) Plastics (including packaging) (b) E-waste (c) Hazardous waste and (d) other waste.</span></div>
-        <div class="answer-value">{self._get_response(self.section_c_data, 'p2_e3_reclaim_processes', '')}</div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'env_end_of_life_reclamation', '')}</div>
         
         <div class="question-item"><span class="q-num">4.</span> <span class="q-text">Whether Extended Producer Responsibility (EPR) is applicable to the entity's activities (Yes / No). If yes, whether the waste collection plan is in line with the Extended Producer Responsibility (EPR) plan submitted to Pollution Control Boards? If not, provide steps taken to address the same.</span></div>
-        <div class="answer-value">{self._get_response(self.section_c_data, 'p2_e4_epr', '')}</div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'env_epr_applicable', '')}</div>
         
         <div class="indicator-header">Leadership Indicators</div>
         
@@ -1813,12 +1986,12 @@ class BRSRHTMLTemplate:
             </thead>
             <tbody>
                 <tr>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p2_l1_nic_code', '')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p2_l1_product', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l1_turnover', '')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p2_l1_boundary', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l1_external', '')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p2_l1_public', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('env_life_cycle_assessment', 'nic_code', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('env_life_cycle_assessment', 'product_name', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_life_cycle_assessment', 'turnover_pct', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('env_life_cycle_assessment', 'boundary', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_life_cycle_assessment', 'external_agency', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('env_life_cycle_assessment', 'public_domain', '')}</td>
                 </tr>
             </tbody>
         </table>
@@ -1835,9 +2008,9 @@ class BRSRHTMLTemplate:
             </thead>
             <tbody>
                 <tr>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p2_l2_product', '')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p2_l2_risk', '')}</td>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p2_l2_action', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('env_lca_concerns_actions', 'product_name', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('env_lca_concerns_actions', 'risk_description', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('env_lca_concerns_actions', 'action_taken', '')}</td>
                 </tr>
             </tbody>
         </table>
@@ -1855,10 +2028,10 @@ class BRSRHTMLTemplate:
             </thead>
             <tbody>
                 <tr>
-                    <td class="answer-cell">{self._get_response(self.section_c_data, 'p2_l3_material', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l3_recycled', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l3_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l3_prev', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('env_recycled_input_material', 'material_name', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_recycled_input_material', 'recycled_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_recycled_input_material', 'current_fy', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_recycled_input_material', 'previous_fy', '')}</td>
                 </tr>
             </tbody>
         </table>
@@ -1885,39 +2058,39 @@ class BRSRHTMLTemplate:
             <tbody>
                 <tr>
                     <td>Plastics (including packaging)</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_plastics_reused_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_plastics_recycled_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_plastics_disposed_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_plastics_reused_prev', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_plastics_recycled_prev', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_plastics_disposed_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_reclaimed_products_packaging', 'plastics_reused_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_reclaimed_products_packaging', 'plastics_recycled_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_reclaimed_products_packaging', 'plastics_disposed_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_reclaimed_products_packaging', 'plastics_reused_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_reclaimed_products_packaging', 'plastics_recycled_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_reclaimed_products_packaging', 'plastics_disposed_prev', '')}</td>
                 </tr>
                 <tr>
                     <td>E-waste</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_ewaste_reused_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_ewaste_recycled_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_ewaste_disposed_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_ewaste_reused_prev', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_ewaste_recycled_prev', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_ewaste_disposed_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_reclaimed_products_packaging', 'ewaste_reused_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_reclaimed_products_packaging', 'ewaste_recycled_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_reclaimed_products_packaging', 'ewaste_disposed_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_reclaimed_products_packaging', 'ewaste_reused_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_reclaimed_products_packaging', 'ewaste_recycled_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_reclaimed_products_packaging', 'ewaste_disposed_prev', '')}</td>
                 </tr>
                 <tr>
                     <td>Hazardous waste</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_hazardous_reused_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_hazardous_recycled_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_hazardous_disposed_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_hazardous_reused_prev', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_hazardous_recycled_prev', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_hazardous_disposed_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_reclaimed_products_packaging', 'hazardous_reused_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_reclaimed_products_packaging', 'hazardous_recycled_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_reclaimed_products_packaging', 'hazardous_disposed_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_reclaimed_products_packaging', 'hazardous_reused_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_reclaimed_products_packaging', 'hazardous_recycled_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_reclaimed_products_packaging', 'hazardous_disposed_prev', '')}</td>
                 </tr>
                 <tr>
                     <td>Other waste</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_other_reused_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_other_recycled_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_other_disposed_curr', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_other_reused_prev', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_other_recycled_prev', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p2_l4_other_disposed_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_reclaimed_products_packaging', 'other_reused_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_reclaimed_products_packaging', 'other_recycled_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_reclaimed_products_packaging', 'other_disposed_curr', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_reclaimed_products_packaging', 'other_reused_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_reclaimed_products_packaging', 'other_recycled_prev', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('env_reclaimed_products_packaging', 'other_disposed_prev', '')}</td>
                 </tr>
             </tbody>
         </table>
