@@ -74,12 +74,25 @@ export default function Emissions() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [selectedEmissionHistory, setSelectedEmissionHistory] = useState([]);
+  // OCR Prefill Data - from AI Invoice Extractor workflow
+  const [ocrPrefillData, setOcrPrefillData] = useState(null);
   // Drive the active scope from the route so /ghg/scope1, /ghg/scope2, etc.
   // each show only their own scope. Clicking a tab still works (in-page nav).
   const location = useLocation();
   const navigate = useNavigate();
   const pathScope = (location.pathname.match(/\/ghg\/(scope[123]|biogenic)/) || [])[1] || null;
   const [activeScope, setActiveScope] = useState(pathScope || 'scope1');
+  
+  // Handle OCR prefill from location state (when navigating from OCR Invoice page)
+  useEffect(() => {
+    if (location.state?.openAddForm && location.state?.ocrPrefill) {
+      setOcrPrefillData(location.state.ocrPrefill);
+      setDialogOpen(true);
+      // Clear the state to prevent re-triggering on refresh
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state, navigate, location.pathname]);
+  
   useEffect(() => {
     if (pathScope && pathScope !== activeScope) setActiveScope(pathScope);
   }, [pathScope]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -3160,13 +3173,18 @@ export default function Emissions() {
                   kpiPeriodRestrictions={kpiPeriodRestrictions}
                   filterFacilitiesByScope={filterFacilitiesByScope}
                   hasFullKPIAccess={hasFullKPIAccess}
-                  onSuccess={() => {
+                  ocrPrefillData={ocrPrefillData}
+                  onSuccess={(savedEmissionIds) => {
                     setDialogOpen(false);
                     setIsFormDirty(false);
+                    setOcrPrefillData(null);
                     fetchData();
                     toast.success('Emissions saved successfully');
                   }}
-                  onCancel={() => handleDialogChange(false)}
+                  onCancel={() => {
+                    setOcrPrefillData(null);
+                    handleDialogChange(false);
+                  }}
                 />
               ) : (
                 <EmissionEditForm

@@ -50,7 +50,8 @@ class R2Storage:
             'esg_records_evidence': os.environ.get('R2_BUCKET_ESG_RECORDS_EVIDENCE', 'esg-evidences-dev'),
             'esg_metrics': os.environ.get('R2_BUCKET_ESG_METRICS', 'esg-metrics-dev'),
             'repo_pilot': os.environ.get('R2_BUCKET_REPO_PILOT', 'repo-pilot-dev'),
-            'software_images': os.environ.get('R2_BUCKET_SOFTWARE_IMAGES', 'software-image-dev')
+            'software_images': os.environ.get('R2_BUCKET_SOFTWARE_IMAGES', 'software-image-dev'),
+            'ocr_temp': os.environ.get('R2_BUCKET_OCR_TEMP', 'ocr-temp-invoices')
         }
     
     def _get_bucket(self, bucket_type: str) -> str:

@@ -76,6 +76,7 @@ import SupplierPortalDashboard from './pages/SupplierPortalDashboard';
 import SupplierPortalQuestionnaire from './pages/SupplierPortalQuestionnaire';
 // SupplierPortalEmissions removed - suppliers use main GHG Emissions flow
 import OCRInvoice from './pages/OCRInvoice';
+import { OCRProvider } from './contexts/OCRContext';
 import { initializeCategoryModules } from './modules/emissions';
 
 // Initialize the emissions Category Registry once at app boot.
@@ -367,12 +368,14 @@ function App() {
   return (
     <AuthProvider>
       <OrganizationProvider>
-        <BrowserRouter>
-          <div className="App">
-            <AppRoutes />
-            <Toaster position="top-right" />
-          </div>
-        </BrowserRouter>
+        <OCRProvider>
+          <BrowserRouter>
+            <div className="App">
+              <AppRoutes />
+              <Toaster position="top-right" />
+            </div>
+          </BrowserRouter>
+        </OCRProvider>
       </OrganizationProvider>
     </AuthProvider>
   );

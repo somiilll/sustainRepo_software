@@ -88,6 +88,8 @@ export default function EmissionEntryForm({
   hasFullKPIAccess = true,
   // Supplier context for supplier portal emissions
   supplierContext = null,
+  // OCR Prefill Data - from AI Invoice Extractor workflow
+  ocrPrefillData = null,
 }) {
   // Helper to get method labels from centralized config (no hardcoded fallbacks)
   const getMethodLabel = useCallback((method, short = false) => {
@@ -382,6 +384,69 @@ export default function EmissionEntryForm({
     
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingEmission?.id, fuelDatabase]);
+
+  // ============================================================================
+  // OCR PREFILL HYDRATION
+  // Auto-populate form fields from OCR Invoice Extractor workflow
+  // ============================================================================
+  useEffect(() => {
+    if (!ocrPrefillData) return;
+    
+    console.log('[OCR Prefill] Applying prefill data:', ocrPrefillData);
+    
+    // Set scope (scope1, scope2, scope3)
+    if (ocrPrefillData.scope) {
+      setScope(ocrPrefillData.scope);
+    }
+    
+    // Set category
+    if (ocrPrefillData.category) {
+      setCategory(ocrPrefillData.category);
+    }
+    
+    // Set responsible person (current user from OCR accept)
+    if (ocrPrefillData.responsible_person) {
+      setResponsiblePerson(ocrPrefillData.responsible_person);
+    }
+    
+    // Set record source (invoice info)
+    if (ocrPrefillData.source_of_information) {
+      setRecordSource(ocrPrefillData.source_of_information);
+    }
+    
+    // Set quantity in monthlyData or yearlyData based on billing period
+    if (ocrPrefillData.quantity && ocrPrefillData.billing_period) {
+      const billingPeriod = ocrPrefillData.billing_period;
+      
+      // Try to determine month from billing period
+      if (billingPeriod.start_date) {
+        const startDate = new Date(billingPeriod.start_date);
+        const monthKey = String(startDate.getMonth() + 1).padStart(2, '0');
+        const year = startDate.getFullYear();
+        
+        // Set reporting year
+        setReportingYear(String(year));
+        
+        // Set monthly data with quantity
+        setMonthlyData(prev => ({
+          ...prev,
+          [monthKey]: {
+            ...prev[monthKey],
+            quantity: ocrPrefillData.quantity,
+            quantity_unit: ocrPrefillData.unit || ''
+          }
+        }));
+        
+        // Expand this month
+        setExpandedMonths(prev => ({ ...prev, [monthKey]: true }));
+      }
+    }
+    
+    // Note: Facility is NOT auto-selected per spec
+    // Note: Process Name and Description are left empty per spec
+    
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ocrPrefillData]);
 
   // Sync decisionFieldValues + custom-activity auto-enable now live inside
   // useEmissionFormState (F2 integration). The corresponding inline useEffects
