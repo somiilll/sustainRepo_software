@@ -3106,16 +3106,31 @@ class ESGQuestionnaireService:
             requires_approval = assignment.get("requires_approval", False) if assignment else False
             now_iso = datetime.now(timezone.utc).isoformat()
             
-            # Check existing response
-            existing_response = await db.esg_responses.find_one({
-                "organization_id": org_id,
-                "question_key": question_key,
+            # Check existing response from unified collection
+            question_config = await self._configs.find_one(
+                {"question_key": question_key},
+                {"_id": 0, "section": 1, "framework": 1, "frameworks": 1}
+            )
+            
+            framework = None
+            section = None
+            if question_config:
+                framework = question_config.get("framework") or (question_config.get("frameworks", ["GRI"])[0] if question_config.get("frameworks") else "GRI")
+                section = question_config.get("section", "environment")
+            
+            # Check existing response in unified collection
+            existing_doc = await self._responses.find_one({
+                "org_id": org_id,
+                "framework": framework,
                 "reporting_year": reporting_year,
-            })
+                "section": section,
+            }, {"_id": 0, "responses": 1}) if framework and section else None
+            
+            existing_value = existing_doc.get("responses", {}).get(question_key) if existing_doc else None
             
             # Check if response has actual value
             has_value = self._response_has_value(response_value)
-            had_previous_value = existing_response and self._response_has_value(existing_response.get("value"))
+            had_previous_value = self._response_has_value(existing_value)
             
             # Skip if never filled and still empty (no approval needed for empty questions)
             if not has_value and not had_previous_value:
@@ -3127,17 +3142,11 @@ class ESGQuestionnaireService:
             else:
                 approval_status = "approved"  # Auto-approved if no approval required
             
-            # Get question config to find framework and section
-            question_config = await self._configs.find_one(
-                {"question_key": question_key},
-                {"_id": 0, "section": 1, "framework": 1, "frameworks": 1}
-            )
-            
             if question_config:
                 framework = question_config.get("framework") or (question_config.get("frameworks", ["GRI"])[0] if question_config.get("frameworks") else "GRI")
                 section = question_config.get("section", "environment")
                 
-                # Update status in organization_esg_responses (the correct collection)
+                # Update status in organization_esg_responses (unified collection for all sections)
                 await self._responses.update_one(
                     {
                         "org_id": org_id,
@@ -3158,44 +3167,7 @@ class ESGQuestionnaireService:
                     }
                 )
             
-            # Also keep esg_responses updated for backwards compatibility
-            if existing_response:
-                # Update existing
-                await db.esg_responses.update_one(
-                    {"id": existing_response["id"]},
-                    {"$set": {
-                        "value": response_value,
-                        "approval_status": approval_status,
-                        "submitted_at": now_iso,
-                        "submitted_by": changed_by_user_id,
-                        "updated_at": now_iso,
-                    }}
-                )
-            else:
-                # Create new - include section for proper filtering
-                section = assignment.get("section") if assignment else None
-                if not section:
-                    # Try to get section from question config
-                    config = await self._configs.find_one(
-                        {"question_key": question_key},
-                        {"_id": 0, "section": 1}
-                    )
-                    section = config.get("section") if config else None
-                
-                await db.esg_responses.insert_one({
-                    "id": str(uuid.uuid4()),
-                    "organization_id": org_id,
-                    "question_key": question_key,
-                    "reporting_year": reporting_year,
-                    "framework": assignment.get("framework_id", "brsr") if assignment else "brsr",
-                    "section": section,
-                    "value": response_value,
-                    "approval_status": approval_status,
-                    "submitted_at": now_iso,
-                    "submitted_by": changed_by_user_id,
-                    "created_at": now_iso,
-                    "updated_at": now_iso,
-                })
+            # Note: esg_responses dual-write removed - all data now in organization_esg_responses
             
             if not assignment:
                 return  # No assignment for this disclosure, but response is saved
