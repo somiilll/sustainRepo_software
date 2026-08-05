@@ -50,6 +50,57 @@ class TrackingService:
         self._organizations = db["organizations"]
         self._frameworks = db["esg_frameworks"]
     
+    async def _build_response_map(
+        self, 
+        organization_id: str, 
+        reporting_period: str
+    ) -> Dict[str, dict]:
+        """
+        Build a map of question_key -> response data from organization_esg_responses.
+        
+        Handles both document structures:
+        1. Individual question docs (question_key + value fields)
+        2. Grouped response docs (responses dict with multiple questions)
+        """
+        response_map = {}
+        
+        # Query with both org_id and organization_id to cover all cases
+        all_docs = await self._responses.find(
+            {
+                "$or": [
+                    {"org_id": organization_id},
+                    {"organization_id": organization_id}
+                ],
+                "reporting_year": reporting_period,
+            },
+            {"_id": 0}
+        ).to_list(5000)
+        
+        for doc in all_docs:
+            # Structure 1: Individual question doc (question_key + value)
+            if doc.get("question_key") and doc.get("value") is not None:
+                q_key = doc["question_key"]
+                response_map[q_key] = {
+                    "question_key": q_key,
+                    "value": doc.get("value"),
+                    "updated_at": doc.get("updated_at"),
+                }
+            
+            # Structure 2: Grouped responses dict
+            responses = doc.get("responses", {})
+            if responses and isinstance(responses, dict):
+                response_statuses = doc.get("response_statuses", {})
+                for q_key, value in responses.items():
+                    if q_key not in response_map:  # Don't overwrite if already exists
+                        status_info = response_statuses.get(q_key, {})
+                        response_map[q_key] = {
+                            "question_key": q_key,
+                            "value": value,
+                            "updated_at": status_info.get("updated_at") or doc.get("updated_at"),
+                        }
+        
+        return response_map
+    
     def _format_question_key(self, key: str) -> str:
         """
         Convert question key to human-readable name.
@@ -175,16 +226,8 @@ class TrackingService:
                 framework_configs[fw] = []
             framework_configs[fw].append(config)
         
-        # Get all responses for this org and period
-        responses = await self._responses.find(
-            {
-                "organization_id": organization_id,
-                "reporting_year": reporting_period,
-            },
-            {"_id": 0, "question_key": 1, "updated_at": 1, "value": 1}
-        ).to_list(5000)
-        
-        response_map = {r["question_key"]: r for r in responses}
+        # Get all responses for this org and period using helper
+        response_map = await self._build_response_map(organization_id, reporting_period)
         
         # Get all assignments for this org and period
         assignments = await self._assignments.find(
@@ -372,7 +415,7 @@ class TrackingService:
                     if c.get("disclosure_id", "").split("-")[0] in material_codes
                 ]
         
-        # Get responses from unified collection (flat storage — one doc per question_key)
+        # Get responses from unified collection (handles both flat docs and grouped responses)
         responses = await self._responses.find(
             {
                 "$or": [
@@ -381,20 +424,38 @@ class TrackingService:
                 ],
                 "reporting_year": reporting_period,
             },
-            {"_id": 0, "question_key": 1, "updated_at": 1, "value": 1, "approval_status": 1, "status": 1, "sub_responses": 1}
+            {"_id": 0}
         ).to_list(5000)
         
-        # Build response_map handling both flat docs and legacy nested sub_responses
+        # Build response_map handling:
+        # 1. Flat docs with question_key + value
+        # 2. Grouped docs with responses dict
+        # 3. Legacy nested sub_responses
         response_map = {}
         for r in responses:
             q_key = r.get("question_key")
-            if not q_key:
-                continue
-            # Direct flat value
-            if r.get("value") is not None:
+            
+            # Handle individual question docs
+            if q_key and r.get("value") is not None:
                 response_map[q_key] = r
+            
+            # Handle grouped responses dict (from migration)
+            grouped_responses = r.get("responses", {})
+            if grouped_responses and isinstance(grouped_responses, dict):
+                response_statuses = r.get("response_statuses", {})
+                for gq_key, value in grouped_responses.items():
+                    if gq_key not in response_map:
+                        status_info = response_statuses.get(gq_key, {})
+                        response_map[gq_key] = {
+                            "question_key": gq_key,
+                            "value": value,
+                            "status": status_info.get("status"),
+                            "approval_status": status_info.get("approval_status"),
+                            "updated_at": status_info.get("updated_at") or r.get("updated_at"),
+                        }
+            
             # Legacy nested sub_responses (backward compat)
-            if "sub_responses" in r and r["sub_responses"]:
+            if q_key and "sub_responses" in r and r["sub_responses"]:
                 for sub_key, sub_data in r["sub_responses"].items():
                     full_key = f"{q_key}_{sub_key}"
                     if full_key not in response_map and sub_data.get("value") is not None:
@@ -660,6 +721,24 @@ class TrackingService:
         response_map = {}
         for r in all_responses:
             q_key = r.get("question_key")
+            
+            # Handle grouped responses dict (from migration) - no question_key
+            if not q_key and "responses" in r and isinstance(r.get("responses"), dict):
+                response_statuses = r.get("response_statuses", {})
+                for resp_key, resp_val in r["responses"].items():
+                    if resp_key not in response_map:
+                        status_info = response_statuses.get(resp_key, {})
+                        response_map[resp_key] = {
+                            "question_key": resp_key,
+                            "value": resp_val,
+                            "status": status_info.get("status") or r.get("status"),
+                            "approval_status": status_info.get("approval_status") or r.get("approval_status"),
+                            "updated_at": status_info.get("updated_at") or r.get("updated_at"),
+                            "submitted_at": status_info.get("submitted_at"),
+                            "submitted_by": status_info.get("submitted_by"),
+                        }
+                continue  # Skip further processing for grouped docs
+            
             if not q_key:
                 continue
             
