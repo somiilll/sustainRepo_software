@@ -64,6 +64,7 @@ import {
   getCurrentReportingYear,
   getEffectiveYearType
 } from '../utils/reportingYearUtils';
+import { NoAssignmentMessage } from './LockedModuleOverlay';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -3377,9 +3378,13 @@ export default function ESGQuestionnaire({
   excludePrinciples = null,
   yearType = 'financial_year'  // Organization's reporting year type
 }) {
-  const { getAuthHeader } = useAuth();
+  const { getAuthHeader, user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [hasAssignments, setHasAssignments] = useState(true); // Track if user has assignments
+  
+  // Check if user is admin
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   
   // Determine effective year type (BRSR forces FY unless explicitly configured otherwise)
   const effectiveYearType = getEffectiveYearType(yearType, framework);
@@ -3622,10 +3627,14 @@ export default function ESGQuestionnaire({
 
       {/* Questions */}
       {configs.length === 0 ? (
-        <div className="text-center py-12 text-text-muted">
-          <p>No questions configured for {framework} / {section}</p>
-          <p className="text-sm mt-1">Questions can be added via the API</p>
-        </div>
+        isAdmin ? (
+          <div className="text-center py-12 text-text-muted">
+            <p>No questions configured for {framework} / {section}</p>
+            <p className="text-sm mt-1">Questions can be added via the API</p>
+          </div>
+        ) : (
+          <NoAssignmentMessage section={section} />
+        )
       ) : (
         <div className="space-y-4">
           {Object.entries(groupedQuestions).map(([group, questions]) => (
