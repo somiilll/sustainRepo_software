@@ -286,32 +286,81 @@ class BRSRHTMLTemplate:
         return str(val)
     
     def _get_response(self, data: Dict, key: str, default: str = '') -> str:
-        """Get response value from data dictionary with fallback key patterns."""
+        """Get response value from data dictionary with automatic key mapping for Section C."""
         # Try exact key first
         val = data.get(key)
         if val is not None and val != '':
             if isinstance(val, bool):
                 return 'Yes' if val else 'No'
             if isinstance(val, (list, dict)):
+                if isinstance(val, dict):
+                    # Try to extract meaningful value
+                    for k in ['value', 'description', 'current_fy', 'text']:
+                        if k in val and val[k]:
+                            return str(val[k])
                 return str(val) if val else default
             return str(val)
         
-        # Try alternative key patterns for Section C data
-        # Pattern: p1_e1_xxx -> p1_xxx or just xxx
-        alt_keys = self._get_alternative_keys(key)
-        for alt_key in alt_keys:
-            val = data.get(alt_key)
-            if val is not None and val != '':
-                if isinstance(val, bool):
-                    return 'Yes' if val else 'No'
-                if isinstance(val, dict):
-                    # Try to get nested value
-                    for k in ['value', 'description', 'current_fy', 'text']:
-                        if k in val:
-                            return str(val[k]) if val[k] else default
-                if isinstance(val, list):
-                    return str(val) if val else default
-                return str(val)
+        # For Section C data, try alternative key patterns and nested lookups
+        if data is self.section_c_data:
+            # Extract the mapped key and subkey from template key patterns
+            # Pattern: p3_e1a_perm_m_health_num -> mapped_key=p3_wellbeing_employees, subkey=perm_m_health_num
+            import re
+            match = re.match(r'(p\d+)_([el])(\d+)([a-z]?)_(.+)', key)
+            if match:
+                principle = match.group(1)  # p3
+                indicator_type = match.group(2)  # e or l
+                indicator_num = match.group(3)  # 1
+                indicator_suffix = match.group(4)  # a (optional)
+                subkey = match.group(5)  # perm_m_health_num
+                
+                # Build the lookup prefix
+                prefix = f"{principle}_{indicator_type}{indicator_num}{indicator_suffix}"
+                
+                # Get the mapped database key
+                alt_keys = self._get_alternative_keys(prefix + '_dummy')
+                for mapped_key in alt_keys:
+                    if mapped_key.endswith('_dummy'):
+                        mapped_key = mapped_key[:-6]
+                    
+                    # Try nested lookup
+                    result = self._get_section_c_nested(mapped_key, subkey, '')
+                    if result:
+                        return result
+                    
+                    # Try direct lookup with mapped key
+                    mapped_data = data.get(mapped_key)
+                    if mapped_data is not None:
+                        if isinstance(mapped_data, dict):
+                            nested_val = mapped_data.get(subkey)
+                            if nested_val is not None:
+                                if isinstance(nested_val, dict):
+                                    for k in ['current_fy', 'previous_fy', 'value']:
+                                        if k in nested_val and nested_val[k]:
+                                            return str(nested_val[k])
+                                elif isinstance(nested_val, bool):
+                                    return 'Yes' if nested_val else 'No'
+                                else:
+                                    return str(nested_val) if nested_val else default
+                        elif isinstance(mapped_data, bool):
+                            return 'Yes' if mapped_data else 'No'
+                        else:
+                            return str(mapped_data) if mapped_data else default
+            
+            # Try direct alternative keys
+            alt_keys = self._get_alternative_keys(key)
+            for alt_key in alt_keys:
+                val = data.get(alt_key)
+                if val is not None and val != '':
+                    if isinstance(val, bool):
+                        return 'Yes' if val else 'No'
+                    if isinstance(val, dict):
+                        for k in ['value', 'description', 'current_fy', 'text']:
+                            if k in val and val[k]:
+                                return str(val[k])
+                    if isinstance(val, list):
+                        return str(val) if val else default
+                    return str(val)
         
         return default
     
@@ -321,29 +370,35 @@ class BRSRHTMLTemplate:
         
         # Remove _eX_, _lX_ patterns (e.g., p1_e1_xxx -> p1_xxx)
         import re
-        simplified = re.sub(r'_[el]\d+_', '_', key)
+        simplified = re.sub(r'_[el]\d+[a-z]?_', '_', key)
         if simplified != key:
             alt_keys.append(simplified)
         
         # Common key mappings between template and database
+        # Maps template prefix patterns to actual database keys
         key_mappings = {
-            # P3 mappings
-            'p3_e1': 'p3_wellbeing_employees',
-            'p3_e2': 'p3_wellbeing_workers', 
-            'p3_e3': 'p3_wellbeing_spending',
-            'p3_e4': 'p3_retirement_benefits',
-            'p3_e5': 'p3_accessibility_differently_abled',
-            'p3_e6': 'p3_equal_opportunity_policy',
-            'p3_e7': 'p3_parental_leave_return',
-            'p3_e8': 'grievance_mechanism_employees_workers',
-            'p3_e9': 'p3_union_membership',
-            'p3_e10': 'p3_training_details',
-            'p3_e11': 'performance_career_reviews',
-            'p3_e12': 'p3_ohs_management_system',
-            'p3_e13': 'p3_safety_incidents',
-            'p3_e14': 'ltifr_employees_workers',
-            'p3_e15': 'p3_safety_corrective_actions',
-            'p3_e16': 'p3_complaints_employees_workers',
+            # P3 mappings - map template keys to database keys
+            'p3_e1a': 'p3_wellbeing_employees',
+            'p3_e1b': 'p3_wellbeing_workers',
+            'p3_e2': 'p3_wellbeing_spending',
+            'p3_e3': 'p3_retirement_benefits',
+            'p3_e4': 'p3_accessibility_differently_abled',
+            'p3_e5': 'p3_equal_opportunity_policy',
+            'p3_e6': 'p3_parental_leave_return',
+            'p3_e7': 'grievance_mechanism_employees_workers',
+            'p3_e8': 'p3_union_membership',
+            'p3_e9': 'p3_training_details',
+            'p3_e10': 'performance_career_reviews',
+            'p3_e11': 'p3_ohs_management_system',
+            'p3_e12': 'p3_hazard_identification',
+            'p3_e13': 'p3_worker_hazard_reporting',
+            'p3_e14': 'p3_non_occupational_healthcare',
+            'p3_e15': 'p3_safety_incidents',
+            'p3_e16': 'ltifr_employees_workers',
+            'p3_e17': 'p3_safe_workplace_measures',
+            'p3_e18': 'p3_complaints_employees_workers',
+            'p3_e19': 'p3_assessments_year',
+            'p3_e20': 'p3_safety_corrective_actions',
             'p3_l1': 'p3_life_insurance_package',
             'p3_l2': 'p3_value_chain_statutory_dues',
             'p3_l3': 'p3_rehabilitation_injured',
@@ -353,6 +408,9 @@ class BRSRHTMLTemplate:
             # P4 mappings
             'p4_e1': 'p4_se_1',
             'p4_e2': 'p4_se_2',
+            'p4_e3': 'p4_se_3',
+            'p4_e4': 'p4_se_4',
+            'p4_l1': 'p4_se_5',
             # P5 mappings  
             'p5_e1': 'p5_hr_training',
             'p5_e2': 'p5_minimum_wages',
@@ -364,6 +422,8 @@ class BRSRHTMLTemplate:
             'p5_e8': 'p5_sexual_harassment_complaints',
             'p5_e9': 'p5_prevent_adverse_consequences',
             'p5_e10': 'p5_hr_business_agreements',
+            'p5_e11': 'p5_hr_assessments',
+            'p5_e12': 'p5_hr_corrective_actions',
             'p5_l1': 'p5_business_process_changes',
             'p5_l2': 'p5_hr_due_diligence',
             'p5_l3': 'p5_accessibility_differently_abled',
@@ -434,6 +494,48 @@ class BRSRHTMLTemplate:
                     alt_keys.append(f"{mapped_key}_{suffix}")
         
         return alt_keys
+    
+    def _p(self, key: str, default: str = '') -> str:
+        """
+        Universal principle data getter. Handles both direct keys and nested structures.
+        This is the primary method for fetching Section C data in templates.
+        
+        Usage:
+        - {self._p('p3_wellbeing_employees_perm_m_health_num')}
+        - {self._p('p6_energy_consumption_total_renew_curr')}
+        """
+        # First try direct lookup
+        val = self.section_c_data.get(key)
+        if val is not None and val != '':
+            if isinstance(val, bool):
+                return 'Yes' if val else 'No'
+            if isinstance(val, str):
+                return val
+            if isinstance(val, (int, float)):
+                return str(val)
+        
+        # Try alternative keys
+        alt_keys = self._get_alternative_keys(key)
+        for alt_key in alt_keys:
+            # Try nested lookup
+            result = self._get_section_c_nested(alt_key, key.replace(alt_key + '_', ''), default)
+            if result and result != default:
+                return result
+            
+            # Try direct value
+            val = self.section_c_data.get(alt_key)
+            if val is not None and val != '':
+                if isinstance(val, bool):
+                    return 'Yes' if val else 'No'
+                if isinstance(val, str):
+                    return val
+                if isinstance(val, dict):
+                    # Try to get a meaningful value from the dict
+                    for k in ['value', 'description', 'current_fy', 'text']:
+                        if k in val and val[k]:
+                            return str(val[k])
+        
+        return default
     
     def _get_nested(self, data: Dict, *keys, default: str = '') -> str:
         """Get nested value from data dictionary using multiple keys."""
@@ -1946,13 +2048,13 @@ class BRSRHTMLTemplate:
                     <td>R&amp;D</td>
                     <td class="text-center answer-cell">{self._get_section_c_nested('env_sustainable_rd_capex', 'rd_current_fy', '')}</td>
                     <td class="text-center answer-cell">{self._get_section_c_nested('env_sustainable_rd_capex', 'rd_previous_fy', '')}</td>
-                    <td class="answer-cell">{self._get_section_c_nested('env_sustainable_rd_capex', 'rd_details', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('env_sustainable_rd_capex', 'rd_details_current_fy', '')}</td>
                 </tr>
                 <tr>
                     <td>Capex</td>
                     <td class="text-center answer-cell">{self._get_section_c_nested('env_sustainable_rd_capex', 'capex_current_fy', '')}</td>
                     <td class="text-center answer-cell">{self._get_section_c_nested('env_sustainable_rd_capex', 'capex_previous_fy', '')}</td>
-                    <td class="answer-cell">{self._get_section_c_nested('env_sustainable_rd_capex', 'capex_details', '')}</td>
+                    <td class="answer-cell">{self._get_section_c_nested('env_sustainable_rd_capex', 'capex_details_current_fy', '')}</td>
                 </tr>
             </tbody>
         </table>
@@ -2115,7 +2217,6 @@ class BRSRHTMLTemplate:
     
     def _render_principle_3(self) -> str:
         """PRINCIPLE 3: Businesses should respect and promote the well-being of all employees, including those in their value chains"""
-        # This is a very long principle with many tables - implementing key sections
         return f'''
         <div class="page-break"></div>
         
@@ -2153,51 +2254,51 @@ class BRSRHTMLTemplate:
                 <tr class="category-header"><td colspan="12">Permanent employees</td></tr>
                 <tr>
                     <td>Male</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_m_total', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_m_health_num', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_m_health_pct', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_m_accident_num', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_m_accident_pct', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_m_maternity_num', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_m_maternity_pct', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_m_paternity_num', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_m_paternity_pct', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_m_daycare_num', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_m_daycare_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_m_total', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_m_health_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_m_health_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_m_accident_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_m_accident_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_m_maternity_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_m_maternity_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_m_paternity_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_m_paternity_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_m_daycare_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_m_daycare_pct', '')}</td>
                 </tr>
                 <tr>
                     <td>Female</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_f_total', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_f_health_num', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_f_health_pct', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_f_accident_num', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_f_accident_pct', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_f_maternity_num', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_f_maternity_pct', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_f_paternity_num', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_f_paternity_pct', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_f_daycare_num', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_f_daycare_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_f_total', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_f_health_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_f_health_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_f_accident_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_f_accident_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_f_maternity_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_f_maternity_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_f_paternity_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_f_paternity_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_f_daycare_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_f_daycare_pct', '')}</td>
                 </tr>
                 <tr>
                     <td>Total</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_total', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_health_num', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_health_pct', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_accident_num', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_accident_pct', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_maternity_num', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_maternity_pct', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_paternity_num', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_paternity_pct', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_daycare_num', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_perm_daycare_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_total', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_health_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_health_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_accident_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_accident_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_maternity_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_maternity_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_paternity_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_paternity_pct', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_daycare_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'perm_daycare_pct', '')}</td>
                 </tr>
                 <tr class="category-header"><td colspan="12">Other than Permanent employees</td></tr>
                 <tr>
                     <td>Male</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_m_total', '')}</td>
-                    <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_m_health_num', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'other_m_total', '')}</td>
+                    <td class="text-center answer-cell">{self._get_section_c_nested('p3_wellbeing_employees', 'other_m_health_num', '')}</td>
                     <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_m_health_pct', '')}</td>
                     <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_m_accident_num', '')}</td>
                     <td class="text-center answer-cell">{self._get_response(self.section_c_data, 'p3_e1a_other_m_accident_pct', '')}</td>
