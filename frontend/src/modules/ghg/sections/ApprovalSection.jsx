@@ -3,6 +3,9 @@
  *
  * Three tabs: Pending | Approved | Rejected. Reuses ApprovalTable for all
  * three. Pending tab adds bulk-action toolbar via ApprovalActions.
+ * 
+ * Multi-proposal support: Groups concurrent proposals for the same emission
+ * record by original_record_id, showing them side-by-side for comparison.
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
@@ -14,7 +17,7 @@ import {
   TabsTrigger,
 } from '../../../components/ui/tabs';
 import { Button } from '../../../components/ui/button';
-import { CheckCircle2, XCircle, Edit as EditIcon } from 'lucide-react';
+import { CheckCircle2, XCircle, Edit as EditIcon, Users } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import useGHGPermissions from '../hooks/useGHGPermissions';
 import usePendingApprovals from '../hooks/usePendingApprovals';
@@ -82,18 +85,67 @@ export default function ApprovalSection() {
     return () => { cancelled = true; };
   }, [activeTab, perms.canViewApprovals, getAuthHeader]);
 
+  /**
+   * Group pending items by original_record_id to enable multi-proposal comparison.
+   * For pending_update requests on the same emission record, we group them together
+   * so the approver can see all concurrent proposals side-by-side.
+   */
+  const groupedPendingRows = useMemo(() => {
+    const items = pending.items || [];
+    
+    // Separate pending_create (no original_record_id) from updates/deletes
+    const creates = items.filter(r => !r.original_record_id);
+    const updatesDeletes = items.filter(r => r.original_record_id);
+    
+    // Group updates/deletes by original_record_id
+    const groupedByOriginal = {};
+    for (const item of updatesDeletes) {
+      const key = item.original_record_id;
+      if (!groupedByOriginal[key]) {
+        groupedByOriginal[key] = {
+          ...item, // Base record info (scope, category, facility, etc.)
+          _groupKey: key,
+          _proposals: [item],
+          _proposalCount: 1,
+          _submitters: [item.submitted_by_name || item.submitted_by_email || 'Unknown'],
+          _isGrouped: false,
+        };
+      } else {
+        groupedByOriginal[key]._proposals.push(item);
+        groupedByOriginal[key]._proposalCount += 1;
+        groupedByOriginal[key]._submitters.push(item.submitted_by_name || item.submitted_by_email || 'Unknown');
+        groupedByOriginal[key]._isGrouped = true;
+        // Use earliest submission time for sorting
+        if (new Date(item.submitted_at) < new Date(groupedByOriginal[key].submitted_at)) {
+          groupedByOriginal[key].submitted_at = item.submitted_at;
+        }
+      }
+    }
+    
+    // Mark grouped entries
+    Object.values(groupedByOriginal).forEach(group => {
+      if (group._proposalCount > 1) {
+        group._isGrouped = true;
+      }
+    });
+    
+    // Combine creates + grouped updates/deletes
+    return [...creates.map(c => ({ ...c, _proposals: [c], _proposalCount: 1, _isGrouped: false })), ...Object.values(groupedByOriginal)];
+  }, [pending.items]);
+
   const tabRows = useMemo(() => {
-    if (activeTab === 'pending') return pending.items;
+    if (activeTab === 'pending') return groupedPendingRows;
     if (activeTab === 'history') return historyItems;
     return rejected.items;
-  }, [activeTab, pending.items, rejected.items, historyItems]);
+  }, [activeTab, groupedPendingRows, rejected.items, historyItems]);
 
   const onToggleSelect = (id, checked) => {
     setSelectedIds((prev) => (checked ? [...new Set([...prev, id])] : prev.filter((x) => x !== id)));
   };
   const onToggleSelectAll = (rows, checked) => {
     setSelectedIds((prev) => {
-      const ids = rows.map((r) => r.id);
+      // For grouped rows, extract all proposal IDs
+      const ids = rows.flatMap((r) => r._proposals ? r._proposals.map(p => p.id) : [r.id]);
       return checked
         ? [...new Set([...prev, ...ids])]
         : prev.filter((x) => !ids.includes(x));
@@ -114,9 +166,10 @@ export default function ApprovalSection() {
     );
   }
 
+  // For bulk actions, extract all individual proposal IDs from grouped rows
   const targetIds = selectedIds.length
     ? selectedIds
-    : (activeTab === 'pending' ? pending.items.map((r) => r.id) : []);
+    : (activeTab === 'pending' ? groupedPendingRows.flatMap((r) => r._proposals ? r._proposals.map(p => p.id) : [r.id]) : []);
 
   // Map a request's scope to the workspace route that hosts its edit dialog.
   const scopeToRoute = (scope) => {
@@ -127,10 +180,13 @@ export default function ApprovalSection() {
   };
 
   // Per-row actions render.
-  const renderRowActions = (r) => {
-    const requestType = getRequestType(r);
+  // For grouped proposals, this renders actions for a single proposal within the group
+  const renderRowActions = (r, proposal = null) => {
+    // If proposal is passed, use it; otherwise use r directly (for non-grouped rows)
+    const target = proposal || r;
+    const requestType = getRequestType(target);
     const isDeleteRequest = requestType === 'delete';
-    const scope = getScope(r);
+    const scope = getScope(target);
     return (
     <>
       {activeTab === 'history' && (
@@ -139,7 +195,7 @@ export default function ApprovalSection() {
           variant="ghost"
           className="h-7 px-2 text-blue-600 hover:text-blue-700"
           title="View details"
-          onClick={() => setViewing(r)}
+          onClick={() => setViewing(target)}
         >
           View
         </Button>
@@ -152,8 +208,8 @@ export default function ApprovalSection() {
             variant="ghost"
             className="h-7 px-2 text-blue-600 hover:text-blue-700"
             title="View details"
-            onClick={() => setViewing(r)}
-            data-testid={`approval-view-${r.id}`}
+            onClick={() => setViewing(target)}
+            data-testid={`approval-view-${target.id}`}
           >
             View
           </Button>
@@ -163,8 +219,8 @@ export default function ApprovalSection() {
             variant="ghost"
             className="h-7 w-7 p-0"
             title="Edit & approve"
-            onClick={() => navigate(`${scopeToRoute(scope)}?edit=${r.id}`)}
-            data-testid={`approval-edit-${r.id}`}
+            onClick={() => navigate(`${scopeToRoute(scope)}?edit=${target.id}`)}
+            data-testid={`approval-edit-${target.id}`}
           >
             <EditIcon className="w-3.5 h-3.5 text-stone-600" />
           </Button>
@@ -177,9 +233,9 @@ export default function ApprovalSection() {
             variant="ghost"
             className="h-7 w-7 p-0 text-emerald-600 hover:text-emerald-700"
             title="Approve"
-            onClick={() => actions.approveOne(r.id, null)}
+            onClick={() => actions.approveOne(target.id, null)}
             disabled={actions.busy}
-            data-testid={`approval-approve-${r.id}`}
+            data-testid={`approval-approve-${target.id}`}
           >
             <CheckCircle2 className="w-3.5 h-3.5" />
           </Button>
@@ -188,9 +244,9 @@ export default function ApprovalSection() {
             variant="ghost"
             className="h-7 w-7 p-0 text-red-600 hover:text-red-700"
             title="Reject"
-            onClick={() => setViewing({ ...r, _quickReject: true })}
+            onClick={() => setViewing({ ...target, _quickReject: true })}
             disabled={actions.busy}
-            data-testid={`approval-reject-${r.id}`}
+            data-testid={`approval-reject-${target.id}`}
           >
             <XCircle className="w-3.5 h-3.5" />
           </Button>

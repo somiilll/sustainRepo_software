@@ -82,6 +82,33 @@ export function useGHGAccess(reportingPeriod = null) {
     return accessInfo.has_full_access || accessInfo.has_sinks_access;
   }, [accessInfo]);
 
+  // Check if a date is within the allowed period for a scope
+  const canAccessPeriod = useCallback((scope, date) => {
+    if (!accessInfo) return true;
+    if (accessInfo.has_full_access) return true;
+    
+    const restrictions = accessInfo.period_restrictions?.[scope.toLowerCase()];
+    if (!restrictions) return true;
+    
+    const checkDate = new Date(date);
+    if (restrictions.start_date) {
+      const startDate = new Date(restrictions.start_date);
+      if (checkDate < startDate) return false;
+    }
+    if (restrictions.end_date) {
+      const endDate = new Date(restrictions.end_date);
+      if (checkDate > endDate) return false;
+    }
+    return true;
+  }, [accessInfo]);
+
+  // Get period restrictions for a scope
+  const getPeriodRestrictions = useCallback((scope) => {
+    if (!accessInfo) return null;
+    if (accessInfo.has_full_access) return null;
+    return accessInfo.period_restrictions?.[scope.toLowerCase()] || null;
+  }, [accessInfo]);
+
   // Filter facilities based on scope restrictions
   const filterFacilitiesByScope = useCallback((facilities, scope) => {
     if (!accessInfo) return facilities;
@@ -102,10 +129,13 @@ export function useGHGAccess(reportingPeriod = null) {
     canAccessScope,
     canAccessFacility,
     canAccessSinks,
+    canAccessPeriod,
+    getPeriodRestrictions,
     filterFacilitiesByScope,
     // Quick access
     hasFullAccess: accessInfo?.has_full_access ?? true,
     allowedScopes: accessInfo?.allowed_scopes ?? ['scope1', 'scope2', 'scope3', 'biogenic'],
+    periodRestrictions: accessInfo?.period_restrictions ?? {},
   };
 }
 

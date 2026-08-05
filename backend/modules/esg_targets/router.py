@@ -992,7 +992,10 @@ async def get_categories_for_targets(
     """
     Get categories and subcategories with their KPI definitions for target selection.
     Fetches from esg_kpi_definitions where target_enabled=true and status=active.
-    Returns hierarchical structure: Category → Subcategory → KPIs
+    
+    Special handling for GHG Emissions category in environment section:
+    - Returns predefined subcategories (Scope 1, Scope 2, Scope 3, Total, Scope 1+2)
+    - Baseline values fetched from actual emission records
     """
     from shared.database.mongo import db
     
@@ -1037,16 +1040,312 @@ async def get_categories_for_targets(
             "description": kpi.get("description")
         })
     
+    # Special handling for GHG Emissions in environment section
+    if section == "environment":
+        hierarchy["GHG Emissions"] = _get_ghg_subcategories()
+        # Add Total Energy Consumption to Energy category
+        if "Energy" not in hierarchy:
+            hierarchy["Energy"] = {}
+        hierarchy["Energy"]["Total Energy Consumption"] = _get_energy_total_kpi()
+    
     return {
         "section": section,
         "hierarchy": hierarchy
     }
 
 
+def _get_ghg_subcategories() -> dict:
+    """
+    Returns predefined GHG subcategories for target setting.
+    These map directly to emission record aggregations.
+    """
+    return {
+        "Scope 1 Emissions": [{
+            "kpi_id": "ghg_scope1_total",
+            "metric_name": "Total Scope 1 GHG Emissions",
+            "metric_code": "GHG_S1",
+            "baseline_mapping_key": "scope1_total",
+            "short_name": "Scope 1",
+            "unit": "tCO2e",
+            "output_type": "number",
+            "aggregation_type": "sum",
+            "description": "Total greenhouse gas emissions from direct sources (Scope 1)",
+            "source": "emission_records"
+        }],
+        "Scope 2 Emissions": [{
+            "kpi_id": "ghg_scope2_total",
+            "metric_name": "Total Scope 2 GHG Emissions",
+            "metric_code": "GHG_S2",
+            "baseline_mapping_key": "scope2_total",
+            "short_name": "Scope 2",
+            "unit": "tCO2e",
+            "output_type": "number",
+            "aggregation_type": "sum",
+            "description": "Total greenhouse gas emissions from purchased energy (Scope 2)",
+            "source": "emission_records"
+        }],
+        "Scope 3 Emissions": [{
+            "kpi_id": "ghg_scope3_total",
+            "metric_name": "Total Scope 3 GHG Emissions",
+            "metric_code": "GHG_S3",
+            "baseline_mapping_key": "scope3_total",
+            "short_name": "Scope 3",
+            "unit": "tCO2e",
+            "output_type": "number",
+            "aggregation_type": "sum",
+            "description": "Total greenhouse gas emissions from value chain (Scope 3)",
+            "source": "emission_records"
+        }],
+        "Total Emissions": [{
+            "kpi_id": "ghg_total_all",
+            "metric_name": "Total GHG Emissions (All Scopes)",
+            "metric_code": "GHG_TOTAL",
+            "baseline_mapping_key": "total_all_scopes",
+            "short_name": "Total",
+            "unit": "tCO2e",
+            "output_type": "number",
+            "aggregation_type": "sum",
+            "description": "Total greenhouse gas emissions across all scopes",
+            "source": "emission_records"
+        }],
+        "Scope 1 + Scope 2 Emissions": [{
+            "kpi_id": "ghg_scope1_2_total",
+            "metric_name": "Total Scope 1 + Scope 2 GHG Emissions",
+            "metric_code": "GHG_S1_S2",
+            "baseline_mapping_key": "scope1_2_total",
+            "short_name": "Scope 1+2",
+            "unit": "tCO2e",
+            "output_type": "number",
+            "aggregation_type": "sum",
+            "description": "Combined Scope 1 and Scope 2 greenhouse gas emissions",
+            "source": "emission_records"
+        }]
+    }
+
+
+def _get_energy_total_kpi() -> list:
+    """
+    Returns the Total Energy Consumption KPI for target setting.
+    Aggregates energy from all sources (GHG + ESG Metrics).
+    """
+    return [{
+        "kpi_id": "energy_total_consumption",
+        "metric_name": "Total Energy Consumption",
+        "metric_code": "ENERGY_TOTAL",
+        "baseline_mapping_key": "energy_total",
+        "short_name": "Total Energy",
+        "unit": "GJ",
+        "output_type": "number",
+        "aggregation_type": "sum",
+        "description": "Total energy consumption aggregating Fuel, Electricity, Steam, Heating, and Cooling from all sources",
+        "source": "emission_records + environment_records"
+    }]
+
 
 # =============================================================================
 # Baseline Lookup Endpoints (GHG Module Integration)
 # =============================================================================
+
+@router.get("/baseline/ghg-emissions")
+async def get_ghg_baseline_from_records(
+    scope: str = Query(..., description="GHG scope: scope1, scope2, scope3, total, scope1_2"),
+    base_year: str = Query(..., description="Base year period (e.g., 'FY 2026-2027')"),
+    facility_id: Optional[str] = Query(None, description="Optional facility filter"),
+    target_type: Optional[str] = Query(None, description="Target type: absolute, intensity_revenue, intensity_production"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Fetch GHG baseline value directly from emission records.
+    Aggregates both monthly records within the FY range and yearly records.
+    For intensity targets, divides emissions by revenue or production.
+    """
+    from shared.database.mongo import db
+    
+    org_id = _get_org_id(current_user)
+    
+    # Map scope parameter to actual scope values in database (handles mixed formats)
+    scope_filters = {
+        "scope1": ["Scope 1", "scope1", "Scope1"],
+        "scope2": ["Scope 2", "scope2", "Scope2"],
+        "scope3": ["Scope 3", "scope3", "Scope3"],
+        "total": ["Scope 1", "scope1", "Scope1", "Scope 2", "scope2", "Scope2", "Scope 3", "scope3", "Scope3"],
+        "scope1_2": ["Scope 1", "scope1", "Scope1", "Scope 2", "scope2", "Scope2"]
+    }
+    
+    scope_values = scope_filters.get(scope)
+    if not scope_values:
+        return {"error": f"Invalid scope: {scope}", "value": None, "unit": "tCO2e"}
+    
+    # Parse base_year to get date range for monthly aggregation
+    monthly_periods = _get_monthly_periods_for_fy(base_year)
+    yearly_variants = _get_yearly_period_variants(base_year)
+    
+    # Build query - match either monthly periods OR yearly periods
+    query = {
+        "organization_id": org_id,
+        "scope": {"$in": scope_values},
+        "$or": [
+            {"reporting_period": {"$in": monthly_periods}},
+            {"reporting_period": {"$in": yearly_variants}}
+        ]
+    }
+    
+    if facility_id:
+        query["facility_id"] = facility_id
+    
+    # Aggregate emissions
+    records = await db.emission_records.find(query, {"_id": 0, "co2e_emissions": 1, "reporting_period": 1}).to_list(10000)
+    
+    total_emissions = 0.0
+    records_found = 0
+    
+    for rec in records:
+        val = rec.get("co2e_emissions") or 0
+        if isinstance(val, (int, float)):
+            total_emissions += val
+            records_found += 1
+    
+    # For intensity targets, divide by revenue or production
+    final_value = round(total_emissions, 4) if records_found > 0 else None
+    final_unit = "tCO2e"
+    intensity_denominator = None
+    intensity_error = None
+    
+    if target_type in ("intensity_revenue", "intensity_production") and final_value is not None:
+        # Extract year from base_year for denominator lookup
+        base_year_int = extract_year(base_year)
+        if base_year_int:
+            # Build a mock target dict to reuse _get_denominator_for_intensity
+            mock_target = {
+                "target_type": target_type,
+                "scope_type": "facility" if facility_id else "organization",
+                "facility_ids": [facility_id] if facility_id else [],
+                "_reporting_type": "FY" if "FY" in base_year.upper() else "CY"
+            }
+            denom_result = await _get_denominator_for_intensity(mock_target, org_id, {"year": base_year_int})
+            
+            if denom_result.get("error"):
+                intensity_error = denom_result.get("error")
+            elif denom_result.get("value"):
+                intensity_denominator = denom_result.get("value")
+                denom_unit = denom_result.get("unit", "")
+                # Calculate intensity = emissions / denominator
+                final_value = round(total_emissions / intensity_denominator, 6)
+                final_unit = f"tCO2e/{denom_unit}" if denom_unit else "tCO2e/unit"
+    
+    response = {
+        "scope": scope,
+        "base_year": base_year,
+        "value": final_value,
+        "unit": final_unit,
+        "records_count": records_found,
+        "facility_id": facility_id,
+        "periods_searched": {
+            "monthly": monthly_periods[:3] + ["..."] if len(monthly_periods) > 3 else monthly_periods,
+            "yearly": yearly_variants
+        }
+    }
+    
+    # Include intensity details if applicable
+    if target_type in ("intensity_revenue", "intensity_production"):
+        response["target_type"] = target_type
+        response["raw_emissions"] = round(total_emissions, 4) if records_found > 0 else None
+        response["raw_emissions_unit"] = "tCO2e"
+        if intensity_denominator:
+            response["intensity_denominator"] = intensity_denominator
+        if intensity_error:
+            response["intensity_error"] = intensity_error
+    
+    return response
+
+
+def _get_monthly_periods_for_fy(fy_str: str) -> list:
+    """
+    Convert FY string to list of monthly periods (YYYY-MM format).
+    FY 2026-2027 -> ['2026-04', '2026-05', ..., '2027-03']
+    CY 2026 -> ['2026-01', '2026-02', ..., '2026-12']
+    """
+    import re
+    
+    # Handle FY format: "FY 2026-2027" or "FY 2026-27"
+    fy_match = re.match(r'FY\s*(\d{4})-(\d{2,4})', fy_str, re.IGNORECASE)
+    if fy_match:
+        start_year = int(fy_match.group(1))
+        end_year_str = fy_match.group(2)
+        end_year = int(end_year_str) if len(end_year_str) == 4 else int(f"{str(start_year)[:2]}{end_year_str}")
+        
+        # FY typically runs Apr-Mar (adjust if your org uses different)
+        periods = []
+        # Apr to Dec of start year
+        for month in range(4, 13):
+            periods.append(f"{start_year}-{month:02d}")
+        # Jan to Mar of end year
+        for month in range(1, 4):
+            periods.append(f"{end_year}-{month:02d}")
+        return periods
+    
+    # Handle CY format: "CY 2026" or "CY2026"
+    cy_match = re.match(r'CY\s*(\d{4})', fy_str, re.IGNORECASE)
+    if cy_match:
+        year = int(cy_match.group(1))
+        return [f"{year}-{month:02d}" for month in range(1, 13)]
+    
+    # If just a year number
+    if fy_str.isdigit() and len(fy_str) == 4:
+        year = int(fy_str)
+        return [f"{year}-{month:02d}" for month in range(1, 13)]
+    
+    return []
+
+
+def _get_yearly_period_variants(fy_str: str) -> list:
+    """
+    Get all possible yearly period string variants for matching.
+    "FY 2026-2027" -> ["FY 2026-2027", "FY 2026-27", "FY2026-2027", "FY2026-27"]
+    """
+    import re
+    
+    variants = [fy_str]  # Always include original
+    
+    # Handle FY format
+    fy_match = re.match(r'FY\s*(\d{4})-(\d{2,4})', fy_str, re.IGNORECASE)
+    if fy_match:
+        start_year = fy_match.group(1)
+        end_year_str = fy_match.group(2)
+        
+        # Normalize end year
+        if len(end_year_str) == 2:
+            end_year_full = f"{start_year[:2]}{end_year_str}"
+            end_year_short = end_year_str
+        else:
+            end_year_full = end_year_str
+            end_year_short = end_year_str[-2:]
+        
+        # Generate variants
+        variants.extend([
+            f"FY {start_year}-{end_year_full}",
+            f"FY {start_year}-{end_year_short}",
+            f"FY{start_year}-{end_year_full}",
+            f"FY{start_year}-{end_year_short}",
+            f"FY {start_year}-{end_year_full}".replace(" ", ""),
+        ])
+    
+    # Handle CY format
+    cy_match = re.match(r'CY\s*(\d{4})', fy_str, re.IGNORECASE)
+    if cy_match:
+        year = cy_match.group(1)
+        variants.extend([f"CY {year}", f"CY{year}"])
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    unique = []
+    for v in variants:
+        if v not in seen:
+            seen.add(v)
+            unique.append(v)
+    
+    return unique
+
 
 @router.get("/baseline/lookup")
 async def lookup_baseline_value(

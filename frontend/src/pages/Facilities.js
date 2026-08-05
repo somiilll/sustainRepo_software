@@ -77,8 +77,14 @@ export default function Facilities() {
   };
 
   // Validation function for auto-save - checks all mandatory fields
+  // Suppliers only need name, regular users need full validation
   const validateFacilityForm = useCallback((data) => {
-    // Check all mandatory fields
+    // For suppliers, only name is required
+    if (user?.user_type === 'supplier') {
+      return data.name && data.name.trim() !== '';
+    }
+    
+    // Check all mandatory fields for non-suppliers
     if (!data.name || data.name.trim() === '') return false;
     if (!data.sector || data.sector.trim() === '') return false;
     if (!data.address || data.address.trim() === '') return false;
@@ -87,7 +93,6 @@ export default function Facilities() {
     if (!data.country || data.country.trim() === '') return false;
     if (!data.pincode || data.pincode.trim() === '') return false;
     if (data.pincode && !/^\d{6}$/.test(data.pincode)) return false;
-    if (!data.products_services || data.products_services.trim() === '') return false;
     if (!data.responsible_person || data.responsible_person.trim() === '') return false;
     
     // Check frequency validation
@@ -97,7 +102,7 @@ export default function Facilities() {
     if (monitoringLevel > reportingLevel) return false;
     
     return true;
-  }, []);
+  }, [user?.user_type]);
 
   // Auto-save handler
   const handleAutoSave = useCallback(async (data, isUpdate, existingId) => {
@@ -247,26 +252,23 @@ export default function Facilities() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validation: Products/Services is mandatory
-    if (!formData.products_services || formData.products_services.trim() === '') {
-      toast.error('Products/Services is mandatory');
-      return;
-    }
+    // Suppliers only need name
+    if (!isSupplier) {
+      // Validation: Person Responsible is mandatory for non-suppliers
+      if (!formData.responsible_person || formData.responsible_person.trim() === '') {
+        toast.error('Person Responsible is mandatory');
+        return;
+      }
+      
+      // Validation: Monitoring frequency must be shorter than or equal to reporting frequency
+      const frequencyOrder = { 'daily': 1, 'weekly': 2, 'monthly': 3, 'quarterly': 4, 'yearly': 5 };
+      const monitoringLevel = frequencyOrder[formData.monitoring_frequency] || 3;
+      const reportingLevel = frequencyOrder[formData.reporting_frequency] || 3;
     
-    // Validation: Person Responsible is mandatory
-    if (!formData.responsible_person || formData.responsible_person.trim() === '') {
-      toast.error('Person Responsible is mandatory');
-      return;
-    }
-    
-    // Validation: Monitoring frequency must be shorter than or equal to reporting frequency
-    const frequencyOrder = { 'daily': 1, 'weekly': 2, 'monthly': 3, 'quarterly': 4, 'yearly': 5 };
-    const monitoringLevel = frequencyOrder[formData.monitoring_frequency] || 3;
-    const reportingLevel = frequencyOrder[formData.reporting_frequency] || 3;
-    
-    if (monitoringLevel > reportingLevel) {
-      toast.error('Monitoring frequency must be shorter than or equal to reporting frequency. (e.g., if reporting is monthly, monitoring can be daily, weekly, or monthly)');
-      return;
+      if (monitoringLevel > reportingLevel) {
+        toast.error('Monitoring frequency must be shorter than or equal to reporting frequency. (e.g., if reporting is monthly, monitoring can be daily, weekly, or monthly)');
+        return;
+      }
     }
     
     // Get the ID to check - either from editing or from auto-save
@@ -427,6 +429,9 @@ export default function Facilities() {
   const canEdit = user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'user';
   const canDelete = user?.role === 'admin' || user?.role === 'super_admin'; // Only Admin can delete
   const canCreate = user?.role === 'admin'; // Only Admin can create new facilities
+  
+  // Check if user is a supplier - suppliers see simplified facility form
+  const isSupplier = user?.user_type === 'supplier';
 
   if (loading) {
     return (
@@ -485,8 +490,8 @@ export default function Facilities() {
                 <DialogTitle>{editingFacility ? 'Edit' : 'Add'} Facility</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Same as Organization Checkbox - only show when adding new facility */}
-                {!editingFacility && organization && (
+                {/* Same as Organization Checkbox - only show when adding new facility (not for suppliers) */}
+                {!editingFacility && organization && !isSupplier && (
                   <div className="p-4 border border-green-200 rounded-lg bg-green-50">
                     <label className="flex items-center gap-3 cursor-pointer">
                       <input
@@ -503,6 +508,29 @@ export default function Facilities() {
                   </div>
                 )}
                 
+                {/* Supplier simplified form - only name */}
+                {isSupplier ? (
+                  <div className="space-y-4">
+                    <div className="p-4 border border-blue-200 rounded-lg bg-blue-50">
+                      <p className="text-sm text-blue-800">
+                        As a supplier, you only need to provide the facility name. Additional details can be added later.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="name">Facility Name *</Label>
+                      <Input
+                        id="name"
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        required
+                        className="bg-stone-50"
+                        placeholder="Enter your facility name"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  /* Full form for non-suppliers */
+                  <>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="name">Facility Name *</Label>
@@ -614,14 +642,13 @@ export default function Facilities() {
 
                 {/* Products/Services - Full width textarea */}
                 <div className="space-y-2">
-                  <Label htmlFor="products_services">Products/Services <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="products_services">Products/Services</Label>
                   <textarea
                     id="products_services"
                     value={formData.products_services}
                     onChange={(e) => setFormData({ ...formData, products_services: e.target.value })}
                     className="w-full min-h-[100px] px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg resize-y"
                     placeholder="Describe the products manufactured or services provided by this facility"
-                    required
                   />
                 </div>
 
@@ -918,6 +945,8 @@ export default function Facilities() {
                     readOnly={subscriptionExpired}
                     yearType={organization?.reporting_year_type || 'financial_year'}
                   />
+                )}
+                  </>
                 )}
 
                 <div className="flex justify-between items-center gap-3 pt-4 border-t border-stone-200">

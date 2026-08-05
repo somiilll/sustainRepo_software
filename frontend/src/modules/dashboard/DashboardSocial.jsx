@@ -20,6 +20,7 @@ import {
 import StickyFilterBar from './components/filters/StickyFilterBar';
 import SectionCard from './components/layout/SectionCard';
 import PremiumKpiCard from './components/kpi/PremiumKpiCard';
+import { DashboardExportButton } from './pdf-export';
 import {
   Users, User, GraduationCap, UserCheck, RotateCcw, ShieldAlert,
   MessageSquareWarning, Scale, HeartPulse, RadioTower, RefreshCw,
@@ -280,7 +281,30 @@ export default function DashboardSocial({ data }) {
         showFilters={showFilters}
         setShowFilters={setShowFilters}
         filterProps={filterProps}
-        showExport={false}
+        showExport={true}
+        exportButton={
+          <DashboardExportButton
+            dashboardType="social"
+            data={{
+              kpis: {
+                total_employees: { value: total },
+                turnover_pct: { value: kpis.turnover_rate },
+                ltifr: { value: kpis.ltifr },
+                diversity_pct: { value: diversity.female > 0 ? (diversity.female / (diversity.male + diversity.female)) * 100 : null },
+              },
+              workforce: {
+                total,
+                male: diversity.male,
+                female: diversity.female,
+                training_hours: kpis.total_trainings,
+              },
+              analytics: detail,
+            }}
+            organization={organization}
+            dateRange={dateRange}
+            facilities={facilities}
+          />
+        }
         dashboardType={data.dashboardType}
         setDashboardType={data.setDashboardType}
         esgSection={data.esgSection}

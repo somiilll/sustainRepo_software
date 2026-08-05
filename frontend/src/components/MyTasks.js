@@ -6,7 +6,6 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
 
@@ -32,7 +31,6 @@ export default function MyTasks({
   framework = null 
 }) {
   const { token } = useAuth();
-  const navigate = useNavigate();
   
   const [filters, setFilters] = useState({
     search: '',
@@ -57,73 +55,8 @@ export default function MyTasks({
     includeBackfill: true,
   });
 
-  // Navigate to fill the item
-  const handleFillTask = (task) => {
-    const taskDomain = task.domain || domain || 'environment';
-    const taskFramework = task.framework || 'BRSR';
-    
-    if (task.entity_type === 'question') {
-      navigate(`/esg/${taskDomain}?framework=${taskFramework}&question=${task.entity_id}`);
-    } else {
-      const params = new URLSearchParams();
-      params.set('tab', 'metrics');
-      params.set('subtab', 'add-metric');
-      if (task.category) params.set('category', task.category);
-      if (task.subcategory) params.set('subcategory', task.subcategory);
-      if (task.filling_frequency) params.set('frequency', task.filling_frequency);
-      
-      // Pass period info for pre-filling the date
-      if (task.period_start) {
-        const dateOnly = task.period_start.split('T')[0].split(' ')[0];
-        params.set('period_start', dateOnly);
-      }
-      
-      navigate(`/${taskDomain}?${params.toString()}`);
-    }
-  };
-
-  // View-only handler for non-editable tasks
-  const handleViewTask = (task) => {
-    const taskDomain = task.domain || domain || 'environment';
-    const params = new URLSearchParams();
-    params.set('tab', 'metrics');
-    params.set('view', 'readonly');
-    if (task.category) params.set('category', task.category);
-    if (task.subcategory) params.set('subcategory', task.subcategory);
-    if (task.period_start) {
-      const dateOnly = task.period_start.split('T')[0].split(' ')[0];
-      params.set('period_start', dateOnly);
-    }
-    if (task.facility_id) params.set('facility_id', task.facility_id);
-    navigate(`/${taskDomain}?${params.toString()}`);
-  };
-
-  // Edit handler for completed tasks
-  const handleEditTask = (task) => {
-    const taskDomain = task.domain || domain || 'environment';
-    const taskFramework = task.framework || 'BRSR';
-    
-    if (task.entity_type === 'question') {
-      navigate(`/esg/${taskDomain}?framework=${taskFramework}&question=${task.entity_id}&edit=true`);
-    } else {
-      const params = new URLSearchParams();
-      params.set('tab', 'metrics');
-      params.set('subtab', 'add-metric');
-      params.set('edit', 'true');
-      if (task.category) params.set('category', task.category);
-      if (task.subcategory) params.set('subcategory', task.subcategory);
-      if (task.filling_frequency) params.set('frequency', task.filling_frequency);
-      
-      // Pass period info for pre-filling the date
-      if (task.period_start) {
-        const dateOnly = task.period_start.split('T')[0].split(' ')[0];
-        params.set('period_start', dateOnly);
-      }
-      if (task.facility_id) params.set('facility_id', task.facility_id);
-      
-      navigate(`/${taskDomain}?${params.toString()}`);
-    }
-  };
+  // NOTE: Task action handlers (handleFillTask, handleViewTask, handleEditTask) temporarily removed
+  // Will be re-implemented with proper module redirect functionality later
 
   // Determine which items to show based on entityType
   const itemsToShow = useMemo(() => {
@@ -159,9 +92,6 @@ export default function MyTasks({
       <TaskLedger
         tasks={itemsToShow}
         filters={filters}
-        onFillTask={handleFillTask}
-        onViewTask={handleViewTask}
-        onEditTask={handleEditTask}
         emptyMessage={
           entityType === ENTITY_TYPE.QUESTION
             ? 'No disclosure tasks found'

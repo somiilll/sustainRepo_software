@@ -14,6 +14,7 @@ import {
 import StickyFilterBar from './components/filters/StickyFilterBar';
 import SectionCard from './components/layout/SectionCard';
 import PremiumKpiCard from './components/kpi/PremiumKpiCard';
+import { DashboardExportButton } from './pdf-export';
 import {
   Droplets, ArrowDownToLine, ArrowUpFromLine, Recycle, RefreshCw, Waves,
 } from 'lucide-react';
@@ -242,7 +243,24 @@ export default function DashboardWater({ data }) {
           dateRange, setDateRange,
           showFacilityDropdown, setShowFacilityDropdown, facilityDropdownRef,
         }}
-        showExport={false}
+        showExport={true}
+        exportButton={
+          <DashboardExportButton
+            dashboardType="water"
+            data={{
+              water: {
+                withdrawn: totals.withdrawn,
+                consumed: totals.consumed,
+                discharged: totals.discharged,
+                recycled: totals.recycled,
+              },
+              analytics: esgAnalytics,
+            }}
+            organization={organization}
+            dateRange={dateRange}
+            facilities={facilities}
+          />
+        }
         dashboardType={data.dashboardType}
         setDashboardType={data.setDashboardType}
         esgSection={data.esgSection}

@@ -108,6 +108,20 @@ class AssignmentService:
         
         await self._assignments.insert_one(assignment)
         
+        # V2 Architecture: Create assignee record in junction table
+        if request.assigned_to_user_id:
+            assignee_doc = {
+                "id": str(uuid.uuid4()),
+                "assignment_id": assignment["id"],
+                "user_id": request.assigned_to_user_id,
+                "organization_id": organization_id,
+                "role": request.role.value if request.role else "editor",
+                "assigned_at": now,
+                "assigned_by": assigned_by_user_id,
+                "removed_at": None,
+            }
+            await db.esg_assignment_assignees.insert_one(assignee_doc)
+        
         # Auto-generate tasks if start_date and filling_frequency are provided
         if request.start_date and request.filling_frequency:
             try:
@@ -269,33 +283,107 @@ class AssignmentService:
         assignment_id: str,
         organization_id: str,
         deleted_by_user_id: str,
-    ) -> bool:
-        """Delete an assignment, clean up orphaned tasks and approvals."""
+    ) -> Dict[str, Any]:
+        """
+        Delete an assignment with proper task lifecycle management.
+        
+        TASK LIFECYCLE: ACTIVE -> CANCELLED -> ARCHIVED
+        
+        Instead of hard-deleting tasks, we transition them through a lifecycle:
+        1. ACTIVE: Normal operational state (pending, completed, etc.)
+        2. CANCELLED: Assignment was deleted, but tasks remain visible for audit
+        3. ARCHIVED: (Future) Tasks can be archived after a retention period
+        
+        This ensures auditors can always see what tasks were cancelled and why.
+        
+        Returns:
+            Dict with status info: {"deleted": True, "tasks_cancelled": int, ...}
+        """
         current = await self._assignments.find_one(
             {"id": assignment_id, "organization_id": organization_id}
         )
         
         if not current:
-            return False
+            return {"deleted": False, "error": "Assignment not found"}
         
-        await self._assignments.delete_one({"id": assignment_id})
+        now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
+        
+        # Soft-delete the assignment (mark as cancelled instead of hard delete)
+        await self._assignments.update_one(
+            {"id": assignment_id},
+            {"$set": {
+                "status": "cancelled",
+                "cancelled_at": now_iso,
+                "cancelled_by_user_id": deleted_by_user_id,
+                "updated_at": now,
+            }}
+        )
         
         # Deactivate task assignees linked to this assignment
         from modules.esg_records.task_engine import remove_assignee_for_assignment
         await remove_assignee_for_assignment(db, assignment_id)
         
-        # Soft-delete unfilled tasks (preserve completed data)
-        filled_statuses = ["completed", "in_progress", "skipped"]
-        await db["esg_reporting_tasks"].delete_many({
-            "assignment_id": assignment_id,
-            "status": {"$nin": filled_statuses},
-        })
+        # LIFECYCLE: Transition tasks to CANCELLED status instead of deleting
+        # Preserve ALL tasks (including unfilled ones) for audit trail
+        # Only tasks without actual data submissions get cancelled
+        # Tasks with data remain visible but marked as orphaned
+        
+        # Find all tasks for this assignment
+        tasks = await db["esg_reporting_tasks"].find(
+            {"assignment_id": assignment_id},
+            {"_id": 0, "id": 1, "period_key": 1, "category": 1, "subcategory": 1}
+        ).to_list(1000)
+        
+        tasks_cancelled = 0
+        tasks_with_data = 0
+        
+        for task in tasks:
+            # Check if this task has actual data submitted
+            task_has_data = await self._task_has_data(
+                organization_id=organization_id,
+                category=task.get("category"),
+                subcategory=task.get("subcategory"),
+                facility_id=current.get("facility_id"),
+                period_key=task.get("period_key"),
+            )
+            
+            if task_has_data:
+                # Task has data - mark as orphaned but keep visible
+                await db["esg_reporting_tasks"].update_one(
+                    {"id": task["id"]},
+                    {"$set": {
+                        "lifecycle_status": "orphaned",
+                        "orphaned_reason": "assignment_deleted",
+                        "orphaned_at": now_iso,
+                        "orphaned_by_user_id": deleted_by_user_id,
+                        "updated_at": now_iso,
+                    }}
+                )
+                tasks_with_data += 1
+            else:
+                # Task has no data - mark as cancelled
+                await db["esg_reporting_tasks"].update_one(
+                    {"id": task["id"]},
+                    {"$set": {
+                        "lifecycle_status": "cancelled",
+                        "cancelled_reason": "assignment_deleted",
+                        "cancelled_at": now_iso,
+                        "cancelled_by_user_id": deleted_by_user_id,
+                        "updated_at": now_iso,
+                    }}
+                )
+                tasks_cancelled += 1
         
         # Cancel pending approval requests for this assignment's entity
         entity_id = current.get("entity_id") or current.get("id")
-        await db["approval_requests"].update_many(
+        approval_result = await db["approval_requests"].update_many(
             {"entity_id": entity_id, "status": "pending", "organization_id": organization_id},
-            {"$set": {"status": "cancelled", "updated_at": datetime.now(timezone.utc).isoformat()}},
+            {"$set": {
+                "status": "cancelled",
+                "cancelled_reason": "assignment_deleted",
+                "updated_at": now_iso,
+            }},
         )
         
         # Log history
@@ -306,7 +394,70 @@ class AssignmentService:
             changed_by_user_id=deleted_by_user_id,
         )
         
-        return True
+        return {
+            "deleted": True,
+            "assignment_id": assignment_id,
+            "tasks_cancelled": tasks_cancelled,
+            "tasks_with_data_orphaned": tasks_with_data,
+            "approval_requests_cancelled": approval_result.modified_count,
+            "message": f"Assignment cancelled. {tasks_cancelled} tasks cancelled, {tasks_with_data} tasks with data marked as orphaned."
+        }
+    
+    async def _task_has_data(
+        self,
+        organization_id: str,
+        category: str,
+        subcategory: Optional[str],
+        facility_id: Optional[str],
+        period_key: str,
+    ) -> bool:
+        """
+        Check if a task has actual data submitted (uses CompletionService).
+        """
+        try:
+            from .completion_service import DataChecker
+            has_data, _, _ = await DataChecker.check_exists(
+                organization_id=organization_id,
+                category=category,
+                subcategory=subcategory,
+                facility_id=facility_id,
+                period_key=period_key,
+            )
+            return has_data
+        except Exception as e:
+            print(f"Warning: Failed to check task data: {e}")
+            return False
+    
+    async def archive_cancelled_tasks(
+        self,
+        organization_id: str,
+        older_than_days: int = 90,
+    ) -> int:
+        """
+        Archive cancelled tasks older than specified days.
+        
+        LIFECYCLE: CANCELLED -> ARCHIVED
+        
+        This is intended to be called by a scheduled job to clean up
+        old cancelled tasks while still preserving them in an archived state.
+        
+        Returns: Number of tasks archived
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(days=older_than_days)
+        
+        result = await db["esg_reporting_tasks"].update_many(
+            {
+                "organization_id": organization_id,
+                "lifecycle_status": "cancelled",
+                "cancelled_at": {"$lt": cutoff.isoformat()},
+            },
+            {"$set": {
+                "lifecycle_status": "archived",
+                "archived_at": datetime.now(timezone.utc).isoformat(),
+            }}
+        )
+        
+        return result.modified_count
     
     async def reassign(
         self,
@@ -338,6 +489,27 @@ class AssignmentService:
                 "updated_at": now,
             }}
         )
+        
+        # V2 Architecture: Update assignee records
+        # Mark old assignee as removed
+        if old_user_id:
+            await db.esg_assignment_assignees.update_one(
+                {"assignment_id": assignment_id, "user_id": old_user_id, "removed_at": None},
+                {"$set": {"removed_at": now.isoformat()}}
+            )
+        
+        # Add new assignee
+        assignee_doc = {
+            "id": str(uuid.uuid4()),
+            "assignment_id": assignment_id,
+            "user_id": request.new_user_id,
+            "organization_id": organization_id,
+            "role": current.get("role", "editor"),
+            "assigned_at": now.isoformat(),
+            "assigned_by": reassigned_by_user_id,
+            "removed_at": None,
+        }
+        await db.esg_assignment_assignees.insert_one(assignee_doc)
         
         # Log history with reason
         await self._log_history(
@@ -415,10 +587,30 @@ class AssignmentService:
         organization_id: str,
         reporting_period: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Get all assignments for a specific user (supports multi-assignee model)"""
+        """Get all assignments for a specific user (supports V2 multi-assignee model)"""
+        
+        # V2 Architecture: First, find all assignment IDs where user is an assignee
+        # Query the esg_assignment_assignees junction table
+        assignee_query = {
+            "user_id": user_id,
+            "removed_at": None,  # Only active assignees
+        }
+        assignee_docs = await db.esg_assignment_assignees.find(
+            assignee_query,
+            {"_id": 0, "assignment_id": 1, "role": 1}
+        ).to_list(1000)
+        
+        # Build map of assignment_id -> role for this user
+        user_assignment_roles = {a["assignment_id"]: a.get("role", "editor") for a in assignee_docs}
+        assignment_ids = list(user_assignment_roles.keys())
+        
+        # Query assignments by IDs from junction table
         query = {
             "organization_id": organization_id,
-            "assigned_to_user_id": user_id,
+            "$or": [
+                {"id": {"$in": assignment_ids}},  # V2: via junction table
+                {"assigned_to_user_id": user_id},  # V1 fallback: legacy direct assignment
+            ]
         }
         
         if reporting_period:
@@ -426,6 +618,131 @@ class AssignmentService:
         
         cursor = self._assignments.find(query, {"_id": 0}).sort("due_date", 1)
         docs = await cursor.to_list(500)
+        
+        # Collect all question entity_ids for batch lookup
+        question_entity_ids = [
+            doc.get("entity_id") for doc in docs 
+            if doc.get("entity_type") == EntityType.QUESTION.value and doc.get("entity_id")
+        ]
+        
+        # Fetch question configs for labels/names
+        question_configs = {}
+        if question_entity_ids:
+            configs_cursor = db.esg_question_configs.find(
+                {"question_key": {"$in": question_entity_ids}},
+                {"_id": 0, "question_key": 1, "label": 1, "question": 1, "description": 1, "section": 1, "brsr_section": 1}
+            )
+            configs_list = await configs_cursor.to_list(500)
+            question_configs = {c["question_key"]: c for c in configs_list}
+        
+        # Fetch approval statuses from esg_responses for these questions
+        # For parent questions (like gri_101_2_a), also get subpart responses (gri_101_2_a_i, gri_101_2_a_ii, etc.)
+        approval_statuses = {}
+        if question_entity_ids and reporting_period:
+            # Build regex patterns to match both exact keys and subpart keys
+            regex_patterns = []
+            for q_id in question_entity_ids:
+                # Match exact key or keys starting with this prefix followed by underscore
+                regex_patterns.append({"question_key": q_id})
+                regex_patterns.append({"question_key": {"$regex": f"^{q_id}_"}})
+            
+            status_cursor = db.organization_esg_responses.find(
+                {
+                    "org_id": organization_id,
+                    "$or": regex_patterns,
+                    "reporting_year": reporting_period,
+                },
+                {"_id": 0, "question_key": 1, "approval_status": 1, "status": 1, "rejection_reason": 1, "value": 1, "approved_at": 1}
+            )
+            status_list = await status_cursor.to_list(2000)
+            
+            # Group responses by parent question key
+            parent_responses = {}  # parent_key -> list of subpart responses
+            for s in status_list:
+                qk = s["question_key"]
+                
+                # Normalize approval_status: GRI uses 'status' field (approved/pending), BRSR uses 'approval_status'
+                effective_approval_status = s.get("approval_status")
+                if not effective_approval_status:
+                    status_val = s.get("status")
+                    if status_val == "approved" or s.get("approved_at"):
+                        effective_approval_status = "approved"
+                    elif status_val == "pending_approval":
+                        effective_approval_status = "pending_approval"
+                    elif status_val == "rejected":
+                        effective_approval_status = "rejected"
+                s["approval_status"] = effective_approval_status
+                
+                # Find which parent this belongs to
+                for parent_key in question_entity_ids:
+                    if qk == parent_key or qk.startswith(f"{parent_key}_"):
+                        if parent_key not in parent_responses:
+                            parent_responses[parent_key] = []
+                        parent_responses[parent_key].append(s)
+                        break
+            
+            # Compute aggregated status for each parent question
+            for parent_key, subparts in parent_responses.items():
+                if not subparts:
+                    continue
+                
+                # Check all subpart statuses
+                all_approved = True
+                any_rejected = False
+                any_pending = False
+                all_have_value = True
+                rejection_reason = None
+                filled_count = 0
+                
+                for sp in subparts:
+                    sp_status = sp.get("approval_status")
+                    sp_value = sp.get("value")
+                    
+                    if sp_value is None or sp_value == "" or sp_value == []:
+                        all_have_value = False
+                    else:
+                        filled_count += 1
+                    
+                    if sp_status == "rejected":
+                        any_rejected = True
+                        rejection_reason = sp.get("rejection_reason")
+                    elif sp_status == "pending_approval":
+                        any_pending = True
+                        all_approved = False
+                    elif sp_status != "approved":
+                        all_approved = False
+                
+                # Determine aggregated approval status
+                # Priority: rejected > pending_approval > approved > not_started
+                if any_rejected:
+                    agg_approval_status = "rejected"
+                elif any_pending or (all_have_value and not all_approved):
+                    agg_approval_status = "pending_approval"
+                elif all_approved and all_have_value:
+                    agg_approval_status = "approved"
+                elif all_have_value:
+                    agg_approval_status = "completed"
+                else:
+                    agg_approval_status = None
+                
+                # Determine completion status (for STATUS column in My Tasks)
+                # This should ONLY reflect completion state, NOT approval state
+                # Matches Tracker's completion_status logic
+                if all_have_value:
+                    completion_status = "completed"  # Work is done, regardless of approval
+                elif filled_count > 0:
+                    completion_status = "in_progress"  # Partially filled
+                else:
+                    completion_status = "pending"  # Nothing filled
+                
+                approval_statuses[parent_key] = {
+                    "approval_status": agg_approval_status,
+                    "completion_status": completion_status,
+                    "rejection_reason": rejection_reason,
+                    "subpart_count": len(subparts),
+                    "filled_count": filled_count,
+                    "all_have_value": all_have_value,
+                }
         
         # Separate by entity type
         questions = []
@@ -438,10 +755,37 @@ class AssignmentService:
         for doc in docs:
             doc = await self._populate_user_names(doc)
             
-            # Add user's role in this assignment
-            doc["user_role"] = doc.get("role", "editor")
+            # Add user's role in this assignment (prefer V2 junction table role)
+            assignment_id = doc.get("id")
+            if assignment_id and assignment_id in user_assignment_roles:
+                doc["user_role"] = user_assignment_roles[assignment_id]
+            else:
+                doc["user_role"] = doc.get("role", "editor")
+            
+            # Add framework field for frontend compatibility (maps framework_id -> framework)
+            if doc.get("framework_id") and not doc.get("framework"):
+                doc["framework"] = doc["framework_id"]
             
             if doc.get("entity_type") == EntityType.QUESTION.value:
+                # Populate question name/label from config
+                entity_id = doc.get("entity_id")
+                if entity_id and entity_id in question_configs:
+                    config = question_configs[entity_id]
+                    doc["question_name"] = config.get("label") or config.get("question") or config.get("description", "")[:100]
+                    doc["section_id"] = config.get("brsr_section") or config.get("section")
+                else:
+                    # Fallback: format entity_id as title
+                    doc["question_name"] = entity_id.replace("_", " ").title() if entity_id else ""
+                    doc["section_id"] = None
+                
+                # Merge approval status AND completion status from esg_responses (source of truth)
+                if entity_id and entity_id in approval_statuses:
+                    status_data = approval_statuses[entity_id]
+                    doc["approval_status"] = status_data.get("approval_status")
+                    doc["rejection_reason"] = status_data.get("rejection_reason")
+                    # Also set the completion status (for STATUS column in My Tasks)
+                    doc["status"] = status_data.get("completion_status", doc.get("status"))
+                
                 questions.append(doc)
             else:
                 records.append(doc)
@@ -854,7 +1198,7 @@ class AssignmentService:
                 title="Reminder",
                 message=f"Reminder: {entity_id_display} is pending your action",
                 notification_type="reminder",
-                link="/environment",
+                link="/workflow/my-tasks",
                 metadata={"assignment_id": assignment_id, "entity_id": entity_id_display},
             )
             
@@ -926,7 +1270,7 @@ class AssignmentService:
                     title="New Assignment",
                     message=f"You've been assigned: {entity_id}",
                     notification_type="assignment",
-                    link="/environment",
+                    link="/workflow/my-tasks",
                     metadata={"assignment_id": assignment.get("id"), "entity_id": entity_id},
                 )
 
@@ -962,7 +1306,7 @@ class AssignmentService:
                         title="Assigned as Approver",
                         message=f"You're the approver for: {entity_id}",
                         notification_type="approval",
-                        link="/approval-queue",
+                        link="/workflow/approver-queue",
                         metadata={"assignment_id": assignment.get("id"), "entity_id": entity_id},
                     )
 

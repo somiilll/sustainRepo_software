@@ -1,14 +1,14 @@
 /**
  * Task Ledger Component
- * Displays tasks in a table/ledger format with columns:
- * Category, Subcategory, Facility, Period, Due, Status, Approval, Action
+ * Displays tasks in a table/ledger format
+ * - For Questions (BRSR/GRI): Question, Due, Status, Approval
+ * - For Metrics (ESG): Category, Subcategory, Facility, Period, Due, Status, Approval
  */
 
 import React from 'react';
 import { Card } from '../ui/card';
-import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { ArrowRight, Eye, ClipboardList, Pencil } from 'lucide-react';
+import { ClipboardList } from 'lucide-react';
 import { OperationalStatusBadge, ApprovalStatusBadge } from './StatusBadge';
 import { formatDueDate, categorizeTask } from './utils';
 import { TASK_TYPE } from './constants';
@@ -45,12 +45,53 @@ function formatPeriodDisplay(task) {
   return `${start.toLocaleDateString('en-US', formatOpts)} - ${end.toLocaleDateString('en-US', formatOpts)}`;
 }
 
+/**
+ * Format question key to readable title
+ * e.g., "policy_extend_to_value_chain" -> "Policy Extend To Value Chain"
+ */
+function formatQuestionTitle(key) {
+  if (!key) return '-';
+  return key
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+/**
+ * Get display values for a task based on its type
+ * For questions (BRSR/GRI): show question name from backend
+ * For records (metrics): show category and subcategory
+ */
+function getTaskDisplayInfo(task) {
+  if (task.entity_type === 'question') {
+    // For disclosure questions, use the question_name from backend (fetched from esg_question_configs)
+    const questionName = task.question_name || formatQuestionTitle(task.entity_id || task.sub_subcategory);
+    return {
+      primary: questionName,
+      secondary: null, // No subcategory for questions
+      isQuestion: true,
+    };
+  }
+  // For regular metric records
+  return {
+    primary: task.category || '-',
+    secondary: task.subcategory || '-',
+    isQuestion: false,
+  };
+}
+
+/**
+ * Determine if we have any questions vs metrics in the task list
+ */
+function getTaskListType(tasks) {
+  const hasQuestions = tasks.some(t => t.entity_type === 'question');
+  const hasMetrics = tasks.some(t => t.entity_type !== 'question');
+  return { hasQuestions, hasMetrics };
+}
+
 export default function TaskLedger({ 
   tasks, 
   filters,
-  onFillTask, 
-  onViewTask,
-  onEditTask,
   emptyMessage = 'No tasks found',
   hasAssignments = false,
 }) {
@@ -62,6 +103,8 @@ export default function TaskLedger({
       const matchesSearch = 
         task.category?.toLowerCase().includes(searchLower) ||
         task.subcategory?.toLowerCase().includes(searchLower) ||
+        task.entity_id?.toLowerCase().includes(searchLower) ||
+        task.question_name?.toLowerCase().includes(searchLower) ||
         task.period_label?.toLowerCase().includes(searchLower) ||
         task.facility_name?.toLowerCase().includes(searchLower);
       if (!matchesSearch) return false;
@@ -112,20 +155,46 @@ export default function TaskLedger({
     );
   }
 
+  // Determine task list type for header rendering
+  const { hasQuestions, hasMetrics } = getTaskListType(sortedTasks);
+  const isQuestionsOnly = hasQuestions && !hasMetrics;
+  const isMetricsOnly = hasMetrics && !hasQuestions;
+
   return (
     <Card className="overflow-hidden" data-testid="task-ledger">
-      {/* Table Header */}
+      {/* Table Header - Different layouts for Questions vs Metrics */}
       <div className="bg-stone-50 border-b border-stone-200">
-        <div className="grid grid-cols-12 gap-2 px-4 py-3 text-xs font-medium text-stone-600 uppercase tracking-wider">
-          <div className="col-span-2">Category</div>
-          <div className="col-span-2">Subcategory</div>
-          <div className="col-span-1">Facility</div>
-          <div className="col-span-1">Period</div>
-          <div className="col-span-2">Due</div>
-          <div className="col-span-1">Status</div>
-          <div className="col-span-1">Approval Status</div>
-          <div className="col-span-2 text-right">Action</div>
-        </div>
+        {isQuestionsOnly ? (
+          // Questions header (BRSR/GRI): Question, Due, Status, Approval
+          <div className="grid grid-cols-12 gap-2 px-4 py-3 text-xs font-medium text-stone-600 uppercase tracking-wider">
+            <div className="col-span-7">Question</div>
+            <div className="col-span-2">Due</div>
+            <div className="col-span-2">Status</div>
+            <div className="col-span-1">Approval</div>
+          </div>
+        ) : isMetricsOnly ? (
+          // Metrics header (ESG): Category, Subcategory, Facility, Period, Due, Status, Approval
+          <div className="grid grid-cols-12 gap-2 px-4 py-3 text-xs font-medium text-stone-600 uppercase tracking-wider">
+            <div className="col-span-2">Category</div>
+            <div className="col-span-3">Subcategory</div>
+            <div className="col-span-1">Facility</div>
+            <div className="col-span-1">Period</div>
+            <div className="col-span-2">Due</div>
+            <div className="col-span-2">Status</div>
+            <div className="col-span-1">Approval</div>
+          </div>
+        ) : (
+          // Mixed: Show flexible header
+          <div className="grid grid-cols-12 gap-2 px-4 py-3 text-xs font-medium text-stone-600 uppercase tracking-wider">
+            <div className="col-span-3">Category / Question</div>
+            <div className="col-span-2">Subcategory</div>
+            <div className="col-span-1">Facility</div>
+            <div className="col-span-1">Period</div>
+            <div className="col-span-2">Due</div>
+            <div className="col-span-2">Status</div>
+            <div className="col-span-1">Approval</div>
+          </div>
+        )}
       </div>
 
       {/* Table Body */}
@@ -133,10 +202,9 @@ export default function TaskLedger({
         {sortedTasks.map(task => (
           <TaskLedgerRow 
             key={task.id} 
-            task={task} 
-            onFill={onFillTask}
-            onView={onViewTask}
-            onEdit={onEditTask || onFillTask}
+            task={task}
+            isQuestionsOnly={isQuestionsOnly}
+            isMetricsOnly={isMetricsOnly}
           />
         ))}
       </div>
@@ -144,24 +212,88 @@ export default function TaskLedger({
   );
 }
 
-function TaskLedgerRow({ task, onFill, onView, onEdit }) {
+function TaskLedgerRow({ task, isQuestionsOnly, isMetricsOnly }) {
   const dueInfo = formatDueDate(task, { showTime: true, showRelative: false });
   const periodDisplay = formatPeriodDisplay(task);
   const taskType = categorizeTask(task);
-  
-  // Determine if task is completed or approved
-  const isCompleted = task.status === 'completed';
-  const isApproved = task.approval_status === 'approved';
+  const displayInfo = getTaskDisplayInfo(task);
   
   // Check if approval status should be shown (has a meaningful value, not null/not_required)
   const hasApprovalStatus = task.approval_status && 
     task.approval_status !== 'not_required' && 
     task.approval_status !== 'none';
-  
-  // Check if user can edit
-  const role = task.user_role || 'editor';
-  const canEdit = ['owner', 'editor'].includes(role);
 
+  // Questions layout (BRSR/GRI): Question, Due, Status, Approval
+  if (isQuestionsOnly || displayInfo.isQuestion) {
+    return (
+      <div 
+        className={`grid grid-cols-12 gap-2 px-4 py-3 items-center hover:bg-stone-50 transition-colors ${
+          dueInfo.isOverdue ? 'bg-red-50/50' : ''
+        }`}
+        data-testid={`task-ledger-row-${task.id}`}
+      >
+        {/* Question Name */}
+        <div className="col-span-7">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm text-text-primary" title={displayInfo.primary}>
+              {displayInfo.primary.length > 100 
+                ? displayInfo.primary.substring(0, 100) + '...' 
+                : displayInfo.primary}
+            </span>
+            {/* Backfill/Future Tags */}
+            {taskType === TASK_TYPE.BACKFILL && (
+              <Badge className="bg-amber-100 text-amber-700 text-xs px-1.5 py-0">
+                Backfill
+              </Badge>
+            )}
+            {taskType === TASK_TYPE.FUTURE && (
+              <Badge className="bg-blue-100 text-blue-700 text-xs px-1.5 py-0">
+                Future
+              </Badge>
+            )}
+          </div>
+        </div>
+
+        {/* Due Date */}
+        <div className="col-span-2">
+          <span className={`text-sm ${
+            dueInfo.isOverdue ? 'text-red-600 font-medium' : 
+            dueInfo.isUrgent ? 'text-orange-600' : 'text-text-primary'
+          }`}>
+            {task.due_at 
+              ? new Date(task.due_at).toLocaleString('en-US', { 
+                  month: 'short', 
+                  day: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit'
+                }) 
+              : '-'}
+          </span>
+          {dueInfo.isOverdue && (
+            <Badge className="ml-1 bg-red-100 text-red-700 text-xs px-1.5 py-0">
+              Overdue
+            </Badge>
+          )}
+        </div>
+
+        {/* Status */}
+        <div className="col-span-2">
+          <OperationalStatusBadge status={task.status} />
+        </div>
+
+        {/* Approval Status */}
+        <div className="col-span-1">
+          {hasApprovalStatus ? (
+            <ApprovalStatusBadge approvalStatus={task.approval_status} />
+          ) : (
+            <span className="text-sm text-stone-400">-</span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Metrics layout (ESG): Category, Subcategory, Facility, Period, Due, Status, Approval
   return (
     <div 
       className={`grid grid-cols-12 gap-2 px-4 py-3 items-center hover:bg-stone-50 transition-colors ${
@@ -169,11 +301,11 @@ function TaskLedgerRow({ task, onFill, onView, onEdit }) {
       }`}
       data-testid={`task-ledger-row-${task.id}`}
     >
-      {/* Category with Tags */}
+      {/* Category */}
       <div className="col-span-2">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm text-text-primary">
-            {task.category || '-'}
+          <span className="text-sm text-text-primary" title={displayInfo.primary}>
+            {displayInfo.primary}
           </span>
           {/* Backfill/Future Tags */}
           {taskType === TASK_TYPE.BACKFILL && (
@@ -190,15 +322,15 @@ function TaskLedgerRow({ task, onFill, onView, onEdit }) {
       </div>
 
       {/* Subcategory */}
-      <div className="col-span-2">
+      <div className="col-span-3">
         <span className="text-sm text-text-primary">
-          {task.subcategory || '-'}
+          {displayInfo.secondary}
         </span>
       </div>
 
       {/* Facility */}
       <div className="col-span-1">
-        <span className="text-sm text-text-primary">
+        <span className="text-sm text-text-primary truncate" title={task.facility_name || 'Org-level'}>
           {task.facility_name || 'Org-level'}
         </span>
       </div>
@@ -224,14 +356,14 @@ function TaskLedgerRow({ task, onFill, onView, onEdit }) {
             : '-'}
         </span>
         {dueInfo.isOverdue && (
-          <Badge className="ml-2 bg-red-100 text-red-700 text-xs px-1.5 py-0">
+          <Badge className="ml-1 bg-red-100 text-red-700 text-xs px-1.5 py-0">
             Overdue
           </Badge>
         )}
       </div>
 
       {/* Status */}
-      <div className="col-span-1">
+      <div className="col-span-2">
         <OperationalStatusBadge status={task.status} />
       </div>
 
@@ -241,59 +373,6 @@ function TaskLedgerRow({ task, onFill, onView, onEdit }) {
           <ApprovalStatusBadge approvalStatus={task.approval_status} />
         ) : (
           <span className="text-sm text-stone-400">-</span>
-        )}
-      </div>
-
-      {/* Action */}
-      <div className="col-span-2 text-right flex items-center justify-end gap-2">
-        {isCompleted ? (
-          <>
-            {/* View button for completed tasks */}
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => onView?.(task)}
-              className="gap-1 text-stone-600 h-7 text-xs"
-              data-testid={`task-view-btn-${task.id}`}
-            >
-              <Eye className="w-3 h-3" />
-              View
-            </Button>
-            {/* Edit button for completed tasks (if can edit and not approved) */}
-            {canEdit && !isApproved && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => onEdit?.(task)}
-                className="gap-1 h-7 text-xs"
-                data-testid={`task-edit-btn-${task.id}`}
-              >
-                <Pencil className="w-3 h-3" />
-                Edit
-              </Button>
-            )}
-          </>
-        ) : canEdit ? (
-          <Button
-            size="sm"
-            onClick={() => onFill(task)}
-            className="bg-emerald-600 hover:bg-emerald-700 gap-1 h-7 text-xs"
-            data-testid={`task-fill-btn-${task.id}`}
-          >
-            Fill
-            <ArrowRight className="w-3 h-3" />
-          </Button>
-        ) : (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => onView?.(task)}
-            className="gap-1 text-stone-500 h-7 text-xs"
-            data-testid={`task-view-btn-${task.id}`}
-          >
-            <Eye className="w-3 h-3" />
-            View
-          </Button>
         )}
       </div>
     </div>

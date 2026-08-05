@@ -13,7 +13,6 @@ import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
-import BRSRDetailsSection from '../components/BRSRDetailsSection';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -58,8 +57,6 @@ export default function OrganizationDetails() {
   const [logoError, setLogoError] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [pincodeError, setPincodeError] = useState('');
-  const [isBRSREnabled, setIsBRSREnabled] = useState(false);
-  const [brsrData, setBRSRData] = useState(null);
   const [activeTab, setActiveTab] = useState('organization');
   
   // Yearly Data State (Turnover & Production Quantity)
@@ -120,6 +117,7 @@ export default function OrganizationDetails() {
     city: '',
     state: '',
     country: '',
+    timezone: '',  // IANA timezone string
     pincode: '',
     logo: '',
     general_description: '',
@@ -144,6 +142,8 @@ export default function OrganizationDetails() {
     ghg_reduction_initiatives: '',
     internal_performance_tracking: ''
   });
+  
+  const [timezones, setTimezones] = useState([]);  // Available timezone options
 
   const [newAttachment, setNewAttachment] = useState({ name: '', url: '' });
 
@@ -202,6 +202,7 @@ export default function OrganizationDetails() {
       city: data.city || null,
       state: data.state || null,
       country: data.country || null,
+      timezone: data.timezone || null,
       pincode: data.pincode || null,
       logo: data.logo || null
     };
@@ -236,6 +237,36 @@ export default function OrganizationDetails() {
   useEffect(() => {
     fetchOrganization();
   }, []);
+
+  // Fetch available timezones on component mount
+  useEffect(() => {
+    const fetchTimezones = async () => {
+      try {
+        const response = await axios.get(`${API}/timezones`, { headers: getAuthHeader() });
+        setTimezones(response.data || []);
+      } catch (error) {
+        console.error('Failed to fetch timezones:', error);
+      }
+    };
+    fetchTimezones();
+  }, [getAuthHeader]);
+
+  // Update timezone when country changes (suggest default)
+  const handleCountryChange = async (country) => {
+    setFormData(prev => ({ ...prev, country }));
+    
+    // If no timezone set yet, fetch the default for this country
+    if (country && !formData.timezone) {
+      try {
+        const response = await axios.get(`${API}/timezones/default/${encodeURIComponent(country)}`, { headers: getAuthHeader() });
+        if (response.data?.timezone) {
+          setFormData(prev => ({ ...prev, timezone: response.data.timezone }));
+        }
+      } catch (error) {
+        console.error('Failed to get default timezone:', error);
+      }
+    }
+  };
 
   // Fetch yearly data when year changes
   const fetchYearlyData = useCallback(async () => {
@@ -292,14 +323,6 @@ export default function OrganizationDetails() {
     }
   };
 
-  // Fetch BRSR enabled status when organization is loaded
-  useEffect(() => {
-    if (organization) {
-      const enabled = organization.esg_frameworks_enabled?.includes('BRSR') || false;
-      setIsBRSREnabled(enabled);
-    }
-  }, [organization]);
-
   const fetchOrganization = async () => {
     try {
       const response = await axios.get(`${API}/organizations/my`, {
@@ -331,11 +354,8 @@ export default function OrganizationDetails() {
         }
       }
       
-      // Handle logo URL - ensure it has the full URL if it's a relative path
-      let logoUrl = response.data.logo || '';
-      if (logoUrl && !logoUrl.startsWith('http') && !logoUrl.startsWith('data:')) {
-        logoUrl = `${BACKEND_URL}${logoUrl.startsWith('/') ? '' : '/'}${logoUrl}`;
-      }
+      // Keep logo URL as stored in DB (relative path) - use getFullLogoUrl() for display only
+      const logoUrl = response.data.logo || '';
       
       setFormData({
         name: response.data.name,
@@ -343,6 +363,7 @@ export default function OrganizationDetails() {
         city: response.data.city || '',
         state: response.data.state || '',
         country: response.data.country || '',
+        timezone: response.data.timezone || '',
         pincode: response.data.pincode || '',
         logo: logoUrl,
         general_description: response.data.general_description || '',
@@ -443,8 +464,8 @@ export default function OrganizationDetails() {
         headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
       });
       
-      // Use /view endpoint for public access (for img tags)
-      const logoUrl = `${BACKEND_URL}${response.data.url}/view`;
+      // Store relative path (like evidences) - frontend will prepend BACKEND_URL at display time
+      const logoUrl = `${response.data.url}/view`;
       setFormData({ ...formData, logo: logoUrl });
       setLogoError(false);
       toast.success('Logo uploaded successfully');
@@ -491,10 +512,10 @@ export default function OrganizationDetails() {
           headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
         });
         
-        // Use /view endpoint for images, regular for other files
+        // Store relative path (like evidences) - frontend will prepend BACKEND_URL at display time
         const fileUrl = file.type.startsWith('image/') 
-          ? `${BACKEND_URL}${response.data.url}/view`
-          : `${BACKEND_URL}${response.data.url}`;
+          ? `${response.data.url}/view`
+          : response.data.url;
         
         newAttachments.push({ 
           name: file.name, 
@@ -706,6 +727,12 @@ export default function OrganizationDetails() {
                         {organization.country}
                       </Badge>
                     )}
+                    {organization?.timezone && (
+                      <Badge variant="outline" className="bg-stone-50 text-stone-700 border-stone-200">
+                        <Clock className="w-3 h-3 mr-1" />
+                        {timezones.find(tz => tz.value === organization.timezone)?.label || organization.timezone}
+                      </Badge>
+                    )}
                     {organization?.esg_frameworks_enabled?.map((framework) => (
                       <Badge key={framework} className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100">
                         <Shield className="w-3 h-3 mr-1" />
@@ -761,14 +788,6 @@ export default function OrganizationDetails() {
           >
             Organization Details
           </TabsTrigger>
-          {isBRSREnabled && (
-            <TabsTrigger 
-              value="brsr" 
-              className="data-[state=active]:bg-white data-[state=active]:text-primary px-6"
-            >
-              BRSR
-            </TabsTrigger>
-          )}
           <TabsTrigger 
             value="gri" 
             className="data-[state=active]:bg-white data-[state=active]:text-primary px-6"
@@ -792,7 +811,7 @@ export default function OrganizationDetails() {
                 <div className="flex items-center gap-4">
                   {formData.logo && !logoError ? (
                     <img 
-                      src={formData.logo} 
+                      src={getFullLogoUrl(formData.logo)} 
                       alt="Logo preview" 
                       className="w-16 h-16 object-contain border border-stone-200 rounded-lg"
                       onError={() => setLogoError(true)}
@@ -865,11 +884,26 @@ export default function OrganizationDetails() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Country <span className="text-red-500">*</span></Label>
-                  <select value={formData.country} onChange={(e) => setFormData({ ...formData, country: e.target.value })} className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3" required>
+                  <select value={formData.country} onChange={(e) => handleCountryChange(e.target.value)} className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3" required>
                     <option value="">Select Country</option>
                     {COUNTRIES.map(c => (<option key={c} value={c}>{c}</option>))}
                   </select>
                 </div>
+                <div className="space-y-2">
+                  <Label>Timezone</Label>
+                  <select 
+                    value={formData.timezone} 
+                    onChange={(e) => setFormData({ ...formData, timezone: e.target.value })} 
+                    className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                  >
+                    <option value="">Select Timezone</option>
+                    {timezones.map(tz => (
+                      <option key={tz.value} value={tz.value}>{tz.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>PIN/ZIP Code <span className="text-red-500">*</span></Label>
                   <Input 
@@ -1417,6 +1451,14 @@ export default function OrganizationDetails() {
                   <div className="flex justify-between">
                     <span className="text-text-muted">Country</span>
                     <span className="text-text-primary">{organization.country}</span>
+                  </div>
+                )}
+                {organization?.timezone && (
+                  <div className="flex justify-between">
+                    <span className="text-text-muted">Timezone</span>
+                    <span className="text-text-primary">
+                      {timezones.find(tz => tz.value === organization.timezone)?.label || organization.timezone}
+                    </span>
                   </div>
                 )}
                 {organization?.pincode && (
@@ -1969,18 +2011,6 @@ export default function OrganizationDetails() {
           )}
         </Card>
         </TabsContent>
-
-        {/* BRSR Tab */}
-        {isBRSREnabled && (
-          <TabsContent value="brsr" className="mt-6">
-            <BRSRDetailsSection 
-              isEditing={editing}
-              onDataChange={setBRSRData}
-              isCollapsible={false}
-              hideSections={['employees_workers', 'women_representation', 'turnover_rate', 'complaints_grievances']}
-            />
-          </TabsContent>
-        )}
 
         {/* GRI Tab */}
         <TabsContent value="gri" className="mt-6">

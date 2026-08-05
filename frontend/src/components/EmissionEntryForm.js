@@ -76,7 +76,20 @@ export default function EmissionEntryForm({
   onFormChange, // Callback when form becomes dirty (#19)
   editingEmission = null,
   configLabels = null, // Centralized label configuration
-  organization = null // Organization data for reporting year type
+  organization = null, // Organization data for reporting year type
+  // KPI Access Control props
+  kpiAccessInfo = null,
+  kpiCanAccessScope = null,
+  kpiCanAccessPeriod = null,
+  kpiGetPeriodRestrictions = null,
+  kpiAllowedScopes = null,
+  kpiPeriodRestrictions = null,
+  filterFacilitiesByScope = null,
+  hasFullKPIAccess = true,
+  // Supplier context for supplier portal emissions
+  supplierContext = null,
+  // OCR Prefill Data - from AI Invoice Extractor workflow
+  ocrPrefillData = null,
 }) {
   // Helper to get method labels from centralized config (no hardcoded fallbacks)
   const getMethodLabel = useCallback((method, short = false) => {
@@ -205,6 +218,440 @@ export default function EmissionEntryForm({
     setLoadingBiogenicCategories,
     setFugitiveEmissionsData,
   });
+
+  // ============================================================================
+  // EDIT MODE HYDRATION
+  // Auto-populate form fields from editingEmission when editing
+  // Uses hydrateEmissionForm utility for comprehensive, consistent hydration
+  // ============================================================================
+  useEffect(() => {
+    if (!editingEmission) return;
+    
+    // Import the hydration utility dynamically to avoid circular deps
+    import('../pages/emissions/utils/hydrateEmissionForm').then(({ hydrateEmissionForm }) => {
+      const hydrated = hydrateEmissionForm(editingEmission, {
+        fuelDatabase,
+        scope3EFData,
+        fugitiveEmissionsData,
+      });
+      
+      // Hydrate basic selection fields (Step 1)
+      if (editingEmission.facility_id) {
+        setFacilityId(editingEmission.facility_id);
+      }
+      if (editingEmission.scope) {
+        setScope(editingEmission.scope);
+      }
+      if (editingEmission.category) {
+        setCategory(editingEmission.category);
+      }
+      if (editingEmission.fuel_database_id) {
+        setFuelId(editingEmission.fuel_database_id);
+      } else if (editingEmission.fuel_type) {
+        // Try to find matching fuel by name
+        const matchingFuel = fuelDatabase.find(f => 
+          f.fuel_name === editingEmission.fuel_type || 
+          f.name === editingEmission.fuel_type
+        );
+        if (matchingFuel) {
+          setFuelId(matchingFuel.id);
+        }
+      }
+      
+      // Hydrate frequency type
+      if (hydrated.frequencyType) {
+        setFrequencyType(hydrated.frequencyType);
+      }
+      
+      // Hydrate reporting period
+      if (editingEmission.reporting_period) {
+        const rp = editingEmission.reporting_period;
+        // Extract year from reporting period (e.g., "2024-01" or "FY2024")
+        const yearMatch = rp.match(/(\d{4})/);
+        if (yearMatch) {
+          setReportingYear(yearMatch[1]);
+        }
+      }
+      
+      // Hydrate notes
+      if (editingEmission.notes) {
+        setNotes(editingEmission.notes);
+      }
+      
+      // Hydrate responsible person info
+      if (editingEmission.responsible_person) {
+        setResponsiblePerson(editingEmission.responsible_person);
+      }
+      if (editingEmission.responsible_person_designation) {
+        setResponsiblePersonDesignation(editingEmission.responsible_person_designation);
+      }
+      if (editingEmission.responsible_person_contact) {
+        setResponsiblePersonContact(editingEmission.responsible_person_contact);
+      }
+      
+      // Hydrate biogenic scope selection using hydrated values
+      if (editingEmission.scope === 'biogenic') {
+        setBiogenicScopeSelection(hydrated.biogenicScopeSelection);
+      }
+      
+      // Hydrate Scope 3 fields using hydrated values
+      if (editingEmission.scope === 'scope3' || 
+          (editingEmission.scope === 'biogenic' && hydrated.biogenicScopeSelection === 'scope3')) {
+        setScope3Method(hydrated.scope3Method);
+        setScope3ActivityType(hydrated.scope3ActivityType);
+        setScope3Subcategory(hydrated.scope3Subcategory);
+        setTypeOfProduct(hydrated.typeOfProduct);
+        setScope3ActivityId(hydrated.scope3ActivityId);
+        setScope3CustomActivity(hydrated.scope3CustomActivity);
+        setUseCustomActivity(hydrated.useCustomActivity);
+        
+        // Hydrate employee data for C7
+        if (hydrated.employees?.length > 0) {
+          setEmployees(hydrated.employees);
+          setEmployeeMonthlyTotals(hydrated.employeeMonthlyTotals);
+          setEmployeeYearlyTotal(hydrated.employeeYearlyTotal);
+        }
+      }
+      
+      // Hydrate monthly data for monthly frequency
+      if (editingEmission.frequency_type === 'monthly' || !editingEmission.frequency_type) {
+        const dfv = editingEmission.dynamic_field_values || editingEmission.inputs || {};
+        const monthKey = editingEmission.reporting_period?.split('-')[1]; // e.g., "01" from "2024-01"
+        
+        if (monthKey) {
+          const monthData = {};
+          Object.entries(dfv).forEach(([key, val]) => {
+            if (val && typeof val === 'object' && 'value' in val) {
+              monthData[key] = val.value;
+              if (val.unit) {
+                monthData[`${key}_unit`] = val.unit;
+              }
+            } else {
+              monthData[key] = val;
+            }
+          });
+          
+          // Also include calculated values if they exist
+          if (editingEmission.co2e_emissions !== undefined) {
+            monthData.calculatedCO2e = editingEmission.co2e_emissions;
+          }
+          if (editingEmission.co2_emissions !== undefined) {
+            monthData.calculatedCO2 = editingEmission.co2_emissions;
+          }
+          
+          setMonthlyData(prev => ({
+            ...prev,
+            [monthKey]: monthData
+          }));
+        }
+      }
+      
+      // Hydrate yearly data for yearly frequency
+      if (editingEmission.frequency_type === 'yearly') {
+        const dfv = editingEmission.dynamic_field_values || editingEmission.inputs || {};
+        const yearData = {};
+        Object.entries(dfv).forEach(([key, val]) => {
+          if (val && typeof val === 'object' && 'value' in val) {
+            yearData[key] = val.value;
+            if (val.unit) {
+              yearData[`${key}_unit`] = val.unit;
+            }
+          } else {
+            yearData[key] = val;
+          }
+        });
+        
+        // Also include calculated values
+        if (editingEmission.co2e_emissions !== undefined) {
+          yearData.calculatedCO2e = editingEmission.co2e_emissions;
+        }
+        if (editingEmission.co2_emissions !== undefined) {
+          yearData.calculatedCO2 = editingEmission.co2_emissions;
+        }
+        
+        setYearlyData(prev => ({
+          ...prev,
+          ...yearData
+        }));
+      }
+    }).catch(err => {
+      console.error('Failed to load hydration utility:', err);
+      // Fall back to basic hydration
+      if (editingEmission.facility_id) setFacilityId(editingEmission.facility_id);
+      if (editingEmission.scope) setScope(editingEmission.scope);
+      if (editingEmission.category) setCategory(editingEmission.category);
+    });
+    
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingEmission?.id, fuelDatabase]);
+
+  // ============================================================================
+  // OCR PREFILL HELPERS
+  // Isolated helper functions for OCR quantity prefill logic.
+  // Structured for easy replacement with a generic mapping engine in the future.
+  // ============================================================================
+  
+  /**
+   * Find the primary activity/quantity field from formConfig fields.
+   * This is typically the main numeric input field (e.g., energy_consumed, quantity, consumption).
+   * @param {Array} fields - Array of field configurations from dynamicInputFields
+   * @returns {Object|null} - The primary field config or null if not found
+   */
+  const findPrimaryActivityField = useCallback((fields) => {
+    console.log('[OCR Debug] findPrimaryActivityField called with fields:', fields);
+    
+    if (!fields || fields.length === 0) {
+      console.log('[OCR Debug] No fields provided');
+      return null;
+    }
+    
+    // Priority order for identifying the primary quantity field
+    const primaryFieldPatterns = [
+      'energy_consumed',
+      'qty_energy',
+      'quantity',
+      'consumption',
+      'amount',
+      'volume',
+      'mass',
+      'fuel_consumed',
+      'electricity_consumed',
+      'gas_consumed'
+    ];
+    
+    // Log all field keys for debugging (using fieldKey - camelCase)
+    console.log('[OCR Debug] Available field keys:', fields.map(f => f.fieldKey));
+    
+    // First, try to find by fieldKey matching known patterns
+    for (const pattern of primaryFieldPatterns) {
+      const match = fields.find(f => 
+        f.fieldKey?.toLowerCase() === pattern ||
+        f.fieldKey?.toLowerCase().includes(pattern)
+      );
+      if (match) {
+        console.log('[OCR Debug] Found primary field by pattern:', pattern, '→', match.fieldKey);
+        return match;
+      }
+    }
+    
+    // Fallback: find the first numeric field that has an associated unit field
+    const numericField = fields.find(f => 
+      f.fieldType === 'number' && 
+      fields.some(uf => uf.fieldKey === `${f.fieldKey}_unit`)
+    );
+    if (numericField) {
+      console.log('[OCR Debug] Found primary field by numeric+unit fallback:', numericField.fieldKey);
+      return numericField;
+    }
+    
+    // Last resort: first numeric field
+    const firstNumeric = fields.find(f => f.fieldType === 'number');
+    if (firstNumeric) {
+      console.log('[OCR Debug] Found primary field by first numeric fallback:', firstNumeric.fieldKey);
+      return firstNumeric;
+    }
+    
+    console.log('[OCR Debug] No primary field found!');
+    return null;
+  }, []);
+
+  /**
+   * Apply OCR quantity to the primary activity field in monthlyData.
+   * @param {string} monthKey - The month key (e.g., '01', '06', '12')
+   * @param {number} quantity - The OCR extracted quantity
+   * @param {string} unit - The OCR extracted unit
+   * @param {Object} primaryField - The primary field config from findPrimaryActivityField
+   * @param {Function} setMonthlyData - State setter for monthlyData
+   */
+  const applyOcrQuantityToField = useCallback((monthKey, quantity, unit, primaryField, setMonthlyDataFn) => {
+    console.log('[OCR Debug] applyOcrQuantityToField called:', { monthKey, quantity, unit, primaryField });
+    
+    if (!primaryField?.fieldKey || !monthKey) {
+      console.log('[OCR Debug] Missing primaryField.fieldKey or monthKey, aborting');
+      return;
+    }
+    
+    const fieldKey = primaryField.fieldKey;
+    const unitFieldKey = `${fieldKey}_unit`;
+    
+    console.log(`[OCR Prefill] Applying quantity ${quantity} ${unit} to field: ${fieldKey}, unit field: ${unitFieldKey}`);
+    
+    setMonthlyDataFn(prev => {
+      const updated = {
+        ...prev,
+        [monthKey]: {
+          ...prev[monthKey],
+          [fieldKey]: quantity,
+          [unitFieldKey]: unit || ''
+        }
+      };
+      console.log('[OCR Debug] Updated monthlyData:', updated);
+      return updated;
+    });
+  }, []);
+
+  // ============================================================================
+  // OCR PREFILL HYDRATION
+  // Auto-populate form fields from OCR Invoice Extractor workflow
+  // ============================================================================
+  
+  // Store OCR month/quantity info for deferred application after formConfig loads
+  const [ocrPendingQuantity, setOcrPendingQuantity] = useState(null);
+  
+  // Phase 1: Set scope, category, fuel, and other metadata (runs immediately)
+  useEffect(() => {
+    if (!ocrPrefillData) return;
+    
+    console.log('[OCR Debug] Phase 1 - ocrPrefillData:', ocrPrefillData);
+    console.log('[OCR Debug] Phase 1 - fuelDatabase length:', fuelDatabase?.length);
+    
+    // Set scope (scope1, scope2, scope3)
+    if (ocrPrefillData.scope) {
+      console.log('[OCR Debug] Setting scope:', ocrPrefillData.scope);
+      setScope(ocrPrefillData.scope);
+    }
+    
+    // Set category
+    if (ocrPrefillData.category) {
+      console.log('[OCR Debug] Setting category:', ocrPrefillData.category);
+      setCategory(ocrPrefillData.category);
+    }
+    
+    // Set fuel type by looking up fuelId from fuelDatabase
+    // For Scope 2 electricity, look for subcategory match (e.g., "Non-Renewable Electricity")
+    if (fuelDatabase?.length > 0) {
+      const fuelNameLower = (ocrPrefillData.fuel_name || '').toLowerCase();
+      const subcategoryLower = (ocrPrefillData.subcategory || '').toLowerCase();
+      const categoryLower = (ocrPrefillData.category || '').toLowerCase();
+      
+      console.log('[OCR Debug] Looking for fuel match:', { fuelNameLower, subcategoryLower, categoryLower });
+      // Log first 10 fuels to understand the structure
+      console.log('[OCR Debug] Sample fuels (first 10):', fuelDatabase.slice(0, 10).map(f => ({ 
+        id: f.id, 
+        name: f.name, 
+        activity: f.activity,
+        fuel_name: f.fuel_name,
+        category: f.category,
+        subcategory: f.subcategory
+      })));
+      
+      let matchedFuel = null;
+      
+      // Helper function to check if any field matches the search term
+      const fuelMatches = (fuel, searchTerm) => {
+        if (!searchTerm) return false;
+        const searchLower = searchTerm.toLowerCase();
+        
+        // Check all possible name fields
+        const fieldsToCheck = [
+          fuel.name,
+          fuel.activity,
+          fuel.fuel_name,
+          fuel.subcategory,
+          fuel.label,
+          fuel.display_name
+        ];
+        
+        for (const field of fieldsToCheck) {
+          if (!field) continue;
+          const fieldLower = field.toLowerCase();
+          // Exact match
+          if (fieldLower === searchLower) return true;
+          // Contains match
+          if (fieldLower.includes(searchLower) || searchLower.includes(fieldLower)) return true;
+        }
+        return false;
+      };
+      
+      // For Scope 2, try to match by subcategory first (e.g., "Non-Renewable Electricity")
+      if (subcategoryLower) {
+        matchedFuel = fuelDatabase.find(f => fuelMatches(f, subcategoryLower));
+        if (matchedFuel) {
+          console.log('[OCR Debug] Matched fuel by subcategory:', matchedFuel.name || matchedFuel.activity);
+        }
+      }
+      
+      // Try matching by fuel_name (e.g., "Electricity")
+      if (!matchedFuel && fuelNameLower) {
+        matchedFuel = fuelDatabase.find(f => fuelMatches(f, fuelNameLower));
+        if (matchedFuel) {
+          console.log('[OCR Debug] Matched fuel by fuel_name:', matchedFuel.name || matchedFuel.activity);
+        }
+      }
+      
+      // Try matching common variations for electricity
+      if (!matchedFuel && (fuelNameLower.includes('electric') || subcategoryLower.includes('electric'))) {
+        const electricityVariations = [
+          'non-renewable electricity',
+          'non renewable electricity', 
+          'nonrenewable electricity',
+          'grid electricity',
+          'purchased electricity',
+          'electricity - non-renewable',
+          'electricity (non-renewable)',
+          'electricity'
+        ];
+        
+        for (const variation of electricityVariations) {
+          matchedFuel = fuelDatabase.find(f => fuelMatches(f, variation));
+          if (matchedFuel) {
+            console.log('[OCR Debug] Matched fuel by electricity variation:', variation, '→', matchedFuel.name || matchedFuel.activity);
+            break;
+          }
+        }
+      }
+      
+      if (matchedFuel?.id) {
+        console.log('[OCR Prefill] Setting fuelId:', matchedFuel.id, matchedFuel.name || matchedFuel.activity);
+        setFuelId(matchedFuel.id);
+      } else {
+        console.log('[OCR Debug] No fuel match found. Available fuel names:', 
+          fuelDatabase.slice(0, 20).map(f => f.name || f.activity || f.fuel_name).filter(Boolean)
+        );
+      }
+    }
+    
+    // Set responsible person (current user from OCR accept)
+    if (ocrPrefillData.responsible_person) {
+      setResponsiblePerson(ocrPrefillData.responsible_person);
+    }
+    
+    // Set record source (invoice info)
+    if (ocrPrefillData.source_of_information) {
+      setRecordSource(ocrPrefillData.source_of_information);
+    }
+    
+    // Store quantity info for Phase 2 (after formConfig loads)
+    if (ocrPrefillData.quantity && ocrPrefillData.billing_period?.start_date) {
+      const startDate = new Date(ocrPrefillData.billing_period.start_date);
+      const monthKey = String(startDate.getMonth() + 1).padStart(2, '0');
+      const year = startDate.getFullYear();
+      
+      console.log('[OCR Debug] Phase 1 - Setting up pending quantity:', { monthKey, year, quantity: ocrPrefillData.quantity });
+      
+      // Set reporting year immediately
+      setReportingYear(String(year));
+      
+      // Expand the month immediately
+      setExpandedMonths(prev => {
+        if (Array.isArray(prev) && !prev.includes(monthKey)) {
+          return [...prev, monthKey];
+        }
+        return prev;
+      });
+      
+      // Store for Phase 2
+      setOcrPendingQuantity({
+        monthKey,
+        quantity: ocrPrefillData.quantity,
+        unit: ocrPrefillData.unit || ''
+      });
+    }
+    
+    // Note: Facility is NOT auto-selected per spec
+    // Note: Process Name and Description are left empty per spec
+    
+  }, [ocrPrefillData, fuelDatabase]);
 
   // Sync decisionFieldValues + custom-activity auto-enable now live inside
   // useEmissionFormState (F2 integration). The corresponding inline useEffects
@@ -971,6 +1418,45 @@ export default function EmissionEntryForm({
       setMatchedFormulaId(currentFormulaId);
     }
   }, [currentFormulaId, matchedFormulaId]);
+
+  // ============================================================================
+  // OCR PREFILL PHASE 2
+  // Apply quantity to the correct field after formConfig/dynamicInputFields are available
+  // ============================================================================
+  useEffect(() => {
+    console.log('[OCR Debug] Phase 2 effect triggered:', { 
+      ocrPendingQuantity, 
+      dynamicInputFieldsLength: dynamicInputFields?.length,
+      dynamicInputFields: dynamicInputFields?.map(f => f.fieldKey)
+    });
+    
+    if (!ocrPendingQuantity) {
+      console.log('[OCR Debug] Phase 2 - No pending quantity, skipping');
+      return;
+    }
+    if (!dynamicInputFields || dynamicInputFields.length === 0) {
+      console.log('[OCR Debug] Phase 2 - No dynamicInputFields yet, waiting...');
+      return;
+    }
+    
+    console.log('[OCR Debug] Phase 2 - Finding primary field...');
+    const primaryField = findPrimaryActivityField(dynamicInputFields);
+    
+    if (primaryField) {
+      console.log('[OCR Prefill] Phase 2 - Found primary field:', primaryField.fieldKey);
+      applyOcrQuantityToField(
+        ocrPendingQuantity.monthKey,
+        ocrPendingQuantity.quantity,
+        ocrPendingQuantity.unit,
+        primaryField,
+        setMonthlyData
+      );
+      // Clear pending after applying
+      setOcrPendingQuantity(null);
+    } else {
+      console.log('[OCR Debug] Phase 2 - No primary field found!');
+    }
+  }, [ocrPendingQuantity, dynamicInputFields, findPrimaryActivityField, applyOcrQuantityToField]);
 
   // Initialize unit values in monthlyData when dynamicInputFields or selectedFuel changes
   // This ensures that units are always explicitly set, not relying on dropdown display fallbacks
@@ -2521,6 +3007,8 @@ export default function EmissionEntryForm({
     evaluateFormula, buildDecisionInputs,
     // Editing
     editingEmission,
+    // Supplier context (optional)
+    supplierContext,
   });
 
   // Step indicators
@@ -2533,6 +3021,29 @@ export default function EmissionEntryForm({
 
   return (
     <div className="space-y-6">
+      {/* OCR Import Notice Banner */}
+      {ocrPrefillData && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
+          <div className="flex-shrink-0 mt-0.5">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-blue-800">
+              AI-Assisted Entry from Invoice
+            </p>
+            <p className="text-sm text-blue-600 mt-1">
+              This form has been pre-filled from your uploaded invoice
+              {ocrPrefillData.invoice_filename && (
+                <span className="font-medium"> ({ocrPrefillData.invoice_filename})</span>
+              )}. 
+              The invoice will be automatically attached as evidence when you save.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Step Indicator */}
       <div className="flex items-center justify-between mb-6">
         {steps.map((step, idx) => (
@@ -2628,6 +3139,11 @@ export default function EmissionEntryForm({
           setEmployeeName={setEmployeeName}
           employeeId={employeeId}
           setEmployeeId={setEmployeeId}
+          // KPI Access Control
+          kpiCanAccessScope={kpiCanAccessScope}
+          kpiAllowedScopes={kpiAllowedScopes}
+          filterFacilitiesByScope={filterFacilitiesByScope}
+          hasFullKPIAccess={hasFullKPIAccess}
         />
       )}
 

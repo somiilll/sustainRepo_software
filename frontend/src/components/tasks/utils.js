@@ -5,12 +5,16 @@
  */
 
 import { TASK_STATUS, TASK_TYPE, APPROVAL_STATUS } from './constants';
+import { formatDateTime as formatDateTimeUtil, formatDate as formatDateUtil } from '../../utils/dateTimeUtils';
 
 /**
- * Check if task is operationally complete
+ * Check if task is operationally complete (work is done)
+ * Includes pending_approval since work IS submitted, just awaiting review
  */
 export const isTaskCompleted = (task) => {
-  return task.status === TASK_STATUS.COMPLETED;
+  return task.status === TASK_STATUS.COMPLETED || 
+         task.status === 'pending_approval' ||
+         task.approval_status === APPROVAL_STATUS.PENDING_APPROVAL;
 };
 
 /**
@@ -22,13 +26,17 @@ export const isAwaitingApproval = (task) => {
 
 /**
  * Determine if a task is overdue (not completed and past due date)
+ * Tasks with pending_approval are NOT overdue - work is done, just awaiting review
  */
 export const isTaskOverdue = (task) => {
   const dueAt = task.due_at || task.due_date;
   if (!dueAt) return false;
   const now = new Date();
-  // Task is overdue only if not completed and past due
-  return new Date(dueAt) < now && task.status !== TASK_STATUS.COMPLETED;
+  // Task is overdue only if not completed AND not pending approval AND past due
+  const workDone = task.status === TASK_STATUS.COMPLETED || 
+                   task.status === 'pending_approval' ||
+                   task.approval_status === APPROVAL_STATUS.PENDING_APPROVAL;
+  return new Date(dueAt) < now && !workDone;
 };
 
 /**
@@ -59,7 +67,7 @@ export const categorizeTask = (task) => {
  * Now respects task completion status - completed tasks are NOT marked overdue
  */
 export const formatDueDate = (task, options = {}) => {
-  const { showTime = true, showRelative = true } = options;
+  const { showTime = true, showRelative = true, timezone = 'UTC' } = options;
   const dateStr = task.due_at || task.due_date;
   if (!dateStr) return { text: '-', isOverdue: false, isUrgent: false };
   
@@ -67,27 +75,25 @@ export const formatDueDate = (task, options = {}) => {
   const now = new Date();
   const diffDays = Math.ceil((date - now) / (1000 * 60 * 60 * 24));
   
-  const formatted = date.toLocaleDateString('en-US', { 
-    month: 'short', 
-    day: 'numeric',
-    year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
-  });
+  // Use the shared formatter with timezone support
+  const formatted = showTime 
+    ? formatDateTimeUtil(date, timezone)
+    : formatDateUtil(date, timezone);
   
-  const time = showTime 
-    ? date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-    : null;
-  
-  let text = time ? `${formatted}, ${time}` : formatted;
+  let text = formatted;
   let suffix = '';
   
-  // Check if task is completed - completed tasks are never overdue
-  const isCompleted = task.status === TASK_STATUS.COMPLETED;
+  // Check if task work is done - completed OR pending_approval (submitted, awaiting review)
+  // These tasks should NOT show as overdue since the work IS done
+  const isWorkDone = task.status === TASK_STATUS.COMPLETED || 
+                     task.status === 'pending_approval' ||
+                     task.approval_status === APPROVAL_STATUS.PENDING_APPROVAL;
   
-  // Determine overdue status (only if not completed)
+  // Determine overdue status (only if work not done)
   const isPastDue = diffDays < 0;
-  const isOverdue = isPastDue && !isCompleted;
+  const isOverdue = isPastDue && !isWorkDone;
   
-  if (showRelative && !isCompleted) {
+  if (showRelative && !isWorkDone) {
     if (isPastDue) {
       suffix = ' (Overdue)';
     } else if (diffDays <= 7) {
@@ -98,7 +104,7 @@ export const formatDueDate = (task, options = {}) => {
   return {
     text: text + suffix,
     isOverdue,
-    isUrgent: !isCompleted && diffDays >= 0 && diffDays <= 7,
+    isUrgent: !isWorkDone && diffDays >= 0 && diffDays <= 7,
     diffDays,
   };
 };
@@ -106,19 +112,19 @@ export const formatDueDate = (task, options = {}) => {
 /**
  * Format period range for display
  */
-export const formatPeriodRange = (task) => {
+export const formatPeriodRange = (task, timezone = 'UTC') => {
   if (!task.period_start) return null;
   
   const start = new Date(task.period_start);
   const end = task.period_end ? new Date(task.period_end) : start;
   
-  const formatOpts = { month: 'short', day: 'numeric' };
-  
   if (start.getTime() === end.getTime()) {
-    return start.toLocaleDateString('en-US', formatOpts);
+    return formatDateUtil(start, timezone, { month: 'short', day: 'numeric' });
   }
   
-  return `${start.toLocaleDateString('en-US', formatOpts)} - ${end.toLocaleDateString('en-US', formatOpts)}`;
+  const startFormatted = formatDateUtil(start, timezone, { month: 'short', day: 'numeric' });
+  const endFormatted = formatDateUtil(end, timezone, { month: 'short', day: 'numeric' });
+  return `${startFormatted} - ${endFormatted}`;
 };
 
 /**

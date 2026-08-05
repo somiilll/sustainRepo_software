@@ -17,6 +17,7 @@ export default function StickyFilterBar({
   filterProps,
   onExport,
   showExport = true,
+  exportButton, // Custom export button component (e.g., ExportPDFButton)
   // Dashboard type toggle
   dashboardType = 'esg', // 'ghg' | 'esg'
   setDashboardType,
@@ -86,15 +87,18 @@ export default function StickyFilterBar({
             </select>
           )}
           <NotificationBell />
+          {/* Export Button - Custom or Default */}
           {showExport && (
-            <button
-              onClick={onExport}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-stone-700 border border-stone-200 hover:border-stone-300 bg-white rounded-lg px-3 py-1.5 transition-colors"
-              data-testid="export-btn"
-            >
-              <Download className="w-3.5 h-3.5" />
-              Export
-            </button>
+            exportButton || (
+              <button
+                onClick={onExport}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-stone-700 border border-stone-200 hover:border-stone-300 bg-white rounded-lg px-3 py-1.5 transition-colors"
+                data-testid="export-btn"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Export
+              </button>
+            )
           )}
           <button
             onClick={() => setShowFilters((s) => !s)}

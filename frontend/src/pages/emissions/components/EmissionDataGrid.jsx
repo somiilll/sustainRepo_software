@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { Button } from '../../../components/ui/button';
+import { Checkbox } from '../../../components/ui/checkbox';
 import { Activity, FileText, Edit, History, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
-import { getApprovalBadge } from '../../../modules/ghg/utils/approvalSchema';
+import { getStatusDisplay } from '../../../modules/ghg/utils/approvalSchema';
 import { format } from 'date-fns';
 
 /**
@@ -29,6 +30,28 @@ const SortableHeader = ({ label, sortKey, currentSort, onSort, className = '' })
   );
 };
 
+// Status display helper - shows pending proposal indicator
+const StatusCell = ({ emission }) => {
+  const baseStatus = getStatusDisplay(emission.approval_status);
+  
+  // Show user's own pending proposal as "Completed, Awaiting Approval"
+  if (emission.is_my_pending_proposal) {
+    return (
+      <span className="inline-flex px-2 py-0.5 text-xs font-medium rounded bg-amber-100 text-amber-700">
+        Completed, Awaiting Approval
+      </span>
+    );
+  }
+  
+  // For others viewing a record where someone else has pending proposal,
+  // just show the normal status (Completed, Approved) - no extra badge
+  return (
+    <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${baseStatus.cls}`}>
+      {baseStatus.text}
+    </span>
+  );
+};
+
 export default function EmissionDataGrid({
   activeScope,
   filteredEmissions,
@@ -39,6 +62,7 @@ export default function EmissionDataGrid({
   handleEdit,
   fetchHistory,
   openDeleteConfirm,
+  onBulkDelete,
   showFilters,
   filterFacility,
   filterDateRange,
@@ -48,6 +72,9 @@ export default function EmissionDataGrid({
   // Sorting state
   const [sort, setSort] = useState({ key: null, direction: 'desc' });
   
+  // Selection state for bulk delete
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  
   // Handle sort toggle
   const handleSort = (key) => {
     setSort(prev => ({
@@ -55,6 +82,39 @@ export default function EmissionDataGrid({
       direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
     }));
   };
+  
+  // Handle row selection
+  const handleSelectRow = (id) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+  
+  // Handle select all
+  const handleSelectAll = () => {
+    if (selectedIds.size === filteredEmissions.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredEmissions.map(e => e.id)));
+    }
+  };
+  
+  // Handle bulk delete
+  const handleBulkDelete = () => {
+    if (selectedIds.size > 0 && onBulkDelete) {
+      onBulkDelete(Array.from(selectedIds));
+      setSelectedIds(new Set());
+    }
+  };
+  
+  const isAllSelected = filteredEmissions.length > 0 && selectedIds.size === filteredEmissions.length;
+  const isSomeSelected = selectedIds.size > 0 && selectedIds.size < filteredEmissions.length;
   
   // Get facility name for sorting
   const getFacilityName = (emission) => {
@@ -152,9 +212,38 @@ export default function EmissionDataGrid({
 
   return (
     <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
+      {/* Bulk Actions Bar */}
+      {selectedIds.size > 0 && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center justify-between">
+          <span className="text-sm text-amber-800">
+            {selectedIds.size} item{selectedIds.size > 1 ? 's' : ''} selected
+          </span>
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={handleBulkDelete}
+            className="bg-red-600 hover:bg-red-700"
+            data-testid="bulk-delete-btn"
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Delete Selected
+          </Button>
+        </div>
+      )}
+      
       {/* Fixed Header Row */}
       <div className="bg-stone-50 border-b border-stone-200 px-4 py-3 sticky top-0 z-10">
         <div className="flex items-center gap-3 text-xs font-semibold text-stone-600 uppercase tracking-wider">
+          {/* Select All Checkbox */}
+          <div className="w-8 flex-shrink-0 flex items-center justify-center">
+            <Checkbox
+              checked={isAllSelected}
+              onCheckedChange={handleSelectAll}
+              className={isSomeSelected ? 'data-[state=checked]:bg-amber-500' : ''}
+              data-testid="select-all-checkbox"
+            />
+          </div>
+          
           {/* Scope 3 Headers */}
           {activeScope === 'scope3' && (
             <>
@@ -176,9 +265,7 @@ export default function EmissionDataGrid({
               <div className="w-28 flex-shrink-0 text-center">
                 <SortableHeader label="tCO₂e" sortKey="emissions" currentSort={sort} onSort={handleSort} className="justify-center normal-case" />
               </div>
-              <div className="w-32 flex-shrink-0 text-center">
-                <SortableHeader label="Last Updated" sortKey="lastUpdated" currentSort={sort} onSort={handleSort} className="justify-center" />
-              </div>
+              <div className="w-44 flex-shrink-0 text-center">Status</div>
               <div className="w-28 flex-shrink-0 text-center">Actions</div>
             </>
           )}
@@ -197,15 +284,10 @@ export default function EmissionDataGrid({
               <div className="flex-1 min-w-[140px] text-center">
                 <SortableHeader label="Sub-category" sortKey="subcategory" currentSort={sort} onSort={handleSort} className="justify-center" />
               </div>
-              <div className="w-32 flex-shrink-0 text-center">
-                <SortableHeader label="Quantity" sortKey="quantity" currentSort={sort} onSort={handleSort} className="justify-center" />
-              </div>
               <div className="w-28 flex-shrink-0 text-center">
                 <SortableHeader label="tCO₂e" sortKey="emissions" currentSort={sort} onSort={handleSort} className="justify-center normal-case" />
               </div>
-              <div className="w-32 flex-shrink-0 text-center">
-                <SortableHeader label="Last Updated" sortKey="lastUpdated" currentSort={sort} onSort={handleSort} className="justify-center" />
-              </div>
+              <div className="w-44 flex-shrink-0 text-center">Status</div>
               <div className="w-28 flex-shrink-0 text-center">Actions</div>
             </>
           )}
@@ -233,9 +315,7 @@ export default function EmissionDataGrid({
               <div className="w-28 flex-shrink-0 text-center">
                 <SortableHeader label="tCO₂e" sortKey="emissions" currentSort={sort} onSort={handleSort} className="justify-center normal-case" />
               </div>
-              <div className="w-32 flex-shrink-0 text-center">
-                <SortableHeader label="Last Updated" sortKey="lastUpdated" currentSort={sort} onSort={handleSort} className="justify-center" />
-              </div>
+              <div className="w-44 flex-shrink-0 text-center">Status</div>
               <div className="w-28 flex-shrink-0 text-center">Actions</div>
             </>
           )}
@@ -250,17 +330,6 @@ export default function EmissionDataGrid({
           const hasOverride = Object.values(dfv).some(field => field?.is_override === true);
           const calcMethod = emission.calculation_method_scope3 || dfv.calculation_method_scope3;
           const totalEmissions = emission.outputs?.co2e?.value || emission.co2e_emissions || emission.total_emissions || 0;
-
-          // Approval-status badge meta (rendered next to Custom badge in every scope row).
-          const approvalBadge = getApprovalBadge(emission.approval_status);
-          const ApprovalBadge = approvalBadge ? (
-            <span
-              className={`px-1.5 py-0.5 text-[9px] font-semibold rounded flex-shrink-0 ${approvalBadge.cls}`}
-              data-testid={`approval-badge-${emission.id}`}
-            >
-              {approvalBadge.text}
-            </span>
-          ) : null;
 
           // Get activity/sub-category display
           // For Scope 3 OR Biogenic Scope 3, look up the activity label using scope3_ef_id
@@ -309,26 +378,36 @@ export default function EmissionDataGrid({
           return (
             <div
               key={emission.id}
-              className="px-4 py-3 flex items-center gap-3 hover:bg-green-50/50 transition-colors cursor-pointer group"
+              className={`px-4 py-3 flex items-center gap-3 hover:bg-green-50/50 transition-colors cursor-pointer group ${selectedIds.has(emission.id) ? 'bg-amber-50' : ''}`}
               data-testid={`emission-row-${emission.id}`}
             >
+              {/* Row Checkbox */}
+              <div className="w-8 flex-shrink-0 flex items-center justify-center">
+                <Checkbox
+                  checked={selectedIds.has(emission.id)}
+                  onCheckedChange={() => handleSelectRow(emission.id)}
+                  onClick={(e) => e.stopPropagation()}
+                  data-testid={`select-emission-${emission.id}`}
+                />
+              </div>
+              
               {/* Scope 3 Row */}
               {activeScope === 'scope3' && (
                 <>
-                  <div className="w-36 flex-shrink-0">
+                  <div className="w-36 flex-shrink-0 text-left">
                     <p className="text-sm font-medium text-text-primary truncate" title={facility?.name}>
                       {facility?.name || 'Unknown'}
                     </p>
                   </div>
-                  <div className="w-24 flex-shrink-0 text-sm text-text-secondary truncate flex items-center gap-1" title={emission.reporting_period}>
+                  <div className="w-24 flex-shrink-0 text-left text-sm text-text-secondary truncate" title={emission.reporting_period}>
                     {emission.reporting_period || reportingYear}
                   </div>
-                  <div className="w-52 flex-shrink-0">
+                  <div className="w-52 flex-shrink-0 text-left">
                     <p className="text-sm text-text-primary truncate" title={emission.category}>
                       {emission.category}
                     </p>
                   </div>
-                  <div className="flex-1 min-w-[120px] pl-2 flex items-center gap-2">
+                  <div className="flex-1 min-w-[120px] pl-2 text-left flex items-center gap-2">
                     <p className="text-sm text-text-primary truncate" title={activityDisplay}>
                       {activityDisplay}
                     </p>
@@ -337,23 +416,22 @@ export default function EmissionDataGrid({
                         Custom
                       </span>
                     )}
-                    {ApprovalBadge}
                     {emission.evidence_url && (
                       <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Has Evidence" />
                     )}
                   </div>
-                  <div className="w-20 flex-shrink-0 text-center">
+                  <div className="w-20 flex-shrink-0 text-left">
                     <span className="inline-flex px-2 py-0.5 bg-stone-100 text-stone-700 text-xs font-medium rounded">
                       {methodDisplay}
                     </span>
                   </div>
-                  <div className="w-28 flex-shrink-0 text-right">
+                  <div className="w-28 flex-shrink-0 text-left">
                     <span className="text-sm font-semibold text-primary">
                       {totalEmissions.toFixed(4)}
                     </span>
                   </div>
-                  <div className="w-32 flex-shrink-0 text-xs text-text-secondary">
-                    {formatLastUpdated(emission)}
+                  <div className="w-44 flex-shrink-0 text-center">
+                    <StatusCell emission={emission} />
                   </div>
                 </>
               )}
@@ -361,20 +439,20 @@ export default function EmissionDataGrid({
               {/* Scope 1 & 2 Row */}
               {(activeScope === 'scope1' || activeScope === 'scope2') && (
                 <>
-                  <div className="w-36 flex-shrink-0">
+                  <div className="w-36 flex-shrink-0 text-left">
                     <p className="text-sm font-medium text-text-primary truncate" title={facility?.name}>
                       {facility?.name || 'Unknown'}
                     </p>
                   </div>
-                  <div className="w-24 flex-shrink-0 text-sm text-text-secondary truncate flex items-center gap-1" title={emission.reporting_period}>
+                  <div className="w-24 flex-shrink-0 text-left text-sm text-text-secondary truncate" title={emission.reporting_period}>
                     {emission.reporting_period || reportingYear}
                   </div>
-                  <div className="w-44 flex-shrink-0">
+                  <div className="w-44 flex-shrink-0 text-left">
                     <p className="text-sm text-text-primary truncate" title={emission.category}>
                       {emission.category}
                     </p>
                   </div>
-                  <div className="flex-1 min-w-[140px] flex items-center gap-2">
+                  <div className="flex-1 min-w-[140px] text-left flex items-center gap-2">
                     <p className="text-sm text-text-primary truncate" title={activityDisplay}>
                       {activityDisplay}
                     </p>
@@ -383,21 +461,17 @@ export default function EmissionDataGrid({
                         Custom
                       </span>
                     )}
-                    {ApprovalBadge}
                     {emission.evidence_url && (
                       <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Has Evidence" />
                     )}
                   </div>
-                  <div className="w-32 flex-shrink-0 text-right text-sm text-text-secondary">
-                    {getQuantityDisplay()}
-                  </div>
-                  <div className="w-28 flex-shrink-0 text-right">
+                  <div className="w-28 flex-shrink-0 text-left">
                     <span className="text-sm font-semibold text-primary">
                       {totalEmissions.toFixed(4)}
                     </span>
                   </div>
-                  <div className="w-32 flex-shrink-0 text-xs text-text-secondary">
-                    {formatLastUpdated(emission)}
+                  <div className="w-44 flex-shrink-0 text-center">
+                    <StatusCell emission={emission} />
                   </div>
                 </>
               )}
@@ -405,25 +479,25 @@ export default function EmissionDataGrid({
               {/* Biogenic Row */}
               {activeScope === 'biogenic' && (
                 <>
-                  <div className="w-36 flex-shrink-0">
+                  <div className="w-36 flex-shrink-0 text-left">
                     <p className="text-sm font-medium text-text-primary truncate" title={facility?.name}>
                       {facility?.name || 'Unknown'}
                     </p>
                   </div>
-                  <div className="w-24 flex-shrink-0 text-sm text-text-secondary truncate flex items-center gap-1" title={emission.reporting_period}>
+                  <div className="w-24 flex-shrink-0 text-left text-sm text-text-secondary truncate" title={emission.reporting_period}>
                     {emission.reporting_period || reportingYear}
                   </div>
-                  <div className="w-20 flex-shrink-0">
+                  <div className="w-20 flex-shrink-0 text-left">
                     <span className="inline-flex px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded">
                       {biogenicScope === 'scope1' ? 'Direct' : biogenicScope === 'scope3' ? 'Indirect' : biogenicScope}
                     </span>
                   </div>
-                  <div className="w-36 flex-shrink-0">
+                  <div className="w-36 flex-shrink-0 text-left">
                     <p className="text-sm text-text-primary truncate" title={emission.category}>
                       {emission.category}
                     </p>
                   </div>
-                  <div className="flex-1 min-w-[120px] flex items-center gap-2">
+                  <div className="flex-1 min-w-[120px] text-left flex items-center gap-2">
                     <p className="text-sm text-text-primary truncate" title={
                       biogenicScope === 'scope3'
                         ? activityDisplay
@@ -438,12 +512,11 @@ export default function EmissionDataGrid({
                         Custom
                       </span>
                     )}
-                    {ApprovalBadge}
                     {emission.evidence_url && (
                       <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Has Evidence" />
                     )}
                   </div>
-                  <div className="w-20 flex-shrink-0 text-center">
+                  <div className="w-20 flex-shrink-0 text-left">
                     {biogenicScope === 'scope3' ? (
                       <span className="inline-flex px-2 py-0.5 bg-stone-100 text-stone-700 text-xs font-medium rounded">
                         {methodDisplay}
@@ -452,13 +525,13 @@ export default function EmissionDataGrid({
                       <span className="text-xs text-stone-400">-</span>
                     )}
                   </div>
-                  <div className="w-28 flex-shrink-0 text-right">
+                  <div className="w-28 flex-shrink-0 text-left">
                     <span className="text-sm font-semibold text-primary">
                       {totalEmissions.toFixed(4)}
                     </span>
                   </div>
-                  <div className="w-32 flex-shrink-0 text-xs text-text-secondary">
-                    {formatLastUpdated(emission)}
+                  <div className="w-44 flex-shrink-0 text-center">
+                    <StatusCell emission={emission} />
                   </div>
                 </>
               )}

@@ -2,6 +2,7 @@ import React from 'react';
 import '@/App.css';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { OrganizationProvider } from './contexts/OrganizationContext';
 import { Toaster } from './components/ui/sonner';
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
@@ -9,7 +10,6 @@ import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import Facilities from './pages/Facilities';
 import Emissions from './pages/Emissions';
-import ApprovalSection from './modules/ghg/sections/ApprovalSection';
 import Sinks from './pages/Sinks';
 import BaseYearEmissions from './pages/BaseYearEmissions';
 import BaseYearAndTargets from './pages/BaseYearAndTargets';
@@ -63,12 +63,20 @@ import WasteAnalysis from './pages/WasteAnalysis';
 import SocialAnalysis from './pages/SocialAnalysis';
 import GovernanceAnalysis from './pages/GovernanceAnalysis';
 import MaterialityAssessment from './pages/MaterialityAssessment';
-import GHGTargetsPage from './pages/GHGTargetsPage';
 import ESGTargetsTab from './components/ESGTargetsTab';
 import WorkflowApproverQueue from './pages/WorkflowApproverQueue';
 import WorkflowTracker from './pages/WorkflowTracker';
 import WorkflowMyTask from './pages/WorkflowMyTask';
 import PeerBenchmarking from './pages/PeerBenchmarking';
+import SupplierAssessmentSuppliers from './pages/SupplierAssessmentSuppliers';
+import SupplierAssessmentESG from './pages/SupplierAssessmentESG';
+import SupplierAssessmentGHG from './pages/SupplierAssessmentGHG';
+import SupplierAssessmentRanking from './pages/SupplierAssessmentRanking';
+import SupplierPortalDashboard from './pages/SupplierPortalDashboard';
+import SupplierPortalQuestionnaire from './pages/SupplierPortalQuestionnaire';
+// SupplierPortalEmissions removed - suppliers use main GHG Emissions flow
+import OCRInvoice from './pages/OCRInvoice';
+import { OCRProvider } from './contexts/OCRContext';
 import { initializeCategoryModules } from './modules/emissions';
 
 // Initialize the emissions Category Registry once at app boot.
@@ -266,7 +274,6 @@ const AppRoutes = () => {
           <Route path="ghg/scope2" element={<Emissions />} />
           <Route path="ghg/scope3" element={<Emissions />} />
           <Route path="ghg/biogenic" element={<Emissions />} />
-          <Route path="ghg/approvals" element={<ApprovalSection />} />
           <Route path="emissions/dynamic" element={<DynamicEmissionsTest />} />
           <Route path="bulk-upload" element={<BulkUpload />} />
           <Route path="ghg/analysis" element={<GHGAnalysis />} />
@@ -298,9 +305,8 @@ const AppRoutes = () => {
           <Route path="uploads/ghg-entry" element={<Emissions />} />
           <Route path="ghg/base-year" element={<BaseYearEmissions />} />
           <Route path="uploads/bulk" element={<BulkUpload />} />
-          <Route path="uploads/ocr" element={<PlaceholderPage title="OCR Detection" />} />
+          <Route path="uploads/ocr" element={<OCRInvoice />} />
           <Route path="uploads/kpi-metrics" element={<PlaceholderPage title="KPI Metrics" />} />
-          <Route path="targets/voluntary/ghg" element={<GHGTargetsPage />} />
           <Route path="targets/voluntary/environment" element={<ESGTargetsTab section="environment" />} />
           <Route path="targets/voluntary/social" element={<ESGTargetsTab section="social" />} />
           <Route path="targets/voluntary/governance" element={<ESGTargetsTab section="governance" />} />
@@ -309,9 +315,38 @@ const AppRoutes = () => {
           <Route path="my-assignments" element={<Navigate to="/workflow/my-task" replace />} />
           <Route path="approver-queue" element={<Navigate to="/workflow/approver-queue" replace />} />
           <Route path="bulk-upload" element={<Navigate to="/uploads/bulk" replace />} />
-          <Route path="base-year-emissions" element={<Navigate to="/targets/voluntary/ghg" replace />} />
+          <Route path="base-year-emissions" element={<Navigate to="/targets/voluntary/environment" replace />} />
+          <Route path="targets/voluntary/ghg" element={<Navigate to="/targets/voluntary/environment" replace />} />
           <Route path="reports" element={<Reports />} />
           <Route path="peer-benchmarking" element={<PeerBenchmarking />} />
+          
+          {/* Supplier Assessment Routes (Customer Admin) */}
+          <Route path="supplier-assessment/suppliers" element={
+            <AdminRoute>
+              <SupplierAssessmentSuppliers />
+            </AdminRoute>
+          } />
+          <Route path="supplier-assessment/esg" element={
+            <AdminRoute>
+              <SupplierAssessmentESG />
+            </AdminRoute>
+          } />
+          <Route path="supplier-assessment/ghg" element={
+            <AdminRoute>
+              <SupplierAssessmentGHG />
+            </AdminRoute>
+          } />
+          <Route path="supplier-assessment/ranking" element={
+            <AdminRoute>
+              <SupplierAssessmentRanking />
+            </AdminRoute>
+          } />
+          
+          {/* Supplier Portal Routes (Supplier Users) */}
+          <Route path="supplier-assessment/supplier" element={<SupplierPortalDashboard />} />
+          <Route path="supplier-assessment/questionnaire/:questionnaireId" element={<SupplierPortalQuestionnaire />} />
+          {/* supplier-assessment/emissions route removed - suppliers use main GHG Emissions flow */}
+          
           <Route path="users" element={
             <AdminRoute>
               <UserManagement />
@@ -332,12 +367,16 @@ const AppRoutes = () => {
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <div className="App">
-          <AppRoutes />
-          <Toaster position="top-right" />
-        </div>
-      </BrowserRouter>
+      <OrganizationProvider>
+        <OCRProvider>
+          <BrowserRouter>
+            <div className="App">
+              <AppRoutes />
+              <Toaster position="top-right" />
+            </div>
+          </BrowserRouter>
+        </OCRProvider>
+      </OrganizationProvider>
     </AuthProvider>
   );
 }

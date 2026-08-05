@@ -18,6 +18,13 @@ import OrgEmissionsDialog from '../components/OrgEmissionsDialog';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+// Helper to get full logo URL (handles relative paths stored in DB)
+const getFullLogoUrl = (logoPath) => {
+  if (!logoPath) return null;
+  if (logoPath.startsWith('http') || logoPath.startsWith('data:')) return logoPath;
+  return `${BACKEND_URL}${logoPath.startsWith('/') ? '' : '/'}${logoPath}`;
+};
+
 // Helper function to download files
 const downloadFileHelper = (url, filename) => {
   window.location.href = url;
@@ -38,7 +45,7 @@ function OrgCard({ org, onEdit, onToggleActive, onPermanentDelete, onViewEmissio
       <div className="flex items-start justify-between mb-4">
         {org.logo && !imgError ? (
           <img 
-            src={org.logo} 
+            src={getFullLogoUrl(org.logo)} 
             alt={`${org.name} logo`}
             className="w-12 h-12 object-contain rounded-lg border border-stone-100"
             onError={() => setImgError(true)}
@@ -95,6 +102,16 @@ function OrgCard({ org, onEdit, onToggleActive, onPermanentDelete, onViewEmissio
       </div>
       {/* Report Access Badges */}
       <div className="flex flex-wrap gap-1 mt-2">
+        {/* Org Type Badge */}
+        <span className={`text-xs px-2 py-0.5 rounded ${
+          org.org_type === 'supplier' ? 'bg-purple-100 text-purple-700' :
+          org.org_type === 'customer_supplier' ? 'bg-indigo-100 text-indigo-700' :
+          'bg-emerald-100 text-emerald-700'
+        }`}>
+          {org.org_type === 'supplier' ? 'Supplier' :
+           org.org_type === 'customer_supplier' ? 'Customer & Supplier' :
+           'Customer'}
+        </span>
         {(org.enabled_access || ['scope1_2']).map(access => (
           <span key={access} className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700">
             {access === 'scope1_2' ? 'Scope 1 & 2' : 
@@ -340,6 +357,7 @@ export default function OrganizationManagement() {
     setEditingOrg(org);
     setFormData({
       name: org.name,
+      org_type: org.org_type || 'customer',
       corporate_address: org.corporate_address,
       city: org.city || '',
       state: org.state || '',
@@ -385,6 +403,7 @@ export default function OrganizationManagement() {
     setEditingOrg(null);
     setFormData({
       name: '',
+      org_type: 'customer',
       corporate_address: '',
       city: '',
       state: '',
@@ -494,6 +513,25 @@ export default function OrganizationManagement() {
                   className="bg-stone-50"
                   data-testid="org-name-input"
                 />
+              </div>
+              
+              {/* Organization Type */}
+              <div className="space-y-2">
+                <Label htmlFor="org_type">Organization Type</Label>
+                <select
+                  id="org_type"
+                  value={formData.org_type || 'customer'}
+                  onChange={(e) => setFormData({ ...formData, org_type: e.target.value })}
+                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                  data-testid="org-type-select"
+                >
+                  <option value="customer">Customer</option>
+                  <option value="supplier">Supplier</option>
+                  <option value="customer_supplier">Customer & Supplier</option>
+                </select>
+                <p className="text-xs text-stone-500">
+                  Customer: Full platform access | Supplier: Only Supplier Assessment module | Customer & Supplier: Both
+                </p>
               </div>
 
               {/* Address Section */}
@@ -899,8 +937,8 @@ export default function OrganizationManagement() {
                               const response = await axios.post(`${API}/upload/evidence?bucket_type=org_facility&organization_id=${orgId}`, uploadFormData, {
                                 headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
                               });
-                              // Use /view endpoint for public access (for img tags)
-                              handleLogoChange(`${BACKEND_URL}${response.data.url}/view`);
+                              // Store relative path (like evidences) - frontend will prepend BACKEND_URL at display time
+                              handleLogoChange(`${response.data.url}/view`);
                               toast.success('Logo uploaded successfully');
                             } catch (error) {
                               toast.error(getUploadErrorMessage(error, file));
@@ -935,7 +973,7 @@ export default function OrganizationManagement() {
                         </div>
                       ) : (
                         <img 
-                          src={formData.logo} 
+                          src={getFullLogoUrl(formData.logo)} 
                           alt="Logo preview" 
                           className="w-24 h-24 object-contain border border-stone-200 rounded-lg bg-white"
                           onError={() => setLogoPreviewError(true)}
@@ -1249,7 +1287,7 @@ export default function OrganizationManagement() {
                                     invoice_history: [...(prev.invoice_history || []), {
                                       date: new Date().toISOString().split('T')[0],
                                       filename: file.name,
-                                      url: `${BACKEND_URL}${response.data.url}`,
+                                      url: response.data.url,
                                       amount: ''
                                     }]
                                   }));
@@ -1273,7 +1311,7 @@ export default function OrganizationManagement() {
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <a
-                                      href={`${invoice.url}/view`}
+                                      href={`${BACKEND_URL}${invoice.url.startsWith('/') ? '' : '/'}${invoice.url}/view`}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="text-xs text-purple-600 hover:underline"
@@ -1281,7 +1319,7 @@ export default function OrganizationManagement() {
                                       View
                                     </a>
                                     <button
-                                      onClick={() => handleDownloadFile(invoice.url, invoice.filename)}
+                                      onClick={() => handleDownloadFile(`${BACKEND_URL}${invoice.url.startsWith('/') ? '' : '/'}${invoice.url}`, invoice.filename)}
                                       className="text-xs text-green-600 hover:underline flex items-center gap-1"
                                     >
                                       <Download className="w-3 h-3" />

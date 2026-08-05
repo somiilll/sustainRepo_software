@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { useDateFormatter } from '../hooks/useDateFormatter';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
@@ -56,6 +57,7 @@ const API = process.env.REACT_APP_BACKEND_URL;
  */
 export default function GRIQuestionnaire({ section, isEditing = false }) {
   const { getAuthHeader, token } = useAuth();
+  const { formatDateTime } = useDateFormatter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState({});
   const [disclosures, setDisclosures] = useState([]);
@@ -67,6 +69,7 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
   const [historyDialog, setHistoryDialog] = useState({ open: false, questionKey: null, history: [] });
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [userDrafts, setUserDrafts] = useState({});  // Drafts keyed by disclosure_id
+  const [filterByMateriality, setFilterByMateriality] = useState(true); // Default: show only material topics
 
   // Fetch organization data to get reporting_year_type
   useEffect(() => {
@@ -106,12 +109,16 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
       setLoading(true);
       
       // Fetch disclosures (now includes user draft info directly)
+      // filter_by_materiality ensures only material topics are shown when enabled
       const [disclosuresRes, draftsRes] = await Promise.all([
         axios.get(
           `${API}/api/esg-questionnaire/gri/${section}`,
           { 
             headers: getAuthHeader(),
-            params: { reporting_period: reportingPeriod }
+            params: { 
+              reporting_period: reportingPeriod,
+              filter_by_materiality: filterByMateriality 
+            }
           }
         ),
         axios.get(
@@ -174,7 +181,7 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
     } finally {
       setLoading(false);
     }
-  }, [getAuthHeader, section, reportingPeriod]);
+  }, [getAuthHeader, section, reportingPeriod, filterByMateriality]);
 
   useEffect(() => {
     fetchDisclosures();
@@ -515,19 +522,6 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
     return 'pending';
   };
 
-  // Format date for display
-  const formatDate = (dateStr) => {
-    if (!dateStr) return 'N/A';
-    const date = new Date(dateStr);
-    return date.toLocaleString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
   // Get action icon for history
   const getActionIcon = (action) => {
     switch (action) {
@@ -864,6 +858,22 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
             </div>
           </div>
           
+          {/* Materiality Filter Toggle */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => setFilterByMateriality(!filterByMateriality)}
+              className={`h-9 px-3 rounded-lg text-xs font-medium flex items-center gap-2 transition-colors ${
+                filterByMateriality 
+                  ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' 
+                  : 'bg-stone-100 text-stone-600 border border-stone-200'
+              }`}
+              data-testid="materiality-filter-toggle"
+            >
+              <div className={`w-3 h-3 rounded-full ${filterByMateriality ? 'bg-emerald-500' : 'bg-stone-400'}`} />
+              {filterByMateriality ? 'Material Topics' : 'All Topics'}
+            </button>
+          </div>
+          
           {/* Reporting Year Selector */}
           <div className="flex items-center gap-2 flex-shrink-0">
             <Calendar className="w-4 h-4 text-blue-600" />
@@ -969,7 +979,7 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
                       <div className="flex items-center gap-2">
                         {getStatusBadge(userDrafts[disclosure.disclosure_id].draft_status)}
                         <span className="text-sm text-text-secondary">
-                          Last updated: {formatDate(userDrafts[disclosure.disclosure_id].updated_at)}
+                          Last updated: {formatDateTime(userDrafts[disclosure.disclosure_id].updated_at)}
                         </span>
                       </div>
                     </div>
@@ -1044,31 +1054,48 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
                     <div className="flex items-center gap-2">
                       {getActionIcon(entry.action)}
                       <span className="font-medium text-sm capitalize">
-                        {entry.action?.replace('_', ' ')}
+                        {entry.action_display || entry.action?.replace(/_/g, ' ')}
                       </span>
-                      <Badge 
-                        variant="outline" 
-                        className={
-                          entry.change_details?.new_status === 'saved' 
-                            ? 'bg-green-50 text-green-700 border-green-200' 
-                            : entry.change_details?.new_status === 'draft'
-                            ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
-                            : 'bg-stone-50'
-                        }
-                      >
-                        {entry.change_details?.new_status || 'unknown'}
-                      </Badge>
+                      {entry.subpart_label && (
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                          {entry.subpart_label}
+                        </Badge>
+                      )}
+                      {entry.question_key && (
+                        <code className="text-xs bg-stone-100 px-1 rounded text-stone-600">
+                          {entry.question_key}
+                        </code>
+                      )}
                     </div>
                     <span className="text-xs text-text-muted">
-                      {formatDate(entry.timestamp)}
+                      {formatDateTime(entry.timestamp)}
                     </span>
                   </div>
                   
                   {/* User info */}
                   <div className="text-sm text-text-secondary mb-3">
-                    <span className="font-medium">{entry.performed_by?.name || 'Unknown'}</span>
-                    <span className="text-text-muted ml-1">({entry.performed_by?.email})</span>
+                    <span className="font-medium">{entry.performed_by_name || entry.performed_by?.name || 'Unknown'}</span>
+                    {(entry.performed_by_email || entry.performed_by?.email) && (
+                      <span className="text-text-muted ml-1">({entry.performed_by_email || entry.performed_by?.email})</span>
+                    )}
+                    {entry.submitted_by_name && entry.action === 'submission_approved' && (
+                      <span className="text-text-muted ml-2">• Submitted by {entry.submitted_by_name}</span>
+                    )}
                   </div>
+                  
+                  {/* Merge note for approver changes */}
+                  {entry.was_merged && (
+                    <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded p-2 mb-3">
+                      ⚠️ {entry.merge_note || 'Approver made changes to the submitted value'}
+                    </div>
+                  )}
+                  
+                  {/* Rejection reason */}
+                  {entry.rejection_reason && (
+                    <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded p-2 mb-3">
+                      Rejection reason: {entry.rejection_reason}
+                    </div>
+                  )}
                   
                   {/* Field Diffs - computed from version_utils */}
                   {entry.field_diffs && entry.field_diffs.length > 0 ? (
@@ -1095,21 +1122,25 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
                         </div>
                       ))}
                     </div>
-                  ) : entry.change_details && (
+                  ) : entry.change_details && (entry.change_details.old_value || entry.change_details.new_value || entry.change_details.original_value || entry.change_details.final_value || entry.change_details.value) && (
                     <div className="space-y-2">
-                      {entry.change_details.old_value && (
+                      {(entry.change_details.old_value || entry.change_details.original_value) && (
                         <div className="text-xs">
                           <span className="text-red-600 font-medium">Previous:</span>
                           <p className="mt-1 p-2 bg-red-50 rounded border border-red-100 text-text-secondary line-clamp-3">
-                            {typeof entry.change_details.old_value === 'object' ? JSON.stringify(entry.change_details.old_value) : entry.change_details.old_value}
+                            {typeof (entry.change_details.old_value || entry.change_details.original_value) === 'object' 
+                              ? JSON.stringify(entry.change_details.old_value || entry.change_details.original_value) 
+                              : (entry.change_details.old_value || entry.change_details.original_value)}
                           </p>
                         </div>
                       )}
-                      {entry.change_details.new_value && (
+                      {(entry.change_details.new_value || entry.change_details.final_value || entry.change_details.value) && (
                         <div className="text-xs">
                           <span className="text-green-600 font-medium">New:</span>
                           <p className="mt-1 p-2 bg-green-50 rounded border border-green-100 text-text-secondary line-clamp-3">
-                            {typeof entry.change_details.new_value === 'object' ? JSON.stringify(entry.change_details.new_value) : entry.change_details.new_value}
+                            {typeof (entry.change_details.new_value || entry.change_details.final_value || entry.change_details.value) === 'object' 
+                              ? JSON.stringify(entry.change_details.new_value || entry.change_details.final_value || entry.change_details.value) 
+                              : (entry.change_details.new_value || entry.change_details.final_value || entry.change_details.value)}
                           </p>
                         </div>
                       )}

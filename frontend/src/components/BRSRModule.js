@@ -3,6 +3,7 @@
  * 
  * Business Responsibility & Sustainability Reporting module.
  * Tabs:
+ * - Section A: General Disclosures (Company details, products, operations)
  * - Section B: Management & Process Disclosures
  * - Section C: Principle-wise Performance Disclosures (P1-P9)
  */
@@ -17,22 +18,26 @@ import {
   BarChart3,
   Pencil,
   X,
-  ClipboardList
+  ClipboardList,
+  Building2
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { generateReportingYears, getCurrentReportingYear } from '../utils/reportingYearUtils';
 import ESGQuestionnaire from './ESGQuestionnaire';
 import BRSRSectionC from './BRSRSectionC';
+import BRSRDetailsSection from './BRSRDetailsSection';
+import { BRSRExportButton } from '../modules/brsr-export';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
 export default function BRSRModule() {
   const { token } = useAuth();
   
-  const [activeTab, setActiveTab] = useState('section_b');
+  const [activeTab, setActiveTab] = useState('section_a');
   const [reportingPeriod, setReportingPeriod] = useState('');
   const [reportingYears, setReportingYears] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
+  const [organization, setOrganization] = useState(null);
 
   // Initialize reporting years
   useEffect(() => {
@@ -45,6 +50,7 @@ export default function BRSRModule() {
         const years = generateReportingYears(yearType, 5);
         setReportingYears(years);
         setReportingPeriod(getCurrentReportingYear(yearType));
+        setOrganization(res.data);
       } catch (error) {
         const years = generateReportingYears('financial_year', 5);
         setReportingYears(years);
@@ -78,6 +84,10 @@ export default function BRSRModule() {
               ))}
             </SelectContent>
           </Select>
+          <BRSRExportButton 
+            reportingPeriod={reportingPeriod} 
+            organization={organization}
+          />
           <Button
             variant={isEditing ? 'outline' : 'default'}
             size="sm"
@@ -92,6 +102,10 @@ export default function BRSRModule() {
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="bg-stone-100 p-1 rounded-lg">
+          <TabsTrigger value="section_a" className="gap-2" data-testid="brsr-section-a-tab">
+            <Building2 className="w-4 h-4" />
+            Section A
+          </TabsTrigger>
           <TabsTrigger value="section_b" className="gap-2" data-testid="brsr-section-b-tab">
             <ClipboardList className="w-4 h-4" />
             Section B
@@ -101,6 +115,15 @@ export default function BRSRModule() {
             Section C
           </TabsTrigger>
         </TabsList>
+
+        {/* Section A - General Disclosures */}
+        <TabsContent value="section_a" className="mt-6">
+          <BRSRDetailsSection 
+            isEditing={isEditing}
+            isCollapsible={false}
+            reportingPeriod={reportingPeriod}
+          />
+        </TabsContent>
 
         {/* Section B - Management & Process Disclosures */}
         <TabsContent value="section_b" className="mt-6">

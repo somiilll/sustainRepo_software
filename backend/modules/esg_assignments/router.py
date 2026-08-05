@@ -13,6 +13,7 @@ Provides endpoints for:
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Optional, List
 from datetime import datetime
+from shared.database.mongo import db
 from .models import (
     EntityType, AssignmentLevel, AssignmentRole, AssignmentStatus,
     CreateAssignmentRequest, UpdateAssignmentRequest, BulkAssignmentRequest,
@@ -132,17 +133,134 @@ async def delete_assignment(
     assignment_id: str,
     current_user: dict = Depends(get_admin_user),
 ):
-    """Delete an assignment (Admin only)."""
-    success = await assignment_service.delete_assignment(
+    """
+    Delete an assignment (Admin only).
+    
+    TASK LIFECYCLE: ACTIVE -> CANCELLED -> ARCHIVED
+    
+    Instead of hard-deleting tasks, this endpoint transitions them through a lifecycle:
+    - Tasks with no data are marked as CANCELLED
+    - Tasks with data are marked as ORPHANED (remain visible for audit)
+    
+    Returns details about tasks affected for transparency.
+    """
+    result = await assignment_service.delete_assignment(
         assignment_id=assignment_id,
         organization_id=current_user["organization_id"],
         deleted_by_user_id=current_user["id"],
     )
     
-    if not success:
+    if not result.get("deleted"):
+        raise HTTPException(status_code=404, detail=result.get("error", "Assignment not found"))
+    
+    return {
+        "success": True,
+        "tasks_cancelled": result.get("tasks_cancelled", 0),
+        "tasks_with_data_orphaned": result.get("tasks_with_data_orphaned", 0),
+        "approval_requests_cancelled": result.get("approval_requests_cancelled", 0),
+        "message": result.get("message"),
+    }
+
+
+@router.post("/assignments/{assignment_id}/retry-tasks")
+async def retry_task_generation(
+    assignment_id: str,
+    current_user: dict = Depends(get_admin_user),
+):
+    """
+    Retry task generation for an assignment that previously failed.
+    
+    Useful when task generation fails during assignment creation and 
+    assignment is marked with task_generation_pending=True.
+    """
+    from modules.esg_assignments.assignment_service_v2 import assignment_service_v2
+    
+    assignment = await assignment_service_v2.get_assignment(assignment_id)
+    
+    if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
     
-    return {"success": True}
+    if assignment.get("organization_id") != current_user["organization_id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    try:
+        from modules.esg_records.task_engine import generate_tasks_for_assignment
+        from shared.database.mongo import db
+        
+        result = await generate_tasks_for_assignment(db, assignment)
+        
+        # Clear the pending flag
+        await db.esg_assignments.update_one(
+            {"id": assignment_id},
+            {"$unset": {"task_generation_pending": "", "task_generation_error": ""}}
+        )
+        
+        return {
+            "success": True,
+            "message": "Tasks generated successfully",
+            "tasks_created": result.get("created", 0),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Task generation failed: {str(e)}")
+
+
+
+@router.get("/audit/cancelled-tasks")
+async def get_cancelled_tasks(
+    lifecycle_status: str = Query("cancelled", description="Filter by lifecycle status: cancelled, orphaned, archived", pattern="^(cancelled|orphaned|archived)$"),
+    category: Optional[str] = Query(None, description="Filter by category"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    current_user: dict = Depends(get_admin_user),
+):
+    """
+    Get cancelled/orphaned/archived tasks for audit purposes (Admin only).
+    
+    TASK LIFECYCLE:
+    - CANCELLED: Assignment was deleted, task had no data
+    - ORPHANED: Assignment was deleted, but task had data (preserved for audit)
+    - ARCHIVED: Old cancelled tasks that have been archived after retention period
+    
+    Use this endpoint to see audit trail of tasks that were removed when
+    assignments were deleted.
+    """
+    # Validate lifecycle_status (extra safeguard beyond regex pattern)
+    valid_statuses = {"cancelled", "orphaned", "archived"}
+    if lifecycle_status not in valid_statuses:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid lifecycle_status. Must be one of: {', '.join(valid_statuses)}"
+        )
+    
+    org_id = current_user["organization_id"]
+    
+    query = {
+        "organization_id": org_id,
+        "lifecycle_status": lifecycle_status,
+    }
+    
+    if category:
+        query["category"] = category
+    
+    # Get total count
+    total = await db.esg_reporting_tasks.count_documents(query)
+    
+    # Get paginated results
+    skip = (page - 1) * page_size
+    tasks = await db.esg_reporting_tasks.find(
+        query,
+        {"_id": 0}
+    ).sort("cancelled_at", -1).skip(skip).limit(page_size).to_list(page_size)
+    
+    return {
+        "tasks": tasks,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "lifecycle_status": lifecycle_status,
+    }
+
+
 
 
 @router.post("/assignments/{assignment_id}/reassign")
@@ -507,22 +625,23 @@ async def get_accessible_facilities(
 # ============================================
 
 @router.get("/assignments/{assignment_id}/progress")
-async def get_assignment_progress(
+async def get_assignment_progress_detailed(
     assignment_id: str,
     current_user: dict = Depends(get_current_user),
 ):
     """
     Get detailed progress information for an assignment.
-    
-    For organization-level assignments, shows per-facility completion status.
+    Uses CompletionService as single source of truth.
     """
-    from .completion_tracking import completion_tracking_service
+    from .completion_service import completion_service
+    from shared.database.mongo import db
     
-    progress = await completion_tracking_service.get_assignment_progress(
-        assignment_id=assignment_id,
-    )
+    assignment = await db.esg_assignments.find_one({"id": assignment_id}, {"_id": 0})
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Assignment not found")
     
-    return progress
+    progress = await completion_service.get_assignment_progress(assignment, include_period_details=True)
+    return progress.to_dict()
 
 
 @router.post("/assignments/check-completion")
@@ -534,21 +653,10 @@ async def check_and_update_completion(
     current_user: dict = Depends(get_admin_user),
 ):
     """
-    Manually trigger completion check for assignments (Admin only).
-    
-    Normally this is called automatically when records are submitted.
+    DEPRECATED: Completion is now computed on-the-fly by CompletionService.
+    This endpoint is kept for backward compatibility but does nothing.
     """
-    from .completion_tracking import completion_tracking_service
-    
-    result = await completion_tracking_service.check_and_update_completion(
-        organization_id=current_user["organization_id"],
-        category=category,
-        subcategory=subcategory,
-        facility_id=facility_id,
-        reporting_period=reporting_period,
-    )
-    
-    return result
+    return {"message": "Completion is now computed on-the-fly. No manual check needed."}
 
 
 
@@ -557,27 +665,33 @@ async def check_and_update_completion(
 # ============================================
 
 @router.get("/progress/{assignment_id}")
-async def get_assignment_progress(
+async def get_assignment_progress_summary(
     assignment_id: str,
     current_user: dict = Depends(get_current_user),
 ):
     """
-    Get detailed progress for a single assignment.
+    Get progress summary for a single assignment.
+    Uses CompletionService as single source of truth.
     
     Returns:
         {
-            "progress_percentage": float,
-            "completed_tasks": int,
-            "total_tasks": int,
-            "pending_tasks": int,
-            "overdue_tasks": int,
+            "percentage": float,
+            "completed": int,
+            "total": int,
+            "pending": int,
+            "overdue": int,
             "last_updated": str (ISO datetime)
         }
     """
-    from .progress_engine import get_assignment_progress
+    from .completion_service import completion_service
+    from shared.database.mongo import db
     
-    progress = await get_assignment_progress(assignment_id)
-    return progress
+    assignment = await db.esg_assignments.find_one({"id": assignment_id}, {"_id": 0})
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    
+    progress = await completion_service.get_assignment_progress(assignment)
+    return progress.to_dict()
 
 
 @router.get("/progress/category/{category}")
@@ -589,17 +703,58 @@ async def get_category_progress_endpoint(
 ):
     """
     Get aggregated progress for a category.
+    Uses CompletionService as single source of truth.
     """
-    from .progress_engine import get_progress_engine
+    from .completion_service import completion_service
+    from shared.database.mongo import db
     
-    engine = get_progress_engine()
-    progress = await engine.get_category_progress(
-        organization_id=current_user["organization_id"],
-        category=category,
-        subcategory=subcategory,
-        sub_subcategory=sub_subcategory,
-    )
-    return progress
+    # Find all assignments for this category
+    query = {
+        "organization_id": current_user["organization_id"],
+        "category": category,
+    }
+    if subcategory:
+        query["subcategory"] = subcategory
+    if sub_subcategory:
+        query["sub_subcategory"] = sub_subcategory
+    
+    assignments = await db.esg_assignments.find(query, {"_id": 0}).to_list(500)
+    
+    if not assignments:
+        return {"total": 0, "completed": 0, "pending": 0, "overdue": 0, "percentage": 0.0}
+    
+    # Aggregate progress from all assignments
+    total = 0
+    completed = 0
+    pending = 0
+    overdue = 0
+    last_updated = None
+    
+    for assignment in assignments:
+        progress = await completion_service.get_assignment_progress(assignment)
+        total += progress.total
+        completed += progress.completed
+        pending += progress.pending
+        overdue += progress.overdue
+        if progress.last_updated and (not last_updated or progress.last_updated > last_updated):
+            last_updated = progress.last_updated
+    
+    percentage = round((completed / total) * 100, 1) if total > 0 else 0.0
+    
+    return {
+        "total": total,
+        "total_tasks": total,
+        "completed": completed,
+        "completed_tasks": completed,
+        "filled": completed,
+        "pending": pending,
+        "pending_tasks": pending,
+        "overdue": overdue,
+        "overdue_tasks": overdue,
+        "percentage": percentage,
+        "progress_percentage": percentage,
+        "last_updated": last_updated.isoformat() if isinstance(last_updated, datetime) else str(last_updated) if last_updated else None,
+    }
 
 
 @router.post("/progress/bulk")
@@ -609,6 +764,7 @@ async def get_bulk_progress_endpoint(
 ):
     """
     Get progress for multiple categories in bulk.
+    Uses CompletionService as single source of truth.
     
     Request body:
         [
@@ -619,10 +775,89 @@ async def get_bulk_progress_endpoint(
     
     Returns dict keyed by "category|subcategory|sub_subcategory"
     """
-    from .progress_engine import get_bulk_progress
+    from .completion_service import completion_service
+    from shared.database.mongo import db
     
-    progress = await get_bulk_progress(
-        organization_id=current_user["organization_id"],
-        categories=categories,
+    org_id = current_user["organization_id"]
+    result = {}
+    
+    for cat_info in categories:
+        category = cat_info.get("category", "")
+        subcategory = cat_info.get("subcategory")
+        sub_subcategory = cat_info.get("sub_subcategory")
+        
+        key = "|".join(filter(None, [category, subcategory, sub_subcategory]))
+        
+        # Find assignments for this category
+        query = {"organization_id": org_id, "category": category}
+        if subcategory:
+            query["subcategory"] = subcategory
+        if sub_subcategory:
+            query["sub_subcategory"] = sub_subcategory
+        
+        assignments = await db.esg_assignments.find(query, {"_id": 0}).to_list(500)
+        
+        if not assignments:
+            result[key] = {"total": 0, "completed": 0, "filled": 0, "pending": 0, "overdue": 0, "percentage": 0.0}
+            continue
+        
+        # Aggregate
+        total = completed = pending = overdue = 0
+        last_updated = None
+        
+        for assignment in assignments:
+            progress = await completion_service.get_assignment_progress(assignment)
+            total += progress.total
+            completed += progress.completed
+            pending += progress.pending
+            overdue += progress.overdue
+            if progress.last_updated and (not last_updated or progress.last_updated > last_updated):
+                last_updated = progress.last_updated
+        
+        result[key] = {
+            "total": total,
+            "total_tasks": total,
+            "completed": completed,
+            "completed_tasks": completed,
+            "filled": completed,
+            "pending": pending,
+            "pending_tasks": pending,
+            "overdue": overdue,
+            "overdue_tasks": overdue,
+            "percentage": round((completed / total) * 100, 1) if total > 0 else 0.0,
+            "progress_percentage": round((completed / total) * 100, 1) if total > 0 else 0.0,
+            "last_updated": last_updated.isoformat() if isinstance(last_updated, datetime) else str(last_updated) if last_updated else None,
+        }
+    
+    return result
+
+
+
+# ============================================
+# ADMIN UTILITY ENDPOINTS
+# ============================================
+
+@router.post("/admin/sync-task-assignees")
+async def sync_task_assignees(
+    current_user: dict = Depends(get_admin_user),
+):
+    """
+    Sync task assignees with assignment assignees (Admin only).
+    
+    This fixes data consistency issues where:
+    1. Users were removed from assignments but their task assignees weren't deactivated
+    2. Users were added to assignments but their task assignees weren't created
+    
+    Useful for fixing existing data after the assignee sync feature was added.
+    """
+    from .assignees_service import assignment_assignees_service
+    
+    result = await assignment_assignees_service.sync_task_assignees_with_assignment_assignees(
+        organization_id=current_user["organization_id"]
     )
-    return progress
+    
+    return {
+        "success": True,
+        "message": "Task assignees synced with assignment assignees",
+        **result
+    }

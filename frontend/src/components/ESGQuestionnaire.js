@@ -1,6 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { useDateFormatter } from '../hooks/useDateFormatter';
+
+// FY normalization utility - normalize once at response boundary
+import { normalizeAllResponses } from './ESGQuestionnaire/utils/fyNormalization';
 
 // Modular renderer imports
 import {
@@ -52,7 +56,8 @@ import {
   Trash2,
   CheckCircle2,
   AlertCircle,
-  HelpCircle
+  HelpCircle,
+  Clock
 } from 'lucide-react';
 import { 
   generateReportingYears, 
@@ -78,9 +83,16 @@ const NGRBC_PRINCIPLES = [
 
 // NGRBC Policy Matrix Renderer
 function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
-  const [mode, setMode] = useState(value?.mode || 'together');
-  const [allTogether, setAllTogether] = useState(value?.all_together || { covered: null, board_approved: null, web_link: '', reasons: {} });
-  const [principleWise, setPrincipleWise] = useState(value?.principle_wise || {});
+  // Default structure for the data
+  const defaultAllTogether = { covered: null, board_approved: null, web_link: '', reasons: {} };
+  const defaultPrincipleWise = {};
+  
+  // Use direct data manipulation pattern (like PrincipleToggleRenderer)
+  // This ensures onChange is always called with complete data on any interaction
+  const data = value || { mode: 'together', all_together: defaultAllTogether, principle_wise: defaultPrincipleWise };
+  const mode = data.mode || 'together';
+  const allTogether = data.all_together || defaultAllTogether;
+  const principleWise = data.principle_wise || defaultPrincipleWise;
 
   const noReasons = [
     { key: 'not_material', label: 'The entity does not consider the Principles material to its business' },
@@ -90,46 +102,55 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
     { key: 'other', label: 'Any other reason (please specify)', hasText: true }
   ];
 
-  useEffect(() => {
-    onChange({ mode, all_together: allTogether, principle_wise: principleWise });
-  }, [mode, allTogether, principleWise]);
-
+  // Direct onChange handlers - immediately push changes to parent
   const handleModeChange = (newMode) => {
-    setMode(newMode);
+    onChange({ ...data, mode: newMode });
   };
 
   const handleAllTogetherChange = (field, val) => {
-    setAllTogether(prev => ({ ...prev, [field]: val }));
+    onChange({ 
+      ...data, 
+      all_together: { ...allTogether, [field]: val } 
+    });
   };
 
   const handleAllTogetherReasonChange = (reasonKey, checked, textVal = '') => {
-    setAllTogether(prev => ({
-      ...prev,
-      reasons: {
-        ...prev.reasons,
-        [reasonKey]: checked ? (reasonKey === 'other' ? textVal || true : true) : false
-      }
-    }));
-  };
-
-  const handlePrincipleChange = (principle, field, val) => {
-    setPrincipleWise(prev => ({
-      ...prev,
-      [principle]: { ...prev[principle], [field]: val }
-    }));
-  };
-
-  const handlePrincipleReasonChange = (principle, reasonKey, checked, textVal = '') => {
-    setPrincipleWise(prev => ({
-      ...prev,
-      [principle]: {
-        ...prev[principle],
+    onChange({
+      ...data,
+      all_together: {
+        ...allTogether,
         reasons: {
-          ...prev[principle]?.reasons,
+          ...allTogether.reasons,
           [reasonKey]: checked ? (reasonKey === 'other' ? textVal || true : true) : false
         }
       }
-    }));
+    });
+  };
+
+  const handlePrincipleChange = (principle, field, val) => {
+    onChange({
+      ...data,
+      principle_wise: {
+        ...principleWise,
+        [principle]: { ...principleWise[principle], [field]: val }
+      }
+    });
+  };
+
+  const handlePrincipleReasonChange = (principle, reasonKey, checked, textVal = '') => {
+    onChange({
+      ...data,
+      principle_wise: {
+        ...principleWise,
+        [principle]: {
+          ...principleWise[principle],
+          reasons: {
+            ...principleWise[principle]?.reasons,
+            [reasonKey]: checked ? (reasonKey === 'other' ? textVal || true : true) : false
+          }
+        }
+      }
+    });
   };
 
   if (!isEditing) {
@@ -373,8 +394,12 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
 }
 
 // Individual Question Renderer
-export function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {}, historicalData = null }) {
+export function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {}, historicalData = null, approvalStatus = null, versionHistory = null, onSaveQuestion = null, onFetchVersionHistory = null }) {
+  const { formatDateTime } = useDateFormatter();
   const { type, question, description, placeholder, options, table_columns, required, conditional, visible_if } = config;
+  const [showVersions, setShowVersions] = useState(false);
+  const [savingQuestion, setSavingQuestion] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
 
   // Check if question should be hidden based on conditional logic
   if (conditional?.depends_on && conditional?.show_when === 'has_no_answer') {
@@ -402,31 +427,139 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
     if (visible_if.condition === 'not_equals' && depResponse === visible_if.value) return null;
   }
 
+  // Helper to render complex object/array data as a formatted table (for view mode)
+  const renderObjectAsTable = (data) => {
+    if (!data || typeof data !== 'object') return <span className="text-sm">{data ?? '-'}</span>;
+    
+    // If it's an array of objects, render as a standard table
+    if (Array.isArray(data)) {
+      if (data.length === 0) return <span className="text-sm text-text-muted">-</span>;
+      const firstItem = data[0];
+      if (typeof firstItem === 'object' && firstItem !== null) {
+        const columns = Object.keys(firstItem);
+        return (
+          <Table className="text-sm">
+            <TableHeader>
+              <TableRow className="bg-stone-50">
+                {columns.map(col => (
+                  <TableHead key={col} className="text-xs font-medium">
+                    {col.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.map((row, idx) => (
+                <TableRow key={idx}>
+                  {columns.map(col => (
+                    <TableCell key={col} className="text-xs">
+                      {typeof row[col] === 'object' 
+                        ? JSON.stringify(row[col]) 
+                        : (row[col] ?? '-')}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        );
+      }
+      return <span className="text-sm">{data.join(', ')}</span>;
+    }
+    
+    // If it's an object with nested objects (like {bod: {total: 87, trained: 23}})
+    const keys = Object.keys(data);
+    if (keys.length === 0) return <span className="text-sm text-text-muted">-</span>;
+    
+    // Check if values are objects (nested structure)
+    const hasNestedObjects = keys.some(k => typeof data[k] === 'object' && data[k] !== null && !Array.isArray(data[k]));
+    
+    if (hasNestedObjects) {
+      // Get all unique inner keys
+      const innerKeys = new Set();
+      keys.forEach(k => {
+        if (typeof data[k] === 'object' && data[k] !== null) {
+          Object.keys(data[k]).forEach(ik => innerKeys.add(ik));
+        }
+      });
+      const innerKeysArr = Array.from(innerKeys);
+      
+      return (
+        <Table className="text-sm">
+          <TableHeader>
+            <TableRow className="bg-stone-50">
+              <TableHead className="text-xs font-medium">Category</TableHead>
+              {innerKeysArr.map(ik => (
+                <TableHead key={ik} className="text-xs font-medium">
+                  {ik.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {keys.map(k => (
+              <TableRow key={k}>
+                <TableCell className="text-xs font-medium">
+                  {k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                </TableCell>
+                {innerKeysArr.map(ik => (
+                  <TableCell key={ik} className="text-xs">
+                    {typeof data[k] === 'object' && data[k] !== null 
+                      ? (data[k][ik] ?? '-')
+                      : '-'}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      );
+    }
+    
+    // Simple key-value object
+    return (
+      <div className="space-y-1 mt-2">
+        {keys.map(k => (
+          <div key={k} className="flex gap-2 text-sm">
+            <span className="font-medium text-text-muted">
+              {k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}:
+            </span>
+            <span>{data[k] ?? '-'}</span>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   const renderInput = () => {
     switch (type) {
       case 'text':
         return isEditing ? (
           <Input
-            value={value || ''}
+            value={typeof value === 'string' ? value : (value || '')}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder || 'Enter response'}
             className="mt-2"
           />
         ) : (
-          <p className="text-sm text-text-secondary mt-2">{value || '-'}</p>
+          typeof value === 'object' && value !== null 
+            ? <div className="mt-2">{renderObjectAsTable(value)}</div>
+            : <p className="text-sm text-text-secondary mt-2">{value || '-'}</p>
         );
 
       case 'textarea':
         return isEditing ? (
           <Textarea
-            value={value || ''}
+            value={typeof value === 'string' ? value : (value || '')}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder || 'Enter detailed response'}
             rows={3}
             className="mt-2"
           />
         ) : (
-          <p className="text-sm text-text-secondary mt-2 whitespace-pre-wrap">{value || '-'}</p>
+          typeof value === 'object' && value !== null 
+            ? <div className="mt-2">{renderObjectAsTable(value)}</div>
+            : <p className="text-sm text-text-secondary mt-2 whitespace-pre-wrap">{value || '-'}</p>
         );
 
       case 'yes_no':
@@ -679,29 +812,346 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
         return <NGRBCPolicyMatrixRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
 
       default:
+        // For unknown types, try to render object data as a table in view mode
+        if (!isEditing && value && typeof value === 'object') {
+          return <div className="mt-2">{renderObjectAsTable(value)}</div>;
+        }
         return <p className="text-sm text-red-500 mt-2">Unknown question type: {type}</p>;
     }
   };
 
-  return (
-    <div className="py-4 border-b border-stone-100 last:border-b-0">
-      <div className="flex items-start gap-2">
-        <Label className="text-sm font-medium text-text-primary">
-          {question}
-          {required && <span className="text-red-500 ml-1">*</span>}
-        </Label>
-        {description && (
-          <HelpCircle className="w-4 h-4 text-text-muted flex-shrink-0" title={description} />
+  // Helper to render approval status badge
+  const renderStatusBadge = () => {
+    if (!approvalStatus) return null;
+    
+    // Priority: approval_status (workflow state) > status (save state)
+    // Only show approval_status if it's a workflow status (pending_approval/approved/rejected)
+    // Otherwise fall back to status (draft/saved)
+    const workflowStatuses = ['pending_approval', 'approved', 'rejected'];
+    const approvalState = approvalStatus.approval_status;
+    const saveState = approvalStatus.status;
+    
+    // Use workflow status if it exists and is valid, otherwise use save state
+    const status = (approvalState && workflowStatuses.includes(approvalState)) 
+      ? approvalState 
+      : saveState;
+    
+    if (!status) return null;
+    
+    const statusConfig = {
+      pending_approval: { label: 'Awaiting Approval', className: 'bg-amber-100 text-amber-800' },
+      approved: { label: 'Approved', className: 'bg-green-100 text-green-800' },
+      rejected: { label: 'Rejected', className: 'bg-red-100 text-red-800' },
+      draft: { label: 'Draft', className: 'bg-blue-100 text-blue-800' },
+      saved: { label: 'Saved', className: 'bg-slate-100 text-slate-700' },
+      pending: { label: 'Pending', className: 'bg-stone-100 text-stone-600' },
+    };
+    
+    const cfg = statusConfig[status];
+    if (!cfg) return null;
+    
+    return (
+      <Badge className={`text-xs ${cfg.className}`}>
+        {cfg.label}
+      </Badge>
+    );
+  };
+
+  // Helper to render version history - detailed view with old/new values, approvals, rejections
+  const renderVersionHistory = () => {
+    const hasHistory = versionHistory && versionHistory.length > 0;
+    
+    // Format complex values into human-readable text with conditional field handling
+    const formatValue = (val) => {
+      if (val === null || val === undefined) return '-';
+      if (typeof val === 'string') return val || '-';
+      if (typeof val === 'boolean') return val ? 'Yes' : 'No';
+      if (typeof val === 'number') return String(val);
+      
+      if (typeof val === 'object') {
+        const lines = [];
+        
+        // Handle mode-based responses (principle toggles, etc.)
+        if (val.mode) {
+          const modeLabels = {
+            'all_together': 'Report all principles together',
+            'combined': 'Report all principles together',
+            'individual': 'Report by individual principle',
+            'per_principle': 'Report by individual principle',
+          };
+          lines.push(`Mode: ${modeLabels[val.mode] || val.mode}`);
+          
+          // Handle all_together/combined mode
+          if (val.all_enabled !== undefined) {
+            lines.push(`Enabled: ${val.all_enabled ? 'Yes' : 'No'}`);
+          }
+          if (val.all_description) {
+            lines.push(`Description: ${val.all_description.slice(0, 100)}${val.all_description.length > 100 ? '...' : ''}`);
+          }
+          if (val.combined) {
+            // First pass: identify control fields (boolean fields that control visibility)
+            const controlFields = {};
+            Object.entries(val.combined).forEach(([k, v]) => {
+              if (typeof v === 'boolean') {
+                controlFields[k] = v;
+              } else if (typeof v === 'string') {
+                const lower = v.toLowerCase();
+                if (lower === 'yes' || lower === 'true') controlFields[k] = true;
+                else if (lower === 'no' || lower === 'false') controlFields[k] = false;
+              }
+            });
+            
+            // Second pass: show fields conditionally
+            Object.entries(val.combined).forEach(([k, v]) => {
+              // Skip empty values
+              if (v === null || v === undefined || v === '') return;
+              
+              // Check if this field depends on a control field
+              // Pattern: if field is like "agency_name" and "assessment_done" is false, skip it
+              const fieldBase = k.replace(/_name$|_details$|_description$|_reason$|_value$/, '');
+              const possibleControls = [
+                `${fieldBase}_done`, `${fieldBase}_conducted`, `${fieldBase}_enabled`,
+                `${fieldBase.replace(/_/g, '')}_done`, 'assessment_done', 'enabled'
+              ];
+              
+              const shouldSkip = possibleControls.some(ctrl => 
+                controlFields[ctrl] === false && k !== ctrl
+              );
+              
+              if (shouldSkip && typeof v !== 'boolean' && !['yes','no','true','false'].includes(String(v).toLowerCase())) return;
+              
+              const label = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+              const displayVal = typeof v === 'boolean' ? (v ? 'Yes' : 'No') : v;
+              lines.push(`${label}: ${displayVal}`);
+            });
+          }
+          
+          // Handle per-principle mode
+          if (val.principles && Object.keys(val.principles).length > 0) {
+            const enabledPrinciples = Object.entries(val.principles)
+              .filter(([_, p]) => p?.enabled)
+              .map(([k]) => k.toUpperCase());
+            if (enabledPrinciples.length > 0) {
+              lines.push(`Enabled Principles: ${enabledPrinciples.join(', ')}`);
+            }
+          }
+        }
+        // Handle table data (arrays)
+        else if (Array.isArray(val)) {
+          lines.push(`${val.length} row(s)`);
+          if (val.length > 0 && typeof val[0] === 'object') {
+            const firstRow = Object.entries(val[0]).slice(0, 3)
+              .map(([k, v]) => `${k}: ${v || '-'}`)
+              .join(', ');
+            lines.push(`First row: ${firstRow}${Object.keys(val[0]).length > 3 ? '...' : ''}`);
+          }
+        }
+        // Handle simple key-value objects
+        else {
+          // First pass: identify control fields
+          const controlFields = {};
+          Object.entries(val).forEach(([k, v]) => {
+            if (typeof v === 'boolean') {
+              controlFields[k] = v;
+            } else if (typeof v === 'string') {
+              const lower = v.toLowerCase();
+              if (lower === 'yes' || lower === 'true') controlFields[k] = true;
+              else if (lower === 'no' || lower === 'false') controlFields[k] = false;
+            }
+          });
+          
+          Object.entries(val).slice(0, 8).forEach(([k, v]) => {
+            if (k.startsWith('_')) return; // Skip internal fields
+            if (v === null || v === undefined || v === '') return; // Skip empty
+            
+            // Check conditional visibility
+            const fieldBase = k.replace(/_name$|_details$|_description$|_reason$|_value$/, '');
+            const possibleControls = [`${fieldBase}_done`, `${fieldBase}_conducted`, `${fieldBase}_enabled`, 'assessment_done'];
+            const shouldSkip = possibleControls.some(ctrl => controlFields[ctrl] === false && k !== ctrl);
+            if (shouldSkip && typeof v !== 'boolean' && !['yes','no','true','false'].includes(String(v).toLowerCase())) return;
+            
+            const label = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            const displayVal = typeof v === 'boolean' ? (v ? 'Yes' : 'No') : 
+                              typeof v === 'object' ? JSON.stringify(v).slice(0, 30) : 
+                              String(v || '-').slice(0, 50);
+            lines.push(`${label}: ${displayVal}`);
+          });
+        }
+        
+        return lines.length > 0 ? lines : ['-'];
+      }
+      
+      return [String(val)];
+    };
+
+    const getActionBadge = (action) => {
+      const badges = {
+        'created': 'bg-green-100 text-green-700',
+        'updated': 'bg-blue-100 text-blue-700',
+        'approved': 'bg-emerald-100 text-emerald-700',
+        'rejected': 'bg-red-100 text-red-700',
+        'submitted': 'bg-amber-100 text-amber-700',
+      };
+      return badges[action] || 'bg-stone-100 text-stone-700';
+    };
+
+    if (!hasHistory) return null;
+    
+    return (
+      <>
+        {showVersions && (
+          <div className="bg-stone-50 rounded-md p-3 space-y-3 text-xs mt-2 border">
+            <div className="font-medium text-stone-700 border-b pb-1 mb-2">Version History</div>
+            {versionHistory.slice(0, 10).map((v, i) => {
+              const oldLines = formatValue(v.old_value);
+              const newLines = formatValue(v.new_value);
+              
+              return (
+                <div key={i} className="border-b border-stone-200 pb-3 last:border-0 last:pb-0">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium capitalize ${getActionBadge(v.change_type)}`}>
+                      {v.change_type || 'Updated'}
+                    </span>
+                    <span className="text-stone-500">
+                      {v.created_at ? formatDateTime(v.created_at) : '-'}
+                    </span>
+                  </div>
+                  {v.created_by && (
+                    <div className="text-stone-600 mb-2">
+                      <span className="font-medium">By:</span> {v.created_by}
+                    </div>
+                  )}
+                  {v.change_type === 'rejected' && v.rejection_reason && (
+                    <div className="text-red-600 mb-2">
+                      <span className="font-medium">Reason:</span> {v.rejection_reason}
+                    </div>
+                  )}
+                  {(v.old_value !== undefined || v.new_value !== undefined) && (
+                    <div className="grid grid-cols-2 gap-3 text-stone-600">
+                      <div className="bg-red-50 p-2 rounded">
+                        <div className="font-medium text-red-700 mb-1">Previous Value:</div>
+                        {Array.isArray(oldLines) ? oldLines.map((line, j) => (
+                          <div key={j} className="text-stone-600">{line}</div>
+                        )) : <div>{oldLines}</div>}
+                      </div>
+                      <div className="bg-green-50 p-2 rounded">
+                        <div className="font-medium text-green-700 mb-1">New Value:</div>
+                        {Array.isArray(newLines) ? newLines.map((line, j) => (
+                          <div key={j} className="text-stone-600">{line}</div>
+                        )) : <div>{newLines}</div>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
+      </>
+    );
+  };
+
+  // Version history button for header
+  const renderVersionHistoryButton = () => {
+    const hasHistory = versionHistory && versionHistory.length > 0;
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={handleToggleVersions}
+        className={`h-7 px-2 text-xs ${!hasHistory && !onFetchVersionHistory ? 'opacity-50' : ''}`}
+        title={hasHistory ? `${versionHistory.length} version(s)` : 'View history'}
+      >
+        <Clock className="w-3 h-3" />
+      </Button>
+    );
+  };
+
+  // Handle question-level save
+  const handleSaveQuestion = async (status = 'saved') => {
+    if (!onSaveQuestion) return;
+    if (status === 'draft') {
+      setSavingDraft(true);
+    } else {
+      setSavingQuestion(true);
+    }
+    try {
+      await onSaveQuestion(config.question_key, value, status);
+    } finally {
+      setSavingDraft(false);
+      setSavingQuestion(false);
+    }
+  };
+
+  // Handle version history fetch and toggle
+  const handleToggleVersions = async () => {
+    if (!showVersions && onFetchVersionHistory && (!versionHistory || versionHistory.length === 0)) {
+      await onFetchVersionHistory();
+    }
+    setShowVersions(!showVersions);
+  };
+
+  return (
+    <div className="py-4 border-b border-stone-100 last:border-b-0" data-testid={`question-${config.question_key}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start gap-2 flex-1">
+          <Label className="text-sm font-medium text-text-primary">
+            {question}
+            {required && <span className="text-red-500 ml-1">*</span>}
+          </Label>
+          {description && (
+            <HelpCircle className="w-4 h-4 text-text-muted flex-shrink-0" title={description} />
+          )}
+        </div>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {renderStatusBadge()}
+          {renderVersionHistoryButton()}
+        </div>
       </div>
       {description && <p className="text-xs text-text-muted mt-1">{description}</p>}
       {renderInput()}
+      
+      {/* Question-level Save Draft and Submit buttons */}
+      {isEditing && onSaveQuestion && (
+        <div className="flex items-center gap-2 mt-3 pt-2 border-t border-stone-100">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleSaveQuestion('draft')}
+            disabled={savingDraft || savingQuestion}
+            className="h-7 px-3 text-xs"
+            data-testid={`save-draft-${config.question_key}`}
+          >
+            {savingDraft ? (
+              <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Saving...</>
+            ) : (
+              <><Save className="w-3 h-3 mr-1" /> Save Draft</>
+            )}
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => handleSaveQuestion('saved')}
+            disabled={savingDraft || savingQuestion}
+            className="h-7 px-3 text-xs bg-primary hover:bg-primary/90"
+            data-testid={`submit-${config.question_key}`}
+          >
+            {savingQuestion ? (
+              <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Submitting...</>
+            ) : (
+              <><CheckCircle2 className="w-3 h-3 mr-1" /> Submit</>
+            )}
+          </Button>
+        </div>
+      )}
+      
+      {renderVersionHistory()}
     </div>
   );
 }
 
 // P1-P9 Principle Toggle Renderer (with optional inline reasons when No)
 function PrincipleToggleRenderer({ value, onChange, isEditing, config = {} }) {
+  // Data is already normalized at the response boundary (ESGQuestionnaire.fetchData)
   const data = value || { mode: 'all_together', all_enabled: null, all_description: '', principles: {} };
   const inlineReasons = config.inline_reasons_config?.items || [];
   const hasInlineReasons = inlineReasons.length > 0;
@@ -891,6 +1341,7 @@ function PrincipleToggleRenderer({ value, onChange, isEditing, config = {} }) {
 
 // P1-P9 Principle Text Renderer (text input per principle, no toggle)
 function PrincipleTextRenderer({ value, onChange, isEditing, config }) {
+  // Data is already normalized at the response boundary (ESGQuestionnaire.fetchData)
   const data = value || { mode: 'all_together', all_text: '', principles: {} };
 
   const handleModeChange = (newMode) => {
@@ -980,6 +1431,7 @@ function PrincipleTextRenderer({ value, onChange, isEditing, config }) {
 
 // Conditional Yes/No Table Renderer (reusable pattern)
 function ConditionalYesNoTableRenderer({ config, value, onChange, isEditing }) {
+  // Data is already normalized at the response boundary (ESGQuestionnaire.fetchData)
   const data = value || { has_value: false, members: [{}] };
   const tableConfig = config.table_config || {};
   const columns = tableConfig.columns || ['name', 'din', 'designation', 'role'];
@@ -1116,6 +1568,7 @@ function ConditionalYesNoTableRenderer({ config, value, onChange, isEditing }) {
 
 // Principle Mode Table Renderer (Combined or Principle-wise reporting)
 function PrincipleModeTableRenderer({ config, value, onChange, isEditing }) {
+  // Data is already normalized at the response boundary (ESGQuestionnaire.fetchData)
   const data = value || { mode: 'combined', combined: {}, principles: {} };
   const fieldConfig = config.field_config || {};
   const fields = fieldConfig.fields || [];
@@ -1298,6 +1751,7 @@ function PrincipleModeTableRenderer({ config, value, onChange, isEditing }) {
 
 // Reasons Checklist Renderer (Yes/No items with optional "other" text, principle-aware)
 function ReasonsChecklistRenderer({ config, value, onChange, isEditing, allResponses = {} }) {
+  // Data is already normalized at the response boundary (ESGQuestionnaire.fetchData)
   const data = value || { principles: {} };
   const reasonsConfig = config.reasons_config || {};
   const reasons = reasonsConfig.items || [];
@@ -2941,6 +3395,8 @@ export default function ESGQuestionnaire({
   const [responses, setResponses] = useState({});
   const [summary, setSummary] = useState(null);
   const [historicalData, setHistoricalData] = useState(null);
+  const [questionStatuses, setQuestionStatuses] = useState({});
+  const [questionVersions, setQuestionVersions] = useState({});
 
   useEffect(() => {
     fetchData();
@@ -2972,8 +3428,24 @@ export default function ESGQuestionnaire({
         `${API}/esg-questionnaire/responses/${framework}/${section}/${reportingYear}`,
         { headers: getAuthHeader() }
       );
-      const allResponses = responsesRes.data.responses || {};
+      // Normalize responses at the boundary - strip FY suffixes so renderers get clean data
+      const rawResponses = responsesRes.data.responses || {};
+      const allResponses = normalizeAllResponses(rawResponses);
       setResponses(allResponses);
+
+      // Fetch question statuses (approval status + version history)
+      try {
+        const statusesRes = await axios.get(
+          `${API}/esg-questionnaire/responses/${framework}/${section}/${reportingYear}/statuses`,
+          { headers: getAuthHeader() }
+        );
+        setQuestionStatuses(statusesRes.data.statuses || {});
+        setQuestionVersions(statusesRes.data.versions || {});
+      } catch (err) {
+        console.warn('Failed to fetch question statuses:', err);
+        setQuestionStatuses({});
+        setQuestionVersions({});
+      }
 
       // Calculate filtered summary based on filtered configs
       const filteredQuestionIds = fetchedConfigs.map(c => c.question_key);
@@ -3014,6 +3486,58 @@ export default function ESGQuestionnaire({
 
   const handleResponseChange = (questionKey, value) => {
     setResponses(prev => ({ ...prev, [questionKey]: value }));
+  };
+
+  // Question-level save (saves only the specified question)
+  const saveQuestion = async (questionKey, value, status = 'saved') => {
+    try {
+      await axios.post(
+        `${API}/esg-questionnaire/response`,
+        { 
+          question_key: questionKey, 
+          value, 
+          reporting_period: reportingYear,
+          status 
+        },
+        { headers: getAuthHeader() }
+      );
+      toast.success(status === 'draft' ? 'Draft saved' : 'Question saved');
+      // Refresh statuses after save
+      try {
+        const statusesRes = await axios.get(
+          `${API}/esg-questionnaire/responses/${framework}/${section}/${reportingYear}/statuses`,
+          { headers: getAuthHeader() }
+        );
+        setQuestionStatuses(statusesRes.data.statuses || {});
+        setQuestionVersions(statusesRes.data.versions || {});
+      } catch (err) {
+        console.warn('Failed to refresh statuses:', err);
+      }
+    } catch (error) {
+      console.error('Save question error:', error);
+      toast.error('Failed to save question');
+    }
+  };
+
+  // Fetch version history for a specific question
+  const fetchVersionHistory = async (questionKey) => {
+    try {
+      const res = await axios.get(
+        `${API}/esg-questionnaire/history/${questionKey}`,
+        { 
+          params: { reporting_period: reportingYear },
+          headers: getAuthHeader() 
+        }
+      );
+      setQuestionVersions(prev => ({
+        ...prev,
+        [questionKey]: res.data.history || []
+      }));
+      return res.data.history || [];
+    } catch (error) {
+      console.error('Failed to fetch version history:', error);
+      return [];
+    }
   };
 
   const saveResponses = async () => {
@@ -3126,6 +3650,10 @@ export default function ESGQuestionnaire({
                       framework: framework
                     }}
                     historicalData={historicalData}
+                    approvalStatus={questionStatuses[config.question_key]}
+                    versionHistory={questionVersions[config.question_key]}
+                    onSaveQuestion={saveQuestion}
+                    onFetchVersionHistory={() => fetchVersionHistory(config.question_key)}
                   />
                 ))}
               </div>

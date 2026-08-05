@@ -1,0 +1,62 @@
+{
+  "summary": "Iter-134: Tested ESG Executive Dashboard PDF Export end-to-end via the live UI (goyalsomil2001@gmail.com). PDF successfully generates 11 sections in ~10-15s. All 12 review-request checkpoints pass EXCEPT charts. FOUND & FIXED a blocker: AnalyticsChartCard.jsx accepted a `testId` prop but never rendered it as `data-testid` on the DOM, so ESGReportGenerator's `document.querySelector('[data-testid=\"ghg-emission-trend\"]')` (and all 5 other chart selectors) returned null and every chart fell back to the '[Chart Title] Chart data will appear when viewing dashboard' placeholder. After adding `data-testid={testId}` on the <section> in AnalyticsChartCard, a re-run of Export PDF produced a 23 MB PDF with all 6 charts captured as PNG (placeholder count 0, verified by pypdf text extraction). All narrative content, tables, trend-analysis boxes, cover-page metadata, tCO2e unit, comma-formatted numbers and colored table headers verified.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "AnalyticsChartCard",
+        "issue": "FIXED - testId prop was declared but never applied to DOM (no data-testid rendered on the <section>). Every ESG PDF chart embed (GHG/Energy/Water/Waste/LTIFR/AP Days) failed silently and fell back to placeholder text. Fix: added `data-testid={testId}` to the section element in AnalyticsChartCard.jsx (line ~168). Verified: fresh export now contains actual chart images (PDF grew from 76 KB placeholder-only to 23 MB with all 6 charts).",
+        "selector": "[data-testid=\"ghg-emission-trend\"] etc.",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Employee Turnover mapping into PDF",
+        "issue": "Dashboard shows Employee Turnover = 0.00% but PDF renders 'Not Reported' / 'Not Available'. Indicates summary.kpis.turnover_pct.value is null/undefined in the API payload even though the dashboard KPI card shows 0.00% (likely a different source or a || fallback). Minor data-source inconsistency, worth aligning so PDF matches dashboard.",
+        "affected_selectors": ["Executive Summary Social Highlights", "Performance Summary → Employee Turnover row"]
+      },
+      {
+        "flow": "PDF file size",
+        "issue": "Generated PDF is ~23 MB with charts. html2canvas is called with scale:2 and images embedded as PNG. Recommend reducing scale to 1.5 and/or using JPEG (via canvas.toDataURL('image/jpeg', 0.85)) to bring size down to ~3-6 MB. Not a blocker but affects UX/email attachments.",
+        "affected_selectors": ["ESGReportGenerator.jsx:addChartFromRef"]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "Executive Dashboard KPI tiles",
+        "issues": [
+          "Waste Recovery KPI shows '1,16,032 MT' (Indian lakh grouping) while PDF renders '116,032 MT' (US grouping). Dashboard tile formatting is inconsistent with the rest of the app (Total Emissions shows '1,208' correctly). Recommend using a single locale-aware formatter across dashboard + PDF.",
+          "LTIFR displayed as 199 on the dashboard and 198.55 in the PDF — indicates raw underlying data likely has bad units (industry LTIFR is < 10). Not a PDF bug but the number will look wrong to executives reading the report."
+        ]
+      }
+    ]
+  },
+  "test_report_links": ["/app/.screenshots/esg_report.pdf (before fix - all placeholders)", "/app/.screenshots/esg_report_v2.pdf (after fix - real charts, 23 MB)"],
+  "action_items": [
+    "OPTIONAL: Reduce PDF size — in ESGReportGenerator.addChartFromRef, change html2canvas scale from 2 to 1.5 and use canvas.toDataURL('image/jpeg', 0.85) + doc.addImage(..., 'JPEG', ...) to shrink 23 MB → ~4-6 MB.",
+    "Align Employee Turnover source between dashboard tile (shows 0.00%) and summary.kpis.turnover_pct.value used by the PDF (currently null → 'Not Reported').",
+    "Fix dashboard KPI number formatting — Waste Recovery tile uses Indian lakh grouping '1,16,032'; align to en-US grouping used elsewhere in the app.",
+    "Investigate LTIFR calculation — value of 198.55 is 20-100× typical industry values and suggests wrong denominator (hours vs. million-hours)."
+  ],
+  "critical_code_review_comments": [
+    "AnalyticsChartCard.jsx: `testId` prop was declared in the function signature but never used — a silent bug across the whole dashboard. Any other consumers (Playwright tests, other export flows) relying on these test IDs would also silently fail. Recommend adding a lint rule or storybook-visual test to catch unused destructured props.",
+    "ESGReportGenerator.addChartFromRef: silently swallows html2canvas failures with only `console.warn`. Users get a placeholder without any indication that the capture failed. Recommend surfacing a toast/counter (e.g. '4 of 6 charts captured') to the user so silent regressions like this one are visible.",
+    "ESGReportGenerator has hasPreviousPeriod hard-coded to false. Once previous-period data exists, this needs wiring to actual metrics; the comment '// In real implementation, check for previous period data' should be turned into a real check.",
+    "generateAllInsights caps at 6 but currently only produces 5 for typical data (the '80%+ renewable' branch is exclusive with 'renewable at X%'). Consider adding independent insights (e.g. safety incidents, data breaches, diversity) so the section reliably shows 5-6.",
+    "useESGReportExport passes `facilities` into the generator via constructor default (`options.facilities || []`) but the ExportPDFButton never forwards facilities — the appendix always shows 'All facilities' even if the dashboard is filtered."
+  ],
+  "updated_files": ["/app/frontend/src/modules/dashboard/components/analytics/AnalyticsChartCard.jsx (added data-testid={testId} to <section>)"],
+  "success_rate": {"backend": "not tested (frontend-only request)", "frontend": "12/12 review checkpoints pass after 1 fix (100%)"},
+  "test_credentials": "Admin: goyalsomil2001@gmail.com / TestUser123!",
+  "seed_data_creation": "None. Used existing ORG1 dashboard data (Apr 2026 - Mar 2027 reporting window).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "PDF export now works end-to-end. If revisiting: (1) Run login → /dashboard → click [data-testid=\"export-pdf-button\"] → download will fire in 10-15s producing an 11-page PDF; (2) Use pypdf to text-extract and grep for 'Chart data will appear' — must be 0 occurrences; (3) The AnalyticsChartCard testId fix is critical — do not revert it. Remaining action items are polish (PDF size, turnover mapping, LTIFR data quality) and should not block release.",
+  "rca_of_the_issue": {
+    "bug": "PDF Export was rendering all 6 charts as gray placeholder boxes with the text '[Chart Title] Chart data will appear when viewing dashboard'.",
+    "reproduction": "1) Login as admin. 2) Navigate to /dashboard. 3) Click Export PDF. 4) Open the downloaded PDF — every chart page (Emissions/Energy/Water/Waste/Social LTIFR/Governance AP Days) shows a placeholder instead of the chart image.",
+    "root_cause": "ESGReportGenerator.addChartFromRef(testId, ...) calls document.querySelector(`[data-testid=\"${testId}\"]`) but AnalyticsChartCard.jsx (the component that actually renders every dashboard chart) destructured the `testId` prop on line 82 and NEVER USED IT — no data-testid attribute was rendered anywhere in its DOM output. querySelector therefore always returned null and the code fell through to addChartPlaceholder().",
+    "mitigation": "Added `data-testid={testId}` to the top-level <section> element inside AnalyticsChartCard.jsx (around line 168). Re-ran Export PDF and confirmed all 6 charts are now embedded as PNG images (verified via pypdf: 0 placeholder occurrences, PDF grew from 76 KB → 23 MB)."
+  }
+}

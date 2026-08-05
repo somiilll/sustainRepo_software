@@ -222,7 +222,7 @@ class ApprovalHistoryEntry(BaseModel):
     id: str = Field(default_factory=generate_id)
     organization_id: str
     request_id: str
-    workflow_id: str
+    workflow_id: Optional[str] = None  # Optional for direct approvals (like questionnaire responses)
     
     # Entity info
     entity_type: EntityType

@@ -7,6 +7,7 @@
 import React from 'react';
 import { Button } from '../../components/ui/button';
 import { Edit, History, Trash2, Activity, FileText } from 'lucide-react';
+import { getStatusDisplay } from '../../modules/ghg/utils/approvalSchema';
 
 const EmissionTable = ({
   // Data
@@ -67,6 +68,7 @@ const EmissionTable = ({
           <div className="flex-1 min-w-[120px] pl-2">Activity</div>
           <div className="w-20 flex-shrink-0 text-center">Method</div>
           <div className="w-28 flex-shrink-0 text-right normal-case">tCO₂e</div>
+          <div className="w-36 flex-shrink-0 text-center">Status</div>
           <div className="w-28 flex-shrink-0 text-center">Actions</div>
         </>
       );
@@ -79,8 +81,8 @@ const EmissionTable = ({
           <div className="w-24 flex-shrink-0">Period</div>
           <div className="w-44 flex-shrink-0">Category</div>
           <div className="flex-1 min-w-[140px]">Sub-category</div>
-          <div className="w-32 flex-shrink-0 text-right">Quantity</div>
           <div className="w-28 flex-shrink-0 text-right normal-case">tCO₂e</div>
+          <div className="w-36 flex-shrink-0 text-center">Status</div>
           <div className="w-28 flex-shrink-0 text-center">Actions</div>
         </>
       );
@@ -96,6 +98,7 @@ const EmissionTable = ({
         <div className="flex-1 min-w-[120px]">Activity / Fuel</div>
         <div className="w-20 flex-shrink-0 text-center">Method</div>
         <div className="w-28 flex-shrink-0 text-right normal-case">tCO₂e</div>
+        <div className="w-36 flex-shrink-0 text-center">Status</div>
         <div className="w-28 flex-shrink-0 text-center">Actions</div>
       </>
     );
@@ -160,6 +163,11 @@ const EmissionTable = ({
                 {totalEmissions.toFixed(4)}
               </span>
             </div>
+            <div className="w-36 flex-shrink-0 text-center">
+              <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusDisplay(emission.approval_status).cls}`}>
+                {getStatusDisplay(emission.approval_status).text}
+              </span>
+            </div>
           </>
         )}
         
@@ -192,12 +200,14 @@ const EmissionTable = ({
                 <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Has Evidence" />
               )}
             </div>
-            <div className="w-32 flex-shrink-0 text-right text-sm text-text-secondary">
-              {getQuantityDisplay(emission)}
-            </div>
             <div className="w-28 flex-shrink-0 text-right">
               <span className="text-sm font-semibold text-primary">
                 {totalEmissions.toFixed(4)}
+              </span>
+            </div>
+            <div className="w-36 flex-shrink-0 text-center">
+              <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusDisplay(emission.approval_status).cls}`}>
+                {getStatusDisplay(emission.approval_status).text}
               </span>
             </div>
           </>
@@ -251,6 +261,11 @@ const EmissionTable = ({
             <div className="w-28 flex-shrink-0 text-right">
               <span className="text-sm font-semibold text-primary">
                 {totalEmissions.toFixed(4)}
+              </span>
+            </div>
+            <div className="w-36 flex-shrink-0 text-center">
+              <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${getStatusDisplay(emission.approval_status).cls}`}>
+                {getStatusDisplay(emission.approval_status).text}
               </span>
             </div>
           </>

@@ -42,6 +42,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { Textarea } from './ui/textarea';
+import { Checkbox } from './ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from './ui/dialog';
@@ -124,6 +125,10 @@ export default function ESGRecordsDataEntry({
   
   // Sorting state
   const [sort, setSort] = useState({ key: null, direction: 'desc' });
+  
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   
   // Modal states
   const [showVersionsModal, setShowVersionsModal] = useState(false);
@@ -643,6 +648,77 @@ export default function ESGRecordsDataEntry({
     }
   };
 
+  // Bulk selection handlers
+  const handleSelectRecord = (id) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedIds.size === sortedRecords.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(sortedRecords.map(r => r.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    
+    if (!window.confirm(`Delete ${selectedIds.size} record(s)? This action cannot be undone.`)) {
+      return;
+    }
+    
+    setBulkDeleting(true);
+    try {
+      // Track results for each delete request to handle approval workflows
+      let deletedCount = 0;
+      let queuedForApprovalCount = 0;
+      let failedCount = 0;
+      
+      // Process each delete individually to handle approval workflow responses
+      for (const id of Array.from(selectedIds)) {
+        try {
+          const response = await axios.delete(`${API}/api/esg-records/records/${section}/${id}`, { headers });
+          // Check if queued for approval vs direct delete
+          if (response.data?.message?.toLowerCase().includes('submitted for approval')) {
+            queuedForApprovalCount++;
+          } else {
+            deletedCount++;
+          }
+        } catch (error) {
+          failedCount++;
+        }
+      }
+      
+      // Show appropriate toast messages based on results
+      if (deletedCount > 0) {
+        toast.success(`${deletedCount} record(s) deleted`);
+      }
+      if (queuedForApprovalCount > 0) {
+        toast.info(`${queuedForApprovalCount} record(s) submitted for approval`);
+      }
+      if (failedCount > 0) {
+        toast.error(`${failedCount} record(s) could not be deleted`);
+      }
+      
+      setSelectedIds(new Set());
+      fetchRecords();
+      fetchStats();
+    } catch (error) {
+      toast.error('Failed to delete some records');
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
   // View version history
   const viewVersions = async (record) => {
     setSelectedRecord(record);
@@ -679,8 +755,14 @@ export default function ESGRecordsDataEntry({
       }
     }
     
+    // If user has a pending proposal, show their proposed values instead of record values
+    const hasPendingProposal = !!record._user_pending_proposal;
+    const fieldValues = hasPendingProposal 
+      ? (record._user_pending_proposal.proposed_values || record.field_values || {})
+      : (record.field_values || {});
+    
     setEditData({
-      field_values: record.field_values || {},
+      field_values: fieldValues,
       subcategory: record.subcategory || '',
       notes: record.notes || '',
       source_of_information: record.source_of_information || '',
@@ -693,6 +775,8 @@ export default function ESGRecordsDataEntry({
       // Facility/org level
       facility_id: record.facility_id || '',
       record_level: record.record_level || 'organization',
+      // Track if viewing pending proposal
+      _viewing_pending_proposal: hasPendingProposal,
     });
     
     // Fetch category config for dynamic fields
@@ -780,7 +864,20 @@ export default function ESGRecordsDataEntry({
       fetchDrafts();
     } catch (error) {
       console.error('Failed to update record:', error);
-      toast.error(error.response?.data?.detail || 'Failed to update record');
+      const errorDetail = error.response?.data?.detail;
+      
+      // Handle structured error response (object with error/message)
+      if (errorDetail && typeof errorDetail === 'object') {
+        // Show the message, and if rejection reason exists, show it too
+        const message = errorDetail.message || 'Failed to update record';
+        if (errorDetail.rejection_reason) {
+          toast.error(`${message}\n\nRejection reason: ${errorDetail.rejection_reason}`);
+        } else {
+          toast.error(message);
+        }
+      } else {
+        toast.error(errorDetail || 'Failed to update record');
+      }
     } finally {
       setSaving(prev => ({ ...prev, edit: false }));
     }
@@ -803,6 +900,9 @@ export default function ESGRecordsDataEntry({
    * - 'saved' → completed (no approval needed)
    * - 'submitted' → completed (check approval_status for whether approval is needed)
    * - null/undefined → pending
+   * 
+   * Multi-proposal workflow:
+   * - If user has a pending proposal (_user_pending_proposal), show "Awaiting Approval"
    */
   const renderRecordStatusBadges = (record, isLocked = false) => {
     if (isLocked) {
@@ -816,6 +916,7 @@ export default function ESGRecordsDataEntry({
     
     const operationalStatus = record.status;
     const approvalStatus = record.approval_status;
+    const hasPendingProposal = !!record._user_pending_proposal;
     
     // Draft status - show draft badge
     if (operationalStatus === 'draft') {
@@ -831,8 +932,12 @@ export default function ESGRecordsDataEntry({
     let displayStatus = operationalStatus;
     let displayApprovalStatus = approvalStatus;
     
+    // If user has a pending proposal, show "pending_approval" regardless of record status
+    if (hasPendingProposal) {
+      displayApprovalStatus = 'pending_approval';
+    }
     // Legacy 'saved' status = completed with no approval needed
-    if (operationalStatus === 'saved') {
+    else if (operationalStatus === 'saved') {
       displayStatus = 'completed';
       displayApprovalStatus = 'not_required';
     }
@@ -1233,11 +1338,40 @@ export default function ESGRecordsDataEntry({
         </div>
       </Card>
 
+      {/* Bulk Actions Bar */}
+      {selectedIds.size > 0 && (
+        <Card className="p-3 bg-amber-50 border-amber-200 flex items-center justify-between">
+          <span className="text-sm text-amber-800">
+            {selectedIds.size} record{selectedIds.size > 1 ? 's' : ''} selected
+          </span>
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={handleBulkDelete}
+            disabled={bulkDeleting}
+            className="bg-red-600 hover:bg-red-700"
+          >
+            {bulkDeleting ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Trash2 className="w-4 h-4 mr-2" />
+            )}
+            Delete Selected
+          </Button>
+        </Card>
+      )}
+
       {/* Records Table */}
       <Card>
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-10">
+                <Checkbox
+                  checked={sortedRecords.length > 0 && selectedIds.size === sortedRecords.length}
+                  onCheckedChange={handleSelectAll}
+                />
+              </TableHead>
               <SortableTableHead label="Category" sortKey="category" currentSort={sort} onSort={handleSort} />
               <SortableTableHead label="Facility" sortKey="facility" currentSort={sort} onSort={handleSort} />
               <SortableTableHead label="Period" sortKey="period" currentSort={sort} onSort={handleSort} />
@@ -1249,13 +1383,13 @@ export default function ESGRecordsDataEntry({
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8">
+                <TableCell colSpan={7} className="text-center py-8">
                   <Loader2 className="w-6 h-6 animate-spin mx-auto text-emerald-600" />
                 </TableCell>
               </TableRow>
             ) : records.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-text-muted">
+                <TableCell colSpan={7} className="text-center py-8 text-text-muted">
                   No metrics found
                 </TableCell>
               </TableRow>
@@ -1284,7 +1418,13 @@ export default function ESGRecordsDataEntry({
                 }
                 
                 return (
-                  <TableRow key={record.id} className={`${hasDraft ? 'bg-yellow-50' : ''} ${isImported ? 'bg-emerald-50/30' : ''}`}>
+                  <TableRow key={record.id} className={`${hasDraft ? 'bg-yellow-50' : ''} ${isImported ? 'bg-emerald-50/30' : ''} ${selectedIds.has(record.id) ? 'bg-amber-50' : ''}`}>
+                    <TableCell className="w-10">
+                      <Checkbox
+                        checked={selectedIds.has(record.id)}
+                        onCheckedChange={() => handleSelectRecord(record.id)}
+                      />
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         {isImported && (
@@ -1338,24 +1478,42 @@ export default function ESGRecordsDataEntry({
                             <Lock className="w-4 h-4" />
                           </div>
                         </div>
-                      ) : record.status === 'rejected' ? (
-                        /* Rejected record - show Edit & Resubmit */
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            variant="default"
-                            size="sm"
-                            onClick={() => openEditModal(record)}
-                            className="bg-amber-600 hover:bg-amber-700 gap-1"
-                            title="Edit & Resubmit"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                            Resubmit
-                          </Button>
+                      ) : record.approval_status === 'rejected' ? (
+                        /* Rejected record - show rejection reason, no edit allowed */
+                        <div className="flex items-center justify-end gap-2">
+                          <div className="text-right">
+                            <div className="text-xs text-red-600 font-medium">Rejected</div>
+                            {record.rejection_reason && (
+                              <div className="text-xs text-gray-500 max-w-[200px] truncate" title={record.rejection_reason}>
+                                {record.rejection_reason}
+                              </div>
+                            )}
+                          </div>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => viewVersions(record)}
-                            title="Version History"
+                            title="View History"
+                          >
+                            <History className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ) : record.status === 'rejected' ? (
+                        /* Legacy rejected status - same treatment */
+                        <div className="flex items-center justify-end gap-2">
+                          <div className="text-right">
+                            <div className="text-xs text-red-600 font-medium">Rejected</div>
+                            {record.rejection_reason && (
+                              <div className="text-xs text-gray-500 max-w-[200px] truncate" title={record.rejection_reason}>
+                                {record.rejection_reason}
+                              </div>
+                            )}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => viewVersions(record)}
+                            title="View History"
                           >
                             <History className="w-4 h-4" />
                           </Button>
@@ -1523,6 +1681,20 @@ export default function ESGRecordsDataEntry({
           </DialogHeader>
           
           <div className="space-y-4 py-4">
+            {/* Pending Proposal Banner */}
+            {editData._viewing_pending_proposal && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-3">
+                <Clock className="w-5 h-5 text-amber-600 mt-0.5" />
+                <div>
+                  <p className="font-medium text-amber-800">Your Pending Proposal</p>
+                  <p className="text-sm text-amber-700">
+                    You are viewing your proposed changes that are awaiting approval. 
+                    The original record values will remain unchanged until your proposal is approved.
+                  </p>
+                </div>
+              </div>
+            )}
+            
             {/* Reporting Period Section */}
             <div className="space-y-3 pb-3 border-b">
               <p className="text-sm font-medium text-text-primary flex items-center gap-2">

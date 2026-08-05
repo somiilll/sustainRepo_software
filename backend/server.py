@@ -95,8 +95,6 @@ from modules.approval_workflow.router import router as approval_workflow_router
 # ESG Tracking Module (workflow tracking, assignments, completion monitoring)
 from modules.esg_tracking.router import router as esg_tracking_router
 
-# Targets domain (multi-target reduction management).
-from modules.targets.router import router as targets_router
 from modules.production.router import router as production_router
 
 # ============================================================================
@@ -116,6 +114,7 @@ from modules.esg_records.admin_router import admin_router as esg_records_admin_r
 from modules.esg_assignments.router import router as esg_assignments_router
 from modules.esg_targets.router import router as esg_targets_router
 from modules.esg_kpi_definitions.router import router as esg_kpi_definitions_router
+from modules.materiality.router import router as materiality_router
 
 # Set Playwright browsers path BEFORE any playwright imports
 os.environ['PLAYWRIGHT_BROWSERS_PATH'] = '/app/.playwright'
@@ -152,11 +151,12 @@ api_router.include_router(approvals_router)
 # Enterprise Approval Workflow Engine
 api_router.include_router(approval_workflow_router)
 
+# Multi-Proposal Management
+from modules.approval_workflow.proposal_router import router as proposal_router
+api_router.include_router(proposal_router)
+
 # ESG Tracking Module
 api_router.include_router(esg_tracking_router)
-
-# Targets module (org-level reduction targets)
-api_router.include_router(targets_router)
 
 # Production quantity module (for Carbon Intensity calculations)
 api_router.include_router(production_router)
@@ -203,6 +203,21 @@ api_router.include_router(internal_ai_router, tags=["Internal Data AI"])
 # Peer Benchmarking Module
 from modules.benchmarking.router import router as benchmarking_router
 api_router.include_router(benchmarking_router, tags=["Peer Benchmarking"])
+
+# Materiality Assessment Module
+api_router.include_router(materiality_router, tags=["Materiality Assessment"])
+
+# Supplier Assessment Module
+from modules.supplier_assessment.router import router as supplier_assessment_router
+api_router.include_router(supplier_assessment_router, tags=["Supplier Assessment"])
+
+# BRSR Report Generation Module (Annexure II PDF)
+from modules.brsr_report.router import router as brsr_report_router
+api_router.include_router(brsr_report_router, tags=["BRSR Report"])
+
+# OCR Invoice Extractor Module (Scope 1 & 2 emissions from utility invoices)
+from modules.ocr_invoice.router import router as ocr_invoice_router
+api_router.include_router(ocr_invoice_router, prefix="/ocr-invoice", tags=["OCR Invoice"])
 
 # Run module contract verifier at import time. Phase B1: log-only, will be
 # escalated to fail-fast in dev once all modules expose their contracts.

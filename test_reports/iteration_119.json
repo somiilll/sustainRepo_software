@@ -1,0 +1,37 @@
+{
+  "summary": "Backend-only regression test for Bug 6 (AssignmentResolver + approval workflow) and re-verification of Bug 5. Created /app/backend/tests/test_bug6_assignment_resolver_iter119.py: 5 passed, 1 skipped (no legacy assigned_to_user_id assignment in DB to exercise fallback). Bug 5 test_bug5_progress_overdue_iter118.py still 4/4 pass. Verified: AssignmentResolver.resolve() finds V2 Climate Change assignment for user e3e7ec7e-5b3d-4011-a752-40cd67be84c0 via esg_assignment_assignees, returns requires_approval=True with approver configured, and returns None for random unrelated user. Also verified end-to-end that calling ESGRecordsService.create_record for that V2 assignment sets status='completed', approval_status='pending_approval', and inserts a matching approval_requests document with workflow_id='assignment_{assignment_id}' and status='pending'.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "modules.esg_records.service.ESGRecordsService.update_record",
+        "issue": "update_record() still uses a direct db.esg_assignments.find_one({... category, subcategory ...}) at L1099 to determine requires_approval instead of going through AssignmentResolver. This bypasses the V2/legacy resolution and can pick an assignment whose user is NOT the submitter (any V2 assignment for the same category/subcategory in the org). Not a fresh Bug 6 regression today (Bug 6 was scoped to create_record) but the same architectural fix should be applied here for consistency and to protect edit/resubmission approval routing."
+      },
+      {
+        "endpoint": "assignment_resolver._get_v2_assignment_ids",
+        "issue": "Query intentionally omits organization_id filter (legacy data missing this field). Comment says TODO to backfill. As long as user_id is unique across orgs this is safe, but if a single user_id ever spans orgs (rare in current model but possible for platform admins), the resolver could surface cross-org V2 assignment ids and rely on the assignments collection query to filter by organization_id. This is currently correct because the base_query does filter by organization_id, but worth backfilling as noted."
+      }
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_bug6_assignment_resolver_iter119.py",
+    "/app/backend/tests/test_bug5_progress_overdue_iter118.py",
+    "/app/test_reports/pytest/bug6_iter119.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: Route ESGRecordsService.update_record's requires_approval lookup (server L1086-L1105) through assignment_resolver.resolve() to be consistent with create_record. Currently it uses a bare category/subcategory find_one which may return the wrong assignment when multiple assignments exist for the same subcategory in the same org."
+  ],
+  "critical_code_review_comments": [
+    "update_record still bypasses AssignmentResolver - potential source of incorrect requires_approval on edits.",
+    "AssignmentResolver query intentionally drops organization_id filter on esg_assignment_assignees because of legacy data. Add a backfill migration then re-enable the filter for correctness/performance."
+  ],
+  "updated_files": ["/app/backend/tests/test_bug6_assignment_resolver_iter119.py"],
+  "success_rate": {"backend": "100% (5/5 executed, 1 skipped due to no legacy data)", "frontend": "N/A"},
+  "test_credentials": "goyalsomil2001@gmail.com / TestUser123! (admin) - but tests operate directly on mongo, no HTTP auth used.",
+  "seed_data_creation": "Test creates a temporary environment_records doc + approval_request, then deletes them in a finally block. Also resets the corresponding esg_reporting_tasks submission markers (submitted_at/submitted_by_user_id/approval_status) so subsequent runs are idempotent.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "The Bug 6 test uses a persistent asyncio loop created at module import and bound to motor's AsyncIOMotorClient before importing db, avoiding pytest-asyncio's per-test loop closure. If you extend this file, keep run_async(coro) pattern. Test uses live admin org 9067d872-8a3a-4ed9-8494-e3ef04952f7c and known assignee e3e7ec7e-5b3d-4011-a752-40cd67be84c0 (Adaptation Plan assignment). Cleanup runs in a finally block; safe to re-run.",
+  "rca of the issue": "Bug 6 root cause: V2 assignment architecture stores assignees in esg_assignment_assignees while record creation previously used a direct find_one on esg_assignments with assigned_to_user_id, so it never located V2 assignments -> requires_approval defaulted to False -> approval_status was set to 'not_required' and no approval_requests doc was created. Fix: assignment resolution now flows through AssignmentResolver which checks V2 (esg_assignment_assignees) first then falls back to legacy assigned_to_user_id. Tests confirm resolver returns the Climate Change assignment with requires_approval=True and create_record now writes approval_status='pending_approval' plus an approval_requests document."
+}

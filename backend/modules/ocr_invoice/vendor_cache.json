@@ -1,0 +1,32 @@
+{
+    "Bengaluru Electricity Supply Company (BESCOM)::electricity": {
+        "category": "Non-Renewable",
+        "scope": "Scope 2",
+        "mapped_fuel": "Electricity"
+    },
+    "Bengaluru Vidyuth Sarabaraju Company Niyamitha (BESCOM)::electricity": {
+        "category": "Non-Renewable",
+        "scope": "Scope 2",
+        "mapped_fuel": "Electricity"
+    },
+    "Bengaluru Vidyuth Sarabaraju Company Ltd (BESCOM)::electricity": {
+        "category": "Non-Renewable",
+        "scope": "Scope 2",
+        "mapped_fuel": "Electricity"
+    },
+    "Bengaluru Electricity Supply Company Limited (BESCOM)::electricity": {
+        "category": "Non-Renewable",
+        "scope": "Scope 2",
+        "mapped_fuel": "Electricity"
+    },
+    "Bengaluru Vidyuth Sarabaraju Company (BESCOM)::electricity": {
+        "category": "Non-Renewable",
+        "scope": "Scope 2",
+        "mapped_fuel": "Electricity"
+    },
+    "Bengaluru Vidyuth Sarabaraju Company Limited (BESCOM)::electricity": {
+        "category": "Non-Renewable",
+        "scope": "Scope 2",
+        "mapped_fuel": "Electricity"
+    }
+}

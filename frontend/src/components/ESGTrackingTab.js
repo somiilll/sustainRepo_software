@@ -14,6 +14,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { useDateFormatter } from '../hooks/useDateFormatter';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -100,15 +101,20 @@ const APPROVAL_COLORS = {
 };
 
 // Get status badge - updated for dual status architecture
+// When data is submitted and awaiting approval, show BOTH "Completed" AND "Awaiting Approval"
+// When rejected, show "Pending" (needs resubmission) AND "Rejected"
 const StatusBadge = ({ status, approvalStatus, isOverdue, isStale, isDueSoon }) => {
-  if (isOverdue) {
+  // Only show overdue/due soon if there's no data submitted (not pending_approval, completed, or rejected)
+  const hasDataSubmitted = ['pending_approval', 'completed', 'rejected'].includes(status);
+  
+  if (isOverdue && !hasDataSubmitted) {
     return (
       <Badge className={`${STATUS_COLORS.overdue} text-xs`}>
         <XCircle className="w-3 h-3 mr-1" /> Overdue
       </Badge>
     );
   }
-  if (isDueSoon) {
+  if (isDueSoon && !hasDataSubmitted) {
     return (
       <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-xs">
         <Clock className="w-3 h-3 mr-1" /> Due Soon
@@ -121,6 +127,10 @@ const StatusBadge = ({ status, approvalStatus, isOverdue, isStale, isDueSoon }) 
     in_progress: { icon: Clock, label: 'In Progress' },
     reopened: { icon: AlertCircle, label: 'Reopened' },
     not_started: { icon: Circle, label: 'Not Started' },
+    // pending_approval means data IS submitted - show as Completed
+    pending_approval: { icon: CheckCircle2, label: 'Completed' },
+    // rejected means data was rejected, needs resubmission - show as Pending
+    rejected: { icon: Circle, label: 'Pending' },
   };
   
   const approvalMap = {
@@ -129,17 +139,41 @@ const StatusBadge = ({ status, approvalStatus, isOverdue, isStale, isDueSoon }) 
     rejected: 'Rejected',
   };
   
+  // Use appropriate config
   const config = statusMap[status] || statusMap.not_started;
   const Icon = config.icon;
   
+  // Determine effective approval status
+  // If status is pending_approval, we know approval is pending
+  // If status is rejected, we know it was rejected
+  let effectiveApprovalStatus;
+  if (status === 'pending_approval') {
+    effectiveApprovalStatus = 'pending_approval';
+  } else if (status === 'rejected') {
+    effectiveApprovalStatus = 'rejected';
+  } else {
+    effectiveApprovalStatus = approvalStatus;
+  }
+  
+  // Determine status color
+  // pending_approval uses completed color, rejected uses pending color
+  let effectiveStatusColor;
+  if (status === 'pending_approval') {
+    effectiveStatusColor = STATUS_COLORS.completed;
+  } else if (status === 'rejected') {
+    effectiveStatusColor = STATUS_COLORS.not_started;
+  } else {
+    effectiveStatusColor = STATUS_COLORS[status] || STATUS_COLORS.not_started;
+  }
+  
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
-      <Badge className={`${STATUS_COLORS[status] || STATUS_COLORS.not_started} text-xs`}>
+      <Badge className={`${effectiveStatusColor} text-xs`}>
         <Icon className="w-3 h-3 mr-1" /> {config.label}
       </Badge>
-      {approvalStatus && approvalStatus !== 'not_required' && (
-        <Badge className={`${APPROVAL_COLORS[approvalStatus]} text-xs`}>
-          {approvalMap[approvalStatus] || approvalStatus}
+      {effectiveApprovalStatus && effectiveApprovalStatus !== 'not_required' && (
+        <Badge className={`${APPROVAL_COLORS[effectiveApprovalStatus]} text-xs`}>
+          {approvalMap[effectiveApprovalStatus] || effectiveApprovalStatus}
         </Badge>
       )}
     </div>
@@ -251,6 +285,7 @@ export default function ESGTrackingTab({
   frameworkFilter = null
 }) {
   const { getAuthHeader, user } = useAuth();
+  const { formatDateTime, formatDate } = useDateFormatter();
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   
   // State
@@ -262,6 +297,7 @@ export default function ESGTrackingTab({
   const [selectedSection, setSelectedSection] = useState(null);
   const [disclosures, setDisclosures] = useState([]);
   const [sectionSummary, setSectionSummary] = useState(null);
+  const [filterByMateriality, setFilterByMateriality] = useState(true); // Default: show only material topics for GRI
   
   // Use override if provided, otherwise use internal state
   const reportingPeriod = reportingPeriodOverride || internalReportingPeriod;
@@ -337,15 +373,18 @@ export default function ESGTrackingTab({
     if (!framework) return;
     
     try {
+      // Add filter_by_materiality for GRI framework when toggle is enabled
+      const isGRI = framework.framework_id?.toUpperCase() === 'GRI';
+      const materialityFilter = isGRI && filterByMateriality ? '&filter_by_materiality=true' : '';
       const res = await axios.get(
-        `${API}/tracking/${domain}/frameworks/${framework.framework_id}/sections?reporting_period=${encodeURIComponent(reportingPeriod)}`,
+        `${API}/tracking/${domain}/frameworks/${framework.framework_id}/sections?reporting_period=${encodeURIComponent(reportingPeriod)}${materialityFilter}`,
         { headers: getAuthHeader() }
       );
       setSections(res.data.sections || []);
     } catch (error) {
       console.error('Failed to fetch sections:', error);
     }
-  }, [domain, reportingPeriod, getAuthHeader]);
+  }, [domain, reportingPeriod, getAuthHeader, filterByMateriality]);
   
   // Fetch disclosures for selected section
   const fetchDisclosures = useCallback(async (framework, section) => {
@@ -401,6 +440,13 @@ export default function ESGTrackingTab({
       fetchSections(selectedFramework);
     }
   }, [selectedFramework, fetchSections]);
+  
+  // Refetch sections when materiality filter changes (for GRI)
+  useEffect(() => {
+    if (selectedFramework?.framework_id?.toUpperCase() === 'GRI') {
+      fetchSections(selectedFramework);
+    }
+  }, [filterByMateriality]);
   
   useEffect(() => {
     if (selectedFramework && selectedSection) {
@@ -736,9 +782,26 @@ export default function ESGTrackingTab({
               </Button>
               {selectedFramework.framework_name} Sections
             </h3>
-            <Badge variant="outline">
-              {sections.length} sections
-            </Badge>
+            <div className="flex items-center gap-3">
+              {/* Materiality Filter Toggle - Only show for GRI in sections view */}
+              {selectedFramework?.framework_id?.toUpperCase() === 'GRI' && (
+                <button
+                  onClick={() => setFilterByMateriality(!filterByMateriality)}
+                  className={`h-8 px-3 rounded-lg text-xs font-medium flex items-center gap-2 transition-colors ${
+                    filterByMateriality 
+                      ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' 
+                      : 'bg-stone-100 text-stone-600 border border-stone-200'
+                  }`}
+                  data-testid="sections-materiality-filter-toggle"
+                >
+                  <div className={`w-2.5 h-2.5 rounded-full ${filterByMateriality ? 'bg-emerald-500' : 'bg-stone-400'}`} />
+                  {filterByMateriality ? 'Material Topics' : 'All Topics'}
+                </button>
+              )}
+              <Badge variant="outline">
+                {sections.length} sections
+              </Badge>
+            </div>
           </div>
           
           {/* Changed to single column layout */}
@@ -882,6 +945,22 @@ export default function ESGTrackingTab({
                 <SelectItem value="unassigned">Unassigned</SelectItem>
               </SelectContent>
             </Select>
+            
+            {/* Materiality Filter Toggle - Only show for GRI */}
+            {selectedFramework?.framework_id?.toUpperCase() === 'GRI' && (
+              <button
+                onClick={() => setFilterByMateriality(!filterByMateriality)}
+                className={`h-8 px-3 rounded-lg text-xs font-medium flex items-center gap-2 transition-colors ${
+                  filterByMateriality 
+                    ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' 
+                    : 'bg-stone-100 text-stone-600 border border-stone-200'
+                }`}
+                data-testid="tracker-materiality-filter-toggle"
+              >
+                <div className={`w-2.5 h-2.5 rounded-full ${filterByMateriality ? 'bg-emerald-500' : 'bg-stone-400'}`} />
+                {filterByMateriality ? 'Material Topics' : 'All Topics'}
+              </button>
+            )}
           </div>
           
           {/* Questions Table (renamed from Disclosures) */}
@@ -953,7 +1032,7 @@ export default function ESGTrackingTab({
                       <TableCell>
                         {disc.due_date ? (
                           <div className="text-sm">
-                            <div>{new Date(disc.due_date).toLocaleDateString()}</div>
+                            <div>{formatDate(disc.due_date)}</div>
                             {disc.days_until_due !== null && (
                               <div className={`text-xs ${disc.days_until_due < 0 ? 'text-red-600' : disc.days_until_due <= 7 ? 'text-amber-600' : 'text-text-muted'}`}>
                                 {disc.days_until_due < 0 

@@ -1,0 +1,40 @@
+{
+  "summary": "Frontend-only verification of the Approval Queue bug fix + History tab feature + GHG Targets sidebar removal + GHG dashboard integration. Logged in as admin, navigated to /workflow/approver-queue and validated Pending/History tabs, opened the read-only history dialog for both approved and rejected items, verified sidebar under Targets > Voluntary Targets, and loaded the executive dashboard. 7 of 8 review items pass fully. One integration gap remains: the Rejection Reason is NOT rendered in the History view because the backend list endpoint /api/approval-workflows/requests?status=rejected does not return rejection_reason or decisions[] on the request objects.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/approval-workflows/requests?status=rejected", "issue": "Response items do NOT include rejection_reason, decisions[], comment, or decision_comment fields. Frontend history view reads item.rejection_reason which is always undefined, so 'Rejection Reason' is never displayed for rejected items. Verified via authenticated fetch: keys returned are status, entity_type, entity_id, entity_snapshot, framework, submitted_by_*, updated_at, workflow_id, workflow_name, request_type, submitted_at, id, current_approvers, current_level, total_levels, entity_subtype, section, created_at, organization_id. No decision data at all."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "ApproverQueue > History > HistoryViewPanel", "issue": "Rejection Reason box is not shown for rejected items because item.rejection_reason is undefined (backend doesn't return it). Card list also skips the red 'Rejection Reason:' block. Need to either (a) include rejection_reason on list response, or (b) fetch decision details when opening the dialog.", "selector": "[role=dialog] with 'Rejected Submission' title", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [
+      {"flow": "History -> View Rejected Item", "issue": "Dialog opens correctly and shows all submission fields + snapshot data, but the rejection reason (which is the key differentiator per the review request) is missing due to the backend list endpoint not returning it.", "affected_selectors": ["[data-testid^='history-card-']"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/frontend/src/components/ApproverQueue.js"
+  ],
+  "action_items": [
+    "Populate rejection_reason on the request objects returned by /api/approval-workflows/requests (e.g. from the latest 'reject' decision's comment), OR have the frontend fetch decision details by request id when opening the history dialog, and render item.rejection_reason (already wired up in HistoryViewPanel/history card)."
+  ],
+  "critical_code_review_comments": [
+    "totalPending fix in ApproverQueue.js (lines 366-378) correctly handles both the nested questionnaire submissions array and the flat approval_workflow items. Verified UI shows 3 pending and top-right badge shows '3 pending submissions'.",
+    "History tab implementation is clean: separate fetchHistory (approved + rejected), lazy-loaded only when tab activates (line 319-323), enriched with question configs for BRSR items, sorted by updated_at desc.",
+    "HistoryViewPanel is properly read-only: only a single Close button, no approve/reject inputs, no editable fields (matches requirement).",
+    "GHG Targets menu is fully removed from sidebarConfig.js under targets.voluntary. Sidebar renders only Environment/Social/Governance/SBTi. App.js has no /ghg-targets route/import (grep confirmed).",
+    "BaseExecutiveDashboard.jsx line 60 correctly fetches from /api/esg-targets/with-progress?section=environment&category=GHG Emissions.",
+    "Minor React warning (unrelated to this change): recharts spread of a 'key' prop into JSX; and multiple 'width(-1)/height(-1) container' warnings on dashboard charts - pre-existing, not regression."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only run)", "frontend": "87.5% (7/8 review items fully pass; rejection reason display fails due to backend gap)"},
+  "test_credentials": "goyalsomil2001@gmail.com / TestUser123! (admin)",
+  "seed_data_creation": "None. Used existing 3 pending + 6 historical (3 approved + 3 rejected) approval requests already in the org.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All primary items from review request pass EXCEPT rejection reason visibility. Verified: Pending tab counter shows 3 (fix works); Pending badge in filter row shows '3 pending submissions'; History tab shows (6) items with Approved/Rejected badges and framework badges; clicking any history card opens a read-only Dialog titled 'Approved Submission' or 'Rejected Submission' that contains only a Close button - no Approve/Reject/edit fields; GHG Targets is no longer under Targets > Voluntary Targets (only Environment/Social/Governance + SBTi); Executive Dashboard loads and fetches GHG targets from /api/esg-targets/with-progress?section=environment&category=GHG Emissions. The remaining gap: /api/approval-workflows/requests list responses omit rejection_reason and decisions[] so the frontend cannot render the rejection reason in the history dialog or card. Main agent should update backend serializer OR fetch decisions when opening dialog.",
+  "rca of the issue": "For rejection reason not displaying: The frontend correctly renders `item.rejection_reason` in both the history card (line 648-652) and HistoryViewPanel (line 828-833). However, the backend endpoint GET /api/approval-workflows/requests?status=rejected returns only the ApprovalRequest object fields without the rejection_reason (which is stored on the decision, not the request document). Direct API probe confirmed keys returned do not include rejection_reason/decisions/comment. Fix path: (A) In backend, when serializing approval requests with status=rejected/approved, look up the latest decision and inline decision.comment as rejection_reason (or approval_comment). (B) Alternatively, frontend can call GET /api/approval-workflows/requests/{id}/decisions when opening HistoryViewPanel and populate item.rejection_reason from the reject decision."
+}

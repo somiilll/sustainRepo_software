@@ -46,9 +46,9 @@ export default function useMyTasks({
       const grouped = groupTasksByCategory(fetchedTasks);
       setGroupedTasks(grouped);
       
-      // Fetch question assignments (disclosures)
+      // Fetch question assignments (disclosures) - only if reportingPeriod is available
       let fetchedQuestions = [];
-      if (entityType === ENTITY_TYPE.QUESTION || entityType === ENTITY_TYPE.ALL) {
+      if ((entityType === ENTITY_TYPE.QUESTION || entityType === ENTITY_TYPE.ALL) && reportingPeriod) {
         try {
           const params = { reporting_period: reportingPeriod };
           if (domain && domain !== 'all') params.domain = domain;
@@ -59,9 +59,11 @@ export default function useMyTasks({
           });
           fetchedQuestions = disclosuresRes.data.questions || [];
           
+          // Filter by framework if specified (check both framework and framework_id fields)
           if (framework && fetchedQuestions.length > 0) {
             fetchedQuestions = fetchedQuestions.filter(
-              q => q.framework?.toLowerCase() === framework.toLowerCase()
+              q => (q.framework?.toLowerCase() === framework.toLowerCase()) ||
+                   (q.framework_id?.toLowerCase() === framework.toLowerCase())
             );
           }
         } catch (e) {

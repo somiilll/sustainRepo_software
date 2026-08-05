@@ -7,6 +7,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { Textarea } from './ui/textarea';
+import { Checkbox } from './ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
@@ -74,6 +75,10 @@ export default function ESGRecords({ section, framework = 'BRSR' }) {
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [versions, setVersions] = useState([]);
   const [deleting, setDeleting] = useState(null);
+  
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -189,6 +194,52 @@ export default function ESGRecords({ section, framework = 'BRSR' }) {
       alert('Failed to delete record. Please try again.');
     } finally {
       setDeleting(null);
+    }
+  };
+
+  // Bulk selection handlers
+  const handleSelectRecord = (id) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedIds.size === records.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(records.map(r => r.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    
+    if (!window.confirm(`Are you sure you want to delete ${selectedIds.size} record(s)? This action cannot be undone.`)) {
+      return;
+    }
+    
+    setBulkDeleting(true);
+    try {
+      const deletePromises = Array.from(selectedIds).map(id =>
+        axios.delete(`${BACKEND_URL}/api/esg-records/records/${section}/${id}`, { headers })
+      );
+      
+      await Promise.all(deletePromises);
+      setSelectedIds(new Set());
+      fetchRecords();
+      fetchStats();
+    } catch (error) {
+      console.error('Failed to bulk delete records:', error);
+      alert('Failed to delete some records. Please try again.');
+    } finally {
+      setBulkDeleting(false);
     }
   };
 
@@ -313,11 +364,40 @@ export default function ESGRecords({ section, framework = 'BRSR' }) {
         </div>
       </Card>
 
+      {/* Bulk Actions Bar */}
+      {selectedIds.size > 0 && (
+        <Card className="p-3 bg-amber-50 border-amber-200 flex items-center justify-between">
+          <span className="text-sm text-amber-800">
+            {selectedIds.size} record{selectedIds.size > 1 ? 's' : ''} selected
+          </span>
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={handleBulkDelete}
+            disabled={bulkDeleting}
+            className="bg-red-600 hover:bg-red-700"
+          >
+            {bulkDeleting ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Trash2 className="w-4 h-4 mr-2" />
+            )}
+            Delete Selected
+          </Button>
+        </Card>
+      )}
+
       {/* Records Table */}
       <Card className="p-0 overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow className="bg-stone-50">
+              <TableHead className="w-10">
+                <Checkbox
+                  checked={records.length > 0 && selectedIds.size === records.length}
+                  onCheckedChange={handleSelectAll}
+                />
+              </TableHead>
               <TableHead className="text-xs font-medium">Category</TableHead>
               <TableHead className="text-xs font-medium">Subcategory</TableHead>
               <TableHead className="text-xs font-medium">Sub-Subcategory</TableHead>
@@ -330,13 +410,13 @@ export default function ESGRecords({ section, framework = 'BRSR' }) {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8">
+                <TableCell colSpan={8} className="text-center py-8">
                   <Loader2 className="w-5 h-5 animate-spin mx-auto text-stone-400" />
                 </TableCell>
               </TableRow>
             ) : records.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-stone-400">
+                <TableCell colSpan={8} className="text-center py-8 text-stone-400">
                   No records found. Click "Add Record" to create one.
                 </TableCell>
               </TableRow>
@@ -364,7 +444,13 @@ export default function ESGRecords({ section, framework = 'BRSR' }) {
               }
               
               return (
-              <TableRow key={record.id} className={`hover:bg-stone-50 ${isImported ? 'bg-emerald-50/30' : ''}`}>
+              <TableRow key={record.id} className={`hover:bg-stone-50 ${isImported ? 'bg-emerald-50/30' : ''} ${selectedIds.has(record.id) ? 'bg-amber-50' : ''}`}>
+                <TableCell className="w-10">
+                  <Checkbox
+                    checked={selectedIds.has(record.id)}
+                    onCheckedChange={() => handleSelectRecord(record.id)}
+                  />
+                </TableCell>
                 <TableCell className="text-sm font-medium">
                   <div className="flex items-center gap-2">
                     {record.category}

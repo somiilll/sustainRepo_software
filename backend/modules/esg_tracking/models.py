@@ -103,6 +103,11 @@ class DisclosureTrackingItem(BaseModel):
     # Approval status (if applicable)
     requires_approval: bool = False
     approval_status: Optional[str] = None
+    approver_id: Optional[str] = None
+    approver_name: Optional[str] = None
+    approver_email: Optional[str] = None
+    approval_chain: List[str] = Field(default_factory=list)  # Multi-level approval support
+    rejection_reason: Optional[str] = None  # Reason for rejection if status is 'rejected'
     
     # Filling frequency
     filling_frequency: Optional[str] = None
@@ -141,6 +146,7 @@ class BulkAssignRequest(BaseModel):
     reminder_frequency: Optional[str] = None  # daily, weekly, monthly, etc.
     reminder_config: Optional[Dict[str, Any]] = None
     requires_approval: bool = False
+    approver_id: Optional[str] = None  # Single-level approval (user ID)
     # Multi-level approval chain (list of user IDs in order)
     # e.g., ["manager_id", "director_id", "vp_id"] for 3-level approval
     approval_chain: Optional[List[str]] = None  # Ordered list of approver user IDs

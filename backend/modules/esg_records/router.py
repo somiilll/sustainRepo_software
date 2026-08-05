@@ -3,12 +3,17 @@ ESG Records Module - API Router
 
 Reusable router for Environment, Social, and Governance records.
 Includes integration with GHG module for auto-imported records.
+
+IDEMPOTENCY: POST endpoints support X-Idempotency-Key header.
+If a request with the same key was already processed within 24 hours,
+the original response is returned instead of processing again.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Header
 from typing import Optional, List
 from datetime import datetime, timezone
 import uuid
+import hashlib
 
 from core_platform.auth import get_current_user
 from .service import esg_records_service
@@ -20,8 +25,68 @@ from .contracts import (
     CreateRecordRequest, UpdateRecordRequest, RecordListFilters
 )
 from shared.database import get_database
+from shared.database.mongo import db
 
 router = APIRouter(prefix="/esg-records", tags=["ESG Records"])
+
+
+# =============================================================================
+# Idempotency Helper
+# =============================================================================
+
+async def check_idempotency(
+    idempotency_key: Optional[str],
+    org_id: str,
+    operation: str,
+) -> Optional[dict]:
+    """
+    Check if this request was already processed.
+    
+    Returns cached response if found, None otherwise.
+    """
+    if not idempotency_key:
+        return None
+    
+    # Create composite key
+    composite_key = f"{org_id}:{operation}:{idempotency_key}"
+    key_hash = hashlib.sha256(composite_key.encode()).hexdigest()
+    
+    cached = await db.idempotency_cache.find_one(
+        {"key_hash": key_hash},
+        {"_id": 0, "response": 1, "created_at": 1}
+    )
+    
+    if cached:
+        return cached.get("response")
+    
+    return None
+
+
+async def store_idempotency(
+    idempotency_key: str,
+    org_id: str,
+    operation: str,
+    response: dict,
+) -> None:
+    """
+    Store the response for this idempotency key.
+    
+    Entries expire after 24 hours (handled by TTL index).
+    """
+    composite_key = f"{org_id}:{operation}:{idempotency_key}"
+    key_hash = hashlib.sha256(composite_key.encode()).hexdigest()
+    
+    await db.idempotency_cache.update_one(
+        {"key_hash": key_hash},
+        {"$set": {
+            "key_hash": key_hash,
+            "org_id": org_id,
+            "operation": operation,
+            "response": response,
+            "created_at": datetime.now(timezone.utc),
+        }},
+        upsert=True
+    )
 
 
 # =============================================================================
@@ -174,15 +239,33 @@ async def get_category(
 async def create_record(
     section: ESG_SECTION,
     data: CreateRecordRequest,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
 ):
-    """Create a new ESG record. Validates user has active assignment."""
+    """
+    Create a new ESG record. Validates user has active assignment.
+    
+    IDEMPOTENCY: Pass X-Idempotency-Key header to prevent duplicate submissions.
+    If the same key is used within 24 hours, the original response is returned.
+    
+    DUPLICATE WARNING: If a record already exists for the same period/facility,
+    a warning is included in the response (not an error).
+    """
     org_id = current_user.get("organization_id")
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization assigned")
     
     user_id = current_user.get("id") or current_user.get("user_id")
     user_role = current_user.get("role", "")
+    
+    # Check idempotency first
+    if x_idempotency_key:
+        cached_response = await check_idempotency(
+            x_idempotency_key, org_id, f"create_record:{section}"
+        )
+        if cached_response:
+            cached_response["_idempotent"] = True
+            return cached_response
     
     # Admin can create records without assignment, but we still look up assignment
     # to get requires_approval setting
@@ -196,11 +279,24 @@ async def create_record(
             data=data,
             skip_assignment_check=False,  # Always check to get requires_approval
             allow_without_assignment=is_admin,  # Admins can proceed without assignment
+            is_admin=is_admin,  # Admins bypass approval workflow
         )
     except ValueError as e:
         raise HTTPException(status_code=403, detail=str(e))
     
-    return {"message": "Record created", "record": record}
+    response = {"message": "Record created", "record": record}
+    
+    # Extract warning from record if present
+    if record.get("_warning"):
+        response["warning"] = record.pop("_warning")
+    
+    # Store for idempotency
+    if x_idempotency_key:
+        await store_idempotency(
+            x_idempotency_key, org_id, f"create_record:{section}", response
+        )
+    
+    return response
 
 
 @router.get("/records/{section}")
@@ -236,21 +332,41 @@ async def list_records(
     is_admin = user_role in ["admin", "super_admin"]
     
     # For non-admin users, get their assigned categories
+    # V2 Architecture: Query esg_assignment_assignees (many-to-many) instead of
+    # the legacy assigned_to_user_id field on esg_assignments
     assigned_categories = None
     if not is_admin:
         from shared.database.mongo import db
-        assignments_cursor = db.esg_assignments.find(
+        
+        # Step 1: Get assignment IDs where user is an active assignee (V2 architecture)
+        assignee_records = await db.esg_assignment_assignees.find(
             {
+                "user_id": user_id,
                 "organization_id": org_id,
-                "assigned_to_user_id": user_id,
-                "entity_type": "record_category",
+                "$or": [
+                    {"removed_at": None},
+                    {"removed_at": {"$exists": False}},
+                ],
             },
-            {"_id": 0, "category": 1, "subcategory": 1, "sub_subcategory": 1}
-        )
-        assignments = await assignments_cursor.to_list(500)
+            {"_id": 0, "assignment_id": 1}
+        ).to_list(500)
+        
+        assignment_ids = [a["assignment_id"] for a in assignee_records]
+        
+        # Step 2: Get assignments for those IDs
+        assignments = []
+        if assignment_ids:
+            assignments = await db.esg_assignments.find(
+                {
+                    "id": {"$in": assignment_ids},
+                    "organization_id": org_id,
+                    "entity_type": "record_category",
+                },
+                {"_id": 0, "category": 1, "subcategory": 1, "sub_subcategory": 1}
+            ).to_list(500)
         
         if assignments:
-            # Build list of (category, subcategory) tuples user is assigned to
+            # Build list of (category, subcategory, sub_subcategory) tuples user is assigned to
             assigned_categories = [
                 (a.get("category"), a.get("subcategory"), a.get("sub_subcategory"))
                 for a in assignments
@@ -290,7 +406,8 @@ async def list_records(
         section=section,
         org_id=org_id,
         filters=filters,
-        assigned_categories=assigned_categories,  # Pass filter for non-admin users
+        assigned_categories=assigned_categories,
+        user_id=user_id,  # Pass user_id to enrich records with pending proposals
     )
     
     # Get GHG-imported records if enabled and section is environment
@@ -403,18 +520,38 @@ async def list_records(
 async def get_record(
     section: ESG_SECTION,
     record_id: str,
+    include_proposals: bool = Query(False, description="Include pending proposals"),
     current_user: dict = Depends(get_current_user)
 ):
-    """Get a single record."""
+    """
+    Get a single record.
+    
+    If include_proposals=true:
+    - Normal users: Returns record + their pending proposal (if any)
+    - Admins/Approvers: Returns record + all pending proposals
+    """
     org_id = current_user.get("organization_id")
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization assigned")
     
-    record = await esg_records_service.get_record(
-        section=section,
-        record_id=record_id,
-        org_id=org_id
-    )
+    user_id = current_user.get("id")
+    user_role = current_user.get("role", "user")
+    is_admin = user_role in ["admin", "super_admin"]
+    
+    if include_proposals:
+        record = await esg_records_service.get_record_with_user_proposal(
+            section=section,
+            record_id=record_id,
+            org_id=org_id,
+            user_id=user_id,
+            is_approver=is_admin,
+        )
+    else:
+        record = await esg_records_service.get_record(
+            section=section,
+            record_id=record_id,
+            org_id=org_id
+        )
     
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
@@ -427,14 +564,30 @@ async def update_record(
     section: ESG_SECTION,
     record_id: str,
     data: UpdateRecordRequest,
+    admin_override: bool = Query(False, description="Deprecated - admins always bypass approval now"),
     current_user: dict = Depends(get_current_user)
 ):
-    """Update a record (creates new version)."""
+    """
+    Update a record (creates new version).
+    
+    CONCURRENCY SAFEGUARDS (for non-admin users):
+    - Cannot edit records with pending approval (prevents race conditions)
+    - Cannot edit records that were rejected (user must create new submission)
+    - Only one edit request can be pending at a time
+    
+    ADMIN BEHAVIOR:
+    - Admins automatically bypass approval workflow
+    - If user has pending approval, admin edit deletes the pending request and saves directly
+    """
     org_id = current_user.get("organization_id")
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization assigned")
     
     user_id = current_user.get("id") or current_user.get("user_id")
+    user_role = current_user.get("role", "user")
+    
+    # Admins always bypass approval workflow
+    is_admin_override = user_role in ["admin", "super_admin"]
     
     # Verify record exists and belongs to org
     existing = await esg_records_service.get_record(section, record_id, org_id)
@@ -445,7 +598,8 @@ async def update_record(
         section=section,
         record_id=record_id,
         user_id=user_id,
-        data=data
+        data=data,
+        is_admin_override=is_admin_override,
     )
     
     return {"message": "Record updated", "record": updated}
@@ -463,12 +617,14 @@ async def delete_record(
         raise HTTPException(status_code=400, detail="No organization assigned")
     
     user_id = current_user.get("id")
+    user_role = current_user.get("role", "user")
     
     deleted = await esg_records_service.delete_record(
         section=section,
         record_id=record_id,
         org_id=org_id,
         user_id=user_id,
+        user_role=user_role,
     )
     
     if not deleted:
@@ -538,6 +694,7 @@ async def get_record_stats(
     section: ESG_SECTION,
     category: str = None,
     subcategory: str = None,
+    categories: str = None,  # Comma-separated list of categories (for "Others" virtual category)
     current_user: dict = Depends(get_current_user)
 ):
     """Get record statistics for the organization."""
@@ -545,11 +702,17 @@ async def get_record_stats(
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization assigned")
     
+    # Handle multiple categories (for "Others" virtual category)
+    category_list = None
+    if categories:
+        category_list = [c.strip() for c in categories.split(',') if c.strip()]
+    
     stats = await esg_records_service.get_record_stats(
         section=section,
         org_id=org_id,
         category=category,
         subcategory=subcategory,
+        category_list=category_list,
     )
     
     return stats
@@ -776,6 +939,7 @@ async def create_record_assignment(
                 "reminder_enabled": data.get("reminder_enabled", False),
                 "reminder_config": data.get("reminder_config"),
                 "requires_approval": data.get("requires_approval", False),
+                "approver_id": data.get("approver_id"),  # Single-level approval
                 "approval_chain": data.get("approval_chain", []),
             }
             
@@ -826,6 +990,7 @@ async def create_record_assignment(
                     "reminder_enabled": data.get("reminder_enabled", False),
                     "reminder_config": data.get("reminder_config"),
                     "requires_approval": data.get("requires_approval", False),
+                    "approver_id": data.get("approver_id"),  # Single-level approval
                     "approval_chain": data.get("approval_chain", []),
                 }
                 
@@ -863,6 +1028,7 @@ async def create_record_assignment(
                 "reminder_enabled": data.get("reminder_enabled", False),
                 "reminder_config": data.get("reminder_config"),
                 "requires_approval": data.get("requires_approval", False),
+                "approver_id": data.get("approver_id"),  # Single-level approval
                 "approval_chain": data.get("approval_chain", []),
             }
             
@@ -1122,10 +1288,14 @@ async def get_my_tasks(
     )
     
     # Get assignment count for this user (to show if they have assignments even without tasks)
-    assignment_count = await db.esg_assignments.count_documents({
+    # V2 Architecture: Count via esg_assignment_assignees junction table
+    assignment_count = await db.esg_assignment_assignees.count_documents({
         "organization_id": org_id,
-        "assigned_to_user_id": user_id,
-        "entity_type": "record_category",
+        "user_id": user_id,
+        "$or": [
+            {"removed_at": None},
+            {"removed_at": {"$exists": False}},
+        ],
     })
     
     return {"tasks": tasks, "total": len(tasks), "assignment_count": assignment_count}

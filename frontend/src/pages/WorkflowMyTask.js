@@ -1,19 +1,81 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { Leaf, ScrollText, BookOpen } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Label } from '../components/ui/label';
+import { Leaf, ScrollText, BookOpen, Loader2 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { generateReportingYears, getCurrentReportingYear } from '../utils/reportingYearUtils';
 import MyTasks from '../components/MyTasks';
+
+const API = process.env.REACT_APP_BACKEND_URL;
 
 /**
  * Workflow My Task — combined view for ESG metric tasks + BRSR/GRI disclosure tasks.
  */
 export default function WorkflowMyTask() {
+  const { token } = useAuth();
   const [tab, setTab] = useState('esg');
+  const [reportingPeriod, setReportingPeriod] = useState('');
+  const [reportingYears, setReportingYears] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Initialize reporting years from org config
+  useEffect(() => {
+    const fetchOrgAndSetYears = async () => {
+      try {
+        const res = await axios.get(`${API}/api/organizations/my`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const yearType = res.data.reporting_year_type || 'financial_year';
+        const years = generateReportingYears(yearType, 5);
+        setReportingYears(years);
+        setReportingPeriod(getCurrentReportingYear(yearType));
+      } catch (error) {
+        // Fallback to financial year
+        const years = generateReportingYears('financial_year', 5);
+        setReportingYears(years);
+        setReportingPeriod(getCurrentReportingYear('financial_year'));
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    if (token) {
+      fetchOrgAndSetYears();
+    }
+  }, [token]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6" data-testid="workflow-my-task">
-      <div>
-        <h1 className="text-2xl font-bold text-stone-900">My Tasks</h1>
-        <p className="text-sm text-stone-500">View and complete your assigned tasks across all modules.</p>
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-stone-900">My Tasks</h1>
+          <p className="text-sm text-stone-500">View and complete your assigned tasks across all modules.</p>
+        </div>
+        
+        {/* Reporting Period Selector */}
+        <div className="flex items-center gap-2">
+          <Label className="text-sm whitespace-nowrap text-stone-600">Reporting Period:</Label>
+          <Select value={reportingPeriod} onValueChange={setReportingPeriod}>
+            <SelectTrigger className="w-40 bg-white" data-testid="reporting-period-selector">
+              <SelectValue placeholder="Select period" />
+            </SelectTrigger>
+            <SelectContent>
+              {reportingYears.map(year => (
+                <SelectItem key={year} value={year}>{year}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
@@ -33,13 +95,13 @@ export default function WorkflowMyTask() {
         </TabsList>
 
         <TabsContent value="esg" className="mt-4">
-          <MyTasks entityType="all" />
+          <MyTasks entityType="record" reportingPeriod={reportingPeriod} />
         </TabsContent>
         <TabsContent value="brsr" className="mt-4">
-          <MyTasks entityType="question" framework="BRSR" />
+          <MyTasks entityType="question" framework="BRSR" reportingPeriod={reportingPeriod} />
         </TabsContent>
         <TabsContent value="gri" className="mt-4">
-          <MyTasks entityType="question" framework="GRI" />
+          <MyTasks entityType="question" framework="GRI" reportingPeriod={reportingPeriod} />
         </TabsContent>
       </Tabs>
     </div>

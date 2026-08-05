@@ -6,6 +6,7 @@ Handles workflow management, request processing, and approval actions.
 """
 
 import logging
+import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any, Tuple
 
@@ -44,6 +45,200 @@ def _now() -> datetime:
 
 def _now_iso() -> str:
     return _now().isoformat()
+
+
+def _split_question_key(question_key: str) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Split a question key into parent and sub-key for nested storage.
+    
+    Examples:
+      "gri_302_1_a" → ("gri_302_1", "a")
+      "gri_302_1" → (None, None) - no sub-key
+    
+    Returns: (parent_key, sub_key) or (None, None) if not a sub-question
+    """
+    if not question_key or "_" not in question_key:
+        return None, None
+    
+    sub_suffixes = {'i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x',
+                   'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'j', 'k', 'l', 'm', 'n'}
+    
+    parts = question_key.rsplit("_", 1)
+    if len(parts) == 2 and parts[1].lower() in sub_suffixes:
+        return parts[0], parts[1]
+    return None, None
+
+
+async def _create_approval_version_snapshot(
+    collection_name: str,
+    record_id: str,
+    action: str,  # "approved" or "rejected"
+    user_id: str,
+    rejection_reason: Optional[str] = None,
+    extra_metadata: Optional[Dict[str, Any]] = None,
+    changed_fields: Optional[List[str]] = None,  # Fields that were changed (for edit approvals)
+    request_type: Optional[str] = None,  # "create", "update", "delete" for emission records
+    extra_data: Optional[Dict[str, Any]] = None,  # Additional data like approver_modifications
+):
+    """
+    Create a version snapshot for approval/rejection events.
+    
+    This captures governance state changes in the version history so users
+    can see when a record was approved/rejected and by whom.
+    """
+    import uuid
+    
+    # Map collection to versions collection
+    # NOTE: ESG records use singular "record" (e.g., environment_record_versions)
+    # to match ESGRecordsService._get_versions_collection()
+    versions_collection_map = {
+        "environment_records": "environment_record_versions",
+        "social_records": "social_record_versions",
+        "governance_records": "governance_record_versions",
+        "emission_records": "emission_history",  # Emission records use emission_history
+        "esg_responses": "esg_responses_versions",
+        "organization_esg_responses": "esg_responses_versions",
+    }
+    
+    versions_collection = versions_collection_map.get(collection_name)
+    if not versions_collection:
+        logger.warning(f"No versions collection for {collection_name}")
+        return
+    
+    # For emission_records, use emission_history format
+    if collection_name == "emission_records":
+        # Extract approver_modifications from extra_data if provided
+        approver_mods = None
+        if extra_data and "approver_modifications" in extra_data:
+            approver_mods = extra_data["approver_modifications"]
+        
+        await _create_emission_history_entry(
+            record_id=record_id,
+            action=action,
+            user_id=user_id,
+            rejection_reason=rejection_reason,
+            request_type=request_type,
+            approver_modifications=approver_mods,
+        )
+        return
+    
+    # Get the current record to capture its state
+    record = await db[collection_name].find_one(
+        {"id": record_id} if collection_name != "esg_responses" else {"question_key": record_id},
+        {"_id": 0}
+    )
+    
+    if not record:
+        logger.warning(f"Record {record_id} not found for version snapshot")
+        return
+    
+    # Get max version from versions collection (not from record) to avoid duplicates
+    latest_version = await db[versions_collection].find_one(
+        {"record_id": record_id},
+        {"_id": 0, "version": 1},
+        sort=[("version", -1)]
+    )
+    next_version = (latest_version.get("version", 0) if latest_version else 0) + 1
+    
+    # Determine changed fields - use provided list or default to approval_status
+    snapshot_changed_fields = changed_fields if changed_fields else ["approval_status"]
+    
+    # Create version snapshot
+    version_doc = {
+        "id": str(uuid.uuid4()),
+        "record_id": record_id,
+        "version": next_version,
+        "snapshot": record,
+        "changed_fields": snapshot_changed_fields,
+        "change_reason": f"Record {action}" + (f": {rejection_reason}" if rejection_reason else ""),
+        "change_type": action,  # "approved" or "rejected"
+        "created_by": user_id,
+        "created_at": _now_iso(),
+    }
+    
+    # Add rejection details if rejected
+    if action == "rejected" and rejection_reason:
+        version_doc["rejection_reason"] = rejection_reason
+    
+    # Add any extra metadata (e.g., question_key, framework, section)
+    if extra_metadata:
+        version_doc.update(extra_metadata)
+    
+    await db[versions_collection].insert_one(version_doc)
+    logger.info(f"Created {action} version snapshot v{next_version} for {collection_name} record {record_id}")
+
+
+async def _create_emission_history_entry(
+    record_id: str,
+    action: str,  # "approved" or "rejected"
+    user_id: str,
+    rejection_reason: Optional[str] = None,
+    request_type: Optional[str] = None,
+    approver_modifications: Optional[List[Dict]] = None,
+):
+    """
+    Create an entry in emission_history for approval/rejection events.
+    This ensures the approval flow is captured in the emission's version history.
+    """
+    import uuid
+    
+    # Get user info
+    user = await db.users.find_one({"id": user_id}, {"_id": 0, "email": 1, "full_name": 1})
+    user_email = user.get("email", "") if user else ""
+    user_name = user.get("full_name", "") if user else ""
+    
+    # Get the emission record if it exists
+    record = await db.emission_records.find_one({"id": record_id}, {"_id": 0})
+    
+    # Determine action display
+    action_map = {
+        ("approved", "create"): "Submission Approved",
+        ("approved", "update"): "Update Approved",
+        ("rejected", "create"): "Submission Rejected",
+        ("rejected", "update"): "Update Rejected",
+    }
+    action_display = action_map.get((action, request_type), f"{action.title()}")
+    
+    # Add approver modifications to action display if any
+    if approver_modifications:
+        action_display += f" (with {len(approver_modifications)} modification(s) by approver)"
+    
+    # Build field_changes from approver_modifications
+    field_changes = []
+    if approver_modifications:
+        for mod in approver_modifications:
+            field_changes.append({
+                "field": mod.get("field", "unknown"),
+                "old_value": mod.get("old_value"),
+                "new_value": mod.get("new_value"),
+                "unit": mod.get("unit"),
+                "modified_by": "approver",
+            })
+    
+    history_entry = {
+        "id": str(uuid.uuid4()),
+        "emission_id": record_id,
+        "facility_id": record.get("facility_id") if record else None,
+        "organization_id": record.get("organization_id") if record else None,
+        "scope": record.get("scope") if record else None,
+        "category": record.get("category") if record else None,
+        "changed_by": user_id,
+        "changed_by_email": user_email,
+        "changed_by_name": user_name,
+        "changed_at": _now_iso(),
+        "version": (record.get("version", 0) if record else 0) + 1,
+        "field_changes": field_changes,
+        "changes_summary": action_display,
+        "changes": {
+            "action": action,
+            "request_type": request_type,
+            "rejection_reason": rejection_reason,
+            "approver_modifications": approver_modifications,
+        },
+    }
+    
+    await db.emission_history.insert_one(history_entry)
+    logger.info(f"Created emission_history entry for {action} on record {record_id}")
 
 
 class ApprovalWorkflowService:
@@ -256,7 +451,9 @@ class ApprovalWorkflowService:
         # Determine approvers for level 1
         levels = workflow.get("levels", [])
         if not levels:
-            return (False, "Workflow has no approval levels", None)
+            # Default to single-level workflow
+            levels = [{"level": 1, "name": "Approval", "can_delegate": True}]
+            workflow["levels"] = levels
         
         first_level = levels[0]
         current_approvers = await ApprovalWorkflowService._resolve_approvers(
@@ -333,7 +530,7 @@ class ApprovalWorkflowService:
                         title="Approval Required",
                         message=f"{submitter_name} submitted {data.entity_id} for approval",
                         notification_type="approval",
-                        link="/approval-queue",
+                        link="/workflow/approver-queue",
                         metadata={"request_id": request.id, "entity_id": data.entity_id},
                     )
         except Exception as e:
@@ -488,7 +685,8 @@ class ApprovalWorkflowService:
         status: Optional[str] = None,
     ) -> List[dict]:
         """Get past (completed/rejected/cancelled) approval requests.
-        If user_id provided, only requests where user was an approver."""
+        If user_id provided, only requests where user was an approver.
+        Enriches rejected items with rejection_reason from steps_completed or resolution_comment."""
         completed_statuses = [
             ApprovalStatus.APPROVED.value,
             ApprovalStatus.REJECTED.value,
@@ -502,8 +700,51 @@ class ApprovalWorkflowService:
             query["$or"] = [
                 {"current_approvers": user_id},
                 {"history.actor_id": user_id},
+                {"steps_completed.actor_id": user_id},
             ]
-        return await db[REQUESTS_COLLECTION].find(query, {"_id": 0}).sort("submitted_at", -1).to_list(500)
+        requests = await db[REQUESTS_COLLECTION].find(query, {"_id": 0}).sort("submitted_at", -1).to_list(500)
+        
+        # Enrich with rejection_reason from steps_completed, history, or resolution_comment
+        for req in requests:
+            if req.get("status") == ApprovalStatus.REJECTED.value:
+                rejection_reason = None
+                rejected_by_name = None
+                rejected_at = None
+                
+                # Try resolution_comment first
+                if req.get("resolution_comment"):
+                    rejection_reason = req.get("resolution_comment")
+                    rejected_by_name = req.get("resolved_by_name")
+                    rejected_at = req.get("resolved_at")
+                
+                # Try steps_completed if no resolution_comment
+                if not rejection_reason:
+                    steps = req.get("steps_completed", [])
+                    for step in reversed(steps):  # Check from most recent
+                        if step.get("action") == "reject":
+                            rejection_reason = step.get("comment") or step.get("notes")
+                            rejected_by_name = step.get("actor_name")
+                            rejected_at = step.get("timestamp")
+                            break
+                
+                # Try history if still no reason
+                if not rejection_reason:
+                    history = req.get("history", [])
+                    for entry in reversed(history):
+                        if entry.get("action") == "rejected":
+                            rejection_reason = entry.get("comment") or entry.get("notes")
+                            rejected_by_name = entry.get("actor_name")
+                            rejected_at = entry.get("timestamp")
+                            break
+                
+                if rejection_reason:
+                    req["rejection_reason"] = rejection_reason
+                if rejected_by_name:
+                    req["rejected_by_name"] = rejected_by_name
+                if rejected_at:
+                    req["rejected_at"] = rejected_at
+        
+        return requests
 
     
     # =========================================================================
@@ -583,26 +824,58 @@ class ApprovalWorkflowService:
         previous_status = current_status
         
         if action == ApprovalAction.APPROVE.value:
-            return await ApprovalWorkflowService._process_approve(
+            result = await ApprovalWorkflowService._process_approve(
                 request, workflow, current_user, decision.comment, previous_status, decision.updated_data
             )
-        
         elif action == ApprovalAction.REJECT.value:
-            return await ApprovalWorkflowService._process_reject(
+            result = await ApprovalWorkflowService._process_reject(
                 request, current_user, decision.comment, previous_status
             )
-        
         elif action == ApprovalAction.REQUEST_CHANGES.value:
-            return await ApprovalWorkflowService._process_request_changes(
+            result = await ApprovalWorkflowService._process_request_changes(
                 request, current_user, decision.comment, previous_status
             )
-        
         elif action == ApprovalAction.DELEGATE.value:
-            return await ApprovalWorkflowService._process_delegate(
+            result = await ApprovalWorkflowService._process_delegate(
                 request, current_user, decision.delegate_to, decision.comment, previous_status
             )
+        else:
+            return (False, f"Unknown action: {action}", None)
         
-        return (False, f"Unknown action: {action}", None)
+        # Send bell notification to submitter on approve/reject
+        success = result[0]
+        if success and action in (ApprovalAction.APPROVE.value, ApprovalAction.REJECT.value):
+            try:
+                from shared.notifications import create_notification
+                submitter_id = request.get("submitted_by")
+                org_id = request.get("organization_id")
+                entity_id = request.get("entity_id", "")
+                decider_name = current_user.get("full_name") or current_user.get("email", "").split("@")[0]
+                
+                if submitter_id and submitter_id != current_user.get("id"):
+                    if action == ApprovalAction.APPROVE.value:
+                        await create_notification(
+                            user_id=submitter_id, org_id=org_id,
+                            title="Submission Approved",
+                            message=f"{decider_name} approved your submission: {entity_id}",
+                            notification_type="approval",
+                            link="/workflow/my-tasks",
+                            metadata={"entity_id": entity_id, "request_id": request_id},
+                        )
+                    else:
+                        reason = f" — {decision.comment}" if decision.comment else ""
+                        await create_notification(
+                            user_id=submitter_id, org_id=org_id,
+                            title="Submission Rejected",
+                            message=f"{decider_name} rejected your submission: {entity_id}{reason}",
+                            notification_type="approval",
+                            link="/workflow/my-tasks",
+                            metadata={"entity_id": entity_id, "request_id": request_id},
+                        )
+            except Exception as e:
+                logger.error(f"Failed to send decision notification: {e}")
+        
+        return result
     
     @staticmethod
     async def _process_approve(
@@ -682,6 +955,72 @@ class ApprovalWorkflowService:
             entity_type = request.get("entity_type")
             entity_id = request.get("entity_id")
             entity_subtype = request.get("entity_subtype")  # This is the section (environment, social, governance)
+            request_type = request.get("request_type")  # 'delete', 'create', 'edit'
+            
+            # Handle DELETE approval - actually delete the record
+            if entity_type == "esg_record" and request_type == "delete":
+                try:
+                    collection_map = {
+                        "environment": "environment_records",
+                        "social": "social_records",
+                        "governance": "governance_records",
+                        "Energy": "environment_records",
+                        "Water": "environment_records",
+                        "Waste": "environment_records",
+                    }
+                    collection_name = collection_map.get(entity_subtype)
+                    
+                    if collection_name:
+                        # Get record details before deletion for task reversion
+                        record = await db[collection_name].find_one(
+                            {"id": entity_id, "is_current": True},
+                            {"_id": 0}
+                        )
+                        
+                        if record:
+                            # Hard delete the record
+                            await db[collection_name].delete_one({"id": entity_id, "is_current": True})
+                            logger.info(f"Delete approved: Hard deleted ESG record {entity_id}")
+                            
+                            # Revert associated task
+                            org_id = record.get("organization_id") or record.get("org_id")
+                            rp = record.get("reporting_period") or {}
+                            period_key = None
+                            rp_type = rp.get("reporting_type") or rp.get("type")
+                            if rp_type == "monthly":
+                                month = rp.get("month")
+                                month_num = int(month) if str(month).isdigit() else 1
+                                period_key = f"{rp.get('year')}-{str(month_num).zfill(2)}"
+                            elif rp_type == "yearly":
+                                period_key = str(rp.get("year"))
+                            
+                            if period_key:
+                                task_query = {
+                                    "organization_id": org_id,
+                                    "category": record.get("category"),
+                                    "period_key": period_key,
+                                }
+                                if record.get("subcategory"):
+                                    task_query["subcategory"] = record.get("subcategory")
+                                if record.get("facility_id"):
+                                    task_query["facility_id"] = record.get("facility_id")
+                                
+                                # NOTE: task.approval_status is now computed from RECORDS.
+                                # Record is deleted, so task status will auto-compute correctly.
+                                # Just update the timestamp for audit purposes.
+                                await db.esg_reporting_tasks.update_many(
+                                    task_query,
+                                    {"$set": {"updated_at": _now_iso()}}
+                                )
+                                logger.info(f"Updated task timestamp after record deletion")
+                except Exception as e:
+                    logger.error(f"Failed to process delete approval: {e}")
+                    import traceback
+                    traceback.print_exc()
+                
+                # Get the updated request
+                updated_request = await db[REQUESTS_COLLECTION].find_one({"id": request_id}, {"_id": 0})
+                return (True, "Delete request approved. Record has been permanently deleted.", updated_request)
             
             if entity_type == "esg_record" and entity_id and entity_subtype:
                 try:
@@ -694,14 +1033,36 @@ class ApprovalWorkflowService:
                     collection_name = collection_map.get(entity_subtype)
                     
                     if collection_name:
-                        # Update the record's status and approval_status (and field_values if edited)
+                        # =========================================================================
+                        # IMMUTABLE EDIT APPROVAL: Apply proposed_changes to the record
+                        # If this is an "immutable_edit", the record was NOT mutated at edit time.
+                        # Now that it's approved, we apply the proposed_changes.
+                        # =========================================================================
+                        entity_snapshot = request.get("entity_snapshot", {})
+                        is_immutable_edit = entity_snapshot.get("edit_type") == "immutable_edit"
+                        proposed_changes = entity_snapshot.get("proposed_changes", {})
+                        
                         record_update = {
                             "updated_at": _now_iso(),
                             "status": "completed",  # Reset status to completed
                             "approval_status": "approved",
                         }
                         
-                        # Update field_values if provided
+                        # Apply proposed_changes for immutable edits
+                        if is_immutable_edit and proposed_changes:
+                            logger.info(f"Applying proposed_changes for immutable edit: {list(proposed_changes.keys())}")
+                            for key, value in proposed_changes.items():
+                                record_update[key] = value
+                            
+                            # Increment version since we're now applying the change
+                            current_record = await db[collection_name].find_one(
+                                {"id": entity_id, "is_current": True},
+                                {"_id": 0, "version": 1}
+                            )
+                            if current_record:
+                                record_update["version"] = current_record.get("version", 0) + 1
+                        
+                        # Apply approver's field_values edits (works for both immutable and legacy paths)
                         if updated_data and "field_values" in updated_data:
                             record_update["field_values"] = updated_data["field_values"]
                         
@@ -719,6 +1080,21 @@ class ApprovalWorkflowService:
                             {"$set": record_update}
                         )
                         logger.info(f"Updated ESG record {entity_id} status=completed, approval_status=approved")
+                        
+                        # Determine changed fields for version snapshot
+                        changed_fields_for_snapshot = ["approval_status"]
+                        if is_immutable_edit and proposed_changes:
+                            # Include the fields that were changed in the edit
+                            changed_fields_for_snapshot.extend(list(proposed_changes.keys()))
+                        
+                        # Create version snapshot for approval event
+                        await _create_approval_version_snapshot(
+                            collection_name=collection_name,
+                            record_id=entity_id,
+                            action="approved",
+                            user_id=approver.get("id"),
+                            changed_fields=changed_fields_for_snapshot,
+                        )
                         
                         # Get the record to find the corresponding task
                         record = await db[collection_name].find_one(
@@ -763,17 +1139,288 @@ class ApprovalWorkflowService:
                             if record.get("facility_id"):
                                 task_query["facility_id"] = record.get("facility_id")
                             
+                            # NOTE: task.approval_status is now computed from RECORDS, not stored.
+                            # We only update audit/ownership fields here.
+                            task_update = {
+                                "updated_at": _now_iso(),
+                                "completed_by_user_id": approver.get("id"),
+                                "completed_at": _now_iso(),
+                                "approved_by_user_id": approver.get("id"),
+                                "approved_at": _now_iso(),
+                            }
                             task_update_result = await db.esg_reporting_tasks.update_many(
                                 task_query,
-                                {"$set": {"status": "completed", "approval_status": "approved", "updated_at": _now_iso()}}
+                                {"$set": task_update}
                             )
-                            logger.info(f"Updated {task_update_result.modified_count} task(s) status=completed, approval_status=approved")
+                            logger.info(f"Updated {task_update_result.modified_count} task(s) audit fields, completed_by={approver.get('id')}")
                             
                 except Exception as e:
                     logger.error(f"Failed to update ESG record/task with approval: {e}")
                     import traceback
                     traceback.print_exc()
-                    # Don't fail the approval, just log the error
+            
+            # Handle emission_record approval
+            elif entity_type == "emission_record":
+                try:
+                    request_type = request.get("request_type")  # 'update', 'create', etc.
+                    entity_snapshot = request.get("entity_snapshot", {})
+                    proposed_changes = entity_snapshot.get("proposed_changes", {})
+                    
+                    record_update = {
+                        "updated_at": _now_iso(),
+                        "approval_status": "approved",
+                    }
+                    
+                    # Apply proposed changes for update approvals
+                    if request_type == "update" and proposed_changes:
+                        logger.info(f"Applying proposed_changes for emission update: {list(proposed_changes.keys())}")
+                        for key, value in proposed_changes.items():
+                            if value is not None:
+                                # Map 'inputs' to 'dynamic_field_values' (emission_records schema)
+                                if key == "inputs":
+                                    record_update["dynamic_field_values"] = value
+                                else:
+                                    record_update[key] = value
+                        
+                        # Recalculate emission values from outputs if provided
+                        if "outputs" in proposed_changes:
+                            outputs = proposed_changes["outputs"] or {}
+                            record_update["co2_emissions"] = (outputs.get("co2") or {}).get("value", 0) or 0
+                            record_update["ch4_emissions"] = (outputs.get("ch4") or {}).get("value", 0) or 0
+                            record_update["n2o_emissions"] = (outputs.get("n2o") or {}).get("value", 0) or 0
+                            record_update["co2e_emissions"] = (outputs.get("co2e") or {}).get("value", 0) or 0
+                            record_update["total_emissions"] = record_update["co2e_emissions"]
+                        
+                        # Increment version
+                        current_record = await db.emission_records.find_one(
+                            {"id": entity_id},
+                            {"_id": 0, "version": 1}
+                        )
+                        if current_record:
+                            record_update["version"] = current_record.get("version", 0) + 1
+                    
+                    # Handle approver modifications from updated_data
+                    approver_modifications = []
+                    if updated_data:
+                        logger.info(f"Processing approver modifications: {list(updated_data.keys())}")
+                        
+                        # Apply modified inputs
+                        if "inputs" in updated_data:
+                            record_update["dynamic_field_values"] = updated_data["inputs"]
+                            record_update["inputs"] = updated_data["inputs"]
+                        
+                        # Apply emission factor override
+                        if "emission_factor_override" in updated_data:
+                            ef_override = updated_data["emission_factor_override"]
+                            if ef_override.get("enabled"):
+                                record_update["has_custom_ef"] = True
+                                record_update["emission_factor_used"] = ef_override.get("value")
+                                record_update["emission_factor_override"] = ef_override
+                            else:
+                                record_update["has_custom_ef"] = False
+                        
+                        # Apply recalculated emissions
+                        if "calculated_emissions" in updated_data:
+                            calc_em = updated_data["calculated_emissions"]
+                            record_update["co2_emissions"] = calc_em.get("co2", 0)
+                            record_update["ch4_emissions"] = calc_em.get("ch4", 0)
+                            record_update["n2o_emissions"] = calc_em.get("n2o", 0)
+                            record_update["co2e_emissions"] = calc_em.get("total", 0)
+                            record_update["total_emissions"] = calc_em.get("total", 0)
+                        
+                        # Store approver modifications for audit trail
+                        if "approver_modifications" in updated_data:
+                            approver_modifications = updated_data["approver_modifications"]
+                            record_update["approver_modifications"] = {
+                                "modified_by": approver.get("id"),
+                                "modified_by_name": approver.get("full_name", approver.get("email", "")),
+                                "modified_at": _now_iso(),
+                                "changes": approver_modifications
+                            }
+                    
+                    await db.emission_records.update_one(
+                        {"id": entity_id},
+                        {"$set": record_update}
+                    )
+                    logger.info(f"Updated emission_record {entity_id} approval_status=approved")
+                    
+                    # Create version snapshot for approval event
+                    changed_fields = ["approval_status"]
+                    if request_type == "update" and proposed_changes:
+                        changed_fields.extend(list(proposed_changes.keys()))
+                    if approver_modifications:
+                        changed_fields.extend([m.get("field", "unknown") for m in approver_modifications])
+                    
+                    await _create_approval_version_snapshot(
+                        collection_name="emission_records",
+                        record_id=entity_id,
+                        action="approved",
+                        user_id=approver.get("id"),
+                        changed_fields=changed_fields,
+                        request_type=request_type,
+                        extra_data={"approver_modifications": approver_modifications} if approver_modifications else None,
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to update emission_record with approval: {e}")
+                    import traceback
+                    traceback.print_exc()
+            
+            # Handle esg_response approval (BRSR/GRI questionnaire responses)
+            elif entity_type == "esg_response":
+                try:
+                    question_key = entity_id  # entity_id is the question_key for esg_response
+                    entity_snapshot = request.get("entity_snapshot", {})
+                    org_id = request.get("organization_id")
+                    reporting_year = entity_snapshot.get("reporting_year") or entity_snapshot.get("reporting_period")
+                    
+                    # Get the edited value if approver made changes
+                    final_value = entity_snapshot.get("value")
+                    if updated_data and "value" in updated_data:
+                        final_value = updated_data["value"]
+                        logger.info(f"Applying approver edits to esg_response {question_key}")
+                    
+                    # Get framework/section from: 1) approval_request itself, 2) config, 3) question_key inference
+                    framework = request.get("framework")
+                    section = request.get("section") or request.get("entity_subtype")
+                    
+                    if not framework or not section:
+                        config = await db.esg_question_configs.find_one(
+                            {"question_key": question_key},
+                            {"_id": 0, "section": 1, "framework": 1, "frameworks": 1}
+                        )
+                        if config:
+                            if not framework:
+                                framework = config.get("framework") or (config.get("frameworks", [None])[0] if config.get("frameworks") else None)
+                            if not section:
+                                section = config.get("section")
+                    
+                    # Infer from question_key prefix as last resort
+                    if not framework:
+                        if question_key.startswith("gri_"):
+                            framework = "GRI"
+                        elif question_key.startswith("brsr_") or question_key.startswith("section_") or question_key.startswith("policy_") or question_key.startswith("principle_"):
+                            framework = "BRSR"
+                        else:
+                            framework = "GRI"
+                    if not section:
+                        section = "environment"
+                    
+                    # Save to unified collection using flat storage (one doc per question_key)
+                    await db.organization_esg_responses.update_one(
+                        {
+                            "org_id": org_id,
+                            "question_key": question_key,
+                            "reporting_year": reporting_year,
+                        },
+                        {
+                            "$set": {
+                                "value": final_value,
+                                "status": "saved",
+                                "approval_status": "approved",
+                                "framework": framework,
+                                "section": section,
+                                "approved_at": _now_iso(),
+                                "approved_by": approver.get("id"),
+                                "approved_by_name": approver.get("full_name", approver.get("email", "")),
+                                "updated_at": _now_iso(),
+                            },
+                            "$setOnInsert": {
+                                "id": str(uuid.uuid4()),
+                                "org_id": org_id,
+                                "organization_id": org_id,
+                                "question_key": question_key,
+                                "reporting_year": reporting_year,
+                                "created_at": _now_iso(),
+                            }
+                        },
+                        upsert=True
+                    )
+                    
+                    logger.info(f"Updated organization_esg_responses for {question_key} approval_status=approved, framework={framework}, section={section}")
+                    
+                    # Update the linked submission in esg_response_submissions
+                    submission_id = request.get("_submission_id")
+                    if submission_id:
+                        await db.esg_response_submissions.update_one(
+                            {"id": submission_id},
+                            {
+                                "$set": {
+                                    "status": "approved",
+                                    "approved_by_user_id": approver.get("id"),
+                                    "approved_by_user_name": approver.get("full_name", approver.get("email", "")),
+                                    "approved_at": _now_iso(),
+                                    "final_value": final_value,
+                                    "updated_at": _now_iso(),
+                                }
+                            }
+                        )
+                        # Supersede other pending submissions for same question
+                        await db.esg_response_submissions.update_many(
+                            {
+                                "organization_id": org_id,
+                                "question_key": question_key,
+                                "status": "pending_approval",
+                                "id": {"$ne": submission_id},
+                            },
+                            {
+                                "$set": {
+                                    "status": "superseded",
+                                    "rejection_reason": f"Another submission approved by {approver.get('full_name', approver.get('email', ''))}",
+                                    "updated_at": _now_iso(),
+                                }
+                            }
+                        )
+                        logger.info(f"Updated submission {submission_id} status to approved")
+                    
+                    # Update ESG assignments/tracker for this question
+                    await db.esg_assignments.update_many(
+                        {
+                            "organization_id": org_id,
+                            "entity_id": question_key,
+                        },
+                        {
+                            "$set": {
+                                "updated_at": _now_iso(),
+                                "completed_at": _now_iso(),
+                                "approved_by_user_id": approver.get("id"),
+                            }
+                        }
+                    )
+                    
+                    # Create version snapshot
+                    await _create_approval_version_snapshot(
+                        collection_name="organization_esg_responses",
+                        record_id=question_key,
+                        action="approved",
+                        user_id=approver.get("id"),
+                        changed_fields=["approval_status", "value"] if updated_data else ["approval_status"],
+                    )
+                    
+                    # Write to question_audit_log for version history display
+                    await db.question_audit_log.insert_one({
+                        "id": str(uuid.uuid4()),
+                        "question_key": question_key,
+                        "reporting_period": reporting_year,
+                        "organization_id": org_id,
+                        "action": "submission_approved",
+                        "timestamp": _now_iso(),
+                        "performed_by": {
+                            "user_id": approver.get("id"),
+                            "name": approver.get("full_name", approver.get("email", "")),
+                            "email": approver.get("email", ""),
+                        },
+                        "change_details": {
+                            "old_value": entity_snapshot.get("value"),
+                            "final_value": final_value,
+                            "new_value": final_value,
+                            "was_merged": bool(updated_data and "value" in updated_data),
+                            "submitted_by": request.get("submitted_by_name", ""),
+                        },
+                    })
+                except Exception as e:
+                    logger.error(f"Failed to update esg_response with approval: {e}")
+                    import traceback
+                    traceback.print_exc()
         
         # Record history
         await ApprovalWorkflowService._record_history(
@@ -855,27 +1502,66 @@ class ApprovalWorkflowService:
         """
         Update the source entity (task or assignment) status when rejected.
         Sets status=reopened, approval_status=rejected.
+        
+        For DELETE requests: Clears pending_deletion flag, record remains active.
+        For CREATE/EDIT requests: Marks record as rejected, user must resubmit.
         """
         entity_type = request.get("entity_type")
         entity_id = request.get("entity_id")
         org_id = request.get("organization_id")
+        request_type = request.get("request_type")  # 'delete', 'create', 'edit'
         rejector_id = rejector.get("id")
         now = _now_iso()
         
-        update_doc = {
-            "status": "reopened",
-            "approval_status": "rejected",
-            "rejected_at": now,
-            "rejected_by_user_id": rejector_id,
-            "updated_at": now,
-        }
-        if comment:
-            update_doc["rejection_reason"] = comment
-        
         try:
+            # Handle DELETE rejection - clear pending_deletion, keep record active
+            if entity_type == "esg_record" and request_type == "delete":
+                entity_subtype = request.get("entity_subtype")
+                collection_map = {
+                    "environment": "environment_records",
+                    "social": "social_records",
+                    "governance": "governance_records",
+                    "Energy": "environment_records",
+                    "Water": "environment_records",
+                    "Waste": "environment_records",
+                }
+                collection_name = collection_map.get(entity_subtype)
+                
+                if collection_name:
+                    # Clear pending_deletion flag, keep the record active
+                    await db[collection_name].update_one(
+                        {"id": entity_id, "is_current": True},
+                        {"$set": {
+                            "pending_deletion": False,
+                            "deletion_rejected_at": now,
+                            "deletion_rejected_by": rejector_id,
+                            "deletion_rejection_reason": comment,
+                            "updated_at": now,
+                        },
+                        "$unset": {
+                            "deletion_requested_by": "",
+                            "deletion_requested_at": "",
+                        }}
+                    )
+                    logger.info(f"Delete rejected: Cleared pending_deletion on {collection_name} record {entity_id}")
+                return  # Don't continue to normal rejection handling
+            
+            # Normal rejection handling (create/edit requests)
+            update_doc = {
+                "status": "reopened",
+                "approval_status": "rejected",
+                "rejected_at": now,
+                "rejected_by_user_id": rejector_id,
+                "updated_at": now,
+            }
+            if comment:
+                update_doc["rejection_reason"] = comment
+            
             if entity_type == "esg_record":
                 # ESG records are stored in section-specific collections
                 entity_subtype = request.get("entity_subtype")  # environment, social, governance
+                entity_snapshot = request.get("entity_snapshot", {})
+                
                 collection_map = {
                     "environment": "environment_records",
                     "social": "social_records",
@@ -883,71 +1569,187 @@ class ApprovalWorkflowService:
                 }
                 collection_name = collection_map.get(entity_subtype)
                 
+                # =========================================================================
+                # IMMUTABLE EDIT REJECTION: Revert status to "approved"
+                # If this is an immutable_edit rejection, the record's field_values were 
+                # never mutated. We set approval_status back to "approved" (the data is
+                # still the old approved data). Only the approval_status was changed to
+                # "pending_approval" when the edit was submitted.
+                # =========================================================================
+                if entity_snapshot.get("edit_type") == "immutable_edit":
+                    if collection_name:
+                        # Revert approval_status to "approved" (data unchanged)
+                        await db[collection_name].update_one(
+                            {"id": entity_id, "is_current": True},
+                            {"$set": {
+                                "approval_status": "approved",
+                                "updated_at": now,
+                            }}
+                        )
+                        logger.info(f"Immutable edit rejection - reverted record {entity_id} approval_status to approved")
+                        
+                        # Create version snapshot for rejection event
+                        await _create_approval_version_snapshot(
+                            collection_name=collection_name,
+                            record_id=entity_id,
+                            action="rejected",
+                            user_id=rejector_id,
+                            rejection_reason=comment,
+                        )
+                    return  # Skip the normal rejection flow
+                
                 if collection_name:
-                    # Update the ESG record
+                    # Update the ESG record (normal rejection - not immutable edit)
                     await db[collection_name].update_one(
                         {"id": entity_id, "is_current": True},
                         {"$set": update_doc}
                     )
                     logger.info(f"Updated {collection_name} record {entity_id} approval_status to rejected")
                     
-                    # Also find and update the corresponding task
-                    record = await db[collection_name].find_one(
-                        {"id": entity_id, "is_current": True}, 
-                        {"_id": 0, "org_id": 1, "category": 1, "subcategory": 1, "facility_id": 1, "reporting_period": 1}
+                    # Create version snapshot for rejection event
+                    await _create_approval_version_snapshot(
+                        collection_name=collection_name,
+                        record_id=entity_id,
+                        action="rejected",
+                        user_id=rejector_id,
+                        rejection_reason=comment,
                     )
-                    if record:
-                        # Build period_key from reporting_period
-                        rp = record.get("reporting_period") or {}
-                        period_key = None
-                        rp_type = rp.get("reporting_type") or rp.get("type")
-                        if rp_type == "yearly":
-                            period_key = str(rp.get("year"))
-                        elif rp_type == "monthly":
-                            month = rp.get("month")
-                            if isinstance(month, str) and not month.isdigit():
-                                month_names = ["January", "February", "March", "April", "May", "June",
-                                               "July", "August", "September", "October", "November", "December"]
-                                try:
-                                    month_num = month_names.index(month) + 1
-                                except ValueError:
-                                    month_num = 1
-                            else:
-                                month_num = int(month) if month else 1
-                            period_key = f"{rp.get('year')}-{str(month_num).zfill(2)}"
-                        elif rp_type == "quarterly":
-                            quarter = rp.get("quarter", "").replace("Q", "") if rp.get("quarter") else "1"
-                            period_key = f"{rp.get('year')}-Q{quarter}"
-                        
-                        task_query = {
-                            "organization_id": record.get("org_id"),
-                            "category": record.get("category"),
-                        }
-                        if period_key:
-                            task_query["period_key"] = period_key
-                        if record.get("subcategory"):
-                            task_query["subcategory"] = record.get("subcategory")
-                        if record.get("facility_id"):
-                            task_query["facility_id"] = record.get("facility_id")
-                        
-                        task_result = await db.esg_reporting_tasks.update_many(
-                            task_query,
-                            {"$set": update_doc}
-                        )
-                        logger.info(f"Updated {task_result.modified_count} task(s) approval_status to rejected")
                 else:
                     logger.warning(f"Unknown entity_subtype for esg_record: {entity_subtype}")
-            elif entity_type == "esg_response":
-                # Update the ESG assignment for the question
-                await db.esg_assignments.update_one(
-                    {"id": entity_id, "organization_id": org_id},
-                    {"$set": update_doc}
+            
+            elif entity_type == "emission_record":
+                # GHG emission records
+                request_type = request.get("request_type", "create")
+                
+                if request_type == "create":
+                    # For CREATE requests, the record may not exist yet or was created with pending status
+                    # Just update if exists, don't fail if not found
+                    result = await db.emission_records.update_one(
+                        {"id": entity_id},
+                        {"$set": update_doc}
+                    )
+                    if result.matched_count == 0:
+                        # Record doesn't exist yet (pending create) - just delete the approval request
+                        logger.info(f"Emission record {entity_id} not found (pending create), skipping record update")
+                    else:
+                        logger.info(f"Updated emission_record {entity_id} approval_status to rejected")
+                else:
+                    # For UPDATE/DELETE requests, the original record still exists
+                    # Revert approval_status to "approved" (the data was never changed)
+                    await db.emission_records.update_one(
+                        {"id": entity_id},
+                        {"$set": {
+                            "approval_status": "approved",
+                            "updated_at": _now_iso(),
+                        }}
+                    )
+                    logger.info(f"Reverted emission_record {entity_id} approval_status to approved (rejected {request_type})")
+                
+                # Create version snapshot for rejection event
+                await _create_approval_version_snapshot(
+                    collection_name="emission_records",
+                    record_id=entity_id,
+                    action="rejected",
+                    user_id=rejector_id,
+                    rejection_reason=comment,
+                    request_type=request_type,
                 )
+            
+            elif entity_type == "esg_response":
+                # Update the unified collection for rejection (flat storage)
+                question_key = entity_id
+                reporting_year = request.get("entity_snapshot", {}).get("reporting_year") or request.get("entity_snapshot", {}).get("reporting_period")
+                
+                framework = request.get("framework")
+                if not framework:
+                    if question_key.startswith("gri_"):
+                        framework = "GRI"
+                    else:
+                        framework = "BRSR"
+                
+                # Check if there's a last_approved_value to revert to
+                existing_doc = await db.organization_esg_responses.find_one(
+                    {"org_id": org_id, "question_key": question_key, "reporting_year": reporting_year},
+                    {"_id": 0, "last_approved_value": 1}
+                )
+                
+                if existing_doc and existing_doc.get("last_approved_value") is not None:
+                    # Revert to previously approved value
+                    await db.organization_esg_responses.update_one(
+                        {"org_id": org_id, "question_key": question_key, "reporting_year": reporting_year},
+                        {"$set": {
+                            "value": existing_doc["last_approved_value"],
+                            "status": "saved",
+                            "approval_status": "approved",
+                            "updated_at": _now_iso(),
+                        },
+                        "$unset": {"last_approved_value": "", "rejection_reason": ""}}
+                    )
+                    logger.info(f"Reverted {question_key} to last_approved_value after rejection")
+                else:
+                    # First creation rejection — mark as rejected
+                    await db.organization_esg_responses.update_one(
+                        {"org_id": org_id, "question_key": question_key, "reporting_year": reporting_year},
+                        {"$set": {
+                            "approval_status": "rejected",
+                            "status": "rejected",
+                            "rejection_reason": comment,
+                            "updated_at": _now_iso(),
+                        }}
+                    )
+                logger.info(f"Updated organization_esg_responses {question_key} after rejection")
+                
+                # Update linked submission
+                submission_id = request.get("_submission_id")
+                if submission_id:
+                    await db.esg_response_submissions.update_one(
+                        {"id": submission_id},
+                        {"$set": {
+                            "status": "rejected",
+                            "rejection_reason": comment,
+                            "updated_at": _now_iso(),
+                        }}
+                    )
+                
+                # Update assignments
+                await db.esg_assignments.update_many(
+                    {"organization_id": org_id, "entity_id": question_key},
+                    {"$set": {"updated_at": now}}
+                )
+                
+                # Write to question_audit_log for version history display
+                await db.question_audit_log.insert_one({
+                    "id": str(uuid.uuid4()),
+                    "question_key": question_key,
+                    "reporting_period": reporting_year,
+                    "organization_id": org_id,
+                    "action": "submission_rejected",
+                    "timestamp": _now_iso(),
+                    "performed_by": {
+                        "user_id": rejector_id,
+                        "name": rejector.get("full_name", rejector.get("email", "")),
+                        "email": rejector.get("email", ""),
+                    },
+                    "change_details": {
+                        "submitted_by": request.get("submitted_by_name", ""),
+                        "rejection_reason": comment,
+                        "old_value": request.get("entity_snapshot", {}).get("value"),
+                        "reverted_to_approved": existing_doc.get("last_approved_value") is not None if existing_doc else False,
+                    },
+                })
             elif entity_type == "esg_task":
-                # Directly update the task
+                # NOTE: task.approval_status is now computed from RECORDS.
+                # Only update audit/metadata fields here.
+                task_update = {
+                    "rejected_at": now,
+                    "rejected_by_user_id": rejector_id,
+                    "updated_at": now,
+                }
+                if comment:
+                    task_update["rejection_reason"] = comment
                 await db.esg_reporting_tasks.update_one(
                     {"id": entity_id, "organization_id": org_id},
-                    {"$set": update_doc}
+                    {"$set": task_update}
                 )
         except Exception as e:
             print(f"Warning: Failed to update source entity on rejection: {e}")
@@ -1270,3 +2072,629 @@ class ApprovalWorkflowService:
             sort=[("created_at", -1)]
         )
         return request.get("status") if request else None
+
+
+    # =========================================================================
+    # QUESTIONNAIRE RESPONSE APPROVAL
+    # =========================================================================
+    
+    @staticmethod
+    async def get_questionnaire_approval_queue(
+        organization_id: str,
+        approver_id: str,
+        framework: Optional[str] = None,
+        is_admin: bool = False,
+    ) -> List[dict]:
+        """
+        Get questionnaire responses pending approval.
+        
+        Returns ALL responses with approval_status="pending_approval" for the organization.
+        Enriches items with question configs for display.
+        """
+        queue_items = []
+        
+        # =====================================================================
+        # PART 1: Questionnaire Approvals (from esg_responses)
+        # =====================================================================
+        
+        # Fetch ALL pending approval responses for the organization
+        responses_query = {
+            "organization_id": organization_id,
+            "approval_status": "pending_approval",
+        }
+        
+        if framework:
+            responses_query["framework"] = framework.upper()
+        
+        responses = await db.esg_responses.find(
+            responses_query,
+            {"_id": 0}
+        ).to_list(500)
+        
+        if responses:
+            # Get question configs for labels
+            response_keys = [r.get("question_key") for r in responses if r.get("question_key")]
+            
+            # Also include potential parent keys for nested subquestions
+            parent_keys = []
+            for key in response_keys:
+                if '_' in key:
+                    parts = key.rsplit('_', 1)
+                    suffix = parts[1].lower() if len(parts) == 2 else ""
+                    if suffix in ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x', 
+                                  'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']:
+                        parent_keys.append(parts[0])
+                        # Also try grandparent
+                        if '_' in parts[0]:
+                            gp_parts = parts[0].rsplit('_', 1)
+                            gp_suffix = gp_parts[1].lower() if len(gp_parts) == 2 else ""
+                            if gp_suffix in ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']:
+                                parent_keys.append(gp_parts[0])
+            
+            all_keys_to_fetch = list(set(response_keys + parent_keys))
+            configs = await db.esg_question_configs.find(
+                {"question_key": {"$in": all_keys_to_fetch}},
+                {"_id": 0, "question_key": 1, "label": 1, "question": 1, "description": 1, 
+                 "section": 1, "brsr_section": 1, "framework": 1, "type": 1, "input_type": 1,
+                 "field_config": 1, "disclosure_name": 1, "disclosure_id": 1, "material_topic": 1,
+                 "sub_questions": 1}
+            ).to_list(500)
+            config_map = {c["question_key"]: c for c in configs}
+            
+            # Get submitter user info
+            submitter_ids = list(set([r.get("submitted_by") for r in responses if r.get("submitted_by")]))
+            submitters = {}
+            if submitter_ids:
+                users = await db.users.find(
+                    {"id": {"$in": submitter_ids}},
+                    {"_id": 0, "id": 1, "email": 1, "full_name": 1, "name": 1}
+                ).to_list(100)
+                submitters = {u["id"]: u for u in users}
+            
+            def get_subquestion_info(question_key: str) -> tuple:
+                """
+                For a subquestion key like 'gri_101_2_a_i', find the parent config
+                and the specific subquestion's label from sub_questions array.
+                Returns (parent_config, subquestion_label, subquestion_key)
+                """
+                if '_' not in question_key:
+                    return config_map.get(question_key, {}), None, None
+                
+                # Try direct match first
+                if question_key in config_map:
+                    return config_map[question_key], None, None
+                
+                # Extract potential sub_key suffix
+                parts = question_key.rsplit('_', 1)
+                if len(parts) != 2:
+                    return {}, None, None
+                
+                parent_key, sub_key = parts
+                parent_config = config_map.get(parent_key, {})
+                
+                # Check if parent has sub_questions array
+                sub_questions = parent_config.get("sub_questions", [])
+                if sub_questions:
+                    for sq in sub_questions:
+                        if sq.get("sub_key") == sub_key:
+                            return parent_config, sq.get("label") or sq.get("description"), sub_key
+                
+                # Try grandparent
+                if '_' in parent_key:
+                    gp_parts = parent_key.rsplit('_', 1)
+                    gp_key, middle_key = gp_parts
+                    gp_config = config_map.get(gp_key, {})
+                    gp_sub_questions = gp_config.get("sub_questions", [])
+                    for sq in gp_sub_questions:
+                        if sq.get("sub_key") == middle_key:
+                            return gp_config, sq.get("label") or sq.get("description"), middle_key
+                
+                # Fallback to parent config without subquestion info
+                return parent_config if parent_config else {}, None, None
+            
+            # Enrich responses with config data
+            for response in responses:
+                question_key = response.get("question_key")
+                config, subq_label, subq_key = get_subquestion_info(question_key)
+                submitter = submitters.get(response.get("submitted_by"), {})
+                
+                # Build the full question display text
+                parent_description = config.get("description") or config.get("disclosure_name") or config.get("label") or ""
+                
+                if subq_label and subq_key and parent_description:
+                    parent_desc_clean = parent_description.rstrip(':').rstrip()
+                    full_question_text = f"{parent_desc_clean}: {subq_key}. {subq_label}"
+                elif parent_description:
+                    full_question_text = parent_description
+                else:
+                    full_question_text = question_key
+                
+                queue_items.append({
+                    "id": response.get("id"),
+                    "_response_id": response.get("id"),
+                    "question_key": question_key,
+                    "question_name": config.get("label") or config.get("question") or config.get("description", "")[:100],
+                    "disclosure_name": full_question_text,
+                    "description": subq_label or "",
+                    "parent_description": parent_description,
+                    "question_type": config.get("type") or config.get("input_type"),
+                    "field_config": config.get("field_config"),
+                    "section_id": config.get("brsr_section") or config.get("section"),
+                    "framework": response.get("framework") or config.get("framework", "BRSR"),
+                    "reporting_year": response.get("reporting_year"),
+                    "response_data": response.get("value"),
+                    "submitted_at": response.get("submitted_at"),
+                    "submitted_by_id": response.get("submitted_by"),
+                    "submitted_by_name": submitter.get("full_name") or submitter.get("name") or submitter.get("email", ""),
+                    "submitted_by_email": submitter.get("email", ""),
+                    "organization_id": organization_id,
+                    "_source": "questionnaire_approval_v2",
+                })
+        
+        # =====================================================================
+        # PART 2: Emission Record & ESG Record Approvals (from approval_requests)
+        # =====================================================================
+        
+        # Query approval_requests for pending emission_record and esg_record approvals
+        if is_admin:
+            approval_requests_query = {
+                "organization_id": organization_id,
+                "entity_type": {"$in": ["emission_record", "esg_record"]},
+                "status": "pending",
+            }
+        else:
+            approval_requests_query = {
+                "organization_id": organization_id,
+                "entity_type": {"$in": ["emission_record", "esg_record"]},
+                "status": "pending",
+                "current_approvers": approver_id,
+            }
+        
+        approval_requests = await db.approval_requests.find(
+            approval_requests_query,
+            {"_id": 0}
+        ).to_list(500)
+        
+        if approval_requests:
+            # Get submitter info for all requests
+            submitter_ids = list(set([r.get("submitted_by") for r in approval_requests if r.get("submitted_by")]))
+            submitters = {}
+            if submitter_ids:
+                users = await db.users.find(
+                    {"id": {"$in": submitter_ids}},
+                    {"_id": 0, "id": 1, "email": 1, "full_name": 1, "name": 1}
+                ).to_list(100)
+                submitters = {u["id"]: u for u in users}
+            
+            # Get facility info for display
+            facility_ids = list(set([
+                r.get("entity_snapshot", {}).get("facility_id") 
+                for r in approval_requests 
+                if r.get("entity_snapshot", {}).get("facility_id")
+            ]))
+            facilities = {}
+            if facility_ids:
+                facility_docs = await db.facilities.find(
+                    {"id": {"$in": facility_ids}},
+                    {"_id": 0, "id": 1, "name": 1}
+                ).to_list(100)
+                facilities = {f["id"]: f for f in facility_docs}
+            
+            for req in approval_requests:
+                entity_snapshot = req.get("entity_snapshot", {})
+                submitter = submitters.get(req.get("submitted_by"), {})
+                facility_id = entity_snapshot.get("facility_id")
+                facility = facilities.get(facility_id, {})
+                
+                # Build display name based on entity type
+                entity_type = req.get("entity_type")
+                if entity_type == "emission_record":
+                    scope = entity_snapshot.get("scope", "")
+                    category = entity_snapshot.get("category", "")
+                    disclosure_name = f"GHG Emissions - {scope}"
+                    if category:
+                        disclosure_name += f" ({category})"
+                elif entity_type == "esg_record":
+                    category = entity_snapshot.get("category", "")
+                    subcategory = entity_snapshot.get("subcategory", "")
+                    disclosure_name = category
+                    if subcategory:
+                        disclosure_name += f" - {subcategory}"
+                else:
+                    disclosure_name = req.get("workflow_name", "Unknown Record")
+                
+                queue_items.append({
+                    "id": req.get("id"),
+                    "_approval_request_id": req.get("id"),  # For approval endpoints
+                    "_entity_type": entity_type,
+                    "_entity_id": req.get("entity_id"),
+                    "question_key": None,  # Not a questionnaire item
+                    "question_name": disclosure_name,
+                    "disclosure_name": disclosure_name,
+                    "question_type": "record",
+                    "field_config": None,
+                    "section_id": entity_snapshot.get("scope") or entity_snapshot.get("category"),
+                    "framework": "ESG Records",
+                    "reporting_year": entity_snapshot.get("reporting_period"),
+                    "response_data": entity_snapshot,  # Full snapshot as response data
+                    "submitted_at": req.get("submitted_at"),
+                    "submitted_by_id": req.get("submitted_by"),
+                    "submitted_by_name": req.get("submitted_by_name") or submitter.get("full_name") or submitter.get("name") or submitter.get("email", ""),
+                    "submitted_by_email": req.get("submitted_by_email") or submitter.get("email", ""),
+                    "assignment_id": None,
+                    "due_date": None,
+                    "organization_id": organization_id,
+                    "facility_name": facility.get("name", ""),
+                    "facility_id": facility_id,
+                    "_source": f"{entity_type}_approval",  # Mark source for frontend routing
+                })
+        
+        # =====================================================================
+        # PART 3: Pending Emission Records (from pending_emission_records collection)
+        # This is the older approval flow for emissions
+        # =====================================================================
+        
+        pending_statuses = ["pending_create", "pending_update", "pending_delete"]
+        
+        if is_admin:
+            pending_emissions_query = {
+                "organization_id": organization_id,
+                "approval_status": {"$in": pending_statuses},
+            }
+        else:
+            # For non-admins, we need to check if they're the approver
+            # This requires looking up assignments - for now, admins see all
+            # TODO: Filter by approver assignment
+            pending_emissions_query = {
+                "organization_id": organization_id,
+                "approval_status": {"$in": pending_statuses},
+            }
+        
+        pending_emissions = await db.pending_emission_records.find(
+            pending_emissions_query,
+            {"_id": 0}
+        ).to_list(500)
+        
+        if pending_emissions:
+            # Get submitter info
+            submitter_ids = list(set([p.get("submitted_by") for p in pending_emissions if p.get("submitted_by")]))
+            submitters = {}
+            if submitter_ids:
+                users = await db.users.find(
+                    {"id": {"$in": submitter_ids}},
+                    {"_id": 0, "id": 1, "email": 1, "full_name": 1, "name": 1}
+                ).to_list(100)
+                submitters = {u["id"]: u for u in users}
+            
+            # Get facility info
+            facility_ids = list(set([p.get("facility_id") for p in pending_emissions if p.get("facility_id")]))
+            facilities = {}
+            if facility_ids:
+                facility_docs = await db.facilities.find(
+                    {"id": {"$in": facility_ids}},
+                    {"_id": 0, "id": 1, "name": 1}
+                ).to_list(100)
+                facilities = {f["id"]: f for f in facility_docs}
+            
+            for pending in pending_emissions:
+                submitter = submitters.get(pending.get("submitted_by"), {})
+                facility_id = pending.get("facility_id")
+                facility = facilities.get(facility_id, {})
+                scope = pending.get("scope", "")
+                category = pending.get("category", "")
+                
+                disclosure_name = f"GHG Emissions - {scope}"
+                if category:
+                    disclosure_name += f" ({category})"
+                
+                # Map approval_status to action type for display
+                approval_status = pending.get("approval_status", "")
+                action_type = "update"
+                if "create" in approval_status:
+                    action_type = "create"
+                elif "delete" in approval_status:
+                    action_type = "delete"
+                
+                queue_items.append({
+                    "id": pending.get("id"),
+                    "_pending_emission_id": pending.get("id"),  # For approval endpoints
+                    "_original_record_id": pending.get("original_record_id"),
+                    "_entity_type": "pending_emission_record",
+                    "_action_type": action_type,
+                    "question_key": None,
+                    "question_name": f"{disclosure_name} ({action_type})",
+                    "disclosure_name": disclosure_name,
+                    "question_type": "emission_record",
+                    "field_config": None,
+                    "section_id": scope,
+                    "framework": "GHG Emissions",
+                    "reporting_year": pending.get("reporting_period"),
+                    "response_data": {
+                        "scope": scope,
+                        "category": category,
+                        "sub_category": pending.get("sub_category"),
+                        "total_emissions": pending.get("total_emissions"),
+                        "inputs": pending.get("inputs"),
+                        "outputs": pending.get("outputs"),
+                    },
+                    "submitted_at": pending.get("submitted_at"),
+                    "submitted_by_id": pending.get("submitted_by"),
+                    "submitted_by_name": pending.get("submitted_by_name") or submitter.get("full_name") or submitter.get("name") or "",
+                    "submitted_by_email": pending.get("submitted_by_email") or submitter.get("email", ""),
+                    "assignment_id": None,
+                    "due_date": None,
+                    "organization_id": organization_id,
+                    "facility_name": facility.get("name", ""),
+                    "facility_id": facility_id,
+                    "approval_status": approval_status,
+                    "_source": "pending_emission_record",
+                })
+        
+        return queue_items
+    
+    @staticmethod
+    async def approve_questionnaire_response(
+        response_id: str,
+        approver: dict,
+        comment: Optional[str] = None,
+        updated_response: Optional[dict] = None,
+    ) -> Tuple[bool, str, Optional[dict]]:
+        """
+        Approve a questionnaire response.
+        
+        Args:
+            response_id: The esg_responses document id
+            approver: Current user dict
+            comment: Optional approval comment
+            updated_response: If approver edited the response, the new value
+        
+        Returns:
+            (success, message, updated_response)
+        """
+        # Get the response
+        response = await db.esg_responses.find_one(
+            {"id": response_id},
+            {"_id": 0}
+        )
+        
+        if not response:
+            return (False, "Response not found", None)
+        
+        if response.get("approval_status") != "pending_approval":
+            return (False, f"Response is not pending approval (status: {response.get('approval_status')})", None)
+        
+        now = _now_iso()
+        question_key = response.get("question_key")
+        org_id = response.get("organization_id")
+        
+        # Prepare update
+        update_data = {
+            "approval_status": "approved",
+            "approved_at": now,
+            "approved_by": approver.get("id"),
+            "approval_comment": comment,
+            "updated_at": now,
+        }
+        
+        # If approver edited the response, update it
+        if updated_response is not None:
+            update_data["value"] = updated_response  # Use 'value' field, not 'response'
+            update_data["edited_by_approver"] = True
+        
+        # Update the esg_responses collection (approval tracking)
+        await db.esg_responses.update_one(
+            {"id": response_id},
+            {"$set": update_data}
+        )
+        
+        # CRITICAL: Sync edited value back to organization_esg_responses (what UI reads)
+        if updated_response is not None:
+            # Get section from response or config
+            section = response.get("section")
+            if not section:
+                config = await db.esg_question_configs.find_one(
+                    {"question_key": question_key},
+                    {"_id": 0, "section": 1}
+                )
+                section = config.get("section") if config else None
+            
+            if section:
+                # Update the organization_esg_responses document
+                # Use case-insensitive regex for framework to handle BRSR vs brsr
+                framework = response.get("framework", "brsr")
+                await db.organization_esg_responses.update_one(
+                    {
+                        "org_id": org_id,
+                        "framework": {"$regex": f"^{framework}$", "$options": "i"},
+                        "reporting_year": response.get("reporting_year"),
+                        "section": section,
+                    },
+                    {"$set": {f"responses.{question_key}": updated_response}}
+                )
+                logger.info(f"Synced edited response to organization_esg_responses for {question_key}")
+        
+        # Create version snapshot
+        await _create_approval_version_snapshot(
+            collection_name="esg_responses",
+            record_id=question_key,
+            action="approved",
+            user_id=approver.get("id"),
+            extra_metadata={
+                "question_key": question_key,
+                "framework": response.get("framework"),
+                "reporting_year": response.get("reporting_year"),
+                "approval_comment": comment,
+            }
+        )
+        
+        # Record in approval history
+        await ApprovalWorkflowService._record_history(
+            {
+                "organization_id": org_id,
+                "id": response_id,
+                "workflow_id": None,
+                "entity_type": "esg_response",  # Use valid EntityType enum value
+                "entity_id": question_key,
+                "entity_subtype": response.get("framework"),
+            },
+            ApprovalAction.APPROVE,
+            approver,
+            comment=comment,
+            previous_status="pending",  # Use valid ApprovalStatus enum value
+            new_status="approved",
+        )
+        
+        # Update assignment timestamp (approval_status is tracked in esg_responses as single source of truth)
+        await db.esg_assignments.update_one(
+            {
+                "organization_id": org_id,
+                "entity_type": "question",
+                "entity_id": question_key,
+            },
+            {"$set": {"updated_at": now}}
+        )
+        
+        # Log to question_audit_log for version history (so UI can show it)
+        await db.question_audit_log.insert_one({
+            "id": str(uuid.uuid4()),
+            "question_key": question_key,
+            "reporting_period": response.get("reporting_year"),
+            "organization_id": org_id,
+            "action": "approved",
+            "timestamp": datetime.now(timezone.utc),
+            "performed_by": {"user_id": approver.get("id"), "name": approver.get("name") or approver.get("email")},
+            "change_details": {
+                "old_value": response.get("value"),
+                "new_value": updated_response if updated_response is not None else response.get("value"),
+                "approval_comment": comment,
+            },
+        })
+        
+        updated = await db.esg_responses.find_one({"id": response_id}, {"_id": 0})
+        logger.info(f"Approved questionnaire response {response_id} (question: {question_key})")
+        
+        return (True, "Response approved", updated)
+    
+    @staticmethod
+    async def reject_questionnaire_response(
+        response_id: str,
+        rejector: dict,
+        reason: str,
+    ) -> Tuple[bool, str, Optional[dict]]:
+        """
+        Reject a questionnaire response.
+        
+        Args:
+            response_id: The esg_responses document id
+            rejector: Current user dict
+            reason: Required rejection reason
+        
+        Returns:
+            (success, message, updated_response)
+        """
+        if not reason:
+            return (False, "Rejection reason is required", None)
+        
+        # Get the response
+        response = await db.esg_responses.find_one(
+            {"id": response_id},
+            {"_id": 0}
+        )
+        
+        if not response:
+            return (False, "Response not found", None)
+        
+        if response.get("approval_status") != "pending_approval":
+            return (False, f"Response is not pending approval (status: {response.get('approval_status')})", None)
+        
+        now = _now_iso()
+        question_key = response.get("question_key")
+        org_id = response.get("organization_id")
+        
+        # Update the response
+        update_data = {
+            "approval_status": "rejected",
+            "rejected_at": now,
+            "rejected_by": rejector.get("id"),
+            "rejection_reason": reason,
+            "updated_at": now,
+        }
+        
+        await db.esg_responses.update_one(
+            {"id": response_id},
+            {"$set": update_data}
+        )
+        
+        # Create version snapshot
+        await _create_approval_version_snapshot(
+            collection_name="esg_responses",
+            record_id=question_key,
+            action="rejected",
+            user_id=rejector.get("id"),
+            rejection_reason=reason,
+            extra_metadata={
+                "question_key": question_key,
+                "framework": response.get("framework"),
+                "reporting_year": response.get("reporting_year"),
+            }
+        )
+        
+        # Record in approval history
+        await ApprovalWorkflowService._record_history(
+            {
+                "organization_id": org_id,
+                "id": response_id,
+                "workflow_id": None,
+                "entity_type": "esg_response",  # Use valid EntityType enum value
+                "entity_id": question_key,
+                "entity_subtype": response.get("framework"),
+            },
+            ApprovalAction.REJECT,
+            rejector,
+            comment=reason,
+            previous_status="pending",  # Use valid ApprovalStatus enum value
+            new_status="rejected",
+        )
+        
+        # Update assignment timestamp (approval_status is tracked in esg_responses as single source of truth)
+        await db.esg_assignments.update_one(
+            {
+                "organization_id": org_id,
+                "entity_type": "question",
+                "entity_id": question_key,
+            },
+            {"$set": {"updated_at": now}}
+        )
+        
+        # Log to question_audit_log for version history
+        await db.question_audit_log.insert_one({
+            "id": str(uuid.uuid4()),
+            "question_key": question_key,
+            "reporting_period": response.get("reporting_year"),
+            "organization_id": org_id,
+            "action": "rejected",
+            "timestamp": datetime.now(timezone.utc),
+            "performed_by": {"user_id": rejector.get("id"), "name": rejector.get("name") or rejector.get("email")},
+            "change_details": {"rejection_reason": reason},
+            "rejection_reason": reason,
+        })
+        
+        updated = await db.esg_responses.find_one({"id": response_id}, {"_id": 0})
+        logger.info(f"Rejected questionnaire response {response_id} (question: {question_key}): {reason}")
+        
+        return (True, "Response rejected", updated)
+    
+    @staticmethod
+    async def get_questionnaire_response_history(
+        question_key: str,
+        organization_id: str,
+    ) -> List[dict]:
+        """Get approval/rejection history for a specific question."""
+        return await db[HISTORY_COLLECTION].find(
+            {
+                "organization_id": organization_id,
+                "entity_type": "esg_response",  # Match the entity_type we record with
+                "entity_id": question_key,
+            },
+            {"_id": 0}
+        ).sort("timestamp", -1).to_list(100)

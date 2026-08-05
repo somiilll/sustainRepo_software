@@ -2,11 +2,15 @@
 ESG Reporting Task Generation Engine
 
 Generates individual trackable tasks from assignments based on scheduling configuration.
+
+NOTE: Task status is now COMPUTED at query time by CompletionService.
+The status stored in tasks is a cached value that may be stale.
+Always use CompletionService.get_task_status() for accurate status.
+
 Supports:
 - Historical backfill tasks
 - Active/future tasks with due dates
 - Timezone-aware scheduling
-- Status management
 """
 
 from datetime import datetime, timedelta, timezone as tz
@@ -40,111 +44,6 @@ class TaskType(str, Enum):
     HISTORICAL = "historical"   # Before assignment creation date
     ACTIVE = "active"           # Current period
     FUTURE = "future"           # Future periods
-
-
-
-async def _check_data_exists_for_task(
-    db: AsyncIOMotorDatabase,
-    organization_id: str,
-    facility_id: Optional[str],
-    category: str,
-    subcategory: str,
-    period_key: str,
-) -> bool:
-    """
-    Check if data already exists for a given task period.
-    
-    This is called when creating tasks to determine if the task should
-    be automatically marked as completed because data was submitted
-    before the assignment was created.
-    
-    Handles:
-    - GHG Emissions: Checks emission_records by facility_id and scope
-    - Water/Environment: Checks environment_records by org_id
-    - Social: Checks social_records by org_id
-    - Governance: Checks governance_records by org_id
-    """
-    cat_lower = category.lower() if category else ""
-    sub_lower = subcategory.lower() if subcategory else ""
-    
-    # GHG Emissions - check emission_records
-    if "ghg" in cat_lower or "emission" in cat_lower or "scope" in sub_lower:
-        query = {"reporting_period": period_key}
-        
-        if facility_id:
-            query["facility_id"] = facility_id
-        
-        # Map subcategory to scope
-        if "scope 1" in sub_lower:
-            query["scope"] = "scope1"
-        elif "scope 2" in sub_lower:
-            query["scope"] = "scope2"
-        elif "scope 3" in sub_lower:
-            query["scope"] = "scope3"
-        elif "biogenic" in sub_lower:
-            query["scope"] = "biogenic"
-        
-        count = await db["emission_records"].count_documents(query)
-        return count > 0
-    
-    # Water and Environment - check environment_records
-    if "water" in cat_lower or "energy" in cat_lower:
-        query = {
-            "$or": [
-                {"org_id": organization_id},
-                {"organization_id": organization_id},
-            ],
-            "category": {"$regex": f"^{category}$", "$options": "i"},
-        }
-        if subcategory:
-            query["subcategory"] = {"$regex": f"^{subcategory}$", "$options": "i"}
-        
-        # Check period - environment_records use dict format {year, month}
-        try:
-            parts = period_key.split("-")
-            if len(parts) >= 2:
-                year = int(parts[0])
-                month = int(parts[1])
-                query["reporting_period.year"] = year
-                query["reporting_period.month"] = {"$in": [str(month), month]}
-        except (ValueError, IndexError):
-            pass
-        
-        count = await db["environment_records"].count_documents(query)
-        return count > 0
-    
-    # Social records
-    if any(k in cat_lower or k in sub_lower for k in ["social", "employee", "worker", "health", "safety", "complaint", "training"]):
-        query = {
-            "$or": [
-                {"org_id": organization_id},
-                {"organization_id": organization_id},
-            ],
-            "category": {"$regex": f"^{category}$", "$options": "i"},
-        }
-        if subcategory:
-            query["subcategory"] = {"$regex": f"^{subcategory}$", "$options": "i"}
-        
-        count = await db["social_records"].count_documents(query)
-        return count > 0
-    
-    # Governance records
-    if any(k in cat_lower or k in sub_lower for k in ["governance", "board", "ethic", "compliance", "corruption", "financial"]):
-        query = {
-            "$or": [
-                {"org_id": organization_id},
-                {"organization_id": organization_id},
-            ],
-            "category": {"$regex": f"^{category}$", "$options": "i"},
-        }
-        if subcategory:
-            query["subcategory"] = {"$regex": f"^{subcategory}$", "$options": "i"}
-        
-        count = await db["governance_records"].count_documents(query)
-        return count > 0
-    
-    return False
-
 
 
 def get_last_day_of_month(year: int, month: int) -> int:
@@ -484,9 +383,14 @@ async def generate_tasks_for_assignment(
     
     NEW ARCHITECTURE (V2):
     - ONE task per org/facility/category/subcategory/period (organizational obligation)
+    - OR ONE task per org/question/period (for questionnaire assignments)
     - User assignments are tracked in esg_task_assignees collection
     - Tasks are NOT duplicated per user
     - Assignees are fetched from esg_assignment_assignees collection (V2 model)
+    
+    ENTITY TYPES:
+    - record_category: KPI metrics (Water, Energy, GHG, etc.)
+    - question: BRSR/GRI questionnaire questions
     
     This function:
     1. Generates task periods based on frequency
@@ -495,6 +399,13 @@ async def generate_tasks_for_assignment(
     """
     assignment_id = assignment.get("id")
     org_id = assignment.get("organization_id")
+    entity_type = assignment.get("entity_type", "record_category")
+    
+    # Route to question task generator if entity_type is question
+    if entity_type == "question":
+        return await _generate_question_tasks(db, assignment)
+    
+    # Default: KPI metric task generation
     facility_id = assignment.get("facility_id")
     category = assignment.get("category")
     subcategory = assignment.get("subcategory")
@@ -572,35 +483,12 @@ async def generate_tasks_for_assignment(
             tasks_existing += 1
         else:
             # Create new task (organizational obligation)
+            # NOTE: Status is NOT stored - it's computed on-the-fly by CompletionService
             task_id = str(uuid.uuid4())
-            
-            # Check if data already exists for this period/facility
-            # This handles cases where data was submitted before the assignment was created
-            data_exists = await _check_data_exists_for_task(
-                db=db,
-                organization_id=org_id,
-                facility_id=facility_id,
-                category=category,
-                subcategory=subcategory,
-                period_key=period["period_key"],
-            )
-            
-            # Determine initial status
-            if data_exists:
-                # Data already exists - mark as completed
-                status = TaskStatus.COMPLETED.value
-            elif period["is_backfill"]:
-                status = TaskStatus.BACKFILL_PENDING.value
-            elif period["task_type"] == TaskType.FUTURE.value:
-                status = TaskStatus.PENDING.value
-            elif period["due_at"] < datetime.now():
-                status = TaskStatus.OVERDUE.value
-            else:
-                status = TaskStatus.PENDING.value
             
             task_doc = {
                 "id": task_id,
-                "assignment_id": assignment_id,  # Track which assignment first created this
+                "assignment_id": assignment_id,
                 "organization_id": org_id,
                 "facility_id": facility_id,
                 "category": category,
@@ -614,10 +502,22 @@ async def generate_tasks_for_assignment(
                 "timezone": due_config.get("timezone", "UTC"),
                 "task_type": period["task_type"],
                 "is_backfill": period["is_backfill"],
-                "status": status,
-                "submitted_at": datetime.now(tz.utc) if data_exists else None,
+                # VERSIONING: Capture assignment state at task creation
+                "assignment_version_at_creation": assignment.get("version", 1),
+                "created_with_approval_workflow": assignment.get("requires_approval", False),
+                "created_with_approver_id": assignment.get("approver_id"),
+                "created_with_facility_snapshot": assignment.get("facility_snapshot"),
+                # OWNERSHIP FIELDS: Track who submitted/completed the task
+                # - submitted_by_user_id / submitted_at: Set when data is first submitted
+                # - completed_by_user_id / completed_at: Set when approved (or immediately if no approval)
+                # - approved_by_user_id / approved_at: Set when explicitly approved
+                # These provide clear audit trail even after reassignments
+                "submitted_by_user_id": None,
+                "submitted_at": None,
+                "completed_by_user_id": None,
+                "completed_at": None,
+                "approved_by_user_id": None,
                 "approved_at": None,
-                "skipped_reason": None,
                 "created_at": now,
                 "updated_at": now,
             }
@@ -665,6 +565,169 @@ async def generate_tasks_for_assignment(
     }
 
 
+async def _generate_question_tasks(
+    db: AsyncIOMotorDatabase,
+    assignment: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Generate tasks for a questionnaire (question) assignment.
+    
+    Similar to KPI metric task generation but:
+    - Uses entity_type/entity_id instead of category/subcategory
+    - Questions are typically org-level (no facility breakdown)
+    - Task unique key is org + entity_id + period_key
+    """
+    assignment_id = assignment.get("id")
+    org_id = assignment.get("organization_id")
+    entity_id = assignment.get("entity_id")  # question_key
+    section = assignment.get("section")
+    framework_id = assignment.get("framework_id")
+    
+    # V2: Fetch assignees from esg_assignment_assignees collection
+    assignees = await db["esg_assignment_assignees"].find(
+        {"assignment_id": assignment_id, "removed_at": None},
+        {"_id": 0, "user_id": 1, "user_name": 1, "user_email": 1, "role": 1}
+    ).to_list(100)
+    
+    if not assignees:
+        print(f"[TaskEngine] Warning: No assignees found for question assignment {assignment_id}")
+    
+    # Parse dates
+    start_date = parse_date(assignment.get("start_date"))
+    end_date = parse_date(assignment.get("end_date"))
+    created_at = parse_date(assignment.get("created_at")) or datetime.now()
+    
+    if not start_date:
+        return {"error": "start_date is required for task generation", "tasks_created": 0}
+    
+    if not end_date:
+        end_date = datetime(datetime.now().year, 12, 31)
+    
+    # Questionnaires are typically yearly
+    frequency = assignment.get("filling_frequency", "yearly")
+    
+    due_config = assignment.get("due_config") or {
+        "type": frequency,
+        "time": "17:00",
+        "timezone": assignment.get("timezone", "UTC"),
+    }
+    
+    # Generate task periods
+    task_periods = generate_task_periods(
+        frequency=frequency,
+        start_date=start_date,
+        end_date=end_date,
+        due_config=due_config,
+        assignment_created_at=created_at,
+    )
+    
+    if not task_periods:
+        return {"error": "No task periods generated", "tasks_created": 0}
+    
+    now = datetime.now(tz.utc)
+    tasks_created = 0
+    tasks_existing = 0
+    assignees_created = 0
+    
+    for period in task_periods:
+        # Build unique key for question task
+        task_unique_key = {
+            "organization_id": org_id,
+            "entity_type": "question",
+            "entity_id": entity_id,
+            "period_key": period["period_key"],
+        }
+        
+        # Check if task already exists
+        existing_task = await db["esg_reporting_tasks"].find_one(
+            task_unique_key,
+            {"_id": 0, "id": 1, "status": 1}
+        )
+        
+        if existing_task:
+            task_id = existing_task["id"]
+            tasks_existing += 1
+        else:
+            # Create new question task
+            task_id = str(uuid.uuid4())
+            
+            task_doc = {
+                "id": task_id,
+                "assignment_id": assignment_id,
+                "organization_id": org_id,
+                "entity_type": "question",
+                "entity_id": entity_id,
+                "section": section,
+                "framework_id": framework_id,
+                "question_title": assignment.get("question_title"),
+                # No category/subcategory/facility for question tasks
+                "facility_id": None,
+                "category": None,
+                "subcategory": None,
+                "sub_subcategory": None,
+                "period_key": period["period_key"],
+                "period_label": period["period_label"],
+                "period_start": period["period_start"],
+                "period_end": period["period_end"],
+                "due_at": period["due_at"],
+                "timezone": due_config.get("timezone", "UTC"),
+                "task_type": period["task_type"],
+                "is_backfill": period["is_backfill"],
+                # VERSIONING
+                "assignment_version_at_creation": assignment.get("version", 1),
+                "created_with_approval_workflow": assignment.get("requires_approval", False),
+                "created_with_approver_id": assignment.get("approver_id"),
+                # OWNERSHIP FIELDS
+                "submitted_by_user_id": None,
+                "submitted_at": None,
+                "completed_by_user_id": None,
+                "completed_at": None,
+                "approved_by_user_id": None,
+                "approved_at": None,
+                "created_at": now,
+                "updated_at": now,
+            }
+            
+            await db["esg_reporting_tasks"].insert_one(task_doc)
+            tasks_created += 1
+        
+        # Create assignee entries
+        for assignee in assignees:
+            user_id = assignee.get("user_id")
+            if not user_id:
+                continue
+            
+            assignee_exists = await db["esg_task_assignees"].find_one({
+                "task_id": task_id,
+                "user_id": user_id,
+            })
+            
+            if not assignee_exists:
+                assignee_doc = {
+                    "id": str(uuid.uuid4()),
+                    "task_id": task_id,
+                    "assignment_id": assignment_id,
+                    "user_id": user_id,
+                    "user_name": assignee.get("user_name"),
+                    "user_email": assignee.get("user_email"),
+                    "role": assignee.get("role", "editor"),
+                    "is_active": True,
+                    "assigned_at": now,
+                }
+                await db["esg_task_assignees"].insert_one(assignee_doc)
+                assignees_created += 1
+    
+    return {
+        "assignment_id": assignment_id,
+        "entity_type": "question",
+        "entity_id": entity_id,
+        "tasks_created": tasks_created,
+        "tasks_existing": tasks_existing,
+        "assignees_created": assignees_created,
+        "periods": len(task_periods),
+    }
+
+
 async def regenerate_tasks_for_assignment(
     db: AsyncIOMotorDatabase,
     assignment: Dict[str, Any],
@@ -672,12 +735,16 @@ async def regenerate_tasks_for_assignment(
     """
     Regenerate tasks when frequency or dates change on an assignment.
 
-    Strategy:
-    - Keep tasks that have data (status = completed, in_progress, skipped)
-    - Delete unfilled tasks (pending, overdue, backfill_pending)
-    - Generate new task periods from current assignment config
-    - Create only tasks for periods that don't already exist
+    SMART REGENERATION RULES:
+    - Completed tasks (verified by checking actual records): NEVER modify/delete
+    - Pending/overdue tasks (no records): Can be reassigned or deleted
+    - New periods: Generate tasks only for periods that don't already exist
+    - Historical records: Always preserve original assignee and workflow config
+    
+    Status is COMPUTED from actual data records, NOT from stored task.status field.
     """
+    from modules.esg_assignments.completion_service import completion_service, DataChecker
+    
     org_id = assignment.get("organization_id")
     facility_id = assignment.get("facility_id")
     category = assignment.get("category")
@@ -695,31 +762,42 @@ async def regenerate_tasks_for_assignment(
     }
 
     existing_tasks = await db["esg_reporting_tasks"].find(
-        task_query, {"_id": 0, "id": 1, "period_key": 1, "status": 1}
+        task_query, {"_id": 0, "id": 1, "period_key": 1, "status": 1, "due_at": 1, "is_backfill": 1}
     ).to_list(5000)
 
-    # Step 2: Separate filled vs unfilled
-    filled_statuses = {"completed", "in_progress", "skipped"}
-    filled_period_keys = set()
-    unfilled_task_ids = []
+    # Step 2: Check ACTUAL record existence (single source of truth)
+    # Status is computed from data, NOT from stored task.status
+    completed_period_keys = set()
+    pending_task_ids = []
 
-    for t in existing_tasks:
-        if t.get("status") in filled_statuses:
-            filled_period_keys.add(t["period_key"])
+    for task in existing_tasks:
+        period_key = task.get("period_key")
+        
+        # Check if actual data exists for this period (computed status)
+        has_data, _, approval_status = await DataChecker.check_exists(
+            org_id, category, subcategory, facility_id, period_key
+        )
+        
+        if has_data:
+            # Data exists - task is completed (regardless of stored status)
+            completed_period_keys.add(period_key)
         else:
-            unfilled_task_ids.append(t["id"])
+            # No data - task is pending/overdue, can be modified
+            pending_task_ids.append(task["id"])
 
-    # Step 3: Delete unfilled tasks and their assignees
+    # Step 3: Delete only pending tasks (no data) and their assignees
+    # NEVER delete tasks that have actual data records
     deleted_count = 0
-    if unfilled_task_ids:
-        await db["esg_reporting_tasks"].delete_many({"id": {"$in": unfilled_task_ids}})
-        await db["esg_task_assignees"].delete_many({"task_id": {"$in": unfilled_task_ids}})
-        deleted_count = len(unfilled_task_ids)
+    if pending_task_ids:
+        await db["esg_reporting_tasks"].delete_many({"id": {"$in": pending_task_ids}})
+        await db["esg_task_assignees"].delete_many({"task_id": {"$in": pending_task_ids}})
+        deleted_count = len(pending_task_ids)
 
-    # Step 4: Generate new tasks (will skip periods that already have filled tasks)
+    # Step 4: Generate new tasks (will skip periods that already have completed tasks)
     result = await generate_tasks_for_assignment(db, assignment)
-    result["deleted_unfilled"] = deleted_count
-    result["preserved_filled"] = len(filled_period_keys)
+    result["deleted_pending"] = deleted_count
+    result["preserved_completed"] = len(completed_period_keys)
+    result["preserved_period_keys"] = list(completed_period_keys)
 
     return result
 
@@ -760,7 +838,13 @@ async def get_tasks_for_user(
     Get all tasks assigned to a user via esg_task_assignees join.
     
     New architecture: Tasks are organizational obligations, users are linked via esg_task_assignees.
+    
+    IMPORTANT: Task status is now COMPUTED on-the-fly using CompletionService,
+    not read from the stored task.status field (which may be stale).
     """
+    # Import CompletionService for computed status
+    from modules.esg_assignments.completion_service import completion_service
+    
     # Step 1: Get task IDs this user is assigned to
     assignee_query = {
         "user_id": user_id,
@@ -779,14 +863,11 @@ async def get_tasks_for_user(
     task_ids = [a["task_id"] for a in user_assignees]
     assignee_map = {a["task_id"]: a for a in user_assignees}
     
-    # Step 2: Query tasks by IDs
+    # Step 2: Query tasks by IDs (don't filter by status here - we compute it)
     task_query = {
         "id": {"$in": task_ids},
         "organization_id": organization_id,
     }
-    
-    if status_filter:
-        task_query["status"] = {"$in": status_filter}
     
     if not include_backfill:
         task_query["is_backfill"] = False
@@ -796,12 +877,24 @@ async def get_tasks_for_user(
         {"_id": 0}
     ).sort("due_at", 1).to_list(500)
     
-    # Add assignee role info to each task
+    # Step 3: Compute status AND approval_status for each task using CompletionService
+    # Both are computed from RECORDS - tasks don't store status
     for task in tasks:
+        computed_status, computed_approval = await completion_service.get_task_status_with_approval(task)
+        task["status"] = computed_status.value
+        task["computed_status"] = computed_status.value
+        task["approval_status"] = computed_approval  # From records, not stored on task
+        
+        # Add assignee role info
         assignee_info = assignee_map.get(task["id"], {})
         task["user_role"] = assignee_info.get("role", "editor")
     
+    # Step 4: Apply status filter AFTER computing status
+    if status_filter:
+        tasks = [t for t in tasks if t.get("status") in status_filter]
+    
     # If domain filter is specified, we need to filter based on category's section
+    # OR include question tasks from BRSR/GRI frameworks
     if domain and domain != 'all':
         # Get all categories for this section/domain
         domain_categories = await db["esg_record_categories"].find(
@@ -816,10 +909,13 @@ async def get_tasks_for_user(
             # Also add just the category for tasks that might not have subcategory
             valid_cats.add((cat.get("category"), None))
         
-        # Filter tasks
+        # Filter tasks: include KPI metrics matching category OR question tasks
+        # Question tasks (entity_type="question") are included for all domains for now
+        # In future, could filter by framework or section
         tasks = [
             t for t in tasks 
-            if (t.get("category"), t.get("subcategory")) in valid_cats or
+            if t.get("entity_type") == "question" or  # Include all question tasks
+               (t.get("category"), t.get("subcategory")) in valid_cats or
                (t.get("category"), None) in valid_cats
         ]
     
@@ -849,9 +945,11 @@ async def get_tasks_for_user(
     categories_with_subs_set = set(categories_with_subs)
     
     # Filter: exclude tasks where category has subcategories but task.subcategory is null/empty
+    # BUT: Don't filter question tasks (they don't have category/subcategory)
     filtered_tasks = [
         t for t in tasks
-        if not (t.get("category") in categories_with_subs_set and not t.get("subcategory"))
+        if t.get("entity_type") == "question" or  # Keep all question tasks
+           not (t.get("category") in categories_with_subs_set and not t.get("subcategory"))
     ]
     
     # Enrich tasks with facility names
@@ -879,38 +977,35 @@ async def update_task_status(
     reason: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Update a task's operational status and optionally approval status.
+    DEPRECATED: Task status AND approval_status are now computed from RECORDS, not stored.
     
-    New architecture separates:
-    - status: operational completion (pending → completed)
-    - approval_status: governance state (not_required/pending_approval/approved/rejected)
+    This function now only updates audit metadata (timestamps, user IDs).
+    Status is computed by CompletionService.get_task_status_with_approval().
+    
+    Use this function only for:
+    - Recording metadata (who submitted, when approved, rejection reason, etc.)
     """
     now = datetime.now(tz.utc)
     
+    # NOTE: We no longer store task.status OR approval_status - both computed from records
     update_doc = {
-        "status": new_status,
         "updated_at": now,
     }
     
-    # Set approval_status if provided
-    if approval_status:
-        update_doc["approval_status"] = approval_status
-    
-    # Track completion timestamp
+    # Track submission timestamp (still useful for audit)
     if new_status == TaskStatus.COMPLETED.value:
-        update_doc["completed_at"] = now
+        update_doc["submitted_at"] = now
         if user_id:
-            update_doc["completed_by_user_id"] = user_id
+            update_doc["submitted_by_user_id"] = user_id
     
-    # Track approval timestamp
+    # Track approval timestamp (audit trail, not source of truth)
     if approval_status == ApprovalStatus.APPROVED.value:
         update_doc["approved_at"] = now
         if user_id:
             update_doc["approved_by_user_id"] = user_id
     
-    # Track rejection - ALSO set status to reopened
+    # Track rejection (audit trail)
     if approval_status == ApprovalStatus.REJECTED.value:
-        update_doc["status"] = TaskStatus.REOPENED.value  # Auto-reopen on rejection
         update_doc["rejected_at"] = now
         if user_id:
             update_doc["rejected_by_user_id"] = user_id
@@ -919,6 +1014,7 @@ async def update_task_status(
     
     # Track skip reason
     if new_status == TaskStatus.SKIPPED.value:
+        update_doc["skipped_at"] = now
         update_doc["skipped_reason"] = reason
     
     result = await db["esg_reporting_tasks"].update_one(
@@ -1018,29 +1114,16 @@ async def refresh_overdue_tasks(
     organization_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Cron job helper: Mark pending tasks as overdue if past due date.
-    Only affects non-backfill tasks.
+    DEPRECATED: Task status (including overdue) is now computed from data.
+    
+    Overdue status is determined by CompletionService.get_task_status() which
+    checks if due_at < now AND no data exists.
+    
+    This function is kept for backwards compatibility but does nothing.
+    The overdue calculation is done in completion_service.py lines 682-690.
     """
-    now = datetime.now()
-    
-    query = {
-        "status": TaskStatus.PENDING.value,
-        "is_backfill": False,
-        "due_at": {"$lt": now},
-    }
-    
-    if organization_id:
-        query["organization_id"] = organization_id
-    
-    result = await db["esg_reporting_tasks"].update_many(
-        query,
-        {"$set": {
-            "status": TaskStatus.OVERDUE.value,
-            "updated_at": datetime.now(tz.utc),
-        }}
-    )
-    
-    return {"marked_overdue": result.modified_count}
+    # No-op: Status is computed, not stored
+    return {"marked_overdue": 0, "note": "Status is now computed dynamically"}
 
 
 
@@ -1076,76 +1159,3 @@ async def get_task_assignees(
     ).to_list(100)
     
     return assignees
-
-
-
-async def sync_task_statuses_with_data(
-    db: AsyncIOMotorDatabase,
-    organization_id: str,
-) -> Dict[str, Any]:
-    """
-    Sync existing task statuses with actual data records.
-    
-    For tasks that are not completed but have data in the corresponding
-    records collection, update the task status to completed.
-    
-    This fixes the discrepancy where data was submitted but the task
-    wasn't updated (e.g., via bulk upload or before the task existed).
-    
-    Returns summary of updates made.
-    """
-    # Find all non-completed tasks for this organization
-    non_completed_tasks = await db["esg_reporting_tasks"].find({
-        "organization_id": organization_id,
-        "status": {"$nin": ["completed", "skipped"]},
-    }, {"_id": 0}).to_list(5000)
-    
-    updated_count = 0
-    updated_tasks = []
-    
-    for task in non_completed_tasks:
-        task_id = task.get("id")
-        category = task.get("category", "")
-        subcategory = task.get("subcategory", "")
-        facility_id = task.get("facility_id")
-        period_key = task.get("period_key", "")
-        
-        # Check if data exists for this task
-        data_exists = await _check_data_exists_for_task(
-            db=db,
-            organization_id=organization_id,
-            facility_id=facility_id,
-            category=category,
-            subcategory=subcategory,
-            period_key=period_key,
-        )
-        
-        if data_exists:
-            # Update task to completed
-            await db["esg_reporting_tasks"].update_one(
-                {"id": task_id},
-                {
-                    "$set": {
-                        "status": TaskStatus.COMPLETED.value,
-                        "completed_at": datetime.now(tz.utc),
-                        "updated_at": datetime.now(tz.utc),
-                        "sync_note": "Auto-completed: data exists in records",
-                    }
-                }
-            )
-            updated_count += 1
-            updated_tasks.append({
-                "task_id": task_id,
-                "period_key": period_key,
-                "category": category,
-                "subcategory": subcategory,
-                "facility_id": facility_id,
-                "old_status": task.get("status"),
-                "new_status": "completed",
-            })
-    
-    return {
-        "tasks_checked": len(non_completed_tasks),
-        "tasks_updated": updated_count,
-        "updated_tasks": updated_tasks,
-    }

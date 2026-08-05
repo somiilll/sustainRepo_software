@@ -59,7 +59,7 @@ export default function GaugeCard({
           <Button
             size="sm"
             className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
-            onClick={() => navigate('/base-year-emissions')}
+            onClick={() => navigate('/targets/voluntary/environment')}
             data-testid="kpi-add-target-btn"
           >
             <Plus className="w-3.5 h-3.5 mr-1" />
@@ -100,7 +100,7 @@ export default function GaugeCard({
             size="sm"
             variant="outline"
             className="text-xs"
-            onClick={() => navigate('/base-year-emissions')}
+            onClick={() => navigate('/targets/voluntary/environment')}
             data-testid="kpi-set-base-year-btn"
           >
             Set Base Year

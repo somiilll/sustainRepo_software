@@ -1,159 +1,654 @@
 # ESG Platform - Product Requirements Document
 
 ## Original Problem Statement
-Build a comprehensive ESG (Environmental, Social, Governance) platform with:
-- Materiality Assessment UI
-- Premium Environment, Social, and Governance Dashboards
-- BRSR Reporting (Section B and Section C)
-- Internal Data AI using GPT integration
-- Assignment-aware data access and completion logic
-- V2 Assignment architecture (one assignment linked to multiple assignees)
-- Peer Benchmarking for competitor ESG comparison
+Complete the Materiality Assessment UI, design premium ESG Dashboards, fix analytics mapping bugs, build missing UI, redesign the Assignment dialog into a step-by-step wizard, implement BRSR/GRI comprehensive questionnaire approval workflows.
 
-## Core Architecture
+## Current Session Focus
+Unify database architecture to use only 1 collection (organization_esg_responses) with question-level documents. Ensure GRI and BRSR have separate approval panel components in the Approver Queue. Fix various bugs related to status display, badge rendering, and approval workflow.
 
-### V2 Assignment System
-- **Assignments** are central objects stored in `esg_assignments`
-- **Assignees** are linked via `esg_assignment_assignees` collection
-- **Tasks** are generated from assignments via `task_engine.py`
-- **Completion** is tracked via overlapping date logic (not exact period match)
+## Architecture Decisions
 
-### Unified ESG Metrics Service (NEW)
-- **Location**: `/app/backend/services/esg_metrics_service.py`
-- **Purpose**: Centralized data fetching and calculations for all ESG metrics
-- **Used by**: Peer Benchmarking (can extend to Dashboard, Targets, Internal Data AI)
-- **Date Filtering**: Uses `reporting_period` field with start_date/end_date parameters
+### Database Architecture (UNIFIED — FLAT STORAGE)
+- **Single Collection**: `organization_esg_responses` 
+- **Document Structure**: FLAT — one document per question_key (no nesting/sub_responses)
+```javascript
+{
+  org_id: "uuid",
+  question_key: "gri_101_2_a_i",  // Exact key as sent by frontend
+  framework: "GRI",
+  reporting_year: "FY 2026-2027",
+  section: "environment",
+  value: "...",
+  status: "saved",
+  approval_status: "approved",
+  ...
+}
+```
+- **No `_split_question_key`** — every key gets its own document
+- **Legacy nested `sub_responses` format** still readable for backward compat
 
-### Key Collections
-- `esg_assignments`: id, start_date, end_date, reporting_period
-- `esg_assignment_assignees`: assignment_id, user_id, role
-- `esg_tasks`: Generated tasks linked to assignees
-- `emission_records`: ESG data points with facility_id and reporting_period
-- `environment_records`: Water, Waste, Energy data
-- `social_records`: Health & Safety, Training data
-- `governance_records`: Financial, Compliance data
+### Approval Queue Architecture
+- **Two data sources merged**:
+  1. `/api/esg-questionnaire/submissions/pending` - Old system (esg_response_submissions)
+  2. `/api/approval-workflows/requests` - New unified system (approval_requests)
+- **Deduplication**: By question_key for esg_response items, new system takes precedence
+- **Panel Routing**:
+  - BRSR questions → BRSRApprovalPanel (amber gradient)
+  - GRI questions → GRIApprovalPanel (emerald gradient)
 
-## What's Been Implemented
+## Completed Work (Previous Session)
 
-### Completed Features
-- [x] V2 Assignment Architecture
-- [x] Task generation from V2 assignments (task_engine.py)
-- [x] Automatic task completion on emission save
-- [x] TaskLedger.js UI component (ledger-style table)
-- [x] BRSR/GRI tab filtering by entityType
-- [x] Assignment completion tracking with date overlap logic
-- [x] Internal Data AI Phase 1
-- [x] **Peer Benchmarking Module** (July 2025)
-  - Upload PDF reports for ESG metric extraction (LlamaParse + GPT-5.6-luna)
-  - Internal company data fetched via unified ESGMetricsService
-  - Date range filtering with From/To date pickers
-  - Radar chart visualization
-  - AI-powered executive summary generation
-  - Printable report export
-  - **R2 Storage Migration (Dec 2025)**: Migrated from EMERGENT_LLM_KEY proxy to direct Cloudflare R2 via boto3
-- [x] **Progress Engine V2** (July 2025)
-  - Handles emission_records schema (facility_id only, string dates, scope field)
-  - Handles environment_records schema (org_id, dict dates, is_current field)
-  - Smart org-level calculation: only expands to facility count if facility records exist
-  - GHG Emissions Scope 1 progress: 14.3% (2/14 tasks)
-  - Water/Discharge progress: 75% (3/4 tasks)
-- [x] **ESG Records Tracker UI Updates** (July 2025)
-  - Status column shows colored boxes: Orange (Pending), Red (Overdue), Green (Completed)
-  - Tooltips on hover for each status box
-  - Removed Stale stat card from overview (now 5 cards)
+### Backend Fixes
+1. ✅ Created `_save_to_unified_collection` helper method for consistent saves
+2. ✅ Fixed `save_gri_response` to save to unified collection BEFORE creating approval submission
+3. ✅ Added `frameworks` field to DB projection in `get_all_pending_submissions_for_org`
+4. ✅ Fixed framework detection to check both `framework` and `frameworks[0]` fields
+5. ✅ Fixed `_create_submission_for_approval` to create approval_request for unified queue
 
-### ESG Metrics Calculations (via ESGMetricsService)
-| Metric | Formula | Data Source |
-|--------|---------|-------------|
-| Scope 1/2 Emissions | Sum of records | `emission_records` |
-| Emission Intensity | total_emissions / turnover | `emission_records` + `governance_records` |
-| Treated Water Discharged % | treated / total × 100 | `environment_records` (Water/Discharge) |
-| Waste Recycled % | recovered / generated × 100 | `environment_records` (Waste) |
-| Hazardous Waste | Sum of hazardous_waste_generated | `environment_records` (Waste/Generated) |
-| Waste Intensity | total_waste / turnover | `environment_records` + `governance_records` |
-| LTIR Employee | (injuries / hours) × 1,000,000 | `social_records` (Health & Safety) |
-| LTIR Worker | (injuries / hours) × 1,000,000 | `social_records` (Health & Safety) |
-| Days Accounts Payable | (AP × 365) / COGS | `governance_records` |
-| Data Privacy Policy | Boolean from records | `governance_records` |
-| Disciplinary Actions | Count from records | `governance_records` |
+### Frontend Fixes
+1. ✅ Fixed API endpoint from `/config/` to `/configs/` (plural) in ApproverQueue.js
+2. ✅ Fixed API endpoint in SubmissionReviewPanel.js
+3. ✅ Added `principle_toggle_with_description` to type check for BRSR form rendering
+4. ✅ Fixed deduplication to prefer new approval_requests (put recordApprovals first)
+5. ✅ Fixed deduplication key to use question_key for esg_response items
+6. ✅ Created GRIApprovalPanel for GRI-specific approval UI
+7. ✅ Added framework propagation in approval queue item mapping
 
-### Field Mappings
-- **Treated Water**: `quantity_discharged_with_treatment_done` OR sum of primary+secondary+tertiary treatment
-- **Waste Recycled**: `quantity` from "Recovered / Diverted from disposal" subcategory
-- **LTIR**: `no_of_loss_time_injuries` / `total_hours_worked` from Health & Safety Incidents
+## Completed Work (Current Session — Jul 29 2026)
 
-## Prioritized Backlog
+### Bug Fix: GRI Responses not showing for Pending Approval (P0)
+- **Root Cause**: `get_responses()` used `config_keys` from `esg_question_configs` as a proxy for section filtering. If a question_key (e.g., `gri_302_1`) had no matching config, it was silently dropped.
+- **Fix**: Replaced config_keys filtering with direct `section` field in DB query (section is stored on every question-level doc). Configs are now only used for `response_modes` (FY merging), matching the pre-refactoring behavior.
+- **Also fixed**: `_calculate_previous_fy()` crashed on `"FY2024-25"` format (no space after FY, 2-digit end year). Now handles all FY formats.
+- **Status**: ✅ Verified — `gri_302_1`, `gri_302_2` responses now returned correctly
 
-### P0 - Critical (Testing Debt)
-- [ ] Backend testing for task engine & completion flows
-- [ ] Frontend testing for TaskLedger UI
-- [ ] Internal Data AI Phase 2 verification
+### Bug Fix: "Approval request not found" when approving BRSR (P0)
+- **Root Cause (5-step chain)**:
+  1. `_create_submission_for_approval` never set `current_approvers` on the approval_request
+  2. Frontend calls `/api/approval-workflows/requests?my_approvals=true` → backend filters by `current_approvers`
+  3. BRSR approval_request not returned → item only comes from old system endpoint (no `_approval_request_id`)
+  4. Frontend calls `/api/approval-workflows/requests/undefined/approve` → 404
+- **Fix**: 
+  1. `_create_submission_for_approval` now resolves `current_approvers` (from esg_assignments → section assignments → org admins fallback)
+  2. Submission doc's `approval_request_id` is now linked back after upsert
+  3. Framework defaults no longer blindly default to "GRI" — uses submission's own framework field + question_key prefix inference
+- **Status**: ✅ Verified — BRSR approval request approved successfully
 
-### P1 - High Priority
-- [ ] Module Access Super Admin UI (toggle enabled_access/module_access)
-- [ ] Overdue tasks cron job (auto-mark when due_at passes)
-- [ ] Executive Dashboard enhancements (PDF export, fullscreen, drill-down)
-- [ ] Extend ESGMetricsService usage to Dashboard, Targets, Internal Data AI
+### Bug Fix: Flat Storage Migration + Tracker Collection Fix (P0)
+- **GRI flat storage**: Removed `_split_question_key` from all save paths (`_save_to_unified_collection`, `save_gri_response`, `approve_submission`, approval handler). Every `question_key` now gets its own document — no nesting. 301 incorrectly split config-level keys eliminated.
+- **Data migration**: Migrated 8 nested sub_responses to flat docs, deleted 6 parent-only docs, cleaned 3 orphan docs without question_key.
+- **Tracker fix**: Changed `esg_tracking/service.py` `self._responses` from `db["esg_responses"]` (old empty collection) to `db["organization_esg_responses"]`. Updated `get_framework_sections` and `get_section_disclosures` to query `org_id` and handle flat+legacy nested formats.
+- **Rejection handler**: Fixed to use flat storage (was using nested `_split_question_key`)
+- **Status**: ✅ Verified — GRI responses save/read as flat keys, no nested docs remain
 
-### P2 - Medium Priority
-- [ ] Assignment Lifecycle Management (Archived/Superseded states)
-- [ ] Dashboard Scope 1 & 3 Emissions Deduplication
-- [ ] Carbon Intensity Calculation fix
-- [ ] SOC 2 Compliance (MFA, rate limiting, CSP headers)
-- [ ] Dynamic ESG Disclosure Engine
-- [ ] Sentry Error Monitoring
-- [ ] SBTi target validation rules
-- [ ] Dark mode fine-tuning
-- [ ] Materiality cutoff backend persistence
+## Completed Work (Current Session — Jul 30 2026)
+
+### GHG Emissions Targets - Subcategories & Baseline from Records (P1)
+- **Backend** (`/app/backend/modules/esg_targets/router.py`):
+  - Added `_get_ghg_subcategories()` helper returning predefined subcategories:
+    - Scope 1 Emissions, Scope 2 Emissions, Scope 3 Emissions, Total Emissions, Scope 1 + Scope 2 Emissions
+  - Updated `/api/esg-targets/lookup/categories` to inject GHG Emissions category for environment section
+  - Added new endpoint `GET /api/esg-targets/baseline/ghg-emissions` to fetch baseline from actual emission records
+- **Frontend** (`/app/frontend/src/components/ESGTargetForm.js`):
+  - Added `fetchGHGBaseline()` function for GHG-specific baseline lookup
+  - Modified `fetchBaseline()` to detect GHG category and route to appropriate endpoint
+- **Status**: ✅ Implemented
+
+### BRSR ngrbc_policy_matrix Fix (P0)
+- Fixed `NGRBCPolicyMatrixRenderer` in ESGQuestionnaire.js - removed broken `initialized` state pattern
+- Added `NGRBCPolicyMatrixDisplay` component to ApproverQueue.js for proper approval workflow display/edit
+- **Status**: ✅ Implemented
+
+### ESG Records Admin Delete Bypass (P1)
+- Updated `/app/backend/modules/esg_records/service.py` `delete_record()` to accept `user_role` parameter
+- Admins now bypass approval workflow for deletes (matching GHG behavior)
+- **Status**: ✅ Implemented
+
+### Organization Timezone Setting Implementation (P0)
+- **Backend Changes**:
+  - Added `timezone` field to Organization model (`/app/backend/modules/organizations/contracts.py`)
+  - Created `/app/backend/shared/utils/timezone_utils.py` with:
+    - Country-to-timezone mapping (50+ countries)
+    - Common IANA timezone list for dropdown
+    - `get_default_timezone_for_country()` helper
+    - `is_valid_timezone()` validator
+  - Added API endpoints:
+    - `GET /api/timezones` - Returns list of common timezones
+    - `GET /api/timezones/default/{country}` - Returns default timezone for country
+  - Updated module-config endpoint to include `timezone` field
+
+- **Frontend Changes**:
+  - Created `/app/frontend/src/utils/dateTimeUtils.js` - Centralized date formatting utility
+    - `formatDateTime()`, `formatDate()`, `formatTime()`, `formatRelativeTime()`
+    - All use IANA timezone with consistent `'en-GB'` locale
+  - Created `/app/frontend/src/contexts/OrganizationContext.js` - Provides timezone to app
+  - Created `/app/frontend/src/hooks/useDateFormatter.js` - Hook for easy access to formatters
+  - Updated `App.js` to wrap with `OrganizationProvider`
+  - Updated Organization Details page with timezone selector (auto-suggests based on country)
+
+- **Components Updated to Use New Formatter**:
+  - NotificationBell.js
+  - ApproverQueue.js (including BRSRApprovalPanel, GRIApprovalPanel, RecordApprovalPanel)
+  - QuestionnaireApprovalPanel.js
+  - SubmissionReviewPanel.js
+  - ESGQuestionnaire.js (QuestionRenderer)
+  - ESGRecordsTracker.js
+  - GRIQuestionnaire.js
+  - ApprovalModule.js
+  - ESGTrackingTab.js
+  - tasks/TaskRow.js
+  - tasks/utils.js
+  - AuditTrails.js
+
+- **Key Design Decisions**:
+  - Backend stores ALL timestamps in UTC (no change)
+  - Frontend displays in organization's configured timezone
+  - Default timezone derived from country, but admin can override
+  - Single formatting utility replaces all `toLocaleString()` calls
+  - Consistent `'en-GB'` locale for uniform date format (DD MMM YYYY, HH:MM AM/PM)
+
+- **Status**: ✅ Implemented and tested
+
+## Known Issues
+
+(None currently active — all tracked issues resolved)
 
 ## Key Files Reference
 
-### Unified Services
-- `/app/backend/services/esg_metrics_service.py` - **NEW** Centralized ESG metrics calculations
+### Backend
+- `/app/backend/modules/esg_questionnaire/service.py` - Core questionnaire service
+- `/app/backend/modules/esg_questionnaire/unified_response_service.py` - New unified service
+- `/app/backend/modules/esg_tracking/service.py` - Tracker service
+- `/app/backend/modules/esg_assignments/completion_service.py` - Completion status
+- `/app/backend/modules/approval_workflow/service.py` - Approval workflow
+- `/app/backend/modules/organizations/router.py` - Timezone endpoints
+- `/app/backend/shared/utils/timezone_utils.py` - Timezone utilities
 
-### Task System
-- `/app/backend/modules/esg_records/task_engine.py` - Task generation
-- `/app/backend/modules/emissions/router.py` - Emission saves & task completion
-- `/app/backend/modules/esg_assignments/completion_tracking.py` - Assignment completion
-- `/app/frontend/src/components/tasks/TaskLedger.js` - Main task display UI
-- `/app/frontend/src/components/MyTasks.js` - Task container component
+### Frontend
+- `/app/frontend/src/components/ApproverQueue.js` - Approval queue with GRI/BRSR panels
+- `/app/frontend/src/components/SubmissionReviewPanel.js` - Legacy submission review
+- `/app/frontend/src/components/ESGQuestionnaire.js` - Questionnaire UI
+- `/app/frontend/src/utils/dateTimeUtils.js` - Centralized date formatting
+- `/app/frontend/src/contexts/OrganizationContext.js` - Organization context with timezone
+- `/app/frontend/src/hooks/useDateFormatter.js` - Date formatting hook
+- `/app/frontend/src/pages/OrganizationDetails.js` - Organization settings with timezone
 
-### Peer Benchmarking Module
-- `/app/frontend/src/modules/peer-benchmarking/` - Frontend module
-- `/app/frontend/src/modules/peer-benchmarking/components/UploadView.js` - PDF upload
-- `/app/frontend/src/modules/peer-benchmarking/components/ComparisonView.js` - Comparison with date pickers
-- `/app/frontend/src/modules/peer-benchmarking/components/RadarChartWidget.js` - Radar chart
-- `/app/frontend/src/modules/peer-benchmarking/components/ExecutiveSummaryWidget.js` - AI summary
-- `/app/backend/modules/benchmarking/router.py` - Backend API using ESGMetricsService
+## Test Credentials
+- Admin: goyalsomil2001@gmail.com / TestUser123!
+- Organization ID: 9067d872-8a3a-4ed9-8494-e3ef04952f7c
 
-### Existing Dashboard Services (can be consolidated)
-- `/app/backend/modules/dashboards/social_detail_service.py` - LTIR calculations
-- `/app/backend/modules/dashboards/governance_detail_service.py` - Days AP calculations
-- `/app/backend/modules/esg_records/services/dashboard/water_service.py` - Water metrics
-- `/app/backend/modules/esg_records/services/dashboard/waste_service.py` - Waste metrics
+## Remaining toLocaleString() Files (Lower Priority)
+The following files still have `toLocaleString()` calls that should be updated in a future pass:
+- EmissionApprovalWrapper.jsx
+- TargetProgressChart.js
+- BRSRYearlySections.js
+- ESGTargetVersionHistory.js
+- ESGTargetForm.js
+- TaskCalendarGrid.js
+- WorkforceDataTable.js
+- Layout.js
+- ESGRecordsDataEntry.js
+- assignment-wizard/StepSchedule.jsx
+- assignment-wizard/StepReview.jsx
+- tasks/TaskLedger.js
+- tracker/TrackerTableRow.js
+- DataCoverageGrid.js
+- FacilityProductionSection.js
+- ESGRecords.js
+- BRSRDetailsSection.js
+- ESGTargetsTab.js
+- PropertyValuesEditor.js
+- RepoPilot.js
+- dashboard/components/*.jsx
 
-## 3rd Party Integrations
-- OpenAI `gpt-5.6-sol` (requires user API key) - Internal Data AI
-- OpenAI `text-embedding-3-large` (requires user API key) - Internal Data AI
-- OpenAI `gpt-4o` (OPENAI_API_KEY_PEER_BENCHMARKING) - Peer Benchmarking
-- LlamaParse (LLAMA_CLOUD_API_KEY_PEER_BENCHMARKING) - PDF extraction
-- Cloudflare R2 Storage (requires user API key)
-- Resend Emails (requires user API key)
+## Upcoming Tasks (P1)
+- Multi-level Approval Flow Implementation
+- Module Access Super Admin UI
+- Cron job for marking tasks as "overdue"
+- Phase 2 Executive Dashboard enhancements
+- Complete remaining toLocaleString() migration
 
-## Recent Updates (July 2025)
+## Completed Work (Current Session — Jul 30 2026 continued)
 
-### Reporting Period Storage Fix
-- **Problem**: For monthly records in FY context, Jan/Feb/Mar were stored with FY start year (e.g., `year: 2026` for Feb FY 2026-2027) instead of actual calendar year (`year: 2027`)
-- **Solution**: 
-  1. Updated `ESGRecordsDataEntry.js` save logic to calculate actual calendar year based on month
-  2. Updated display logic to show simple "Month Year" format (e.g., "Feb 2027") instead of "Feb FY 2026-2027"
-  3. Created and ran migration script to fix existing data (14 records updated)
-- **Files Changed**:
-  - `/app/frontend/src/components/ESGRecordsDataEntry.js` - Save & display logic
-  - `/app/frontend/src/components/ESGRecords.js` - Display format
-  - `/app/backend/scripts/migrate_reporting_periods.py` - Migration script (NEW)
+### Supplier Assessment Module (P0) - NEW FEATURE
+Complete implementation of a new top-level module for supplier ESG and GHG assessment.
 
-## Known Issues
-- Water Withdrawal KPIs missing filters (BLOCKED - user requested delay)
-- Emission Intensity shows null if turnover not populated in governance_records
-- Waste Intensity shows null if turnover not populated in governance_records
+**Architecture:**
+- Extended `organizations` collection with `org_type` field (customer/supplier/customer_supplier)
+- Extended `users` collection with `user_type` field (admin/employee/supplier/super_admin)
+- New collections: `supplier_relationships`, `supplier_questionnaires`, `supplier_questions`, `supplier_questionnaire_responses`
+- Supplier emissions stored in existing `emission_records` with `source: supplier` metadata
+
+**Backend Implementation:**
+- `/app/backend/modules/supplier_assessment/` - Complete module with:
+  - `contracts.py` - Pydantic schemas for all entities
+  - `service.py` - Business logic for supplier management, questionnaires, scoring
+  - `router.py` - 25+ API endpoints for full CRUD operations
+  - `email_templates.py` - Invitation and reminder email templates
+
+**Frontend Implementation:**
+- `/app/frontend/src/modules/supplier-assessment/` - Complete module with:
+  - `SupplierList.jsx` - Supplier management with Add/Edit/View/Remind/Deactivate
+  - `QuestionnaireBuilder.jsx` - Full questionnaire builder with questions management
+  - `SupplierRanking.jsx` - Rankings based on ESG + GHG scores
+  - `SupplierGHGView.jsx` - Customer admin view of all supplier emissions
+  - `SupplierDashboard.jsx` - Supplier-side dashboard
+  - `SupplierQuestionnaire.jsx` - Supplier questionnaire completion interface
+  - `SupplierEmissions.jsx` - Simplified Scope 1 & 2 emission entry
+
+**Key Features:**
+1. **Supplier Management (Customer Admin)**:
+   - Create suppliers with company name, contact, email, due date
+   - Auto-create supplier org + user + send invitation email
+   - View progress, completion %, scores
+   - Send reminder emails with pending items
+
+2. **ESG Questionnaire Builder (Customer Admin)**:
+   - Create/edit/duplicate/delete questionnaires
+   - Add questions with 4 response types: Yes/No, Numeric, Text, Dropdown
+   - Configure question weight, category (E/S/G), required flag
+   - Support both question-level and section-based scoring
+
+3. **Supplier Rankings**:
+   - Combined ESG + GHG performance scores
+   - Ranked table with completion status
+
+4. **Supplier Portal**:
+   - Revenue percentage question
+   - Questionnaire completion with draft/submit
+   - Simplified GHG emission entry (Scope 1 & 2 only)
+
+**Status**: ✅ Fully Implemented and Tested
+
+## Completed Work (Current Session — Jul 31 2026)
+
+### GHG Emissions V2 Assignment Filtering (P0)
+- **Issue**: Non-admin users couldn't see emission records because `fetch_emissions_for_user` used legacy V1 `assigned_facilities` field
+- **Fix**: Updated `/app/backend/modules/approvals/emission_flow_v2.py` to query V2 `esg_assignment_assignees` table
+- **Result**: Both Aman and Ravi now see the same 5 Scope 1 records at Facility E
+- **Status**: ✅ Fixed and Tested
+
+### GHG Emissions Pending Proposal Display (P0)
+- **Issue 1**: Non-admin user's pending edit values not shown in edit form - showed approved values instead
+- **Root Cause**: `GET /api/emissions` (grid) queried only `pending_records` but emission updates write to `approval_requests`
+- **Fix**: Updated `/app/backend/modules/approvals/emission_flow_v2.py` `fetch_emissions_for_user` to also check `approval_requests` and overlay user's proposed values
+- **Status**: ✅ Fixed - Ravi now sees his proposed qty=6282, Aman sees original qty=2312
+
+### GHG Emissions Status Display for Others (P0)
+- **Issue 2**: After user submits edit, everyone sees "Awaiting Approval" instead of just the submitter
+- **Root Cause**: PUT endpoint updated `emission_records.approval_status` to `pending_approval` in the database
+- **Fix**: 
+  - Removed DB update of `approval_status` in UPDATE flow (line 1198-1205 in router.py)
+  - `fetch_emissions_for_user` now overlays `approval_status: pending_approval` only for the submitter
+  - Others see `approval_status: approved` with `has_pending_proposal: True` badge
+- **Status**: ✅ Fixed - Aman sees "Approved" with "pending by Ravi" badge, Ravi sees "Awaiting Approval"
+
+### GHG Emissions Approval Field Mapping Bug (P0)
+- **Issue 3**: After approval, `dynamic_field_values` showed old values while `co2e_emissions` had new values
+- **Root Cause**: Approval handler in `service.py` mapped `proposed_changes.inputs` to `record_update["inputs"]` but DB uses `dynamic_field_values`
+- **Fix**: Updated `/app/backend/modules/approval_workflow/service.py` line 1177-1183 to map `inputs` → `dynamic_field_values`
+- **Status**: ✅ Fixed
+
+### GHG Multi-Proposal Support (P0)
+- **Issue 4**: When Ravi submitted edit, it overwrote Aman's pending request
+- **Root Cause**: `existing_request` query didn't filter by `submitted_by`
+- **Fix**: Added `"submitted_by": user_id` filter to query in `/app/backend/modules/emissions/router.py` line 1160-1165
+- **Status**: ✅ Fixed
+
+### Facilities Access for Non-Admin Users (P1)
+- **Issue**: `/api/facilities` returned empty array for non-admin users
+- **Fix**: Updated `/app/backend/modules/facilities/router.py` to return V2-assigned facilities for non-admin users
+- **Status**: ✅ Fixed
+
+### ESG Questionnaire Configs V2 Filtering (P1)
+- **Issue**: BRSR disclosures not filtered by user assignment
+- **Fix**: Updated `/app/backend/modules/esg_questionnaire/service.py` and `router.py` to filter configs by V2 assignments for non-admins
+- **Status**: ✅ Fixed
+
+### Frontend Pending Proposal Badges (P1)
+- **Fix**: Added `StatusCell` component to `/app/frontend/src/pages/emissions/components/EmissionDataGrid.jsx`
+- **Shows**: "Your Pending Edit" for user's own pending edits, "Edit pending by X" for others
+- **Status**: ✅ Implemented
+
+## Pending Issues (Noted for Later)
+1. Safari: Existing data entry for Scope 1 / Facility E not showing
+2. Safari: Fuel type dropdown not showing after choosing category
+3. Workflow module conditional access (bypass restrictions when workflow disabled)
+4. Task status shows "Completed" instead of "Pending Approval"
+5. SuperAdmin: Add supplier org names visibility to Organizations view
+
+## Completed Work (Current Session — Dec 2025)
+
+### Legacy V1 `assigned_to_user_id` Migration to V2
+- **Scope**: Migrated core access control and query logic from V1 (single `assigned_to_user_id` field) to V2 (multi-assignee `esg_assignment_assignees` collection)
+- **Files Updated**:
+  - `esg_assignments/access_control.py`: Removed legacy fallbacks, now V2-only
+  - `esg_assignments/service.py`: Create/reassign now creates V2 assignee records
+  - `esg_assignments/scheduler.py`: Reminders now V2-only
+  - `esg_assignments/kpi_access_helper.py`: Access checks now V2-only
+  - `esg_tracking/service.py`: Disclosure tracking now uses V2 for assignee lookups
+- **Key Changes**:
+  - `create_assignment()` now creates V2 assignee record in `esg_assignment_assignees`
+  - `reassign_assignment()` marks old assignee as removed, creates new V2 record
+  - All access control queries now use V2 junction table exclusively
+  - Disclosure tracking items now populate assignee info from V2
+- **Backward Compatibility**:
+  - API contracts/models still include `assigned_to_user_id` for response compatibility
+  - Database writes still include field for data consistency during transition
+- **Status**: ✅ Core migration complete - V2 is now the source of truth for access control
+
+### Simplified Facility Form for Suppliers
+- **Requirement**: Suppliers should only need to provide facility name when creating facilities
+- **Changes**:
+  - Frontend (`/app/frontend/src/pages/Facilities.js`): Added `isSupplier` check using `user.user_type === 'supplier'`
+  - Suppliers see simplified form with only "Facility Name" field
+  - Full form fields hidden until supplier becomes a customer (subscription)
+  - Updated `validateFacilityForm` to only require name for suppliers
+  - Backend (`/app/backend/modules/facilities/contracts.py`): Made `address` field optional (was required)
+- **Status**: ✅ Implemented
+
+### Supplier Emissions Consolidation for Customer Admin
+- **Requirement**: Customer admin should see consolidated view of all supplier GHG emissions
+- **Changes**:
+  - Backend (`/app/backend/modules/emissions/router.py`): When supplier creates emission, automatically set `source: "supplier"` and link to `supplier_relationship_id`
+  - Frontend (`/app/frontend/src/modules/supplier-assessment/SupplierGHGView.jsx`): Updated table columns to show:
+    - Supplier Org | Reporting Period | Scope | Category | Subcategory (fuel_type) | Emissions (tCO₂e)
+  - Removed status column (not needed for supplier view)
+- **Data Flow**: Customer Org → supplier_relationships → Supplier Org IDs → emission_records (by org_id with source=supplier)
+- **Status**: ✅ Implemented
+
+### Supplier GHG Architecture Simplification
+- **Decision**: Suppliers will use the main GHG Emissions flow (same as regular users) instead of a custom form
+- **Rationale**: 
+  - Single source of truth for emission entry/edit (no code duplication)
+  - Existing GHG edit flow already works correctly
+  - Simpler architecture, less maintenance burden
+- **Removed Files**:
+  - `/app/frontend/src/modules/supplier-assessment/SupplierEmissionsForm.jsx` — custom supplier emission form (unused)
+  - `/app/frontend/src/pages/SupplierPortalEmissions.jsx` — page wrapper (unused)
+  - Removed route `supplier-assessment/emissions` from App.js
+- **Kept Files**:
+  - `/app/frontend/src/modules/supplier-assessment/SupplierGHGView.jsx` — customer admin view of supplier emissions
+  - `/app/frontend/src/pages/emissions/utils/hydrateEmissionForm.js` — reusable hydration utility
+- **Supplier Org Name**: Auto-filled from customer-provided `company_name` when relationship is created (already implemented in `service.py` line 86)
+- **Status**: ✅ Implemented — Code cleaned up, bundle size reduced
+
+### Supplier Emissions Form Edit Hydration Utility (P0)
+- **Issue**: Supplier Emissions Form Edit mode showed empty fields instead of pre-populated values with live calculations
+- **Solution**: Extracted pure `hydrateEmissionForm(emission, config)` utility from `editEmissionDispatch.js`
+  - Created `/app/frontend/src/pages/emissions/utils/hydrateEmissionForm.js` — pure transformation function
+  - Refactored `/app/frontend/src/pages/emissions/utils/editEmissionDispatch.js` to use the new utility
+  - Updated `/app/frontend/src/components/EmissionEntryForm.js` to use dynamic import of hydration utility
+- **Key Design Decisions**:
+  - `hydrateEmissionForm` is a pure function: no side effects, no state setters, no API calls
+  - Returns a plain object with all form values ready for consumption
+  - `editEmissionDispatch` public behavior unchanged for backward compatibility
+  - `EmissionEntryForm` now uses the same comprehensive hydration logic as the main Emissions.js
+- **Status**: ✅ Implemented — Single source of truth for edit hydration
+
+
+## Completed Work (Current Session — Dec 2025)
+
+### "Completed" Status Color Fix (P2)
+- **Issue**: "Completed" status (without approval workflow) was showing in gray/stone color instead of green
+- **Fix**: Updated `getStatusDisplay()` in `/app/frontend/src/modules/ghg/utils/approvalSchema.js` to return green color (`bg-green-100 text-green-700`) for default "Completed" status, matching "Completed, Approved"
+- **Status**: ✅ Implemented
+
+### Bulk Delete Approval Workflow Integration (P1)
+- **Issue**: Bulk delete in GHG Emissions and ESG Records was bypassing approval workflows by issuing direct DELETE requests via Promise.all
+- **Fix**: Updated bulk delete handlers in:
+  - `/app/frontend/src/pages/Emissions.js` (`handleBulkDelete`)
+  - `/app/frontend/src/components/ESGRecordsDataEntry.js` (`handleBulkDelete`)
+- **New Behavior**:
+  - Process each delete request individually (not in parallel)
+  - Check response message for "submitted for approval" to detect queued requests
+  - Track deleted, queued, and failed counts separately
+  - Show appropriate toast messages for each outcome type
+- **Backend Already Supported**: The backend `/api/emissions/{record_id}` DELETE endpoint already has `approval_intercept_delete` which returns `{"message": "Delete request submitted for approval"}` when approval is required
+- **Status**: ✅ Implemented
+
+### Task Action Buttons Hidden (Temporary)
+- **Request**: User requested to hide View/Fill/Edit buttons from My Tasks temporarily until module redirect functionality is implemented
+- **Changes**:
+  - `/app/frontend/src/components/tasks/TaskRow.js` - Removed Fill/View buttons
+  - `/app/frontend/src/components/tasks/TaskLedger.js` - Removed Fill/View/Edit buttons
+  - `/app/frontend/src/components/MyTasks.js` - Removed unused handler functions and navigate import
+- **Status**: ✅ Implemented (Buttons hidden, ready for future re-implementation with proper redirects)
+
+### User Management - Removed Facility Assignment (Deprecated)
+- **Request**: Remove "Assigned Facilities" and "Assign Facility" functionality since it's now workflow-based
+- **Changes**:
+  - `/app/frontend/src/pages/UserManagement.js`:
+    - Removed facility state, fetch, and assignment functions
+    - Removed "Assign Facilities" section from create user dialog
+    - Removed "Assigned Facilities" count from user cards
+    - Removed "Assign Facilities" button from user cards
+    - Removed assign facilities dialog entirely
+    - Simplified user card layout
+    - Updated page subtitle to "Manage organization users"
+    - Added note about workflow assignments in create dialog
+- **Status**: ✅ Implemented (Users now managed via workflow assignments instead)
+
+### Executive ESG Dashboard PDF Export
+- **Request**: Implement professional PDF export for the ESG Executive Dashboard
+- **Files Created**:
+  - `/app/frontend/src/modules/dashboard/pdf-export/ESGReportGenerator.jsx` - Main PDF generator class
+  - `/app/frontend/src/modules/dashboard/pdf-export/useESGReportExport.js` - React hook for export
+  - `/app/frontend/src/modules/dashboard/pdf-export/ExportPDFButton.jsx` - Export button component
+  - `/app/frontend/src/modules/dashboard/pdf-export/index.js` - Module exports
+- **Files Modified**:
+  - `/app/frontend/src/modules/dashboard/components/filters/StickyFilterBar.jsx` - Added `exportButton` prop
+  - `/app/frontend/src/modules/dashboard/ExecutiveAnalyticsDashboard.jsx` - Integrated ExportPDFButton
+  - `/app/frontend/src/modules/dashboard/components/analytics/AnalyticsChartCard.jsx` - Added data-testid attribute for chart capture
+- **Report Structure (11 sections - V2)**:
+  1. Cover Page (Premium design with metadata box: Framework, Period, Frequency, Generated On, Prepared By, Version)
+  2. Executive Summary (Narrative highlights for Environmental/Social/Governance + Key Metrics summary box)
+  3. Emissions Section (GHG Trend chart + Scope Breakdown table + Trend Analysis commentary)
+  4. Energy Section (Energy Mix chart + Summary table + Trend Analysis)
+  5. Water Section (Water Flow chart + Summary table + Analysis)
+  6. Waste Section (Waste Management chart + Summary + Analysis)
+  7. Social Section (Workforce KPIs + LTIFR Trend + Incidents Summary + Commentary)
+  8. Governance Section (AP Days chart + KPIs + Analysis)
+  9. Performance Summary (Current values with target direction, message about previous period data)
+  10. Key Insights (6 rule-based observations with color-coded category indicators)
+  11. Appendix (Methodology, Reporting Boundary table, Metric Definitions)
+- **Libraries Added**: jspdf, html2canvas
+- **Key Features**:
+  - Charts captured from DOM as JPEG (scale 1.5, quality 0.85) for ~4-6MB file size
+  - Narrative content in Executive Summary (not just KPIs)
+  - Trend Analysis boxes after each chart section
+  - Consistent number formatting with commas (e.g., 1,208 not 1.2K)
+  - tCO2e unit rendering (plain text to avoid unicode issues)
+  - Colored table headers with right-aligned numeric columns
+  - Missing data shows "Not Reported" / "Not Available" instead of "N/A"
+  - Previous period comparison message when historical data unavailable
+- **Bug Fixed**: AnalyticsChartCard.jsx was not rendering data-testid attribute, causing all charts to show placeholders
+- **Status**: ✅ Implemented & Tested
+
+
+## Future Tasks (P2)
+- Materiality Assessment Phase 2+
+- Dashboard Scope 1 & 3 Emissions Deduplication
+- SOC 2 Compliance Implementation
+- Dynamic ESG Disclosure Engine
+- Sentry Error Monitoring Integration
+
+## Known Issues (P0 - Deferred)
+
+### Environment Report PDF - Character Spacing & Text Overflow Issue
+- **Description**: Analysis boxes in pages 2-3 of Environment Report PDF show excessive character spacing ("T o t a l  G H G..." instead of "Total GHG...") and text overflows the box boundaries
+- **Debugging Done**:
+  - `splitTextToSize()` returns correct wrapped strings (not corrupted)
+  - `getCharSpace()` returns 0 (no charSpace corruption)
+  - Font state is correct (Helvetica, normal, size 9)
+  - Text string is normal ASCII with proper charCodeAt values
+  - Issue persists across all PDF viewers
+- **Root Cause**: Unknown - jsPDF internal rendering issue. All API state looks correct but PDF output has spacing issues. May be related to:
+  - jsPDF 4.x internal TJ operator generation
+  - Unicode subscript `₂` in `tCO₂e` affecting document-wide rendering
+  - Internal font metrics calculation
+- **Attempted Fixes**:
+  - Added `{ charSpace: 0 }` option to text() calls
+  - Reduced textWidth with safety margin
+- **Next Steps to Try**:
+  - Replace Unicode `₂` with regular `2` in EnvironmentReportGenerator
+  - Downgrade jsPDF version to test if it's a 4.x regression
+  - Generate PDF without compression to inspect raw operators
+  - Try different font (Times instead of Helvetica)
+- **Affected Files**: `/app/frontend/src/modules/dashboard/pdf-export/BasePDFGenerator.js`, `/app/frontend/src/modules/dashboard/pdf-export/EnvironmentReportGenerator.js`
+
+## Technical Debt / Refactoring (P2)
+- **Emission Form Refactoring**: Refactor Edit and Add emission forms (`EmissionEntryForm.js`, `Emissions.js`, `editEmissionDispatch.js`) to be fully reusable components. Currently tightly coupled with page-level state. Goal: single form component usable across main GHG, supplier portal, and any future contexts.
+- **SuperAdmin Org View**: Add supplier org names visibility to Organizations management page
+- **Hash-based Integrity Verification for Evidence Files**: Implement SHA-256 hash storage for all uploaded evidence files. Calculate hash on upload, store in DB alongside file URL, verify hash on download/access. Required for tamper detection and compliance (SOC 2, ISO 27001).
+
+## Completed Work (Current Session — Aug 4 2026)
+
+### BRSR Annexure II PDF Export (P0) - EXACT REPLICA
+- **Implementation**: Created pixel-perfect BRSR PDF export that is an EXACT REPLICA of the official SEBI Annexure II format
+- **Backend Module**: `/app/backend/modules/brsr_report/`
+  - `router.py`: API endpoints `/api/brsr-report/generate/{period}` and `/api/brsr-report/preview/{period}`
+  - `service.py`: PDF generation using Playwright/Chromium for exact HTML-to-PDF rendering
+  - `templates.py`: HTML/CSS template that replicates Annexure II format EXACTLY
+- **Frontend Integration**: `/app/frontend/src/modules/brsr-export/`
+  - `useBRSRExport.js`: Hook for PDF download via backend API
+  - `BRSRExportButton.jsx`: Download dropdown button in BRSR module header
+- **Key Features - EXACT ANNEXURE II REPLICATION**:
+  - Section A: Questions 1-26 (General Disclosures) - exact table layouts, numbering
+  - Section B: Questions 1-12 (Management & Process) - P1-P9 policy matrix table
+  - Section C: Principles 1-9 with Essential/Leadership indicators
+  - NO custom design elements - only official Annexure format
+  - Section headers: Bold text only (no green background)
+  - Principle headers (Section C): Green background (#70AD47) as per Annexure II
+  - Tables: 1px black borders, exact column structure
+  - Arial font, A4 page, 20mm margins
+- **Status**: ✅ Complete - All three sections implemented
+
+## Completed Work (Current Session — Aug 5 2026)
+
+### Supplier Assessment Scoring Engine Redesign (P0) - STRATEGY PATTERN
+- **Architecture Pivot**: Complete redesign of the Supplier Assessment Scoring Engine to be simple, transparent, configurable, and enterprise-grade.
+- **Key Changes**:
+  - Removed legacy `scoring_method` toggle (section vs question) - now ONE unified calculation flow
+  - Each question defines its own scoring behavior via Scoring Rules
+  - Admin configures weights at questionnaire level, not calculation engine
+
+#### Scoring Rules (Strategy Pattern)
+Each rule implements `calculate(raw_value, config) -> {score, calculation_details}`:
+
+| Rule | Use Case | Formula |
+|------|----------|---------|
+| `higher_is_better` | Renewable energy %, employee satisfaction | `((value - min) / (target - min)) * max_score` |
+| `lower_is_better` | Carbon emissions, injuries | `((max_acceptable - value) / (max_acceptable - min)) * max_score` |
+| `boolean` | ISO certifications, policy existence | `true_score` if Yes, `false_score` if No |
+| `choice_mapping` | Carbon target type, maturity level | Map discrete choices to specific scores |
+| `target_based` | KPI achievement rates | `(actual / target) * max_score` (capped) |
+| `manual` | Qualitative assessments | Requires human review |
+
+#### Calculation Flow
+```
+Raw Response → Question Score (0-100)
+                    ↓
+            Question Weight Applied
+                    ↓
+         Weighted Question Score
+                    ↓
+    Section Score = Σ(weighted_scores) / Σ(weights)
+                    ↓
+        ESG Section Weightage Applied
+                    ↓
+            Overall ESG Score
+                    ↓
+    Overall Supplier Score = (ESG × 40%) + (GHG × 40%) + (Revenue × 20%)
+```
+
+#### Backend Implementation
+- **Module**: `/app/backend/modules/supplier_assessment/scoring/`
+  - `models.py`: Pydantic models for ScoringConfig, QuestionScore, SectionScore, ESGScore, SupplierScore, ScoreBreakdown
+  - `rules.py`: Strategy pattern classes (HigherIsBetterRule, LowerIsBetterRule, BooleanRule, etc.)
+  - `calculator.py`: Pure calculation engine (no DB access)
+  - `engine.py`: Orchestration layer with database interaction
+  - `__init__.py`: Public API exports
+
+- **Key Models**:
+  ```python
+  ScoringConfig(
+      rule: ScoringRuleType,  # higher_is_better, lower_is_better, boolean, etc.
+      target: Optional[float],
+      min: Optional[float],
+      max: Optional[float],
+      max_score: float = 100,
+      max_acceptable: Optional[float],  # For lower_is_better
+      true_score: float = 100,  # For boolean
+      false_score: float = 0,
+      choices: Optional[Dict[str, float]],  # For choice_mapping
+  )
+  
+  ESGSectionWeights(
+      environment: float = 33.33,
+      social: float = 33.33,
+      governance: float = 33.34,
+  )
+  
+  OverallSupplierWeights(
+      esg: float = 40,
+      ghg: float = 40,
+      revenue: float = 20,
+  )
+  ```
+
+- **Service Integration**: Updated `service.py` to use new ScoringEngine with legacy fallback
+
+#### Frontend Implementation
+- **Updated**: `/app/frontend/src/modules/supplier-assessment/QuestionnaireBuilder.jsx`
+  - Removed scoring_method toggle (section vs question)
+  - Added ESG Section Weights accordion in Create/Edit Questionnaire dialogs
+  - Added Overall Supplier Score Weights accordion
+  - Added Scoring Configuration section in Question dialog with:
+    - Visual scoring rule selector (6 rule types with icons and descriptions)
+    - Dynamic configuration fields based on selected rule
+  - Questions now display scoring rule badge
+
+#### Database Schema Updates
+- **supplier_questionnaires**: Added `esg_section_weights`, `overall_supplier_weights` fields
+- **supplier_questions**: Added `scoring` sub-document with rule config
+
+- **Status**: ✅ Complete - Backend scoring engine tested, frontend UI implemented
+
+### Supplier Ranking Dashboard Enhancement (P1)
+- **Enhanced**: `/app/frontend/src/modules/supplier-assessment/SupplierRanking.jsx`
+- **New Features**:
+  - **4 Tabs**: Overview, ESG Analysis, Emissions, Detailed Table
+  - **Overview Tab**: Score Distribution pie chart, Top Performers bar chart, Radar comparison chart
+  - **ESG Analysis Tab**: Average ESG scores with progress bars, grouped bar chart by E/S/G per supplier
+  - **Emissions Tab**: Scope 1 & 2 pie chart, scope summary cards, stacked bar chart by supplier
+  - **Detailed Table**: Full breakdown with E/S/G columns, emissions, status badges
+  - **Sort by dropdown**: Overall, ESG, Environment, Social, Governance, GHG
+- **Backend Updates**: `/app/backend/modules/supplier_assessment/service.py`
+  - Added `environment_score`, `social_score`, `governance_score` to rankings
+  - Added `scope1_emissions`, `scope2_emissions` breakdown (Scope 3 excluded for suppliers)
+  - Added `score_distribution`, `averages`, `emissions_by_scope` aggregates
+- **Status**: ✅ Complete
+
+### Upcoming Tasks (P0-P1)
+1. Database Migration Script - migrate existing questionnaires to new schema
+2. Hash-based Integrity Verification for Evidence Files (SHA-256)
+3. SuperAdmin Config UI for Modules
+4. Supplier and Customer Org Onboarding Wizards
+5. Word document download option for BRSR
+
+### Internal Data AI — Expanded Data Sources (Feb 2026)
+- **New Service Files Created**:
+  - `services/brsr.py` — BRSR framework responses, section progress, submission status
+  - `services/gri.py` — GRI disclosure responses, section progress, submission status
+  - `services/supplier_assessment.py` — Supplier questionnaires, scores, rankings, supplier ESG data
+  - `services/data_status.py` — Cross-module record status aggregation (emissions, environment, social, governance, BRSR, GRI)
+- **Extended Existing Services**:
+  - `services/history.py` — Added social/governance record versions + BRSR/GRI response version history
+- **Updated Orchestration**:
+  - `intent_detector.py` — 4 new intents: `brsr_lookup`, `gri_lookup`, `supplier_assessment`, `data_status`
+  - `planner.py` — Routing for new intents + framework version history on `version_history`
+  - `executor.py` — Registered all new services in SERVICE_MAP
+- **Status**: ✅ Complete — All intents tested via API
+
+

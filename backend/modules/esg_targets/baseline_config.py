@@ -331,12 +331,50 @@ BIOGENIC_METRICS = {
     },
 }
 
+# Aggregate GHG Target Metrics (for Environment Targets)
+# These map to multiple scopes for aggregation
+AGGREGATE_GHG_METRICS = {
+    # Single scope totals
+    "scope1_total": {
+        "scope": ["Scope 1", "scope1"],
+        "category": None,
+        "aggregation": "sum",
+        "description": "Total Scope 1 GHG Emissions"
+    },
+    "scope2_total": {
+        "scope": ["Scope 2", "scope2"],
+        "category": None,
+        "aggregation": "sum",
+        "description": "Total Scope 2 GHG Emissions"
+    },
+    "scope3_total": {
+        "scope": ["Scope 3", "scope3"],
+        "category": None,
+        "aggregation": "sum",
+        "description": "Total Scope 3 GHG Emissions"
+    },
+    # Combined scopes
+    "scope1_2_total": {
+        "scope": ["Scope 1", "scope1", "Scope 2", "scope2"],
+        "category": None,
+        "aggregation": "sum",
+        "description": "Total Scope 1 + Scope 2 GHG Emissions"
+    },
+    "total_all_scopes": {
+        "scope": ["Scope 1", "scope1", "Scope 2", "scope2", "Scope 3", "scope3"],
+        "category": None,
+        "aggregation": "sum",
+        "description": "Total GHG Emissions (All Scopes)"
+    },
+}
+
 # Combined mapping - single source of truth
 METRIC_TO_GHG_MAPPING = {
     **SCOPE1_METRICS,
     **SCOPE2_METRICS,
     **SCOPE3_METRICS,
     **BIOGENIC_METRICS,
+    **AGGREGATE_GHG_METRICS,
 }
 
 

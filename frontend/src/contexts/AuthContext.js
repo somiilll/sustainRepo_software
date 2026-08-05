@@ -128,6 +128,19 @@ export const AuthProvider = ({ children }) => {
             headers: { Authorization: `Bearer ${storedToken}` }
           });
           const userData = response.data;
+          
+          // Fetch org_type for non-super_admin users
+          if (userData.role !== 'super_admin' && userData.organization_id) {
+            try {
+              const orgRes = await axios.get(`${API}/organizations/my`, {
+                headers: { Authorization: `Bearer ${storedToken}` }
+              });
+              userData.org_type = orgRes.data?.org_type || 'customer';
+            } catch {
+              userData.org_type = 'customer';
+            }
+          }
+          
           setUser(userData);
           setToken(storedToken);
           
@@ -152,6 +165,19 @@ export const AuthProvider = ({ children }) => {
     const { access_token, user: userData } = response.data;
     localStorage.setItem('token', access_token);
     setToken(access_token);
+    
+    // Fetch org_type for non-super_admin users
+    if (userData.role !== 'super_admin' && userData.organization_id) {
+      try {
+        const orgRes = await axios.get(`${API}/organizations/my`, {
+          headers: { Authorization: `Bearer ${access_token}` }
+        });
+        userData.org_type = orgRes.data?.org_type || 'customer';
+      } catch {
+        userData.org_type = 'customer';
+      }
+    }
+    
     setUser(userData);
     
     // Check subscription for admin/user after login (mandatory)

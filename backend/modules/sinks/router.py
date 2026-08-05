@@ -80,17 +80,7 @@ async def create_sink(sink_data: SinkCreate, current_user: dict = Depends(get_cu
     }
     await db.sinks.insert_one(sink_dict)
     
-    # Update assignment completion status (best-effort)
-    try:
-        from modules.esg_assignments.completion_tracking import completion_tracking_service
-        await completion_tracking_service.on_record_submitted(
-            organization_id=org_id,
-            category="GHG Emissions",
-            facility_id=sink_data.facility_id,
-            subcategory="GHG Emissions - Removal/Sinks",
-        )
-    except Exception:
-        pass  # Don't fail the request if completion tracking fails
+    # NOTE: Completion tracking removed - status is now computed on-the-fly by CompletionService
     
     return SinkResponse(**sink_dict)
 

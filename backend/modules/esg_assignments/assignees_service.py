@@ -60,6 +60,7 @@ class AssignmentAssigneesService:
         user_ids: List[str],
         assigned_by_user_id: str,
         role: str = "editor",
+        organization_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Add multiple assignees to an assignment.
@@ -67,10 +68,26 @@ class AssignmentAssigneesService:
         If a user is already assigned (active), they are skipped.
         If a user was previously removed, they are reactivated.
         
+        Also syncs task assignees (esg_task_assignees) to ensure users
+        see the associated tasks in their "My Tasks" view.
+        
+        Args:
+            organization_id: Required for efficient scoped queries in assignment_resolver.
+                            If not provided, will be looked up from the assignment.
+        
         Returns list of created/reactivated assignee records.
         """
         now = datetime.now(timezone.utc)
         results = []
+        
+        # Lookup organization_id from assignment if not provided
+        if not organization_id:
+            assignment = await self._assignments.find_one(
+                {"id": assignment_id},
+                {"_id": 0, "organization_id": 1}
+            )
+            if assignment:
+                organization_id = assignment.get("organization_id")
         
         for user_id in user_ids:
             # Check if already assigned (active)
@@ -81,7 +98,13 @@ class AssignmentAssigneesService:
             })
             
             if existing:
-                # Already active, skip
+                # Already active - but ensure organization_id is set (backfill)
+                if not existing.get("organization_id") and organization_id:
+                    await self._assignees.update_one(
+                        {"id": existing["id"]},
+                        {"$set": {"organization_id": organization_id}}
+                    )
+                    existing["organization_id"] = organization_id
                 results.append(existing)
                 continue
             
@@ -93,26 +116,30 @@ class AssignmentAssigneesService:
             })
             
             if removed:
-                # Reactivate
+                # Reactivate and ensure organization_id is set
+                update_fields = {
+                    "removed_at": None,
+                    "assigned_by_user_id": assigned_by_user_id,
+                    "assigned_at": now,
+                    "role": role,
+                }
+                if organization_id:
+                    update_fields["organization_id"] = organization_id
+                    
                 await self._assignees.update_one(
                     {"id": removed["id"]},
-                    {
-                        "$set": {
-                            "removed_at": None,
-                            "assigned_by_user_id": assigned_by_user_id,
-                            "assigned_at": now,
-                            "role": role,
-                        }
-                    }
+                    {"$set": update_fields}
                 )
                 removed["removed_at"] = None
                 removed["assigned_at"] = now
+                removed["organization_id"] = organization_id
                 results.append(removed)
             else:
-                # Create new assignee record
+                # Create new assignee record with organization_id
                 assignee_doc = {
                     "id": str(uuid.uuid4()),
                     "assignment_id": assignment_id,
+                    "organization_id": organization_id,  # Required for resolver queries
                     "user_id": user_id,
                     "role": role,
                     "assigned_by_user_id": assigned_by_user_id,
@@ -121,6 +148,16 @@ class AssignmentAssigneesService:
                 }
                 await self._assignees.insert_one(assignee_doc)
                 results.append(assignee_doc)
+        
+        # CRITICAL: Sync task assignees for added users
+        # This ensures new assignees see the associated tasks in "My Tasks"
+        await self._sync_task_assignees_for_users(
+            assignment_id=assignment_id,
+            user_ids=user_ids,
+            organization_id=organization_id,
+            role=role,
+            assigned_by_user_id=assigned_by_user_id,
+        )
         
         # Log to history
         if results:
@@ -133,6 +170,71 @@ class AssignmentAssigneesService:
         
         return results
     
+    async def _sync_task_assignees_for_users(
+        self,
+        assignment_id: str,
+        user_ids: List[str],
+        organization_id: str,
+        role: str,
+        assigned_by_user_id: str,
+    ):
+        """
+        Sync task assignees when users are added to an assignment.
+        
+        For each task associated with this assignment, ensures each user
+        has an active task assignee record (creates new or reactivates existing).
+        """
+        now = datetime.now(timezone.utc)
+        task_assignees_collection = db["esg_task_assignees"]
+        tasks_collection = db["esg_reporting_tasks"]
+        
+        # Get all tasks for this assignment
+        tasks = await tasks_collection.find(
+            {"assignment_id": assignment_id},
+            {"_id": 0, "id": 1}
+        ).to_list(1000)
+        
+        if not tasks:
+            return  # No tasks yet - they will be created with assignees later
+        
+        task_ids = [t["id"] for t in tasks]
+        
+        for user_id in user_ids:
+            for task_id in task_ids:
+                # Check if task assignee already exists
+                existing = await task_assignees_collection.find_one({
+                    "task_id": task_id,
+                    "user_id": user_id,
+                })
+                
+                if existing:
+                    # Reactivate if inactive
+                    if not existing.get("is_active"):
+                        await task_assignees_collection.update_one(
+                            {"id": existing["id"]},
+                            {"$set": {
+                                "is_active": True,
+                                "removed_at": None,
+                                "role": role,
+                                "updated_at": now,
+                            }}
+                        )
+                else:
+                    # Create new task assignee
+                    task_assignee_doc = {
+                        "id": str(uuid.uuid4()),
+                        "task_id": task_id,
+                        "assignment_id": assignment_id,
+                        "organization_id": organization_id,
+                        "user_id": user_id,
+                        "role": role,
+                        "assigned_by_user_id": assigned_by_user_id,
+                        "is_active": True,
+                        "created_at": now,
+                        "updated_at": now,
+                    }
+                    await task_assignees_collection.insert_one(task_assignee_doc)
+    
     async def remove_assignees(
         self,
         assignment_id: str,
@@ -141,6 +243,9 @@ class AssignmentAssigneesService:
     ) -> int:
         """
         Remove assignees from an assignment (soft delete).
+        
+        Also deactivates corresponding task assignees in esg_task_assignees
+        so removed users no longer see tasks in their "My Tasks" view.
         
         Returns count of removed assignees.
         """
@@ -157,12 +262,34 @@ class AssignmentAssigneesService:
             }
         )
         
+        # CRITICAL: Also deactivate task assignees for these users
+        # This ensures removed users no longer see the tasks
+        task_assignees_collection = db["esg_task_assignees"]
+        task_result = await task_assignees_collection.update_many(
+            {
+                "assignment_id": assignment_id,
+                "user_id": {"$in": user_ids},
+                "is_active": True,
+            },
+            {
+                "$set": {
+                    "is_active": False,
+                    "removed_at": now,
+                    "removed_by_user_id": removed_by_user_id,
+                    "updated_at": now,
+                }
+            }
+        )
+        
         if result.modified_count > 0:
             await self._log_history(
                 assignment_id=assignment_id,
                 action="assignees_removed",
                 changed_by_user_id=removed_by_user_id,
-                previous_value={"user_ids": user_ids},
+                previous_value={
+                    "user_ids": user_ids,
+                    "task_assignees_deactivated": task_result.modified_count,
+                },
             )
         
         return result.modified_count
@@ -173,6 +300,7 @@ class AssignmentAssigneesService:
         new_user_ids: List[str],
         changed_by_user_id: str,
         role: str = "editor",
+        organization_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Replace all assignees with a new set.
@@ -180,9 +308,22 @@ class AssignmentAssigneesService:
         This is the primary method for updating who is assigned to a work item.
         Handles additions and removals atomically.
         
+        Args:
+            organization_id: Required for efficient scoped queries in assignment_resolver.
+                            If not provided, will be looked up from the assignment.
+        
         Returns summary of changes.
         """
         now = datetime.now(timezone.utc)
+        
+        # Lookup organization_id from assignment if not provided
+        if not organization_id:
+            assignment = await self._assignments.find_one(
+                {"id": assignment_id},
+                {"_id": 0, "organization_id": 1}
+            )
+            if assignment:
+                organization_id = assignment.get("organization_id")
         
         # Get current active assignees
         current = await self._assignees.find(
@@ -205,7 +346,7 @@ class AssignmentAssigneesService:
                 removed_by_user_id=changed_by_user_id,
             )
         
-        # Add new assignees
+        # Add new assignees (with organization_id)
         added = []
         if to_add:
             added = await self.add_assignees(
@@ -213,6 +354,7 @@ class AssignmentAssigneesService:
                 user_ids=list(to_add),
                 assigned_by_user_id=changed_by_user_id,
                 role=role,
+                organization_id=organization_id,
             )
         
         return {
@@ -354,16 +496,30 @@ class AssignmentAssigneesService:
         from_assignment_id: str,
         to_assignment_id: str,
         copied_by_user_id: str,
+        organization_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Copy all active assignees from one assignment to another.
         
         Useful when creating similar assignments.
+        
+        Args:
+            organization_id: Required for efficient scoped queries in assignment_resolver.
+                            If not provided, will be looked up from the target assignment.
         """
         source_assignees = await self.get_assignees(from_assignment_id)
         
         if not source_assignees:
             return []
+        
+        # Lookup organization_id from target assignment if not provided
+        if not organization_id:
+            assignment = await self._assignments.find_one(
+                {"id": to_assignment_id},
+                {"_id": 0, "organization_id": 1}
+            )
+            if assignment:
+                organization_id = assignment.get("organization_id")
         
         user_ids = [a["user_id"] for a in source_assignees]
         roles = {a["user_id"]: a.get("role", "editor") for a in source_assignees}
@@ -375,6 +531,7 @@ class AssignmentAssigneesService:
                 user_ids=[user_id],
                 assigned_by_user_id=copied_by_user_id,
                 role=roles.get(user_id, "editor"),
+                organization_id=organization_id,
             )
             results.extend(added)
         
@@ -419,6 +576,127 @@ class AssignmentAssigneesService:
         ).sort("created_at", -1).limit(limit)
         
         return await cursor.to_list(limit)
+    
+    async def sync_task_assignees_with_assignment_assignees(
+        self,
+        organization_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Sync task assignees with assignment assignees for data consistency.
+        
+        This fixes existing data where:
+        1. Users were removed from assignments but their task assignees weren't deactivated
+        2. Users were added to assignments but their task assignees weren't created
+        
+        Returns summary of changes made.
+        """
+        now = datetime.now(timezone.utc)
+        task_assignees_collection = db["esg_task_assignees"]
+        tasks_collection = db["esg_reporting_tasks"]
+        
+        stats = {
+            "task_assignees_deactivated": 0,
+            "task_assignees_reactivated": 0,
+            "task_assignees_created": 0,
+            "assignments_processed": 0,
+        }
+        
+        # Build query for assignments
+        assignment_query = {}
+        if organization_id:
+            assignment_query["organization_id"] = organization_id
+        
+        # Get all assignments with their tasks
+        assignments = await self._assignments.find(
+            assignment_query, {"_id": 0, "id": 1, "organization_id": 1}
+        ).to_list(5000)
+        
+        for assignment in assignments:
+            assignment_id = assignment["id"]
+            org_id = assignment["organization_id"]
+            
+            # Get active assignment assignees
+            active_assignees = await self._assignees.find(
+                {"assignment_id": assignment_id, "removed_at": None},
+                {"_id": 0, "user_id": 1, "role": 1}
+            ).to_list(100)
+            active_user_ids = set(a["user_id"] for a in active_assignees)
+            user_role_map = {a["user_id"]: a.get("role", "editor") for a in active_assignees}
+            
+            # Get removed assignment assignees
+            removed_assignees = await self._assignees.find(
+                {"assignment_id": assignment_id, "removed_at": {"$ne": None}},
+                {"_id": 0, "user_id": 1}
+            ).to_list(100)
+            removed_user_ids = set(a["user_id"] for a in removed_assignees)
+            
+            # Get all tasks for this assignment
+            tasks = await tasks_collection.find(
+                {"assignment_id": assignment_id},
+                {"_id": 0, "id": 1}
+            ).to_list(1000)
+            task_ids = [t["id"] for t in tasks]
+            
+            if not task_ids:
+                continue
+            
+            # STEP 1: Deactivate task assignees for removed users
+            if removed_user_ids:
+                result = await task_assignees_collection.update_many(
+                    {
+                        "assignment_id": assignment_id,
+                        "user_id": {"$in": list(removed_user_ids)},
+                        "is_active": True,
+                    },
+                    {
+                        "$set": {
+                            "is_active": False,
+                            "removed_at": now,
+                            "updated_at": now,
+                        }
+                    }
+                )
+                stats["task_assignees_deactivated"] += result.modified_count
+            
+            # STEP 2: Ensure active users have task assignee records
+            for user_id in active_user_ids:
+                for task_id in task_ids:
+                    existing = await task_assignees_collection.find_one({
+                        "task_id": task_id,
+                        "user_id": user_id,
+                    })
+                    
+                    if existing:
+                        if not existing.get("is_active"):
+                            await task_assignees_collection.update_one(
+                                {"id": existing["id"]},
+                                {"$set": {
+                                    "is_active": True,
+                                    "removed_at": None,
+                                    "role": user_role_map.get(user_id, "editor"),
+                                    "updated_at": now,
+                                }}
+                            )
+                            stats["task_assignees_reactivated"] += 1
+                    else:
+                        # Create new task assignee
+                        task_assignee_doc = {
+                            "id": str(uuid.uuid4()),
+                            "task_id": task_id,
+                            "assignment_id": assignment_id,
+                            "organization_id": org_id,
+                            "user_id": user_id,
+                            "role": user_role_map.get(user_id, "editor"),
+                            "is_active": True,
+                            "created_at": now,
+                            "updated_at": now,
+                        }
+                        await task_assignees_collection.insert_one(task_assignee_doc)
+                        stats["task_assignees_created"] += 1
+            
+            stats["assignments_processed"] += 1
+        
+        return stats
 
 
 # Singleton instance

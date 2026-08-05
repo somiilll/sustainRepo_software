@@ -36,20 +36,21 @@ class FrameworkDetailsService:
     # Static Data Methods (organization_framework_details)
     # =========================================================================
 
-    async def get(self, org_id: str, framework: str) -> Optional[Dict[str, Any]]:
-        """Get static framework details for an organization."""
-        return await self._static_collection.find_one(
-            {"org_id": org_id, "framework": framework},
-            {"_id": 0}
-        )
+    async def get(self, org_id: str, framework: str, reporting_period: str = "") -> Optional[Dict[str, Any]]:
+        """Get static framework details for an organization, optionally filtered by reporting period."""
+        query = {"org_id": org_id, "framework": framework}
+        if reporting_period:
+            query["reporting_period"] = reporting_period
+        return await self._static_collection.find_one(query, {"_id": 0})
 
     async def create_or_update_brsr(
         self, 
         org_id: str, 
         details: BRSRDetailsCreate
     ) -> Dict[str, Any]:
-        """Create or update BRSR static details for an organization."""
-        existing = await self.get(org_id, "BRSR")
+        """Create or update BRSR static details for an organization, keyed by reporting_period."""
+        reporting_period = getattr(details, 'reporting_period', '') or ''
+        existing = await self.get(org_id, "BRSR", reporting_period)
         
         details_dict = details.model_dump()
         now = datetime.now(timezone.utc).isoformat()
@@ -59,11 +60,11 @@ class FrameworkDetailsService:
                 **details_dict,
                 "updated_at": now,
             }
-            await self._static_collection.update_one(
-                {"org_id": org_id, "framework": "BRSR"},
-                {"$set": update_data}
-            )
-            return await self.get(org_id, "BRSR")
+            query = {"org_id": org_id, "framework": "BRSR"}
+            if reporting_period:
+                query["reporting_period"] = reporting_period
+            await self._static_collection.update_one(query, {"$set": update_data})
+            return await self.get(org_id, "BRSR", reporting_period)
         else:
             doc = {
                 "id": str(uuid.uuid4()),

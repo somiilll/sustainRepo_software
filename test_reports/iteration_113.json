@@ -1,0 +1,35 @@
+{
+  "summary": "Backend-only testing of Iteration 113 architectural change: immutable approved records + interpretation snapshot. All 5 pytest cases PASS. Verified: (1) editing an approved record with requires_approval does NOT mutate the live record and returns a _pending_edit flag; (2) the created approval request carries edit_type='immutable_edit' with proposed_changes and current_field_values; (3) GET on the record continues to return the approved data while an edit is pending (dashboards unaffected); (4) approving the immutable_edit request applies proposed_changes and increments version; (5) rejecting the immutable_edit request leaves record field_values unchanged; (6) new assignments created via POST /api/esg-records/assignments carry interpretation_snapshot with assignment_level, requires_approval, version, facility_snapshot, and captured_at. One design-vs-implementation mismatch found on rejection path (approval_status flips to 'rejected' although record was never mutated) - reported as minor bug.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/approval-workflows/requests/{id}/reject (immutable_edit path)",
+        "issue": "When an immutable_edit approval request is REJECTED, ApprovalWorkflowService._process_reject still writes status='reopened' and approval_status='rejected' onto the underlying esg_record. Per the new design ('on rejection the record should remain unchanged, no rollback needed') the record's approval_status should stay 'approved' because it was never mutated. Only the approval_request should transition to 'rejected'. field_values themselves are correctly left untouched, but the approval_status/status regression can push a previously-approved record out of dashboards. Suggested fix in approval_workflow/service.py _process_reject: skip the source-entity update when request.entity_snapshot.edit_type == 'immutable_edit'."
+      }
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_immutable_edits_iter113.py",
+    "/app/test_reports/pytest/iter113_immutable.xml"
+  ],
+  "action_items": [
+    "In approval_workflow/service.py::_process_reject, detect entity_snapshot.edit_type == 'immutable_edit' and SKIP writing status='reopened'/approval_status='rejected' onto the ESG record (record was never mutated). Only the approval_request document should move to 'rejected'."
+  ],
+  "critical_code_review_comments": [
+    "esg_records/service.py update_record: the immutable-edit branch returns the current record + _pending_edit but the outer PUT endpoint wraps it as {'record': ...}. That means clients get record._pending_edit inline - fine, but note _pending_edit will also be serialized on any subsequent GET if it were persisted. Currently it's only in the response object (not saved) - good. Consider documenting that _pending_edit is response-only.",
+    "esg_records/service.py::_create_edit_approval_request stores current_approvers derived only from assignment.approver_id / approval_chain. If the assignment lacks both (edge case), the function logs a warning and RETURNS without creating an approval request - yet the outer update_record still returns _pending_edit to the caller, giving the user a false 'pending approval' impression while nothing was actually created. Consider raising an HTTPException instead so callers see a real error.",
+    "approval_workflow/service.py _process_approve for immutable_edit correctly reads entity_snapshot.proposed_changes and increments version, but the version increment path re-reads the record (find_one) after already updating - the version write uses value from before update. Fine because the update itself is a single $set, but there is a race with concurrent updates (no optimistic version check). Consider using an atomic update that includes a version predicate.",
+    "assignment_service_v2.py: interpretation_snapshot.version is hardcoded to 1 on create - correct for now, but the create_or_update_assignment 'existing' path (line ~207+) does NOT update or refresh interpretation_snapshot on version bumps. That is by design (snapshot is immutable historical context) - please add an explicit comment/assertion to that effect so a future refactor doesn't accidentally overwrite it.",
+    "assignment_service_v2.py: interpretation_snapshot embeds facility_snapshot (already stored at top level of the doc as well) - duplicated data. If facility_snapshot is meant to be the immutable version, drop the top-level copy or clearly document one as 'live' and the other as 'snapshot'."
+  ],
+  "updated_files": ["/app/backend/tests/test_immutable_edits_iter113.py"],
+  "success_rate": {"backend": "100% (5/5)", "frontend": "N/A (not requested)"},
+  "test_credentials": "goyalsomil2001@gmail.com / TestUser123! (admin, org 9067d872-8a3a-4ed9-8494-e3ef04952f7c)",
+  "seed_data_creation": "Each test creates a transient environment ESG record via API, directly seeds Mongo with an esg_assignment (requires_approval=True, approver_id=admin) and approval_status='approved' on the record, drives the edit through the API, then deletes assignment/record/approval_requests in a finally block. The interpretation_snapshot test creates and immediately deletes a real v2 assignment (unique TEST_iter113_* subcategory).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Test file: /app/backend/tests/test_immutable_edits_iter113.py. Uses POST /api/esg-records/records/environment (create), PUT /api/esg-records/records/environment/{id} (edit -> triggers immutable path when approval_status=='approved' + assignment.requires_approval=True + not admin_override), POST /api/esg-records/assignments (v2 path with interpretation_snapshot), POST /api/approval-workflows/requests/{id}/approve|reject (patches current_approvers via mongo first). Requires env vars REACT_APP_BACKEND_URL, MONGO_URL, DB_NAME with quotes stripped (.env values contain literal quotes).",
+  "rca of the issue": "Immutable edit path is correctly implemented for CREATE/EDIT->APPROVE flow. Reject path shares generic ESG-record reject handler which unconditionally sets approval_status='rejected' and status='reopened' on the entity - this predates the immutable-edit change and needs a guard for edit_type='immutable_edit'."
+}

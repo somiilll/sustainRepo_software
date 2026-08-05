@@ -3,6 +3,8 @@ Access Control Service for ESG Assignments
 
 Provides permission checking utilities for determining user access to
 questions and records based on assignments.
+
+USES AssignmentResolver for consistent assignment lookup across the codebase.
 """
 
 from typing import Optional, List, Dict, Any, Tuple
@@ -15,6 +17,7 @@ from .inheritance import (
     get_question_hierarchy,
     get_record_hierarchy,
 )
+from .assignment_resolver import assignment_resolver
 
 
 class AccessControlService:
@@ -41,6 +44,31 @@ class AccessControlService:
             {"role": 1}
         )
         return user and user.get("role") in ["admin", "super_admin", "org_admin"]
+
+    async def _is_user_assigned_to_assignment(
+        self,
+        assignment: Dict[str, Any],
+        user_id: str,
+    ) -> bool:
+        """
+        Check if user is assigned to a specific assignment.
+        
+        Uses V2 architecture (esg_assignment_assignees) exclusively.
+        Legacy assigned_to_user_id has been fully deprecated.
+        """
+        assignment_id = assignment.get("id")
+        
+        # Check V2 architecture only
+        v2_assignee = await db.esg_assignment_assignees.find_one({
+            "assignment_id": assignment_id,
+            "user_id": user_id,
+            "$or": [
+                {"removed_at": None},
+                {"removed_at": {"$exists": False}},
+            ],
+        })
+        return v2_assignee is not None
+
     
     async def can_access_question(
         self,
@@ -99,8 +127,10 @@ class AccessControlService:
         if not effective:
             return True, None
         
-        # Check if user is the assigned user
-        if effective.get("assigned_to_user_id") == user_id:
+        # Check if user is the assigned user (V2 architecture first, then legacy)
+        # Use AssignmentResolver for consistent lookup
+        is_assigned = await self._is_user_assigned_to_assignment(effective, user_id)
+        if is_assigned:
             # Check role permission
             if self._has_role_permission(effective.get("role"), required_role):
                 return True, effective
@@ -167,8 +197,9 @@ class AccessControlService:
         if not effective:
             return True, None
         
-        # Check if user is the assigned user
-        if effective.get("assigned_to_user_id") == user_id:
+        # Check if user is the assigned user (V2 architecture first, then legacy)
+        is_assigned = await self._is_user_assigned_to_assignment(effective, user_id)
+        if is_assigned:
             if self._has_role_permission(effective.get("role"), required_role):
                 return True, effective
         
@@ -192,12 +223,15 @@ class AccessControlService:
         if await self.is_admin(user_id, organization_id):
             return []  # Empty means "all" for admins
         
-        # Find all assignments for this user
+        # Get assignment IDs where user is an assignee (V2 architecture)
+        v2_assignment_ids = await self._get_user_assignment_ids(organization_id, user_id)
+        
+        # Find all assignments for this user via V2 architecture
         query = {
             "organization_id": organization_id,
             "entity_type": EntityType.QUESTION.value,
             "reporting_period": reporting_period,
-            "assigned_to_user_id": user_id,
+            "id": {"$in": v2_assignment_ids} if v2_assignment_ids else {"$in": []},
         }
         
         cursor = self._assignments.find(query, {"_id": 0})
@@ -223,8 +257,10 @@ class AccessControlService:
         for assignment in assignments:
             level = assignment.get("assignment_level")
             entity_id = assignment.get("entity_id")
+            entity_type = assignment.get("entity_type")
             
-            if level == AssignmentLevel.QUESTION.value:
+            # Handle question-level assignments (level can be "question" or "organization" for direct question assignments)
+            if level == AssignmentLevel.QUESTION.value or (entity_type == EntityType.QUESTION.value and entity_id):
                 accessible.add(entity_id)
             elif level == AssignmentLevel.SECTION.value:
                 # Get all questions in section
@@ -256,18 +292,32 @@ class AccessControlService:
         if await self.is_admin(user_id, organization_id):
             return []
         
-        query = {
+        # Get assignment IDs where user is an assignee (V2 architecture)
+        v2_assignment_ids = await self._get_user_assignment_ids(organization_id, user_id)
+        
+        # Build query with V2 + legacy support
+        base_query = {
             "organization_id": organization_id,
             "entity_type": EntityType.RECORD.value,
             "reporting_period": reporting_period,
-            "assigned_to_user_id": user_id,
         }
         
+        # Add user filter via V2 architecture only
+        if v2_assignment_ids:
+            base_query["id"] = {"$in": v2_assignment_ids}
+        else:
+            base_query["id"] = {"$in": []}  # No assignments
+        
+        query = base_query
+        
         if facility_id:
-            query["$or"] = [
-                {"facility_id": facility_id},
-                {"facility_id": None},
-            ]
+            query = {
+                **base_query,
+                "$or": [
+                    {"facility_id": facility_id},
+                    {"facility_id": None},
+                ]
+            }
         
         cursor = self._assignments.find(query, {"_id": 0})
         assignments = await cursor.to_list(500)
@@ -318,6 +368,34 @@ class AccessControlService:
         )
         docs = await cursor.to_list(500)
         return [d["question_key"] for d in docs]
+
+    async def _get_user_assignment_ids(
+        self,
+        organization_id: str,
+        user_id: str,
+    ) -> List[str]:
+        """
+        Get assignment IDs where user is an assignee (V2 architecture).
+        
+        Note: organization_id filter is optional as some legacy data may not have it.
+        We verify org match via the assignment itself.
+        
+        TODO: Remove this method after migration when all modules use AssignmentResolver.
+        """
+        # Query without org_id filter (some legacy data missing this field)
+        assignees = await db.esg_assignment_assignees.find(
+            {
+                "user_id": user_id,
+                "$or": [
+                    {"removed_at": None},
+                    {"removed_at": {"$exists": False}},
+                ],
+            },
+            {"_id": 0, "assignment_id": 1}
+        ).to_list(500)
+        
+        return [a["assignment_id"] for a in assignees]
+
     
     def _has_role_permission(
         self,

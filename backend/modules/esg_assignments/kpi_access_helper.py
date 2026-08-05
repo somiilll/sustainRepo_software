@@ -99,7 +99,7 @@ class KPIAccessHelper:
         
         assignment_ids_from_new = [a["assignment_id"] for a in assignee_records]
         
-        # Build query for assignments
+        # Build query for assignments via V2 architecture only
         query = {
             "organization_id": organization_id,
             "category": category,
@@ -109,14 +109,12 @@ class KPIAccessHelper:
         if reporting_period:
             query["reporting_period"] = reporting_period
         
-        # Find assignments where user is in assignees table OR has old assigned_to_user_id
+        # Find assignments where user is in assignees table (V2 only)
         if assignment_ids_from_new:
-            query["$or"] = [
-                {"id": {"$in": assignment_ids_from_new}},
-                {"assigned_to_user_id": user_id},  # Legacy support
-            ]
+            query["id"] = {"$in": assignment_ids_from_new}
         else:
-            query["assigned_to_user_id"] = user_id  # Legacy only
+            # No V2 assignments found for this user
+            return []
         
         cursor = self._assignments.find(query, {"_id": 0})
         return await cursor.to_list(100)
@@ -140,6 +138,10 @@ class KPIAccessHelper:
                     ...
                 },
                 "has_sinks_access": bool,  # Special flag for sinks module access
+                "period_restrictions": {  # Date range restrictions per scope
+                    "scope1": {"start_date": "2026-04-01", "end_date": "2026-06-30"} or None,
+                    ...
+                },
             }
         """
         # Admins always have full access
@@ -149,6 +151,7 @@ class KPIAccessHelper:
                 "allowed_scopes": ["scope1", "scope2", "scope3", "biogenic"],
                 "allowed_subcategories": list(GHG_SUBCATEGORY_TO_SCOPE.keys()),
                 "facility_restrictions": {},
+                "period_restrictions": {},
                 "has_sinks_access": True,
             }
         
@@ -176,6 +179,7 @@ class KPIAccessHelper:
                     "allowed_scopes": ["scope1", "scope2", "scope3", "biogenic"],
                     "allowed_subcategories": list(GHG_SUBCATEGORY_TO_SCOPE.keys()),
                     "facility_restrictions": {},
+                    "period_restrictions": {},
                     "has_sinks_access": True,
                 }
             else:
@@ -185,6 +189,7 @@ class KPIAccessHelper:
                     "allowed_scopes": [],
                     "allowed_subcategories": [],
                     "facility_restrictions": {},
+                    "period_restrictions": {},
                     "has_sinks_access": False,
                 }
         
@@ -192,12 +197,15 @@ class KPIAccessHelper:
         allowed_scopes = set()
         allowed_subcategories = set()
         facility_restrictions = {}
+        period_restrictions = {}
         has_sinks_access = False
         
         for assignment in assignments:
             subcategory = assignment.get("subcategory")
             facility_id = assignment.get("facility_id")
             assignment_level = assignment.get("assignment_level", "organization")
+            start_date = assignment.get("start_date")
+            end_date = assignment.get("end_date")
             
             if not subcategory:
                 # Category-level assignment (no subcategory) = full GHG access
@@ -207,6 +215,7 @@ class KPIAccessHelper:
                 # Clear facility restrictions for these scopes (org-level)
                 for scope in ["scope1", "scope2", "scope3", "biogenic", "sinks"]:
                     facility_restrictions[scope] = None
+                    period_restrictions[scope] = None
                 continue
             
             # Map subcategory to scope(s)
@@ -227,12 +236,35 @@ class KPIAccessHelper:
                 else:
                     # Organization-level = all facilities
                     facility_restrictions[scope] = None
+                
+                # Track period restrictions
+                if start_date or end_date:
+                    period_info = {}
+                    if start_date:
+                        period_info["start_date"] = start_date.isoformat() if hasattr(start_date, 'isoformat') else str(start_date)
+                    if end_date:
+                        period_info["end_date"] = end_date.isoformat() if hasattr(end_date, 'isoformat') else str(end_date)
+                    
+                    # Merge with existing period restrictions (expand the range)
+                    if scope in period_restrictions and period_restrictions[scope]:
+                        existing = period_restrictions[scope]
+                        if period_info.get("start_date") and existing.get("start_date"):
+                            # Use earliest start date
+                            if period_info["start_date"] < existing["start_date"]:
+                                existing["start_date"] = period_info["start_date"]
+                        if period_info.get("end_date") and existing.get("end_date"):
+                            # Use latest end date
+                            if period_info["end_date"] > existing["end_date"]:
+                                existing["end_date"] = period_info["end_date"]
+                    else:
+                        period_restrictions[scope] = period_info
         
         return {
             "has_full_access": False,
             "allowed_scopes": list(allowed_scopes),
             "allowed_subcategories": list(allowed_subcategories),
             "facility_restrictions": facility_restrictions,
+            "period_restrictions": period_restrictions,
             "has_sinks_access": has_sinks_access,
         }
     
@@ -281,30 +313,13 @@ class KPIAccessHelper:
         if reporting_period:
             base_query["reporting_period"] = reporting_period
         
-        # Query for user's assignments (new model OR legacy)
+        # Query for user's assignments via V2 architecture only
         user_query = {**base_query}
         if assignment_ids_from_new:
-            user_query["$or"] = [
-                {"id": {"$in": assignment_ids_from_new}},
-                {"assigned_to_user_id": user_id},
-            ]
+            user_query["id"] = {"$in": assignment_ids_from_new}
         else:
-            user_query["assigned_to_user_id"] = user_id
-        
-        if subcategory:
-            user_query["$and"] = user_query.get("$and", []) + [
-                {"$or": [
-                    {"subcategory": subcategory},
-                    {"subcategory": None},
-                    {"subcategory": {"$exists": False}},
-                ]}
-            ]
-        
-        cursor = self._assignments.find(user_query, {"_id": 0})
-        assignments = await cursor.to_list(100)
-        
-        if not assignments:
-            # Check if ANY assignments exist for this category
+            # No V2 assignments - user has no access through assignments
+            # Check if ANY assignments exist for this org/category
             any_assignments = await self._assignments.count_documents({
                 "organization_id": organization_id,
                 "category": category,
@@ -316,16 +331,40 @@ class KPIAccessHelper:
                 # No assignments at all - full access
                 return {
                     "has_full_access": True,
-                    "allowed_facility_ids": None,
-                    "assignment_level": None,
+                    "allowed_scopes": [],
+                    "allowed_subcategories": [],
+                    "facility_restrictions": {},
+                    "assignments": [],
                 }
             else:
-                # Assignments exist but not for this user - no access
+                # Assignments exist but user has none
                 return {
                     "has_full_access": False,
-                    "allowed_facility_ids": [],
-                    "assignment_level": None,
+                    "allowed_scopes": [],
+                    "allowed_subcategories": [],
+                    "facility_restrictions": {},
+                    "assignments": [],
+                    "reason": "no_assignment",
                 }
+        
+        if subcategory:
+            user_query["$or"] = [
+                {"subcategory": subcategory},
+                {"subcategory": None},
+                {"subcategory": {"$exists": False}},
+            ]
+        
+        cursor = self._assignments.find(user_query, {"_id": 0})
+        assignments = await cursor.to_list(100)
+        
+        if not assignments:
+            # User has V2 assignments but none match this specific query
+            # This can happen with subcategory filtering
+            return {
+                "has_full_access": False,
+                "allowed_facility_ids": [],
+                "assignment_level": None,
+            }
         
         # Process assignments
         allowed_facilities = set()

@@ -58,9 +58,12 @@ export default function Emissions() {
     loading: kpiAccessLoading,
     canAccessScope: kpiCanAccessScope,
     canAccessFacility: kpiCanAccessFacility,
+    canAccessPeriod: kpiCanAccessPeriod,
+    getPeriodRestrictions: kpiGetPeriodRestrictions,
     filterFacilitiesByScope,
     hasFullAccess: hasFullKPIAccess,
     allowedScopes: kpiAllowedScopes,
+    periodRestrictions: kpiPeriodRestrictions,
   } = useGHGAccess();
   
   // ============================================================================
@@ -71,12 +74,25 @@ export default function Emissions() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [selectedEmissionHistory, setSelectedEmissionHistory] = useState([]);
+  // OCR Prefill Data - from AI Invoice Extractor workflow
+  const [ocrPrefillData, setOcrPrefillData] = useState(null);
   // Drive the active scope from the route so /ghg/scope1, /ghg/scope2, etc.
   // each show only their own scope. Clicking a tab still works (in-page nav).
   const location = useLocation();
   const navigate = useNavigate();
   const pathScope = (location.pathname.match(/\/ghg\/(scope[123]|biogenic)/) || [])[1] || null;
   const [activeScope, setActiveScope] = useState(pathScope || 'scope1');
+  
+  // Handle OCR prefill from location state (when navigating from OCR Invoice page)
+  useEffect(() => {
+    if (location.state?.openAddForm && location.state?.ocrPrefill) {
+      setOcrPrefillData(location.state.ocrPrefill);
+      setDialogOpen(true);
+      // Clear the state to prevent re-triggering on refresh
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state, navigate, location.pathname]);
+  
   useEffect(() => {
     if (pathScope && pathScope !== activeScope) setActiveScope(pathScope);
   }, [pathScope]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -2384,6 +2400,63 @@ export default function Emissions() {
     }
   };
 
+  // Bulk delete state and handler
+  const [bulkDeleteIds, setBulkDeleteIds] = useState([]);
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
+
+  const openBulkDeleteConfirm = (ids) => {
+    setBulkDeleteIds(ids);
+    setBulkDeleteConfirmOpen(true);
+  };
+
+  const handleBulkDelete = async () => {
+    if (bulkDeleteIds.length === 0) return;
+    
+    try {
+      // Track results for each delete request
+      let deletedCount = 0;
+      let queuedForApprovalCount = 0;
+      let failedCount = 0;
+      
+      // Process each delete individually to handle approval workflow responses
+      for (const id of bulkDeleteIds) {
+        try {
+          const response = await axios.delete(`${API}/emissions/${id}`, { headers: getAuthHeader() });
+          // Check if queued for approval vs direct delete
+          if (response.data?.message?.toLowerCase().includes('submitted for approval')) {
+            queuedForApprovalCount++;
+          } else {
+            deletedCount++;
+          }
+        } catch (error) {
+          // 403 means blocked - not authorized or requires approval and blocked
+          if (error.response?.status === 403) {
+            failedCount++;
+          } else {
+            failedCount++;
+          }
+        }
+      }
+      
+      // Show appropriate toast messages based on results
+      if (deletedCount > 0) {
+        toast.success(`${deletedCount} record(s) deleted successfully`);
+      }
+      if (queuedForApprovalCount > 0) {
+        toast.info(`${queuedForApprovalCount} record(s) submitted for approval`);
+      }
+      if (failedCount > 0) {
+        toast.error(`${failedCount} record(s) could not be deleted`);
+      }
+      
+      setBulkDeleteConfirmOpen(false);
+      setBulkDeleteIds([]);
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Bulk delete failed');
+    }
+  };
+
   const openDeleteConfirm = (emission) => {
     setEmissionToDelete(emission);
     setDeleteConfirmOpen(true);
@@ -3092,13 +3165,51 @@ export default function Emissions() {
                   configLabels={configLabels}
                   organization={organization}
                   onFormChange={markFormDirty}
-                  onSuccess={() => {
+                  kpiAccessInfo={kpiAccessInfo}
+                  kpiCanAccessScope={kpiCanAccessScope}
+                  kpiCanAccessPeriod={kpiCanAccessPeriod}
+                  kpiGetPeriodRestrictions={kpiGetPeriodRestrictions}
+                  kpiAllowedScopes={kpiAllowedScopes}
+                  kpiPeriodRestrictions={kpiPeriodRestrictions}
+                  filterFacilitiesByScope={filterFacilitiesByScope}
+                  hasFullKPIAccess={hasFullKPIAccess}
+                  ocrPrefillData={ocrPrefillData}
+                  onSuccess={async () => {
+                    // Finalize OCR import if this was an OCR-assisted entry
+                    console.log('[OCR Debug] onSuccess called, ocrPrefillData:', ocrPrefillData);
+                    
+                    if (ocrPrefillData?.line_item_id) {
+                      console.log('[OCR Debug] Calling finalize-import for line_item_id:', ocrPrefillData.line_item_id);
+                      try {
+                        const response = await axios.post(
+                          `${process.env.REACT_APP_BACKEND_URL}/api/ocr-invoice/finalize-import`,
+                          {
+                            line_item_id: ocrPrefillData.line_item_id,
+                            emission_record_ids: [] // Backend will find emissions by invoice number
+                          },
+                          { headers: getAuthHeader() }
+                        );
+                        console.log('[OCR Debug] finalize-import response:', response.data);
+                        toast.success('Invoice attached as evidence');
+                      } catch (err) {
+                        console.error('[OCR Debug] Failed to finalize OCR import:', err);
+                        console.error('[OCR Debug] Error response:', err.response?.data);
+                        // Don't show error toast - the emission was still saved successfully
+                      }
+                    } else {
+                      console.log('[OCR Debug] No line_item_id in ocrPrefillData, skipping finalize');
+                    }
+                    
                     setDialogOpen(false);
                     setIsFormDirty(false);
+                    setOcrPrefillData(null);
                     fetchData();
                     toast.success('Emissions saved successfully');
                   }}
-                  onCancel={() => handleDialogChange(false)}
+                  onCancel={() => {
+                    setOcrPrefillData(null);
+                    handleDialogChange(false);
+                  }}
                 />
               ) : (
                 <EmissionEditForm
@@ -3156,6 +3267,15 @@ export default function Emissions() {
                   hasScope3Access={hasScope3Access}
                   centralizedUnits={centralizedUnits}
                   fuelDatabase={fuelDatabase}
+                  // ---------- KPI access control ----------
+                  kpiAccessInfo={kpiAccessInfo}
+                  kpiCanAccessScope={kpiCanAccessScope}
+                  kpiCanAccessPeriod={kpiCanAccessPeriod}
+                  kpiGetPeriodRestrictions={kpiGetPeriodRestrictions}
+                  kpiAllowedScopes={kpiAllowedScopes}
+                  kpiPeriodRestrictions={kpiPeriodRestrictions}
+                  filterFacilitiesByScope={filterFacilitiesByScope}
+                  hasFullKPIAccess={hasFullKPIAccess}
                   // ---------- computed/derived ----------
                   selectedFuel={selectedFuel}
                   activeCategoryModule={activeCategoryModule}
@@ -3289,6 +3409,7 @@ export default function Emissions() {
             handleEdit={handleEdit}
             fetchHistory={fetchHistory}
             openDeleteConfirm={openDeleteConfirm}
+            onBulkDelete={openBulkDeleteConfirm}
             showFilters={showFilters}
             filterFacility={filterFacility}
             filterDateRange={filterDateRange}
@@ -3321,6 +3442,31 @@ export default function Emissions() {
                     className="bg-red-600 hover:bg-red-700"
                   >
                     Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            
+            {/* Bulk Delete Confirmation Dialog */}
+            <AlertDialog open={bulkDeleteConfirmOpen} onOpenChange={setBulkDeleteConfirmOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Multiple Emission Records</AlertDialogTitle>
+                  <AlertDialogDescription asChild>
+                    <div>
+                      <span>Are you sure you want to delete <strong>{bulkDeleteIds.length}</strong> emission record(s)? This action cannot be undone.</span>
+                    </div>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel onClick={() => setBulkDeleteConfirmOpen(false)}>
+                    Cancel
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleBulkDelete}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    Delete {bulkDeleteIds.length} Record(s)
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>

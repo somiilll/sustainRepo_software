@@ -148,6 +148,10 @@ export default function EmissionEditForm(props) {
 
     // ---------- dead-reference fallback (never invoked at runtime) ----------
     getQuantityUnitFromEFUnit,
+    
+    // Optional props for approval mode
+    hideSubmitButton = false,
+    isApprovalMode = false,
   } = props;
 
   // ─────────────────────────────────────────────────────────────────────
@@ -1862,12 +1866,14 @@ export default function EmissionEditForm(props) {
                 />
 
                 {/* Submit Buttons - Extracted Component */}
-                <SubmitButtonSection
-                  editingEmission={editingEmission}
-                  isSaving={isSaving}
-                  isCalculating={isCalculating}
-                  handleDialogChange={handleDialogChange}
-                />
+                {!hideSubmitButton && (
+                  <SubmitButtonSection
+                    editingEmission={editingEmission}
+                    isSaving={isSaving}
+                    isCalculating={isCalculating}
+                    handleDialogChange={handleDialogChange}
+                  />
+                )}
               </form>
   );
 }

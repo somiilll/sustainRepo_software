@@ -1,0 +1,35 @@
+{
+  "summary": "Tested logo/attachment relative-path storage fix. Uploads correctly return relative paths and initial save works. Display via getFullLogoUrl works correctly. However, discovered a regression bug in OrganizationDetails.js where re-saving without re-uploading logo converts the stored relative path back to an absolute URL, defeating the fix.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "OrganizationDetails.js",
+        "issue": "In fetchOrganization (lines 334-338), a relative logo URL from DB is converted to an ABSOLUTE URL (BACKEND_URL prepended) and stored in formData.logo. When the user opens Edit and clicks Save WITHOUT re-uploading a new logo, handleSubmit (line 615) sends this absolute URL back to /api/organizations/my PUT, storing an absolute URL in the DB. This exactly reproduces the original bug (logo disappears when deployment domain changes).",
+        "selector": "edit-org-btn -> submit",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Fix OrganizationDetails.js fetchOrganization: DO NOT convert relative logo path to absolute URL when populating formData. Keep formData.logo as the relative path exactly as stored in DB.",
+    "Update logo preview img in edit mode (line 795) to use getFullLogoUrl(formData.logo) instead of formData.logo directly, so relative paths render correctly regardless of frontend/backend origin.",
+    "After the fix, re-test the Edit-without-reupload-then-Save flow to confirm PUT body logo field remains relative (/api/files/{id}/view)."
+  ],
+  "critical_code_review_comments": [
+    "OrganizationDetails.js lines 334-338 introduce an asymmetry: fetch converts to absolute, upload stores relative, save sends whatever is in formData. This causes silent data corruption on subsequent saves.",
+    "OrganizationManagement.js (SuperAdmin) correctly uses formData.logo = org.logo directly without conversion; display uses getFullLogoUrl helper. This is the correct pattern.",
+    "invoice_history upload (OrganizationManagement.js line 1259) stores response.data.url (relative) directly - correct."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A", "frontend": "75%"},
+  "test_credentials": "goyalsomil2001@gmail.com / TestUser123! (ORG1 admin)",
+  "seed_data_creation": "Uploaded a small test PNG logo for ORG1 (file_id 6d21570a-c1cf-4239-9f0e-3a2a6bd116cf). Real logo may need to be re-uploaded by user.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Verified: (1) Upload API POST /api/upload/evidence returns relative path /api/files/{id} (200 OK). (2) After fresh upload, PUT /api/organizations/my body.logo = /api/files/{id}/view (relative) - CORRECT. (3) Display img resolves via getFullLogoUrl(BACKEND_URL + relative) and loads with naturalWidth>0 - CORRECT. (4) BUG: Opening Edit (without re-upload) and clicking Save sends ABSOLUTE URL back - this is the regression. Root cause: fetchOrganization lines 334-338 convert relative->absolute in formData.logo. SuperAdmin org creation flow (OrganizationManagement.js) does NOT have this bug.",
+  "rca of the issue": "OrganizationDetails.js.fetchOrganization contains legacy code (lines 334-338) that prepends BACKEND_URL to non-http logo paths before storing in formData. This was likely leftover from before the relative-path fix. Since formData.logo is what handleSubmit sends on save (line 615), any edit-and-save operation without a fresh upload will overwrite the relative path in DB with an absolute URL. Reproduction: 1) Login as admin. 2) Upload logo (stored as relative). 3) Click Edit again. 4) Click Save without changing anything. 5) DB logo field is now absolute URL. Mitigation: remove lines 334-338 conversion; use getFullLogoUrl(formData.logo) for the edit-mode preview img at line 795."
+}

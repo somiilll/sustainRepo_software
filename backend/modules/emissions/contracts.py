@@ -185,6 +185,12 @@ class EmissionRecordResponse(BaseModel):
     edit_history: Optional[List[Dict[str, Any]]] = None
     version_history: Optional[List[Dict[str, Any]]] = None
     version: Optional[int] = None
+    
+    # Pending proposal indicators (for UI badges)
+    is_my_pending_proposal: Optional[bool] = None
+    has_pending_proposal: Optional[bool] = None
+    pending_proposal_by: Optional[str] = None
+    pending_proposal_status: Optional[str] = None
 
 
 class EmissionHistoryResponse(BaseModel):

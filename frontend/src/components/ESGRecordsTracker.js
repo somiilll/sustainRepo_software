@@ -21,6 +21,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { useDateFormatter } from '../hooks/useDateFormatter';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -155,6 +156,7 @@ export default function ESGRecordsTracker({
   hideReportingPeriodSelector = false
 }) {
   const { token, user } = useAuth();
+  const { formatDateTime } = useDateFormatter();
   // Role check - only admins can assign and see org-wide data
   const isUserAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   
@@ -638,6 +640,7 @@ export default function ESGRecordsTracker({
               repeat_overdue: true,
             } : null,
             requires_approval: assignForm.requires_approval,
+            approver_id: assignForm.requires_approval && !multiLevelApprovalEnabled ? assignForm.approver_id : null,
             approval_chain: assignForm.requires_approval && multiLevelApprovalEnabled ? assignForm.approval_chain : [],
           },
           { headers }
@@ -742,10 +745,15 @@ export default function ESGRecordsTracker({
           return;
         }
         
-        // Build facility_assignments object: { facility_id: [user_ids], ... }
+        // Build facility_assignments object with full details including approval config
+        // { facility_id: { user_ids: [...], requires_approval: bool, approver_id: string }, ... }
         const facilityAssignmentsMap = {};
         for (const [facilityId, fa] of facilityAssignments) {
-          facilityAssignmentsMap[facilityId] = fa.user_ids;
+          facilityAssignmentsMap[facilityId] = {
+            user_ids: fa.user_ids,
+            requires_approval: fa.requires_approval || false,
+            approver_id: fa.approver_id || null,
+          };
         }
         
         await axios.post(
@@ -772,6 +780,7 @@ export default function ESGRecordsTracker({
               repeat_overdue: true,
             } : null,
             requires_approval: wizardForm.requires_approval,
+            approver_id: wizardForm.requires_approval && !multiLevelApprovalEnabled ? wizardForm.approver_id : null,
             approval_chain: wizardForm.requires_approval && multiLevelApprovalEnabled ? wizardForm.approval_chain : [],
           },
           { headers }
@@ -870,6 +879,8 @@ export default function ESGRecordsTracker({
   };
 
   // Get status badge - now uses operational status
+  // When data is submitted and awaiting approval, show BOTH "Completed" AND "Awaiting Approval"
+  // When rejected, show "Pending" (needs resubmission) AND "Rejected"
   const getStatusBadge = (status, approvalStatus = null) => {
     const labels = {
       pending: 'Pending',
@@ -878,6 +889,11 @@ export default function ESGRecordsTracker({
       reopened: 'Reopened',
       overdue: 'Overdue',
       skipped: 'Skipped',
+      backfill_pending: 'Backfill Pending',
+      // Special handling: pending_approval means data IS submitted, show as Completed
+      pending_approval: 'Completed',
+      // Special handling: rejected means data was rejected, needs resubmission - show as Pending
+      rejected: 'Pending',
     };
     
     const approvalLabels = {
@@ -886,14 +902,37 @@ export default function ESGRecordsTracker({
       rejected: 'Rejected',
     };
     
+    // Determine the effective status color
+    // If pending_approval, use completed color for the status badge
+    // If rejected, use pending color (needs resubmission)
+    let effectiveStatusColor;
+    if (status === 'pending_approval') {
+      effectiveStatusColor = STATUS_COLORS.completed;
+    } else if (status === 'rejected') {
+      effectiveStatusColor = STATUS_COLORS.pending;
+    } else {
+      effectiveStatusColor = STATUS_COLORS[status] || STATUS_COLORS.pending;
+    }
+    
+    // For pending_approval, approvalStatus should also be pending_approval
+    // For rejected, show the rejected badge
+    let effectiveApprovalStatus;
+    if (status === 'pending_approval') {
+      effectiveApprovalStatus = 'pending_approval';
+    } else if (status === 'rejected') {
+      effectiveApprovalStatus = 'rejected';
+    } else {
+      effectiveApprovalStatus = approvalStatus;
+    }
+    
     return (
       <div className="flex items-center gap-1.5 flex-wrap">
-        <Badge className={STATUS_COLORS[status] || STATUS_COLORS.pending}>
+        <Badge className={effectiveStatusColor}>
           {labels[status] || status}
         </Badge>
-        {approvalStatus && approvalStatus !== 'not_required' && (
-          <Badge className={APPROVAL_STATUS_COLORS[approvalStatus] || ''}>
-            {approvalLabels[approvalStatus] || approvalStatus}
+        {effectiveApprovalStatus && effectiveApprovalStatus !== 'not_required' && (
+          <Badge className={APPROVAL_STATUS_COLORS[effectiveApprovalStatus] || ''}>
+            {approvalLabels[effectiveApprovalStatus] || effectiveApprovalStatus}
           </Badge>
         )}
       </div>
@@ -1343,15 +1382,7 @@ export default function ESGRecordsTracker({
                       {/* Last Updated with date and time */}
                       {lastUpdated ? (
                         <span className="text-xs text-text-muted">
-                          {new Date(lastUpdated).toLocaleDateString('en-IN', { 
-                            day: '2-digit', 
-                            month: 'short', 
-                            year: 'numeric' 
-                          })}, {new Date(lastUpdated).toLocaleTimeString('en-IN', {
-                            hour: 'numeric',
-                            minute: '2-digit',
-                            hour12: true
-                          })}
+                          {formatDateTime(lastUpdated)}
                         </span>
                       ) : (
                         <span className="text-xs text-text-muted">-</span>
@@ -1531,15 +1562,7 @@ export default function ESGRecordsTracker({
                           {/* Last Updated with date and time */}
                           {lastUpdated ? (
                             <span className="text-xs text-text-muted">
-                              {new Date(lastUpdated).toLocaleDateString('en-IN', { 
-                                day: '2-digit', 
-                                month: 'short', 
-                                year: 'numeric' 
-                              })}, {new Date(lastUpdated).toLocaleTimeString('en-IN', {
-                                hour: 'numeric',
-                                minute: '2-digit',
-                                hour12: true
-                              })}
+                              {formatDateTime(lastUpdated)}
                             </span>
                           ) : (
                             <span className="text-xs text-text-muted">-</span>
@@ -1679,15 +1702,7 @@ export default function ESGRecordsTracker({
                               {/* Last Updated with date and time */}
                               {subsubLastUpdated ? (
                                 <span className="text-xs text-text-muted">
-                                  {new Date(subsubLastUpdated).toLocaleDateString('en-IN', { 
-                                    day: '2-digit', 
-                                    month: 'short', 
-                                    year: 'numeric' 
-                                  })}, {new Date(subsubLastUpdated).toLocaleTimeString('en-IN', {
-                                    hour: 'numeric',
-                                    minute: '2-digit',
-                                    hour12: true
-                                  })}
+                                  {formatDateTime(subsubLastUpdated)}
                                 </span>
                               ) : (
                                 <span className="text-xs text-text-muted">-</span>

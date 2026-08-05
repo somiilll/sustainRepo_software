@@ -1,0 +1,35 @@
+{
+  "summary": "Verified both bug fixes for GHG data in Supplier Ranking and admin user_type correction. All 4 targeted test items PASSED.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "verified_flows": [
+    "Supplier Ranking > Detailed Table: GHG column shows Supplier Test2=99.4 and Supplier Test=89.6 (expected values match)",
+    "Supplier Ranking API /api/supplier-assessment/rankings returns averages.ghg=94.5 (non-zero) and emissions_by_scope.scope1=109.3",
+    "Overview tab > Top 5 Supplier Comparison radar chart renders with non-zero GHG axis (visible in screenshot)",
+    "Admin sidebar under Supplier Assessment shows only: Suppliers, ESG Questionnaire, GHG Emissions, Ranking (no supplier-only 'Supplier'/'ESG'/'GHG' items)",
+    "Admin navigating to /supplier-assessment/suppliers shows the Suppliers list (3 suppliers: Supplier Test 3, Supplier Test2, Supplier Test). 'No Active Assessment' message NOT shown."
+  ],
+  "api_response_captured": {
+    "endpoint": "/api/supplier-assessment/rankings",
+    "averages": {"esg": 65.5, "environment": 91.7, "social": 50, "governance": 0, "ghg": 94.5},
+    "emissions_by_scope": {"scope1": 109.3, "scope2": 0, "total": 109.3},
+    "rankings": [
+      {"supplier": "Supplier Test2", "overall": 89, "ghg": 99.4, "esg": 78.6},
+      {"supplier": "Supplier Test 3", "overall": 73.2, "ghg": null, "esg": 73.2},
+      {"supplier": "Supplier Test", "overall": 67.1, "ghg": 89.6, "esg": 44.6}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "GHG query fix ($or on organization_id OR supplier_relationship_id, plus scope1/scope_1 format normalization) is working correctly.",
+    "Admin user_type fix (null instead of 'supplier') restores full admin sidebar. Sidebar supplierOnly gating in Sidebar.js line 44-46 correctly hides supplier-portal-only entries."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A", "frontend": "100%"},
+  "test_credentials": "goyalsomil2001@gmail.com / TestUser123! (admin)",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Both fixes confirmed working. Note: Supplier Test 3 still shows GHG='-' (null) in rankings — this is expected per API (no GHG data for that supplier). Only cosmetic recharts console warnings remain from prior iteration (non-blocking)."
+}

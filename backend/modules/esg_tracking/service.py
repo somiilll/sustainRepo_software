@@ -43,7 +43,7 @@ class TrackingService:
     
     def __init__(self):
         self._configs = db["esg_question_configs"]
-        self._responses = db["esg_responses"]
+        self._responses = db["organization_esg_responses"]
         self._assignments = db["esg_assignments"]
         self._approval_requests = db["approval_requests"]
         self._users = db["users"]
@@ -221,8 +221,10 @@ class TrackingService:
                 response = response_map.get(q_key)
                 assignment = assignment_map.get(q_key)
                 
-                # Check completion
-                is_completed = response is not None and response.get("value") is not None
+                # Check completion - value must be non-empty (not None, not "", not [], not {})
+                response_value = response.get("value") if response else None
+                value_is_empty = response_value is None or response_value == "" or response_value == [] or response_value == {}
+                is_completed = response is not None and not value_is_empty
                 if is_completed:
                     completed += 1
                     
@@ -309,11 +311,13 @@ class TrackingService:
         domain: TrackingDomain,
         framework_id: str,
         reporting_period: str,
+        filter_by_materiality: bool = False,
     ) -> List[SectionSummary]:
         """
         Get all sections within a framework with their tracking status.
         
         Sections are grouped by brsr_section, topic, or principle depending on framework.
+        If filter_by_materiality=True (for GRI), only returns sections for material topics.
         """
         domain_section_map = {
             TrackingDomain.ENVIRONMENT: "environment",
@@ -357,15 +361,50 @@ class TrackingService:
         
         configs = await self._configs.find(config_query, {"_id": 0}).to_list(5000)
         
-        # Get responses
+        # Filter by materiality for GRI
+        if filter_by_materiality and framework_id.upper() == "GRI":
+            from modules.materiality.service import materiality_service
+            material_codes = await materiality_service.get_material_topic_codes_for_org(organization_id)
+            if material_codes:
+                # Filter configs - disclosure_id format is "302-1", topic code is first part
+                configs = [
+                    c for c in configs
+                    if c.get("disclosure_id", "").split("-")[0] in material_codes
+                ]
+        
+        # Get responses from unified collection (flat storage — one doc per question_key)
         responses = await self._responses.find(
             {
-                "organization_id": organization_id,
+                "$or": [
+                    {"org_id": organization_id},
+                    {"organization_id": organization_id},
+                ],
                 "reporting_year": reporting_period,
             },
-            {"_id": 0, "question_key": 1, "updated_at": 1, "value": 1}
+            {"_id": 0, "question_key": 1, "updated_at": 1, "value": 1, "approval_status": 1, "status": 1, "sub_responses": 1}
         ).to_list(5000)
-        response_map = {r["question_key"]: r for r in responses}
+        
+        # Build response_map handling both flat docs and legacy nested sub_responses
+        response_map = {}
+        for r in responses:
+            q_key = r.get("question_key")
+            if not q_key:
+                continue
+            # Direct flat value
+            if r.get("value") is not None:
+                response_map[q_key] = r
+            # Legacy nested sub_responses (backward compat)
+            if "sub_responses" in r and r["sub_responses"]:
+                for sub_key, sub_data in r["sub_responses"].items():
+                    full_key = f"{q_key}_{sub_key}"
+                    if full_key not in response_map and sub_data.get("value") is not None:
+                        response_map[full_key] = {
+                            "question_key": full_key,
+                            "value": sub_data.get("value"),
+                            "status": sub_data.get("status"),
+                            "approval_status": sub_data.get("approval_status"),
+                            "updated_at": sub_data.get("updated_at") or r.get("updated_at"),
+                        }
         
         # Get assignments
         assignments = await self._assignments.find(
@@ -413,8 +452,10 @@ class TrackingService:
                 response = response_map.get(q_key)
                 assignment = assignment_map.get(q_key)
                 
-                # Completion
-                is_completed = response is not None and response.get("value") is not None
+                # Completion - value must be non-empty
+                response_value = response.get("value") if response else None
+                value_is_empty = response_value is None or response_value == "" or response_value == [] or response_value == {}
+                is_completed = response is not None and not value_is_empty
                 if is_completed:
                     completed += 1
                     
@@ -441,9 +482,15 @@ class TrackingService:
                 # Assignment
                 if assignment:
                     assigned += 1
-                    user_id = assignment.get("assigned_to_user_id")
-                    if user_id:
-                        assigned_user_ids.add(user_id)
+                    # Get assignees via V2 architecture
+                    assignment_id = assignment.get("id")
+                    if assignment_id:
+                        assignees = await db.esg_assignment_assignees.find(
+                            {"assignment_id": assignment_id, "removed_at": None},
+                            {"_id": 0, "user_id": 1}
+                        ).to_list(100)
+                        for assignee in assignees:
+                            assigned_user_ids.add(assignee["user_id"])
                     
                     due_date = assignment.get("due_date")
                     if due_date:
@@ -553,20 +600,31 @@ class TrackingService:
                 "$and": [
                     {"$or": [
                         {"brsr_principle": section_id},
+                        {"brsr_principle": {"$regex": f"^{section_id}$", "$options": "i"}},
                         {"brsr_section": section_id},
+                        {"brsr_section": {"$regex": f"^{section_id}$", "$options": "i"}},
                         {"section": section_id},
                         {"topic": section_id},
                     ]}
                 ]
             }
         elif framework_id.upper() == "GRI":
+            # GRI: Match by disclosure_id OR section OR topic (case-insensitive)
             config_query = {
                 "section": section_filter,
                 "$or": [
                     {"framework": {"$regex": f"^{framework_id}$", "$options": "i"}},
                     {"frameworks": {"$regex": f"^{framework_id}$", "$options": "i"}},
                 ],
-                "disclosure_id": section_id,
+                "$and": [
+                    {"$or": [
+                        {"disclosure_id": section_id},
+                        {"disclosure_id": {"$regex": f"^{section_id}$", "$options": "i"}},
+                        {"topic": section_id},
+                        {"topic": {"$regex": f"^{section_id}$", "$options": "i"}},
+                        {"section": section_id},
+                    ]}
+                ]
             }
         else:
             config_query = {
@@ -583,15 +641,73 @@ class TrackingService:
         
         configs = await self._configs.find(config_query, {"_id": 0}).to_list(500)
         
-        # Get responses
-        responses = await self._responses.find(
+        # Get responses from organization_esg_responses (unified collection, flat storage)
+        raw_responses = await self._responses.find(
             {
-                "organization_id": organization_id,
+                "$or": [
+                    {"org_id": organization_id},
+                    {"organization_id": organization_id},
+                ],
                 "reporting_year": reporting_period,
             },
             {"_id": 0}
         ).to_list(5000)
-        response_map = {r["question_key"]: r for r in responses}
+        
+        # Combine responses (legacy query no longer needed — $or handles both field names)
+        all_responses = raw_responses
+        
+        # Build response map, handling both flat and nested structures
+        response_map = {}
+        for r in all_responses:
+            q_key = r.get("question_key")
+            if not q_key:
+                continue
+            
+            # Handle nested sub_responses structure (Option B)
+            if "sub_responses" in r and r["sub_responses"]:
+                for sub_key, sub_data in r["sub_responses"].items():
+                    full_key = f"{q_key}_{sub_key}"
+                    response_map[full_key] = {
+                        "question_key": full_key,
+                        "value": sub_data.get("value"),
+                        "status": sub_data.get("status"),
+                        "approval_status": sub_data.get("approval_status"),
+                        "updated_at": sub_data.get("updated_at"),
+                        "submitted_at": sub_data.get("submitted_at"),
+                        "submitted_by": sub_data.get("submitted_by"),
+                        "approved_at": sub_data.get("approved_at"),
+                        "rejection_reason": sub_data.get("rejection_reason"),
+                    }
+            
+            # Also include direct question responses
+            if r.get("value") is not None or r.get("responses"):
+                # Normalize approval_status
+                effective_approval_status = r.get("approval_status")
+                if not effective_approval_status:
+                    status_val = r.get("status")
+                    if status_val == "approved" or r.get("approved_at"):
+                        effective_approval_status = "approved"
+                    elif status_val == "pending_approval":
+                        effective_approval_status = "pending_approval"
+                    elif status_val == "rejected":
+                        effective_approval_status = "rejected"
+                
+                response_map[q_key] = {
+                    **r,
+                    "approval_status": effective_approval_status,
+                }
+                
+                # Also flatten any responses dict (legacy section-level format)
+                if "responses" in r:
+                    for resp_key, resp_val in r["responses"].items():
+                        if resp_key not in response_map:
+                            response_map[resp_key] = {
+                                "question_key": resp_key,
+                                "value": resp_val,
+                                "status": r.get("status"),
+                                "approval_status": effective_approval_status,
+                                "updated_at": r.get("updated_at"),
+                            }
         
         # Get assignments and aggregate by entity_id for multi-assignee support
         raw_assignments = await self._assignments.find(
@@ -621,13 +737,8 @@ class TrackingService:
                 assignees_by_assignment[aid] = []
             assignees_by_assignment[aid].append(assignee)
         
-        # Get user details for all assignees
+        # Get user details for all assignees (V2 only)
         all_user_ids = list(set([a["user_id"] for a in raw_assignees]))
-        # Also include legacy assigned_to_user_id
-        for a in raw_assignments:
-            if a.get("assigned_to_user_id"):
-                all_user_ids.append(a["assigned_to_user_id"])
-        all_user_ids = list(set(all_user_ids))
         
         users_cursor = db.users.find(
             {"id": {"$in": all_user_ids}},
@@ -648,7 +759,7 @@ class TrackingService:
             
             assignment_id = a.get("id")
             
-            # First, try to get assignees from the new esg_assignment_assignees table
+            # Get assignees from the V2 esg_assignment_assignees table
             if assignment_id and assignment_id in assignees_by_assignment:
                 for assignee in assignees_by_assignment[assignment_id]:
                     user = user_map_local.get(assignee["user_id"])
@@ -662,18 +773,6 @@ class TrackingService:
                     existing_ids = [x["user_id"] for x in assignment_map[entity_id]["assignees"]]
                     if assignee_entry["user_id"] not in existing_ids:
                         assignment_map[entity_id]["assignees"].append(assignee_entry)
-            
-            # Fallback: use legacy assigned_to_user_id if no assignees found
-            if not assignment_map[entity_id]["assignees"] and a.get("assigned_to_user_id"):
-                user = user_map_local.get(a["assigned_to_user_id"])
-                assignee_entry = {
-                    "user_id": a["assigned_to_user_id"],
-                    "user_name": user.get("full_name") or user.get("name") if user else None,
-                    "user_email": user.get("email") if user else None,
-                    "role": a.get("role", "editor"),
-                    "assignment_id": assignment_id,
-                }
-                assignment_map[entity_id]["assignees"].append(assignee_entry)
         
         # Set primary assignee name for backward compatibility
         for entity_id, asgn in assignment_map.items():
@@ -706,25 +805,82 @@ class TrackingService:
         stale = 0
         last_updated = None
         assigned_user_ids = set()
+        approver_user_ids = set()  # Track approver IDs for name lookup
         
         for config in configs:
             q_key = config.get("question_key")
             sub_questions = config.get("sub_questions", [])
             config_domain = config.get("section", "")  # The actual ESG domain from config
             
+            # For GRI parent questions with sub_questions, compute aggregated status from subquestion responses
+            aggregated_response = None
+            if framework_id.lower() == "gri" and sub_questions and len(sub_questions) > 0:
+                subpart_responses = []
+                for sub_q in sub_questions:
+                    sub_key = sub_q.get("sub_key", "")
+                    full_sub_key = f"{q_key}_{sub_key}"
+                    sub_resp = response_map.get(full_sub_key)
+                    subpart_responses.append({
+                        "question_key": full_sub_key,
+                        "value": sub_resp.get("value") if sub_resp else None,
+                        "approval_status": sub_resp.get("approval_status") if sub_resp else None,
+                        "rejection_reason": sub_resp.get("rejection_reason") if sub_resp else None,
+                    })
+                
+                if subpart_responses:
+                    # Compute aggregated status
+                    subparts_filled = sum(1 for sp in subpart_responses if sp.get("value") is not None and sp.get("value") != "")
+                    total_subparts = len(subpart_responses)
+                    all_have_value = subparts_filled == total_subparts
+                    all_approved = all(sp.get("approval_status") == "approved" for sp in subpart_responses)
+                    any_rejected = any(sp.get("approval_status") == "rejected" for sp in subpart_responses)
+                    any_pending = any(sp.get("approval_status") == "pending_approval" for sp in subpart_responses)
+                    
+                    # Determine aggregated approval status
+                    if any_rejected:
+                        agg_approval_status = "rejected"
+                    elif all_approved and all_have_value:
+                        agg_approval_status = "approved"
+                    elif any_pending or (all_have_value and not all_approved):
+                        agg_approval_status = "pending_approval"
+                    else:
+                        agg_approval_status = None
+                    
+                    # Build aggregated response
+                    # CRITICAL FIX: Only mark as "completed" (value not None) when ALL subparts have values
+                    # If partially filled, set value to None so parent shows as "not completed"
+                    # But include metadata for progress display
+                    aggregated_response = {
+                        # Only non-None value when ALL subparts filled (determines is_completed)
+                        "value": {"subparts_completed": subparts_filled, "total_subparts": total_subparts} if all_have_value else None,
+                        "approval_status": agg_approval_status,
+                        "rejection_reason": next((sp.get("rejection_reason") for sp in subpart_responses if sp.get("approval_status") == "rejected"), None),
+                        # Include progress info even when not complete (for UI display)
+                        "progress": {"filled": subparts_filled, "total": total_subparts},
+                    }
+            
             # Helper function to build a disclosure item
-            def build_disclosure_item(
+            async def build_disclosure_item(
                 item_key, display_name, item_type, 
                 response, assignment, approval,
                 parent_key=None, sub_key=None,
                 item_domain=None,  # Pass the domain from config
             ):
-                nonlocal total, completed, pending, assigned, unassigned, overdue, due_soon, stale, last_updated, assigned_user_ids
+                nonlocal total, completed, pending, assigned, unassigned, overdue, due_soon, stale, last_updated, assigned_user_ids, approver_user_ids
                 
                 total += 1
                 
                 # Determine completion status
-                is_completed = response is not None and response.get("value") is not None
+                # A response is completed only if it has a non-empty value
+                response_value = response.get("value") if response else None
+                # Check for various "empty" conditions: None, empty string, empty list, empty dict
+                value_is_empty = (
+                    response_value is None or 
+                    response_value == "" or 
+                    response_value == [] or 
+                    response_value == {}
+                )
+                is_completed = response is not None and not value_is_empty
                 resp_updated = None
                 days_since = None
                 is_stale = False
@@ -761,7 +917,6 @@ class TrackingService:
                 
                 # Assignment details
                 is_assigned = assignment is not None
-                assigned_to_user_id = None
                 assigned_by_user_id = None
                 assignment_id = None
                 assignment_role = None
@@ -773,11 +928,13 @@ class TrackingService:
                 filling_freq = None
                 requires_appr = False
                 assignees_list = []  # Multi-assignee support
+                v2_assignee_user_ids = []  # V2 assignee user IDs for filtering
                 appr_status_val = None  # Approval status from assignment
+                approver_id = None  # Approver user ID
+                approval_chain = []  # Multi-level approval chain
                 
                 if assignment:
                     assigned += 1
-                    assigned_to_user_id = assignment.get("assigned_to_user_id")
                     assigned_by_user_id = assignment.get("assigned_by_user_id")
                     assignment_id = assignment.get("id")
                     assignment_role = assignment.get("role")
@@ -785,10 +942,26 @@ class TrackingService:
                     requires_appr = assignment.get("requires_approval", False)
                     last_reminder = assignment.get("last_reminder_sent_at")
                     assignees_list = assignment.get("assignees", [])
-                    appr_status_val = assignment.get("approval_status", "not_required")
                     
-                    if assigned_to_user_id:
-                        assigned_user_ids.add(assigned_to_user_id)
+                    # Get assignees via V2 architecture and add to assigned_user_ids
+                    if assignment_id:
+                        v2_assignees = await db.esg_assignment_assignees.find(
+                            {"assignment_id": assignment_id, "removed_at": None},
+                            {"_id": 0, "user_id": 1}
+                        ).to_list(100)
+                        for assignee in v2_assignees:
+                            assigned_user_ids.add(assignee["user_id"])
+                            v2_assignee_user_ids.append(assignee["user_id"])
+                    
+                    # Extract approver info
+                    approval_chain = assignment.get("approval_chain", [])
+                    approver_id = assignment.get("approver_id")
+                    # If approver_id not set but approval_chain exists, use first in chain
+                    if not approver_id and approval_chain:
+                        approver_id = approval_chain[0]
+                    
+                    if approver_id:
+                        approver_user_ids.add(approver_id)
                     
                     due_date_val = assignment.get("due_date")
                     if due_date_val:
@@ -812,12 +985,19 @@ class TrackingService:
                 else:
                     unassigned += 1
                 
-                # Approval status - prefer from approval_request, fallback to assignment
+                # Approval status - from esg_responses (single source of truth for questionnaires)
                 appr_status = None
-                if approval:
+                if response and response.get("approval_status"):
+                    appr_status = response.get("approval_status")
+                elif approval:
                     appr_status = approval.get("status")
-                elif appr_status_val:
-                    appr_status = appr_status_val  # From assignment's approval_status field
+                elif requires_appr:
+                    appr_status = "not_required"  # Has assignment with requires_approval but no response yet
+                
+                # Also check for rejection reason from response
+                rejection_reason = None
+                if response and response.get("rejection_reason"):
+                    rejection_reason = response.get("rejection_reason")
                 
                 # Apply filters
                 if filters:
@@ -829,7 +1009,8 @@ class TrackingService:
                         return None
                     if filters.is_due_soon is True and not is_due_soon_flag:
                         return None
-                    if filters.assigned_to_user_id and assigned_to_user_id != filters.assigned_to_user_id:
+                    # V2 filter: check if filtered user is in assignees list
+                    if filters.assigned_to_user_id and filters.assigned_to_user_id not in v2_assignee_user_ids:
                         return None
                     if filters.status:
                         if filters.status == "completed" and not is_completed:
@@ -848,10 +1029,11 @@ class TrackingService:
                     framework_id=framework_id,
                     is_completed=is_completed,
                     completion_status=comp_status,
-                    response_data=response.get("value") if response else None,
+                    # Handle both dict and string response values (GRI uses strings, BRSR uses dicts)
+                    response_data=response.get("value") if response and isinstance(response.get("value"), dict) else ({"value": response.get("value")} if response and response.get("value") is not None else None),
                     last_response_updated_at=resp_updated,
                     is_assigned=is_assigned,
-                    assigned_to_user_id=assigned_to_user_id,
+                    assigned_to_user_id=v2_assignee_user_ids[0] if v2_assignee_user_ids else None,  # Primary assignee for backward compat
                     assigned_to_user_name=None,
                     assigned_to_user_email=None,
                     assigned_by_user_id=assigned_by_user_id,
@@ -868,11 +1050,17 @@ class TrackingService:
                     days_since_update=days_since,
                     requires_approval=requires_appr,
                     approval_status=appr_status,
+                    approver_id=approver_id,
+                    approver_name=None,  # Will be populated later with user lookup
+                    approver_email=None,
+                    approval_chain=approval_chain,
+                    rejection_reason=rejection_reason,
                     filling_frequency=filling_freq,
                 )
             
             # If question has sub_questions, create tracking items for each sub-question
-            if sub_questions and len(sub_questions) > 0:
+            # EXCEPT for GRI - show parent questions with aggregated status instead
+            if sub_questions and len(sub_questions) > 0 and framework_id.lower() != "gri":
                 for sub_q in sub_questions:
                     sub_key = sub_q.get("sub_key", "")
                     sub_label = sub_q.get("label", "")
@@ -889,7 +1077,7 @@ class TrackingService:
                         parent_desc = parent_desc[:80] + "..."
                     display_name = f"{parent_desc} → {sub_label}"
                     
-                    item = build_disclosure_item(
+                    item = await build_disclosure_item(
                         full_sub_key, display_name, "sub_question",
                         response, assignment, approval,
                         parent_key=q_key, sub_key=sub_key,
@@ -899,11 +1087,15 @@ class TrackingService:
                         disclosures.append(item)
             else:
                 # No sub-questions - treat as single trackable item
-                response = response_map.get(q_key)
+                # For GRI parent questions with subparts, use aggregated response
+                if aggregated_response is not None:
+                    response = aggregated_response
+                else:
+                    response = response_map.get(q_key)
                 assignment = assignment_map.get(q_key)
                 approval = approval_map.get(q_key)
                 
-                item = build_disclosure_item(
+                item = await build_disclosure_item(
                     q_key, self._get_display_name(config, q_key), "question",
                     response, assignment, approval,
                     item_domain=config_domain,
@@ -924,6 +1116,20 @@ class TrackingService:
                     user = user_map[disc.assigned_to_user_id]
                     disc.assigned_to_user_name = user.get("name") or user.get("email")
                     disc.assigned_to_user_email = user.get("email")
+        
+        # Populate approver names
+        if approver_user_ids:
+            approver_users = await self._users.find(
+                {"id": {"$in": list(approver_user_ids)}},
+                {"_id": 0, "id": 1, "name": 1, "email": 1}
+            ).to_list(100)
+            approver_map = {u["id"]: u for u in approver_users}
+            
+            for disc in disclosures:
+                if disc.approver_id and disc.approver_id in approver_map:
+                    user = approver_map[disc.approver_id]
+                    disc.approver_name = user.get("name") or user.get("email")
+                    disc.approver_email = user.get("email")
         
         # Build section summary
         assigned_users = []
@@ -1016,6 +1222,7 @@ class TrackingService:
                             {"brsr_section": request.section_id},
                             {"topic": request.section_id},
                             {"brsr_principle": request.section_id},
+                            {"disclosure_id": request.section_id},  # For GRI which uses disclosure_id
                         ]}
                     ]
                 }
@@ -1024,6 +1231,7 @@ class TrackingService:
                     {"brsr_section": request.section_id},
                     {"topic": request.section_id},
                     {"brsr_principle": request.section_id},
+                    {"disclosure_id": request.section_id},  # For GRI which uses disclosure_id
                 ]
         
         configs = await self._configs.find(config_query, {"_id": 0, "question_key": 1, "disclosure_id": 1}).to_list(500)
@@ -1102,6 +1310,9 @@ class TrackingService:
                 "reminder_config": request.reminder_config,
                 "reminder_frequency": request.reminder_frequency,  # Add reminder frequency
                 "requires_approval": request.requires_approval,
+                # Extract approver_id from approval_chain[0] if not directly provided
+                # This handles frontend sending approval_chain instead of approver_id
+                "approver_id": request.approver_id or (request.approval_chain[0] if request.approval_chain else None),
                 "approval_chain": request.approval_chain or [],
                 "framework_id": request.framework_id,
                 "group_assignment_id": group_id,
@@ -1194,9 +1405,21 @@ class TrackingService:
         if not assignment:
             return {"success": False, "error": "No assignment found for this disclosure"}
         
-        assigned_user_id = assignment.get("assigned_to_user_id")
-        if not assigned_user_id:
+        # Get assignees via V2 architecture
+        assignment_id = assignment.get("id")
+        assignee_ids = []
+        if assignment_id:
+            assignees = await db.esg_assignment_assignees.find(
+                {"assignment_id": assignment_id, "removed_at": None},
+                {"_id": 0, "user_id": 1}
+            ).to_list(100)
+            assignee_ids = [a["user_id"] for a in assignees]
+        
+        if not assignee_ids:
             return {"success": False, "error": "No user assigned"}
+        
+        # Use first assignee as primary for email
+        assigned_user_id = assignee_ids[0]
         
         # Get user details
         user = await self._users.find_one(
@@ -1313,7 +1536,10 @@ class TrackingService:
                 {"_id": 0, "value": 1}
             )
             
-            is_completed = response is not None and response.get("value") is not None
+            # Check completion - value must be non-empty
+            response_value = response.get("value") if response else None
+            value_is_empty = response_value is None or response_value == "" or response_value == [] or response_value == {}
+            is_completed = response is not None and not value_is_empty
             if is_completed:
                 continue  # Skip completed ones
             
@@ -1343,6 +1569,17 @@ class TrackingService:
             if due_date and due_date.tzinfo is None:
                 due_date = due_date.replace(tzinfo=timezone.utc)
             
+            # Get primary assignee via V2 architecture
+            assignment_id = assignment.get("id")
+            primary_assignee_id = None
+            if assignment_id:
+                first_assignee = await db.esg_assignment_assignees.find_one(
+                    {"assignment_id": assignment_id, "removed_at": None},
+                    {"_id": 0, "user_id": 1}
+                )
+                if first_assignee:
+                    primary_assignee_id = first_assignee["user_id"]
+            
             items.append(DisclosureTrackingItem(
                 disclosure_id=q_key,
                 disclosure_name=self._get_display_name(config, q_key),
@@ -1353,8 +1590,8 @@ class TrackingService:
                 is_completed=False,
                 completion_status=CompletionStatus.NOT_STARTED,
                 is_assigned=True,
-                assigned_to_user_id=assignment.get("assigned_to_user_id"),
-                assignment_id=assignment.get("id"),
+                assigned_to_user_id=primary_assignee_id,
+                assignment_id=assignment_id,
                 due_date=due_date,
                 is_overdue=True,
                 days_until_due=(due_date - now).days if due_date else None,

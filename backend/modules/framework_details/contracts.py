@@ -163,9 +163,21 @@ class BRSRStaticDetailsBase(BaseModel):
     assurance_provider: str = Field(default="", description="Name of Assurance Provider")
     assurance_type: str = Field(default="", description="Type of Assurance Obtained")
     
+    # Export and Customer fields (BRSR specific)
+    export_contribution_percentage: float = Field(default=0, ge=0, le=100, description="Export contribution as % of total turnover")
+    customer_types_brief: str = Field(default="", description="Brief on types of customers")
+    
+    # BRSR Contact Person (for queries on the BRSR report)
+    brsr_contact_name: str = Field(default="", description="Contact person name for BRSR queries")
+    brsr_contact_telephone: str = Field(default="", description="Contact person telephone")
+    brsr_contact_email: str = Field(default="", description="Contact person email")
+    
     # Radio Button Fields
     stock_exchange: Literal["BSE", "NSE", "Both NSE & BSE"] = Field(default="BSE")
     reporting_boundary: Literal["Standalone", "Consolidated"] = Field(default="Standalone")
+    
+    # Reporting period for year-specific data
+    reporting_period: str = Field(default="", description="Reporting period (e.g., FY 2025-2026 or CY 2025)")
 
     @field_validator('pincode')
     @classmethod

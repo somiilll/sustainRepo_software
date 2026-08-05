@@ -48,12 +48,15 @@ class DetailedProgressService:
                 "facilities": [],
             }
         
-        # Get assignment details from first assignment (they share common properties)
-        assignment = assignments[0]
-        is_facility_level = assignment.get("assignment_level") == "facility"
-        frequency = assignment.get("filling_frequency", "monthly")
-        start_date = assignment.get("start_date")
-        end_date = assignment.get("end_date")
+        # Check if ANY assignment is facility-level (not just the first one)
+        is_facility_level = any(a.get("assignment_level") == "facility" for a in assignments)
+        
+        # Get common properties from facility-level assignment if exists, otherwise first assignment
+        facility_assignment = next((a for a in assignments if a.get("assignment_level") == "facility"), None)
+        reference_assignment = facility_assignment or assignments[0]
+        frequency = reference_assignment.get("filling_frequency", "monthly")
+        start_date = reference_assignment.get("start_date")
+        end_date = reference_assignment.get("end_date")
         
         # Collect assigned facility IDs from all assignments
         assigned_facility_ids = set()
@@ -165,7 +168,7 @@ class DetailedProgressService:
             "category": category,
             "subcategory": subcategory,
             "has_assignment": True,
-            "assignment_level": assignment.get("assignment_level", "organization"),
+            "assignment_level": reference_assignment.get("assignment_level", "organization"),
             "frequency": frequency,
             "start_date": start_date,
             "end_date": end_date,

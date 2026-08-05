@@ -23,6 +23,7 @@ import axios from 'axios';
 import { toast } from 'sonner';
 
 import { categoryRegistry } from '../../../../emissions';
+import { MONTHS } from '../constants/emission-form-constants';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -45,7 +46,14 @@ export function useEmissionSubmit(ctx) {
       dynamicInputFields, centralizedUnits, defaultUnit, canProceedToStep, getAuthHeader,
       onSuccess, getActualYearForMonth, evaluateFormula,
       buildDecisionInputs, editingEmission,
+      // Optional supplier context
+      supplierContext = null,
     } = ctx;
+    
+    // Use supplier API endpoint if in supplier context
+    const apiBase = supplierContext 
+      ? `${API}/supplier-assessment/my-assessment/emissions`
+      : `${API}/emissions`;
 
     // Prevent duplicate submissions
     if (isSaving) return;
@@ -273,7 +281,7 @@ export function useEmissionSubmit(ctx) {
               process_names: [selectedSubIndustry, selectedTemplate.name],
             };
             
-            await axios.post(`${API}/emissions`, payload, { headers: getAuthHeader() });
+            await axios.post(apiBase, payload, { headers: getAuthHeader() });
             toast.success(`Created yearly emission record for ${yearlyReportingPeriod}`);
             onSuccess?.();
           } else if (dynamicInputFields.length > 0) {
@@ -387,7 +395,7 @@ export function useEmissionSubmit(ctx) {
               frequency_type: 'yearly',
             };
 
-            await axios.post(`${API}/emissions`, yPayload, { headers: getAuthHeader() });
+            await axios.post(apiBase, yPayload, { headers: getAuthHeader() });
             toast.success(`Created yearly emission record for ${yearlyReportingPeriod}`);
             onSuccess?.();
           }
@@ -502,7 +510,7 @@ export function useEmissionSubmit(ctx) {
           };
           
           try {
-            await axios.post(`${API}/emissions`, payload, {
+            await axios.post(apiBase, payload, {
               headers: getAuthHeader()
             });
             successCount++;
@@ -637,7 +645,7 @@ export function useEmissionSubmit(ctx) {
           });
 
           try {
-            await axios.post(`${API}/emissions`, payload, { headers: getAuthHeader() });
+            await axios.post(apiBase, payload, { headers: getAuthHeader() });
             successCount++;
           } catch (err) {
             errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: Save failed`);

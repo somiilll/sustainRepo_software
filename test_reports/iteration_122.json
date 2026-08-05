@@ -1,0 +1,35 @@
+{
+  "summary": "Iteration 122 - Verified BRSR nested-question FY normalization fix (frontend-only). Logged in as admin (goyalsomil2001@gmail.com / TestUser123!), navigated to /reporting/brsr, switched FY selector from 2026-2027 to 2025-2026. Confirmed backend stores fy_comparison-suffixed keys (e.g., mode_current_fy, combined.review_by_current_fy, combined.frequency_current_fy) but the new normalizeFYResponse utility strips those suffixes so display renderers (PrincipleModeTableRenderer, ConditionalYesNoTableRenderer, etc.) correctly show saved values instead of '-'. Verified: (1) 'Performance against policies and follow-up action' displays Review Undertaken By='Director', Frequency='Half Yearly'; (2) 'Independent assessment' (conditional_yes_no_table) displays 'No'; (3) Edit mode pre-populates mode radio, dropdowns, and preserves data; (4) End-to-end save round-trip: filled Compliance textarea with TEST_iter122_compliance_ok_2610993, PUT payload sent simple keys ({mode:'combined', combined:{review_by,frequency,details}}), backend re-stored with _current_fy suffixes, page reload re-normalized and displayed the new value correctly. All four review requirements pass.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "BRSR reporting page (global)",
+        "issues": [
+          "Recurring React console warning: 'A props object containing a key prop is being spread into JSX'. Pre-existing (also noted in iter121). Not caused by this fix but should be cleaned up."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "fyNormalization.js normalizeFYResponse correctly strips _current_fy / _previous_fy suffixes and preserves nested object structure via recursion. Good design.",
+    "addFYSuffixForSave is idempotent (won't double-suffix). This matches observed PUT payload behavior where FE sends simple keys and backend does the suffixing itself, so addFYSuffixForSave appears currently unused in the save path (backend handles suffixing on receipt). Consider removing if dead code or documenting when it must be used to avoid confusion.",
+    "The normalization is applied lazily inside each renderer via useMemo (see ESGQuestionnaire.js and renderers/*). Verify no renderer that reads fy_comparison data was missed; a centralized normalization at the response fetch site would be cleaner going forward.",
+    "GET /api/esg-questionnaire/responses/BRSR/section_b/{fy} returns keys with _current_fy suffix — frontend contract now depends on the normalizer. Add a shared TypeScript-style typedef or JSDoc note in fyNormalization.js linking it to the backend fy_comparison mode so future devs know why suffixes exist."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only test)", "frontend": "100% (all 4 review requirements verified end-to-end)"},
+  "test_credentials": "goyalsomil2001@gmail.com / TestUser123! (admin)",
+  "seed_data_creation": "Wrote transient test value 'TEST_iter122_compliance_ok_2610993' into performance_against_policies.combined.details_current_fy for FY 2025-2026 during save round-trip test. Non-destructive (added, not overwriting real data).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "BRSR Section B nested question fix (normalizeFYResponse) is verified working for principle_mode_table and conditional_yes_no_table types under FY 2025-2026 with admin org 9067d872-8a3a-4ed9-8494-e3ef04952f7c. Backend stores mode_current_fy / <nested>.<field>_current_fy while frontend transparently normalizes for display and sends simple keys on save. Other renderers touched by the fix (PrincipleToggleRenderer, PrincipleTextRenderer, ReasonsChecklistRenderer, ConditionalYesNoTextRenderer, YesNoWithDescriptionRenderer, FYComparisonTableRenderer, FixedRowTableRenderer, GroupedMatrixTableRenderer, HistoricalMaterialPercentageTableRenderer) were not each individually smoke-tested with seeded data but share the same utility - retest only if targeted regressions surface.",
+  "rca of the issue": "Backend save path for fy_comparison-enabled BRSR questions appends _current_fy (and _previous_fy where applicable) to every leaf key inside the response object, including keys inside nested objects like combined.review_by. Frontend display and edit renderers were keyed on the un-suffixed names (mode, review_by, frequency, details, applicable, description, etc.), so on reload the renderers found nothing under those keys and rendered '-'. Fix: added /app/frontend/src/components/ESGQuestionnaire/utils/fyNormalization.js exporting normalizeFYResponse (recursively strips _current_fy/_previous_fy and returns simple-keyed object, preferring current FY) and applied it in the affected renderers before reading fields. Save path continues to emit simple keys; backend re-applies suffixes on write. Verified end-to-end: after normalization, saved values display correctly and edit-mode pre-population works, and after save+reload the newly-written value round-trips through the suffix layer transparently."
+}

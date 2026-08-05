@@ -1,0 +1,44 @@
+{
+  "summary": "Backend-only tests for Assignment Versioning (iteration 110). All 5 pytest tests PASSED (100%). Verified end-to-end at the service layer via assignment_service_v2.create_or_update_assignment: (1) New assignment stored with version=1, facility_snapshot captured for org-level, 'created' history logged. (2) Repeated updates increment version (1 -> 2 -> 3) and every version_updated history entry contains the previous_state snapshot + a per-field changes map (approver_id/requires_approval/filling_frequency deltas correctly captured). (3) Task engine stamps every newly-generated task with assignment_version_at_creation=1, created_with_approval_workflow, created_with_approver_id, and created_with_facility_snapshot lifted from the assignment. (4) On assignment edit _handle_assignment_edit_tasks correctly discriminates completed vs pending tasks: task whose period has data in environment_records gets assignment_version_at_completion + completed_with_approval_workflow/approver_id/facility_snapshot equal to the PRE-update values (audit-preserving); tasks without data get their updated_at bumped but no completion snapshot. (5) version_updated history row's previous_value and new_value.changes accurately reflect the transition (requires_approval False->True, approver_id None->'TEST_hist_approver').",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "assignment_service_v2._handle_assignment_edit_tasks",
+        "issue": "Pending-task branch (L575-589) doesn't actually change any user-visible settings other than bumping updated_at. Comment at L582 says 'Due date recalculation handled separately' but new approver_id / requires_approval / due_date changes are not propagated to pending esg_reporting_tasks documents. If the spec says pending tasks should be 'reassigned to new assignees / updated with new approval workflow settings', those fields need to be written to the task doc (currently task_engine sets them ONLY at creation via created_with_* fields, and there is no updated_with_* on pending tasks). Recommend either persisting current approval workflow on pending tasks or documenting that runtime approval state is derived from the assignment record via lookup."
+      },
+      {
+        "endpoint": "assignment_service_v2.create_or_update_assignment (L207-296)",
+        "issue": "The list of update_fields does NOT include facility_snapshot. So if an org-level assignment is edited after new facilities were added, the assignment.facility_snapshot stays frozen at creation-time. This is likely intentional (refresh_facility_snapshot exists as an explicit action) — but combined with completed-task snapshot logic, it means editing an assignment cannot inherit newly-added facilities without a separate refresh_facility_snapshot() call. Worth documenting."
+      },
+      {
+        "endpoint": "assignment_service_v2._handle_assignment_edit_tasks (L556-558)",
+        "issue": "DataChecker.check_exists is called without sub_subcategory (only category/subcategory/facility_id are passed). If two assignments differ only by sub_subcategory but share category/subcategory, environment_records for one may incorrectly mark the OTHER's task as completed. Same class of bug flagged in iter109 for delete-approval task revert."
+      }
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter110_assignment_versioning.py",
+    "/app/test_reports/pytest/iter110.xml"
+  ],
+  "action_items": [
+    "Decide whether pending tasks should have their approval workflow / approver_id / due_date persisted on the task doc when the assignment is edited (currently only updated_at is bumped).",
+    "Consider adding sub_subcategory to DataChecker.check_exists call in _handle_assignment_edit_tasks to avoid cross-contamination between sibling assignments."
+  ],
+  "critical_code_review_comments": [
+    "assignment_service_v2.py L207-296 update branch: clean audit-trail design. previous_state captured before mutation, changes diff computed field-by-field, version increment atomic-ish via single update_one. Well-structured.",
+    "task_engine.py L493-498: created_with_* fields written at task creation time — correctly snapshot immutable audit trail. Good design.",
+    "_handle_assignment_edit_tasks L560-573: completion snapshot semantics are correct — stamps EXISTING version (from `existing` doc, not the new one), so audit reflects the state at time of completion. Verified in test_04.",
+    "Comment at L582 ('Due date recalculation handled separately') is a TODO in disguise — no code path currently recalculates due dates on pending tasks when due_config changes. Follow-up work needed.",
+    "History log at L286 uses 'action=version_updated' — consistent naming, easy to query for audit UI."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter110_assignment_versioning.py (new)"],
+  "success_rate": {"backend": "100% (5/5)", "frontend": "not tested (backend-only request)"},
+  "test_credentials": "goyalsomil2001@gmail.com / TestUser123! (org_id 9067d872-8a3a-4ed9-8494-e3ef04952f7c)",
+  "seed_data_creation": "Ephemeral per-test: inserts TEST_-prefixed assignments/tasks/environment_records via pymongo sync client, cleans up in finally blocks. Uses unique subcategory tag per test (TEST_iter110_v{n}_{uuid8}) to avoid cross-test contamination. No permanent data left behind.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Same LOOP+pymongo pattern as iter109. Motor client is bound to first event loop; do NOT switch to pytest-asyncio without pinning event_loop scope=session. Note: _handle_assignment_edit_tasks uses DataChecker which routes on category name — Water/Energy/Waste all hit environment_records with reporting_period.year+month structure. For tests: env record inserted with {reporting_period: {year:int, month:int}} makes DataChecker return has_data=True.",
+  "rca of the issue": "N/A — versioning feature works as specified. Two minor semantic questions flagged as action_items: (a) pending-task approval fields not propagated on edit, (b) missing sub_subcategory in DataChecker call."
+}

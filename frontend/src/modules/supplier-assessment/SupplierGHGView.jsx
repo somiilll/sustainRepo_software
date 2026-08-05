@@ -1,0 +1,227 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
+import { useAuth } from '../../contexts/AuthContext';
+import { toast } from 'sonner';
+import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+import { Badge } from '../../components/ui/badge';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../../components/ui/table';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../components/ui/select';
+import { Search, Cloud, Factory, Filter } from 'lucide-react';
+
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+
+export default function SupplierGHGView() {
+  const { getAuthHeader } = useAuth();
+  const [emissions, setEmissions] = useState([]);
+  const [supplierTotals, setSupplierTotals] = useState([]);
+  const [grandTotal, setGrandTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [scopeFilter, setScopeFilter] = useState('all');
+
+  const fetchEmissions = useCallback(async () => {
+    try {
+      const res = await axios.get(`${API}/supplier-assessment/emissions/all`, {
+        headers: getAuthHeader(),
+      });
+      setEmissions(res.data.emissions || []);
+      setSupplierTotals(res.data.supplier_totals || []);
+      setGrandTotal(res.data.grand_total || 0);
+    } catch (err) {
+      toast.error('Failed to load emissions');
+    } finally {
+      setLoading(false);
+    }
+  }, [getAuthHeader]);
+
+  useEffect(() => {
+    fetchEmissions();
+  }, [fetchEmissions]);
+
+  const filteredEmissions = emissions.filter((e) => {
+    const matchesSearch = !search || 
+      e.supplier_name?.toLowerCase().includes(search.toLowerCase()) ||
+      e.category?.toLowerCase().includes(search.toLowerCase());
+    const matchesScope = scopeFilter === 'all' || e.scope === scopeFilter;
+    return matchesSearch && matchesScope;
+  });
+
+  return (
+    <div className="space-y-6" data-testid="supplier-ghg-view">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-semibold text-stone-900">Supplier GHG Emissions</h1>
+        <p className="text-sm text-stone-500 mt-1">
+          View and analyze emissions data from all suppliers
+        </p>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-stone-500 mb-2">
+              <Cloud className="h-4 w-4" />
+              <span className="text-sm">Total Emissions</span>
+            </div>
+            <div className="text-2xl font-bold text-stone-900">
+              {grandTotal.toFixed(2)} <span className="text-sm font-normal text-stone-500">tCO2e</span>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-stone-500 mb-2">
+              <Factory className="h-4 w-4" />
+              <span className="text-sm">Scope 1</span>
+            </div>
+            <div className="text-2xl font-bold text-blue-600">
+              {supplierTotals.reduce((sum, s) => sum + (s.scope1 || 0), 0).toFixed(2)}
+              <span className="text-sm font-normal text-stone-500 ml-1">tCO2e</span>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-stone-500 mb-2">
+              <Factory className="h-4 w-4" />
+              <span className="text-sm">Scope 2</span>
+            </div>
+            <div className="text-2xl font-bold text-emerald-600">
+              {supplierTotals.reduce((sum, s) => sum + (s.scope2 || 0), 0).toFixed(2)}
+              <span className="text-sm font-normal text-stone-500 ml-1">tCO2e</span>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-stone-500 mb-2">
+              <Factory className="h-4 w-4" />
+              <span className="text-sm">Suppliers Reporting</span>
+            </div>
+            <div className="text-2xl font-bold text-purple-600">
+              {supplierTotals.length}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Supplier Totals */}
+      {supplierTotals.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Emissions by Supplier</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Supplier</TableHead>
+                  <TableHead className="text-right">Scope 1 (tCO2e)</TableHead>
+                  <TableHead className="text-right">Scope 2 (tCO2e)</TableHead>
+                  <TableHead className="text-right">Total (tCO2e)</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {supplierTotals.map((supplier, index) => (
+                  <TableRow key={index}>
+                    <TableCell className="font-medium">{supplier.supplier_name}</TableCell>
+                    <TableCell className="text-right">{(supplier.scope1 || 0).toFixed(2)}</TableCell>
+                    <TableCell className="text-right">{(supplier.scope2 || 0).toFixed(2)}</TableCell>
+                    <TableCell className="text-right font-semibold">{(supplier.total || 0).toFixed(2)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Filters */}
+      <div className="flex items-center gap-4">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
+          <Input
+            placeholder="Search emissions..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <Select value={scopeFilter} onValueChange={setScopeFilter}>
+          <SelectTrigger className="w-40">
+            <Filter className="h-4 w-4 mr-2" />
+            <SelectValue placeholder="Filter scope" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Scopes</SelectItem>
+            <SelectItem value="scope1">Scope 1</SelectItem>
+            <SelectItem value="scope2">Scope 2</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Emissions Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>All Emission Records</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="text-center py-8 text-stone-500">Loading emissions...</div>
+          ) : filteredEmissions.length === 0 ? (
+            <div className="text-center py-8 text-stone-500">
+              No emission records found.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Supplier Org</TableHead>
+                  <TableHead>Reporting Period</TableHead>
+                  <TableHead>Scope</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Subcategory</TableHead>
+                  <TableHead className="text-right">Emissions (tCO₂e)</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredEmissions.map((emission) => (
+                  <TableRow key={emission.id}>
+                    <TableCell className="font-medium">{emission.supplier_name}</TableCell>
+                    <TableCell>{emission.reporting_period}</TableCell>
+                    <TableCell>
+                      <Badge variant={emission.scope === 'scope1' ? 'default' : emission.scope === 'scope2' ? 'secondary' : 'outline'}>
+                        {emission.scope === 'scope1' ? 'Scope 1' : emission.scope === 'scope2' ? 'Scope 2' : emission.scope}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{emission.category || '-'}</TableCell>
+                    <TableCell>{emission.fuel_type || emission.sub_category || '-'}</TableCell>
+                    <TableCell className="text-right font-mono">
+                      {(emission.co2e_emissions || emission.total_emissions || 0).toFixed(4)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

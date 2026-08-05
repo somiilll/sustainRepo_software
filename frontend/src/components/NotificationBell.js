@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { useDateFormatter } from '../hooks/useDateFormatter';
 import { Bell, Check } from 'lucide-react';
 import { Badge } from './ui/badge';
 import {
@@ -14,6 +15,7 @@ const API = process.env.REACT_APP_BACKEND_URL;
 
 export default function NotificationBell() {
   const { token } = useAuth();
+  const { formatDateTime } = useDateFormatter();
   const [open, setOpen] = useState(false);
   const [count, setCount] = useState(0);
   const [notifications, setNotifications] = useState([]);
@@ -112,7 +114,7 @@ export default function NotificationBell() {
                     <p className={`text-sm ${!n.read ? 'font-semibold' : ''} text-text-primary truncate`}>{n.title}</p>
                     <p className="text-xs text-text-muted truncate">{n.message}</p>
                     <p className="text-[10px] text-text-muted mt-0.5">
-                      {new Date(n.created_at).toLocaleString()}
+                      {formatDateTime(n.created_at)}
                     </p>
                   </div>
                   {!n.read && <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-1.5" />}

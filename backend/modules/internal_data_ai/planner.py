@@ -36,6 +36,7 @@ def plan_service_calls(intent_result: dict) -> List[Dict[str, Any]]:
 
     elif intent == "version_history":
         plan.append({"service": "history", "method": "get_changes", "params": entities})
+        plan.append({"service": "history", "method": "get_framework_versions", "params": entities})
 
     elif intent == "audit_trail":
         plan.append({"service": "audit", "method": "get_logs", "params": entities})
@@ -73,6 +74,18 @@ def plan_service_calls(intent_result: dict) -> List[Dict[str, Any]]:
 
     elif intent == "count_query":
         plan.append({"service": "analytics", "method": "count_items", "params": entities})
+
+    elif intent == "brsr_lookup":
+        plan.append({"service": "brsr", "method": "get_responses", "params": entities})
+
+    elif intent == "gri_lookup":
+        plan.append({"service": "gri", "method": "get_responses", "params": entities})
+
+    elif intent == "supplier_assessment":
+        plan.append({"service": "supplier_assessment", "method": "get_data", "params": entities})
+
+    elif intent == "data_status":
+        plan.append({"service": "data_status", "method": "get_status", "params": entities})
 
     else:
         plan.append({"service": "analytics", "method": "summary", "params": entities})

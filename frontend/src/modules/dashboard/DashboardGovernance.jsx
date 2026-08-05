@@ -17,6 +17,7 @@ import {
 import StickyFilterBar from './components/filters/StickyFilterBar';
 import SectionCard from './components/layout/SectionCard';
 import PremiumKpiCard from './components/kpi/PremiumKpiCard';
+import { DashboardExportButton } from './pdf-export';
 import {
   CalendarClock, Swords, ShieldOff, Gavel, Landmark,
   RadioTower, RefreshCw,
@@ -160,7 +161,28 @@ export default function DashboardGovernance({ data }) {
         showFilters={showFilters}
         setShowFilters={setShowFilters}
         filterProps={filterProps}
-        showExport={false}
+        showExport={true}
+        exportButton={
+          <DashboardExportButton
+            dashboardType="governance"
+            data={{
+              kpis: {
+                ap_days: { value: kpis.ap_days },
+              },
+              governance: {
+                ap_days: kpis.ap_days,
+                anti_competitive: kpis.anti_competitive_cases,
+                data_breaches: kpis.data_breaches,
+                violations: kpis.violations,
+                corruption_cases: kpis.corruption_cases,
+              },
+              analytics: detail,
+            }}
+            organization={organization}
+            dateRange={dateRange}
+            facilities={facilities}
+          />
+        }
         dashboardType={data.dashboardType}
         setDashboardType={data.setDashboardType}
         esgSection={data.esgSection}
