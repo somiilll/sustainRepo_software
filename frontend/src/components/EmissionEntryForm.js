@@ -404,6 +404,31 @@ export default function EmissionEntryForm({
       setCategory(ocrPrefillData.category);
     }
     
+    // Set fuel type by looking up fuelId from fuelDatabase
+    if (ocrPrefillData.fuel_name && fuelDatabase?.length > 0) {
+      const fuelNameLower = ocrPrefillData.fuel_name.toLowerCase();
+      
+      // Try exact match first
+      let matchedFuel = fuelDatabase.find(f => 
+        f.name?.toLowerCase() === fuelNameLower ||
+        f.activity?.toLowerCase() === fuelNameLower
+      );
+      
+      // Try partial match if no exact match
+      if (!matchedFuel) {
+        matchedFuel = fuelDatabase.find(f => 
+          f.name?.toLowerCase().includes(fuelNameLower) ||
+          fuelNameLower.includes(f.name?.toLowerCase()) ||
+          f.activity?.toLowerCase().includes(fuelNameLower)
+        );
+      }
+      
+      if (matchedFuel?.id) {
+        console.log('[OCR Prefill] Matched fuel:', matchedFuel.name, matchedFuel.id);
+        setFuelId(matchedFuel.id);
+      }
+    }
+    
     // Set responsible person (current user from OCR accept)
     if (ocrPrefillData.responsible_person) {
       setResponsiblePerson(ocrPrefillData.responsible_person);
@@ -450,8 +475,7 @@ export default function EmissionEntryForm({
     // Note: Facility is NOT auto-selected per spec
     // Note: Process Name and Description are left empty per spec
     
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ocrPrefillData]);
+  }, [ocrPrefillData, fuelDatabase]);
 
   // Sync decisionFieldValues + custom-activity auto-enable now live inside
   // useEmissionFormState (F2 integration). The corresponding inline useEffects
