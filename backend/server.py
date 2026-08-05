@@ -215,6 +215,10 @@ api_router.include_router(supplier_assessment_router, tags=["Supplier Assessment
 from modules.brsr_report.router import router as brsr_report_router
 api_router.include_router(brsr_report_router, tags=["BRSR Report"])
 
+# OCR Invoice Extractor Module (Scope 1 & 2 emissions from utility invoices)
+from modules.ocr_invoice.router import router as ocr_invoice_router
+api_router.include_router(ocr_invoice_router, prefix="/ocr-invoice", tags=["OCR Invoice"])
+
 # Run module contract verifier at import time. Phase B1: log-only, will be
 # escalated to fail-fast in dev once all modules expose their contracts.
 verify_module_contracts()

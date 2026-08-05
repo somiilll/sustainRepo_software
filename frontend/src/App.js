@@ -75,6 +75,7 @@ import SupplierAssessmentRanking from './pages/SupplierAssessmentRanking';
 import SupplierPortalDashboard from './pages/SupplierPortalDashboard';
 import SupplierPortalQuestionnaire from './pages/SupplierPortalQuestionnaire';
 // SupplierPortalEmissions removed - suppliers use main GHG Emissions flow
+import OCRInvoice from './pages/OCRInvoice';
 import { initializeCategoryModules } from './modules/emissions';
 
 // Initialize the emissions Category Registry once at app boot.
@@ -303,7 +304,7 @@ const AppRoutes = () => {
           <Route path="uploads/ghg-entry" element={<Emissions />} />
           <Route path="ghg/base-year" element={<BaseYearEmissions />} />
           <Route path="uploads/bulk" element={<BulkUpload />} />
-          <Route path="uploads/ocr" element={<PlaceholderPage title="OCR Detection" />} />
+          <Route path="uploads/ocr" element={<OCRInvoice />} />
           <Route path="uploads/kpi-metrics" element={<PlaceholderPage title="KPI Metrics" />} />
           <Route path="targets/voluntary/environment" element={<ESGTargetsTab section="environment" />} />
           <Route path="targets/voluntary/social" element={<ESGTargetsTab section="social" />} />
