@@ -97,11 +97,31 @@ export default function OCRInvoice() {
     }
   };
 
+  const formatBillingPeriod = (billingPeriod) => {
+    if (!billingPeriod) return 'N/A';
+    
+    // If we have period_text, use it
+    if (billingPeriod.period_text) {
+      return billingPeriod.period_text;
+    }
+    
+    // Otherwise format from dates
+    if (billingPeriod.start_date && billingPeriod.end_date) {
+      return `${billingPeriod.start_date} to ${billingPeriod.end_date}`;
+    }
+    
+    if (billingPeriod.start_date) {
+      return billingPeriod.start_date;
+    }
+    
+    return 'N/A';
+  };
+
   const renderResults = () => {
     if (!results || results.length === 0) {
       return (
         <tr>
-          <td colSpan="9" className="text-center py-8 text-text-muted">
+          <td colSpan="10" className="text-center py-8 text-text-muted">
             No valid data extracted from the invoice.
           </td>
         </tr>
@@ -114,6 +134,7 @@ export default function OCRInvoice() {
         className={`border-b border-border hover:bg-gray-50 ${row.needs_review ? 'bg-orange-50 border-l-4 border-l-accent' : ''}`}
       >
         <td className="px-4 py-3 text-sm">{row.invoice_number || 'N/A'}</td>
+        <td className="px-4 py-3 text-sm">{formatBillingPeriod(row.billing_period)}</td>
         <td className="px-4 py-3 text-sm">{row.vendor_name || 'N/A'}</td>
         <td className="px-4 py-3 text-sm">{row.fuel_name || 'N/A'}</td>
         <td className="px-4 py-3 text-sm font-medium">{row.category || 'Unknown'}</td>
@@ -252,6 +273,7 @@ export default function OCRInvoice() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Invoice #</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Period</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Vendor</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Fuel Name</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Category</th>

@@ -139,24 +139,35 @@ Return ONLY a valid JSON object with the exact keys below. Do not include markdo
 {
     "invoice_number": "The unique invoice or receipt number (or null)",
     "date": "YYYY-MM-DD (billing date, or null)",
+    "billing_period": {
+        "start_date": "YYYY-MM-DD or null (e.g., 2024-01-01)",
+        "end_date": "YYYY-MM-DD or null (e.g., 2024-01-31)",
+        "period_text": "Original text as shown on invoice (e.g., 'Jan 2024', 'Q1 2024', 'FY 2023-24') or null"
+    },
     "vendor_name": "The name of the company issuing the invoice (or null)",
     "location": "The service address or location of the facility (or null)",
     "line_items": [
         {
-            "fuel_name": "The exact printed fuel, energy type, or refrigerant being billed",
+            "fuel_name": "The ACTUAL fuel, energy type, or refrigerant being billed - NOT the line item label. For electricity bills, use 'Electricity'. For gas bills, use the specific gas type (Natural Gas, LPG, etc.). For fuel stations, use the fuel type (Diesel, Petrol, etc.)",
             "translated_fuel_name": "If fuel_name is not English, translate to English. Otherwise, repeat fuel_name (or null)",
             "quantity": <float value of the amount billed (or null)>,
             "unit": "The unit of measurement (e.g., kWh, Liters, Gallons, kg) (or null)",
             "money_spent": <float value of the total cost (or null)>,
             "currency": "The 3-letter currency code (e.g., USD, INR, EUR) (or null)",
             "hsn_sac_code": "Tax or product code if present (or null)",
-            "combustion_context": "Based on vendor and details, is this fuel used for 'Mobile Combustion' (vehicles) or 'Stationary Combustion' (generators/boilers)? Output exactly 'Mobile Combustion', 'Stationary Combustion', or 'Unknown'.",
+            "combustion_context": "Based on vendor and details, is this fuel used for 'Mobile Combustion' (vehicles) or 'Stationary Combustion' (generators/boilers)? For grid electricity, use 'Grid Electricity'. Output exactly 'Mobile Combustion', 'Stationary Combustion', 'Grid Electricity', or 'Unknown'.",
             "raw_item_context": "Any other descriptive text for this line item",
             "confidence_score": "Evaluate your extraction certainty as an integer between 0 and 100",
             "low_confidence_fields": ["List the JSON keys of any fields where you are not completely certain of the extraction (e.g. 'quantity', 'fuel_name')", "or empty array if all are certain"]
         }
     ]
-}"""
+}
+
+IMPORTANT GUIDELINES:
+- For ELECTRICITY bills: The fuel_name should be "Electricity", NOT "Energy Charges", "Units Consumed", "Fixed Charges", etc.
+- For billing period: Extract from phrases like "Billing Period", "For the month of", "Statement Period", "From-To dates". If only a month/year is shown (e.g., "January 2024"), set start_date to first day and end_date to last day of that month.
+- For quarterly periods (Q1, Q2, etc.) or fiscal years, convert to actual dates.
+- Extract ALL line items including taxes, but identify the primary energy/fuel type correctly."""
 
     response = client.messages.create(
         model=model_id,
@@ -192,6 +203,14 @@ Return ONLY a valid JSON object with the exact keys below. Do not include markdo
     invoice_number = data.get("invoice_number")
     date = data.get("date")
     location = data.get("location")
+    
+    # Extract billing period
+    billing_period = data.get("billing_period", {})
+    if not isinstance(billing_period, dict):
+        billing_period = {}
+    period_start = billing_period.get("start_date")
+    period_end = billing_period.get("end_date")
+    period_text = billing_period.get("period_text")
     
     line_items = data.get("line_items", [])
     if not isinstance(line_items, list):
@@ -296,6 +315,11 @@ Return ONLY a valid JSON object with the exact keys below. Do not include markdo
             'file': os.path.basename(file_path),
             'invoice_number': invoice_number,
             'date': date,
+            'billing_period': {
+                'start_date': period_start,
+                'end_date': period_end,
+                'period_text': period_text
+            },
             'vendor_name': vendor_name,
             'location': location,
             'fuel_name': item.get("fuel_name"),

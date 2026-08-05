@@ -2877,7 +2877,21 @@
     "fuel_name": "Electricity",
     "category": "Renewable",
     "scope": "Scope 2",
-    "aliases": []
+    "aliases": [
+      "energy charges",
+      "units consumed",
+      "power consumption",
+      "grid power",
+      "grid electricity",
+      "electric power",
+      "kwh",
+      "utility power",
+      "mains electricity",
+      "power supply",
+      "electrical energy",
+      "eb charges",
+      "electricity charges"
+    ]
   },
   {
     "fuel_name": "Electricity",
