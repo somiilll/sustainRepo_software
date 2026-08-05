@@ -1,77 +1,94 @@
 """BRSR framework service for Internal Data AI."""
 from shared.database.mongo import db
 
+_FW_VARIANTS = ["brsr", "BRSR"]
+
 
 async def get_responses(org_id: str, facility_ids: list = None, **kwargs) -> dict:
-    """Fetch BRSR questionnaire responses, submissions, and section progress."""
-    section = kwargs.get("record_type") or kwargs.get("category") or ""
-    question_key = kwargs.get("metric") or kwargs.get("entity_name") or ""
+    """Fetch BRSR filled values, submission statuses, and section progress."""
+    section = kwargs.get("category") or ""
+    keyword = kwargs.get("metric") or kwargs.get("entity_name") or ""
 
-    # 1. Submitted responses with approval status
-    sub_query = {"organization_id": org_id, "framework": "BRSR"}
+    # 1. Primary data — esg_responses (actual filled values, incl. Section A)
+    resp_query = {"organization_id": org_id, "framework": {"$in": _FW_VARIANTS}}
     if section:
-        sub_query["section"] = {"$regex": section, "$options": "i"}
-    if question_key:
-        sub_query["$or"] = [
-            {"question_key": {"$regex": question_key, "$options": "i"}},
-        ]
+        resp_query["section"] = {"$regex": section, "$options": "i"}
+    if keyword:
+        # Split keyword into words, match any in question_key (handles underscores vs spaces)
+        words = [w for w in keyword.split() if len(w) > 2]
+        if words:
+            resp_query["question_key"] = {"$regex": ".*".join(words), "$options": "i"}
 
+    filled = await db.esg_responses.find(resp_query, {"_id": 0}).sort("updated_at", -1).to_list(50)
+
+    # 2. Submission statuses (Section B/C approval flow)
+    sub_query = {"organization_id": org_id, "framework": {"$in": _FW_VARIANTS}}
     submissions = await db.esg_response_submissions.find(
-        sub_query, {"_id": 0}
-    ).sort("submitted_at", -1).to_list(30)
+        sub_query, {"_id": 0, "question_key": 1, "status": 1, "submitted_by_user_name": 1, "submitted_at": 1, "approved_by_user_name": 1, "approved_at": 1}
+    ).to_list(100)
+    sub_map = {s["question_key"]: s for s in submissions}
 
+    # 3. Unified collection data (organization_esg_responses)
+    unified = await db.organization_esg_responses.find(
+        {"org_id": org_id, "framework": {"$in": _FW_VARIANTS}}, {"_id": 0}
+    ).to_list(50)
+    unified_map = {u["question_key"]: u for u in unified if u.get("question_key")}
+
+    # Merge: filled values + submission status + unified data
+    seen_keys = set()
     records = []
-    for s in submissions:
+    for r in filled:
+        key = r.get("question_key")
+        seen_keys.add(key)
+        sub = sub_map.get(key, {})
         records.append({
-            "question_key": s.get("question_key"),
-            "section": s.get("section"),
-            "reporting_period": s.get("reporting_period"),
-            "value": s.get("final_value") or s.get("value"),
-            "status": s.get("status"),
-            "submitted_by": s.get("submitted_by_user_name"),
-            "submitted_at": s.get("submitted_at"),
-            "approved_by": s.get("approved_by_user_name"),
-            "approved_at": s.get("approved_at"),
+            "question_key": key,
+            "section": r.get("section"),
+            "reporting_period": r.get("reporting_year"),
+            "value": r.get("value"),
+            "approval_status": r.get("approval_status") or sub.get("status"),
+            "submitted_by": sub.get("submitted_by_user_name"),
+            "submitted_at": sub.get("submitted_at"),
         })
 
-    # 2. Section-level progress summary
+    # Add unified-only records not already seen
+    for key, u in unified_map.items():
+        if key not in seen_keys:
+            sub = sub_map.get(key, {})
+            records.append({
+                "question_key": key,
+                "section": u.get("section"),
+                "value": u.get("value"),
+                "approval_status": sub.get("status"),
+            })
+
+    # 4. Section-level progress
     section_pipeline = [
-        {"$match": {"organization_id": org_id, "framework": "BRSR"}},
+        {"$match": {"organization_id": org_id, "framework": {"$in": _FW_VARIANTS}}},
         {"$group": {
             "_id": "$section",
             "total": {"$sum": 1},
-            "approved": {"$sum": {"$cond": [{"$eq": ["$status", "approved"]}, 1, 0]}},
-            "pending": {"$sum": {"$cond": [{"$eq": ["$status", "pending"]}, 1, 0]}},
-            "rejected": {"$sum": {"$cond": [{"$eq": ["$status", "rejected"]}, 1, 0]}},
+            "approved": {"$sum": {"$cond": [{"$eq": ["$approval_status", "approved"]}, 1, 0]}},
         }},
         {"$sort": {"_id": 1}},
     ]
-    section_stats = await db.esg_response_submissions.aggregate(section_pipeline).to_list(10)
+    section_stats = await db.esg_responses.aggregate(section_pipeline).to_list(10)
 
-    # 3. Draft count
     draft_count = await db.esg_response_drafts.count_documents(
-        {"organization_id": org_id, "framework": "brsr"}
+        {"organization_id": org_id, "framework": {"$in": _FW_VARIANTS}}
     )
-
-    # 4. Total configured questions
     brsr_questions = await db.esg_question_configs.count_documents({"framework": "brsr"})
 
     return {
         "framework": "BRSR",
         "total_questions_configured": brsr_questions,
-        "total_submissions": len(submissions),
+        "total_filled": len(records),
         "drafts_pending": draft_count,
         "section_progress": [
-            {
-                "section": s["_id"],
-                "total_submitted": s["total"],
-                "approved": s["approved"],
-                "pending_approval": s["pending"],
-                "rejected": s["rejected"],
-            }
+            {"section": s["_id"], "filled": s["total"], "approved": s["approved"]}
             for s in section_stats
         ],
-        "responses": records[:20],
+        "responses": records[:30],
     }
 
 
