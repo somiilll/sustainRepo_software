@@ -3,5 +3,15 @@
         "category": "Non-Renewable",
         "scope": "Scope 2",
         "mapped_fuel": "Electricity"
+    },
+    "Bengaluru Vidyuth Sarabaraju Company Niyamitha (BESCOM)::electricity": {
+        "category": "Non-Renewable",
+        "scope": "Scope 2",
+        "mapped_fuel": "Electricity"
+    },
+    "Bengaluru Vidyuth Sarabaraju Company Ltd (BESCOM)::electricity": {
+        "category": "Non-Renewable",
+        "scope": "Scope 2",
+        "mapped_fuel": "Electricity"
     }
 }
