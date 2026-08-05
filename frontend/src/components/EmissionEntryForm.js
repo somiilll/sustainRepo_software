@@ -398,7 +398,12 @@ export default function EmissionEntryForm({
    * @returns {Object|null} - The primary field config or null if not found
    */
   const findPrimaryActivityField = useCallback((fields) => {
-    if (!fields || fields.length === 0) return null;
+    console.log('[OCR Debug] findPrimaryActivityField called with fields:', fields);
+    
+    if (!fields || fields.length === 0) {
+      console.log('[OCR Debug] No fields provided');
+      return null;
+    }
     
     // Priority order for identifying the primary quantity field
     const primaryFieldPatterns = [
@@ -413,13 +418,19 @@ export default function EmissionEntryForm({
       'gas_consumed'
     ];
     
+    // Log all field keys for debugging
+    console.log('[OCR Debug] Available field keys:', fields.map(f => f.field_key));
+    
     // First, try to find by field_key matching known patterns
     for (const pattern of primaryFieldPatterns) {
       const match = fields.find(f => 
         f.field_key?.toLowerCase() === pattern ||
         f.field_key?.toLowerCase().includes(pattern)
       );
-      if (match) return match;
+      if (match) {
+        console.log('[OCR Debug] Found primary field by pattern:', pattern, '→', match.field_key);
+        return match;
+      }
     }
     
     // Fallback: find the first numeric field that has an associated unit field
@@ -427,10 +438,20 @@ export default function EmissionEntryForm({
       f.field_type === 'number' && 
       fields.some(uf => uf.field_key === `${f.field_key}_unit`)
     );
-    if (numericField) return numericField;
+    if (numericField) {
+      console.log('[OCR Debug] Found primary field by numeric+unit fallback:', numericField.field_key);
+      return numericField;
+    }
     
     // Last resort: first numeric field
-    return fields.find(f => f.field_type === 'number') || null;
+    const firstNumeric = fields.find(f => f.field_type === 'number');
+    if (firstNumeric) {
+      console.log('[OCR Debug] Found primary field by first numeric fallback:', firstNumeric.field_key);
+      return firstNumeric;
+    }
+    
+    console.log('[OCR Debug] No primary field found!');
+    return null;
   }, []);
 
   /**
@@ -442,21 +463,30 @@ export default function EmissionEntryForm({
    * @param {Function} setMonthlyData - State setter for monthlyData
    */
   const applyOcrQuantityToField = useCallback((monthKey, quantity, unit, primaryField, setMonthlyDataFn) => {
-    if (!primaryField?.field_key || !monthKey) return;
+    console.log('[OCR Debug] applyOcrQuantityToField called:', { monthKey, quantity, unit, primaryField });
+    
+    if (!primaryField?.field_key || !monthKey) {
+      console.log('[OCR Debug] Missing primaryField or monthKey, aborting');
+      return;
+    }
     
     const fieldKey = primaryField.field_key;
     const unitFieldKey = `${fieldKey}_unit`;
     
-    console.log(`[OCR Prefill] Applying quantity ${quantity} ${unit} to field: ${fieldKey}`);
+    console.log(`[OCR Prefill] Applying quantity ${quantity} ${unit} to field: ${fieldKey}, unit field: ${unitFieldKey}`);
     
-    setMonthlyDataFn(prev => ({
-      ...prev,
-      [monthKey]: {
-        ...prev[monthKey],
-        [fieldKey]: quantity,
-        [unitFieldKey]: unit || ''
-      }
-    }));
+    setMonthlyDataFn(prev => {
+      const updated = {
+        ...prev,
+        [monthKey]: {
+          ...prev[monthKey],
+          [fieldKey]: quantity,
+          [unitFieldKey]: unit || ''
+        }
+      };
+      console.log('[OCR Debug] Updated monthlyData:', updated);
+      return updated;
+    });
   }, []);
 
   // ============================================================================
@@ -471,40 +501,73 @@ export default function EmissionEntryForm({
   useEffect(() => {
     if (!ocrPrefillData) return;
     
-    console.log('[OCR Prefill] Phase 1 - Applying metadata:', ocrPrefillData);
+    console.log('[OCR Debug] Phase 1 - ocrPrefillData:', ocrPrefillData);
+    console.log('[OCR Debug] Phase 1 - fuelDatabase length:', fuelDatabase?.length);
     
     // Set scope (scope1, scope2, scope3)
     if (ocrPrefillData.scope) {
+      console.log('[OCR Debug] Setting scope:', ocrPrefillData.scope);
       setScope(ocrPrefillData.scope);
     }
     
     // Set category
     if (ocrPrefillData.category) {
+      console.log('[OCR Debug] Setting category:', ocrPrefillData.category);
       setCategory(ocrPrefillData.category);
     }
     
     // Set fuel type by looking up fuelId from fuelDatabase
-    if (ocrPrefillData.fuel_name && fuelDatabase?.length > 0) {
-      const fuelNameLower = ocrPrefillData.fuel_name.toLowerCase();
+    // For Scope 2 electricity, look for subcategory match (e.g., "Non-Renewable Electricity")
+    if (fuelDatabase?.length > 0) {
+      const fuelNameLower = (ocrPrefillData.fuel_name || '').toLowerCase();
+      const subcategoryLower = (ocrPrefillData.subcategory || '').toLowerCase();
       
-      // Try exact match first
-      let matchedFuel = fuelDatabase.find(f => 
-        f.name?.toLowerCase() === fuelNameLower ||
-        f.activity?.toLowerCase() === fuelNameLower
-      );
+      console.log('[OCR Debug] Looking for fuel match:', { fuelNameLower, subcategoryLower });
+      console.log('[OCR Debug] Available fuels:', fuelDatabase.map(f => ({ id: f.id, name: f.name, activity: f.activity })));
       
-      // Try partial match if no exact match
-      if (!matchedFuel) {
+      let matchedFuel = null;
+      
+      // For Scope 2, try to match by subcategory first (e.g., "Non-Renewable Electricity")
+      if (subcategoryLower) {
+        matchedFuel = fuelDatabase.find(f => 
+          f.name?.toLowerCase() === subcategoryLower ||
+          f.activity?.toLowerCase() === subcategoryLower ||
+          f.name?.toLowerCase().includes(subcategoryLower) ||
+          subcategoryLower.includes(f.name?.toLowerCase())
+        );
+        if (matchedFuel) {
+          console.log('[OCR Debug] Matched fuel by subcategory:', matchedFuel.name);
+        }
+      }
+      
+      // Try exact match on fuel_name
+      if (!matchedFuel && fuelNameLower) {
+        matchedFuel = fuelDatabase.find(f => 
+          f.name?.toLowerCase() === fuelNameLower ||
+          f.activity?.toLowerCase() === fuelNameLower
+        );
+        if (matchedFuel) {
+          console.log('[OCR Debug] Matched fuel by exact name:', matchedFuel.name);
+        }
+      }
+      
+      // Try partial match on fuel_name
+      if (!matchedFuel && fuelNameLower) {
         matchedFuel = fuelDatabase.find(f => 
           f.name?.toLowerCase().includes(fuelNameLower) ||
           fuelNameLower.includes(f.name?.toLowerCase()) ||
           f.activity?.toLowerCase().includes(fuelNameLower)
         );
+        if (matchedFuel) {
+          console.log('[OCR Debug] Matched fuel by partial name:', matchedFuel.name);
+        }
       }
       
       if (matchedFuel?.id) {
-        console.log('[OCR Prefill] Matched fuel:', matchedFuel.name, matchedFuel.id);
+        console.log('[OCR Prefill] Setting fuelId:', matchedFuel.id, matchedFuel.name);
         setFuelId(matchedFuel.id);
+      } else {
+        console.log('[OCR Debug] No fuel match found');
       }
     }
     
@@ -523,6 +586,8 @@ export default function EmissionEntryForm({
       const startDate = new Date(ocrPrefillData.billing_period.start_date);
       const monthKey = String(startDate.getMonth() + 1).padStart(2, '0');
       const year = startDate.getFullYear();
+      
+      console.log('[OCR Debug] Phase 1 - Setting up pending quantity:', { monthKey, year, quantity: ocrPrefillData.quantity });
       
       // Set reporting year immediately
       setReportingYear(String(year));
@@ -1319,9 +1384,22 @@ export default function EmissionEntryForm({
   // Apply quantity to the correct field after formConfig/dynamicInputFields are available
   // ============================================================================
   useEffect(() => {
-    if (!ocrPendingQuantity) return;
-    if (!dynamicInputFields || dynamicInputFields.length === 0) return;
+    console.log('[OCR Debug] Phase 2 effect triggered:', { 
+      ocrPendingQuantity, 
+      dynamicInputFieldsLength: dynamicInputFields?.length,
+      dynamicInputFields: dynamicInputFields?.map(f => f.field_key)
+    });
     
+    if (!ocrPendingQuantity) {
+      console.log('[OCR Debug] Phase 2 - No pending quantity, skipping');
+      return;
+    }
+    if (!dynamicInputFields || dynamicInputFields.length === 0) {
+      console.log('[OCR Debug] Phase 2 - No dynamicInputFields yet, waiting...');
+      return;
+    }
+    
+    console.log('[OCR Debug] Phase 2 - Finding primary field...');
     const primaryField = findPrimaryActivityField(dynamicInputFields);
     
     if (primaryField) {
@@ -1335,6 +1413,8 @@ export default function EmissionEntryForm({
       );
       // Clear pending after applying
       setOcrPendingQuantity(null);
+    } else {
+      console.log('[OCR Debug] Phase 2 - No primary field found!');
     }
   }, [ocrPendingQuantity, dynamicInputFields, findPrimaryActivityField, applyOcrQuantityToField]);
 
