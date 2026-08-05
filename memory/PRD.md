@@ -615,6 +615,21 @@ Raw Response → Question Score (0-100)
 
 - **Status**: ✅ Complete - Backend scoring engine tested, frontend UI implemented
 
+### Supplier Ranking Dashboard Enhancement (P1)
+- **Enhanced**: `/app/frontend/src/modules/supplier-assessment/SupplierRanking.jsx`
+- **New Features**:
+  - **4 Tabs**: Overview, ESG Analysis, Emissions, Detailed Table
+  - **Overview Tab**: Score Distribution pie chart, Top Performers bar chart, Radar comparison chart
+  - **ESG Analysis Tab**: Average ESG scores with progress bars, grouped bar chart by E/S/G per supplier
+  - **Emissions Tab**: Scope 1 & 2 pie chart, scope summary cards, stacked bar chart by supplier
+  - **Detailed Table**: Full breakdown with E/S/G columns, emissions, status badges
+  - **Sort by dropdown**: Overall, ESG, Environment, Social, Governance, GHG
+- **Backend Updates**: `/app/backend/modules/supplier_assessment/service.py`
+  - Added `environment_score`, `social_score`, `governance_score` to rankings
+  - Added `scope1_emissions`, `scope2_emissions` breakdown (Scope 3 excluded for suppliers)
+  - Added `score_distribution`, `averages`, `emissions_by_scope` aggregates
+- **Status**: ✅ Complete
+
 ### Upcoming Tasks (P0-P1)
 1. Database Migration Script - migrate existing questionnaires to new schema
 2. Hash-based Integrity Verification for Evidence Files (SHA-256)

@@ -994,7 +994,7 @@ class SupplierAssessmentService:
         self,
         customer_org_id: str,
     ) -> Dict[str, Any]:
-        """Get supplier rankings for a customer."""
+        """Get supplier rankings for a customer with detailed breakdown."""
         suppliers = await db.supplier_relationships.find(
             {"customer_org_id": customer_org_id, "is_active": True},
             {"_id": 0}
@@ -1003,29 +1003,55 @@ class SupplierAssessmentService:
         # Calculate scores for each supplier
         rankings = []
         for s in suppliers:
-            # Get ESG score from questionnaire responses
+            # Get ESG score from questionnaire responses with breakdown
             esg_scores = []
+            env_scores = []
+            social_scores = []
+            gov_scores = []
+            
             responses = await db.supplier_questionnaire_responses.find(
                 {"supplier_relationship_id": s["id"], "status": "submitted"},
-                {"_id": 0, "calculated_score": 1}
+                {"_id": 0, "calculated_score": 1, "score_breakdown": 1, "esg_score": 1}
             ).to_list(100)
             
             for r in responses:
                 if r.get("calculated_score") is not None:
                     esg_scores.append(r["calculated_score"])
+                
+                # Extract section scores from breakdown
+                breakdown = r.get("score_breakdown", {})
+                if breakdown:
+                    esg_data = breakdown.get("esg_score", {})
+                    if esg_data:
+                        env = esg_data.get("environment", {})
+                        social = esg_data.get("social", {})
+                        gov = esg_data.get("governance", {})
+                        if env and env.get("score"):
+                            env_scores.append(env["score"])
+                        if social and social.get("score"):
+                            social_scores.append(social["score"])
+                        if gov and gov.get("score"):
+                            gov_scores.append(gov["score"])
             
             esg_score = sum(esg_scores) / len(esg_scores) if esg_scores else None
+            env_score = sum(env_scores) / len(env_scores) if env_scores else None
+            social_score = sum(social_scores) / len(social_scores) if social_scores else None
+            gov_score = sum(gov_scores) / len(gov_scores) if gov_scores else None
             
-            # Get GHG score (lower emissions = better score, normalized)
+            # Get GHG emissions by scope (Scope 1 & 2 only for suppliers)
             ghg_emissions = await db.emission_records.find(
                 {
                     "source": "supplier",
                     "supplier_relationship_id": s["id"],
+                    "scope": {"$in": ["scope_1", "scope_2"]},  # Only Scope 1 & 2 for suppliers
                 },
-                {"_id": 0, "total_emissions": 1}
+                {"_id": 0, "total_emissions": 1, "scope": 1}
             ).to_list(1000)
             
-            total_ghg = sum(e.get("total_emissions", 0) or 0 for e in ghg_emissions)
+            scope1 = sum(e.get("total_emissions", 0) or 0 for e in ghg_emissions if e.get("scope") == "scope_1")
+            scope2 = sum(e.get("total_emissions", 0) or 0 for e in ghg_emissions if e.get("scope") == "scope_2")
+            total_ghg = scope1 + scope2
+            
             ghg_score = None
             if ghg_emissions:
                 # Normalize: assume 1000 tCO2e is "bad" (score 0), 0 is "good" (score 100)
@@ -1034,7 +1060,7 @@ class SupplierAssessmentService:
             # Calculate overall score
             overall_score = None
             if esg_score is not None or ghg_score is not None:
-                scores = [s for s in [esg_score, ghg_score] if s is not None]
+                scores = [sc for sc in [esg_score, ghg_score] if sc is not None]
                 overall_score = sum(scores) / len(scores)
             
             # Determine completion status
@@ -1048,9 +1074,16 @@ class SupplierAssessmentService:
                 "supplier_id": s["id"],
                 "company_name": s["company_name"],
                 "esg_score": round(esg_score, 1) if esg_score else None,
+                "environment_score": round(env_score, 1) if env_score else None,
+                "social_score": round(social_score, 1) if social_score else None,
+                "governance_score": round(gov_score, 1) if gov_score else None,
                 "ghg_score": round(ghg_score, 1) if ghg_score else None,
+                "scope1_emissions": round(scope1, 2),
+                "scope2_emissions": round(scope2, 2),
+                "total_emissions": round(total_ghg, 2),
                 "overall_score": round(overall_score, 1) if overall_score else None,
                 "completion_status": completion_status,
+                "revenue_percentage": s.get("revenue_percentage"),
             })
         
         # Sort by overall score (None at end)
@@ -1060,10 +1093,45 @@ class SupplierAssessmentService:
         for i, r in enumerate(rankings):
             r["rank"] = i + 1 if r["overall_score"] is not None else None
         
+        # Calculate aggregates for charts
+        ranked_suppliers = [r for r in rankings if r["overall_score"] is not None]
+        
+        # Score distribution buckets
+        score_distribution = {
+            "excellent": len([r for r in ranked_suppliers if r["overall_score"] and r["overall_score"] >= 80]),
+            "good": len([r for r in ranked_suppliers if r["overall_score"] and 60 <= r["overall_score"] < 80]),
+            "average": len([r for r in ranked_suppliers if r["overall_score"] and 40 <= r["overall_score"] < 60]),
+            "poor": len([r for r in ranked_suppliers if r["overall_score"] and r["overall_score"] < 40]),
+        }
+        
+        # Average scores
+        avg_esg = sum(r["esg_score"] for r in ranked_suppliers if r["esg_score"]) / len([r for r in ranked_suppliers if r["esg_score"]]) if any(r["esg_score"] for r in ranked_suppliers) else 0
+        avg_env = sum(r["environment_score"] for r in ranked_suppliers if r["environment_score"]) / len([r for r in ranked_suppliers if r["environment_score"]]) if any(r["environment_score"] for r in ranked_suppliers) else 0
+        avg_social = sum(r["social_score"] for r in ranked_suppliers if r["social_score"]) / len([r for r in ranked_suppliers if r["social_score"]]) if any(r["social_score"] for r in ranked_suppliers) else 0
+        avg_gov = sum(r["governance_score"] for r in ranked_suppliers if r["governance_score"]) / len([r for r in ranked_suppliers if r["governance_score"]]) if any(r["governance_score"] for r in ranked_suppliers) else 0
+        avg_ghg = sum(r["ghg_score"] for r in ranked_suppliers if r["ghg_score"]) / len([r for r in ranked_suppliers if r["ghg_score"]]) if any(r["ghg_score"] for r in ranked_suppliers) else 0
+        
+        # Total emissions by scope (Scope 1 & 2 only)
+        total_scope1 = sum(r["scope1_emissions"] for r in rankings)
+        total_scope2 = sum(r["scope2_emissions"] for r in rankings)
+        
         return {
             "rankings": rankings,
             "total_suppliers": len(rankings),
-            "ranked_suppliers": len([r for r in rankings if r["overall_score"] is not None]),
+            "ranked_suppliers": len(ranked_suppliers),
+            "score_distribution": score_distribution,
+            "averages": {
+                "esg": round(avg_esg, 1),
+                "environment": round(avg_env, 1),
+                "social": round(avg_social, 1),
+                "governance": round(avg_gov, 1),
+                "ghg": round(avg_ghg, 1),
+            },
+            "emissions_by_scope": {
+                "scope1": round(total_scope1, 2),
+                "scope2": round(total_scope2, 2),
+                "total": round(total_scope1 + total_scope2, 2),
+            },
         }
     
     # ========================================================================
