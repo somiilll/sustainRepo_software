@@ -522,53 +522,92 @@ export default function EmissionEntryForm({
     if (fuelDatabase?.length > 0) {
       const fuelNameLower = (ocrPrefillData.fuel_name || '').toLowerCase();
       const subcategoryLower = (ocrPrefillData.subcategory || '').toLowerCase();
+      const categoryLower = (ocrPrefillData.category || '').toLowerCase();
       
-      console.log('[OCR Debug] Looking for fuel match:', { fuelNameLower, subcategoryLower });
-      console.log('[OCR Debug] Available fuels:', fuelDatabase.map(f => ({ id: f.id, name: f.name, activity: f.activity })));
+      console.log('[OCR Debug] Looking for fuel match:', { fuelNameLower, subcategoryLower, categoryLower });
+      // Log first 10 fuels to understand the structure
+      console.log('[OCR Debug] Sample fuels (first 10):', fuelDatabase.slice(0, 10).map(f => ({ 
+        id: f.id, 
+        name: f.name, 
+        activity: f.activity,
+        fuel_name: f.fuel_name,
+        category: f.category,
+        subcategory: f.subcategory
+      })));
       
       let matchedFuel = null;
       
+      // Helper function to check if any field matches the search term
+      const fuelMatches = (fuel, searchTerm) => {
+        if (!searchTerm) return false;
+        const searchLower = searchTerm.toLowerCase();
+        
+        // Check all possible name fields
+        const fieldsToCheck = [
+          fuel.name,
+          fuel.activity,
+          fuel.fuel_name,
+          fuel.subcategory,
+          fuel.label,
+          fuel.display_name
+        ];
+        
+        for (const field of fieldsToCheck) {
+          if (!field) continue;
+          const fieldLower = field.toLowerCase();
+          // Exact match
+          if (fieldLower === searchLower) return true;
+          // Contains match
+          if (fieldLower.includes(searchLower) || searchLower.includes(fieldLower)) return true;
+        }
+        return false;
+      };
+      
       // For Scope 2, try to match by subcategory first (e.g., "Non-Renewable Electricity")
       if (subcategoryLower) {
-        matchedFuel = fuelDatabase.find(f => 
-          f.name?.toLowerCase() === subcategoryLower ||
-          f.activity?.toLowerCase() === subcategoryLower ||
-          f.name?.toLowerCase().includes(subcategoryLower) ||
-          subcategoryLower.includes(f.name?.toLowerCase())
-        );
+        matchedFuel = fuelDatabase.find(f => fuelMatches(f, subcategoryLower));
         if (matchedFuel) {
-          console.log('[OCR Debug] Matched fuel by subcategory:', matchedFuel.name);
+          console.log('[OCR Debug] Matched fuel by subcategory:', matchedFuel.name || matchedFuel.activity);
         }
       }
       
-      // Try exact match on fuel_name
+      // Try matching by fuel_name (e.g., "Electricity")
       if (!matchedFuel && fuelNameLower) {
-        matchedFuel = fuelDatabase.find(f => 
-          f.name?.toLowerCase() === fuelNameLower ||
-          f.activity?.toLowerCase() === fuelNameLower
-        );
+        matchedFuel = fuelDatabase.find(f => fuelMatches(f, fuelNameLower));
         if (matchedFuel) {
-          console.log('[OCR Debug] Matched fuel by exact name:', matchedFuel.name);
+          console.log('[OCR Debug] Matched fuel by fuel_name:', matchedFuel.name || matchedFuel.activity);
         }
       }
       
-      // Try partial match on fuel_name
-      if (!matchedFuel && fuelNameLower) {
-        matchedFuel = fuelDatabase.find(f => 
-          f.name?.toLowerCase().includes(fuelNameLower) ||
-          fuelNameLower.includes(f.name?.toLowerCase()) ||
-          f.activity?.toLowerCase().includes(fuelNameLower)
-        );
-        if (matchedFuel) {
-          console.log('[OCR Debug] Matched fuel by partial name:', matchedFuel.name);
+      // Try matching common variations for electricity
+      if (!matchedFuel && (fuelNameLower.includes('electric') || subcategoryLower.includes('electric'))) {
+        const electricityVariations = [
+          'non-renewable electricity',
+          'non renewable electricity', 
+          'nonrenewable electricity',
+          'grid electricity',
+          'purchased electricity',
+          'electricity - non-renewable',
+          'electricity (non-renewable)',
+          'electricity'
+        ];
+        
+        for (const variation of electricityVariations) {
+          matchedFuel = fuelDatabase.find(f => fuelMatches(f, variation));
+          if (matchedFuel) {
+            console.log('[OCR Debug] Matched fuel by electricity variation:', variation, '→', matchedFuel.name || matchedFuel.activity);
+            break;
+          }
         }
       }
       
       if (matchedFuel?.id) {
-        console.log('[OCR Prefill] Setting fuelId:', matchedFuel.id, matchedFuel.name);
+        console.log('[OCR Prefill] Setting fuelId:', matchedFuel.id, matchedFuel.name || matchedFuel.activity);
         setFuelId(matchedFuel.id);
       } else {
-        console.log('[OCR Debug] No fuel match found');
+        console.log('[OCR Debug] No fuel match found. Available fuel names:', 
+          fuelDatabase.slice(0, 20).map(f => f.name || f.activity || f.fuel_name).filter(Boolean)
+        );
       }
     }
     
