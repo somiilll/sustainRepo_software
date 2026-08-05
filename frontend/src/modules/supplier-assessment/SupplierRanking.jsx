@@ -688,8 +688,12 @@ export default function SupplierRanking() {
                             Gov
                           </div>
                         </TableHead>
-                        <TableHead className="text-center">GHG</TableHead>
-                        <TableHead className="text-center">Emissions</TableHead>
+                        <TableHead className="text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <Factory className="h-3 w-3 text-amber-500" />
+                            GHG
+                          </div>
+                        </TableHead>
                         <TableHead>Status</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -733,11 +737,6 @@ export default function SupplierRanking() {
                             <span className={`font-semibold ${getScoreColor(supplier.ghg_score)}`}>
                               {supplier.ghg_score !== null ? supplier.ghg_score : '-'}
                             </span>
-                          </TableCell>
-                          <TableCell className="text-center text-sm text-stone-600">
-                            {supplier.total_emissions > 0 
-                              ? `${supplier.total_emissions.toLocaleString()} tCO2e`
-                              : '-'}
                           </TableCell>
                           <TableCell>
                             <Badge className={statusColors[supplier.completion_status]}>
