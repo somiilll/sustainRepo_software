@@ -1074,17 +1074,22 @@ class SupplierAssessmentService:
             gov_score = min(100, sum(gov_scores) / len(gov_scores)) if gov_scores else None
             
             # Get GHG emissions by scope (Scope 1 & 2 only for suppliers)
+            # First try supplier-specific emissions, then fall back to org-level emissions
             ghg_emissions = await db.emission_records.find(
                 {
-                    "source": "supplier",
-                    "supplier_relationship_id": s["id"],
-                    "scope": {"$in": ["scope_1", "scope_2"]},  # Only Scope 1 & 2 for suppliers
+                    "$or": [
+                        # Option 1: Emissions tagged with supplier relationship
+                        {"source": "supplier", "supplier_relationship_id": s["id"]},
+                        # Option 2: Emissions from supplier's organization
+                        {"organization_id": s.get("supplier_org_id")},
+                    ],
+                    "scope": {"$in": ["scope_1", "scope_2", "scope1", "scope2"]},  # Handle both formats
                 },
                 {"_id": 0, "total_emissions": 1, "scope": 1}
             ).to_list(1000)
             
-            scope1 = sum(e.get("total_emissions", 0) or 0 for e in ghg_emissions if e.get("scope") == "scope_1")
-            scope2 = sum(e.get("total_emissions", 0) or 0 for e in ghg_emissions if e.get("scope") == "scope_2")
+            scope1 = sum(e.get("total_emissions", 0) or 0 for e in ghg_emissions if e.get("scope") in ["scope_1", "scope1"])
+            scope2 = sum(e.get("total_emissions", 0) or 0 for e in ghg_emissions if e.get("scope") in ["scope_2", "scope2"])
             total_ghg = scope1 + scope2
             
             ghg_score = None
