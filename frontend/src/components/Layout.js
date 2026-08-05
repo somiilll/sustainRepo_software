@@ -13,6 +13,7 @@ const API = `${BACKEND_URL}/api`;
 const SUPPLIER_ALLOWED_ROUTES = [
   '/dashboard',
   '/profile',
+  '/facilities',
   '/supplier-assessment/supplier',
   '/supplier-assessment/questionnaire',
   '/ghg/scope1',
@@ -22,29 +23,29 @@ const SUPPLIER_ALLOWED_ROUTES = [
   '/ghg',
 ];
 
-// Locked overlay for supplier users
+// Locked overlay for supplier users - Full screen coverage
 const SupplierLockedOverlay = ({ children }) => (
-  <div className="relative min-h-[500px]">
+  <div className="fixed inset-0 z-50 lg:left-64 left-0"> {/* Account for sidebar width on large screens */}
     {/* Blurred background for sneak peek */}
     <div className="absolute inset-0 overflow-hidden">
-      <div className="filter blur-sm opacity-40 pointer-events-none select-none">
+      <div className="filter blur-sm opacity-30 pointer-events-none select-none h-full overflow-auto p-4">
         {children}
       </div>
     </div>
     
-    {/* Lock overlay */}
-    <div className="absolute inset-0 bg-gradient-to-b from-white/80 via-white/60 to-white/80 backdrop-blur-[2px] flex items-center justify-center z-10">
-      <div className="text-center p-8 max-w-md">
-        <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-4">
-          <Lock className="w-8 h-8 text-emerald-600" />
+    {/* Lock overlay - full screen */}
+    <div className="absolute inset-0 bg-gradient-to-b from-white/90 via-white/80 to-white/90 backdrop-blur-[3px] flex items-center justify-center">
+      <div className="text-center p-8 max-w-md mx-4">
+        <div className="w-20 h-20 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-5">
+          <Lock className="w-10 h-10 text-emerald-600" />
         </div>
-        <h3 className="text-lg font-semibold text-stone-700 mb-2">
+        <h3 className="text-xl font-semibold text-stone-800 mb-3">
           Premium Module
         </h3>
-        <p className="text-stone-500 text-sm mb-4">
-          Subscribe to unlock this module and access advanced ESG management features.
+        <p className="text-stone-500 text-sm mb-6 leading-relaxed">
+          Subscribe to unlock this module and access advanced ESG management features for your organization.
         </p>
-        <button className="px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors">
+        <button className="px-6 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors shadow-sm">
           Contact Sales
         </button>
       </div>
