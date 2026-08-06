@@ -1350,13 +1350,13 @@ export default function EmissionEntryForm({
       const appliesToScope = !m.applies_to_scopes?.length || 
                              m.applies_to_scopes.includes(scopeId);
       
-      // HARDCODED FIX: Always show cv and density for Scope 1/2 Stationary/Mobile Combustion
-      // This must come FIRST before any other filtering to bypass scope restrictions
+      // HARDCODED FIX: Show cv and density for Scope 1/2 Stationary/Mobile Combustion
+      // BUT only when using NCV methodology (not carbon composition)
       const currentCategoryName = (category || '').toLowerCase();
       const isStationaryOrMobile = currentCategoryName.includes('stationary') || currentCategoryName.includes('mobile');
-      if ((scope === 'scope1' || scope === 'scope2') && isStationaryOrMobile && m.is_override) {
+      const calcMethod = decisionFieldValues.calculation_methodology || 'using_ncv';
+      if ((scope === 'scope1' || scope === 'scope2') && isStationaryOrMobile && m.is_override && calcMethod === 'using_ncv') {
         if (m.maps_to_variable === 'cv' || m.maps_to_variable === 'density') {
-          // Only check category match and is_active - SKIP scope check for cv/density
           return appliesToCategory && m.is_active !== false;
         }
       }
@@ -1377,18 +1377,18 @@ export default function EmissionEntryForm({
           if (!isRequiredForFormula) return false;
         }
       }
-      // For Scope 1/2/Biogenic Scope 1: only filter override fields by formula properties
-      // Non-override fields use scope/category filtering only
-      else if ((isBiogenicScope1 || scope === 'scope1' || scope === 'scope2') && matchedFormula) {
+      // For Scope 1/2/Biogenic Scope 1: filter by formula inputs when formula is resolved via decision tree
+      else if ((isBiogenicScope1 || scope === 'scope1' || scope === 'scope2') && matchedFormula && requiredInputVars) {
         if (m.is_override) {
-          // For other override fields (not cv/density), check formula properties
           const formulaProperties = matchedFormula.properties || [];
           const isPropertyOfFormula = formulaProperties.some(
             prop => prop.variable === m.maps_to_variable || prop.key === m.maps_to_variable
           );
           if (!isPropertyOfFormula) return false;
+        } else {
+          const isRequiredForFormula = requiredInputVars.includes(m.maps_to_variable);
+          if (!isRequiredForFormula) return false;
         }
-        // Non-override fields: rely on scope/category filtering (no formula input check)
       }
       
       return appliesToCategory && appliesToScope && m.is_active !== false;
