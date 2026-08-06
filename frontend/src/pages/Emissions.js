@@ -535,7 +535,7 @@ export default function Emissions() {
       if (editFormConfig.decision_tree) {
         const decisionValues = {
           calculation_methodology: editCalcMethodology || 'using_ncv',
-          ef_quantity_provided: 'false',
+          ef_quantity_provided: editUseCustomFuel ? 'true' : 'false',
           ...(editProcessType && { process_type: editProcessType }),
         };
         const formulaId = traverseDecisionTreeEdit(editFormConfig.decision_tree, decisionValues);
@@ -1942,7 +1942,7 @@ export default function Emissions() {
       }
     } else {
       const isProcessEmissions = (formData.category || selectedCategory || '').toLowerCase().includes('process');
-      if (!isProcessEmissions && !selectedFuel) {
+      if (!isProcessEmissions && !editUseCustomFuel && !selectedFuel) {
         setBackendCalcResult(null);
         return;
       }
