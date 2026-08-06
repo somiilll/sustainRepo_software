@@ -79,28 +79,28 @@ export default function BRSRDetailsSection({
     // I. Details of the Listed Entity (Q1-15)
     cin: '',                              // Q1: Corporate Identity Number
     listed_entity_name: '',               // Q2: Name of the Listed Entity
-    year_of_incorporation: new Date().getFullYear(), // Q3: Year of incorporation
+    year_of_incorporation: '',            // Q3: Year of incorporation
     registered_address: '',               // Q4: Registered office address
     registered_city: '',
     registered_state: '',
-    registered_country: 'India',
+    registered_country: '',
     registered_pincode: '',
     corporate_address: '',                // Q5: Corporate address (NEW)
     corporate_city: '',
     corporate_state: '',
-    corporate_country: 'India',
+    corporate_country: '',
     corporate_pincode: '',
     email: '',                            // Q6: E-mail
     telephone: '',                        // Q7: Telephone
     website: '',                          // Q8: Website
     // Q9: Financial year - handled by reporting_period
-    stock_exchange: 'BSE',                // Q10: Name of Stock Exchange(s)
-    paid_up_capital: 0,                   // Q11: Paid-up Capital
+    stock_exchange: '',                   // Q10: Name of Stock Exchange(s)
+    paid_up_capital: '',                  // Q11: Paid-up Capital
     // Q12: BRSR Contact Person
     brsr_contact_name: '',
     brsr_contact_telephone: '',
     brsr_contact_email: '',
-    reporting_boundary: 'Standalone',     // Q13: Reporting boundary
+    reporting_boundary: '',               // Q13: Reporting boundary
     assurance_provider: '',               // Q14: Name of assurance provider
     assurance_type: '',                   // Q15: Type of assurance obtained
     
@@ -111,7 +111,7 @@ export default function BRSRDetailsSection({
     // III. Operations (Q18-19)
     plants_offices: [{ ...EMPTY_PLANT_OFFICE }],            // Q18
     markets_served: [{ ...EMPTY_MARKET_SERVED }],           // Q19a
-    export_contribution_percentage: 0,                       // Q19b
+    export_contribution_percentage: '',                      // Q19b
     customer_types_brief: '',                                // Q19c
     
     // Reporting period for year-specific data
