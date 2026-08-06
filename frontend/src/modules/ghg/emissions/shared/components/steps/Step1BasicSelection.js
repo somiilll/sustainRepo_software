@@ -39,9 +39,6 @@ export const Step1BasicSelection = ({
   setUseCustomFuel,
   setBiogenicScopeSelection,
   setScope3Subcategory,
-  setSelectedSubIndustry,
-  setSelectedTemplate,
-  setTemplateInputValues,
   
   // Biogenic props
   biogenicScopeSelection,
@@ -300,9 +297,6 @@ export const Step1BasicSelection = ({
             setScope3Subcategory('');
             setTypeOfProduct?.('');
             setScope3ActivityId('');
-            setSelectedSubIndustry('');
-            setSelectedTemplate(null);
-            setTemplateInputValues({});
           }}
         >
           <SelectTrigger 
