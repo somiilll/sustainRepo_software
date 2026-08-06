@@ -611,8 +611,10 @@ export default function Emissions() {
             if (!isRequiredForFormula) return false;
           }
         }
-        // For Scope 1/2/Biogenic Scope 1: filter by formula inputs when formula is resolved via decision tree
-        else if ((isBiogenicScope1 || formData.scope === 'scope1' || formData.scope === 'scope2') && matchedFormula && requiredInputVars) {
+        // For Scope 1/2/Biogenic Scope 1: only filter override fields by formula properties
+        // Non-override fields (like ef_quantity, qty) are decision fields - they determine which formula to use
+        // so they should always show based on scope/category applicability
+        else if ((isBiogenicScope1 || formData.scope === 'scope1' || formData.scope === 'scope2') && matchedFormula) {
           if (m.is_override) {
             // Override fields should only show if in formula properties
             const formulaProperties = matchedFormula.properties || [];
@@ -620,11 +622,8 @@ export default function Emissions() {
               prop => prop.variable === m.maps_to_variable || prop.key === m.maps_to_variable
             );
             if (!isPropertyOfFormula) return false;
-          } else {
-            // Non-override fields must be in the formula's inputs
-            const isRequiredForFormula = requiredInputVars.includes(m.maps_to_variable);
-            if (!isRequiredForFormula) return false;
           }
+          // Non-override fields: rely on scope/category filtering only (no formula input check)
         }
         
         return true;
