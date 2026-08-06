@@ -1309,7 +1309,7 @@ export default function EmissionEntryForm({
           }
         } else {
           const currentCategoryName = (category || categoryObj?.name || '').toLowerCase();
-          const isStationaryOrMobile = currentCategoryName.includes('stationary') || currentCategoryName.includes('mobile');
+          const isStationaryOrMobile = currentCategoryName.includes('stationary') || currentCategoryName.includes('mobile') || currentCategoryName.includes('flaring');
           
           if (isStationaryOrMobile) {
             matchedFormula = formConfig.formulas.find(f => 
@@ -1353,7 +1353,7 @@ export default function EmissionEntryForm({
       // HARDCODED FIX: Show cv and density for Scope 1/2 Stationary/Mobile Combustion
       // BUT only when using NCV methodology (not carbon composition)
       const currentCategoryName = (category || '').toLowerCase();
-      const isStationaryOrMobile = currentCategoryName.includes('stationary') || currentCategoryName.includes('mobile');
+      const isStationaryOrMobile = currentCategoryName.includes('stationary') || currentCategoryName.includes('mobile') || currentCategoryName.includes('flaring');
       const calcMethod = decisionFieldValues.calculation_methodology || 'using_ncv';
       if ((scope === 'scope1' || scope === 'scope2') && isStationaryOrMobile && m.is_override && calcMethod === 'using_ncv') {
         if (m.maps_to_variable === 'cv' || m.maps_to_variable === 'density') {

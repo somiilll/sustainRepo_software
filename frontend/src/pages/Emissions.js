@@ -526,7 +526,7 @@ export default function Emissions() {
     // For Biogenic Scope 1, Scope 1, or Scope 2 - match formula to filter fields correctly
     else if ((isBiogenicScope1 || formData.scope === 'scope1' || formData.scope === 'scope2') && editFormConfig?.formulas?.length) {
       const currentCategoryName = (formData.category || selectedCategory || '').toLowerCase();
-      const isStationaryOrMobile = currentCategoryName.includes('stationary') || currentCategoryName.includes('mobile');
+      const isStationaryOrMobile = currentCategoryName.includes('stationary') || currentCategoryName.includes('mobile') || currentCategoryName.includes('flaring');
       
       // Priority 0: Try decision tree traversal (handles calculation_methodology + ef_quantity_provided)
       // This ensures the form dynamically updates when user changes methodology
@@ -587,7 +587,7 @@ export default function Emissions() {
         // HARDCODED FIX: Show cv and density for Scope 1/2 Stationary/Mobile Combustion
         // BUT only when using NCV methodology (not carbon composition)
         const currentCategoryName = (formData.category || selectedCategory || '').toLowerCase();
-        const isStationaryOrMobile = currentCategoryName.includes('stationary') || currentCategoryName.includes('mobile');
+        const isStationaryOrMobile = currentCategoryName.includes('stationary') || currentCategoryName.includes('mobile') || currentCategoryName.includes('flaring');
         const calcMethod = editCalcMethodology || 'using_ncv';
         if ((formData.scope === 'scope1' || formData.scope === 'scope2') && isStationaryOrMobile && m.is_override && calcMethod === 'using_ncv') {
           if (m.maps_to_variable === 'cv' || m.maps_to_variable === 'density') {
