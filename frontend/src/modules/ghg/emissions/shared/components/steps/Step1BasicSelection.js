@@ -792,9 +792,6 @@ export const Step1BasicSelection = ({
                   data-testid="custom-fuel-name-input"
                 />
               </div>
-              <p className="text-xs text-stone-600">
-                Formula inputs (Quantity, EF/NCV, Carbon Content, etc.) will be entered in Step 3 based on the selected calculation methodology.
-              </p>
             </div>
           )}
 

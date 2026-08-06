@@ -69,8 +69,7 @@ export const validateStep1 = ({
   // Regular fuel emissions validation (Scope 1, 2, Biogenic Scope 1)
   if (!useCustomFuel && !fuelId) return { valid: false, message: 'Please select a fuel type' };
   if (useCustomFuel && !customFuelName) return { valid: false, message: 'Please enter custom fuel name' };
-  if (useCustomFuel && !customEmissionFactor) return { valid: false, message: 'Please enter emission factor' };
-  if (useCustomFuel && !customSource?.trim()) return { valid: false, message: 'Please enter source/justification for custom fuel type' };
+  // Note: EF and Source are now entered via dynamic fields in Step 3, not in Step 1
 
   return { valid: true };
 };
