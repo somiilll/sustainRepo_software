@@ -840,11 +840,6 @@ export const Step1BasicSelection = ({
               <SelectItem value="using_carbon_composition">Using Composition of Carbon</SelectItem>
             </SelectContent>
           </Select>
-          <p className="text-xs text-stone-500">
-            {(decisionFieldValues.calculation_methodology || 'using_ncv') === 'using_ncv'
-              ? 'Quantity × NCV × Emission Factor'
-              : 'Quantity × Carbon Content (%) × Oxidation Factor × (44/12)'}
-          </p>
         </div>
       )}
 

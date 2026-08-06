@@ -6,6 +6,9 @@ import { Textarea } from './ui/textarea';
 import { MonthYearPicker } from './ui/month-year-picker';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { FileUpload } from './ui/file-upload';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from './ui/select';
 import MultiEmployeeInput from './MultiEmployeeInput';
 import {
   FacilityScopeSection,
@@ -73,6 +76,8 @@ export default function EmissionEditForm(props) {
     scope3CustomActivity,
     useCustomActivity,
     typeOfProduct,
+    editCalcMethodology,
+    setEditCalcMethodology,
     activitySearchTerm,
     loadingScope3EF,
     loadingBiogenicCategories,
@@ -467,6 +472,26 @@ export default function EmissionEditForm(props) {
                         )}
                       </div>
                       
+                      {/* Calculation Methodology - Only for Stationary Combustion */}
+                      {selectedCategory && selectedCategory.toLowerCase().includes('stationary') &&
+                       (formData.scope === 'scope1' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope1')) && (
+                        <div className="space-y-1.5" data-testid="edit-calculation-methodology-section">
+                          <Label>Calculation Methodology</Label>
+                          <Select
+                            value={editCalcMethodology || 'using_ncv'}
+                            onValueChange={(v) => setEditCalcMethodology(v)}
+                          >
+                            <SelectTrigger className="bg-stone-50 h-10" data-testid="edit-calculation-methodology-select">
+                              <SelectValue placeholder="Select methodology" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="using_ncv">Using NCV (Net Calorific Value)</SelectItem>
+                              <SelectItem value="using_carbon_composition">Using Composition of Carbon</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
                       {/* Scope 3: Activity (Step 3) - Also handle Biogenic Scope 3 */}
                       {(formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && scope3Method && (
                         <div className="space-y-3">

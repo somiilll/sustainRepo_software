@@ -128,6 +128,7 @@ export default function Emissions() {
   const [scope3ActivityType, setScope3ActivityType] = useState(''); // Activity type filter for C6/C7
   const [scope3Subcategory, setScope3Subcategory] = useState(''); // Subcategory filter for C8/C10/C11/C13/C14
   const [typeOfProduct, setTypeOfProduct] = useState(''); // C11 only — continuous_usage / one_time_use
+  const [editCalcMethodology, setEditCalcMethodology] = useState('using_ncv'); // Stationary Combustion methodology
   const [scope3CustomActivity, setScope3CustomActivity] = useState(''); // Custom activity name for supplier_basis
   const [useCustomActivity, setUseCustomActivity] = useState(false); // Toggle for custom activity
   const [fugitiveEmissionsData, setFugitiveEmissionsData] = useState([]); // Fugitive emissions from fuel_database
@@ -722,6 +723,14 @@ export default function Emissions() {
       
       // PRIMARY: Read from emission.dynamic_field_values (new structure)
       const savedDynamicValues = editingEmission.dynamic_field_values || {};
+      
+      // Hydrate calculation methodology from saved fields
+      const dfvKeys = Object.keys(savedDynamicValues);
+      if (dfvKeys.includes('carbon_content') || dfvKeys.includes('composition_of_carbon')) {
+        setEditCalcMethodology('using_carbon_composition');
+      } else {
+        setEditCalcMethodology('using_ncv');
+      }
       
       // Helper to get the correct unit for a field
       // When editing, we primarily use the saved unit from dynamic_field_values
@@ -2059,11 +2068,6 @@ export default function Emissions() {
     };
     
     // Call the backend calc engine (uses its own debouncing)
-    // Infer calculation methodology from dynamic field values (for edit mode)
-    const editDfv = editingEmission?.dynamic_field_values || {};
-    const editCalcMethodology = (editDfv.carbon_content || editDfv.composition_of_carbon)
-      ? 'using_carbon_composition' : 'using_ncv';
-    
     executeBackendCalc({
       scope: formData.scope,
       category: formData.category || selectedCategory,
@@ -2095,7 +2099,8 @@ export default function Emissions() {
     overrideDensity, overrideEmissionFactorHeat, dynamicInputFields, dynamicFieldValues,
     dynamicCategories, buildEditDecisionInputs, getAuthHeader,
     scope3Method, scope3ActivityId, filteredScope3Activities,
-    useCustomActivity, scope3CustomActivity, scope3Subcategory, typeOfProduct, biogenicScopeSelection
+    useCustomActivity, scope3CustomActivity, scope3Subcategory, typeOfProduct, biogenicScopeSelection,
+    editCalcMethodology
   ]);
   
   // Use backend calculation engine result exclusively
@@ -3211,6 +3216,8 @@ export default function Emissions() {
                   scope3CustomActivity={scope3CustomActivity}
                   useCustomActivity={useCustomActivity}
                   typeOfProduct={typeOfProduct}
+                  editCalcMethodology={editCalcMethodology}
+                  setEditCalcMethodology={setEditCalcMethodology}
                   activitySearchTerm={activitySearchTerm}
                   loadingScope3EF={loadingScope3EF}
                   loadingBiogenicCategories={loadingBiogenicCategories}
