@@ -1772,6 +1772,7 @@ export default function EmissionEntryForm({
     
     // Determine if this is a scope3-like flow (regular scope3 or biogenic scope3)
     const isScope3Like = scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3');
+    const isProcessEmissions = category?.toLowerCase().includes('process');
     const effectiveScope = isScope3Like ? 'scope3' : scope;
     
     // For Scope 3 (or biogenic scope3), we need method and activity instead of fuel
@@ -1787,8 +1788,9 @@ export default function EmissionEntryForm({
         if (!scope3ActivityId) return null;
       }
     } else {
-      // Standard fuel requires selection; custom fuel bypasses this
-      if (!useCustomFuel && (!selectedFuel || !fuelId)) {
+      // Process Emissions resolves entirely through its decision tree and has no fuel.
+      // Standard fuel categories still require a selected fuel unless custom fuel is used.
+      if (!isProcessEmissions && !useCustomFuel && (!selectedFuel || !fuelId)) {
         return null;
       }
     }

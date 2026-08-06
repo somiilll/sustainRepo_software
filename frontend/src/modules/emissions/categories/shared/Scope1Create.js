@@ -153,6 +153,7 @@ export function validateCreateSubmission(ctx) {
     overrideEmissionFactorHeat,
     overrideJustification,
     scope,
+    buildDecisionInputs,
   } = ctx;
 
   // Process names + descriptions
@@ -174,6 +175,8 @@ export function validateCreateSubmission(ctx) {
     if (useCustomFuel && !customFuelName?.trim()) {
       return { valid: false, errorMessage: 'Please enter a custom fuel name' };
     }
+  } else if (!buildDecisionInputs?.({}).process_type) {
+    return { valid: false, errorMessage: 'Please select a process type' };
   }
 
   // Override justification (Scope 1/2 only)
@@ -226,6 +229,7 @@ export function buildCreatePayload(monthData, ctx) {
     isOverrideDensity,
     overrideEmissionFactorHeat,
     overrideJustification,
+    buildDecisionInputs,
     // calc-engine outputs
     calculatedCO2,
     calculatedCH4,
@@ -235,6 +239,12 @@ export function buildCreatePayload(monthData, ctx) {
   } = ctx;
 
   const dynamicFieldValues = buildDynamicFieldValues(monthData, ctx);
+  const decisionInputs = buildDecisionInputs ? buildDecisionInputs(monthData) : {};
+  const processType = decisionInputs.process_type || null;
+
+  if (processType) {
+    dynamicFieldValues.process_type = { value: processType, unit: '' };
+  }
 
   const outputs = {
     co2: { value: calculatedCO2 || 0, unit: 'tCO2' },
@@ -255,6 +265,7 @@ export function buildCreatePayload(monthData, ctx) {
     fuel_database_id: useCustomFuel ? null : fuelId,
     is_custom_fuel: useCustomFuel || false,
     custom_fuel_name: useCustomFuel ? customFuelName : null,
+    process_type: processType,
 
     formula_id: resolvedFormulaId,
 

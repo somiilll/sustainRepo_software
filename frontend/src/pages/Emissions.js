@@ -646,6 +646,36 @@ export default function Emissions() {
     }));
   }, [editFormConfig, formData.scope, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, editingEmission?.formula_id, biogenicScopeSelection, editCalcMethodology, selectedCategory, editUseCustomFuel, editProcessType]);
 
+  // Older Process Emissions records did not persist process_type. Once the
+  // form config arrives, recover it from the saved formula's decision-tree
+  // branch so the edit form can resolve its inputs and live calculation.
+  useEffect(() => {
+    const isProcessEmission = formData.category?.toLowerCase().includes('process');
+    if (!dialogOpen || !isProcessEmission || editProcessType || !editingEmission?.formula_id || !editFormConfig?.decision_tree) {
+      return;
+    }
+
+    const findProcessTypeForFormula = (node) => {
+      if (!node || typeof node !== 'object') return '';
+      const options = node.options || {};
+      for (const [optionValue, option] of Object.entries(options)) {
+        if (option?.formula_id === editingEmission.formula_id && node.field_name === 'process_type') {
+          return optionValue;
+        }
+        const nestedMatch = findProcessTypeForFormula(option?.next);
+        if (nestedMatch) {
+          return node.field_name === 'process_type' ? optionValue : nestedMatch;
+        }
+      }
+      return '';
+    };
+
+    const inferredProcessType = findProcessTypeForFormula(editFormConfig.decision_tree);
+    if (inferredProcessType) {
+      setEditProcessType(inferredProcessType);
+    }
+  }, [dialogOpen, formData.category, editProcessType, editingEmission?.formula_id, editFormConfig]);
+
   // Build decision context from dynamic field values
   const buildEditDecisionInputs = useCallback(() => {
     const decisionInputs = {};
@@ -1699,7 +1729,8 @@ export default function Emissions() {
       });
     }
     
-    // For other scopes, use fuel database categories
+    // Scope 1 combines fuel categories with configured categories. Process
+    // Emissions is decision-tree based, so it has no fuel database row.
     const cats = new Set();
     getFuelsForScope.forEach(f => {
       // Support both categories array and legacy category field
@@ -1709,9 +1740,19 @@ export default function Emissions() {
         cats.add(f.category);
       }
     });
+
+    const configuredScope = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope1'
+      ? 'scope1'
+      : formData.scope;
+    dynamicCategories
+      .filter(category => category.scope_code === configuredScope)
+      .forEach(category => cats.add(category.name));
+    if (formData.category) {
+      cats.add(formData.category);
+    }
     
     return Array.from(cats).sort();
-  }, [formData.scope, getFuelsForScope, dynamicScopes, dynamicCategories, scope3EFData, activeScope, biogenicScopeSelection, biogenicCategories]);
+  }, [formData.scope, formData.category, getFuelsForScope, dynamicScopes, dynamicCategories, scope3EFData, activeScope, biogenicScopeSelection, biogenicCategories]);
 
   // Get fuels for selected category
   const getFuelsForCategory = useMemo(() => {
@@ -1900,7 +1941,8 @@ export default function Emissions() {
         return;
       }
     } else {
-      if (!selectedFuel) {
+      const isProcessEmissions = (formData.category || selectedCategory || '').toLowerCase().includes('process');
+      if (!isProcessEmissions && !selectedFuel) {
         setBackendCalcResult(null);
         return;
       }
@@ -2138,7 +2180,7 @@ export default function Emissions() {
     dynamicCategories, buildEditDecisionInputs, getAuthHeader,
     scope3Method, scope3ActivityId, filteredScope3Activities,
     useCustomActivity, scope3CustomActivity, scope3Subcategory, typeOfProduct, biogenicScopeSelection,
-    editCalcMethodology, editUseCustomFuel, editCustomFuelName
+    editCalcMethodology, editUseCustomFuel, editCustomFuelName, editProcessType
   ]);
   
   // Use backend calculation engine result exclusively
@@ -2307,6 +2349,7 @@ export default function Emissions() {
         // Custom fuel props
         editUseCustomFuel,
         editCustomFuelName,
+        editProcessType,
       });
       if (!validation.valid) {
         toast.error(validation.errorMessage);
@@ -2341,6 +2384,7 @@ export default function Emissions() {
           // Custom fuel props
           editUseCustomFuel,
           editCustomFuelName,
+          editProcessType,
         });
 
         setIsSaving(true);

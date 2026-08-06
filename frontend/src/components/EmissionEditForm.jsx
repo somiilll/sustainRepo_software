@@ -398,7 +398,7 @@ export default function EmissionEditForm(props) {
                     </div>
                   ) : (
                     <>
-                      {/* Category and Fuel Selection - Always visible */}
+                      {/* Category and Fuel Selection */}
                       <div className="grid grid-cols-2 gap-4">
                         {/* Step 1: Category Selection */}
                         <div className="space-y-1.5">
@@ -418,7 +418,7 @@ export default function EmissionEditForm(props) {
                           </select>
                         </div>
                         
-                        {/* Step 2: For Scope 3 - Method and Activity; For others - Fuel Type */}
+                        {/* Step 2: For Scope 3 - Method and Activity; for Process Emissions no fuel is needed. */}
                         {/* Also handle Biogenic with Scope 3 selection */}
                         {(formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) ? (
                           <>
@@ -455,7 +455,7 @@ export default function EmissionEditForm(props) {
                               )}
                             </div>
                           </>
-                        ) : (
+                        ) : selectedCategory?.toLowerCase().includes('process') ? null : (
                           <div className="space-y-3">
                             {/* Custom Fuel toggle - only for Stationary, Mobile, Fugitive, Flaring */}
                             {(selectedCategory?.toLowerCase().includes('stationary') || 

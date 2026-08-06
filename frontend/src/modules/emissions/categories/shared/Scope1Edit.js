@@ -107,6 +107,7 @@ export function validateEditSubmission(ctx) {
     overrideJustification,
     editUseCustomFuel,
     editCustomFuelName,
+    editProcessType,
   } = ctx;
 
   // 1. Override CV/density justifications (DOM-read)
@@ -154,6 +155,9 @@ export function validateEditSubmission(ctx) {
 
   // 5. Fuel selection — Process Emissions don't require fuel
   const isProcessEmissions = formData.category?.toLowerCase().includes('process');
+  if (isProcessEmissions && !editProcessType) {
+    return { valid: false, errorMessage: 'Please select a process type' };
+  }
   if (!isProcessEmissions) {
     if (!editUseCustomFuel && !formData.fuel_id) {
       return { valid: false, errorMessage: 'Please select a fuel from the database' };
@@ -237,6 +241,7 @@ export function buildEditPayload(ctx) {
     overrideJustification,
     editUseCustomFuel,
     editCustomFuelName,
+    editProcessType,
   } = ctx;
 
   const reportingPeriod =
@@ -246,6 +251,10 @@ export function buildEditPayload(ctx) {
 
   // Dynamic values
   const dynamicValues = buildDynamicValues(ctx);
+  const isProcessEmissions = formData.category?.toLowerCase().includes('process');
+  if (isProcessEmissions && editProcessType) {
+    dynamicValues.process_type = { value: editProcessType, unit: '' };
+  }
 
   // Outputs
   const outputs = {};
@@ -267,6 +276,7 @@ export function buildEditPayload(ctx) {
     fuel_database_id: editUseCustomFuel ? null : formData.fuel_id,
     is_custom_fuel: editUseCustomFuel || false,
     custom_fuel_name: editUseCustomFuel ? editCustomFuelName : null,
+    process_type: isProcessEmissions ? editProcessType || null : null,
 
     formula_id: effectiveCalculatedEmissions?.formulaId || editingEmission?.formula_id || null,
 
