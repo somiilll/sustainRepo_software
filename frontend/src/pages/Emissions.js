@@ -129,6 +129,7 @@ export default function Emissions() {
   const [scope3Subcategory, setScope3Subcategory] = useState(''); // Subcategory filter for C8/C10/C11/C13/C14
   const [typeOfProduct, setTypeOfProduct] = useState(''); // C11 only — continuous_usage / one_time_use
   const [editCalcMethodology, setEditCalcMethodology] = useState('using_ncv'); // Stationary Combustion methodology
+  const [editProcessType, setEditProcessType] = useState(''); // Process Emissions type (venting/n2o/ch4)
   const [scope3CustomActivity, setScope3CustomActivity] = useState(''); // Custom activity name for supplier_basis
   const [useCustomActivity, setUseCustomActivity] = useState(false); // Toggle for custom activity
   const [editUseCustomFuel, setEditUseCustomFuel] = useState(false); // Toggle for custom fuel in edit mode
@@ -535,9 +536,7 @@ export default function Emissions() {
         const decisionValues = {
           calculation_methodology: editCalcMethodology || 'using_ncv',
           ef_quantity_provided: 'false',
-          ...(editingEmission?.dynamic_field_values?.process_type && {
-            process_type: editingEmission.dynamic_field_values.process_type.value || editingEmission.dynamic_field_values.process_type,
-          }),
+          ...(editProcessType && { process_type: editProcessType }),
         };
         const formulaId = traverseDecisionTreeEdit(editFormConfig.decision_tree, decisionValues);
         if (formulaId) {
@@ -645,7 +644,7 @@ export default function Emissions() {
       defaultValue: m.default_value,
       validationRules: m.validation_rules || {},
     }));
-  }, [editFormConfig, formData.scope, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, editingEmission?.formula_id, biogenicScopeSelection, editCalcMethodology, selectedCategory, editUseCustomFuel]);
+  }, [editFormConfig, formData.scope, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, editingEmission?.formula_id, biogenicScopeSelection, editCalcMethodology, selectedCategory, editUseCustomFuel, editProcessType]);
 
   // Build decision context from dynamic field values
   const buildEditDecisionInputs = useCallback(() => {
@@ -710,14 +709,17 @@ export default function Emissions() {
       }
     }
     
-    // For Scope 1 / Biogenic Scope 1: add calculation_methodology (defaults to using_ncv)
+    // For Scope 1 / Biogenic Scope 1: add calculation_methodology and process_type
     const isBiogenicScope1 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope1';
     if (formData.scope === 'scope1' || isBiogenicScope1) {
       decisionInputs['calculation_methodology'] = editCalcMethodology || 'using_ncv';
+      if (editProcessType) {
+        decisionInputs['process_type'] = editProcessType;
+      }
     }
     
     return decisionInputs;
-  }, [dynamicInputFields, dynamicFieldValues, formData.scope, formData.category, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, selectedCategory, editCalcMethodology]);
+  }, [dynamicInputFields, dynamicFieldValues, formData.scope, formData.category, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, selectedCategory, editCalcMethodology, editProcessType]);
 
   // Helper to update dynamic field values
   const updateDynamicFieldValue = useCallback((key, value) => {
@@ -751,6 +753,14 @@ export default function Emissions() {
         setEditCalcMethodology('using_carbon_composition');
       } else {
         setEditCalcMethodology('using_ncv');
+      }
+      
+      // Hydrate process type from saved fields
+      const savedProcessType = savedDynamicValues.process_type;
+      if (savedProcessType) {
+        setEditProcessType(savedProcessType.value || savedProcessType || '');
+      } else {
+        setEditProcessType('');
       }
       
       // Helper to get the correct unit for a field
@@ -3253,6 +3263,8 @@ export default function Emissions() {
                   typeOfProduct={typeOfProduct}
                   editCalcMethodology={editCalcMethodology}
                   setEditCalcMethodology={setEditCalcMethodology}
+                  editProcessType={editProcessType}
+                  setEditProcessType={setEditProcessType}
                   editUseCustomFuel={editUseCustomFuel}
                   editCustomFuelName={editCustomFuelName}
                   activitySearchTerm={activitySearchTerm}

@@ -78,6 +78,8 @@ export default function EmissionEditForm(props) {
     typeOfProduct,
     editCalcMethodology,
     setEditCalcMethodology,
+    editProcessType,
+    setEditProcessType,
     editUseCustomFuel,
     editCustomFuelName,
     activitySearchTerm,
@@ -529,8 +531,35 @@ export default function EmissionEditForm(props) {
                         )}
                       </div>
                       
-                      {/* Calculation Methodology - For Stationary Combustion and Flaring */}
-                      {selectedCategory && (selectedCategory.toLowerCase().includes('stationary') || selectedCategory.toLowerCase().includes('flaring')) &&
+                      {/* Process Type - For Process Emissions (Scope 1) */}
+                      {selectedCategory && selectedCategory.toLowerCase().includes('process') &&
+                       (formData.scope === 'scope1' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope1')) && (
+                        <div className="space-y-1.5" data-testid="edit-process-type-section">
+                          <Label>Process Type <span className="text-red-500">*</span></Label>
+                          <Select
+                            value={editProcessType || ''}
+                            onValueChange={(v) => {
+                              setEditProcessType(v);
+                              setEditCalcMethodology('using_ncv');
+                            }}
+                          >
+                            <SelectTrigger className="bg-stone-50 h-10" data-testid="edit-process-type-select">
+                              <SelectValue placeholder="Select process type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="venting">Venting</SelectItem>
+                              <SelectItem value="n2o_overall_combustion">N2O from Overall Combustion</SelectItem>
+                              <SelectItem value="ch4_overall_combustion">CH4 from Overall Combustion</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      {/* Calculation Methodology - For Stationary/Flaring OR Process Emissions with venting */}
+                      {selectedCategory && (
+                        (selectedCategory.toLowerCase().includes('stationary') || selectedCategory.toLowerCase().includes('flaring')) ||
+                        (selectedCategory.toLowerCase().includes('process') && editProcessType === 'venting')
+                      ) &&
                        (formData.scope === 'scope1' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope1')) && (
                         <div className="space-y-1.5" data-testid="edit-calculation-methodology-section">
                           <Label>Calculation Methodology</Label>
