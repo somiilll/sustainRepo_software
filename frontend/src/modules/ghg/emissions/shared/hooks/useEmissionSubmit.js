@@ -339,6 +339,7 @@ export function useEmissionSubmit(ctx) {
               overrideEmissionFactorHeat: false,
               overrideJustification: '',
               scope,
+              category,
             });
             if (!yModValidation.valid) {
               toast.error(yModValidation.errorMessage);
@@ -584,6 +585,7 @@ export function useEmissionSubmit(ctx) {
           overrideEmissionFactorHeat: false,
           overrideJustification: '',
           scope,
+          category,
         });
         if (!modValidation.valid) {
           toast.error(modValidation.errorMessage);
