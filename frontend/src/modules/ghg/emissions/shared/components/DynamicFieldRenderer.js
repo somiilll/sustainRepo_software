@@ -8,7 +8,7 @@
  * - Validation for integer-only fields
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Input } from '../../../../../components/ui/input';
 import { Label } from '../../../../../components/ui/label';
 import {
@@ -153,6 +153,17 @@ export const DynamicFieldRenderer = ({
     !field.variable?.includes('factor') && 
     !field.variable?.includes('carbon') &&
     !field.variable?.includes('composition');
+
+  // Apply default value when field is first rendered and has no current value
+  useEffect(() => {
+    if (field.defaultValue !== undefined && field.defaultValue !== null) {
+      const currentValue = data[field.variable];
+      // Only apply default if no value exists yet
+      if (currentValue === undefined || currentValue === null || currentValue === '') {
+        updateMonthData(monthKey, field.variable, field.defaultValue);
+      }
+    }
+  }, [field.variable, field.defaultValue, monthKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleValueChange = (e) => {
     const val = e.target.value;

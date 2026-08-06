@@ -399,6 +399,24 @@ export default function Emissions() {
     const isBiogenicScope1 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope1';
     const isScope3Like = formData.scope === 'scope3' || isBiogenicScope3;
     
+    // Helper function to traverse decision tree and find formula_id.
+    // Mirrors the logic used in EmissionEntryForm so create + edit pick
+    // the same formula for the same selections.
+    const traverseDecisionTreeEdit = (node, fieldValues) => {
+      if (!node) return null;
+      if (node.formula_id) return node.formula_id;
+      const fieldName = node.field_name;
+      if (!fieldName) return null;
+      const selectedValue = fieldValues[fieldName];
+      if (!selectedValue) return null;
+      const options = node.options || {};
+      const selectedOption = options[selectedValue];
+      if (!selectedOption) return null;
+      if (selectedOption.formula_id) return selectedOption.formula_id;
+      if (selectedOption.next) return traverseDecisionTreeEdit(selectedOption.next, fieldValues);
+      return null;
+    };
+    
     // For Scope 3 (or biogenic scope3), find the formula that matches the selected decision path
     let requiredInputVars = null;
     let matchedFormula = null;  // Moved outside the if block for proper scoping
@@ -443,24 +461,6 @@ export default function Emissions() {
         return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
       };
       
-      // Helper function to traverse decision tree and find formula_id.
-      // Mirrors the logic used in EmissionEntryForm so create + edit pick
-      // the same formula for the same selections.
-      const traverseDecisionTreeEdit = (node, fieldValues) => {
-        if (!node) return null;
-        if (node.formula_id) return node.formula_id;
-        const fieldName = node.field_name;
-        if (!fieldName) return null;
-        const selectedValue = fieldValues[fieldName];
-        if (!selectedValue) return null;
-        const options = node.options || {};
-        const selectedOption = options[selectedValue];
-        if (!selectedOption) return null;
-        if (selectedOption.formula_id) return selectedOption.formula_id;
-        if (selectedOption.next) return traverseDecisionTreeEdit(selectedOption.next, fieldValues);
-        return null;
-      };
-
       // PRIORITY 0: Decision tree traversal — uses all the selections the
       // user made (method, activity_type, subcategory_selection, type_of_product).
       if (editFormConfig.decision_tree) {
@@ -525,8 +525,25 @@ export default function Emissions() {
     }
     // For Biogenic Scope 1, Scope 1, or Scope 2 - match formula to filter fields correctly
     else if ((isBiogenicScope1 || formData.scope === 'scope1' || formData.scope === 'scope2') && editFormConfig?.formulas?.length) {
-      // For Biogenic Scope 1, prioritize formulas with "Biogenic" in the name
-      if (isBiogenicScope1) {
+      const currentCategoryName = (formData.category || selectedCategory || '').toLowerCase();
+      const isStationaryOrMobile = currentCategoryName.includes('stationary') || currentCategoryName.includes('mobile');
+      
+      // Priority 0: Try decision tree traversal (handles calculation_methodology + ef_quantity_provided)
+      // This ensures the form dynamically updates when user changes methodology
+      if (editFormConfig.decision_tree && isStationaryOrMobile) {
+        const calcMethodology = editCalcMethodology || 'using_ncv';
+        const scope1DecisionValues = {
+          calculation_methodology: calcMethodology,
+          ef_quantity_provided: 'false', // default to heat-basis
+        };
+        const formulaId = traverseDecisionTreeEdit(editFormConfig.decision_tree, scope1DecisionValues);
+        if (formulaId) {
+          matchedFormula = editFormConfig.formulas.find(f => f.id === formulaId);
+        }
+      }
+      
+      // Fallback for Biogenic Scope 1
+      if (!matchedFormula && isBiogenicScope1) {
         // First try formula_id from emission record
         if (editingEmission?.formula_id) {
           matchedFormula = editFormConfig.formulas.find(f => f.id === editingEmission.formula_id);
@@ -542,8 +559,8 @@ export default function Emissions() {
           matchedFormula = editFormConfig.formulas[0];
         }
       }
-      // For regular Scope 1/2
-      else {
+      // Fallback for regular Scope 1/2
+      else if (!matchedFormula) {
         // First try formula_id from emission record
         if (editingEmission?.formula_id) {
           matchedFormula = editFormConfig.formulas.find(f => f.id === editingEmission.formula_id);
@@ -567,12 +584,14 @@ export default function Emissions() {
       .filter(m => {
         if (m.is_active === false) return false;
         
-        // HARDCODED FIX: Always show cv and density for Scope 1/2 Stationary/Mobile Combustion
+        // HARDCODED FIX: Show cv and density for Scope 1/2 Stationary/Mobile Combustion
+        // BUT only when using NCV methodology (not carbon composition)
         const currentCategoryName = (formData.category || selectedCategory || '').toLowerCase();
         const isStationaryOrMobile = currentCategoryName.includes('stationary') || currentCategoryName.includes('mobile');
-        if ((formData.scope === 'scope1' || formData.scope === 'scope2') && isStationaryOrMobile && m.is_override) {
+        const calcMethod = editCalcMethodology || 'using_ncv';
+        if ((formData.scope === 'scope1' || formData.scope === 'scope2') && isStationaryOrMobile && m.is_override && calcMethod === 'using_ncv') {
           if (m.maps_to_variable === 'cv' || m.maps_to_variable === 'density') {
-            return true; // Always show cv/density for Stationary/Mobile
+            return true; // Show cv/density for Stationary/Mobile only with NCV methodology
           }
         }
         
@@ -592,9 +611,8 @@ export default function Emissions() {
             if (!isRequiredForFormula) return false;
           }
         }
-        // For Scope 1/2/Biogenic Scope 1: only filter override fields by formula properties
-        // Non-override fields use scope/category filtering only
-        else if ((isBiogenicScope1 || formData.scope === 'scope1' || formData.scope === 'scope2') && matchedFormula) {
+        // For Scope 1/2/Biogenic Scope 1: filter by formula inputs when formula is resolved via decision tree
+        else if ((isBiogenicScope1 || formData.scope === 'scope1' || formData.scope === 'scope2') && matchedFormula && requiredInputVars) {
           if (m.is_override) {
             // Override fields should only show if in formula properties
             const formulaProperties = matchedFormula.properties || [];
@@ -602,8 +620,11 @@ export default function Emissions() {
               prop => prop.variable === m.maps_to_variable || prop.key === m.maps_to_variable
             );
             if (!isPropertyOfFormula) return false;
+          } else {
+            // Non-override fields must be in the formula's inputs
+            const isRequiredForFormula = requiredInputVars.includes(m.maps_to_variable);
+            if (!isRequiredForFormula) return false;
           }
-          // Non-override fields: rely on scope/category filtering (no formula input check)
         }
         
         return true;
@@ -629,8 +650,10 @@ export default function Emissions() {
       mapsToContextValueWhenFilled: m.maps_to_context_value_when_filled || 'true',
       mapsToContextValueWhenEmpty: m.maps_to_context_value_when_empty || 'false',
       options: m.options || [],
+      defaultValue: m.default_value,
+      validationRules: m.validation_rules || {},
     }));
-  }, [editFormConfig, formData.scope, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, editingEmission?.formula_id, biogenicScopeSelection]);
+  }, [editFormConfig, formData.scope, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, editingEmission?.formula_id, biogenicScopeSelection, editCalcMethodology, selectedCategory]);
 
   // Build decision context from dynamic field values
   const buildEditDecisionInputs = useCallback(() => {
