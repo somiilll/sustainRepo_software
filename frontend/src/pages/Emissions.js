@@ -695,8 +695,14 @@ export default function Emissions() {
       }
     }
     
+    // For Scope 1 / Biogenic Scope 1: add calculation_methodology (defaults to using_ncv)
+    const isBiogenicScope1 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope1';
+    if (formData.scope === 'scope1' || isBiogenicScope1) {
+      decisionInputs['calculation_methodology'] = editCalcMethodology || 'using_ncv';
+    }
+    
     return decisionInputs;
-  }, [dynamicInputFields, dynamicFieldValues, formData.scope, formData.category, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, selectedCategory]);
+  }, [dynamicInputFields, dynamicFieldValues, formData.scope, formData.category, scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, selectedCategory, editCalcMethodology]);
 
   // Helper to update dynamic field values
   const updateDynamicFieldValue = useCallback((key, value) => {
