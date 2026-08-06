@@ -340,6 +340,7 @@ export function useEmissionSubmit(ctx) {
               overrideJustification: '',
               scope,
               category,
+              buildDecisionInputs,
             });
             if (!yModValidation.valid) {
               toast.error(yModValidation.errorMessage);
@@ -586,6 +587,7 @@ export function useEmissionSubmit(ctx) {
           overrideJustification: '',
           scope,
           category,
+          buildDecisionInputs,
         });
         if (!modValidation.valid) {
           toast.error(modValidation.errorMessage);
