@@ -1709,26 +1709,6 @@ export default function BRSRDetailsSection({
             )}
           </div>
 
-          {/* Validation Messages */}
-          {!isComplete && missingFields.length > 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-amber-800">Missing Required Fields</p>
-                  <ul className="text-sm text-amber-700 mt-1 list-disc list-inside">
-                    {missingFields.slice(0, 5).map((field, idx) => (
-                      <li key={idx}>{field.replace(/_/g, ' ')}</li>
-                    ))}
-                    {missingFields.length > 5 && (
-                      <li>...and {missingFields.length - 5} more</li>
-                    )}
-                  </ul>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Save Button - only shown in edit mode */}
           {isEditing && (
             <div className="flex justify-end pt-4 border-t border-stone-200">
