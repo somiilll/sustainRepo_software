@@ -146,17 +146,33 @@ export const DynamicFieldRenderer = ({
   // Freeform text unit input driven by admin config (independent of supplier basis).
   const showTextUnitInput = isTextUnitField && !field.variable?.endsWith('_unit');
   const showOverrideCheckbox = field.isOverride || (!field.required && !field.isOverride);
-  const isUnitlessCountField = isNoUnitField;
+  // Only enforce integer validation for pure count fields (e.g., "No. of rooms", "No. of days")
+  // Fields with validation_rules.max <= 1 or percentage fields are NOT count fields
+  const isUnitlessCountField = isNoUnitField && 
+    !field.validationRules?.max && 
+    !field.variable?.includes('factor') && 
+    !field.variable?.includes('carbon') &&
+    !field.variable?.includes('composition');
 
   const handleValueChange = (e) => {
     const val = e.target.value;
     
-    // Integer validation for count fields
+    // Integer validation for count fields only
     if (isUnitlessCountField && val !== '' && val !== null) {
       const numVal = parseFloat(val);
       if (!Number.isInteger(numVal)) {
         const fieldName = field.label?.replace?.(/_/g, ' ')?.replace?.(/\b\w/g, l => l.toUpperCase()) || field.variable;
         toast.error(`${fieldName} must be a whole number`);
+        return;
+      }
+    }
+    
+    // Validation rules: max value check (e.g., oxidation_factor <= 1)
+    if (field.validationRules?.max !== undefined && val !== '' && val !== null) {
+      const numVal = parseFloat(val);
+      if (numVal > field.validationRules.max) {
+        const fieldName = field.label || field.variable;
+        toast.error(`${fieldName} cannot be greater than ${field.validationRules.max}`);
         return;
       }
     }

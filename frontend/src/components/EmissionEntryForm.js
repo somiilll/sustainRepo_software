@@ -1416,6 +1416,7 @@ export default function EmissionEntryForm({
       mapsToContextValueWhenFilled: m.maps_to_context_value_when_filled || 'true',  // Flexible value when filled
       mapsToContextValueWhenEmpty: m.maps_to_context_value_when_empty || 'false',   // Flexible value when empty
       options: m.options || [],  // For select field_type
+      validationRules: m.validation_rules || {},
     }));
     
     // Return both fields and the matched formula ID
