@@ -1377,21 +1377,27 @@ export default function Emissions() {
     }
     
     // Group fuels by unique identifier (name + category) to handle region/year variants
+    // Support both categories array and legacy category field
     const fuelsByKey = {};
     filtered.forEach(fuel => {
-      const key = `${fuel.fuel_name}_${fuel.category}`;
-      if (!fuelsByKey[key]) {
-        fuelsByKey[key] = [];
-      }
-      fuelsByKey[key].push(fuel);
+      const fuelCategories = fuel.categories?.length > 0 ? fuel.categories : (fuel.category ? [fuel.category] : ['uncategorized']);
+      fuelCategories.forEach(cat => {
+        const key = `${fuel.fuel_name}_${cat}`;
+        if (!fuelsByKey[key]) {
+          fuelsByKey[key] = [];
+        }
+        fuelsByKey[key].push(fuel);
+      });
     });
     
     // For each fuel name+category, select the best match based on region and year priority
     const prioritizedFuels = [];
+    const addedFuelIds = new Set(); // Prevent duplicates when fuel appears in multiple categories
     Object.values(fuelsByKey).forEach(fuels => {
       const bestMatch = selectBestFuelMatch(fuels, selectedFacilityCountry, reportingYearFromPeriod);
-      if (bestMatch) {
+      if (bestMatch && !addedFuelIds.has(bestMatch.id)) {
         prioritizedFuels.push(bestMatch);
+        addedFuelIds.add(bestMatch.id);
       }
     });
     

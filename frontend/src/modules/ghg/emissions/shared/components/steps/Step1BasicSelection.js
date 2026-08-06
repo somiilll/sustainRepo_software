@@ -707,6 +707,32 @@ export const Step1BasicSelection = ({
         <div className="space-y-3 mt-4 pb-6 border-b border-stone-200">
           <div className="flex items-center justify-between">
             <Label>Fuel Type <span className="text-red-500">*</span></Label>
+            {/* Custom Fuel toggle - only for Stationary, Mobile, Fugitive, Flaring */}
+            {(category.toLowerCase().includes('stationary') || 
+              category.toLowerCase().includes('mobile') || 
+              category.toLowerCase().includes('fugitive') ||
+              category.toLowerCase().includes('flaring')) && (
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={useCustomFuel}
+                  onChange={(e) => {
+                    setUseCustomFuel(e.target.checked);
+                    if (e.target.checked) {
+                      setFuelId('');
+                      setFuelSearchTerm('');
+                    } else {
+                      setCustomFuelName('');
+                      setCustomEmissionFactor('');
+                      setCustomSource('');
+                    }
+                  }}
+                  className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                  data-testid="use-custom-fuel-toggle"
+                />
+                <span className="text-sm text-amber-700 font-medium">Use Custom Fuel</span>
+              </label>
+            )}
           </div>
 
           {!useCustomFuel ? (
@@ -790,8 +816,9 @@ export const Step1BasicSelection = ({
                     value={customEmissionFactorUnit}
                     onChange={(e) => setCustomEmissionFactorUnit(e.target.value)}
                     className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
+                    data-testid="custom-fuel-ef-unit-select"
                   >
-                    {getAvailableEFUnits(scope).map(unit => (
+                    {getAvailableEFUnits(scope, true).map(unit => (
                       <option key={unit.value} value={unit.value}>
                         {unit.label}
                       </option>
@@ -799,6 +826,9 @@ export const Step1BasicSelection = ({
                   </select>
                   <p className="text-xs text-amber-700">
                     Quantity unit will be: <strong>{getQuantityUnitFromEFUnit(customEmissionFactorUnit)}</strong>
+                  </p>
+                  <p className="text-xs text-stone-500">
+                    Units restricted to mass-based (kg, g, t)
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -823,8 +853,8 @@ export const Step1BasicSelection = ({
         </div>
       )}
 
-      {/* Calculation Methodology - Only for Stationary Combustion (Scope 1 / Biogenic Scope 1) */}
-      {category && (category.toLowerCase().includes('stationary')) && 
+      {/* Calculation Methodology - For Stationary Combustion and Flaring (Scope 1 / Biogenic Scope 1) */}
+      {category && (category.toLowerCase().includes('stationary') || category.toLowerCase().includes('flaring')) && 
        (scope === 'scope1' || (scope === 'biogenic' && biogenicScopeSelection === 'scope1')) && (
         <div className="space-y-2 mt-4 pb-6 border-b border-stone-200" data-testid="calculation-methodology-section">
           <Label>Calculation Methodology</Label>

@@ -1047,19 +1047,35 @@ export default function EmissionEntryForm({
   // Emission factor unit to quantity unit mapping
   const EMISSION_FACTOR_UNITS = [
     { value: 'tCO2/kg', label: 'tCO₂/kg', quantityUnit: 'kg', forScope: ['scope1', 'biogenic'] },
+    { value: 'tCO2/g', label: 'tCO₂/g', quantityUnit: 'g', forScope: ['scope1', 'biogenic'] },
+    { value: 'tCO2/t', label: 'tCO₂/t', quantityUnit: 't', forScope: ['scope1', 'biogenic'] },
     { value: 'tCO2/L', label: 'tCO₂/L', quantityUnit: 'L', forScope: ['scope1', 'biogenic'] },
     { value: 'tCO2/m3', label: 'tCO₂/m³', quantityUnit: 'm³', forScope: ['scope1', 'biogenic'] },
     { value: 'tCO2/kWh', label: 'tCO₂/kWh', quantityUnit: 'kWh', forScope: ['scope2'] },
     { value: 'tCO2/MWh', label: 'tCO₂/MWh', quantityUnit: 'MWh', forScope: ['scope2'] },
   ];
+  
+  // Custom fuel units - restricted to mass-based units (kg, g, t) per user requirement
+  const CUSTOM_FUEL_UNITS = [
+    { value: 'tCO2/kg', label: 'tCO₂/kg', quantityUnit: 'kg' },
+    { value: 'tCO2/g', label: 'tCO₂/g', quantityUnit: 'g' },
+    { value: 'tCO2/t', label: 'tCO₂/t', quantityUnit: 't' },
+  ];
 
   // Get available EF units based on scope
-  const getAvailableEFUnits = (currentScope) => {
+  const getAvailableEFUnits = (currentScope, isCustomFuel = false) => {
+    if (isCustomFuel) {
+      return CUSTOM_FUEL_UNITS;
+    }
     return EMISSION_FACTOR_UNITS.filter(u => u.forScope.includes(currentScope));
   };
 
   // Get quantity unit based on emission factor unit for custom fuels
   const getQuantityUnitFromEFUnit = (efUnit) => {
+    // Check custom fuel units first
+    const customMapping = CUSTOM_FUEL_UNITS.find(u => u.value === efUnit);
+    if (customMapping) return customMapping.quantityUnit;
+    // Fallback to standard units
     const mapping = EMISSION_FACTOR_UNITS.find(u => u.value === efUnit);
     return mapping?.quantityUnit || 'kg';
   };

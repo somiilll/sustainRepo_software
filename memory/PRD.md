@@ -20,7 +20,7 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - **Stationary Combustion Scope 1** tree now branches on `calculation_methodology` → `using_ncv` → `ef_quantity_provided`, or `using_carbon_composition` → Carbon Composition formula
 - **Key formula IDs**: `b52e732f` (heat-basis), `f863ca67` (quantity-based), `ed2819e3` (fugitives), `d10c79f4` (carbon composition)
 
-## Completed Work (Aug 6 2026)
+## Completed Work (Dec 2025)
 
 ### Decision Tree Editor — Wrap Node Feature (P1)
 - **File**: `/app/frontend/src/components/TreeNodeEditor.js`
@@ -31,34 +31,52 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 
 ### Calculation Methodology Dropdown (P1)
 - **Files changed**:
-  - `/app/frontend/src/modules/ghg/emissions/shared/components/steps/Step1BasicSelection.js` — Rendered dropdown (Stationary Combustion only)
+  - `/app/frontend/src/modules/ghg/emissions/shared/components/steps/Step1BasicSelection.js` — Rendered dropdown (Stationary/Flaring categories)
   - `/app/frontend/src/components/EmissionEntryForm.js` — Decision tree traversal for Scope 1, default `using_ncv` in `buildDecisionInputs`, edit hydration inference
   - `/app/frontend/src/hooks/useCalcEngine.js` — Accepts `calculationMethodology` param, passes in `decision_inputs`
   - `/app/frontend/src/pages/Emissions.js` — Edit flow passes inferred methodology to calc engine
 - Backward compatible: existing records default to `using_ncv`
 - **Status**: ✅ Implemented
 
-### Stationary Combustion Decision Tree Updated (via SuperAdmin UI)
-- Scope 1 tree `9fa2ca12` updated to v5: `calculation_methodology` → `using_ncv` | `using_carbon_composition`
-- Carbon Composition formula `d10c79f4` created and linked
-- All formula references verified active
-- **Status**: ✅ Done by user via UI
+### Field Toggling by Methodology (P1)
+- **Files**: `EmissionEntryForm.js`, `Emissions.js`
+- Hardcoded toggling logic:
+  - "Using Carbon Composition": hide `ef_quantity` (Emission Factor), show `carbon_content`, `oxidation_factor`
+  - "Using NCV": hide `carbon_content`, `oxidation_factor`, show `ef_quantity`
+- Applies to Stationary, Mobile, Flaring categories
+- **Status**: ✅ Implemented (hardcoded — P0 TODO: proper formula-input-based logic)
 
-## Upcoming Tasks (P1) — GHG Calc Engine
+### Oxidation Factor Defaults & Validation
+- DB: `oxidation_factor` has `default_value: 1`, `validation_rules: {max: 1, min: 0}`
+- Frontend: `DynamicFieldRenderer.js` auto-populates default, enforces max via toast error
+- **Status**: ✅ Implemented
 
-### Custom Fuel Type
-- Add inline custom fuel entry for Stationary/Mobile/Fugitive
-- Units locked to kg/g/t for custom fuels
-- All formula properties become manual inputs (NCV, EF, density, etc.)
-- Values go as `user_overrides` — no backend changes needed
+### Custom Fuel Type Implementation (P0)
+- **Files**: `Step1BasicSelection.js`, `EmissionEntryForm.js`
+- Added "Use Custom Fuel" toggle for Stationary, Mobile, Fugitive, Flaring categories
+- Custom fuel input fields: Name, Emission Factor, EF Unit, Source
+- **Units restricted to mass-based only**: kg, g, t (per user requirement)
+- Added `CUSTOM_FUEL_UNITS` array with `tCO2/kg`, `tCO2/g`, `tCO2/t`
+- **Status**: ✅ Implemented
 
-### Form Field Toggling by Methodology
-- When "Using Carbon Composition" selected: show only Quantity, Carbon Content (%), Oxidation Factor
-- When "Using NCV" selected: show existing fields (Quantity, NCV, Density, EF)
-- Dynamic input fields should respond to `calculation_methodology` decision field value
+### Flaring Category Support
+- Added `flaring` to `isStationaryOrMobile` check in both Add and Edit forms
+- Flaring now has same calculation methodology options as Stationary Combustion
+- **Status**: ✅ Implemented
 
-### Biogenic Stationary Combustion Tree Update
-- Apply same `calculation_methodology` wrapping to Biogenic tree `80dbef24`
+### Fuel Database Categories Fix
+- **File**: `Emissions.js` line 1379-1402
+- Fixed grouping key to iterate over `fuel.categories` array instead of just `fuel.category`
+- Ensures fuels with multiple categories (like Flaring) appear correctly
+- **Status**: ✅ Implemented
+
+## Upcoming Tasks (P0) — Proper Logic
+
+### Formula-Input-Based Field Toggling
+- Populate formula `inputs` array in `ce_formulas` DB for each formula
+- Update form-config API to return formulas with populated inputs
+- Remove hardcoded field toggling, replace with dynamic filtering based on `requiredInputVars`
+- Handle decision fields separately (don't filter by formula inputs)
 
 ## Upcoming Tasks (P1) — Other
 - MIS Reports & Automation Module
@@ -73,6 +91,22 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - Orphaned OCR Temp Files (P2)
 - Section A Approval Workflow Verification (P2)
 - Environment Report PDF Character Spacing Bug (P2)
+- React 19 Console Warnings — Recharts (P3)
+
+## Upcoming Tasks (P1) — Other
+- Biogenic Stationary Combustion Tree Update (apply `calculation_methodology` wrapping to tree `80dbef24`)
+- MIS Reports & Automation Module
+- Hash-based Integrity Verification for Evidence Files
+- Smart Follow-ups (Internal Data AI)
+- SuperAdmin Config UI for Modules
+- Supplier and Customer Org Onboarding Wizards
+- Word document download option for BRSR
+- Add "Previous Year Columns" to BRSR tables
+
+## Pending Issues (P2)
+- Orphaned OCR Temp Files
+- Section A Approval Workflow Verification
+- Environment Report PDF Character Spacing Bug
 - React 19 Console Warnings — Recharts (P3)
 
 ## Future Tasks (P2+)
@@ -97,7 +131,8 @@ GHG Calculation Engine enhancements: Custom Fuel Types, new Composition of Carbo
 - `/app/frontend/src/components/TreeNodeEditor.js` — Decision tree node editor (Wrap Node)
 - `/app/frontend/src/pages/DecisionTreeEditor.js` — Decision tree editor page
 - `/app/frontend/src/components/EmissionEntryForm.js` — Emission entry form (methodology dropdown integration)
-- `/app/frontend/src/modules/ghg/emissions/shared/components/steps/Step1BasicSelection.js` — Step 1 with methodology dropdown
+- `/app/frontend/src/modules/ghg/emissions/shared/components/steps/Step1BasicSelection.js` — Step 1 with methodology dropdown, Custom Fuel toggle
+- `/app/frontend/src/modules/ghg/emissions/shared/components/DynamicFieldRenderer.js` — Dynamic field rendering with defaults
 - `/app/frontend/src/hooks/useCalcEngine.js` — Calc engine hook (methodology param)
 - `/app/frontend/src/pages/Emissions.js` — Emissions page (edit flow methodology)
 
