@@ -2780,76 +2780,68 @@ class ESGQuestionnaireService:
         now: str,
         changed_by_user_id: Optional[str] = None,
     ) -> None:
-        """Save or update a single year's document and track version history."""
-        existing = await self._responses.find_one({
-            "org_id": org_id,
-            "framework": framework,
-            "reporting_year": reporting_year,
-            "section": section,
-        })
+        """
+        Save responses using FLAT document structure (1 doc per question_key).
         
-        if existing:
-            # Merge with existing responses
-            old_responses = existing.get("responses", {})
-            merged = self._deep_merge(old_responses, responses)
+        This ensures Section A uses the same format as Section B/C/GRI:
+        - Each question gets its own document with question_key field
+        - Status is stored directly on the document (not in esg_assignments)
+        - Compatible with tracker/my-tasks status queries
+        """
+        for question_key, new_value in responses.items():
+            # Get existing response for this question (flat format)
+            existing = await self._responses.find_one({
+                "org_id": org_id,
+                "question_key": question_key,
+                "reporting_year": reporting_year,
+            }, {"_id": 0})
             
-            await self._responses.update_one(
-                {
-                    "org_id": org_id,
-                    "framework": framework,
-                    "reporting_year": reporting_year,
-                    "section": section,
-                },
-                {"$set": {"responses": merged, "updated_at": now}}
+            old_value = existing.get("value") if existing else None
+            value_changed = old_value != new_value
+            
+            # Determine approval status
+            # Check if there's an assignment requiring approval
+            assignment = await db.esg_assignments.find_one({
+                "organization_id": org_id,
+                "entity_id": question_key,
+                "entity_type": "question",
+                "reporting_period": reporting_year,
+            }, {"_id": 0, "requires_approval": 1})
+            
+            requires_approval = assignment.get("requires_approval", False) if assignment else False
+            
+            # Set approval status based on whether value exists and requires approval
+            has_value = self._response_has_value(new_value)
+            if has_value:
+                approval_status = "pending_approval" if requires_approval else "approved"
+            else:
+                approval_status = None
+            
+            # Save using flat format (same as Section B/C/GRI)
+            await self._save_to_unified_collection(
+                org_id=org_id,
+                question_key=question_key,
+                value=new_value,
+                reporting_period=reporting_year,
+                framework=framework,
+                section=section,
+                status="saved" if has_value else "pending",
+                approval_status=approval_status,
+                changed_by_user_id=changed_by_user_id,
+                changed_by_user_name=None,  # Will be populated if needed
+                now_iso=now,
             )
             
-            # Trigger approval workflow and log audit for changed questions
-            if changed_by_user_id:
-                for question_key, new_value in responses.items():
-                    old_value = old_responses.get(question_key)
-                    value_changed = old_value != new_value
-                    
-                    # Always trigger approval check (handles re-submission of approved/rejected questions)
-                    try:
-                        await self._trigger_approval_if_required(
-                            org_id, question_key, reporting_year, new_value, changed_by_user_id
-                        )
-                        # Log to audit trail only if value actually changed
-                        if value_changed:
-                            await self._log_question_audit(
-                                org_id, question_key, reporting_year, 
-                                old_value, new_value, changed_by_user_id, "updated"
-                            )
-                    except Exception as e:
-                        print(f"Warning: Failed to trigger approval for {question_key}: {e}")
-        else:
-            doc = {
-                "id": str(uuid.uuid4()),
-                "org_id": org_id,
-                "framework": framework,
-                "reporting_year": reporting_year,
-                "section": section,
-                "responses": responses,
-                "created_at": now,
-                "updated_at": None,
-            }
-            await self._responses.insert_one(doc)
-            
-            # Trigger approval workflow and log audit for new questions
-            if changed_by_user_id:
-                for question_key, new_value in responses.items():
-                    try:
-                        await self._trigger_approval_if_required(
-                            org_id, question_key, reporting_year, new_value, changed_by_user_id
-                        )
-                        # Log to audit trail for version history (new question)
-                        if self._response_has_value(new_value):
-                            await self._log_question_audit(
-                                org_id, question_key, reporting_year,
-                                None, new_value, changed_by_user_id, "created"
-                            )
-                    except Exception as e:
-                        print(f"Warning: Failed to trigger approval for {question_key}: {e}")
+            # Log audit if value changed
+            if changed_by_user_id and value_changed and has_value:
+                action = "created" if existing is None else "updated"
+                try:
+                    await self._log_question_audit(
+                        org_id, question_key, reporting_year,
+                        old_value, new_value, changed_by_user_id, action
+                    )
+                except Exception as e:
+                    print(f"Warning: Failed to log audit for {question_key}: {e}")
 
     def _split_responses_by_year(
         self, 
