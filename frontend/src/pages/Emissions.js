@@ -443,8 +443,7 @@ export default function Emissions() {
         'stationary_combustion': ['stationary'],
         'mobile_combustion': ['mobile'],
         'energy': ['energy', 'electricity'],  // Support both new and legacy
-        'electricity': ['energy', 'electricity'],  // Legacy support
-        'process_emissions': ['process']
+        'electricity': ['energy', 'electricity']  // Legacy support
       };
       
       // Map method to formula name patterns for matching
@@ -1522,11 +1521,6 @@ export default function Emissions() {
       { value: 'energy', label: subcategoryLabelsMap['energy'] || 'Energy' }
     ];
     
-    // For supplier_basis, include process_emissions
-    if (scope3Method === 'supplier_basis') {
-      subcategories.push({ value: 'process_emissions', label: subcategoryLabelsMap['process_emissions'] || 'Process Emissions' });
-    }
-    
     return subcategories;
   }, [requiresSubcategory, scope3Method, configLabels.subcategories]);
 
@@ -1635,11 +1629,6 @@ export default function Emissions() {
         });
         return uniqueActivities;
       }
-      
-      // For process_emissions, return empty for now
-      if (scope3Subcategory === 'process_emissions') {
-        return [];
-      }
     }
     
     // Standard filtering for non-subcategory categories
@@ -1737,14 +1726,7 @@ export default function Emissions() {
       }
     });
     
-    let result = Array.from(cats);
-    
-    // Filter out Process Emissions from Scope 1 (removed per user request)
-    if (formData.scope === 'scope1') {
-      result = result.filter(c => c !== 'Process Emissions');
-    }
-    
-    return result.sort();
+    return Array.from(cats).sort();
   }, [formData.scope, getFuelsForScope, dynamicScopes, dynamicCategories, scope3EFData, activeScope, biogenicScopeSelection, biogenicCategories]);
 
   // Get fuels for selected category

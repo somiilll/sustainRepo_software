@@ -160,10 +160,6 @@ export default function EmissionEntryForm({
     c7FormulaName, setC7FormulaName,
     // Decision tree
     decisionFieldValues, setDecisionFieldValues,
-    // Process Emissions
-    selectedSubIndustry, setSelectedSubIndustry,
-    selectedTemplate, setSelectedTemplate,
-    templateInputValues, setTemplateInputValues,
     // Dynamic Form Config (Calc Engine)
     formConfig, setFormConfig,
     loadingFormConfig, setLoadingFormConfig,
@@ -790,11 +786,6 @@ export default function EmissionEntryForm({
         });
         return uniqueActivities;
       }
-      
-      // For process_emissions (supplier_basis only), return empty for now
-      if (scope3Subcategory === 'process_emissions') {
-        return [];
-      }
     }
     
     // Standard filtering for non-subcategory categories
@@ -993,12 +984,6 @@ export default function EmissionEntryForm({
       { value: 'energy', label: subcategoryLabelsMap['energy'] || 'Energy' }
     ];
     
-    // For activity_basis, don't show process_emissions (no data)
-    // For supplier_basis, include process_emissions
-    if (scope3Method === 'supplier_basis') {
-      subcategories.push({ value: 'process_emissions', label: subcategoryLabelsMap['process_emissions'] || 'Process Emissions' });
-    }
-    
     return subcategories;
   }, [requiresSubcategory, scope3Method, configLabels?.subcategories]);
 
@@ -1172,11 +1157,6 @@ export default function EmissionEntryForm({
 
     let result = Array.from(cats);
     
-    // Filter out Process Emissions from Scope 1 (removed per user request)
-    if (effectiveScopeForCategories === 'scope1') {
-      result = result.filter(c => c !== 'Process Emissions');
-    }
-    
     // For Scope 3, sort by category number (C1, C2, ... C15)
     if (effectiveScopeForCategories === 'scope3') {
       result.sort((a, b) => {
@@ -1189,10 +1169,7 @@ export default function EmissionEntryForm({
     }
     
     return result;
-  }, [fuelDatabase, scope, processTemplates, dynamicCategories, biogenicScopeSelection, biogenicCategories]);
-
-  // Check if Process Emissions category is selected
-  const isProcessEmissions = category === 'Process Emissions';
+  }, [fuelDatabase, scope, dynamicCategories, biogenicScopeSelection, biogenicCategories]);
 
   // ============================================================================
   // Dynamic Form Config - Get input fields from ce_input_field_mappings
@@ -2130,25 +2107,7 @@ export default function EmissionEntryForm({
     }
   }, [formConfig, frequencyType, selectedFuel, fuelId, dynamicCategories, category, scope, facilityId, dynamicInputFields, yearlyData, buildDecisionInputs, getAuthHeader, scope3Method, scope3ActivityId, filteredScope3Activities, useCustomActivity, scope3CustomActivity, requiresSubcategory, scope3Subcategory, biogenicScopeSelection, reportingYearType, reportingYear]);
 
-  // Get unique sub-industries from process templates
-  const availableSubIndustries = useMemo(() => {
-    if (!isProcessEmissions) return [];
-    const subIndustries = new Set();
-    processTemplates.forEach(t => {
-      if (t.sub_industry) {
-        subIndustries.add(t.sub_industry);
-      }
-    });
-    return Array.from(subIndustries).sort();
-  }, [processTemplates, isProcessEmissions]);
-
-  // Get templates for selected sub-industry
-  const templatesForSubIndustry = useMemo(() => {
-    if (!isProcessEmissions || !selectedSubIndustry) return [];
-    return processTemplates.filter(t => t.sub_industry === selectedSubIndustry);
-  }, [processTemplates, selectedSubIndustry, isProcessEmissions]);
-
-  // Evaluate formula with given values (for process emissions)
+  // Evaluate formula with given values
   const evaluateFormula = useCallback((formula, values) => {
     try {
       // Replace variable names with values
@@ -2710,13 +2669,6 @@ export default function EmissionEntryForm({
     const data = monthlyData[monthKey];
     if (!data) return 'empty';
     
-    // For process emissions, check if template input fields have data
-    if (isProcessEmissions && selectedTemplate) {
-      const inputFields = selectedTemplate.input_fields || [];
-      const hasData = inputFields.some(field => data[field.key] && parseFloat(data[field.key]) > 0);
-      return hasData ? 'filled' : 'empty';
-    }
-    
     // For Scope 3 with dynamic fields, check if required fields have values
     if ((scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && dynamicInputFields.length > 0) {
       const requiredFields = dynamicInputFields.filter(f => f.required && !f.isOverride);
@@ -2773,14 +2725,6 @@ export default function EmissionEntryForm({
       return monthsWithData.size;
     }
     
-    if (isProcessEmissions && selectedTemplate) {
-      // For process emissions, count months that have any template input field filled
-      const inputFields = selectedTemplate.input_fields || [];
-      return Object.values(monthlyData).filter(m => {
-        return inputFields.some(field => m?.[field.key] && parseFloat(m[field.key]) > 0);
-      }).length;
-    }
-    
     // For dynamic form config, check if any required field (non-override) has value
     if (dynamicInputFields.length > 0) {
       const requiredFields = dynamicInputFields.filter(f => !f.isOverride);
@@ -2794,14 +2738,13 @@ export default function EmissionEntryForm({
     
     // No dynamic fields loaded yet - return 0
     return 0;
-  }, [monthlyData, yearlyData, frequencyType, isProcessEmissions, selectedTemplate, dynamicInputFields, isC7EmployeeCommuting, employees]);
+  }, [monthlyData, yearlyData, frequencyType, dynamicInputFields, isC7EmployeeCommuting, employees]);
 
   // F4: Validation dispatcher delegates to extracted utils.
   // The util `canProceedToStep` covers cases 2/3/4 (legacy case 5 default-true preserved).
   const canProceedToStep = (step) => canProceedToStepUtil(step, {
     // Step 1 params
     facilityId, scope, category,
-    isProcessEmissions, selectedSubIndustry, selectedTemplate,
     scope3Method, scope3ActivityId, useCustomActivity, scope3CustomActivity,
     biogenicScopeSelection,
     useCustomFuel, fuelId, customFuelName, customEmissionFactor, customSource,
@@ -3082,11 +3025,11 @@ export default function EmissionEntryForm({
     monthlyData, yearlyData, processNames, responsiblePerson,
     responsiblePersonDesignation, responsiblePersonContact, notes, recordSource, supplierName,
     supplierCode, employeeName, employeeId, assetName, fromLocation, toLocation,
-    selectedSubIndustry, selectedTemplate, templateInputValues, dynamicCategories,
+    dynamicCategories,
     // Setters
     setIsSaving,
     // Computed
-    isC7EmployeeCommuting, isProcessEmissions, requiresSubcategory, selectedFuel,
+    isC7EmployeeCommuting, requiresSubcategory, selectedFuel,
     filteredScope3Activities, dynamicInputFields, centralizedUnits, defaultUnit,
     // Helpers
     canProceedToStep, getAuthHeader, onSuccess, getActualYearForMonth,
@@ -3214,11 +3157,6 @@ export default function EmissionEntryForm({
           filteredFuelsForCategory={filteredFuelsForCategory}
           getAvailableEFUnits={getAvailableEFUnits}
           getQuantityUnitFromEFUnit={getQuantityUnitFromEFUnit}
-          isProcessEmissions={isProcessEmissions}
-          selectedSubIndustry={selectedSubIndustry}
-          availableSubIndustries={availableSubIndustries}
-          selectedTemplate={selectedTemplate}
-          templatesForSubIndustry={templatesForSubIndustry}
           supplierName={supplierName}
           setSupplierName={setSupplierName}
           supplierCode={supplierCode}
@@ -3241,16 +3179,12 @@ export default function EmissionEntryForm({
       {/* Step 2: Process & Responsibility - Extracted to Step2ProcessResponsibility component */}
       {currentStep === 2 && (
         <Step2ProcessResponsibility
-          isProcessEmissions={isProcessEmissions}
-          selectedTemplate={selectedTemplate}
           responsiblePerson={responsiblePerson}
           setResponsiblePerson={setResponsiblePerson}
           responsiblePersonDesignation={responsiblePersonDesignation}
           setResponsiblePersonDesignation={setResponsiblePersonDesignation}
           responsiblePersonContact={responsiblePersonContact}
           setResponsiblePersonContact={setResponsiblePersonContact}
-          templateInputValues={templateInputValues}
-          setTemplateInputValues={setTemplateInputValues}
           processNames={processNames}
           addProcessName={addProcessName}
           removeProcessName={removeProcessName}
@@ -3337,8 +3271,6 @@ export default function EmissionEntryForm({
           filteredScope3Activities={filteredScope3Activities}
           useCustomActivity={useCustomActivity}
           scope3CustomActivity={scope3CustomActivity}
-          isProcessEmissions={isProcessEmissions}
-          selectedTemplate={selectedTemplate}
           scope={scope}
           biogenicScopeSelection={biogenicScopeSelection}
           useCustomFuel={useCustomFuel}

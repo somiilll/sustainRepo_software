@@ -72,11 +72,10 @@ export function useEmissionFormEffects({
       }
     };
 
-    const isProcess = category === 'Process Emissions';
     const biogenicReady = scope !== 'biogenic' || biogenicScopeSelection;
 
     // Fetch formConfig even for custom fuel - needed for methodology-based dynamic fields
-    if (scope && category && !isProcess && biogenicReady) {
+    if (scope && category && biogenicReady) {
       fetchFormConfig();
     } else {
       setFormConfig(null);

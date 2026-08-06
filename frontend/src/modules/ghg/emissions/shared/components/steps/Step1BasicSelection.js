@@ -96,13 +96,6 @@ export const Step1BasicSelection = ({
   getAvailableEFUnits,
   getQuantityUnitFromEFUnit,
   
-  // Process Emissions props
-  isProcessEmissions,
-  selectedSubIndustry,
-  availableSubIndustries,
-  selectedTemplate,
-  templatesForSubIndustry,
-  
   // Supplier/Employee props (optional info)
   supplierName,
   setSupplierName,
@@ -422,69 +415,8 @@ export const Step1BasicSelection = ({
         </div>
       )}
 
-      {/* Process Emissions - Sub-industry Selection */}
-      {isProcessEmissions && (
-        <div className="space-y-2">
-          <Label>Sub-Industry <span className="text-red-500">*</span></Label>
-          <select
-            value={selectedSubIndustry}
-            onChange={(e) => {
-              setSelectedSubIndustry(e.target.value);
-              setSelectedTemplate(null);
-              setTemplateInputValues({});
-            }}
-            className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-            data-testid="emission-subindustry-select"
-          >
-            <option value="">Select Sub-Industry</option>
-            {availableSubIndustries.map(si => (
-              <option key={si} value={si}>{si}</option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {/* Process Emissions - Approach/Template Selection */}
-      {isProcessEmissions && selectedSubIndustry && (
-        <div className="space-y-2">
-          <Label>Approach Used <span className="text-red-500">*</span></Label>
-          <select
-            value={selectedTemplate?.id || ''}
-            onChange={(e) => {
-              const template = templatesForSubIndustry.find(t => t.id === e.target.value);
-              setSelectedTemplate(template || null);
-              if (template) {
-                const initialValues = {};
-                template.predefined_inputs?.forEach(f => {
-                  initialValues[f.key] = f.value || '';
-                });
-                setTemplateInputValues(initialValues);
-              } else {
-                setTemplateInputValues({});
-              }
-            }}
-            className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-            data-testid="emission-template-select"
-          >
-            <option value="">Select Approach</option>
-            {templatesForSubIndustry.map(t => (
-              <option key={t.id} value={t.id}>{t.name}</option>
-            ))}
-          </select>
-          {selectedTemplate?.description && (
-            <p className="text-xs text-text-muted mt-1">{selectedTemplate.description}</p>
-          )}
-          {selectedTemplate && (
-            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg mt-2">
-              <p className="text-xs text-text-muted mb-1">Calculation Formula</p>
-              <code className="text-sm font-mono text-emerald-700">{selectedTemplate.formula}</code>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Scope 3: Method and Activity Selection */}
-      {category && !isProcessEmissions && scope === 'scope3' && (
+      {category && scope === 'scope3' && (
         <div className="space-y-4 mt-4 pb-6 border-b border-stone-200">
           {/* Method Selection */}
           <div className="space-y-2">
@@ -702,8 +634,8 @@ export const Step1BasicSelection = ({
         </div>
       )}
 
-      {/* Fuel Type - Only show for non-Scope 3, non-biogenic-scope3, and non-process emissions */}
-      {category && !isProcessEmissions && scope !== 'scope3' && !(scope === 'biogenic' && biogenicScopeSelection === 'scope3') && (
+      {/* Fuel Type - Only show for non-Scope 3, non-biogenic-scope3 */}
+      {category && scope !== 'scope3' && !(scope === 'biogenic' && biogenicScopeSelection === 'scope3') && (
         <div className="space-y-3 mt-4 pb-6 border-b border-stone-200">
           <div className="flex items-center justify-between">
             <Label>Fuel Type <span className="text-red-500">*</span></Label>
