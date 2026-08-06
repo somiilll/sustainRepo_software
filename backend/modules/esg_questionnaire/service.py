@@ -2737,17 +2737,20 @@ class ESGQuestionnaireService:
         section: str,
         data: ESGResponseCreate,
         changed_by_user_id: Optional[str] = None,
+        changed_by_user_name: Optional[str] = None,
+        is_admin: bool = False,
     ) -> Dict[str, Any]:
         """
-        Save responses using 1-document-per-year architecture.
+        Save responses using FLAT document structure (same as Section B/C/GRI).
+        
+        Each question gets its own document with question_key field.
+        Approval logic follows Section B/C pattern:
+        - Admin saves → approval_status = None (not required)
+        - No approval workflow → approval_status = None (not required)
+        - Approval workflow with approver → approval_status = "pending_approval"
         
         When user enters data for both Current FY and Previous FY columns,
-        this method splits the data into two separate year documents:
-        - Current FY data → saved to `reporting_year` document
-        - Previous FY data → saved to `previous_year` document
-        
-        Field names like `reused_current_fy` become `reused` in the stored document.
-        Also tracks version history for each question if changed_by_user_id is provided.
+        this method splits the data into two separate year documents.
         """
         now = datetime.now(timezone.utc).isoformat()
         previous_year = self._calculate_previous_fy(reporting_year)
@@ -2758,13 +2761,15 @@ class ESGQuestionnaireService:
         # Save current year data
         if current_year_data:
             await self._save_year_document(
-                org_id, framework, reporting_year, section, current_year_data, now, changed_by_user_id
+                org_id, framework, reporting_year, section, current_year_data, now, 
+                changed_by_user_id, changed_by_user_name, is_admin
             )
         
         # Save previous year data (if any previous_fy fields were filled)
         if previous_year_data:
             await self._save_year_document(
-                org_id, framework, previous_year, section, previous_year_data, now, changed_by_user_id
+                org_id, framework, previous_year, section, previous_year_data, now,
+                changed_by_user_id, changed_by_user_name, is_admin
             )
         
         # Return merged view (for frontend compatibility)
@@ -2779,14 +2784,17 @@ class ESGQuestionnaireService:
         responses: Dict[str, Any],
         now: str,
         changed_by_user_id: Optional[str] = None,
+        changed_by_user_name: Optional[str] = None,
+        is_admin: bool = False,
     ) -> None:
         """
         Save responses using FLAT document structure (1 doc per question_key).
         
-        This ensures Section A uses the same format as Section B/C/GRI:
-        - Each question gets its own document with question_key field
-        - Status is stored directly on the document (not in esg_assignments)
-        - Compatible with tracker/my-tasks status queries
+        Follows the same approval logic as Section B/C/GRI (save_gri_response):
+        - Admin saves → approval_status = None (not required)
+        - No approval workflow → approval_status = None (not required)  
+        - Approval workflow with approver assigned → approval_status = "pending_approval"
+        - Previously approved value changed → approval_status = "pending_approval"
         """
         for question_key, new_value in responses.items():
             # Get existing response for this question (flat format)
@@ -2794,28 +2802,39 @@ class ESGQuestionnaireService:
                 "org_id": org_id,
                 "question_key": question_key,
                 "reporting_year": reporting_year,
-            }, {"_id": 0})
+            }, {"_id": 0, "value": 1, "approval_status": 1, "status": 1})
             
             old_value = existing.get("value") if existing else None
+            previous_approval_status = existing.get("approval_status") if existing else None
             value_changed = old_value != new_value
-            
-            # Determine approval status
-            # Check if there's an assignment requiring approval
-            assignment = await db.esg_assignments.find_one({
-                "organization_id": org_id,
-                "entity_id": question_key,
-                "entity_type": "question",
-                "reporting_period": reporting_year,
-            }, {"_id": 0, "requires_approval": 1})
-            
-            requires_approval = assignment.get("requires_approval", False) if assignment else False
-            
-            # Set approval status based on whether value exists and requires approval
             has_value = self._response_has_value(new_value)
-            if has_value:
-                approval_status = "pending_approval" if requires_approval else "approved"
-            else:
-                approval_status = None
+            
+            # Determine approval status using same logic as Section B/C
+            # Use _should_use_direct_save to check if approval workflow applies
+            use_direct_save = await self._should_use_direct_save(org_id, question_key, reporting_year)
+            
+            # Admin always bypasses approval (direct save)
+            if is_admin:
+                use_direct_save = True
+            
+            # Determine final approval_status
+            final_approval_status = None  # Default: no approval required
+            
+            if has_value and not use_direct_save:
+                # Approval workflow applies - set to pending_approval
+                final_approval_status = "pending_approval"
+            elif has_value and use_direct_save:
+                # Direct save (no approval workflow or admin)
+                # Check if previously approved value was changed
+                was_approved = previous_approval_status == "approved"
+                if was_approved and value_changed:
+                    # Re-editing an approved answer should go back to pending
+                    # But only if there's an approval workflow (not admin override)
+                    if not is_admin:
+                        has_approver = await self._has_approver_assigned(org_id, question_key, reporting_year)
+                        if has_approver:
+                            final_approval_status = "pending_approval"
+                # Otherwise, no approval_status (None = not required)
             
             # Save using flat format (same as Section B/C/GRI)
             await self._save_to_unified_collection(
@@ -2826,9 +2845,9 @@ class ESGQuestionnaireService:
                 framework=framework,
                 section=section,
                 status="saved" if has_value else "pending",
-                approval_status=approval_status,
+                approval_status=final_approval_status,
                 changed_by_user_id=changed_by_user_id,
-                changed_by_user_name=None,  # Will be populated if needed
+                changed_by_user_name=changed_by_user_name,
                 now_iso=now,
             )
             
